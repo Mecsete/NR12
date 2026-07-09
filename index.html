@@ -1056,13 +1056,24 @@ async function onedriveEnviarBlob(subpasta, blob, filename){
   try{
     const caminho = `${ONEDRIVE_PASTA_APP}/${subpasta}/${filename}`
       .split("/").map(encodeURIComponent).join("/");
-    const url = `https://graph.microsoft.com/v1.0/me/drive/root:/${caminho}:/content`;
-    const resp = await fetch(url, {
+    // Usa sessão de upload em vez de PUT direto: o envio direto da Microsoft só aceita
+    // arquivos de até 4 MB — um risco com várias fotos passa disso com facilidade. A
+    // sessão de upload não tem esse limite prático (suporta dezenas de MB numa só vez).
+    const sessaoUrl = `https://graph.microsoft.com/v1.0/me/drive/root:/${caminho}:/createUploadSession`;
+    const sessaoResp = await fetch(sessaoUrl, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ item: { "@microsoft.graph.conflictBehavior": "replace" } })
+    });
+    if(!sessaoResp.ok) return false;
+    const sessao = await sessaoResp.json();
+    const tamanho = blob.size;
+    const uploadResp = await fetch(sessao.uploadUrl, {
       method: "PUT",
-      headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/octet-stream" },
+      headers: { "Content-Range": `bytes 0-${tamanho-1}/${tamanho}` },
       body: blob
     });
-    return resp.ok;
+    return uploadResp.ok;
   }catch(e){ return false; }
 }
 function suportaPastaLocal(){ return typeof window.showDirectoryPicker === "function"; }
@@ -1505,6 +1516,8 @@ async function sincronizarIncrementalOneDrive(){
   try{
     await onedriveSincronizarModulo("Simplificado", listarItensSincronizaveisSimples, __assinaturasOneDriveSimples);
     await onedriveSincronizarModulo("Completo", listarItensSincronizaveisCompleto, __assinaturasOneDriveCompleto);
+    STATE.ultimaSincronizacaoOneDriveEm = Date.now();
+    atualizarChipSync();
   }catch(e){}
 }
 
@@ -1774,8 +1787,19 @@ function tempoRelativoCurto(ts){
    direcionadas via atualizarChipSync()). Fica curto de propósito: ícone + tempo
    quando está tudo certo; ícone de alerta + frase curta quando precisa de ação. */
 function chipSyncHtml(){
-  if(__syncStatusAtual==="nao-suportado") return "";
+  const oneDriveOk = !!getOneDriveConta();
+  const relOneDrive = tempoRelativoCurto(STATE.ultimaSincronizacaoOneDriveEm);
+  // Pasta local não é suportada neste navegador (ex.: iPhone/Safari) — nesse caso o
+  // OneDrive é o ÚNICO mecanismo automático possível, então o chip passa a refletir
+  // só ele: selo neutro se conectado, alerta pedindo conexão se não.
+  if(__syncStatusAtual==="nao-suportado"){
+    if(oneDriveOk) return `<button class="syncbadge" id="syncChip" onclick="App.irParaConfigBackup()" title="Backup automático via OneDrive">${ic('onedrive')}${relOneDrive? `<span>${relOneDrive}</span>`:''}</button>`;
+    return `<button class="syncbadge alerta" id="syncChip" onclick="App.irParaConfigBackup()" title="Backup automático não configurado">${ic('warn')}<span>Conectar OneDrive</span></button>`;
+  }
   if(__syncStatusAtual==="sem-pasta"){
+    // Pasta local não configurada, mas o OneDrive pode estar cobrindo o backup
+    // automático sozinho — só alerta se NENHUM dos dois estiver ativo.
+    if(oneDriveOk) return `<button class="syncbadge" id="syncChip" onclick="App.irParaConfigBackup()" title="Backup automático via OneDrive">${ic('onedrive')}${relOneDrive? `<span>${relOneDrive}</span>`:''}</button>`;
     return `<button class="syncbadge alerta" id="syncChip" onclick="App.irParaConfigBackup()" title="Backup automático não configurado">${ic('warn')}<span>Configurar backup</span></button>`;
   }
   if(__syncStatusAtual==="erro"){
