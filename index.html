@@ -40,6 +40,11 @@
   --mono:ui-monospace,"SF Mono","Cascadia Mono","Roboto Mono",Menlo,Consolas,monospace;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+/* Tamanho padrão de qualquer ícone (ic()) usado em QUALQUER lugar do app. Existe para
+   que todo ícone novo já nasça do tamanho certo, mesmo sem uma classe específica —
+   contextos que precisam de outro tamanho (botões, chips, menu inferior etc.) têm
+   suas próprias regras mais específicas abaixo, que continuam vencendo normalmente. */
+svg{width:18px;height:18px;flex-shrink:0;vertical-align:-3px;}
 html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:var(--font);
   overscroll-behavior-y:none; /* impede o "puxar para baixo recarrega a página" do navegador,
                                   que fechava a tela atual quando o app é usado offline */
@@ -1452,6 +1457,57 @@ async function sincronizarIncrementalNaPasta(){
   }
 }
 
+async function onedriveApagarBlob(subpasta, filename){
+  if(!navigator.onLine) return false;
+  const token = await onedriveObterToken();
+  if(!token) return false;
+  try{
+    const caminho = `${ONEDRIVE_PASTA_APP}/${subpasta}/${filename}`
+      .split("/").map(encodeURIComponent).join("/");
+    const url = `https://graph.microsoft.com/v1.0/me/drive/root:/${caminho}:`;
+    const resp = await fetch(url, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${token}` }
+    });
+    return resp.ok || resp.status === 404;
+  }catch(e){ return false; }
+}
+let __assinaturasOneDriveSimples = { mapa:null };
+let __assinaturasOneDriveCompleto = { mapa:null };
+async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinaturasRef){
+  const itensAtuais = listarItens();
+  if(!mapaAssinaturasRef.mapa) mapaAssinaturasRef.mapa = new Map();
+  const assinaturas = mapaAssinaturasRef.mapa;
+  const idsAtuais = new Set(itensAtuais.map(it=>it.id));
+
+  const idsExcluidos = [];
+  assinaturas.forEach((registro, id)=>{ if(!idsAtuais.has(id)) idsExcluidos.push(id); });
+  for(const id of idsExcluidos){
+    const registro = assinaturas.get(id);
+    const subpasta = [SUBPASTA_BACKUP, raizModulo, ...registro.pasta].join("/");
+    const ok = await onedriveApagarBlob(subpasta, registro.arquivo);
+    if(ok) assinaturas.delete(id);
+  }
+
+  const pendentes = itensAtuais.filter(it => {
+    const registro = assinaturas.get(it.id);
+    return !registro || registro.atualizadoEm !== it.atualizadoEm;
+  });
+  for(const item of pendentes){
+    const subpasta = [SUBPASTA_BACKUP, raizModulo, ...item.pasta].join("/");
+    const blob = new Blob([JSON.stringify(item.dados,null,0)], {type:"application/json"});
+    const ok = await onedriveEnviarBlob(subpasta, blob, item.arquivo);
+    if(ok) assinaturas.set(item.id, {atualizadoEm:item.atualizadoEm, pasta:item.pasta, arquivo:item.arquivo});
+  }
+}
+async function sincronizarIncrementalOneDrive(){
+  if(!getOneDriveConta()) return;
+  try{
+    await onedriveSincronizarModulo("Simplificado", listarItensSincronizaveisSimples, __assinaturasOneDriveSimples);
+    await onedriveSincronizarModulo("Completo", listarItensSincronizaveisCompleto, __assinaturasOneDriveCompleto);
+  }catch(e){}
+}
+
 /* =========================================================================
    UTILITÁRIOS GERAIS
    ========================================================================= */
@@ -1692,6 +1748,7 @@ async function persistir(){
   try{ await dbSet(STATE); setSaveChip(false); }
   catch(e){ console.error("Falha ao salvar localmente", e); }
   sincronizarIncrementalNaPasta(); // em segundo plano, não atrasa nem depende do salvamento local
+  sincronizarIncrementalOneDrive(); // idem, independente da pasta local — funciona mesmo sem ela configurada
 }
 function setSaveChip(saving){
   const el = document.getElementById("saveChip");
@@ -3005,8 +3062,14 @@ function renderRiskResult(r){
    ========================================================================= */
 function screenSimplesProjetos(){
   const projetos = STATE.projetosSimples;
+  const avisoOneDrive = (!getOneDriveConta() && onedriveDisponivel()) ? `
+    <div class="card card-pad" style="border:1.5px solid #0364B8;display:flex;align-items:center;gap:10px" onclick="App.go('simples-config-backup')">
+      <span class="pasta-nome" style="color:#0364B8">${ic('onedrive')}</span>
+      <span style="flex:1"><b style="font-size:13.5px">OneDrive não conectado neste aparelho</b><br><span style="font-size:12px;color:var(--ink-dim)">Toque para conectar e ativar o backup automático</span></span>
+      ${ic('chevR')}
+    </div>` : '';
   if(projetos.length===0){
-    return `<div class="empty">${ic('briefcase')}<h3>Nenhum projeto cadastrado</h3><p>Crie o primeiro projeto do módulo simplificado.</p>
+    return `${avisoOneDrive}<div class="empty">${ic('briefcase')}<h3>Nenhum projeto cadastrado</h3><p>Crie o primeiro projeto do módulo simplificado.</p>
       <div style="margin-top:18px"><button class="btn btn-primary" onclick="App.abrirModalProjetoS(null)">${ic('plus')} Novo projeto</button></div></div>`;
   }
   const cards = projetos.slice().sort((a,b)=>b.criadoEm-a.criadoEm).map(p=>`
@@ -3019,7 +3082,7 @@ function screenSimplesProjetos(){
       </div>
       <div class="list-actions"><button class="icon-btn" onclick="App.menuProjetoS(event,'${p.id}')">${ic('dots')}</button></div>
     </div>`).join("");
-  return `<div class="section-title">${projetos.length} projeto${projetos.length===1?'':'s'}</div>${cards}
+  return `${avisoOneDrive}<div class="section-title">${projetos.length} projeto${projetos.length===1?'':'s'}</div>${cards}
     <div class="fab-wrap"><button class="fab" onclick="App.abrirModalProjetoS(null)">${ic('plus')}</button></div>`;
 }
 function screenSimplesAreas(){
@@ -3825,7 +3888,7 @@ function screenSimplesConfig(){
     <p style="font-size:13px;color:var(--ink-dim)">Backup, exportações e a integração opcional com Inteligência Artificial.</p>
   </div>
   <button class="btn btn-secondary btn-block" style="display:flex;align-items:center;gap:10px;justify-content:flex-start;padding:14px 16px" onclick="App.go('simples-config-backup')">
-    ${ic('shield')}<span style="flex:1;text-align:left"><b>Backup e Exportações</b><br><span style="font-size:12px;color:var(--ink-dim);font-weight:400">Salvar, importar, exportar Excel e Word</span></span>${ic('chevR')}
+    ${ic('onedrive')}<span style="flex:1;text-align:left"><b>Backup e Exportações</b><br><span style="font-size:12px;color:var(--ink-dim);font-weight:400">${getOneDriveConta()?`OneDrive conectado — ${getOneDriveConta().email}`:'OneDrive não conectado neste aparelho'}</span></span>${ic('chevR')}
   </button>
   <button class="btn btn-secondary btn-block" style="display:flex;align-items:center;gap:10px;justify-content:flex-start;padding:14px 16px;margin-top:10px" onclick="App.go('simples-config-empresa')">
     ${ic('briefcase')}<span style="flex:1;text-align:left"><b>Empresa e Responsáveis</b><br><span style="font-size:12px;color:var(--ink-dim);font-weight:400">Dados fixos do laudo e lista de inspetores</span></span>${ic('chevR')}
@@ -3857,7 +3920,7 @@ function screenSimplesConfigBackup(){
   <div class="section-title">OneDrive (backup automático na nuvem)</div>
   ${getOneDriveConta() ? `
   <div class="card card-pad">
-    <div style="font-weight:800;font-size:14px">${ic('onedrive')} Conectado</div>
+    <div class="pasta-nome" style="font-weight:800;font-size:14px">${ic('onedrive')} Conectado</div>
     <p style="font-size:12.5px;color:var(--ink-dim);margin-top:4px">Conta: <b>${getOneDriveConta().email}</b><br>Toda alteração e todo backup sobem automaticamente para a pasta <b>${ONEDRIVE_PASTA_APP}</b> no seu OneDrive, sem precisar de mais nada.</p>
   </div>
   <button class="btn btn-danger btn-block" style="margin-top:8px" onclick="App.onedriveDesconectar()">${ic('trash')} Desconectar OneDrive deste aparelho</button>
@@ -7257,9 +7320,9 @@ lerHandlePastaBase().then(handle=>{
      real na pasta — é o que detecta permissão perdida OU a pasta ter sido
      apagada no aparelho, mesmo sem nenhuma edição no meio do caminho. */
 setInterval(()=>{ atualizarChipSync(); }, 30000);
-setInterval(()=>{ if(document.visibilityState==="visible") sincronizarIncrementalNaPasta(); }, 120000);
+setInterval(()=>{ if(document.visibilityState==="visible"){ sincronizarIncrementalNaPasta(); sincronizarIncrementalOneDrive(); } }, 120000);
 document.addEventListener("visibilitychange", ()=>{
-  if(document.visibilityState==="visible") sincronizarIncrementalNaPasta();
+  if(document.visibilityState==="visible"){ sincronizarIncrementalNaPasta(); sincronizarIncrementalOneDrive(); }
 });
 
 </script>
