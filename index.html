@@ -1522,6 +1522,224 @@ async function sincronizarIncrementalOneDrive(){
 }
 
 /* =========================================================================
+   DOWNLOAD DO ONEDRIVE — visibilidade entre aparelhos conectados na mesma
+   conta. Busca só metadados (nome + tamanho, sem baixar conteúdo) do que
+   existe no OneDrive; itens novos (que este aparelho ainda não tem) e sem
+   foto são baixados e mesclados automaticamente, em qualquer conexão. Itens
+   com foto ficam "pendentes" até o usuário confirmar o download manual —
+   para nunca consumir dados móveis sem avisar.
+   Limitação conhecida: só reconstrói Área/Máquina/Tarefa/Risco cujo Projeto
+   já exista neste aparelho — o Projeto em si não tem arquivo próprio salvo
+   no OneDrive (só existe implícito no nome da pasta), então não há como
+   reconstruir sozinho um projeto totalmente novo criado só em outro aparelho.
+   Por ora cobre apenas o Módulo Simplificado (foco atual do app em campo).
+   ========================================================================= */
+const ONEDRIVE_LIMITE_AUTO_BYTES = 15 * 1024; // abaixo disso, certamente sem foto — baixa sozinho
+async function onedriveListarFilhos(caminhoPasta){
+  const token = await onedriveObterToken();
+  if(!token) return [];
+  const resultado = [];
+  let url = `https://graph.microsoft.com/v1.0/me/drive/root:/${caminhoPasta.split("/").map(encodeURIComponent).join("/")}:/children?$select=name,size,file,folder&$top=200`;
+  try{
+    while(url){
+      const resp = await fetch(url, { headers: { "Authorization": `Bearer ${token}` } });
+      if(!resp.ok) break;
+      const dados = await resp.json();
+      (dados.value||[]).forEach(item=>{ resultado.push({ nome: item.name, tamanho: item.size||0, pasta: !!item.folder }); });
+      url = dados["@odata.nextLink"] || null;
+    }
+  }catch(e){}
+  return resultado;
+}
+async function onedriveBaixarTexto(caminhoArquivo){
+  const token = await onedriveObterToken();
+  if(!token) return null;
+  try{
+    const url = `https://graph.microsoft.com/v1.0/me/drive/root:/${caminhoArquivo.split("/").map(encodeURIComponent).join("/")}:/content`;
+    const resp = await fetch(url, { headers: { "Authorization": `Bearer ${token}` } });
+    if(!resp.ok) return null;
+    return await resp.text();
+  }catch(e){ return null; }
+}
+function extrairSufixoDoNome(nome){
+  const m = /\(([a-z0-9]{6})\)$/i.exec(nome||"");
+  return m ? m[1] : null;
+}
+function idBateComSufixo(idReal, sufixo6){
+  return !!sufixo6 && String(idReal||"").slice(-6) === sufixo6;
+}
+/* Busca a árvore de pastas/arquivos a partir de caminhoPasta, só metadados
+   (sem baixar conteúdo). profundidadeRestante limita quantos níveis de pasta
+   ainda descer — evita recursão além da hierarquia conhecida (Projeto > Área
+   > Máquina > Tarefa). */
+async function onedriveListarArvore(caminhoPasta, profundidadeRestante){
+  const filhos = await onedriveListarFilhos(caminhoPasta);
+  const nos = [];
+  for(const f of filhos){
+    const caminhoFilho = `${caminhoPasta}/${f.nome}`;
+    if(f.pasta){
+      const sub = profundidadeRestante > 0 ? await onedriveListarArvore(caminhoFilho, profundidadeRestante-1) : [];
+      nos.push({ nome:f.nome, pasta:true, caminho:caminhoFilho, filhos: sub });
+    }else{
+      nos.push({ nome:f.nome, pasta:false, caminho:caminhoFilho, tamanho:f.tamanho });
+    }
+  }
+  return nos;
+}
+/* Percorre a árvore já buscada (em memória, sem mais chamadas de rede) e
+   separa o que é novo (não existe neste aparelho) em duas listas: pequeno
+   (sem foto, baixa sozinho) e grande (tem foto, fica pendente). */
+function onedriveClassificarNovosSimples(arvoreProjetos){
+  const pequenos = [], grandes = [];
+  const registrar = (tamanho, reg) => (tamanho<=ONEDRIVE_LIMITE_AUTO_BYTES ? pequenos : grandes).push(reg);
+  for(const nodeProj of arvoreProjetos){
+    if(!nodeProj.pasta) continue;
+    const projLocal = STATE.projetosSimples.find(p=>idBateComSufixo(p.id, extrairSufixoDoNome(nodeProj.nome)));
+    if(!projLocal) continue; // projeto novo demais para reconstruir sozinho — fora do escopo automático
+    for(const nodeArea of nodeProj.filhos){
+      if(!nodeArea.pasta) continue;
+      const areaLocal = projLocal.areas.find(a=>idBateComSufixo(a.id, extrairSufixoDoNome(nodeArea.nome)));
+      if(!areaLocal){
+        const arq = nodeArea.filhos.find(f=>!f.pasta && f.nome==="_area.json");
+        if(arq) registrar(arq.tamanho, { tipo:"area", projId:projLocal.id, caminho:arq.caminho, tamanho:arq.tamanho });
+        continue; // sem a área local, não dá pra descer pra máquina (não se sabe onde encaixar)
+      }
+      for(const nodeMaq of nodeArea.filhos){
+        if(!nodeMaq.pasta) continue;
+        const maqLocal = areaLocal.maquinas.find(m=>idBateComSufixo(m.id, extrairSufixoDoNome(nodeMaq.nome)));
+        if(!maqLocal){
+          const arq = nodeMaq.filhos.find(f=>!f.pasta && f.nome==="_maquina.json");
+          if(arq) registrar(arq.tamanho, { tipo:"maquina", projId:projLocal.id, areaId:areaLocal.id, caminho:arq.caminho, tamanho:arq.tamanho });
+          continue;
+        }
+        for(const nodeTar of nodeMaq.filhos){
+          if(!nodeTar.pasta) continue;
+          const tarLocal = maqLocal.tarefas.find(t=>idBateComSufixo(t.id, extrairSufixoDoNome(nodeTar.nome)));
+          if(!tarLocal){
+            const arq = nodeTar.filhos.find(f=>!f.pasta && f.nome==="_tarefa.json");
+            if(arq) registrar(arq.tamanho, { tipo:"tarefa", projId:projLocal.id, areaId:areaLocal.id, maquinaId:maqLocal.id, caminho:arq.caminho, tamanho:arq.tamanho });
+            continue;
+          }
+          for(const arq of nodeTar.filhos){
+            if(arq.pasta || arq.nome==="_tarefa.json") continue;
+            const m = /^risco_(.+)\.json$/.exec(arq.nome);
+            if(!m) continue;
+            if(!tarLocal.riscos.some(r=>r.id===m[1])){
+              registrar(arq.tamanho, { tipo:"risco", projId:projLocal.id, areaId:areaLocal.id, maquinaId:maqLocal.id, tarefaId:tarLocal.id, caminho:arq.caminho, tamanho:arq.tamanho });
+            }
+          }
+        }
+      }
+    }
+  }
+  return { pequenos, grandes };
+}
+/* Encaixa um item baixado no lugar certo da árvore local, por id — nunca
+   sobrescreve algo que já existe (proteção extra contra corrida entre
+   sincronizações simultâneas). Retorna true só se algo foi realmente inserido. */
+function onedriveMesclarItemNovo(descritor, dados){
+  const proj = STATE.projetosSimples.find(p=>p.id===descritor.projId);
+  if(!proj) return false;
+  if(descritor.tipo==="area"){
+    if(proj.areas.some(a=>a.id===dados.id)) return false;
+    proj.areas.push({ ...dados, maquinas: dados.maquinas || [] });
+    return true;
+  }
+  const area = proj.areas.find(a=>a.id===descritor.areaId);
+  if(!area) return false;
+  if(descritor.tipo==="maquina"){
+    if(area.maquinas.some(m=>m.id===dados.id)) return false;
+    area.maquinas.push({ ...dados, tarefas: dados.tarefas || [] });
+    return true;
+  }
+  const maquina = area.maquinas.find(m=>m.id===descritor.maquinaId);
+  if(!maquina) return false;
+  if(descritor.tipo==="tarefa"){
+    if(maquina.tarefas.some(t=>t.id===dados.id)) return false;
+    maquina.tarefas.push({ ...dados, riscos: dados.riscos || [] });
+    return true;
+  }
+  const tarefa = maquina.tarefas.find(t=>t.id===descritor.tarefaId);
+  if(!tarefa) return false;
+  if(descritor.tipo==="risco"){
+    if(tarefa.riscos.some(r=>r.id===dados.id)) return false;
+    tarefa.riscos.push(dados);
+    return true;
+  }
+  return false;
+}
+function onedriveEstaEmWifi(){
+  try{
+    const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    return !!(conn && conn.type === "wifi");
+  }catch(e){ return false; }
+}
+async function sincronizarDownloadOneDrive(){
+  if(!getOneDriveConta()) return;
+  try{
+    const arvore = await onedriveListarArvore(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`, 4);
+    const { pequenos, grandes } = onedriveClassificarNovosSimples(arvore);
+    let algumaMudanca = false;
+    for(const item of pequenos){
+      const texto = await onedriveBaixarTexto(item.caminho);
+      if(!texto) continue;
+      try{ const dados = JSON.parse(texto); if(onedriveMesclarItemNovo(item, dados)) algumaMudanca = true; }catch(e){}
+    }
+    let pendentesRestantes = grandes;
+    if(STATE.baixarFotosAutoWifi && onedriveEstaEmWifi()){
+      const aindaPendentes = [];
+      for(const item of grandes){
+        const texto = await onedriveBaixarTexto(item.caminho);
+        if(!texto){ aindaPendentes.push(item); continue; }
+        try{
+          const dados = JSON.parse(texto);
+          if(!onedriveMesclarItemNovo(item, dados)) aindaPendentes.push(item);
+          else algumaMudanca = true;
+        }catch(e){ aindaPendentes.push(item); }
+      }
+      pendentesRestantes = aindaPendentes;
+    }
+    STATE.oneDrivePendentes = pendentesRestantes;
+    if(algumaMudanca){ dbSet(STATE); render(); toast("Novos itens recebidos do OneDrive"); }
+    atualizarChipSync();
+  }catch(e){}
+}
+async function onedriveBaixarPendentes(){
+  const pendentes = STATE.oneDrivePendentes || [];
+  if(pendentes.length===0) return;
+  let algumaMudanca = false;
+  const restantes = [];
+  for(const item of pendentes){
+    const texto = await onedriveBaixarTexto(item.caminho);
+    if(!texto){ restantes.push(item); continue; }
+    try{
+      const dados = JSON.parse(texto);
+      if(onedriveMesclarItemNovo(item, dados)) algumaMudanca = true;
+      else restantes.push(item);
+    }catch(e){ restantes.push(item); }
+  }
+  STATE.oneDrivePendentes = restantes;
+  if(algumaMudanca){ dbSet(STATE); render(); }
+  atualizarChipSync();
+}
+async function onedriveBaixarPendentesConfirmar(){
+  const pendentes = STATE.oneDrivePendentes || [];
+  if(pendentes.length===0){ toast("Nada pendente para baixar"); return; }
+  const totalMB = (pendentes.reduce((s,p)=>s+(p.tamanho||0),0)/1024/1024).toFixed(1);
+  const plural = pendentes.length===1 ? "item" : "itens";
+  if(!confirm(`Baixar ${pendentes.length} ${plural} com fotos do OneDrive? Consumo estimado: ${totalMB} MB.`)) return;
+  toast("Baixando…");
+  await onedriveBaixarPendentes();
+  toast("Download concluído");
+}
+function onedriveToggleAutoWifi(){
+  STATE.baixarFotosAutoWifi = !STATE.baixarFotosAutoWifi;
+  marcarAlterado();
+  render();
+  toast(STATE.baixarFotosAutoWifi ? "Vai baixar fotos sozinho quando estiver no Wi-Fi" : "Fotos só serão baixadas manualmente");
+}
+
+/* =========================================================================
    UTILITÁRIOS GERAIS
    ========================================================================= */
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
@@ -3948,6 +4166,20 @@ function screenSimplesConfigBackup(){
     <p style="font-size:12.5px;color:var(--ink-dim);margin-top:4px">Conta: <b>${getOneDriveConta().email}</b><br>Toda alteração e todo backup sobem automaticamente para a pasta <b>${ONEDRIVE_PASTA_APP}</b> no seu OneDrive, sem precisar de mais nada.</p>
   </div>
   <button class="btn btn-danger btn-block" style="margin-top:8px" onclick="App.onedriveDesconectar()">${ic('trash')} Desconectar OneDrive deste aparelho</button>
+  <div class="section-title">Visibilidade entre aparelhos</div>
+  <div class="card card-pad">
+    <p style="font-size:12.5px;color:var(--ink-dim)">Áreas, máquinas, tarefas e riscos novos criados em outro aparelho (mesma conta OneDrive) aparecem aqui automaticamente. O texto vem sozinho, em qualquer conexão. Fotos ficam pendentes até você confirmar o download, para não gastar dados do seu plano sem avisar.</p>
+  </div>
+  <div class="card card-pad" style="display:flex;align-items:center;gap:12px;margin-top:8px">
+    <div style="flex:1">
+      <div style="font-weight:800;font-size:14px">Baixar fotos sozinho no Wi-Fi</div>
+      <div style="font-size:12px;color:var(--ink-dim)">Fora do Wi-Fi, fotos sempre ficam pendentes para download manual.</div>
+    </div>
+    <label class="switch"><input type="checkbox" ${STATE.baixarFotosAutoWifi?'checked':''} onchange="App.onedriveToggleAutoWifi()"><span class="switch-track"></span></label>
+  </div>
+  ${(STATE.oneDrivePendentes||[]).length>0 ? `
+  <button class="btn btn-onedrive btn-block" style="margin-top:8px" onclick="App.onedriveBaixarPendentesConfirmar()">${ic('onedrive')} Baixar ${STATE.oneDrivePendentes.length} ${STATE.oneDrivePendentes.length===1?'item':'itens'} com fotos (~${(STATE.oneDrivePendentes.reduce((s,p)=>s+(p.tamanho||0),0)/1024/1024).toFixed(1)} MB)</button>
+  ` : ''}
   ` : `
   <div class="card card-pad">
     <p style="font-size:13px;color:var(--ink-dim)">Conecte sua conta Microsoft uma vez para os backups subirem automaticamente para o OneDrive, direto pelo app — sem depender de sincronização de pasta.</p>
@@ -5659,6 +5891,8 @@ const App = {
   cardClickGenerico,
   onedriveConectar,
   onedriveDesconectar,
+  onedriveBaixarPendentesConfirmar,
+  onedriveToggleAutoWifi,
   fecharModal(){ const el=document.getElementById("overlayRoot"); if(el) el.remove(); },
   async compartilharArquivoPronto(){
     const pend = __arquivoProntoParaCompartilhar; if(!pend) return;
@@ -7344,9 +7578,9 @@ lerHandlePastaBase().then(handle=>{
      real na pasta — é o que detecta permissão perdida OU a pasta ter sido
      apagada no aparelho, mesmo sem nenhuma edição no meio do caminho. */
 setInterval(()=>{ atualizarChipSync(); }, 30000);
-setInterval(()=>{ if(document.visibilityState==="visible"){ sincronizarIncrementalNaPasta(); sincronizarIncrementalOneDrive(); } }, 120000);
+setInterval(()=>{ if(document.visibilityState==="visible"){ sincronizarIncrementalNaPasta(); sincronizarIncrementalOneDrive(); sincronizarDownloadOneDrive(); } }, 120000);
 document.addEventListener("visibilitychange", ()=>{
-  if(document.visibilityState==="visible"){ sincronizarIncrementalNaPasta(); sincronizarIncrementalOneDrive(); }
+  if(document.visibilityState==="visible"){ sincronizarIncrementalNaPasta(); sincronizarIncrementalOneDrive(); sincronizarDownloadOneDrive(); }
 });
 
 </script>
