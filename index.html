@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1E2148">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>APR Campo · MecSete Engenharia</title>
 <style>
 :root{
@@ -125,6 +128,7 @@ a{color:var(--accent-ink);}
 .btn-ghost{background:transparent;color:var(--ink-dim);}
 .btn-ghost:active{background:var(--bg-soft);}
 .btn-danger{background:#FCE7E5;color:var(--danger);}
+.btn-onedrive{background:#0364B8;color:#fff;}
 .btn-danger:active{background:#F8D2CE;}
 .btn-dark{background:var(--bar);color:var(--on-bar);}
 .btn-dark:active{background:var(--bar-2);}
@@ -400,6 +404,7 @@ const ICON = {
   grip:'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>',
   sort:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9l4-5 4 5M8 15l4 5 4-5"/></svg>',
   folder:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a1.5 1.5 0 011.5-1.5h4.4l1.6 2H19.5A1.5 1.5 0 0121 9v9a1.5 1.5 0 01-1.5 1.5h-15A1.5 1.5 0 013 18V7z"/></svg>',
+  onedrive:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 18.5h10a3.5 3.5 0 000-7 4.8 4.8 0 00-9.2-1.6A4 4 0 007.5 18.5z"/></svg>',
 };
 function ic(name){return ICON[name]||'';}
 const OUTRO = "__outro__";
@@ -3780,7 +3785,7 @@ function screenSimplesConfigBackup(){
   <div class="section-title">OneDrive (backup automático na nuvem)</div>
   ${getOneDriveConta() ? `
   <div class="card card-pad">
-    <div style="font-weight:800;font-size:14px">${ic('shield')} Conectado</div>
+    <div style="font-weight:800;font-size:14px">${ic('onedrive')} Conectado</div>
     <p style="font-size:12.5px;color:var(--ink-dim);margin-top:4px">Conta: <b>${getOneDriveConta().email}</b><br>Toda alteração e todo backup sobem automaticamente para a pasta <b>${ONEDRIVE_PASTA_APP}</b> no seu OneDrive, sem precisar de mais nada.</p>
   </div>
   <button class="btn btn-danger btn-block" style="margin-top:8px" onclick="App.onedriveDesconectar()">${ic('trash')} Desconectar OneDrive deste aparelho</button>
@@ -3788,7 +3793,7 @@ function screenSimplesConfigBackup(){
   <div class="card card-pad">
     <p style="font-size:13px;color:var(--ink-dim)">Conecte sua conta Microsoft uma vez para os backups subirem automaticamente para o OneDrive, direto pelo app — sem depender de sincronização de pasta.</p>
   </div>
-  <button class="btn btn-primary btn-block" style="margin-top:8px" onclick="App.onedriveConectar()">${ic('folder')} Conectar OneDrive</button>
+  <button class="btn btn-onedrive btn-block" style="margin-top:8px" onclick="App.onedriveConectar()">${ic('onedrive')} Conectar OneDrive</button>
   `}
   <div class="section-title">Pasta de backup e exportações</div>
   ${!suportaPastaLocal() ? `
