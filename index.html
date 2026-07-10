@@ -55,7 +55,7 @@ button{cursor:pointer;}
 h1,h2,h3,h4,p,ul{margin:0;}
 a{color:var(--accent-ink);}
 ::selection{background:var(--accent-soft);}
-#app{min-height:100vh;display:flex;flex-direction:column;overscroll-behavior-y:none;}
+#app{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;overscroll-behavior-y:none;}
 .hazard-stripe{height:5px;width:100%;background:repeating-linear-gradient(135deg,#14163A 0 10px,var(--accent) 10px 20px);flex-shrink:0;}
 .topbar{background:var(--bar);color:var(--on-bar);padding:12px 12px 10px;position:sticky;top:0;z-index:20;flex-shrink:0;}
 .topbar-row{display:flex;align-items:center;gap:8px;}
@@ -998,8 +998,14 @@ function getOneDriveConta(){
   try{ return JSON.parse(localStorage.getItem("onedriveConta") || "null"); }catch(e){ return null; }
 }
 function setOneDriveConta(info){
-  if(info) localStorage.setItem("onedriveConta", JSON.stringify(info));
-  else localStorage.removeItem("onedriveConta");
+  try{
+    if(info) localStorage.setItem("onedriveConta", JSON.stringify(info));
+    else localStorage.removeItem("onedriveConta");
+  }catch(e){
+    // Navegador recusou gravar (ex.: modo privado com restrição de armazenamento).
+    // A conexão MSAL em si continua válida na memória desta sessão; só não vai
+    // ser lembrada na próxima vez que o app abrir — melhor que travar o login.
+  }
 }
 async function getMsalInstance(){
   if(__msalInstance) return __msalInstance;
@@ -1026,6 +1032,7 @@ async function onedriveConectar(){
     setOneDriveConta({ nome: resultado.account.name, email: resultado.account.username });
     toast("OneDrive conectado");
     render();
+    onedriveVerificarBootstrapNovoDispositivo(true); // aparelho vazio? oferece trazer os dados que já existem na nuvem
     return true;
   }catch(e){
     toast("Não foi possível conectar ao OneDrive");
@@ -1540,15 +1547,20 @@ async function onedriveListarFilhos(caminhoPasta){
   if(!token) return [];
   const resultado = [];
   let url = `https://graph.microsoft.com/v1.0/me/drive/root:/${caminhoPasta.split("/").map(encodeURIComponent).join("/")}:/children?$select=name,size,file,folder&$top=200`;
-  try{
-    while(url){
-      const resp = await fetch(url, { headers: { "Authorization": `Bearer ${token}` } });
-      if(!resp.ok) break;
-      const dados = await resp.json();
-      (dados.value||[]).forEach(item=>{ resultado.push({ nome: item.name, tamanho: item.size||0, pasta: !!item.folder }); });
-      url = dados["@odata.nextLink"] || null;
-    }
-  }catch(e){}
+  // Uma resposta de erro da própria API (ex.: pasta ainda não existe, comum na
+  // primeira vez) é tratada como "vazio", não como falha. Já uma falha real de
+  // rede (sem conexão, DNS, etc.) é repassada para quem chamou decidir o que
+  // fazer — a sincronização automática em segundo plano ignora silenciosamente
+  // (como sempre foi), mas checagens únicas como o bootstrap de aparelho novo
+  // usam isso para avisar a pessoa que algo deu errado, em vez de parecer que
+  // simplesmente não havia nada lá.
+  while(url){
+    const resp = await fetch(url, { headers: { "Authorization": `Bearer ${token}` } });
+    if(!resp.ok) break;
+    const dados = await resp.json();
+    (dados.value||[]).forEach(item=>{ resultado.push({ nome: item.name, tamanho: item.size||0, pasta: !!item.folder }); });
+    url = dados["@odata.nextLink"] || null;
+  }
   return resultado;
 }
 async function onedriveBaixarTexto(caminhoArquivo){
@@ -1721,6 +1733,106 @@ async function onedriveBaixarPendentes(){
   STATE.oneDrivePendentes = restantes;
   if(algumaMudanca){ dbSet(STATE); render(); }
   atualizarChipSync();
+}
+/* Soma o tamanho estimado (bytes) de tudo que este aparelho ainda não enviou
+   ao OneDrive — sem enviar nada, só calcula. Usado para dar um número honesto
+   na hora de pedir confirmação em "Sincronizar agora" fora do Wi-Fi. */
+function onedriveEstimarPendentesUpload(){
+  let totalBytes = 0, totalItens = 0;
+  const contar = (listarItens, mapaRef) => {
+    const itensAtuais = listarItens();
+    const assinaturas = mapaRef.mapa || new Map();
+    for(const item of itensAtuais){
+      const registro = assinaturas.get(item.id);
+      if(!registro || registro.atualizadoEm !== item.atualizadoEm){
+        totalBytes += new TextEncoder().encode(JSON.stringify(item.dados||{})).length;
+        totalItens++;
+      }
+    }
+  };
+  contar(listarItensSincronizaveisSimples, __assinaturasOneDriveSimples);
+  contar(listarItensSincronizaveisCompleto, __assinaturasOneDriveCompleto);
+  return { totalBytes, totalItens };
+}
+/* Mesma checagem leve (só metadados) usada pela sincronização automática de
+   download, mas chamada isoladamente para poder mostrar a estimativa ANTES
+   de decidir se baixa ou pede confirmação. */
+async function onedriveEstimarPendentesDownload(){
+  if(!getOneDriveConta()) return { pequenos:[], grandes:[] };
+  try{
+    const arvore = await onedriveListarArvore(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`, 4);
+    return onedriveClassificarNovosSimples(arvore);
+  }catch(e){ return { pequenos:[], grandes:[] }; }
+}
+/* Botão "Sincronizar agora": força upload + download imediatamente, em vez de
+   esperar o ciclo automático de 2 minutos. Fora do Wi-Fi, mostra quanto vai
+   consumir e só prossegue com a confirmação do usuário — mesmo espírito do
+   botão de baixar fotos pendentes, só que cobrindo os dois sentidos de uma vez. */
+async function onedriveSincronizarAgora(){
+  if(!getOneDriveConta()){ toast("Conecte o OneDrive primeiro"); return; }
+  toast("Verificando o que precisa sincronizar…");
+  const upload = onedriveEstimarPendentesUpload();
+  const download = await onedriveEstimarPendentesDownload();
+  const bytesFotosPendentes = download.grandes.reduce((s,p)=>s+(p.tamanho||0),0);
+  const totalBytesGeral = upload.totalBytes + bytesFotosPendentes;
+
+  if(totalBytesGeral===0 && download.pequenos.length===0){
+    toast("Já está tudo sincronizado");
+    return;
+  }
+
+  const LIMIAR_PERGUNTAR_BYTES = 50*1024; // abaixo disso não vale incomodar com confirmação
+  if(!onedriveEstaEmWifi() && totalBytesGeral > LIMIAR_PERGUNTAR_BYTES){
+    const totalMB = (totalBytesGeral/1024/1024).toFixed(1);
+    const partes = [];
+    if(upload.totalItens>0) partes.push(`${upload.totalItens} ${upload.totalItens===1?'alteração sua':'alterações suas'}`);
+    if(download.grandes.length>0) partes.push(`${download.grandes.length} ${download.grandes.length===1?'foto':'fotos'} de outro aparelho`);
+    const detalhe = partes.length ? ` (${partes.join(' + ')})` : '';
+    if(!confirm(`Você não parece estar no Wi-Fi. Sincronizar agora deve consumir aproximadamente ${totalMB} MB de dados móveis${detalhe}. Continuar?`)){
+      toast("Sincronização cancelada");
+      return;
+    }
+  }
+
+  toast("Sincronizando…");
+  await sincronizarIncrementalOneDrive();
+  await sincronizarDownloadOneDrive();
+  if((STATE.oneDrivePendentes||[]).length>0){
+    await onedriveBaixarPendentes();
+  }
+  toast("Sincronização concluída");
+}
+/* Aparelho novo, sem NENHUM projeto local: como o Projeto em si não tem arquivo
+   próprio no OneDrive (só existe implícito no nome da pasta), a sincronização
+   incremental normal não tem como reconstruí-lo sozinha. Aqui, só nesse caso
+   específico (aparelho realmente vazio), busca o backup manual completo mais
+   recente salvo no OneDrive e oferece importá-lo — usando a MESMA tela de
+   revisão já usada para importação manual, então nada entra sem o usuário
+   conferir e confirmar antes. */
+async function onedriveVerificarBootstrapNovoDispositivo(avisar){
+  if(!getOneDriveConta()){ if(avisar) toast("Conecte o OneDrive primeiro"); return; }
+  if((STATE.projetosSimples||[]).length > 0 || (STATE.projetos||[]).length > 0){
+    if(avisar) toast("Este aparelho já tem dados — nada a trazer automaticamente");
+    return;
+  }
+  if(__importPreview) return; // já existe uma revisão de importação aberta na tela
+  if(avisar) toast("Procurando dados no OneDrive…");
+  try{
+    const arquivos = await onedriveListarFilhos(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}`);
+    const backups = arquivos.filter(f=>!f.pasta && /^backup_apr_.*\.json$/i.test(f.nome)).sort((a,b)=> a.nome < b.nome ? 1 : -1);
+    if(backups.length===0){ if(avisar) toast("Nenhum backup completo encontrado no OneDrive ainda"); return; }
+    const maisRecente = backups[0];
+    const texto = await onedriveBaixarTexto(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/${maisRecente.nome}`);
+    if(!texto){ if(avisar) toast("Não foi possível baixar o backup do OneDrive agora — tente de novo"); return; }
+    const dados = JSON.parse(texto);
+    if(!dados || (!Array.isArray(dados.projetos) && !Array.isArray(dados.projetosSimples))){
+      if(avisar) toast("O backup encontrado no OneDrive não é válido");
+      return;
+    }
+    abrirRevisaoImportacao(dados, `OneDrive: ${maisRecente.nome}`);
+  }catch(e){
+    if(avisar) toast("Não foi possível verificar o OneDrive agora — tente de novo");
+  }
 }
 async function onedriveBaixarPendentesConfirmar(){
   const pendentes = STATE.oneDrivePendentes || [];
@@ -2458,7 +2570,7 @@ function renderCompleto(){
    ========================================================================= */
 function screenModuloSelect(){
   return `
-  <div style="min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:24px;background:var(--bar)">
+  <div style="min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;justify-content:center;padding:24px;background:var(--bar)">
     <div style="text-align:center;margin-bottom:26px">
       <div style="color:#fff;font-size:21px;font-weight:800">APR de Campo</div>
       <div style="color:var(--on-bar-dim);font-size:12.5px;margin-top:2px">MecSete Engenharia · Escolha o módulo</div>
@@ -4165,9 +4277,13 @@ function screenSimplesConfigBackup(){
     <div class="pasta-nome" style="font-weight:800;font-size:14px">${ic('onedrive')} Conectado</div>
     <p style="font-size:12.5px;color:var(--ink-dim);margin-top:4px">Conta: <b>${getOneDriveConta().email}</b><br>Toda alteração e todo backup sobem automaticamente para a pasta <b>${ONEDRIVE_PASTA_APP}</b> no seu OneDrive, sem precisar de mais nada.</p>
   </div>
+  ${((STATE.projetosSimples||[]).length===0 && (STATE.projetos||[]).length===0) ? `
+  <button class="btn btn-onedrive btn-block" style="margin-top:8px" onclick="App.onedriveVerificarBootstrapNovoDispositivo(true)">${ic('onedrive')} Trazer dados já existentes no OneDrive</button>
+  ` : ''}
   <button class="btn btn-danger btn-block" style="margin-top:8px" onclick="App.onedriveDesconectar()">${ic('trash')} Desconectar OneDrive deste aparelho</button>
   <div class="section-title">Visibilidade entre aparelhos</div>
-  <div class="card card-pad">
+  <button class="btn btn-onedrive btn-block" onclick="App.onedriveSincronizarAgora()">${ic('onedrive')} Sincronizar agora</button>
+  <div class="card card-pad" style="margin-top:8px">
     <p style="font-size:12.5px;color:var(--ink-dim)">Áreas, máquinas, tarefas e riscos novos criados em outro aparelho (mesma conta OneDrive) aparecem aqui automaticamente. O texto vem sozinho, em qualquer conexão. Fotos ficam pendentes até você confirmar o download, para não gastar dados do seu plano sem avisar.</p>
   </div>
   <div class="card card-pad" style="display:flex;align-items:center;gap:12px;margin-top:8px">
@@ -5893,6 +6009,8 @@ const App = {
   onedriveDesconectar,
   onedriveBaixarPendentesConfirmar,
   onedriveToggleAutoWifi,
+  onedriveVerificarBootstrapNovoDispositivo,
+  onedriveSincronizarAgora,
   fecharModal(){ const el=document.getElementById("overlayRoot"); if(el) el.remove(); },
   async compartilharArquivoPronto(){
     const pend = __arquivoProntoParaCompartilhar; if(!pend) return;
@@ -7538,6 +7656,15 @@ function migrarParaHierarquiaV4(saved){
 let __modeloCustomCarregado = false;
 attachLongPressHandlers();
 render();
+// Pré-carrega a instância do MSAL assim que o app abre, sem esperar nenhum
+// clique. Isso é importante especialmente no iPhone (Safari/WebKit, mesmo
+// dentro do Chrome): se a criação/inicialização dessa instância só começasse
+// depois do toque em "Conectar OneDrive", o tempo de espera no meio do
+// caminho faz o navegador não reconhecer mais aquele toque como o gesto que
+// autoriza abrir a janela de login, e ela é bloqueada silenciosamente. Pré-
+// carregando aqui, na hora do toque já está tudo pronto, sem nenhuma espera
+// entre o toque e a janela abrir.
+getMsalInstance().catch(()=>{});
 lerModeloWordCustom().then(b64=>{
   __modeloCustomCarregado = !!b64;
   render();
