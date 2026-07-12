@@ -1680,7 +1680,15 @@ function onedriveMesclarItemNovo(descritor, dados){
   }
   return false;
 }
+/* O Chrome (Windows, Android — em qualquer lugar) nunca chegou a preencher de
+   verdade a informação "isto é Wi-Fi" dessa API do navegador (é uma limitação
+   conhecida da própria Google, sem previsão de correção — só a Microsoft/
+   Firefox implementam isso corretamente, e olhe lá). Por isso, confiar cegamente
+   nela gera avisos de "parece não estar no Wi-Fi" errados, mesmo conectado.
+   A solução real é deixar a pessoa confirmar manualmente (STATE.wifiConfirmado),
+   e usar a API do navegador só como pista secundária, nunca como única fonte. */
 function onedriveEstaEmWifi(){
+  if(STATE.wifiConfirmado) return true;
   try{
     const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
     return !!(conn && conn.type === "wifi");
@@ -1758,11 +1766,11 @@ function onedriveEstimarPendentesUpload(){
    download, mas chamada isoladamente para poder mostrar a estimativa ANTES
    de decidir se baixa ou pede confirmação. */
 async function onedriveEstimarPendentesDownload(){
-  if(!getOneDriveConta()) return { pequenos:[], grandes:[] };
+  if(!getOneDriveConta()) return { pequenos:[], grandes:[], erro:false };
   try{
     const arvore = await onedriveListarArvore(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`, 4);
-    return onedriveClassificarNovosSimples(arvore);
-  }catch(e){ return { pequenos:[], grandes:[] }; }
+    return { ...onedriveClassificarNovosSimples(arvore), erro:false };
+  }catch(e){ return { pequenos:[], grandes:[], erro:true }; }
 }
 /* Botão "Sincronizar agora": força upload + download imediatamente, em vez de
    esperar o ciclo automático de 2 minutos. Fora do Wi-Fi, mostra quanto vai
@@ -1773,6 +1781,13 @@ async function onedriveSincronizarAgora(){
   toast("Verificando o que precisa sincronizar…");
   const upload = onedriveEstimarPendentesUpload();
   const download = await onedriveEstimarPendentesDownload();
+  if(download.erro){
+    // Não confunde "não achei nada novo" com "não consegui nem checar" — sem
+    // isso, uma falha de rede pontual parecia exatamente igual a "está tudo
+    // sincronizado", escondendo o problema real.
+    toast("Não foi possível verificar o que há de novo no OneDrive agora. Tente de novo em instantes.", false);
+    return;
+  }
   const bytesFotosPendentes = download.grandes.reduce((s,p)=>s+(p.tamanho||0),0);
   const totalBytesGeral = upload.totalBytes + bytesFotosPendentes;
 
@@ -1794,13 +1809,20 @@ async function onedriveSincronizarAgora(){
     }
   }
 
-  toast("Sincronizando…");
+  toast(`Enviando suas alterações${upload.totalItens>0?` (${upload.totalItens})`:''}…`);
   await sincronizarIncrementalOneDrive();
+  toast("Recebendo alterações de outros aparelhos…");
   await sincronizarDownloadOneDrive();
-  if((STATE.oneDrivePendentes||[]).length>0){
+  const pendentesAntes = (STATE.oneDrivePendentes||[]).length;
+  if(pendentesAntes>0){
+    toast(`Baixando ${pendentesAntes} ${pendentesAntes===1?'foto':'fotos'}…`);
     await onedriveBaixarPendentes();
   }
-  toast("Sincronização concluída");
+  const recebidos = download.pequenos.length + (pendentesAntes - (STATE.oneDrivePendentes||[]).length);
+  const resumo = [];
+  if(upload.totalItens>0) resumo.push(`${upload.totalItens} enviado${upload.totalItens===1?'':'s'}`);
+  if(recebidos>0) resumo.push(`${recebidos} recebido${recebidos===1?'':'s'}`);
+  toast(resumo.length ? `Sincronização concluída — ${resumo.join(', ')}` : "Sincronização concluída");
 }
 /* Aparelho novo, sem NENHUM projeto local: como o Projeto em si não tem arquivo
    próprio no OneDrive (só existe implícito no nome da pasta), a sincronização
@@ -1849,6 +1871,12 @@ function onedriveToggleAutoWifi(){
   marcarAlterado();
   render();
   toast(STATE.baixarFotosAutoWifi ? "Vai baixar fotos sozinho quando estiver no Wi-Fi" : "Fotos só serão baixadas manualmente");
+}
+function onedriveToggleWifiConfirmado(){
+  STATE.wifiConfirmado = !STATE.wifiConfirmado;
+  marcarAlterado();
+  render();
+  toast(STATE.wifiConfirmado ? "Ok, não vou mais perguntar sobre dados móveis" : "Voltando a avisar sobre consumo de dados");
 }
 
 /* =========================================================================
@@ -4283,6 +4311,14 @@ function screenSimplesConfigBackup(){
   <button class="btn btn-danger btn-block" style="margin-top:8px" onclick="App.onedriveDesconectar()">${ic('trash')} Desconectar OneDrive deste aparelho</button>
   <div class="section-title">Visibilidade entre aparelhos</div>
   <button class="btn btn-onedrive btn-block" onclick="App.onedriveSincronizarAgora()">${ic('onedrive')} Sincronizar agora</button>
+  <p style="font-size:11.5px;color:var(--ink-dim);margin:4px 2px 0">Envia suas alterações e recebe as de outros aparelhos, nessa ordem.</p>
+  <div class="card card-pad" style="display:flex;align-items:center;gap:12px;margin-top:8px">
+    <div style="flex:1">
+      <div style="font-weight:800;font-size:14px">Estou no Wi-Fi agora</div>
+      <div style="font-size:12px;color:var(--ink-dim)">O navegador não sabe informar isso de forma confiável — marque aqui quando tiver certeza, e o app para de perguntar sobre consumo de dados.</div>
+    </div>
+    <label class="switch"><input type="checkbox" ${STATE.wifiConfirmado?'checked':''} onchange="App.onedriveToggleWifiConfirmado()"><span class="switch-track"></span></label>
+  </div>
   <div class="card card-pad" style="margin-top:8px">
     <p style="font-size:12.5px;color:var(--ink-dim)">Áreas, máquinas, tarefas e riscos novos criados em outro aparelho (mesma conta OneDrive) aparecem aqui automaticamente. O texto vem sozinho, em qualquer conexão. Fotos ficam pendentes até você confirmar o download, para não gastar dados do seu plano sem avisar.</p>
   </div>
@@ -6009,6 +6045,7 @@ const App = {
   onedriveDesconectar,
   onedriveBaixarPendentesConfirmar,
   onedriveToggleAutoWifi,
+  onedriveToggleWifiConfirmado,
   onedriveVerificarBootstrapNovoDispositivo,
   onedriveSincronizarAgora,
   fecharModal(){ const el=document.getElementById("overlayRoot"); if(el) el.remove(); },
