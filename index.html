@@ -1001,7 +1001,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
    GitHub (útil especialmente dado o atraso de alguns minutos do GitHub para
    propagar cada atualização, e para diferenciar aparelhos que ainda não
    atualizaram dos que já atualizaram). */
-const APP_BUILD = "13/07/2026 21:26";
+const APP_BUILD = "13/07/2026 18:42";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -1580,21 +1580,44 @@ async function sincronizarIncrementalOneDrive(onProgresso){
    atual do app em campo).
    ========================================================================= */
 const ONEDRIVE_LIMITE_AUTO_BYTES = 15 * 1024; // abaixo disso, certamente sem foto — baixa sozinho
+/* Protege qualquer operação assíncrona contra ficar travada pra sempre (ex.:
+   um pedaço da autenticação da Microsoft que, em certas condições do iPhone,
+   pode nunca terminar nem dar erro). Depois de "ms" milissegundos sem
+   resposta, desiste e sinaliza isso — melhor um aviso claro do que o ícone
+   girando pra sempre sem nunca completar nem falhar. */
+function comTempoLimite(promessa, ms){
+  return Promise.race([
+    promessa,
+    new Promise((_, reject)=>setTimeout(()=>reject(new Error("ONEDRIVE_TEMPO_ESGOTADO")), ms))
+  ]);
+}
 async function onedriveListarFilhos(caminhoPasta){
   const token = await onedriveObterToken();
   if(!token) return [];
   const resultado = [];
   let url = `https://graph.microsoft.com/v1.0/me/drive/root:/${caminhoPasta.split("/").map(encodeURIComponent).join("/")}:/children?$select=name,size,file,folder&$top=200`;
-  // Uma resposta de erro da própria API (ex.: pasta ainda não existe, comum na
-  // primeira vez) é tratada como "vazio", não como falha. Já uma falha real de
-  // rede (sem conexão, DNS, etc.) é repassada para quem chamou decidir o que
-  // fazer — a sincronização automática em segundo plano ignora silenciosamente
-  // (como sempre foi), mas checagens únicas como o bootstrap de aparelho novo
-  // usam isso para avisar a pessoa que algo deu errado, em vez de parecer que
-  // simplesmente não havia nada lá.
+  // Projetos grandes (muitas áreas/máquinas) precisam de bastante requisições
+  // seguidas pra Microsoft — o suficiente pra esbarrar no limite de pedidos por
+  // segundo dela (HTTP 429). Antes, isso era tratado exatamente igual a "essa
+  // pasta não existe", fazendo riscos e máquinas reais desaparecerem da
+  // sincronização sem nenhum aviso. Agora: 429 tenta de novo (com uma pequena
+  // espera), 404 é realmente "não existe" (comum em item novo demais), e
+  // qualquer outro erro é repassado pra quem chamou saber que algo falhou de
+  // verdade — em vez de fingir que não havia nada ali.
   while(url){
-    const resp = await fetch(url, { headers: { "Authorization": `Bearer ${token}` } });
-    if(!resp.ok) break;
+    let resp, tentativas = 0;
+    while(true){
+      resp = await fetch(url, { headers: { "Authorization": `Bearer ${token}` } });
+      if(resp.status===429 && tentativas<4){
+        const esperaSeg = Number(resp.headers.get("Retry-After")) || (1+tentativas);
+        await new Promise(r=>setTimeout(r, esperaSeg*1000));
+        tentativas++;
+        continue;
+      }
+      break;
+    }
+    if(resp.status===404) break; // pasta realmente não existe ainda — vazio de verdade
+    if(!resp.ok) throw new Error(`onedriveListarFilhos: HTTP ${resp.status}`);
     const dados = await resp.json();
     (dados.value||[]).forEach(item=>{ resultado.push({ nome: item.name, tamanho: item.size||0, pasta: !!item.folder }); });
     url = dados["@odata.nextLink"] || null;
@@ -1848,13 +1871,16 @@ async function onedriveEstimarPendentesDownload(){
    consumir e só prossegue com a confirmação do usuário — mesmo espírito do
    botão de baixar fotos pendentes, só que cobrindo os dois sentidos de uma vez. */
 let __sincronizandoAgora = false;
+let __syncIniciadoEm = null; // marca quando "Sincronizar agora" começou — usado para destravar sozinho se o app for pro segundo plano no meio do caminho
 let __syncProgresso = null; // null quando parado; objeto com detalhes durante a sincronização
 async function onedriveSincronizarAgora(){
   if(__sincronizandoAgora) return; // já está rodando — evita clique duplo disparando duas sincronizações em paralelo
   if(!getOneDriveConta()){ toast("Conecte o OneDrive primeiro"); return; }
   __sincronizandoAgora = true;
+  __syncIniciadoEm = Date.now();
   render(); // mostra o ícone girando e desativa o botão, para ficar claro que algo está acontecendo
   try{
+    await comTempoLimite((async () => {
     toast("Verificando o que precisa sincronizar…");
     const upload = onedriveEstimarPendentesUpload();
     const download = await onedriveEstimarPendentesDownload();
@@ -1959,11 +1985,20 @@ async function onedriveSincronizarAgora(){
       return;
     }
     toast(resumo.length ? `Sincronização concluída — ${resumo.join(', ')}` : "Sincronização concluída");
+    })(), 45000);
+  }catch(e){
+    if(e && e.message === "ONEDRIVE_TEMPO_ESGOTADO"){
+      toast("A sincronização demorou demais e foi interrompida. Verifique sua conexão e tente novamente — comum acontecer no iPhone quando a sessão precisa ser renovada.", false);
+    }
+    // Qualquer outra falha inesperada que tenha escapado dos tratamentos
+    // específicos já feitos ao longo da função — melhor um aviso genérico do
+    // que deixar o botão travado sem explicação nenhuma.
   }finally{
     // Garante que o botão volta ao normal mesmo se algo inesperado interromper
     // a função no meio do caminho (qualquer um dos "return" acima, ou um erro
     // que escapou dos try/catch internos).
     __sincronizandoAgora = false;
+    __syncIniciadoEm = null;
     __syncProgresso = null;
     render();
   }
@@ -7943,7 +7978,23 @@ lerHandlePastaBase().then(handle=>{
 setInterval(()=>{ atualizarChipSync(); }, 30000);
 setInterval(()=>{ if(document.visibilityState==="visible"){ sincronizarIncrementalNaPasta(); sincronizarIncrementalOneDrive(); sincronizarDownloadOneDrive(); } }, 120000);
 document.addEventListener("visibilitychange", ()=>{
-  if(document.visibilityState==="visible"){ sincronizarIncrementalNaPasta(); sincronizarIncrementalOneDrive(); sincronizarDownloadOneDrive(); }
+  if(document.visibilityState==="visible"){
+    // Proteção extra específica para iPhone: se o aparelho foi para segundo
+    // plano (tela apagou, trocou de app) no meio de uma sincronização manual,
+    // o iOS pode congelar a execução ali mesmo — inclusive o temporizador do
+    // tempo limite de 45s, que também fica pausado nesse caso. Sem isto, o
+    // ícone ficaria girando pra sempre até a pessoa fechar e abrir o app de
+    // novo. Ao voltar pra tela, se ainda estiver "girando" depois de tempo
+    // suficiente, destrava sozinho e avisa.
+    if(__sincronizandoAgora && __syncIniciadoEm && (Date.now() - __syncIniciadoEm > 50000)){
+      __sincronizandoAgora = false;
+      __syncIniciadoEm = null;
+      __syncProgresso = null;
+      toast("A sincronização foi interrompida porque o aparelho ficou em segundo plano. Toque em \"Sincronizar agora\" para tentar de novo — evite trocar de aplicativo ou apagar a tela enquanto sincroniza.", false);
+      render();
+    }
+    sincronizarIncrementalNaPasta(); sincronizarIncrementalOneDrive(); sincronizarDownloadOneDrive();
+  }
 });
 
 </script>
