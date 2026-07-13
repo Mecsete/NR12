@@ -1001,7 +1001,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
    GitHub (útil especialmente dado o atraso de alguns minutos do GitHub para
    propagar cada atualização, e para diferenciar aparelhos que ainda não
    atualizaram dos que já atualizaram). */
-const APP_BUILD = "13/07/2026 18:42";
+const APP_BUILD = "13/07/2026 20:27";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -1043,16 +1043,44 @@ async function onedriveConectar(){
   const inst = await getMsalInstance();
   if(!inst){ toast("OneDrive indisponível offline. Conecte com internet uma vez."); return false; }
   try{
-    const resultado = await inst.loginPopup({ scopes: ["Files.ReadWrite", "offline_access", "User.Read"] });
-    __msalContaAtiva = resultado.account;
-    setOneDriveConta({ nome: resultado.account.name, email: resultado.account.username });
-    toast("OneDrive conectado");
-    render();
-    onedriveVerificarBootstrapNovoDispositivo(true); // aparelho vazio? oferece trazer os dados que já existem na nuvem
-    return true;
+    // Login por redirecionamento de página inteira, em vez de popup. É a
+    // própria Microsoft quem recomenda isso para navegadores de celular: o
+    // popup depende de uma segunda janela conseguir se comunicar de volta com
+    // a página original, algo que o Safari/WebKit (motor por trás de QUALQUER
+    // navegador no iPhone, inclusive o Chrome) historicamente bloqueia ou
+    // interrompe de forma silenciosa — daí a sincronização "simplesmente parar
+    // de funcionar" mesmo com todos os cuidados de pré-carregamento.
+    // A página recarrega durante esse processo, mas nenhum dado é perdido:
+    // tudo já está salvo localmente (IndexedDB) antes disso acontecer, e o
+    // app recarrega os dados normalmente ao voltar.
+    await inst.loginRedirect({ scopes: ["Files.ReadWrite", "offline_access", "User.Read"] });
+    return true; // na prática, o navegador já saiu desta página antes de chegar aqui
   }catch(e){
     toast("Não foi possível conectar ao OneDrive");
     return false;
+  }
+}
+/* Chamada sempre na inicialização do app (não só depois de clicar em
+   "Conectar OneDrive"): é o que detecta e conclui o login quando o navegador
+   volta do site da Microsoft após um redirecionamento. Se não houver nenhum
+   retorno pendente (a maioria das vezes — o app abrindo normalmente, sem
+   ninguém ter acabado de fazer login), não faz nada, rapidamente. */
+async function onedriveProcessarRetornoLogin(){
+  const inst = await getMsalInstance();
+  if(!inst) return;
+  try{
+    const resultado = await inst.handleRedirectPromise();
+    if(resultado && resultado.account){
+      __msalContaAtiva = resultado.account;
+      setOneDriveConta({ nome: resultado.account.name, email: resultado.account.username });
+      toast("OneDrive conectado");
+      render();
+      onedriveVerificarBootstrapNovoDispositivo(true); // aparelho vazio? oferece trazer os dados que já existem na nuvem
+    }
+  }catch(e){
+    // Login cancelado no meio do caminho, ou algo deu errado ao processar o
+    // retorno — não trava o app, só não completa a conexão desta vez.
+    toast("Não foi possível concluir a conexão com o OneDrive. Tente novamente.", false);
   }
 }
 function onedriveDesconectar(){
@@ -6616,8 +6644,54 @@ const App = {
       {label:"Ver máquinas", icon:"arrowR", onclick:`App.abrirAreaS('${id}')`},
       {label:"Editar dados", icon:"edit", onclick:`App.abrirModalAreaS('${id}','${p.id}')`},
       {label:"Duplicar área", icon:"copy", onclick:`App.duplicarAreaS('${id}')`},
+      {label:"Mover para outro projeto", icon:"folder", onclick:`App.menuMoverAreaS('${id}')`},
+      {label:"Duplicar para outro projeto", icon:"folder", onclick:`App.menuDuplicarAreaSOutroProjeto('${id}')`},
       {label:"Excluir área", icon:"trash", onclick:`App.removerAreaS('${id}')`, danger:true},
     ]);
+  },
+  /* Abre um segundo menu (reaproveitando o mesmo componente de ação em lista,
+     agora listando projetos em vez de ações) para escolher o projeto de
+     destino — usado tanto por "mover" quanto por "duplicar para outro
+     projeto". O projeto atual fica de fora da lista: mover/duplicar pra ele
+     mesmo já é coberto pela opção "Duplicar área" já existente. */
+  menuMoverAreaS(id){
+    const p = getCurrentProjetoSimples();
+    const a = p.areas.find(x=>x.id===id); if(!a) return;
+    const outros = STATE.projetosSimples.filter(proj=>proj.id!==p.id);
+    if(outros.length===0){ toast("Não há outro projeto cadastrado para mover esta área", false); return; }
+    abrirMenuAcoes(`Mover "${a.nome||'Área'}" para...`, "Escolha o projeto de destino", outros.map(proj=>(
+      {label:proj.empresa||"Sem nome", icon:"briefcase", onclick:`App.moverAreaSParaProjeto('${id}','${proj.id}')`}
+    )));
+  },
+  moverAreaSParaProjeto(idArea, idProjetoDestino){
+    const p = getCurrentProjetoSimples();
+    const a = p.areas.find(x=>x.id===idArea); if(!a) return;
+    const destino = STATE.projetosSimples.find(x=>x.id===idProjetoDestino); if(!destino) return;
+    p.areas = p.areas.filter(x=>x.id!==idArea);
+    destino.areas.push(a);
+    marcarAlterado();
+    go("simples-areas",{projetoSId:p.id});
+    toast(`Área movida para "${destino.empresa||'Sem nome'}"`);
+  },
+  menuDuplicarAreaSOutroProjeto(id){
+    const p = getCurrentProjetoSimples();
+    const a = p.areas.find(x=>x.id===id); if(!a) return;
+    const outros = STATE.projetosSimples.filter(proj=>proj.id!==p.id);
+    if(outros.length===0){ toast("Não há outro projeto cadastrado para duplicar esta área", false); return; }
+    abrirMenuAcoes(`Duplicar "${a.nome||'Área'}" para...`, "Escolha o projeto de destino", outros.map(proj=>(
+      {label:proj.empresa||"Sem nome", icon:"briefcase", onclick:`App.duplicarAreaSParaProjeto('${id}','${proj.id}')`}
+    )));
+  },
+  duplicarAreaSParaProjeto(idArea, idProjetoDestino){
+    const p = getCurrentProjetoSimples();
+    const a = p.areas.find(x=>x.id===idArea); if(!a) return;
+    const destino = STATE.projetosSimples.find(x=>x.id===idProjetoDestino); if(!destino) return;
+    const novo = JSON.parse(JSON.stringify(a));
+    novo.id = uid(); novo.criadoEm = Date.now();
+    novo.maquinas.forEach(m=>{ m.id=uid(); m.tarefas.forEach(t=>{ t.id=uid(); t.riscos.forEach(r=>r.id=uid()); }); });
+    destino.areas.push(novo);
+    marcarAlterado();
+    toast(`Área duplicada para "${destino.empresa||'Sem nome'}"`);
   },
   duplicarAreaS(id){
     const p = getCurrentProjetoSimples();
@@ -7948,14 +8022,14 @@ let __modeloCustomCarregado = false;
 attachLongPressHandlers();
 render();
 // Pré-carrega a instância do MSAL assim que o app abre, sem esperar nenhum
-// clique. Isso é importante especialmente no iPhone (Safari/WebKit, mesmo
-// dentro do Chrome): se a criação/inicialização dessa instância só começasse
-// depois do toque em "Conectar OneDrive", o tempo de espera no meio do
-// caminho faz o navegador não reconhecer mais aquele toque como o gesto que
-// autoriza abrir a janela de login, e ela é bloqueada silenciosamente. Pré-
-// carregando aqui, na hora do toque já está tudo pronto, sem nenhuma espera
-// entre o toque e a janela abrir.
+// clique — deixa a conexão mais rápida e é o que a checagem abaixo usa pra
+// detectar quando o navegador volta do site da Microsoft.
 getMsalInstance().catch(()=>{});
+// Verifica, toda vez que o app abre, se acabamos de voltar de um login feito
+// por redirecionamento (fluxo usado desde a correção do login no iPhone —
+// veja o comentário em onedriveConectar). Se ninguém acabou de fazer login,
+// isso não faz nada, rapidamente.
+onedriveProcessarRetornoLogin().catch(()=>{});
 /* Registra o Service Worker responsável por sempre buscar a versão mais nova
    do app publicada no GitHub ao abrir/recarregar a página, mantendo o
    funcionamento offline (usa a última cópia guardada quando não há internet).
