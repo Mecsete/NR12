@@ -1580,16 +1580,36 @@ async function sincronizarIncrementalOneDrive(onProgresso){
    atual do app em campo).
    ========================================================================= */
 const ONEDRIVE_LIMITE_AUTO_BYTES = 15 * 1024; // abaixo disso, certamente sem foto — baixa sozinho
-/* Protege qualquer operação assíncrona contra ficar travada pra sempre (ex.:
-   um pedaço da autenticação da Microsoft que, em certas condições do iPhone,
-   pode nunca terminar nem dar erro). Depois de "ms" milissegundos sem
-   resposta, desiste e sinaliza isso — melhor um aviso claro do que o ícone
-   girando pra sempre sem nunca completar nem falhar. */
-function comTempoLimite(promessa, ms){
-  return Promise.race([
-    promessa,
-    new Promise((_, reject)=>setTimeout(()=>reject(new Error("ONEDRIVE_TEMPO_ESGOTADO")), ms))
-  ]);
+/* Marca "aconteceu algo agora" durante a sincronização — chamado a cada item
+   processado, a cada passada, a cada resposta de rede recebida. É o que a
+   vigilância de progresso usa pra saber se ainda está avançando de verdade
+   (mesmo devagar, em projetos grandes) ou se travou de vez. */
+let __syncUltimoProgressoEm = null;
+function marcarProgressoSync(){ __syncUltimoProgressoEm = Date.now(); }
+/* Protege contra ficar travado pra sempre (ex.: um pedaço da autenticação da
+   Microsoft que, em certas condições do iPhone, pode nunca terminar nem dar
+   erro) — SEM penalizar projetos grandes, que legitimamente demoram mais por
+   terem muito mais itens e chamadas pra Microsoft. Em vez de um tempo total
+   fixo pra tudo, só desiste se ficar "msSemProgresso" milissegundos SEM
+   NENHUM avanço — enquanto marcarProgressoSync() continuar sendo chamado
+   (item processado, passada concluída, resposta de rede chegando), o relógio
+   é sempre renovado, então uma sincronização de horas, desde que esteja
+   realmente andando, nunca é interrompida à toa. */
+function comVigilanciaDeProgresso(promessa, msSemProgresso){
+  return new Promise((resolve, reject) => {
+    let terminou = false;
+    const verificador = setInterval(() => {
+      if(terminou) return;
+      if(__syncUltimoProgressoEm && (Date.now() - __syncUltimoProgressoEm > msSemProgresso)){
+        terminou = true;
+        clearInterval(verificador);
+        reject(new Error("ONEDRIVE_TEMPO_ESGOTADO"));
+      }
+    }, 3000);
+    promessa
+      .then((valor)=>{ if(!terminou){ terminou=true; clearInterval(verificador); resolve(valor); } })
+      .catch((erro)=>{ if(!terminou){ terminou=true; clearInterval(verificador); reject(erro); } });
+  });
 }
 async function onedriveListarFilhos(caminhoPasta){
   const token = await onedriveObterToken();
@@ -1608,6 +1628,7 @@ async function onedriveListarFilhos(caminhoPasta){
     let resp, tentativas = 0;
     while(true){
       resp = await fetch(url, { headers: { "Authorization": `Bearer ${token}` } });
+      marcarProgressoSync(); // qualquer resposta da rede (mesmo pedindo pra tentar de novo) conta como avanço
       if(resp.status===429 && tentativas<4){
         const esperaSeg = Number(resp.headers.get("Retry-After")) || (1+tentativas);
         await new Promise(r=>setTimeout(r, esperaSeg*1000));
@@ -1878,12 +1899,18 @@ async function onedriveSincronizarAgora(){
   if(!getOneDriveConta()){ toast("Conecte o OneDrive primeiro"); return; }
   __sincronizandoAgora = true;
   __syncIniciadoEm = Date.now();
+  marcarProgressoSync();
   render(); // mostra o ícone girando e desativa o botão, para ficar claro que algo está acontecendo
   try{
-    await comTempoLimite((async () => {
+    // 90s SEM NENHUM avanço é considerado travado — não é um tempo total fixo:
+    // um projeto grande, que legitimamente demora vários minutos porque tem
+    // muito mais itens e chamadas pra Microsoft, nunca é interrompido à toa,
+    // desde que continue progredindo (mesmo devagar).
+    await comVigilanciaDeProgresso((async () => {
     toast("Verificando o que precisa sincronizar…");
     const upload = onedriveEstimarPendentesUpload();
     const download = await onedriveEstimarPendentesDownload();
+    marcarProgressoSync();
     if(__onedriveSessaoExpirada){
       // Checado ANTES de tudo: quando o token não pode ser renovado, as funções
       // de listagem devolvem "nada encontrado" sem lançar erro nenhum — sem
@@ -1923,6 +1950,7 @@ async function onedriveSincronizarAgora(){
     await sincronizarIncrementalOneDrive((bytesItem)=>{
       __syncProgresso.itemAtual++;
       __syncProgresso.bytesFeitos += bytesItem;
+      marcarProgressoSync();
       render();
     });
 
@@ -1944,9 +1972,11 @@ async function onedriveSincronizarAgora(){
     const LIMITE_PASSADAS = 8;
     let passadas = 0, totalRecebidoTexto = 0, ultimaPassadaComErro = false;
     while(passadas < LIMITE_PASSADAS){
+      marcarProgressoSync(); // início da passada já conta como avanço, mesmo antes de mesclar qualquer item
       const r = await sincronizarDownloadOneDriveUmaPassada((bytesItem)=>{
         __syncProgresso.itemAtual++;
         __syncProgresso.bytesFeitos += bytesItem;
+        marcarProgressoSync();
         render();
       });
       totalRecebidoTexto += r.mesclados;
@@ -1967,6 +1997,7 @@ async function onedriveSincronizarAgora(){
       await onedriveBaixarPendentes((bytesItem)=>{
         __syncProgresso.itemAtual++;
         __syncProgresso.bytesFeitos += bytesItem;
+        marcarProgressoSync();
         render();
       });
       recebidosFotos = antesLen - (STATE.oneDrivePendentes||[]).length;
@@ -1985,10 +2016,10 @@ async function onedriveSincronizarAgora(){
       return;
     }
     toast(resumo.length ? `Sincronização concluída — ${resumo.join(', ')}` : "Sincronização concluída");
-    })(), 45000);
+    })(), 90000);
   }catch(e){
     if(e && e.message === "ONEDRIVE_TEMPO_ESGOTADO"){
-      toast("A sincronização demorou demais e foi interrompida. Verifique sua conexão e tente novamente — comum acontecer no iPhone quando a sessão precisa ser renovada.", false);
+      toast("A sincronização parou de responder e foi interrompida. Verifique sua conexão e tente novamente — comum acontecer no iPhone quando a sessão precisa ser renovada.", false);
     }
     // Qualquer outra falha inesperada que tenha escapado dos tratamentos
     // específicos já feitos ao longo da função — melhor um aviso genérico do
