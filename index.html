@@ -1252,9 +1252,18 @@ function listarItensSincronizaveisSimples(){
   const itens = [];
   STATE.projetosSimples.forEach(proj=>{
     const segProj = segmentoPastaComId(proj.empresa || proj.nome || "Projeto", proj.id);
+    const caminhoProj = [segProj];
+    // Mesma lógica dos demais níveis: o arquivo do projeto não embute "areas"
+    // (que por sua vez embutiriam máquinas, tarefas, riscos e fotos) — cada
+    // uma já tem seu próprio arquivo. Sem isto, um projeto novo criado num
+    // aparelho nunca conseguia "nascer" sozinho em outro aparelho vazio —
+    // só existia implícito no nome da pasta, sem nenhum dado próprio salvo.
+    const projSemAreas = {};
+    for(const chave in proj){ if(chave !== "areas") projSemAreas[chave] = proj[chave]; }
+    itens.push({ id:"projeto:"+proj.id, tipo:"projeto", atualizadoEm:proj.atualizadoEm||proj.criadoEm||0,
+      pasta:caminhoProj, arquivo:`_projeto.json`, dados:projSemAreas });
     proj.areas.forEach(area=>{
       const segArea = segmentoPastaComId(area.nome || "Área", area.id);
-      const caminhoProj = [segProj];
       const caminhoArea = [segProj, segArea];
       // Salva só os campos próprios da área (sem "maquinas" embutido) — as máquinas já
       // são sincronizadas em seus próprios arquivos individuais abaixo. Embutir a lista
@@ -1535,11 +1544,14 @@ async function sincronizarIncrementalOneDrive(){
    foto são baixados e mesclados automaticamente, em qualquer conexão. Itens
    com foto ficam "pendentes" até o usuário confirmar o download manual —
    para nunca consumir dados móveis sem avisar.
-   Limitação conhecida: só reconstrói Área/Máquina/Tarefa/Risco cujo Projeto
-   já exista neste aparelho — o Projeto em si não tem arquivo próprio salvo
-   no OneDrive (só existe implícito no nome da pasta), então não há como
-   reconstruir sozinho um projeto totalmente novo criado só em outro aparelho.
-   Por ora cobre apenas o Módulo Simplificado (foco atual do app em campo).
+   Reconstrói Projeto/Área/Máquina/Tarefa/Risco do zero, mesmo num aparelho
+   totalmente vazio — inclusive o Projeto, que agora tem seu próprio arquivo
+   (_projeto.json). Isso acontece em camadas: cada nível novo só "nasce" na
+   sincronização seguinte à do nível acima dele (mesmo espírito de nunca
+   sobrecarregar uma única passada) — em geral, tocar "Sincronizar agora"
+   algumas vezes seguidas já traz tudo, sem precisar de nenhum arquivo
+   exportado manualmente. Por ora cobre apenas o Módulo Simplificado (foco
+   atual do app em campo).
    ========================================================================= */
 const ONEDRIVE_LIMITE_AUTO_BYTES = 15 * 1024; // abaixo disso, certamente sem foto — baixa sozinho
 async function onedriveListarFilhos(caminhoPasta){
@@ -1607,7 +1619,19 @@ function onedriveClassificarNovosSimples(arvoreProjetos){
   for(const nodeProj of arvoreProjetos){
     if(!nodeProj.pasta) continue;
     const projLocal = STATE.projetosSimples.find(p=>idBateComSufixo(p.id, extrairSufixoDoNome(nodeProj.nome)));
-    if(!projLocal) continue; // projeto novo demais para reconstruir sozinho — fora do escopo automático
+    if(!projLocal){
+      // Projeto que este aparelho ainda não conhece. Antes, isso era pulado
+      // por completo (o Projeto não tinha arquivo próprio salvo no OneDrive,
+      // então não havia como reconstruí-lo sozinho — só existia implícito no
+      // nome da pasta). Agora existe _projeto.json com os dados reais, então
+      // ele entra na fila como qualquer outro item novo — some sozinho assim
+      // que baixado; as áreas dele "nascem" na próxima passada, quando o
+      // projeto já existir localmente (mesmo padrão progressivo dos demais
+      // níveis: cada camada nova aparece uma sincronização de cada vez).
+      const arq = nodeProj.filhos.find(f=>!f.pasta && f.nome==="_projeto.json");
+      if(arq) registrar(arq.tamanho, { tipo:"projeto", caminho:arq.caminho, tamanho:arq.tamanho });
+      continue;
+    }
     for(const nodeArea of nodeProj.filhos){
       if(!nodeArea.pasta) continue;
       const areaLocal = projLocal.areas.find(a=>idBateComSufixo(a.id, extrairSufixoDoNome(nodeArea.nome)));
@@ -1650,6 +1674,11 @@ function onedriveClassificarNovosSimples(arvoreProjetos){
    sobrescreve algo que já existe (proteção extra contra corrida entre
    sincronizações simultâneas). Retorna true só se algo foi realmente inserido. */
 function onedriveMesclarItemNovo(descritor, dados){
+  if(descritor.tipo==="projeto"){
+    if(STATE.projetosSimples.some(p=>p.id===dados.id)) return false;
+    STATE.projetosSimples.push({ ...dados, areas: dados.areas || [] });
+    return true;
+  }
   const proj = STATE.projetosSimples.find(p=>p.id===descritor.projId);
   if(!proj) return false;
   if(descritor.tipo==="area"){
@@ -1694,16 +1723,20 @@ function onedriveEstaEmWifi(){
     return !!(conn && conn.type === "wifi");
   }catch(e){ return false; }
 }
-async function sincronizarDownloadOneDrive(){
-  if(!getOneDriveConta()) return;
+/* Uma única passada de varredura + mesclagem — não mexe em toast/render/
+   gravação, só faz o trabalho e devolve o que aconteceu. Quem chama decide
+   se repete (para reconstruir hierarquias em várias camadas de uma vez) ou
+   para por aqui. */
+async function sincronizarDownloadOneDriveUmaPassada(){
+  if(!getOneDriveConta()) return { mesclados:0, erro:false };
   try{
     const arvore = await onedriveListarArvore(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`, 4);
     const { pequenos, grandes } = onedriveClassificarNovosSimples(arvore);
-    let algumaMudanca = false;
+    let mesclados = 0;
     for(const item of pequenos){
       const texto = await onedriveBaixarTexto(item.caminho);
       if(!texto) continue;
-      try{ const dados = JSON.parse(texto); if(onedriveMesclarItemNovo(item, dados)) algumaMudanca = true; }catch(e){}
+      try{ const dados = JSON.parse(texto); if(onedriveMesclarItemNovo(item, dados)) mesclados++; }catch(e){}
     }
     let pendentesRestantes = grandes;
     if(STATE.baixarFotosAutoWifi && onedriveEstaEmWifi()){
@@ -1713,16 +1746,25 @@ async function sincronizarDownloadOneDrive(){
         if(!texto){ aindaPendentes.push(item); continue; }
         try{
           const dados = JSON.parse(texto);
-          if(!onedriveMesclarItemNovo(item, dados)) aindaPendentes.push(item);
-          else algumaMudanca = true;
+          if(onedriveMesclarItemNovo(item, dados)) mesclados++;
+          else aindaPendentes.push(item);
         }catch(e){ aindaPendentes.push(item); }
       }
       pendentesRestantes = aindaPendentes;
     }
     STATE.oneDrivePendentes = pendentesRestantes;
-    if(algumaMudanca){ dbSet(STATE); render(); toast("Novos itens recebidos do OneDrive"); }
-    atualizarChipSync();
-  }catch(e){}
+    return { mesclados, erro:false };
+  }catch(e){
+    return { mesclados:0, erro:true };
+  }
+}
+/* Usada pela sincronização automática em segundo plano (a cada edição, a cada
+   2 min, ao reabrir a aba) — uma passada só, com aviso/gravação, exatamente
+   como sempre funcionou. */
+async function sincronizarDownloadOneDrive(){
+  const r = await sincronizarDownloadOneDriveUmaPassada();
+  if(r.mesclados>0){ dbSet(STATE); render(); toast("Novos itens recebidos do OneDrive"); }
+  atualizarChipSync();
 }
 async function onedriveBaixarPendentes(){
   const pendentes = STATE.oneDrivePendentes || [];
@@ -1811,17 +1853,45 @@ async function onedriveSincronizarAgora(){
 
   toast(`Enviando suas alterações${upload.totalItens>0?` (${upload.totalItens})`:''}…`);
   await sincronizarIncrementalOneDrive();
+
   toast("Recebendo alterações de outros aparelhos…");
-  await sincronizarDownloadOneDrive();
-  const pendentesAntes = (STATE.oneDrivePendentes||[]).length;
-  if(pendentesAntes>0){
-    toast(`Baixando ${pendentesAntes} ${pendentesAntes===1?'foto':'fotos'}…`);
-    await onedriveBaixarPendentes();
+  // Repete a passada de download várias vezes seguidas: cada passada só
+  // "desbloqueia" um nível da hierarquia por vez (ex.: um Projeto novo só
+  // libera suas Áreas na passada seguinte). Repetindo automaticamente até
+  // parar de encontrar coisa nova, um Projeto inteiro — com Áreas, Máquinas,
+  // Tarefas e Riscos — nasce tudo numa única sincronização, sem o usuário
+  // precisar tocar o botão várias vezes. O limite de 8 é só uma proteção
+  // contra loop infinito num caso patológico; a hierarquia real do app nunca
+  // passa de 5 níveis (Projeto > Área > Máquina > Tarefa > Risco).
+  const LIMITE_PASSADAS = 8;
+  let passadas = 0, totalRecebidoTexto = 0, ultimaPassadaComErro = false;
+  while(passadas < LIMITE_PASSADAS){
+    const r = await sincronizarDownloadOneDriveUmaPassada();
+    totalRecebidoTexto += r.mesclados;
+    ultimaPassadaComErro = r.erro;
+    passadas++;
+    if(r.erro || r.mesclados===0) break; // parou de progredir (ou deu erro) — nada mais a fazer agora
   }
-  const recebidos = download.pequenos.length + (pendentesAntes - (STATE.oneDrivePendentes||[]).length);
+  dbSet(STATE);
+
+  const pendentesFotos = STATE.oneDrivePendentes||[];
+  let recebidosFotos = 0;
+  if(pendentesFotos.length>0){
+    toast(`Baixando ${pendentesFotos.length} ${pendentesFotos.length===1?'foto':'fotos'}…`);
+    const antesLen = pendentesFotos.length;
+    await onedriveBaixarPendentes();
+    recebidosFotos = antesLen - (STATE.oneDrivePendentes||[]).length;
+  }
+
+  render();
+  const totalRecebidoGeral = totalRecebidoTexto + recebidosFotos;
   const resumo = [];
   if(upload.totalItens>0) resumo.push(`${upload.totalItens} enviado${upload.totalItens===1?'':'s'}`);
-  if(recebidos>0) resumo.push(`${recebidos} recebido${recebidos===1?'':'s'}`);
+  if(totalRecebidoGeral>0) resumo.push(`${totalRecebidoGeral} recebido${totalRecebidoGeral===1?'':'s'}`);
+  if(ultimaPassadaComErro && totalRecebidoTexto===0 && upload.totalItens===0){
+    toast("Não foi possível receber novidades do OneDrive agora. Tente de novo em instantes.", false);
+    return;
+  }
   toast(resumo.length ? `Sincronização concluída — ${resumo.join(', ')}` : "Sincronização concluída");
 }
 /* Aparelho novo, sem NENHUM projeto local: como o Projeto em si não tem arquivo
@@ -7702,6 +7772,17 @@ render();
 // carregando aqui, na hora do toque já está tudo pronto, sem nenhuma espera
 // entre o toque e a janela abrir.
 getMsalInstance().catch(()=>{});
+/* Registra o Service Worker responsável por sempre buscar a versão mais nova
+   do app publicada no GitHub ao abrir/recarregar a página, mantendo o
+   funcionamento offline (usa a última cópia guardada quando não há internet).
+   Não interfere em nada dos dados já salvos (IndexedDB/localStorage) — só
+   decide qual versão do CÓDIGO é carregada. Se o navegador não suportar
+   Service Worker, ou o registro falhar por qualquer motivo, o app continua
+   funcionando normalmente do jeito que já funcionava até aqui, só sem esse
+   reforço extra de atualização automática. */
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("./sw.js").catch(()=>{});
+}
 lerModeloWordCustom().then(b64=>{
   __modeloCustomCarregado = !!b64;
   render();
