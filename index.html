@@ -78,6 +78,12 @@ a{color:var(--accent-ink);}
 @keyframes iconSpin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
 .btn-sincronizando{opacity:.85;pointer-events:none;}
 .btn-sincronizando svg{animation:iconSpin .9s linear infinite;}
+.sync-progresso{margin-top:8px;padding:10px 12px;background:var(--surface);border-radius:11px;border:1px solid var(--line);}
+.sync-progresso-texto{font-size:12px;color:var(--ink-dim);margin-bottom:6px;display:flex;justify-content:space-between;gap:8px;}
+.sync-progresso-trilha{height:6px;border-radius:99px;background:var(--line);overflow:hidden;}
+.sync-progresso-barra{height:100%;background:#0364B8;border-radius:99px;transition:width .25s ease;}
+.sync-progresso-indeterminado .sync-progresso-barra{width:35%;animation:syncIndeterminado 1.2s ease-in-out infinite;}
+@keyframes syncIndeterminado{0%{margin-left:0%;}50%{margin-left:65%;}100%{margin-left:0%;}}
 .pasta-nome{display:flex;align-items:center;gap:6px;}
 .pasta-nome svg{width:17px;height:17px;flex-shrink:0;}
 .crumbbar{display:flex;gap:4px;overflow-x:auto;padding:9px 12px;background:var(--bar-2);scrollbar-width:none;align-items:center;}
@@ -989,6 +995,13 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 /* =========================================================================
    INTEGRAÇÃO ONEDRIVE (login Microsoft + upload automático via Graph API)
    ========================================================================= */
+/* Identifica qual "cópia" deste arquivo está rodando — atualizada manualmente
+   a cada entrega. Mostrada discretamente em Configurações, serve para
+   confirmar se o navegador já pegou a versão mais recente publicada no
+   GitHub (útil especialmente dado o atraso de alguns minutos do GitHub para
+   propagar cada atualização, e para diferenciar aparelhos que ainda não
+   atualizaram dos que já atualizaram). */
+const APP_BUILD = "13/07/2026 21:26";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -1513,7 +1526,7 @@ async function onedriveApagarBlob(subpasta, filename){
 }
 let __assinaturasOneDriveSimples = { mapa:null };
 let __assinaturasOneDriveCompleto = { mapa:null };
-async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinaturasRef){
+async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinaturasRef, onProgresso){
   const itensAtuais = listarItens();
   if(!mapaAssinaturasRef.mapa) mapaAssinaturasRef.mapa = new Map();
   const assinaturas = mapaAssinaturasRef.mapa;
@@ -1537,13 +1550,14 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
     const blob = new Blob([JSON.stringify(item.dados,null,0)], {type:"application/json"});
     const ok = await onedriveEnviarBlob(subpasta, blob, item.arquivo);
     if(ok) assinaturas.set(item.id, {atualizadoEm:item.atualizadoEm, pasta:item.pasta, arquivo:item.arquivo});
+    if(onProgresso) onProgresso(blob.size, item.arquivo);
   }
 }
-async function sincronizarIncrementalOneDrive(){
+async function sincronizarIncrementalOneDrive(onProgresso){
   if(!getOneDriveConta()) return;
   try{
-    await onedriveSincronizarModulo("Simplificado", listarItensSincronizaveisSimples, __assinaturasOneDriveSimples);
-    await onedriveSincronizarModulo("Completo", listarItensSincronizaveisCompleto, __assinaturasOneDriveCompleto);
+    await onedriveSincronizarModulo("Simplificado", listarItensSincronizaveisSimples, __assinaturasOneDriveSimples, onProgresso);
+    await onedriveSincronizarModulo("Completo", listarItensSincronizaveisCompleto, __assinaturasOneDriveCompleto, onProgresso);
     STATE.ultimaSincronizacaoOneDriveEm = Date.now();
     atualizarChipSync();
   }catch(e){}
@@ -1739,7 +1753,7 @@ function onedriveEstaEmWifi(){
    gravação, só faz o trabalho e devolve o que aconteceu. Quem chama decide
    se repete (para reconstruir hierarquias em várias camadas de uma vez) ou
    para por aqui. */
-async function sincronizarDownloadOneDriveUmaPassada(){
+async function sincronizarDownloadOneDriveUmaPassada(onProgresso){
   if(!getOneDriveConta()) return { mesclados:0, erro:false };
   try{
     const arvore = await onedriveListarArvore(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`, 4);
@@ -1749,6 +1763,7 @@ async function sincronizarDownloadOneDriveUmaPassada(){
       const texto = await onedriveBaixarTexto(item.caminho);
       if(!texto) continue;
       try{ const dados = JSON.parse(texto); if(onedriveMesclarItemNovo(item, dados)) mesclados++; }catch(e){}
+      if(onProgresso) onProgresso(item.tamanho||0, item.tipo);
     }
     let pendentesRestantes = grandes;
     if(STATE.baixarFotosAutoWifi && onedriveEstaEmWifi()){
@@ -1761,6 +1776,7 @@ async function sincronizarDownloadOneDriveUmaPassada(){
           if(onedriveMesclarItemNovo(item, dados)) mesclados++;
           else aindaPendentes.push(item);
         }catch(e){ aindaPendentes.push(item); }
+        if(onProgresso) onProgresso(item.tamanho||0, item.tipo);
       }
       pendentesRestantes = aindaPendentes;
     }
@@ -1778,7 +1794,7 @@ async function sincronizarDownloadOneDrive(){
   if(r.mesclados>0){ dbSet(STATE); render(); toast("Novos itens recebidos do OneDrive"); }
   atualizarChipSync();
 }
-async function onedriveBaixarPendentes(){
+async function onedriveBaixarPendentes(onProgresso){
   const pendentes = STATE.oneDrivePendentes || [];
   if(pendentes.length===0) return;
   let algumaMudanca = false;
@@ -1791,6 +1807,7 @@ async function onedriveBaixarPendentes(){
       if(onedriveMesclarItemNovo(item, dados)) algumaMudanca = true;
       else restantes.push(item);
     }catch(e){ restantes.push(item); }
+    if(onProgresso) onProgresso(item.tamanho||0);
   }
   STATE.oneDrivePendentes = restantes;
   if(algumaMudanca){ dbSet(STATE); render(); }
@@ -1831,6 +1848,7 @@ async function onedriveEstimarPendentesDownload(){
    consumir e só prossegue com a confirmação do usuário — mesmo espírito do
    botão de baixar fotos pendentes, só que cobrindo os dois sentidos de uma vez. */
 let __sincronizandoAgora = false;
+let __syncProgresso = null; // null quando parado; objeto com detalhes durante a sincronização
 async function onedriveSincronizarAgora(){
   if(__sincronizandoAgora) return; // já está rodando — evita clique duplo disparando duas sincronizações em paralelo
   if(!getOneDriveConta()){ toast("Conecte o OneDrive primeiro"); return; }
@@ -1874,7 +1892,13 @@ async function onedriveSincronizarAgora(){
     }
 
     toast(`Enviando suas alterações${upload.totalItens>0?` (${upload.totalItens})`:''}…`);
-    await sincronizarIncrementalOneDrive();
+    __syncProgresso = { fase:'enviando', itemAtual:0, totalItens:upload.totalItens, bytesFeitos:0, bytesTotal:upload.totalBytes };
+    render();
+    await sincronizarIncrementalOneDrive((bytesItem)=>{
+      __syncProgresso.itemAtual++;
+      __syncProgresso.bytesFeitos += bytesItem;
+      render();
+    });
 
     toast("Recebendo alterações de outros aparelhos…");
     // Repete a passada de download várias vezes seguidas: cada passada só
@@ -1885,10 +1909,20 @@ async function onedriveSincronizarAgora(){
     // precisar tocar o botão várias vezes. O limite de 8 é só uma proteção
     // contra loop infinito num caso patológico; a hierarquia real do app nunca
     // passa de 5 níveis (Projeto > Área > Máquina > Tarefa > Risco).
+    // O total de itens/bytes do download não dá pra saber com certeza desde o
+    // início (novas camadas só aparecem a cada passada), então aqui o
+    // progresso é um contador corrido, sem "de quanto" fixo — diferente do
+    // envio, onde o total já é conhecido de antemão.
+    __syncProgresso = { fase:'recebendo', itemAtual:0, totalItens:null, bytesFeitos:0, bytesTotal:null };
+    render();
     const LIMITE_PASSADAS = 8;
     let passadas = 0, totalRecebidoTexto = 0, ultimaPassadaComErro = false;
     while(passadas < LIMITE_PASSADAS){
-      const r = await sincronizarDownloadOneDriveUmaPassada();
+      const r = await sincronizarDownloadOneDriveUmaPassada((bytesItem)=>{
+        __syncProgresso.itemAtual++;
+        __syncProgresso.bytesFeitos += bytesItem;
+        render();
+      });
       totalRecebidoTexto += r.mesclados;
       ultimaPassadaComErro = r.erro;
       passadas++;
@@ -1901,7 +1935,14 @@ async function onedriveSincronizarAgora(){
     if(pendentesFotos.length>0){
       toast(`Baixando ${pendentesFotos.length} ${pendentesFotos.length===1?'foto':'fotos'}…`);
       const antesLen = pendentesFotos.length;
-      await onedriveBaixarPendentes();
+      const bytesFotosDestaFase = pendentesFotos.reduce((s,p)=>s+(p.tamanho||0),0);
+      __syncProgresso = { fase:'fotos', itemAtual:0, totalItens:antesLen, bytesFeitos:0, bytesTotal:bytesFotosDestaFase };
+      render();
+      await onedriveBaixarPendentes((bytesItem)=>{
+        __syncProgresso.itemAtual++;
+        __syncProgresso.bytesFeitos += bytesItem;
+        render();
+      });
       recebidosFotos = antesLen - (STATE.oneDrivePendentes||[]).length;
     }
 
@@ -1923,6 +1964,7 @@ async function onedriveSincronizarAgora(){
     // a função no meio do caminho (qualquer um dos "return" acima, ou um erro
     // que escapou dos try/catch internos).
     __sincronizandoAgora = false;
+    __syncProgresso = null;
     render();
   }
 }
@@ -2060,14 +2102,15 @@ function comprimirImagem(file, maxDim, quality){
    próprio Safari não permite que uma página grave direto no álbum de Fotos
    sem o usuário confirmar — é uma restrição da Apple, não algo que dependa
    deste app; ainda assim a foto fica salva nos "Arquivos" do aparelho. */
-function salvarFotoNaGaleria(dataUrl, nomeBase){
-  try{
-    const bytes = dataUrlToBytes(dataUrl);
-    const isPng = dataUrl.startsWith("data:image/png");
-    const ts = new Date().toISOString().replace(/[:.]/g,"-").slice(0,19);
-    downloadBlob(bytes, `${nomeBase||"foto"}_${ts}.${isPng?'png':'jpg'}`, isPng?"image/png":"image/jpeg");
-  }catch(e){ console.warn("Não foi possível salvar a foto automaticamente", e); }
-}
+/* Antes da integração com o OneDrive, esta função também disparava um
+   download automático de cada foto (como uma cópia extra de segurança).
+   Isso ficou redundante — hoje as fotos já vão embutidas nos arquivos que
+   sobem sozinhos para o OneDrive a cada edição, de forma bem mais confiável
+   — e, em compensação, cada download disparado no navegador do celular
+   (Android/iPhone) tinha grande chance de aparecer como erro, especialmente
+   ao inserir várias fotos em sequência. A função continua existindo (para
+   não precisar tocar nos 6 pontos que a chamam), só não faz mais nada.*/
+function salvarFotoNaGaleria(dataUrl, nomeBase){}
 
 /* =========================================================================
    MODELO DE DADOS — Projeto > Área (equipamento grande/área) > Máquina/Ativo
@@ -2241,6 +2284,30 @@ function tempoRelativoCurto(ts){
   if(h < 24) return h+"h";
   const d = Math.floor(h/24);
   return d+"d";
+}
+/* Monta a barra de progresso do botão "Sincronizar agora", enquanto uma
+   sincronização está em andamento. Nas fases "enviando" e "fotos" o total já
+   é conhecido de antemão, então mostra porcentagem de verdade. Na fase
+   "recebendo" o total não dá pra saber com certeza (novas camadas só
+   aparecem a cada passada), então mostra um contador corrido, sem barra
+   proporcional — só um indicador "trabalhando" para não parecer travado. */
+function syncProgressoHtml(){
+  if(!__syncProgresso) return "";
+  const p = __syncProgresso;
+  const mb = (bytes) => (bytes/1024/1024).toFixed(1);
+  const rotulos = { enviando:"Enviando", recebendo:"Recebendo", fotos:"Baixando fotos" };
+  const rotulo = rotulos[p.fase] || "Sincronizando";
+  if(p.totalItens==null){
+    return `<div class="sync-progresso sync-progresso-indeterminado">
+      <div class="sync-progresso-texto"><span>${rotulo}…</span><span>${p.itemAtual} item${p.itemAtual===1?'':'s'} · ${mb(p.bytesFeitos)} MB</span></div>
+      <div class="sync-progresso-trilha"><div class="sync-progresso-barra"></div></div>
+    </div>`;
+  }
+  const pct = p.totalItens>0 ? Math.min(100, Math.round((p.itemAtual/p.totalItens)*100)) : 100;
+  return `<div class="sync-progresso">
+    <div class="sync-progresso-texto"><span>${rotulo}… ${pct}%</span><span>${p.itemAtual} de ${p.totalItens} · ${mb(p.bytesFeitos)} de ${mb(p.bytesTotal)} MB</span></div>
+    <div class="sync-progresso-trilha"><div class="sync-progresso-barra" style="width:${pct}%"></div></div>
+  </div>`;
 }
 /* Monta o HTML do selo compacto de sincronização, para o canto direito do
    cabeçalho (chamado tanto no primeiro render quanto nas atualizações
@@ -3562,16 +3629,27 @@ function screenSimplesProjetos(){
     return `${avisoOneDrive}<div class="empty">${ic('briefcase')}<h3>Nenhum projeto cadastrado</h3><p>Crie o primeiro projeto do módulo simplificado.</p>
       <div style="margin-top:18px"><button class="btn btn-primary" onclick="App.abrirModalProjetoS(null)">${ic('plus')} Novo projeto</button></div></div>`;
   }
-  const cards = projetos.slice().sort((a,b)=>b.criadoEm-a.criadoEm).map(p=>`
+  const cards = projetos.slice().sort((a,b)=>b.criadoEm-a.criadoEm).map(p=>{
+    let totalMaquinas = 0, totalRiscos = 0;
+    p.areas.forEach(a=>{
+      totalMaquinas += a.maquinas.length;
+      a.maquinas.forEach(m=>{ m.tarefas.forEach(t=>{ totalRiscos += t.riscos.length; }); });
+    });
+    return `
     <div class="card list-card">
       <div class="list-thumb" onclick="App.abrirProjetoS('${p.id}')">${ic('briefcase')}</div>
       <div class="list-body" onclick="App.abrirProjetoS('${p.id}')">
         <div class="list-name">${escapeHtml(p.empresa||'Sem nome')}</div>
         <div class="list-tag">${escapeHtml(p.cidade||'sem cidade')} · ${fmtDate(p.data)}</div>
-        <div class="list-meta"><span class="stat-pill">${p.areas.length} área${p.areas.length===1?'':'s'}</span></div>
+        <div class="list-meta">
+          <span class="stat-pill">${p.areas.length} área${p.areas.length===1?'':'s'}</span>
+          <span class="stat-pill">${totalMaquinas} equipamento${totalMaquinas===1?'':'s'}</span>
+          <span class="stat-pill">${totalRiscos} risco${totalRiscos===1?'':'s'}</span>
+        </div>
       </div>
       <div class="list-actions"><button class="icon-btn" onclick="App.menuProjetoS(event,'${p.id}')">${ic('dots')}</button></div>
-    </div>`).join("");
+    </div>`;
+  }).join("");
   return `${avisoOneDrive}<div class="section-title">${projetos.length} projeto${projetos.length===1?'':'s'}</div>${cards}
     <div class="fab-wrap"><button class="fab" onclick="App.abrirModalProjetoS(null)">${ic('plus')}</button></div>`;
 }
@@ -4389,6 +4467,7 @@ function screenSimplesConfig(){
   <button class="btn btn-secondary btn-block" style="display:flex;align-items:center;gap:10px;justify-content:flex-start;padding:14px 16px;margin-top:10px" onclick="App.go('simples-config-ia')">
     ${ic('cog')}<span style="flex:1;text-align:left"><b>Inteligência Artificial</b><br><span style="font-size:12px;color:var(--ink-dim);font-weight:400">${getIAApiKey()?'Configurada':'Opcional — melhora os textos do relatório'}</span></span>${ic('chevR')}
   </button>
+  <p style="text-align:center;font-size:11px;color:var(--ink-faint);margin-top:22px">Versão ${APP_BUILD}</p>
   `;
 }
 function screenSimplesConfigBackup(){
@@ -4419,6 +4498,7 @@ function screenSimplesConfigBackup(){
   <button class="btn btn-danger btn-block" style="margin-top:8px" onclick="App.onedriveDesconectar()">${ic('trash')} Desconectar OneDrive deste aparelho</button>
   <div class="section-title">Visibilidade entre aparelhos</div>
   <button class="btn btn-onedrive btn-block${__sincronizandoAgora?' btn-sincronizando':''}" ${__sincronizandoAgora?'disabled':''} onclick="App.onedriveSincronizarAgora()">${ic('onedrive')} ${__sincronizandoAgora?'Sincronizando…':'Sincronizar agora'}</button>
+  ${syncProgressoHtml()}
   <p style="font-size:11.5px;color:var(--ink-dim);margin:4px 2px 0">Envia suas alterações e recebe as de outros aparelhos, nessa ordem.</p>
   <div class="card card-pad" style="display:flex;align-items:center;gap:12px;margin-top:8px">
     <div style="flex:1">
