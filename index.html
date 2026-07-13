@@ -75,6 +75,9 @@ a{color:var(--accent-ink);}
 .syncbadge.alerta{background:rgba(255,80,60,.22);border-color:rgba(255,120,90,.4);color:#FFDCD2;}
 .syncbadge.sincronizando svg{animation:syncPulse 1s ease-in-out infinite;}
 @keyframes syncPulse{0%,100%{opacity:.45;}50%{opacity:1;}}
+@keyframes iconSpin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+.btn-sincronizando{opacity:.85;pointer-events:none;}
+.btn-sincronizando svg{animation:iconSpin .9s linear infinite;}
 .pasta-nome{display:flex;align-items:center;gap:6px;}
 .pasta-nome svg{width:17px;height:17px;flex-shrink:0;}
 .crumbbar{display:flex;gap:4px;overflow-x:auto;padding:9px 12px;background:var(--bar-2);scrollbar-width:none;align-items:center;}
@@ -1045,14 +1048,23 @@ function onedriveDesconectar(){
   toast("OneDrive desconectado neste aparelho");
   render();
 }
+let __onedriveSessaoExpirada = false;
 async function onedriveObterToken(){
   const inst = await getMsalInstance();
   if(!inst || !__msalContaAtiva) return null;
   const escopos = { scopes: ["Files.ReadWrite"], account: __msalContaAtiva };
   try{
     const r = await inst.acquireTokenSilent(escopos);
+    __onedriveSessaoExpirada = false; // token renovado com sucesso — se estava marcado como expirado, já não está mais
     return r.accessToken;
   }catch(e){
+    // "InteractionRequiredAuthError" é o erro específico do MSAL quando a sessão
+    // não pode mais ser renovada sozinha (comum no Safari/iOS, cujo bloqueio a
+    // rastreamento entre sites atrapalha a renovação automática em segundo
+    // plano) — precisa de um novo login manual. É diferente de uma falha de
+    // rede pontual, e sem essa distinção, a interface não tinha como saber que
+    // o motivo de "nada para sincronizar" era, na verdade, a sessão ter caído.
+    if(e && e.name === "InteractionRequiredAuthError"){ __onedriveSessaoExpirada = true; }
     return null;
   }
 }
@@ -1818,81 +1830,101 @@ async function onedriveEstimarPendentesDownload(){
    esperar o ciclo automático de 2 minutos. Fora do Wi-Fi, mostra quanto vai
    consumir e só prossegue com a confirmação do usuário — mesmo espírito do
    botão de baixar fotos pendentes, só que cobrindo os dois sentidos de uma vez. */
+let __sincronizandoAgora = false;
 async function onedriveSincronizarAgora(){
+  if(__sincronizandoAgora) return; // já está rodando — evita clique duplo disparando duas sincronizações em paralelo
   if(!getOneDriveConta()){ toast("Conecte o OneDrive primeiro"); return; }
-  toast("Verificando o que precisa sincronizar…");
-  const upload = onedriveEstimarPendentesUpload();
-  const download = await onedriveEstimarPendentesDownload();
-  if(download.erro){
-    // Não confunde "não achei nada novo" com "não consegui nem checar" — sem
-    // isso, uma falha de rede pontual parecia exatamente igual a "está tudo
-    // sincronizado", escondendo o problema real.
-    toast("Não foi possível verificar o que há de novo no OneDrive agora. Tente de novo em instantes.", false);
-    return;
-  }
-  const bytesFotosPendentes = download.grandes.reduce((s,p)=>s+(p.tamanho||0),0);
-  const totalBytesGeral = upload.totalBytes + bytesFotosPendentes;
-
-  if(totalBytesGeral===0 && download.pequenos.length===0){
-    toast("Já está tudo sincronizado");
-    return;
-  }
-
-  const LIMIAR_PERGUNTAR_BYTES = 50*1024; // abaixo disso não vale incomodar com confirmação
-  if(!onedriveEstaEmWifi() && totalBytesGeral > LIMIAR_PERGUNTAR_BYTES){
-    const totalMB = (totalBytesGeral/1024/1024).toFixed(1);
-    const partes = [];
-    if(upload.totalItens>0) partes.push(`${upload.totalItens} ${upload.totalItens===1?'alteração sua':'alterações suas'}`);
-    if(download.grandes.length>0) partes.push(`${download.grandes.length} ${download.grandes.length===1?'foto':'fotos'} de outro aparelho`);
-    const detalhe = partes.length ? ` (${partes.join(' + ')})` : '';
-    if(!confirm(`Você não parece estar no Wi-Fi. Sincronizar agora deve consumir aproximadamente ${totalMB} MB de dados móveis${detalhe}. Continuar?`)){
-      toast("Sincronização cancelada");
+  __sincronizandoAgora = true;
+  render(); // mostra o ícone girando e desativa o botão, para ficar claro que algo está acontecendo
+  try{
+    toast("Verificando o que precisa sincronizar…");
+    const upload = onedriveEstimarPendentesUpload();
+    const download = await onedriveEstimarPendentesDownload();
+    if(__onedriveSessaoExpirada){
+      // Checado ANTES de tudo: quando o token não pode ser renovado, as funções
+      // de listagem devolvem "nada encontrado" sem lançar erro nenhum — sem
+      // esta checagem específica, isso parecia igual a "está tudo sincronizado",
+      // escondendo que era só reconectar a conta.
+      toast("Sua sessão do OneDrive expirou. Toque em \"Conectar OneDrive\" novamente para continuar.", false);
       return;
     }
-  }
+    if(download.erro){
+      toast("Não foi possível verificar o que há de novo no OneDrive agora. Tente de novo em instantes.", false);
+      return;
+    }
+    const bytesFotosPendentes = download.grandes.reduce((s,p)=>s+(p.tamanho||0),0);
+    const totalBytesGeral = upload.totalBytes + bytesFotosPendentes;
 
-  toast(`Enviando suas alterações${upload.totalItens>0?` (${upload.totalItens})`:''}…`);
-  await sincronizarIncrementalOneDrive();
+    if(totalBytesGeral===0 && download.pequenos.length===0){
+      toast("Já está tudo sincronizado");
+      return;
+    }
 
-  toast("Recebendo alterações de outros aparelhos…");
-  // Repete a passada de download várias vezes seguidas: cada passada só
-  // "desbloqueia" um nível da hierarquia por vez (ex.: um Projeto novo só
-  // libera suas Áreas na passada seguinte). Repetindo automaticamente até
-  // parar de encontrar coisa nova, um Projeto inteiro — com Áreas, Máquinas,
-  // Tarefas e Riscos — nasce tudo numa única sincronização, sem o usuário
-  // precisar tocar o botão várias vezes. O limite de 8 é só uma proteção
-  // contra loop infinito num caso patológico; a hierarquia real do app nunca
-  // passa de 5 níveis (Projeto > Área > Máquina > Tarefa > Risco).
-  const LIMITE_PASSADAS = 8;
-  let passadas = 0, totalRecebidoTexto = 0, ultimaPassadaComErro = false;
-  while(passadas < LIMITE_PASSADAS){
-    const r = await sincronizarDownloadOneDriveUmaPassada();
-    totalRecebidoTexto += r.mesclados;
-    ultimaPassadaComErro = r.erro;
-    passadas++;
-    if(r.erro || r.mesclados===0) break; // parou de progredir (ou deu erro) — nada mais a fazer agora
-  }
-  dbSet(STATE);
+    const LIMIAR_PERGUNTAR_BYTES = 50*1024; // abaixo disso não vale incomodar com confirmação
+    if(!onedriveEstaEmWifi() && totalBytesGeral > LIMIAR_PERGUNTAR_BYTES){
+      const totalMB = (totalBytesGeral/1024/1024).toFixed(1);
+      const partes = [];
+      if(upload.totalItens>0) partes.push(`${upload.totalItens} ${upload.totalItens===1?'alteração sua':'alterações suas'}`);
+      if(download.grandes.length>0) partes.push(`${download.grandes.length} ${download.grandes.length===1?'foto':'fotos'} de outro aparelho`);
+      const detalhe = partes.length ? ` (${partes.join(' + ')})` : '';
+      if(!confirm(`Você não parece estar no Wi-Fi. Sincronizar agora deve consumir aproximadamente ${totalMB} MB de dados móveis${detalhe}. Continuar?`)){
+        toast("Sincronização cancelada");
+        return;
+      }
+    }
 
-  const pendentesFotos = STATE.oneDrivePendentes||[];
-  let recebidosFotos = 0;
-  if(pendentesFotos.length>0){
-    toast(`Baixando ${pendentesFotos.length} ${pendentesFotos.length===1?'foto':'fotos'}…`);
-    const antesLen = pendentesFotos.length;
-    await onedriveBaixarPendentes();
-    recebidosFotos = antesLen - (STATE.oneDrivePendentes||[]).length;
-  }
+    toast(`Enviando suas alterações${upload.totalItens>0?` (${upload.totalItens})`:''}…`);
+    await sincronizarIncrementalOneDrive();
 
-  render();
-  const totalRecebidoGeral = totalRecebidoTexto + recebidosFotos;
-  const resumo = [];
-  if(upload.totalItens>0) resumo.push(`${upload.totalItens} enviado${upload.totalItens===1?'':'s'}`);
-  if(totalRecebidoGeral>0) resumo.push(`${totalRecebidoGeral} recebido${totalRecebidoGeral===1?'':'s'}`);
-  if(ultimaPassadaComErro && totalRecebidoTexto===0 && upload.totalItens===0){
-    toast("Não foi possível receber novidades do OneDrive agora. Tente de novo em instantes.", false);
-    return;
+    toast("Recebendo alterações de outros aparelhos…");
+    // Repete a passada de download várias vezes seguidas: cada passada só
+    // "desbloqueia" um nível da hierarquia por vez (ex.: um Projeto novo só
+    // libera suas Áreas na passada seguinte). Repetindo automaticamente até
+    // parar de encontrar coisa nova, um Projeto inteiro — com Áreas, Máquinas,
+    // Tarefas e Riscos — nasce tudo numa única sincronização, sem o usuário
+    // precisar tocar o botão várias vezes. O limite de 8 é só uma proteção
+    // contra loop infinito num caso patológico; a hierarquia real do app nunca
+    // passa de 5 níveis (Projeto > Área > Máquina > Tarefa > Risco).
+    const LIMITE_PASSADAS = 8;
+    let passadas = 0, totalRecebidoTexto = 0, ultimaPassadaComErro = false;
+    while(passadas < LIMITE_PASSADAS){
+      const r = await sincronizarDownloadOneDriveUmaPassada();
+      totalRecebidoTexto += r.mesclados;
+      ultimaPassadaComErro = r.erro;
+      passadas++;
+      if(r.erro || r.mesclados===0) break; // parou de progredir (ou deu erro) — nada mais a fazer agora
+    }
+    dbSet(STATE);
+
+    const pendentesFotos = STATE.oneDrivePendentes||[];
+    let recebidosFotos = 0;
+    if(pendentesFotos.length>0){
+      toast(`Baixando ${pendentesFotos.length} ${pendentesFotos.length===1?'foto':'fotos'}…`);
+      const antesLen = pendentesFotos.length;
+      await onedriveBaixarPendentes();
+      recebidosFotos = antesLen - (STATE.oneDrivePendentes||[]).length;
+    }
+
+    const totalRecebidoGeral = totalRecebidoTexto + recebidosFotos;
+    const resumo = [];
+    if(upload.totalItens>0) resumo.push(`${upload.totalItens} enviado${upload.totalItens===1?'':'s'}`);
+    if(totalRecebidoGeral>0) resumo.push(`${totalRecebidoGeral} recebido${totalRecebidoGeral===1?'':'s'}`);
+    if(ultimaPassadaComErro && totalRecebidoTexto===0 && upload.totalItens===0){
+      if(__onedriveSessaoExpirada){
+        toast("Sua sessão do OneDrive expirou. Toque em \"Conectar OneDrive\" novamente para continuar.", false);
+      }else{
+        toast("Não foi possível receber novidades do OneDrive agora. Tente de novo em instantes.", false);
+      }
+      return;
+    }
+    toast(resumo.length ? `Sincronização concluída — ${resumo.join(', ')}` : "Sincronização concluída");
+  }finally{
+    // Garante que o botão volta ao normal mesmo se algo inesperado interromper
+    // a função no meio do caminho (qualquer um dos "return" acima, ou um erro
+    // que escapou dos try/catch internos).
+    __sincronizandoAgora = false;
+    render();
   }
-  toast(resumo.length ? `Sincronização concluída — ${resumo.join(', ')}` : "Sincronização concluída");
 }
 /* Aparelho novo, sem NENHUM projeto local: como o Projeto em si não tem arquivo
    próprio no OneDrive (só existe implícito no nome da pasta), a sincronização
@@ -3514,10 +3546,16 @@ function renderRiskResult(r){
    ========================================================================= */
 function screenSimplesProjetos(){
   const projetos = STATE.projetosSimples;
-  const avisoOneDrive = (!getOneDriveConta() && onedriveDisponivel()) ? `
+  const temOneDrive = getOneDriveConta();
+  const avisoOneDrive = (!temOneDrive && onedriveDisponivel()) ? `
     <div class="card card-pad" style="border:1.5px solid #0364B8;display:flex;align-items:center;gap:10px" onclick="App.go('simples-config-backup')">
       <span class="pasta-nome" style="color:#0364B8">${ic('onedrive')}</span>
       <span style="flex:1"><b style="font-size:13.5px">OneDrive não conectado neste aparelho</b><br><span style="font-size:12px;color:var(--ink-dim)">Toque para conectar e ativar o backup automático</span></span>
+      ${ic('chevR')}
+    </div>` : (temOneDrive && __onedriveSessaoExpirada) ? `
+    <div class="card card-pad" style="border:1.5px solid var(--danger);display:flex;align-items:center;gap:10px" onclick="App.go('simples-config-backup')">
+      <span class="pasta-nome" style="color:var(--danger)">${ic('warn')}</span>
+      <span style="flex:1"><b style="font-size:13.5px">Sessão do OneDrive expirou</b><br><span style="font-size:12px;color:var(--ink-dim)">Toque para conectar de novo — comum acontecer no iPhone</span></span>
       ${ic('chevR')}
     </div>` : '';
   if(projetos.length===0){
@@ -4380,7 +4418,7 @@ function screenSimplesConfigBackup(){
   ` : ''}
   <button class="btn btn-danger btn-block" style="margin-top:8px" onclick="App.onedriveDesconectar()">${ic('trash')} Desconectar OneDrive deste aparelho</button>
   <div class="section-title">Visibilidade entre aparelhos</div>
-  <button class="btn btn-onedrive btn-block" onclick="App.onedriveSincronizarAgora()">${ic('onedrive')} Sincronizar agora</button>
+  <button class="btn btn-onedrive btn-block${__sincronizandoAgora?' btn-sincronizando':''}" ${__sincronizandoAgora?'disabled':''} onclick="App.onedriveSincronizarAgora()">${ic('onedrive')} ${__sincronizandoAgora?'Sincronizando…':'Sincronizar agora'}</button>
   <p style="font-size:11.5px;color:var(--ink-dim);margin:4px 2px 0">Envia suas alterações e recebe as de outros aparelhos, nessa ordem.</p>
   <div class="card card-pad" style="display:flex;align-items:center;gap:12px;margin-top:8px">
     <div style="flex:1">
