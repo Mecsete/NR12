@@ -1004,7 +1004,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
    GitHub (útil especialmente dado o atraso de alguns minutos do GitHub para
    propagar cada atualização, e para diferenciar aparelhos que ainda não
    atualizaram dos que já atualizaram). */
-const APP_BUILD = "13/07/2026 23:31";
+const APP_BUILD = "14/07/2026 06:38";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -1589,7 +1589,7 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
     const blob = new Blob([JSON.stringify(item.dados,null,0)], {type:"application/json"});
     const ok = await onedriveEnviarBlob(subpasta, blob, item.arquivo);
     if(ok) assinaturas.set(item.id, {atualizadoEm:item.atualizadoEm, pasta:item.pasta, arquivo:item.arquivo});
-    if(onProgresso) onProgresso(blob.size, item.arquivo);
+    if(onProgresso) onProgresso(blob.size, item.tipo);
   });
 
   // Grava de volta no STATE (como objeto simples — Map não é serializável em
@@ -1870,6 +1870,11 @@ async function sincronizarDownloadOneDriveUmaPassada(onProgresso){
       if(texto){
         try{ const dados = JSON.parse(texto); if(onedriveMesclarItemNovo(item, dados)) mesclados++; }catch(e){}
       }
+      // Conta como "andamento" mesmo quando o item não pôde ser baixado agora
+      // (sem rede momentânea) ou já existia local — a barra de progresso e o
+      // relógio de "travou" precisam avançar igual, senão um item que falhou
+      // silenciosamente trava a contagem no meio sem nenhum aviso.
+      marcarProgressoSync();
       if(onProgresso) onProgresso(item.tamanho||0, item.tipo);
     });
     let pendentesRestantes = grandes;
@@ -1900,7 +1905,13 @@ async function sincronizarDownloadOneDriveUmaPassada(onProgresso){
    como sempre funcionou. */
 async function sincronizarDownloadOneDrive(){
   const r = await sincronizarDownloadOneDriveUmaPassada();
-  if(r.mesclados>0){ dbSet(STATE); render(); toast("Novos itens recebidos do OneDrive"); }
+  // Sempre salva e atualiza a tela — mesmo sem nenhum item de texto mesclado
+  // (r.mesclados===0), pode ter descoberto fotos pendentes novas, e sem isto
+  // essa descoberta nunca aparecia no botão "Baixar fotos" nem sobrevivia a
+  // fechar o app antes da próxima sincronização manual.
+  dbSet(STATE);
+  render();
+  if(r.mesclados>0) toast("Novos itens recebidos do OneDrive");
   atualizarChipSync();
 }
 async function onedriveBaixarPendentes(onProgresso){
@@ -1918,7 +1929,7 @@ async function onedriveBaixarPendentes(onProgresso){
         else restantes.push(item);
       }catch(e){ restantes.push(item); }
     }
-    if(onProgresso) onProgresso(item.tamanho||0);
+    if(onProgresso) onProgresso(item.tamanho||0, item.tipo);
   });
   STATE.oneDrivePendentes = restantes;
   if(algumaMudanca){ dbSet(STATE); render(); }
@@ -1927,22 +1938,41 @@ async function onedriveBaixarPendentes(onProgresso){
 /* Soma o tamanho estimado (bytes) de tudo que este aparelho ainda não enviou
    ao OneDrive — sem enviar nada, só calcula. Usado para dar um número honesto
    na hora de pedir confirmação em "Sincronizar agora" fora do Wi-Fi. */
+// Rótulos em português (singular/plural) usados nos indicadores agrupados de
+// envio/recebimento — ex.: "46 Riscos para enviar".
+const ONEDRIVE_TIPO_LABEL = {
+  projeto: ['Projeto','Projetos'],
+  area: ['Área','Áreas'],
+  maquina: ['Equipamento','Equipamentos'],
+  tarefa: ['Tarefa','Tarefas'],
+  risco: ['Risco','Riscos'],
+  perigo: ['Risco','Riscos'], // Módulo Completo usa "perigo" internamente pro mesmo conceito
+};
+function onedriveRotuloTipo(tipo, qtd){
+  const par = ONEDRIVE_TIPO_LABEL[tipo] || [tipo, tipo];
+  return qtd===1 ? par[0] : par[1];
+}
 function onedriveEstimarPendentesUpload(){
   let totalBytes = 0, totalItens = 0;
+  const porTipo = {};
   const contar = (listarItens, mapaRef) => {
     const itensAtuais = listarItens();
     const assinaturas = mapaRef.mapa || new Map();
     for(const item of itensAtuais){
       const registro = assinaturas.get(item.id);
       if(!registro || registro.atualizadoEm !== item.atualizadoEm){
-        totalBytes += new TextEncoder().encode(JSON.stringify(item.dados||{})).length;
+        const bytes = new TextEncoder().encode(JSON.stringify(item.dados||{})).length;
+        totalBytes += bytes;
         totalItens++;
+        if(!porTipo[item.tipo]) porTipo[item.tipo] = {qtd:0, bytes:0};
+        porTipo[item.tipo].qtd++;
+        porTipo[item.tipo].bytes += bytes;
       }
     }
   };
   contar(listarItensSincronizaveisSimples, __assinaturasOneDriveSimples);
   contar(listarItensSincronizaveisCompleto, __assinaturasOneDriveCompleto);
-  return { totalBytes, totalItens };
+  return { totalBytes, totalItens, porTipo };
 }
 /* Mesma checagem leve (só metadados) usada pela sincronização automática de
    download, mas chamada isoladamente para poder mostrar a estimativa ANTES
@@ -1951,24 +1981,48 @@ function onedriveEstimarPendentesUpload(){
    última contagem conhecida de pendências (itens a enviar/receber e MB
    estimado) e quando essa contagem foi calculada — data, hora e minuto,
    como pedido, não um "há X minutos" relativo. */
+const ONEDRIVE_ORDEM_TIPOS = ['projeto','area','maquina','tarefa','risco','perigo'];
+function onedriveLinhasPorGrupo(porTipo, rotuloDirecao){
+  if(!porTipo) return [];
+  return ONEDRIVE_ORDEM_TIPOS.filter(t=>porTipo[t] && porTipo[t].qtd>0).map(t=>{
+    const g = porTipo[t];
+    const mb = (g.bytes/1024/1024).toFixed(1);
+    return `${g.qtd} ${onedriveRotuloTipo(t,g.qtd)} para ${rotuloDirecao} (${mb} MB)`;
+  });
+}
 function onedriveStatusPendenteHtml(){
   const s = STATE.oneDriveStatusPendente;
   if(!s) return "";
   const dt = new Date(s.verificadoEm);
   const dois = (n) => String(n).padStart(2,'0');
   const carimbo = `${dois(dt.getDate())}/${dois(dt.getMonth()+1)} ${dois(dt.getHours())}:${dois(dt.getMinutes())}`;
-  const mb = (s.bytesTotal/1024/1024).toFixed(1);
   if(s.totalEnviar===0 && s.totalReceber===0){
     return `<p style="font-size:11.5px;color:var(--ink-dim);margin:6px 2px 0">Tudo sincronizado · verificado ${carimbo}</p>`;
   }
-  return `<p style="font-size:11.5px;color:var(--ink-dim);margin:6px 2px 0">${s.totalEnviar} para enviar, ${s.totalReceber} para receber (~${mb} MB) · verificado ${carimbo}</p>`;
+  const linhas = [
+    ...onedriveLinhasPorGrupo(s.enviarPorTipo, 'enviar'),
+    ...onedriveLinhasPorGrupo(s.receberPorTipo, 'receber')
+  ];
+  return `<div style="margin:6px 2px 0">
+    ${linhas.map(l=>`<div style="font-size:11.5px;color:var(--ink-dim)">${l}</div>`).join('')}
+    <div style="font-size:10.5px;color:var(--ink-faint);margin-top:2px">verificado ${carimbo}</div>
+  </div>`;
 }
 async function onedriveEstimarPendentesDownload(){
-  if(!getOneDriveConta()) return { pequenos:[], grandes:[], erro:false };
+  if(!getOneDriveConta()) return { pequenos:[], grandes:[], erro:false, camadaIncompleta:false };
   try{
     const arvore = await onedriveListarArvore(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`, 4);
-    return { ...onedriveClassificarNovosSimples(arvore), erro:false };
-  }catch(e){ return { pequenos:[], grandes:[], erro:true }; }
+    const classificado = onedriveClassificarNovosSimples(arvore);
+    // Se existe Projeto ou Área ainda não conhecidos por este aparelho, tudo o
+    // que está "dentro" deles (Máquinas, Tarefas, Riscos) ainda não pôde ser
+    // contado nesta passada — só nasce na sincronização seguinte, depois que
+    // o nível de cima já existir localmente. Isso é o motivo real de "conta
+    // muito menos itens" num aparelho que ainda não tem nada: o número exibido
+    // é sempre parcial até o Projeto/Área existirem aqui.
+    const camadaIncompleta = classificado.pequenos.some(i=>i.tipo==='projeto'||i.tipo==='area')
+      || classificado.grandes.some(i=>i.tipo==='projeto'||i.tipo==='area');
+    return { ...classificado, erro:false, camadaIncompleta };
+  }catch(e){ return { pequenos:[], grandes:[], erro:true, camadaIncompleta:false }; }
 }
 /* Guarda o resultado do cálculo de pendências (quantos itens faltam enviar e
    receber, e o tamanho estimado) para exibir perto do botão "Sincronizar
@@ -1976,10 +2030,19 @@ async function onedriveEstimarPendentesDownload(){
    a pena tocar no botão antes mesmo de tocar. */
 function onedriveSalvarStatusPendente(upload, download){
   const bytesFotos = download.grandes.reduce((s,p)=>s+(p.tamanho||0),0);
+  const bytesPequenos = download.pequenos.reduce((s,p)=>s+(p.tamanho||0),0);
+  const receberPorTipo = {};
+  [...download.pequenos, ...download.grandes].forEach(item=>{
+    if(!receberPorTipo[item.tipo]) receberPorTipo[item.tipo] = {qtd:0, bytes:0};
+    receberPorTipo[item.tipo].qtd++;
+    receberPorTipo[item.tipo].bytes += (item.tamanho||0);
+  });
   STATE.oneDriveStatusPendente = {
     totalEnviar: upload.totalItens,
     totalReceber: download.pequenos.length + download.grandes.length,
-    bytesTotal: upload.totalBytes + bytesFotos,
+    bytesTotal: upload.totalBytes + bytesFotos + bytesPequenos,
+    enviarPorTipo: upload.porTipo || {},
+    receberPorTipo,
     verificadoEm: Date.now()
   };
   dbSet(STATE);
@@ -2004,6 +2067,44 @@ async function onedriveAtualizarStatusPendenteSeWifi(){
 let __sincronizandoAgora = false;
 let __syncIniciadoEm = null; // marca quando "Sincronizar agora" começou — usado para destravar sozinho se o app for pro segundo plano no meio do caminho
 let __syncProgresso = null; // null quando parado; objeto com detalhes durante a sincronização
+let __syncGrupos = null; // null quando parado; { enviar:{tipo:{total,feito,bytes}}, receber:{...} } durante a sincronização — fica visível o tempo todo, com "Ok" aparecendo grupo a grupo conforme terminam
+function onedriveMontarGruposIniciais(upload, download){
+  const enviar = {};
+  Object.keys(upload.porTipo||{}).forEach(t=>{
+    enviar[t] = { total: upload.porTipo[t].qtd, feito:0, bytes: upload.porTipo[t].bytes };
+  });
+  const receber = {};
+  [...download.pequenos, ...download.grandes].forEach(item=>{
+    if(!receber[item.tipo]) receber[item.tipo] = { total:0, feito:0, bytes:0 };
+    receber[item.tipo].total++;
+    receber[item.tipo].bytes += (item.tamanho||0);
+  });
+  return { enviar, receber };
+}
+/* Monta a lista de grupos (ex.: "46 Riscos para enviar (4.0 MB)"), cada um
+   com "Ok" assim que todos os itens daquele tipo terminam — fica visível a
+   sincronização inteira, não só durante a fase correspondente, pra dar uma
+   visão completa de etapas concluídas e faltantes o tempo todo. */
+function syncGruposHtml(){
+  if(!__syncGrupos) return "";
+  const linhas = [];
+  const montarLinhas = (grupo, rotulo) => {
+    ONEDRIVE_ORDEM_TIPOS.forEach(t=>{
+      const g = grupo[t];
+      if(!g || g.total===0) return;
+      const concluido = g.feito >= g.total;
+      const mb = (g.bytes/1024/1024).toFixed(1);
+      linhas.push(`<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:3px 0;color:${concluido?'var(--ink-dim)':'var(--ink)'}">
+        <span>${g.total} ${onedriveRotuloTipo(t,g.total)} para ${rotulo} (${mb} MB)</span>
+        <span style="color:${concluido?'#1a9e5c':'var(--ink-faint)'};font-weight:800;font-size:11px;display:flex;align-items:center;gap:3px">${concluido?ic('check')+' Ok':`${g.feito}/${g.total}`}</span>
+      </div>`);
+    });
+  };
+  montarLinhas(__syncGrupos.enviar, 'enviar');
+  montarLinhas(__syncGrupos.receber, 'receber');
+  if(linhas.length===0) return "";
+  return `<div class="sync-progresso" style="margin-top:8px">${linhas.join('')}</div>`;
+}
 async function onedriveSincronizarAgora(){
   if(__sincronizandoAgora) return; // já está rodando — evita clique duplo disparando duas sincronizações em paralelo
   if(!getOneDriveConta()){ toast("Conecte o OneDrive primeiro"); return; }
@@ -2022,6 +2123,8 @@ async function onedriveSincronizarAgora(){
     const download = await onedriveEstimarPendentesDownload();
     marcarProgressoSync();
     if(!download.erro) onedriveSalvarStatusPendente(upload, download);
+    __syncGrupos = onedriveMontarGruposIniciais(upload, download);
+    render();
     if(__onedriveSessaoExpirada){
       // Checado ANTES de tudo: quando o token não pode ser renovado, as funções
       // de listagem devolvem "nada encontrado" sem lançar erro nenhum — sem
@@ -2042,6 +2145,14 @@ async function onedriveSincronizarAgora(){
       return;
     }
 
+    if(download.camadaIncompleta){
+      // Aviso só informativo — a sincronização segue normalmente. Existe pra
+      // explicar por que o número desta passada é menor do que o total real:
+      // Projetos/Áreas novos primeiro, o resto vem nas passadas seguintes
+      // (automáticas, dentro deste mesmo toque em "Sincronizar agora").
+      toast("Encontrado Projeto ou Área ainda não conhecidos neste aparelho — o restante (Equipamentos, Tarefas, Riscos) aparece nas próximas passadas desta mesma sincronização.");
+    }
+
     const LIMIAR_PERGUNTAR_BYTES = 50*1024; // abaixo disso não vale incomodar com confirmação
     if(!onedriveEstaEmWifi() && totalBytesGeral > LIMIAR_PERGUNTAR_BYTES){
       const totalMB = (totalBytesGeral/1024/1024).toFixed(1);
@@ -2058,9 +2169,10 @@ async function onedriveSincronizarAgora(){
     toast(`Enviando suas alterações${upload.totalItens>0?` (${upload.totalItens})`:''}…`);
     __syncProgresso = { fase:'enviando', itemAtual:0, totalItens:upload.totalItens, bytesFeitos:0, bytesTotal:upload.totalBytes };
     render();
-    await sincronizarIncrementalOneDrive((bytesItem)=>{
+    await sincronizarIncrementalOneDrive((bytesItem, tipo)=>{
       __syncProgresso.itemAtual++;
       __syncProgresso.bytesFeitos += bytesItem;
+      if(__syncGrupos && __syncGrupos.enviar[tipo]) __syncGrupos.enviar[tipo].feito++;
       marcarProgressoSync();
       render();
     });
@@ -2084,9 +2196,10 @@ async function onedriveSincronizarAgora(){
     let passadas = 0, totalRecebidoTexto = 0, ultimaPassadaComErro = false;
     while(passadas < LIMITE_PASSADAS){
       marcarProgressoSync(); // início da passada já conta como avanço, mesmo antes de mesclar qualquer item
-      const r = await sincronizarDownloadOneDriveUmaPassada((bytesItem)=>{
+      const r = await sincronizarDownloadOneDriveUmaPassada((bytesItem, tipo)=>{
         __syncProgresso.itemAtual++;
         __syncProgresso.bytesFeitos += bytesItem;
+        if(__syncGrupos && __syncGrupos.receber[tipo]) __syncGrupos.receber[tipo].feito++;
         marcarProgressoSync();
         render();
       });
@@ -2105,9 +2218,10 @@ async function onedriveSincronizarAgora(){
       const bytesFotosDestaFase = pendentesFotos.reduce((s,p)=>s+(p.tamanho||0),0);
       __syncProgresso = { fase:'fotos', itemAtual:0, totalItens:antesLen, bytesFeitos:0, bytesTotal:bytesFotosDestaFase };
       render();
-      await onedriveBaixarPendentes((bytesItem)=>{
+      await onedriveBaixarPendentes((bytesItem, tipo)=>{
         __syncProgresso.itemAtual++;
         __syncProgresso.bytesFeitos += bytesItem;
+        if(__syncGrupos && __syncGrupos.receber[tipo]) __syncGrupos.receber[tipo].feito++;
         marcarProgressoSync();
         render();
       });
@@ -2142,6 +2256,7 @@ async function onedriveSincronizarAgora(){
     __sincronizandoAgora = false;
     __syncIniciadoEm = null;
     __syncProgresso = null;
+    __syncGrupos = null;
     render();
   }
 }
@@ -2208,13 +2323,21 @@ async function onedriveBaixarPendentesConfirmar(){
   __sincronizandoAgora = true;
   __syncIniciadoEm = Date.now();
   __syncProgresso = { fase:'fotos', itemAtual:0, totalItens:pendentes.length, bytesFeitos:0, bytesTotal:pendentes.reduce((s,p)=>s+(p.tamanho||0),0) };
+  const receberInicial = {};
+  pendentes.forEach(item=>{
+    if(!receberInicial[item.tipo]) receberInicial[item.tipo] = { total:0, feito:0, bytes:0 };
+    receberInicial[item.tipo].total++;
+    receberInicial[item.tipo].bytes += (item.tamanho||0);
+  });
+  __syncGrupos = { enviar:{}, receber:receberInicial };
   marcarProgressoSync();
   render();
   try{
     await comVigilanciaDeProgresso((async () => {
-      await onedriveBaixarPendentes((bytesItem)=>{
+      await onedriveBaixarPendentes((bytesItem, tipo)=>{
         __syncProgresso.itemAtual++;
         __syncProgresso.bytesFeitos += bytesItem;
+        if(__syncGrupos && __syncGrupos.receber[tipo]) __syncGrupos.receber[tipo].feito++;
         marcarProgressoSync();
         render();
       });
@@ -2226,6 +2349,7 @@ async function onedriveBaixarPendentesConfirmar(){
     __sincronizandoAgora = false;
     __syncIniciadoEm = null;
     __syncProgresso = null;
+    __syncGrupos = null;
     render();
   }
 }
@@ -4718,6 +4842,7 @@ function screenSimplesConfigBackup(){
   <div class="section-title">Visibilidade entre aparelhos</div>
   <button class="btn btn-onedrive btn-block${__sincronizandoAgora?' btn-sincronizando':''}" ${__sincronizandoAgora?'disabled':''} onclick="App.onedriveSincronizarAgora()">${ic('onedrive')} ${__sincronizandoAgora?'Sincronizando…':'Sincronizar agora'}</button>
   ${syncProgressoHtml()}
+  ${syncGruposHtml()}
   ${!__sincronizandoAgora ? onedriveStatusPendenteHtml() : ''}
   <p style="font-size:11.5px;color:var(--ink-dim);margin:4px 2px 0">Envia suas alterações e recebe as de outros aparelhos, nessa ordem.</p>
   <div class="card card-pad" style="display:flex;align-items:center;gap:12px;margin-top:8px">
@@ -8238,10 +8363,16 @@ document.addEventListener("visibilitychange", ()=>{
     // novo. Ao voltar pra tela, se ainda estiver "girando" depois de tempo
     // suficiente, destrava sozinho e avisa.
     if(__sincronizandoAgora && __syncIniciadoEm && (Date.now() - __syncIniciadoEm > 50000)){
+      const jaSalvos = __syncProgresso ? __syncProgresso.itemAtual : 0;
       __sincronizandoAgora = false;
       __syncIniciadoEm = null;
       __syncProgresso = null;
-      toast("A sincronização foi interrompida porque o aparelho ficou em segundo plano. Toque em \"Sincronizar agora\" para tentar de novo — evite trocar de aplicativo ou apagar a tela enquanto sincroniza.", false);
+      __syncGrupos = null;
+      // Os itens que já tinham sido baixados/enviados ANTES da tela travar já
+      // foram gravados no aparelho um por um — nada disso se perde. Avisar o
+      // número junto evita a impressão errada de "perdi tudo de novo".
+      const detalheSalvos = jaSalvos>0 ? ` ${jaSalvos} ite${jaSalvos===1?'m':'ns'} já ${jaSalvos===1?'foi':'foram'} salvo${jaSalvos===1?'':'s'} antes de parar — nada disso se perdeu.` : '';
+      toast(`A sincronização foi interrompida porque o aparelho ficou em segundo plano.${detalheSalvos} Toque em "Sincronizar agora" para continuar de onde parou — evite trocar de aplicativo ou apagar a tela enquanto sincroniza.`, false);
       render();
     }
     sincronizarIncrementalNaPasta(); sincronizarIncrementalOneDrive(); sincronizarDownloadOneDrive();
