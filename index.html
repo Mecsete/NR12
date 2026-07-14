@@ -1712,7 +1712,18 @@ async function onedriveBaixarTexto(caminhoArquivo){
   if(!token) return null;
   try{
     const url = `https://graph.microsoft.com/v1.0/me/drive/root:/${caminhoArquivo.split("/").map(encodeURIComponent).join("/")}:/content`;
-    const resp = await fetch(url, { headers: { "Authorization": `Bearer ${token}` } });
+    let resp, tentativas = 0;
+    while(true){
+      resp = await fetch(url, { headers: { "Authorization": `Bearer ${token}` } });
+      marcarProgressoSync();
+      if(resp.status===429 && tentativas<4){
+        const esperaSeg = Number(resp.headers.get("Retry-After")) || (1+tentativas);
+        await new Promise(r=>setTimeout(r, esperaSeg*1000));
+        tentativas++;
+        continue;
+      }
+      break;
+    }
     if(!resp.ok) return null;
     return await resp.text();
   }catch(e){ return null; }
@@ -1724,23 +1735,113 @@ function extrairSufixoDoNome(nome){
 function idBateComSufixo(idReal, sufixo6){
   return !!sufixo6 && String(idReal||"").slice(-6) === sufixo6;
 }
+const ONEDRIVE_BATCH_TAMANHO = 20; // limite máximo de sub-pedidos por chamada $batch da Microsoft
+/* Busca os filhos (metadados, sem conteúdo) de VÁRIAS pastas de uma vez usando
+   o endpoint $batch da Microsoft Graph — troca até 20 idas-e-voltas separadas
+   à Microsoft por uma única chamada. É o maior responsável pela demora da
+   sincronização mesmo em boa conexão: a árvore Projeto>Área>Máquina>Tarefa
+   pode ter dezenas de pastas, e cada uma custava uma viagem inteira de rede só
+   para saber o que tinha dentro, antes mesmo de baixar qualquer conteúdo (o
+   tempo de ida-e-volta pesa muito mais que o tamanho da resposta, que é
+   minúscula). NOTA: batching não ajuda para baixar o CONTEÚDO dos arquivos —
+   a Microsoft sempre redireciona esse pedido para uma URL temporária separada,
+   então agrupar não economiza viagem nenhuma ali; só vale a pena para listar
+   pastas, que é o que esta função faz.
+   Retorna um Map de caminho -> lista de filhos. Pastas que precisam de
+   paginação (mais de 200 itens, raro nesta hierarquia) ou que falharam dentro
+   do lote caem de volta para onedriveListarFilhos individual, que já sabe
+   lidar com isso. */
+async function onedriveListarFilhosEmLote(caminhos){
+  const resultado = new Map();
+  if(caminhos.length===0) return resultado;
+  const token = await onedriveObterToken();
+  if(!token){ caminhos.forEach(c=>resultado.set(c, [])); return resultado; }
+  const precisamBuscaIndividual = [];
+  for(let inicio=0; inicio<caminhos.length; inicio+=ONEDRIVE_BATCH_TAMANHO){
+    const lote = caminhos.slice(inicio, inicio+ONEDRIVE_BATCH_TAMANHO);
+    const requests = lote.map((caminho, i) => ({
+      id: String(i),
+      method: "GET",
+      url: `/me/drive/root:/${caminho.split("/").map(encodeURIComponent).join("/")}:/children?$select=name,size,file,folder&$top=200`
+    }));
+    let resp, tentativas = 0;
+    while(true){
+      resp = await fetch("https://graph.microsoft.com/v1.0/$batch", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ requests })
+      });
+      marcarProgressoSync();
+      if(resp.status===429 && tentativas<4){
+        const esperaSeg = Number(resp.headers.get("Retry-After")) || (1+tentativas);
+        await new Promise(r=>setTimeout(r, esperaSeg*1000));
+        tentativas++;
+        continue;
+      }
+      break;
+    }
+    if(!resp.ok){
+      // O lote inteiro falhou (raro) — cada pasta dele cai para busca
+      // individual, que tem sua própria lógica de nova tentativa.
+      lote.forEach(c=>precisamBuscaIndividual.push(c));
+      continue;
+    }
+    let dados;
+    try{ dados = await resp.json(); }catch(e){ lote.forEach(c=>precisamBuscaIndividual.push(c)); continue; }
+    const porId = new Map((dados.responses||[]).map(r=>[r.id, r]));
+    lote.forEach((caminho, i) => {
+      const r = porId.get(String(i));
+      if(!r){ precisamBuscaIndividual.push(caminho); return; }
+      if(r.status===404){ resultado.set(caminho, []); return; } // pasta realmente não existe ainda — vazio de verdade
+      if(r.status<200 || r.status>=300){ precisamBuscaIndividual.push(caminho); return; } // inclui 429 nesta sub-requisição específica
+      const corpo = r.body || {};
+      if(corpo["@odata.nextLink"]){
+        // Mais de 200 itens numa pasta só (não acontece na prática desta
+        // hierarquia) — busca completa via requisição individual, que já
+        // sabe paginar sozinha.
+        precisamBuscaIndividual.push(caminho);
+        return;
+      }
+      const itens = (corpo.value||[]).map(item=>({ nome: item.name, tamanho: item.size||0, pasta: !!item.folder }));
+      resultado.set(caminho, itens);
+    });
+  }
+  await executarComConcorrencia(precisamBuscaIndividual, 5, async (caminho) => {
+    try{ resultado.set(caminho, await onedriveListarFilhos(caminho)); }
+    catch(e){ resultado.set(caminho, []); }
+  });
+  return resultado;
+}
 /* Busca a árvore de pastas/arquivos a partir de caminhoPasta, só metadados
    (sem baixar conteúdo). profundidadeRestante limita quantos níveis de pasta
    ainda descer — evita recursão além da hierarquia conhecida (Projeto > Área
-   > Máquina > Tarefa). */
+   > Máquina > Tarefa > Risco). Percorre por CAMADAS — todas as pastas de um
+   mesmo nível são buscadas juntas, em lotes de até 20 numa única chamada
+   $batch — em vez de uma pasta de cada vez. Isso troca "uma viagem de rede por
+   pasta" por "uma viagem de rede por NÍVEL da hierarquia", o que é a diferença
+   real de velocidade em projetos com muitas áreas/máquinas/tarefas. */
 async function onedriveListarArvore(caminhoPasta, profundidadeRestante){
-  const filhos = await onedriveListarFilhos(caminhoPasta);
-  const nos = [];
-  await executarComConcorrencia(filhos, 5, async (f) => {
-    const caminhoFilho = `${caminhoPasta}/${f.nome}`;
-    if(f.pasta){
-      const sub = profundidadeRestante > 0 ? await onedriveListarArvore(caminhoFilho, profundidadeRestante-1) : [];
-      nos.push({ nome:f.nome, pasta:true, caminho:caminhoFilho, filhos: sub });
-    }else{
-      nos.push({ nome:f.nome, pasta:false, caminho:caminhoFilho, tamanho:f.tamanho });
-    }
+  const construirNos = (caminhoBase, itens) => itens.map(f => {
+    const caminhoFilho = `${caminhoBase}/${f.nome}`;
+    return f.pasta
+      ? { nome: f.nome, pasta: true, caminho: caminhoFilho, filhos: [] }
+      : { nome: f.nome, pasta: false, caminho: caminhoFilho, tamanho: f.tamanho };
   });
-  return nos;
+  const filhosRaiz = (await onedriveListarFilhosEmLote([caminhoPasta])).get(caminhoPasta) || [];
+  const nivelRaiz = construirNos(caminhoPasta, filhosRaiz);
+  let nivelAtual = nivelRaiz.filter(n=>n.pasta);
+  let restante = profundidadeRestante;
+  while(nivelAtual.length>0 && restante>0){
+    const filhosPorCaminho = await onedriveListarFilhosEmLote(nivelAtual.map(n=>n.caminho));
+    const proximoNivel = [];
+    for(const no of nivelAtual){
+      no.filhos = construirNos(no.caminho, filhosPorCaminho.get(no.caminho) || []);
+      no.filhos.forEach(f=>{ if(f.pasta) proximoNivel.push(f); });
+    }
+    nivelAtual = proximoNivel;
+    restante--;
+  }
+  return nivelRaiz;
 }
 /* Percorre a árvore já buscada (em memória, sem mais chamadas de rede) e
    separa o que é novo (não existe neste aparelho) em duas listas: pequeno
@@ -1865,7 +1966,7 @@ async function sincronizarDownloadOneDriveUmaPassada(onProgresso){
     const arvore = await onedriveListarArvore(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`, 4);
     const { pequenos, grandes } = onedriveClassificarNovosSimples(arvore);
     let mesclados = 0;
-    await executarComConcorrencia(pequenos, 5, async (item) => {
+    await executarComConcorrencia(pequenos, 8, async (item) => {
       const texto = await onedriveBaixarTexto(item.caminho);
       if(texto){
         try{ const dados = JSON.parse(texto); if(onedriveMesclarItemNovo(item, dados)) mesclados++; }catch(e){}
@@ -1880,7 +1981,7 @@ async function sincronizarDownloadOneDriveUmaPassada(onProgresso){
     let pendentesRestantes = grandes;
     if(STATE.baixarFotosAutoWifi && onedriveEstaEmWifi()){
       const aindaPendentes = [];
-      await executarComConcorrencia(grandes, 4, async (item) => {
+      await executarComConcorrencia(grandes, 6, async (item) => {
         const texto = await onedriveBaixarTexto(item.caminho);
         if(!texto){ aindaPendentes.push(item); }
         else{
@@ -1919,7 +2020,7 @@ async function onedriveBaixarPendentes(onProgresso){
   if(pendentes.length===0) return;
   let algumaMudanca = false;
   const restantes = [];
-  await executarComConcorrencia(pendentes, 4, async (item) => {
+  await executarComConcorrencia(pendentes, 6, async (item) => {
     const texto = await onedriveBaixarTexto(item.caminho);
     if(!texto){ restantes.push(item); }
     else{
