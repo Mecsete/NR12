@@ -1001,7 +1001,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
    GitHub (útil especialmente dado o atraso de alguns minutos do GitHub para
    propagar cada atualização, e para diferenciar aparelhos que ainda não
    atualizaram dos que já atualizaram). */
-const APP_BUILD = "13/07/2026 20:27";
+const APP_BUILD = "13/07/2026 22:46";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -2069,6 +2069,7 @@ async function onedriveSincronizarAgora(){
    recente salvo no OneDrive e oferece importá-lo — usando a MESMA tela de
    revisão já usada para importação manual, então nada entra sem o usuário
    conferir e confirmar antes. */
+const ONEDRIVE_LIMITE_BOOTSTRAP_BYTES = 25 * 1024 * 1024; // acima disso, baixar o arquivo inteiro de uma vez arrisca travar a memória do celular
 async function onedriveVerificarBootstrapNovoDispositivo(avisar){
   if(!getOneDriveConta()){ if(avisar) toast("Conecte o OneDrive primeiro"); return; }
   if((STATE.projetosSimples||[]).length > 0 || (STATE.projetos||[]).length > 0){
@@ -2082,8 +2083,28 @@ async function onedriveVerificarBootstrapNovoDispositivo(avisar){
     const backups = arquivos.filter(f=>!f.pasta && /^backup_apr_.*\.json$/i.test(f.nome)).sort((a,b)=> a.nome < b.nome ? 1 : -1);
     if(backups.length===0){ if(avisar) toast("Nenhum backup completo encontrado no OneDrive ainda"); return; }
     const maisRecente = backups[0];
+    if(maisRecente.tamanho > ONEDRIVE_LIMITE_BOOTSTRAP_BYTES){
+      // Backup grande demais pra baixar inteiro de uma vez com segurança no
+      // celular (baixar como texto puro na memória, igual esse arquivo exige,
+      // pode travar ou fechar sozinho o navegador em aparelhos com menos
+      // memória — mesmo que funcione tranquilamente no computador). Em vez de
+      // insistir nisso, usa o outro caminho que já existe: reconstrução aos
+      // poucos, item por item (Projeto, Área, Máquina, Tarefa, Risco), que
+      // nunca baixa mais que um arquivo pequeno de cada vez.
+      const mb = (maisRecente.tamanho/1024/1024).toFixed(0);
+      if(avisar) toast(`O backup mais recente tem ${mb} MB — grande demais pra baixar de uma vez com segurança neste aparelho. Reconstruindo aos poucos em vez disso…`);
+      await onedriveSincronizarAgora();
+      return;
+    }
     const texto = await onedriveBaixarTexto(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/${maisRecente.nome}`);
-    if(!texto){ if(avisar) toast("Não foi possível baixar o backup do OneDrive agora — tente de novo"); return; }
+    if(!texto){
+      // O arquivo era de tamanho seguro mas mesmo assim falhou (rede instável,
+      // etc.) — tenta o caminho de reconstrução aos poucos como alternativa,
+      // em vez de simplesmente desistir.
+      if(avisar) toast("Não foi possível baixar o backup completo agora. Tentando reconstruir aos poucos…");
+      await onedriveSincronizarAgora();
+      return;
+    }
     const dados = JSON.parse(texto);
     if(!dados || (!Array.isArray(dados.projetos) && !Array.isArray(dados.projetosSimples))){
       if(avisar) toast("O backup encontrado no OneDrive não é válido");
@@ -2095,14 +2116,35 @@ async function onedriveVerificarBootstrapNovoDispositivo(avisar){
   }
 }
 async function onedriveBaixarPendentesConfirmar(){
+  if(__sincronizandoAgora) return; // já tem uma sincronização/download rodando — evita sobrepor duas ao mesmo tempo
   const pendentes = STATE.oneDrivePendentes || [];
   if(pendentes.length===0){ toast("Nada pendente para baixar"); return; }
   const totalMB = (pendentes.reduce((s,p)=>s+(p.tamanho||0),0)/1024/1024).toFixed(1);
   const plural = pendentes.length===1 ? "item" : "itens";
   if(!confirm(`Baixar ${pendentes.length} ${plural} com fotos do OneDrive? Consumo estimado: ${totalMB} MB.`)) return;
-  toast("Baixando…");
-  await onedriveBaixarPendentes();
-  toast("Download concluído");
+  __sincronizandoAgora = true;
+  __syncIniciadoEm = Date.now();
+  __syncProgresso = { fase:'fotos', itemAtual:0, totalItens:pendentes.length, bytesFeitos:0, bytesTotal:pendentes.reduce((s,p)=>s+(p.tamanho||0),0) };
+  marcarProgressoSync();
+  render();
+  try{
+    await comVigilanciaDeProgresso((async () => {
+      await onedriveBaixarPendentes((bytesItem)=>{
+        __syncProgresso.itemAtual++;
+        __syncProgresso.bytesFeitos += bytesItem;
+        marcarProgressoSync();
+        render();
+      });
+    })(), 90000);
+    toast("Download concluído");
+  }catch(e){
+    toast("O download parou de responder e foi interrompido. Tente novamente.", false);
+  }finally{
+    __sincronizandoAgora = false;
+    __syncIniciadoEm = null;
+    __syncProgresso = null;
+    render();
+  }
 }
 function onedriveToggleAutoWifi(){
   STATE.baixarFotosAutoWifi = !STATE.baixarFotosAutoWifi;
@@ -4612,7 +4654,7 @@ function screenSimplesConfigBackup(){
     <label class="switch"><input type="checkbox" ${STATE.baixarFotosAutoWifi?'checked':''} onchange="App.onedriveToggleAutoWifi()"><span class="switch-track"></span></label>
   </div>
   ${(STATE.oneDrivePendentes||[]).length>0 ? `
-  <button class="btn btn-onedrive btn-block" style="margin-top:8px" onclick="App.onedriveBaixarPendentesConfirmar()">${ic('onedrive')} Baixar ${STATE.oneDrivePendentes.length} ${STATE.oneDrivePendentes.length===1?'item':'itens'} com fotos (~${(STATE.oneDrivePendentes.reduce((s,p)=>s+(p.tamanho||0),0)/1024/1024).toFixed(1)} MB)</button>
+  <button class="btn btn-onedrive btn-block${__sincronizandoAgora?' btn-sincronizando':''}" style="margin-top:8px" ${__sincronizandoAgora?'disabled':''} onclick="App.onedriveBaixarPendentesConfirmar()">${ic('onedrive')} ${(__sincronizandoAgora && __syncProgresso && __syncProgresso.fase==='fotos') ? 'Baixando…' : `Baixar ${STATE.oneDrivePendentes.length} ${STATE.oneDrivePendentes.length===1?'item':'itens'} com fotos (~${(STATE.oneDrivePendentes.reduce((s,p)=>s+(p.tamanho||0),0)/1024/1024).toFixed(1)} MB)`}</button>
   ` : ''}
   ` : `
   <div class="card card-pad">
@@ -7897,17 +7939,37 @@ function abrirRevisaoImportacao(dadosArquivo, nomeArquivo){
   abrirOverlay(screenModalImportacaoRevisao());
 }
 
+const LIMITE_IMPORTACAO_MANUAL_BYTES = 60 * 1024 * 1024; // acima disso, ler+converter o arquivo inteiro na memória arrisca travar até em computador
 document.getElementById("fileImport").addEventListener("change", function(){
   const file = this.files[0]; if(!file) return;
+  if(file.size > LIMITE_IMPORTACAO_MANUAL_BYTES){
+    const mb = (file.size/1024/1024).toFixed(0);
+    alert(`Este arquivo tem ${mb} MB — grande demais para importar diretamente com segurança (mesmo em computador, arquivos muito grandes podem travar a página). Se esses dados também estiverem salvos no OneDrive, conecte-o em Configurações e use "Sincronizar agora": ele traz os dados aos poucos, sem esse limite de tamanho.`);
+    this.value = "";
+    return;
+  }
+  const file2 = file;
   const reader = new FileReader();
   reader.onload = ()=>{
+    let data;
     try{
-      const data = JSON.parse(reader.result);
-      if(!data || (!Array.isArray(data.projetos) && !Array.isArray(data.projetosSimples))) throw new Error("formato inválido");
-      abrirRevisaoImportacao(data, file.name);
+      data = JSON.parse(reader.result);
     }catch(e){
-      alert("Não foi possível importar este arquivo. Verifique se é um backup válido (.json) gerado por este aplicativo.");
+      // JSON.parse pode falhar tanto por o arquivo estar realmente corrompido
+      // quanto por ter ficado grande demais pra memória processar de uma vez
+      // (comum perto do limite de tamanho acima) — a mensagem já orienta os
+      // dois casos, sem fingir certeza sobre qual foi.
+      alert("Não foi possível abrir este arquivo. Ou ele não é um backup válido (.json) gerado por este aplicativo, ou ficou grande demais para este navegador processar de uma vez — nesse caso, tente pelo computador, ou use \"Sincronizar agora\" com o OneDrive conectado.");
+      return;
     }
+    if(!data || (!Array.isArray(data.projetos) && !Array.isArray(data.projetosSimples))){
+      alert("Não foi possível importar este arquivo. Verifique se é um backup válido (.json) gerado por este aplicativo.");
+      return;
+    }
+    abrirRevisaoImportacao(data, file2.name);
+  };
+  reader.onerror = ()=>{
+    alert("Não foi possível ler este arquivo agora. Tente novamente.");
   };
   reader.readAsText(file);
   this.value = "";
