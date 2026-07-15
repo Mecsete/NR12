@@ -1212,7 +1212,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
    GitHub (útil especialmente dado o atraso de alguns minutos do GitHub para
    propagar cada atualização, e para diferenciar aparelhos que ainda não
    atualizaram dos que já atualizaram). */
-const APP_BUILD = "15/07/2026 17:30";
+const APP_BUILD = "15/07/2026 19:15";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -2292,7 +2292,10 @@ async function onedriveListarArvore(caminhoPasta, profundidadeRestante){
    (sem foto, baixa sozinho) e grande (tem foto, fica pendente). */
 function onedriveClassificarNovosSimples(arvoreProjetos){
   const pequenos = [], grandes = [];
-  const registrar = (tamanho, reg) => (tamanho<=ONEDRIVE_LIMITE_AUTO_BYTES ? pequenos : grandes).push(reg);
+  const registrar = (tamanho, reg) => {
+    if(arquivoEstaEmQuarentena(reg.caminho, tamanho)) return; // corrompido conhecido — fora da contagem até o dono reenviar (tamanho novo = sai da quarentena sozinho)
+    (tamanho<=ONEDRIVE_LIMITE_AUTO_BYTES ? pequenos : grandes).push(reg);
+  };
   // Se um item local está esperando fotos (__fotosOmitidas) e o pacote
   // "fotos_..." já existe na nuvem, registra para download — o pacote é
   // grande, então cai no fluxo de pendentes (Wi-Fi/manual), como toda foto.
@@ -2440,7 +2443,8 @@ async function sincronizarDownloadOneDriveUmaPassada(onProgresso){
     await executarComConcorrencia(pequenos, 8, async (item) => {
       const texto = await onedriveBaixarTexto(item.caminho);
       if(texto){
-        try{ const dados = JSON.parse(texto); if(onedriveMesclarItemNovo(item, dados)){ mesclados++; registrarEventoSync("down", item.nome, item.tipo, item.tamanho||0, true); } }catch(e){}
+        try{ const dados = JSON.parse(texto); if(onedriveMesclarItemNovo(item, dados)){ mesclados++; registrarEventoSync("down", item.nome, item.tipo, item.tamanho||0, true); gravarIncrementalDownload(); } }
+        catch(e){ marcarArquivoCorrompido(item, texto); }
       }
       // Conta como "andamento" mesmo quando o item não pôde ser baixado agora
       // (sem rede momentânea) ou já existia local — a barra de progresso e o
@@ -2499,7 +2503,7 @@ async function sincronizarDownloadOneDriveUmaPassada(onProgresso){
       6 horas (e em toda sincronização manual), cobrindo qualquer caso
       teórico que o delta pudesse deixar passar. */
 const ONEDRIVE_DELTA_LS_PREFIXO = "onedriveDeltaLink:";
-const INTERVALO_FULLSCAN_SEGURANCA_MS = 6 * 60 * 60 * 1000; // 6h
+const INTERVALO_FULLSCAN_SEGURANCA_MS = 30 * 60 * 1000; // 30 min — com a listagem em lotes, a varredura completa custa poucas requisições; como rede de segurança do delta, meia hora garante que itens novos SEMPRE chegam sozinhos em no máximo esse intervalo, qualquer que seja o ambiente
 function __idDaContaOneDrive(){
   const c = getOneDriveConta();
   return c ? (c.homeAccountId || c.username || c.email || "conta") : null;
@@ -2675,8 +2679,8 @@ async function onedriveDeltaProcessarFila(){
       if(!texto){ manter.push(entrada); continue; } // rede falhou agora — permanece na fila
       try{
         const dados = JSON.parse(texto);
-        if(onedriveMesclarItemNovo(d, dados)){ mesclados++; progrediu = true; registrarEventoSync("down", d.nome, d.tipo, d.tamanho||0, true); }
-      }catch(e){ /* json inválido — descarta: reprocessar eternamente não conserta; a varredura de segurança recupera se for transitório */ }
+        if(onedriveMesclarItemNovo(d, dados)){ mesclados++; progrediu = true; registrarEventoSync("down", d.nome, d.tipo, d.tamanho||0, true); gravarIncrementalDownload(); }
+      }catch(e){ marcarArquivoCorrompido(entrada, texto); /* quarentena registrada — sai da fila e da contagem até o dono reenviar */ }
       marcarProgressoSync();
     }
     fila = manter;
@@ -2687,6 +2691,39 @@ async function onedriveDeltaProcessarFila(){
 /* Usada pela sincronização automática em segundo plano (a cada edição, a cada
    2 min, ao reabrir a aba) — uma passada só, com aviso/gravação, exatamente
    como sempre funcionou. */
+/* GRAVAÇÃO INCREMENTAL DURANTE DOWNLOADS — cada item mesclado precisa chegar
+   ao disco em segundos, não só no fim do processo inteiro. Sem isto, um
+   download de 97 itens que caía aos 25% (conexão, tela, app fechado) perdia
+   TODOS os itens já baixados — eles só existiam na memória. Com throttle de
+   2,5s para não transformar 97 itens em 97 gravações pesadas do STATE. */
+/* QUARENTENA DE ARQUIVOS CORROMPIDOS — um arquivo parcial/ilegível na nuvem
+   (sobra típica de um upload interrompido no meio) era rebaixado em silêncio
+   a cada ciclo: o estimador contava, o download baixava, a leitura falhava,
+   e o item ficava como "a receber" PARA SEMPRE — o resquício que nunca some.
+   Agora: registrado UMA vez no histórico como falha visível, entra em
+   quarentena (identificado por caminho+tamanho) e sai da contagem. Se o
+   aparelho dono reeditar o item, o arquivo novo tem outro tamanho — sai da
+   quarentena sozinho e é baixado normalmente. */
+function marcarArquivoCorrompido(item, texto){
+  if(!Array.isArray(STATE.arquivosCorrompidosIgnorados)) STATE.arquivosCorrompidosIgnorados = [];
+  const chave = item.caminho + "|" + (item.tamanho||0);
+  if(STATE.arquivosCorrompidosIgnorados.some(a=>a.chave===chave)) return; // já em quarentena — não repete o registro
+  STATE.arquivosCorrompidosIgnorados.push({ chave, caminho:item.caminho, ts:Date.now() });
+  if(STATE.arquivosCorrompidosIgnorados.length>60) STATE.arquivosCorrompidosIgnorados.splice(0, STATE.arquivosCorrompidosIgnorados.length-60);
+  registrarEventoSync("down", item.nome||item.caminho.split("/").pop(), item.tipo, item.tamanho||0, false, "arquivo corrompido — ignorado");
+  dbSet(STATE);
+}
+function arquivoEstaEmQuarentena(caminho, tamanho){
+  return Array.isArray(STATE.arquivosCorrompidosIgnorados) &&
+    STATE.arquivosCorrompidosIgnorados.some(a=>a.chave===caminho+"|"+(tamanho||0));
+}
+let __ultimaGravacaoIncrementalEm = 0;
+function gravarIncrementalDownload(){
+  const agora = Date.now();
+  if(agora - __ultimaGravacaoIncrementalEm < 2500) return;
+  __ultimaGravacaoIncrementalEm = agora;
+  dbSet(STATE); // sem await de propósito: a gravação segue em paralelo, o download não espera
+}
 let __downloadAutoRodando = false;
 async function sincronizarDownloadOneDrive(){
   if(__downloadAutoRodando) return; // já tem uma varredura em andamento — evita duas em paralelo
@@ -2816,7 +2853,7 @@ async function onedriveBaixarPendentes(onProgresso){
     else{
       try{
         const dados = JSON.parse(texto);
-        if(onedriveMesclarItemNovo(item, dados)){ algumaMudanca = true; registrarEventoSync("down", item.nome, item.tipo, item.tamanho||0, true); }
+        if(onedriveMesclarItemNovo(item, dados)){ algumaMudanca = true; registrarEventoSync("down", item.nome, item.tipo, item.tamanho||0, true); gravarIncrementalDownload(); }
         else restantes.push(item);
       }catch(e){ restantes.push(item); }
     }
@@ -3126,7 +3163,11 @@ async function onedriveSincronizarAgora(){
       const r = await sincronizarDownloadOneDriveUmaPassada((bytesItem, tipo)=>{
         __syncProgresso.itemAtual++;
         __syncProgresso.bytesFeitos += bytesItem;
-        if(__syncGrupos && __syncGrupos.receber[tipo]) __syncGrupos.receber[tipo].feito++;
+        // Clamp: passadas repetidas podem reprocessar itens que aguardavam o
+        // pai — sem o teto, o contador passava do total ("300 de 200").
+        const g = __syncGrupos && __syncGrupos.receber[tipo];
+        if(g && g.feito < g.total) g.feito++;
+        gravarIncrementalDownload(); // item já mesclado vai pro disco em segundos, não só no fim
         marcarProgressoSync();
         render();
       });
@@ -3148,7 +3189,7 @@ async function onedriveSincronizarAgora(){
       await onedriveBaixarPendentes((bytesItem, tipo)=>{
         __syncProgresso.itemAtual++;
         __syncProgresso.bytesFeitos += bytesItem;
-        if(__syncGrupos && __syncGrupos.receber[tipo]) __syncGrupos.receber[tipo].feito++;
+        { const g = __syncGrupos && __syncGrupos.receber[tipo]; if(g && g.feito < g.total) g.feito++; } gravarIncrementalDownload();
         marcarProgressoSync();
         render();
       });
@@ -3275,7 +3316,7 @@ async function onedriveBaixarPendentesConfirmar(){
       await onedriveBaixarPendentes((bytesItem, tipo)=>{
         __syncProgresso.itemAtual++;
         __syncProgresso.bytesFeitos += bytesItem;
-        if(__syncGrupos && __syncGrupos.receber[tipo]) __syncGrupos.receber[tipo].feito++;
+        { const g = __syncGrupos && __syncGrupos.receber[tipo]; if(g && g.feito < g.total) g.feito++; } gravarIncrementalDownload();
         marcarProgressoSync();
         render();
       });
@@ -3642,13 +3683,13 @@ function syncProgressoHtml(){
   const rotulo = rotulos[p.fase] || "Sincronizando";
   if(p.totalItens==null){
     return `<div class="sync-progresso sync-progresso-indeterminado">
-      <div class="sync-progresso-texto"><span>${rotulo}…</span><span>${p.itemAtual} item${p.itemAtual===1?'':'s'} · ${mb(p.bytesFeitos)} MB</span></div>
+      <div class="sync-progresso-texto"><span>${rotulo}…</span><span>${p.itemAtual} item${p.itemAtual===1?'':'s'} · ${fmtBytes(p.bytesFeitos)}</span></div>
       <div class="sync-progresso-trilha"><div class="sync-progresso-barra"></div></div>
     </div>`;
   }
   const pct = p.totalItens>0 ? Math.min(100, Math.round((p.itemAtual/p.totalItens)*100)) : 100;
   return `<div class="sync-progresso">
-    <div class="sync-progresso-texto"><span>${rotulo}… ${pct}%</span><span>${p.itemAtual} de ${p.totalItens} · ${mb(p.bytesFeitos)} de ${mb(p.bytesTotal)} MB</span></div>
+    <div class="sync-progresso-texto"><span>${rotulo}… ${pct}%</span><span>${Math.min(p.itemAtual,p.totalItens)} de ${p.totalItens} · ${fmtBytes(p.bytesFeitos)} de ${fmtBytes(p.bytesTotal)}</span></div>
     <div class="sync-progresso-trilha"><div class="sync-progresso-barra" style="width:${pct}%"></div></div>
   </div>`;
 }
@@ -5963,6 +6004,7 @@ function screenSimplesConfigBackup(){
   <div class="section-title">Backup completo</div>
   <button class="btn btn-primary btn-block" onclick="App.exportarBackup()">${ic('download')} Exportar backup (.json) — ${STATE.projetosSimples.length} projeto(s) / ${linhas.length} risco(s)</button>
   <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="document.getElementById('fileImport').click()">${ic('upload')} Importar backup (.json)</button>
+  <p style="text-align:center;font-size:11px;color:var(--ink-faint);margin-top:16px">Versão ${APP_BUILD}</p>
   <div class="section-title">Histórico de sincronização</div>
   <div class="card card-pad">
     <p style="font-size:12.5px;color:var(--ink-dim)">Tudo que subiu (${'\u2191'}) ou desceu (${'\u2193'}) do OneDrive, com tamanho e horário — inclusive o que aconteceu sozinho em segundo plano. Últimos ${MAX_EVENTOS_LOG_SYNC} eventos.</p>
@@ -9331,7 +9373,10 @@ function abrirRevisaoImportacao(dadosArquivo, nomeArquivo){
   abrirOverlay(screenModalImportacaoRevisao());
 }
 
-const LIMITE_IMPORTACAO_MANUAL_BYTES = 60 * 1024 * 1024; // acima disso, ler+converter o arquivo inteiro na memória arrisca travar até em computador
+const EH_DISPOSITIVO_MOVEL = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+// Celular: 60 MB (iOS Safari trava com arquivos grandes na importação — limitação já vivida em campo).
+// Computador: 400 MB — memória de sobra; era o bloqueio real de "não consigo mais importar" com backups cheios de fotos.
+const LIMITE_IMPORTACAO_MANUAL_BYTES = (EH_DISPOSITIVO_MOVEL ? 60 : 400) * 1024 * 1024;
 document.getElementById("fileImport").addEventListener("change", function(){
   const file = this.files[0]; if(!file) return;
   if(file.size > LIMITE_IMPORTACAO_MANUAL_BYTES){
