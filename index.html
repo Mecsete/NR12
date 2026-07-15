@@ -71,8 +71,10 @@ a{color:var(--accent-ink);}
 .topbar-action{background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.16);color:var(--on-bar);border-radius:10px;padding:7px 10px;font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:5px;white-space:nowrap;}
 .topbar-action:active{background:rgba(255,255,255,.2);}
 .savechip{font-size:10.5px;color:var(--on-bar-dim);display:flex;align-items:center;gap:4px;letter-spacing:.02em;}
+.savechip.erro-salvar{color:#FF6B5E;font-weight:700;}
 .savechip .dot{width:6px;height:6px;border-radius:50%;background:#7FE08A;flex-shrink:0;}
 .savechip.saving .dot{background:var(--accent);}
+.savechip.erro-salvar .dot{background:#FF6B5E;}
 .syncbadge{display:flex;align-items:center;gap:4px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.16);color:var(--on-bar-dim);border-radius:20px;padding:5px 9px;font-size:11px;font-weight:800;white-space:nowrap;flex-shrink:0;font-family:inherit;}
 .syncbadge svg{width:13px;height:13px;flex-shrink:0;}
 .syncbadge.alerta{background:rgba(255,80,60,.22);border-color:rgba(255,120,90,.4);color:#FFDCD2;}
@@ -151,8 +153,8 @@ a{color:var(--accent-ink);}
 .btn-dark:active{background:var(--bar-2);}
 .btn-sm{padding:7px 12px;font-size:12.5px;border-radius:9px;}
 .btn[disabled]{opacity:.45;pointer-events:none;}
-.fab-wrap{position:sticky;bottom:14px;display:flex;justify-content:flex-end;pointer-events:none;height:0;}
-.fab{pointer-events:auto;background:var(--accent);color:#fff;border:none;border-radius:999px;width:56px;height:56px;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 22px rgba(233,78,27,.45);margin-right:2px;}
+.fab-wrap{position:fixed;left:0;right:0;bottom:calc(58px + env(safe-area-inset-bottom) + 14px);display:flex;justify-content:flex-end;max-width:760px;margin:0 auto;padding-right:14px;pointer-events:none;z-index:19;}
+.fab{pointer-events:auto;background:var(--accent);color:#fff;border:none;border-radius:999px;width:56px;height:56px;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 22px rgba(233,78,27,.45);}
 .fab svg{width:25px;height:25px;}
 .aggr-card{display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,var(--bar),var(--bar-2));color:#fff;border-radius:var(--radius);padding:14px;margin-bottom:14px;box-shadow:var(--shadow);}
 .aggr-card .ico{width:38px;height:38px;border-radius:10px;background:rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
@@ -956,32 +958,238 @@ async function dbGet(){
       rq.onerror=function(){ reject(rq.error); };
     });
   }catch(e){
-    __storageMode = "localstorage";
+    // NÃO rebaixa __storageMode aqui: uma leitura com falha momentânea não
+    // diz nada sobre a capacidade de GRAVAR daqui a pouco — e era esse
+    // rebaixamento na leitura que contaminava todas as gravações seguintes
+    // da sessão (dbSet agora tenta o caminho completo a cada chamada, mas
+    // não faz sentido a leitura sabotar o estado de saúde da gravação).
     try{ const raw = localStorage.getItem(LS_KEY); return raw ? JSON.parse(raw) : null; }
-    catch(e2){ __storageMode = "memoria"; return __memoryFallback; }
+    catch(e2){ return __memoryFallback; }
   }
 }
 async function dbSet(val){
-  if(__storageMode==="indexeddb"){
-    try{
-      const db = await dbOpen();
-      await new Promise((resolve,reject)=>{
-        const tx = db.transaction(DB_STORE,"readwrite");
-        tx.objectStore(DB_STORE).put(val, DB_KEY);
-        tx.oncomplete=function(){ resolve(true); };
-        tx.onerror=function(){ reject(tx.error); };
-      });
-      return true;
-    }catch(e){ __storageMode = "localstorage"; }
-  }
-  if(__storageMode==="localstorage"){
-    try{ localStorage.setItem(LS_KEY, JSON.stringify(val)); return true; }
-    catch(e){ __storageMode = "memoria"; }
-  }
+  // SEMPRE tenta o IndexedDB primeiro, em toda gravação — antes, uma única
+  // falha passageira (soluço comum no Android sob pressão de memória)
+  // rebaixava o modo PERMANENTEMENTE: caía para localStorage (que não
+  // comporta fotos — limite ~5 MB), falhava de novo, e terminava em
+  // "memória" — e o resto da sessão inteira rodava sem gravar nada de
+  // verdade, silenciosamente. Um soluço momentâneo não pode condenar todas
+  // as gravações seguintes; cada tentativa merece o caminho completo.
+  try{
+    const db = await dbOpen();
+    await new Promise((resolve,reject)=>{
+      const tx = db.transaction(DB_STORE,"readwrite");
+      tx.objectStore(DB_STORE).put(val, DB_KEY);
+      tx.oncomplete=function(){ resolve(true); };
+      tx.onerror=function(){ reject(tx.error); };
+    });
+    __storageMode = "indexeddb"; // gravou de verdade — modo saudável (recupera mesmo se uma tentativa anterior tinha falhado)
+    return true;
+  }catch(e){ /* cai para os planos B abaixo, SÓ nesta tentativa */ }
+  try{ localStorage.setItem(LS_KEY, JSON.stringify(val)); __storageMode = "localstorage"; return true; }
+  catch(e){ /* localStorage cheio ou indisponível — último recurso abaixo */ }
+  __storageMode = "memoria";
   __memoryFallback = val;
   return true;
 }
 async function carregarEstadoSalvo(){ return await dbGet(); }
+
+/* =========================================================================
+   PONTOS DE RESTAURAÇÃO — cópias completas do STATE guardadas no aparelho,
+   independentes de qualquer sincronização com a nuvem. É a rede de segurança
+   final: mesmo que um bug (neste app ou em qualquer versão futura) apague ou
+   substitua dados por engano, sempre existe um ponto recente pra voltar,
+   sem depender de internet, OneDrive, ou de ter feito um export manual antes.
+   Guardadas na mesma gaveta do IndexedDB do resto dos dados, com um limite de
+   quantidade (MAX_PONTOS_RESTAURACAO) para não crescer sem parar — cada ponto
+   é uma cópia inteira do STATE (incluindo fotos), então poucos pontos recentes
+   valem mais que muitos pontos antigos ocupando espaço à toa. */
+const DB_KEY_PONTOS_RESTAURACAO = "pontosRestauracao";
+const MIN_PONTOS_RESTAURACAO = 2; // piso — nunca fica abaixo disso, não importa o quê
+const MAX_PONTOS_RESTAURACAO = 8; // teto — só chega perto disso quando não há confirmação nenhuma da nuvem
+const INTERVALO_MIN_ENTRE_PONTOS_MS = 4 * 60 * 60 * 1000; // 4h — evita empilhar pontos à toa em uso contínuo
+/* Confirma se TUDO que existe agora no aparelho já está garantido na nuvem —
+   é o que permite podar pontos antigos automaticamente, sem pedir nada à
+   pessoa. Cuidado importante para o uso com dois aparelhos: isto NÃO checa
+   "eu mesmo já subi este item" (isso ignoraria itens recebidos de outro
+   aparelho, que também estão seguros na nuvem, só que ninguém os subiu
+   DESTE aparelho) — reaproveita a mesma lista de pendências que a
+   sincronização de verdade usa, que já conta como "confirmado" tanto o que
+   este aparelho enviou quanto o que já tinha chegado com o conteúdo igual.
+   Sem conexão com o OneDrive, ou com qualquer pendência de envio, retorna
+   false — nesse caso a poda fica mais conservadora (mantém mais pontos),
+   porque não há como ter certeza do que é seguro descartar. */
+function onedriveContarPendentesModulo(listarItens, mapaAssinaturasRef){
+  const itensAtuais = listarItens();
+  if(!mapaAssinaturasRef.mapa){
+    const salvo = STATE[mapaAssinaturasRef.chaveEstado] || {};
+    mapaAssinaturasRef.mapa = new Map(Object.entries(salvo));
+  }
+  const assinaturas = mapaAssinaturasRef.mapa;
+  return itensAtuais.filter(it => {
+    const registro = assinaturas.get(it.id);
+    // fotosPendentes conta como pendência: o texto está protegido na nuvem,
+    // mas as fotos ainda não — não é hora de podar cópias locais.
+    return !registro || registro.atualizadoEm !== it.atualizadoEm || registro.fotosPendentes === true;
+  }).length;
+}
+function onedriveTudoConfirmadoNaNuvem(){
+  if(!getOneDriveConta()) return false;
+  try{
+    const pendSimples = onedriveContarPendentesModulo(listarItensSincronizaveisSimples, __assinaturasOneDriveSimples);
+    const pendCompleto = onedriveContarPendentesModulo(listarItensSincronizaveisCompleto, __assinaturasOneDriveCompleto);
+    return pendSimples===0 && pendCompleto===0;
+  }catch(e){ return false; } // qualquer dúvida, trata como "não confirmado" — poda conservadora
+}
+/* =========================================================================
+   ESPAÇO EM DISCO — não existe, em navegador nenhum, uma forma de "reservar"
+   um bloco fixo de espaço só para este app; quem decide quanto o aparelho
+   tem livre é sempre o sistema operacional. O que existe e cobre a mesma
+   necessidade na prática, especialmente relevante em dias inteiros offline
+   sem sincronizar:
+   1) pedir ao navegador para marcar os dados como "persistentes" — isso tira
+      o app da lista de "pode apagar sozinho se faltar espaço", que é o que
+      poderia acontecer silenciosamente sob pressão de armazenamento;
+   2) medir de tempos em tempos quanto espaço realmente resta, e avisar a
+      pessoa com bastante antecedência (2 GB de folga, como pedido) — bem
+      antes de qualquer coisa de fato falhar por falta de espaço. */
+const FOLGA_MINIMA_DESEJADA_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB — o alvo pedido, usado só para avisar com antecedência
+const FOLGA_CRITICA_BYTES = 400 * 1024 * 1024; // 400 MB — abaixo disso, os pontos de restauração cedem espaço de propósito (ver limitePontosRestauracaoAgora)
+let __ultimoAvisoEspacoEm = 0;
+async function solicitarArmazenamentoPersistente(){
+  try{
+    if(!(navigator.storage && navigator.storage.persist)) return null; // navegador sem suporte — segue sem essa proteção extra, sem quebrar nada
+    const jaEhPersistente = await navigator.storage.persisted();
+    if(jaEhPersistente) return true;
+    return await navigator.storage.persist();
+  }catch(e){ return null; }
+}
+async function checarEspacoDisponivel(){
+  try{
+    if(!(navigator.storage && navigator.storage.estimate)) return null;
+    const { quota, usage } = await navigator.storage.estimate();
+    if(typeof quota !== "number" || typeof usage !== "number") return null;
+    return { quota, usage, livre: quota - usage };
+  }catch(e){ return null; }
+}
+function avisarSeEspacoBaixo(info){
+  if(!info || info.livre >= FOLGA_MINIMA_DESEJADA_BYTES) return;
+  // Não repete a cada 2 minutos — só a cada 2h, para não incomodar à toa,
+  // mas com frequência suficiente para ser útil num dia inteiro offline.
+  if(Date.now() - __ultimoAvisoEspacoEm < 2*60*60*1000) return;
+  __ultimoAvisoEspacoEm = Date.now();
+  const livresMB = Math.round(info.livre/1024/1024);
+  toast(`Restam cerca de ${livresMB>=1024 ? (livresMB/1024).toFixed(1)+" GB" : livresMB+" MB"} livres no aparelho — abaixo da folga recomendada de 2 GB. Assim que conseguir conexão, sincronize; se possível, libere espaço no aparelho (fotos, apps não usados).`, false);
+}
+/* Decide quantos pontos de restauração manter: se tudo já está garantido na
+   nuvem agora, os pontos locais mais antigos viraram redundância pura (a
+   nuvem já cobre o que eles guardam) — mantém só o piso de segurança. Se
+   ainda há algo não confirmado (ou o OneDrive nem está conectado), mantém
+   mais, até o teto, porque não dá pra saber com certeza o que já está
+   protegido em outro lugar. Em espaço crítico, isso é ignorado: os pontos de
+   restauração cedem lugar de propósito, porque manter os dados de trabalho
+   funcionando é mais importante do que manter várias cópias históricas. */
+async function limitePontosRestauracaoAgora(){
+  const info = await checarEspacoDisponivel();
+  avisarSeEspacoBaixo(info);
+  if(info && info.livre < FOLGA_CRITICA_BYTES) return 1;
+  return onedriveTudoConfirmadoNaNuvem() ? MIN_PONTOS_RESTAURACAO : MAX_PONTOS_RESTAURACAO;
+}
+function resumoContagemEstado(state){
+  const projetos = (state && state.projetosSimples) || [];
+  let areas=0, maquinas=0, tarefas=0, riscos=0;
+  projetos.forEach(p=>{
+    (p.areas||[]).forEach(a=>{
+      areas++;
+      (a.maquinas||[]).forEach(m=>{
+        maquinas++;
+        (m.tarefas||[]).forEach(t=>{
+          tarefas++;
+          riscos += (t.riscos||[]).length;
+        });
+      });
+    });
+  });
+  return { projetos: projetos.length, areas, maquinas, tarefas, riscos };
+}
+async function listarPontosDeRestauracao(){
+  if(!temIndexedDB()) return [];
+  try{
+    const db = await dbOpen();
+    return await new Promise((resolve)=>{
+      const tx = db.transaction(DB_STORE,"readonly");
+      const rq = tx.objectStore(DB_STORE).get(DB_KEY_PONTOS_RESTAURACAO);
+      rq.onsuccess=()=>resolve(Array.isArray(rq.result) ? rq.result : []);
+      rq.onerror=()=>resolve([]);
+    });
+  }catch(e){ return []; }
+}
+/* Salva um ponto de restauração AGORA, incondicionalmente. Nunca lança erro —
+   uma falha aqui (ex.: armazenamento cheio) não pode derrubar a ação principal
+   que a pessoa estava tentando fazer (importar, restaurar, etc.); só significa
+   que, desta vez, a rede de segurança extra não pôde ser criada. */
+async function salvarPontoDeRestauracao(motivo){
+  if(!temIndexedDB()) return false;
+  try{
+    const db = await dbOpen();
+    const atuais = await listarPontosDeRestauracao();
+    const novo = { ts: Date.now(), motivo, resumo: resumoContagemEstado(STATE), dados: JSON.parse(JSON.stringify(STATE)) };
+    const lista = [novo, ...atuais].slice(0, await limitePontosRestauracaoAgora());
+    await new Promise((resolve,reject)=>{
+      const tx = db.transaction(DB_STORE,"readwrite");
+      tx.objectStore(DB_STORE).put(lista, DB_KEY_PONTOS_RESTAURACAO);
+      tx.oncomplete=()=>resolve(true);
+      tx.onerror=()=>reject(tx.error);
+    });
+    return true;
+  }catch(e){
+    console.error("Não foi possível salvar ponto de restauração (não bloqueia a ação principal)", e);
+    return false;
+  }
+}
+/* Versão "só se fizer sentido agora" — usada nos gatilhos automáticos
+   (abertura do app, timer periódico), para não empilhar pontos a cada poucos
+   minutos de uso contínuo. Os gatilhos que protegem uma ação arriscada
+   específica (importar, restaurar) sempre usam salvarPontoDeRestauracao
+   diretamente, sem essa checagem de intervalo — esses precisam acontecer
+   sempre, na hora exata. */
+async function criarPontoDeRestauracaoSeNecessario(motivo){
+  const atuais = await listarPontosDeRestauracao();
+  const maisRecente = atuais[0];
+  if(maisRecente && (Date.now() - maisRecente.ts) < INTERVALO_MIN_ENTRE_PONTOS_MS) return false;
+  return await salvarPontoDeRestauracao(motivo);
+}
+/* Restaura um ponto salvo — sempre cria um ponto extra do estado ATUAL antes
+   de restaurar, para que restaurar nunca seja uma via de mão única: dá pra
+   "desfazer a restauração" se for engano, voltando pro ponto anterior. */
+/* Reavalia a lista existente e encolhe até o limite atual, sem precisar criar
+   um ponto novo — assim que a nuvem confirma tudo, o espaço é liberado logo,
+   em vez de esperar a próxima edição para isso acontecer. */
+async function podarPontosDeRestauracaoAgora(){
+  if(!temIndexedDB()) return;
+  try{
+    const atuais = await listarPontosDeRestauracao();
+    const limite = await limitePontosRestauracaoAgora();
+    if(atuais.length <= limite) return;
+    const db = await dbOpen();
+    await new Promise((resolve,reject)=>{
+      const tx = db.transaction(DB_STORE,"readwrite");
+      tx.objectStore(DB_STORE).put(atuais.slice(0, limite), DB_KEY_PONTOS_RESTAURACAO);
+      tx.oncomplete=()=>resolve(true);
+      tx.onerror=()=>reject(tx.error);
+    });
+  }catch(e){ console.error("Não foi possível podar pontos de restauração antigos", e); }
+}
+async function restaurarPontoDeRestauracao(ts){
+  const lista = await listarPontosDeRestauracao();
+  const ponto = lista.find(p=>p.ts===ts);
+  if(!ponto) return false;
+  await salvarPontoDeRestauracao("antes de restaurar");
+  STATE = JSON.parse(JSON.stringify(ponto.dados));
+  marcarAlterado();
+  render();
+  return true;
+}
 
 /* =========================================================================
    PASTA LOCAL (Backup + Downloads) — usa o seletor de pastas do próprio
@@ -1004,7 +1212,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
    GitHub (útil especialmente dado o atraso de alguns minutos do GitHub para
    propagar cada atualização, e para diferenciar aparelhos que ainda não
    atualizaram dos que já atualizaram). */
-const APP_BUILD = "14/07/2026 06:38";
+const APP_BUILD = "14/07/2026 21:40";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -1087,6 +1295,7 @@ async function onedriveProcessarRetornoLogin(){
   }
 }
 function onedriveDesconectar(){
+  onedriveDeltaSalvarLink(null); // marcador é por conta — limpa ANTES de esquecer a conta, senão a chave não é mais localizável
   __msalContaAtiva = null;
   setOneDriveConta(null);
   toast("OneDrive desconectado neste aparelho");
@@ -1467,10 +1676,16 @@ async function sincronizarModuloNaPasta(base, raizModulo, listarItens, mapaAssin
 
   const idsExcluidos = [];
   assinaturas.forEach((registro, id)=>{ if(!idsAtuais.has(id)) idsExcluidos.push(id); });
-  for(const id of idsExcluidos){
-    const registro = assinaturas.get(id);
-    try{ await apagarItemDaPasta(base, {...registro, pasta:[raizModulo, ...registro.pasta]}); }catch(e){}
-    assinaturas.delete(id);
+  // Mesmo freio da nuvem: sumiço em massa nunca se propaga sozinho para a
+  // pasta local (esta sincronização é sempre automática, não há variante
+  // manual aqui — a exclusão em massa fica bloqueada até a situação ser
+  // resolvida pelo caminho do OneDrive, que pergunta).
+  if(!exclusaoEmMassaSuspeita(idsExcluidos.length, itensAtuais.length)){
+    for(const id of idsExcluidos){
+      const registro = assinaturas.get(id);
+      try{ await apagarItemDaPasta(base, {...registro, pasta:[raizModulo, ...registro.pasta]}); }catch(e){}
+      assinaturas.delete(id);
+    }
   }
 
   const pendentes = itensAtuais.filter(it => {
@@ -1562,6 +1777,107 @@ async function onedriveApagarBlob(subpasta, filename){
 // lenta do que precisava ser.
 let __assinaturasOneDriveSimples = { mapa:null, chaveEstado:'oneDriveAssinaturasSimples' };
 let __assinaturasOneDriveCompleto = { mapa:null, chaveEstado:'oneDriveAssinaturasCompleto' };
+/* =========================================================================
+   HISTÓRICO DE SINCRONIZAÇÃO — registro leve (só nome/tipo/tamanho/hora, sem
+   o conteúdo) de tudo que subiu ou desceu do OneDrive, guardado no STATE.
+   É a transparência que faltava: o progresso ao vivo some quando a
+   sincronização termina; o histórico deixa VERIFICÁVEL depois o que foi
+   enviado e recebido, com tamanho e horário — inclusive do que aconteceu
+   sozinho em segundo plano, sem ninguém olhando. Limitado aos últimos 80
+   eventos para não inflar o backup. */
+const MAX_EVENTOS_LOG_SYNC = 80;
+function registrarEventoSync(direcao, nome, tipo, bytes, ok){
+  if(!Array.isArray(STATE.logSincronizacao)) STATE.logSincronizacao = [];
+  STATE.logSincronizacao.unshift({ ts: Date.now(), dir: direcao, nome: String(nome||"").slice(0,80), tipo, bytes: bytes||0, ok: ok!==false });
+  if(STATE.logSincronizacao.length > MAX_EVENTOS_LOG_SYNC) STATE.logSincronizacao.length = MAX_EVENTOS_LOG_SYNC;
+}
+function fmtBytes(b){
+  if(!b || b<=0) return "—";
+  if(b < 1024) return b + " B";
+  if(b < 1024*1024) return (b/1024).toFixed(0) + " KB";
+  return (b/1024/1024).toFixed(1) + " MB";
+}
+/* =========================================================================
+   SINCRONIZAÇÃO EM DUAS CAMADAS (texto agora, fotos no Wi-Fi) — cada item
+   com fotos vira DOIS arquivos na nuvem:
+   - o arquivo de sempre (ex.: risco_x.json): SEMPRE só texto, pequeno,
+     enviado em qualquer conexão na hora — é o que faz o outro aparelho ver
+     a máquina/risco imediatamente, mesmo com os dois em dados móveis;
+   - um arquivo irmão com prefixo "fotos_" (ex.: fotos_risco_x.json): só as
+     fotos, enviado apenas no Wi-Fi (ou na sincronização manual, que é
+     autorização explícita).
+   O item de texto carrega a marca __fotosOmitidas — o aparelho que o recebe
+   mostra um indicador "fotos virão no Wi-Fi" e, quando o arquivo de fotos
+   chega, as fotos são encaixadas e a marca some.
+   Compatibilidade: versões antigas do app ignoram arquivos "fotos_*" por
+   completo (os filtros delas só reconhecem os nomes exatos de sempre), e
+   arquivos antigos no formato monolítico (texto+fotos juntos) continuam
+   sendo lidos normalmente por esta versão. */
+const CAMPO_FOTOS_LISTA = "fotosOutras";
+function __ehFotoEmbutida(v){ return typeof v === "string" && v.startsWith("data:image"); }
+/* Separa um item em (texto sem fotos) + (pacote só de fotos). O texto ganha a
+   marca __fotosOmitidas quando havia fotos. */
+function separarFotosDoItem(dados){
+  const semFotos = {}, soFotos = { id: dados.id };
+  let tinhaFotos = false;
+  for(const k in dados){
+    const v = dados[k];
+    if(__ehFotoEmbutida(v)){ tinhaFotos = true; semFotos[k] = null; soFotos[k] = v; continue; }
+    if(k===CAMPO_FOTOS_LISTA && Array.isArray(v) && v.length>0){ tinhaFotos = true; semFotos[k] = []; soFotos[k] = v; continue; }
+    semFotos[k] = v;
+  }
+  if(tinhaFotos) semFotos.__fotosOmitidas = true;
+  return { semFotos, soFotos, tinhaFotos };
+}
+/* Encaixa as fotos de um pacote "fotos_" num item local que estava esperando.
+   Só preenche campos vazios — nunca sobrescreve foto que já existe (o item
+   local pode já estar completo por outro caminho). */
+function completarFotosDeItem(local, pacoteFotos){
+  let mudou = false;
+  for(const k in pacoteFotos){
+    if(k==="id") continue;
+    const v = pacoteFotos[k];
+    if(__ehFotoEmbutida(v) && !local[k]){ local[k] = v; mudou = true; }
+    if(k===CAMPO_FOTOS_LISTA && Array.isArray(v) && v.length>0 && (!Array.isArray(local[k]) || local[k].length===0)){ local[k] = v.slice(); mudou = true; }
+  }
+  if(local.__fotosOmitidas){ delete local.__fotosOmitidas; mudou = true; }
+  return mudou;
+}
+/* Localiza o item local alvo de um pacote de fotos, pelos ids do descritor. */
+function localizarItemLocal(descritor){
+  if(descritor.alvoTipo==="projeto") return STATE.projetosSimples.find(p=>p.id===descritor.itemId) || null;
+  const proj = STATE.projetosSimples.find(p=>p.id===descritor.projId);
+  if(!proj) return null;
+  if(descritor.alvoTipo==="area") return proj.areas.find(a=>a.id===descritor.itemId) || null;
+  const area = proj.areas.find(a=>a.id===descritor.areaId);
+  if(!area) return null;
+  if(descritor.alvoTipo==="maquina") return area.maquinas.find(m=>m.id===descritor.itemId) || null;
+  const maq = area.maquinas.find(m=>m.id===descritor.maquinaId);
+  if(!maq) return null;
+  if(descritor.alvoTipo==="tarefa") return maq.tarefas.find(t=>t.id===descritor.itemId) || null;
+  const tar = maq.tarefas.find(t=>t.id===descritor.tarefaId);
+  if(!tar) return null;
+  if(descritor.alvoTipo==="risco") return tar.riscos.find(r=>r.id===descritor.itemId) || null;
+  return null;
+}
+/* FREIO DE EXCLUSÃO EM MASSA — a exclusão de um item local se propaga para a
+   nuvem (correto quando a pessoa apagou de propósito). Mas se MUITOS itens
+   somem de uma vez, a causa mais provável não é intenção — é um defeito, um
+   estado corrompido ou uma importação errada. Sem este freio, um problema
+   local virava destruição na nuvem e contaminava o outro aparelho (foi a
+   cadeia exata de uma perda real em campo). Regra: 8 ou mais itens sumidos E
+   representando mais de 30% do total conhecido = suspeito. Aí a sincronização
+   automática NUNCA apaga (só avisa); a manual pergunta explicitamente. */
+function exclusaoEmMassaSuspeita(nExcluidos, nAtuais){
+  const total = nAtuais + nExcluidos;
+  return nExcluidos >= 8 && total > 0 && nExcluidos > total * 0.3;
+}
+let __avisoExclusaoMassaEm = 0;
+function avisarExclusaoMassaBloqueada(n){
+  if(Date.now() - __avisoExclusaoMassaEm < 6*60*60*1000) return; // no máximo 1 aviso a cada 6h
+  __avisoExclusaoMassaEm = Date.now();
+  toast(`Atenção: ${n} itens sumiram deste aparelho desde a última sincronização. Por segurança, eles NÃO foram apagados da nuvem — se você não excluiu isso de propósito, use "Sincronizar agora" para trazê-los de volta; se a exclusão foi intencional, o "Sincronizar agora" vai pedir sua confirmação para concluir.`, false);
+}
 async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinaturasRef, onProgresso){
   const itensAtuais = listarItens();
   if(!mapaAssinaturasRef.mapa){
@@ -1570,34 +1886,101 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
   }
   const assinaturas = mapaAssinaturasRef.mapa;
   const idsAtuais = new Set(itensAtuais.map(it=>it.id));
+  // Fotos podem subir agora? Wi-Fi confirmado, ou sincronização manual (o
+  // toque explícito no botão é a autorização para usar a rede que houver).
+  const podeSubirFotos = onedriveEstaEmWifi() || !!onProgresso;
 
   const idsExcluidos = [];
   assinaturas.forEach((registro, id)=>{ if(!idsAtuais.has(id)) idsExcluidos.push(id); });
-  await executarComConcorrencia(idsExcluidos, 5, async (id) => {
-    const registro = assinaturas.get(id);
-    const subpasta = [SUBPASTA_BACKUP, raizModulo, ...registro.pasta].join("/");
-    const ok = await onedriveApagarBlob(subpasta, registro.arquivo);
-    if(ok) assinaturas.delete(id);
-  });
+  let podeApagar = idsExcluidos.length > 0;
+  if(podeApagar && exclusaoEmMassaSuspeita(idsExcluidos.length, itensAtuais.length)){
+    if(!onProgresso){
+      // Ciclo automático: NUNCA propaga uma exclusão em massa sozinho. Os
+      // arquivos ficam na nuvem intocados; só avisa. Se foi engano, a própria
+      // sincronização traz os itens de volta; se foi de propósito, a manual
+      // confirma e conclui.
+      podeApagar = false;
+      avisarExclusaoMassaBloqueada(idsExcluidos.length);
+    }else{
+      podeApagar = confirm(`${idsExcluidos.length} itens foram removidos deste aparelho e a sincronização vai apagá-los da nuvem também (e do outro aparelho na próxima sincronização dele).\n\nEssa exclusão foi intencional?\n\nOK = apagar da nuvem · Cancelar = manter na nuvem (os itens voltarão para este aparelho)`);
+    }
+  }
+  if(podeApagar){
+    await executarComConcorrencia(idsExcluidos, 5, async (id) => {
+      const registro = assinaturas.get(id);
+      const subpasta = [SUBPASTA_BACKUP, raizModulo, ...registro.pasta].join("/");
+      const ok = await onedriveApagarBlob(subpasta, registro.arquivo);
+      // O irmão de fotos também sai — 404 (nunca existiu) é tratado como sucesso.
+      const okFotos = await onedriveApagarBlob(subpasta, "fotos_"+registro.arquivo);
+      if(ok && okFotos) assinaturas.delete(id);
+    });
+  }
 
   const pendentes = itensAtuais.filter(it => {
     const registro = assinaturas.get(it.id);
-    return !registro || registro.atualizadoEm !== it.atualizadoEm;
+    if(!registro) return true;                              // nunca subiu
+    if(registro.atualizadoEm !== it.atualizadoEm) return true; // mudou desde a última subida
+    if(registro.fotosPendentes && podeSubirFotos) return true; // texto já subiu; agora dá pra completar com as fotos
+    return false;
   });
   await executarComConcorrencia(pendentes, 5, async (item) => {
     const subpasta = [SUBPASTA_BACKUP, raizModulo, ...item.pasta].join("/");
-    const blob = new Blob([JSON.stringify(item.dados,null,0)], {type:"application/json"});
-    const ok = await onedriveEnviarBlob(subpasta, blob, item.arquivo);
-    if(ok) assinaturas.set(item.id, {atualizadoEm:item.atualizadoEm, pasta:item.pasta, arquivo:item.arquivo});
-    if(onProgresso) onProgresso(blob.size, item.tipo);
+    const { semFotos, soFotos, tinhaFotos } = separarFotosDoItem(item.dados);
+    const registroAnterior = assinaturas.get(item.id);
+    // O texto só precisa subir de novo se o item mudou (se estamos aqui apenas
+    // para completar as fotos de um texto já enviado, não repete o texto).
+    const textoPrecisaSubir = !registroAnterior || registroAnterior.atualizadoEm !== item.atualizadoEm;
+    let okTexto = true;
+    if(textoPrecisaSubir){
+      const blobTexto = new Blob([JSON.stringify(tinhaFotos ? semFotos : item.dados, null, 0)], {type:"application/json"});
+      okTexto = await onedriveEnviarBlob(subpasta, blobTexto, item.arquivo);
+      registrarEventoSync("up", item.arquivo, item.tipo, blobTexto.size, okTexto);
+      if(onProgresso) onProgresso(blobTexto.size, item.tipo);
+    }
+    let fotosSubiram = false;
+    if(okTexto && tinhaFotos && podeSubirFotos){
+      const blobFotos = new Blob([JSON.stringify(soFotos, null, 0)], {type:"application/json"});
+      fotosSubiram = await onedriveEnviarBlob(subpasta, blobFotos, "fotos_"+item.arquivo);
+      registrarEventoSync("up", "fotos_"+item.arquivo, item.tipo+" (fotos)", blobFotos.size, fotosSubiram);
+      if(onProgresso) onProgresso(blobFotos.size, item.tipo);
+    }
+    if(okTexto){
+      assinaturas.set(item.id, {
+        atualizadoEm: item.atualizadoEm, pasta: item.pasta, arquivo: item.arquivo,
+        // fotosPendentes=true faz o item reaparecer na fila assim que o Wi-Fi
+        // chegar — o texto está protegido, as fotos ainda não.
+        fotosPendentes: tinhaFotos && !fotosSubiram
+      });
+    }
   });
 
   // Grava de volta no STATE (como objeto simples — Map não é serializável em
   // JSON) pra sobreviver ao próximo carregamento da página.
   STATE[mapaAssinaturasRef.chaveEstado] = Object.fromEntries(assinaturas);
 }
+/* Política de dados móveis: quando a pessoa desliga "usar dados móveis", a
+   sincronização automática (envio e recebimento) fica adiada até o Wi-Fi ser
+   confirmado — o botão manual "Sincronizar agora" continua funcionando em
+   qualquer conexão, porque um toque explícito É a autorização. O padrão é
+   ligado (sincroniza em qualquer rede): segurança dos dados vem primeiro, e
+   quem tem plano de dados limitado desliga conscientemente. */
+function podeSincronizarAutomaticoAgora(){
+  if(STATE.sincronizarEmDadosMoveis !== false) return true; // padrão: qualquer rede
+  return onedriveEstaEmWifi(); // modo econômico: só com Wi-Fi confirmado
+}
+/* Trava de reentrância do envio automático: ele é disparado por três gatilhos
+   independentes (cada edição, o timer de 2 min, e a volta da aba ao foco) —
+   quando dois coincidem, sem esta trava o MESMO item era enviado duas vezes ao
+   mesmo tempo (banda desperdiçada e risco de conflito de sessão de upload na
+   Microsoft). Também cede a vez quando a sincronização manual está rodando —
+   ela já envia tudo, e as duas juntas disputavam os mesmos arquivos. */
+let __uploadAutoRodando = false;
 async function sincronizarIncrementalOneDrive(onProgresso){
   if(!getOneDriveConta()) return;
+  if(__uploadAutoRodando && !onProgresso) return; // já tem um envio em andamento — este gatilho pode esperar o próximo ciclo
+  if(__sincronizandoAgora && !onProgresso) return; // sincronização manual em curso já cobre o envio
+  if(!onProgresso && !podeSincronizarAutomaticoAgora()) return; // economia de dados: adia até o Wi-Fi
+  __uploadAutoRodando = true;
   try{
     await onedriveSincronizarModulo("Simplificado", listarItensSincronizaveisSimples, __assinaturasOneDriveSimples, onProgresso);
     await onedriveSincronizarModulo("Completo", listarItensSincronizaveisCompleto, __assinaturasOneDriveCompleto, onProgresso);
@@ -1605,6 +1988,7 @@ async function sincronizarIncrementalOneDrive(onProgresso){
     dbSet(STATE); // grava logo o que já foi enviado, sem esperar a próxima edição pra isso ser lembrado
     atualizarChipSync();
   }catch(e){}
+  finally{ __uploadAutoRodando = false; }
 }
 
 /* =========================================================================
@@ -1849,6 +2233,14 @@ async function onedriveListarArvore(caminhoPasta, profundidadeRestante){
 function onedriveClassificarNovosSimples(arvoreProjetos){
   const pequenos = [], grandes = [];
   const registrar = (tamanho, reg) => (tamanho<=ONEDRIVE_LIMITE_AUTO_BYTES ? pequenos : grandes).push(reg);
+  // Se um item local está esperando fotos (__fotosOmitidas) e o pacote
+  // "fotos_..." já existe na nuvem, registra para download — o pacote é
+  // grande, então cai no fluxo de pendentes (Wi-Fi/manual), como toda foto.
+  const registrarFotosSeEsperando = (nodePai, nomeArquivoBase, itemLocal, alvoTipo, ids) => {
+    if(!itemLocal || !itemLocal.__fotosOmitidas) return;
+    const arq = nodePai.filhos.find(f=>!f.pasta && f.nome==="fotos_"+nomeArquivoBase);
+    if(arq) registrar(arq.tamanho, { tipo:"fotos", alvoTipo, itemId:itemLocal.id, ...ids, caminho:arq.caminho, nome:arq.nome, tamanho:arq.tamanho });
+  };
   for(const nodeProj of arvoreProjetos){
     if(!nodeProj.pasta) continue;
     const projLocal = STATE.projetosSimples.find(p=>idBateComSufixo(p.id, extrairSufixoDoNome(nodeProj.nome)));
@@ -1865,6 +2257,7 @@ function onedriveClassificarNovosSimples(arvoreProjetos){
       if(arq) registrar(arq.tamanho, { tipo:"projeto", caminho:arq.caminho, tamanho:arq.tamanho });
       continue;
     }
+    registrarFotosSeEsperando(nodeProj, "_projeto.json", projLocal, "projeto", {});
     for(const nodeArea of nodeProj.filhos){
       if(!nodeArea.pasta) continue;
       const areaLocal = projLocal.areas.find(a=>idBateComSufixo(a.id, extrairSufixoDoNome(nodeArea.nome)));
@@ -1873,6 +2266,7 @@ function onedriveClassificarNovosSimples(arvoreProjetos){
         if(arq) registrar(arq.tamanho, { tipo:"area", projId:projLocal.id, caminho:arq.caminho, tamanho:arq.tamanho });
         continue; // sem a área local, não dá pra descer pra máquina (não se sabe onde encaixar)
       }
+      registrarFotosSeEsperando(nodeArea, "_area.json", areaLocal, "area", { projId:projLocal.id });
       for(const nodeMaq of nodeArea.filhos){
         if(!nodeMaq.pasta) continue;
         const maqLocal = areaLocal.maquinas.find(m=>idBateComSufixo(m.id, extrairSufixoDoNome(nodeMaq.nome)));
@@ -1881,6 +2275,7 @@ function onedriveClassificarNovosSimples(arvoreProjetos){
           if(arq) registrar(arq.tamanho, { tipo:"maquina", projId:projLocal.id, areaId:areaLocal.id, caminho:arq.caminho, tamanho:arq.tamanho });
           continue;
         }
+        registrarFotosSeEsperando(nodeMaq, "_maquina.json", maqLocal, "maquina", { projId:projLocal.id, areaId:areaLocal.id });
         for(const nodeTar of nodeMaq.filhos){
           if(!nodeTar.pasta) continue;
           const tarLocal = maqLocal.tarefas.find(t=>idBateComSufixo(t.id, extrairSufixoDoNome(nodeTar.nome)));
@@ -1889,8 +2284,17 @@ function onedriveClassificarNovosSimples(arvoreProjetos){
             if(arq) registrar(arq.tamanho, { tipo:"tarefa", projId:projLocal.id, areaId:areaLocal.id, maquinaId:maqLocal.id, caminho:arq.caminho, tamanho:arq.tamanho });
             continue;
           }
+          registrarFotosSeEsperando(nodeTar, "_tarefa.json", tarLocal, "tarefa", { projId:projLocal.id, areaId:areaLocal.id, maquinaId:maqLocal.id });
           for(const arq of nodeTar.filhos){
             if(arq.pasta || arq.nome==="_tarefa.json") continue;
+            const mFotos = /^fotos_risco_(.+)\.json$/.exec(arq.nome);
+            if(mFotos){
+              const riscoLocal = tarLocal.riscos.find(r=>r.id===mFotos[1]);
+              if(riscoLocal && riscoLocal.__fotosOmitidas){
+                registrar(arq.tamanho, { tipo:"fotos", alvoTipo:"risco", itemId:riscoLocal.id, projId:projLocal.id, areaId:areaLocal.id, maquinaId:maqLocal.id, tarefaId:tarLocal.id, caminho:arq.caminho, nome:arq.nome, tamanho:arq.tamanho });
+              }
+              continue;
+            }
             const m = /^risco_(.+)\.json$/.exec(arq.nome);
             if(!m) continue;
             if(!tarLocal.riscos.some(r=>r.id===m[1])){
@@ -1907,6 +2311,13 @@ function onedriveClassificarNovosSimples(arvoreProjetos){
    sobrescreve algo que já existe (proteção extra contra corrida entre
    sincronizações simultâneas). Retorna true só se algo foi realmente inserido. */
 function onedriveMesclarItemNovo(descritor, dados){
+  if(descritor.tipo==="fotos"){
+    // Pacote de fotos de um item que já chegou como texto: encaixa as fotos
+    // no item local e apaga a marca de "fotos virão no Wi-Fi".
+    const alvo = localizarItemLocal(descritor);
+    if(!alvo) return false; // item ainda não existe local — o texto chega primeiro, este pacote espera na fila
+    return completarFotosDeItem(alvo, dados);
+  }
   if(descritor.tipo==="projeto"){
     if(STATE.projetosSimples.some(p=>p.id===dados.id)) return false;
     STATE.projetosSimples.push({ ...dados, areas: dados.areas || [] });
@@ -1969,7 +2380,7 @@ async function sincronizarDownloadOneDriveUmaPassada(onProgresso){
     await executarComConcorrencia(pequenos, 8, async (item) => {
       const texto = await onedriveBaixarTexto(item.caminho);
       if(texto){
-        try{ const dados = JSON.parse(texto); if(onedriveMesclarItemNovo(item, dados)) mesclados++; }catch(e){}
+        try{ const dados = JSON.parse(texto); if(onedriveMesclarItemNovo(item, dados)){ mesclados++; registrarEventoSync("down", item.nome, item.tipo, item.tamanho||0, true); } }catch(e){}
       }
       // Conta como "andamento" mesmo quando o item não pôde ser baixado agora
       // (sem rede momentânea) ou já existia local — a barra de progresso e o
@@ -1987,7 +2398,7 @@ async function sincronizarDownloadOneDriveUmaPassada(onProgresso){
         else{
           try{
             const dados = JSON.parse(texto);
-            if(onedriveMesclarItemNovo(item, dados)) mesclados++;
+            if(onedriveMesclarItemNovo(item, dados)){ mesclados++; registrarEventoSync("down", item.nome, item.tipo, item.tamanho||0, true); }
             else aindaPendentes.push(item);
           }catch(e){ aindaPendentes.push(item); }
         }
@@ -2001,19 +2412,338 @@ async function sincronizarDownloadOneDriveUmaPassada(onProgresso){
     return { mesclados:0, erro:true };
   }
 }
+/* =========================================================================
+   SINCRONIZAÇÃO POR DELTA — em vez de varrer a árvore de pastas inteira a
+   cada 2 minutos para descobrir o que mudou, pergunta à Microsoft numa única
+   chamada "o que mudou desde a última vez?" (endpoint /delta). Quando nada
+   mudou (o caso mais comum), a resposta é vazia e instantânea.
+
+   PROTOCOLO À PROVA DE PERDA — regras que tornam impossível perder mudanças:
+   1) O marcador de posição (deltaLink) NUNCA avança sem que os arquivos
+      anunciados tenham sido gravados antes na fila persistente
+      (STATE.oneDriveDeltaFila) — fila e marcador são salvos JUNTOS, na mesma
+      gravação. Se o app morrer no meio, ou a fila já está gravada (processa
+      na próxima abertura) ou o marcador não avançou (a Microsoft anuncia
+      tudo de novo). Não existe janela entre os dois.
+   2) A hierarquia (a qual projeto/área/máquina o item pertence) é resolvida
+      NA HORA DE PROCESSAR, não na hora de descobrir — um risco anunciado
+      antes do projeto dele simplesmente espera na fila até o pai existir
+      localmente (o pai chega na mesma leva ou numa próxima).
+   3) O marcador vive no localStorage, POR CONTA, fora do STATE — nunca viaja
+      dentro de um backup .json para outro aparelho (um marcador alheio faria
+      o aparelho pular mudanças que nunca viu).
+   4) Se a Microsoft invalidar o marcador (ressincronização exigida, código
+      410), ou se ele não existir ainda, o app cai para a varredura completa
+      de sempre e adquire um marcador novo — nada muda para o usuário.
+   5) Rede de segurança: uma varredura completa roda de qualquer forma a cada
+      6 horas (e em toda sincronização manual), cobrindo qualquer caso
+      teórico que o delta pudesse deixar passar. */
+const ONEDRIVE_DELTA_LS_PREFIXO = "onedriveDeltaLink:";
+const INTERVALO_FULLSCAN_SEGURANCA_MS = 6 * 60 * 60 * 1000; // 6h
+function __idDaContaOneDrive(){
+  const c = getOneDriveConta();
+  return c ? (c.homeAccountId || c.username || c.email || "conta") : null;
+}
+function onedriveDeltaLerLink(){
+  const id = __idDaContaOneDrive();
+  if(!id) return null;
+  try{ return localStorage.getItem(ONEDRIVE_DELTA_LS_PREFIXO + id) || null; }catch(e){ return null; }
+}
+function onedriveDeltaSalvarLink(link){
+  const id = __idDaContaOneDrive();
+  if(!id) return;
+  try{
+    if(link) localStorage.setItem(ONEDRIVE_DELTA_LS_PREFIXO + id, link);
+    else localStorage.removeItem(ONEDRIVE_DELTA_LS_PREFIXO + id);
+  }catch(e){}
+}
+/* Adquire um marcador "a partir de agora" SEM enumerar o drive inteiro
+   (token=latest). Usado junto com uma varredura completa: a varredura cobre o
+   passado, o marcador cobre o futuro — sem buraco entre os dois desde que a
+   aquisição venha ANTES da varredura (mudança no meio aparece nos dois, e
+   duplicata é inofensiva: a mesclagem ignora ids já existentes). */
+async function onedriveDeltaAdquirirLatest(){
+  const token = await onedriveObterToken();
+  if(!token) return null;
+  try{
+    const resp = await fetch("https://graph.microsoft.com/v1.0/me/drive/root/delta?token=latest", { headers:{ "Authorization":`Bearer ${token}` } });
+    if(!resp.ok) return null;
+    const dados = await resp.json();
+    return dados["@odata.deltaLink"] || null;
+  }catch(e){ return null; }
+}
+/* Chama o delta com o marcador salvo e segue todas as páginas. Retorna:
+   { itens, novoLink } em sucesso; { resync:true } se a Microsoft exigir
+   recomeço (410); { erro:true } em falha de rede (não mexe em nada). */
+async function onedriveDeltaBuscarMudancas(link){
+  const token = await onedriveObterToken();
+  if(!token) return { erro:true };
+  const itens = [];
+  let url = link;
+  try{
+    for(let pagina=0; pagina<30 && url; pagina++){
+      const resp = await fetch(url, { headers:{ "Authorization":`Bearer ${token}` } });
+      marcarProgressoSync();
+      if(resp.status===410) return { resync:true }; // marcador venceu — a própria Microsoft manda recomeçar
+      if(!resp.ok) return { erro:true };
+      const dados = await resp.json();
+      (dados.value||[]).forEach(it=>itens.push(it));
+      if(dados["@odata.deltaLink"]) return { itens, novoLink: dados["@odata.deltaLink"] };
+      url = dados["@odata.nextLink"] || null;
+    }
+    // Saiu do laço sem deltaLink (volume absurdo de mudanças de uma vez) —
+    // trata como ressincronização: mais seguro varrer tudo do que arriscar
+    // processar meia-leva e avançar o marcador por cima da outra metade.
+    return { resync:true };
+  }catch(e){ return { erro:true }; }
+}
+/* Converte um item de mudança do delta no caminho relativo usado pelo app
+   (ex.: "Apps/APR_Campo_NR12/Backup/Simplificado/Proj (abc)/_projeto.json"),
+   ou null se não interessa (fora da pasta do app, pasta, exclusão, não-json). */
+function onedriveDeltaItemParaCaminho(item){
+  if(!item || item.deleted || item.folder || !item.name) return null;
+  if(!/\.json$/i.test(item.name)) return null;
+  let pastaPai = (item.parentReference && item.parentReference.path) || "";
+  const idx = pastaPai.indexOf("root:");
+  if(idx<0) return null;
+  pastaPai = pastaPai.slice(idx+5).replace(/^\//,"");
+  try{ pastaPai = decodeURIComponent(pastaPai); }catch(e){ /* já estava decodificado */ }
+  const prefixo = `${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`;
+  if(!(pastaPai+"/").toLowerCase().startsWith((prefixo+"/").toLowerCase()) && pastaPai.toLowerCase()!==prefixo.toLowerCase()) return null;
+  return { caminho: `${pastaPai}/${item.name}`, nome: item.name, tamanho: item.size||0 };
+}
+/* Resolve um caminho relativo em um descritor de mesclagem (tipo + ids locais
+   dos pais), usando as MESMAS regras de sufixo da varredura completa. Feito
+   na hora de processar: se um pai ainda não existe localmente, retorna
+   aguardandoPai e o item espera na fila — igualzinho ao comportamento por
+   camadas da varredura, só que sem outra viagem de rede para redescobrir. */
+function onedriveDescritorDeCaminho(entrada){
+  const prefixo = `${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado/`;
+  if(entrada.caminho.length <= prefixo.length) return null;
+  const rel = entrada.caminho.slice(prefixo.length);
+  const seg = rel.split("/");
+  let nomeArq = seg[seg.length-1];
+  const pastas = seg.slice(0,-1);
+  const base = { caminho: entrada.caminho, nome: entrada.nome, tamanho: entrada.tamanho };
+  // Pacote de fotos? Resolve o alvo pelo nome do arquivo original (sem o
+  // prefixo) e devolve um descritor de complementação — que só é processável
+  // quando o item de texto já existe localmente E ainda está esperando fotos.
+  const ehPacoteFotos = nomeArq.startsWith("fotos_");
+  if(ehPacoteFotos) nomeArq = nomeArq.slice("fotos_".length);
+  const montarFotos = (alvoTipo, itemLocal, ids) => {
+    if(!itemLocal) return { aguardandoPai:true }; // o texto ainda não chegou — o pacote espera
+    if(!itemLocal.__fotosOmitidas) return { jaExiste:true }; // item já completo — nada a fazer (inclusive eco do próprio upload)
+    return { ...base, tipo:"fotos", alvoTipo, itemId:itemLocal.id, ...ids };
+  };
+  if(pastas.length===1 && nomeArq==="_projeto.json"){
+    const projAlvo = STATE.projetosSimples.find(p=>idBateComSufixo(p.id, extrairSufixoDoNome(pastas[0])));
+    if(ehPacoteFotos) return montarFotos("projeto", projAlvo, {});
+    return projAlvo ? { jaExiste:true } : { ...base, tipo:"projeto" };
+  }
+  const proj = STATE.projetosSimples.find(p=>idBateComSufixo(p.id, extrairSufixoDoNome(pastas[0])));
+  if(!proj) return { aguardandoPai:true }; // projeto ainda não chegou — o item espera
+  if(pastas.length===2 && nomeArq==="_area.json"){
+    const areaAlvo = proj.areas.find(a=>idBateComSufixo(a.id, extrairSufixoDoNome(pastas[1])));
+    if(ehPacoteFotos) return montarFotos("area", areaAlvo, { projId:proj.id });
+    return areaAlvo ? { jaExiste:true } : { ...base, tipo:"area", projId:proj.id };
+  }
+  const area = proj.areas.find(a=>idBateComSufixo(a.id, extrairSufixoDoNome(pastas[1])));
+  if(!area) return { aguardandoPai:true };
+  if(pastas.length===3 && nomeArq==="_maquina.json"){
+    const maqAlvo = area.maquinas.find(m=>idBateComSufixo(m.id, extrairSufixoDoNome(pastas[2])));
+    if(ehPacoteFotos) return montarFotos("maquina", maqAlvo, { projId:proj.id, areaId:area.id });
+    return maqAlvo ? { jaExiste:true } : { ...base, tipo:"maquina", projId:proj.id, areaId:area.id };
+  }
+  const maq = area.maquinas.find(m=>idBateComSufixo(m.id, extrairSufixoDoNome(pastas[2])));
+  if(!maq) return { aguardandoPai:true };
+  if(pastas.length===4 && nomeArq==="_tarefa.json"){
+    const tarAlvo = maq.tarefas.find(t=>idBateComSufixo(t.id, extrairSufixoDoNome(pastas[3])));
+    if(ehPacoteFotos) return montarFotos("tarefa", tarAlvo, { projId:proj.id, areaId:area.id, maquinaId:maq.id });
+    return tarAlvo ? { jaExiste:true } : { ...base, tipo:"tarefa", projId:proj.id, areaId:area.id, maquinaId:maq.id };
+  }
+  const tar = maq.tarefas.find(t=>idBateComSufixo(t.id, extrairSufixoDoNome(pastas[3])));
+  if(!tar) return { aguardandoPai:true };
+  const m = /^risco_(.+)\.json$/.exec(nomeArq);
+  if(pastas.length===4 && m){
+    const riscoAlvo = tar.riscos.find(r=>r.id===m[1]);
+    if(ehPacoteFotos) return montarFotos("risco", riscoAlvo, { projId:proj.id, areaId:area.id, maquinaId:maq.id, tarefaId:tar.id });
+    return riscoAlvo ? { jaExiste:true } : { ...base, tipo:"risco", projId:proj.id, areaId:area.id, maquinaId:maq.id, tarefaId:tar.id };
+  }
+  return null; // nome de arquivo fora do padrão do app — ignora
+}
+/* Processa a fila persistente: itens pequenos baixa+mescla agora; itens com
+   foto vão para o fluxo de pendentes já existente (respeita Wi-Fi/manual).
+   Ordena por profundidade (projeto antes de área antes de máquina...) para
+   os pais nascerem antes dos filhos dentro da mesma leva. Devolve quantos
+   itens foram mesclados. */
+async function onedriveDeltaProcessarFila(){
+  let fila = STATE.oneDriveDeltaFila || [];
+  if(fila.length===0) return 0;
+  // Ordena por profundidade, com desempate: arquivos de estrutura ("_tarefa.
+  // json" etc.) vêm antes dos riscos NA MESMA pasta — sem isso, um risco podia
+  // ser processado antes da própria tarefa (mesma profundidade de pastas) e
+  // esperar um ciclo inteiro à toa.
+  fila.sort((a,b)=>{
+    const pa = a.caminho.split("/").length, pb = b.caminho.split("/").length;
+    if(pa!==pb) return pa-pb;
+    const ea = a.nome.startsWith("_") ? 0 : 1, eb = b.nome.startsWith("_") ? 0 : 1;
+    return ea-eb;
+  });
+  let mesclados = 0;
+  const AGORA = Date.now();
+  const VALIDADE_FILA_MS = 14 * 24 * 60 * 60 * 1000; // 14 dias: cobre férias/offline longo; após isso, um arquivo que só dá erro provavelmente foi apagado da nuvem à mão — e a varredura de segurança de 6h redescobre qualquer item real
+  // Passadas repetidas até uma passada inteira não mesclar nada: um filho cujo
+  // pai chegou NESTA MESMA leva é resolvido ainda nesta chamada, em vez de
+  // esperar o próximo ciclo de 2 minutos.
+  let progrediu = true;
+  while(progrediu){
+    progrediu = false;
+    const manter = [];
+    for(const entrada of fila){
+      if(entrada.ts && (AGORA - entrada.ts) > VALIDADE_FILA_MS) continue; // expirou — solta
+      const d = onedriveDescritorDeCaminho(entrada);
+      if(d===null || d.jaExiste) continue; // irrelevante, ou já existe (inclusive: os próprios uploads deste aparelho voltando pelo delta)
+      if(d.aguardandoPai){ manter.push(entrada); continue; } // pai ainda não chegou — tenta na próxima passada/ciclo
+      if(d.tamanho > ONEDRIVE_LIMITE_AUTO_BYTES){
+        // Item com foto — entra no fluxo de pendentes de sempre (baixa no Wi-Fi
+        // automático ou pelo botão), sem duplicar se já está lá.
+        if(!Array.isArray(STATE.oneDrivePendentes)) STATE.oneDrivePendentes = [];
+        if(!STATE.oneDrivePendentes.some(p=>p.caminho===d.caminho)) STATE.oneDrivePendentes.push(d);
+        continue;
+      }
+      const texto = await onedriveBaixarTexto(d.caminho);
+      if(!texto){ manter.push(entrada); continue; } // rede falhou agora — permanece na fila
+      try{
+        const dados = JSON.parse(texto);
+        if(onedriveMesclarItemNovo(d, dados)){ mesclados++; progrediu = true; registrarEventoSync("down", d.nome, d.tipo, d.tamanho||0, true); }
+      }catch(e){ /* json inválido — descarta: reprocessar eternamente não conserta; a varredura de segurança recupera se for transitório */ }
+      marcarProgressoSync();
+    }
+    fila = manter;
+  }
+  STATE.oneDriveDeltaFila = fila;
+  return mesclados;
+}
 /* Usada pela sincronização automática em segundo plano (a cada edição, a cada
    2 min, ao reabrir a aba) — uma passada só, com aviso/gravação, exatamente
    como sempre funcionou. */
+let __downloadAutoRodando = false;
 async function sincronizarDownloadOneDrive(){
-  const r = await sincronizarDownloadOneDriveUmaPassada();
-  // Sempre salva e atualiza a tela — mesmo sem nenhum item de texto mesclado
-  // (r.mesclados===0), pode ter descoberto fotos pendentes novas, e sem isto
-  // essa descoberta nunca aparecia no botão "Baixar fotos" nem sobrevivia a
-  // fechar o app antes da próxima sincronização manual.
-  dbSet(STATE);
-  render();
-  if(r.mesclados>0) toast("Novos itens recebidos do OneDrive");
-  atualizarChipSync();
+  if(__downloadAutoRodando) return; // já tem uma varredura em andamento — evita duas em paralelo
+  if(__sincronizandoAgora) return;  // sincronização manual em curso já cobre o download
+  if(!podeSincronizarAutomaticoAgora()) return; // economia de dados: adia até o Wi-Fi
+  if(!getOneDriveConta()) return;
+  __downloadAutoRodando = true;
+  try{
+    let mesclados = 0;
+    let usouVarreduraCompleta = false;
+    const link = onedriveDeltaLerLink();
+    const precisaFullScanSeguranca = !STATE.ultimoFullScanSegurancaEm || (Date.now() - STATE.ultimoFullScanSegurancaEm > INTERVALO_FULLSCAN_SEGURANCA_MS);
+
+    if(!link || precisaFullScanSeguranca){
+      // Sem marcador ainda (primeira vez / conta trocada / marcador perdido),
+      // ou chegou a hora da varredura de segurança de 6h. Ordem importa:
+      // adquire o marcador ANTES de varrer — mudança que acontecer durante a
+      // varredura aparece nos dois lados, e duplicata é inofensiva (mesclagem
+      // ignora ids existentes). O contrário abriria um buraco.
+      const novoLink = await onedriveDeltaAdquirirLatest();
+      const r = await sincronizarDownloadOneDriveUmaPassada();
+      if(!r.erro){
+        // Só grava o marcador se a varredura completou — varredura com erro
+        // + marcador novo = mudanças anteriores ao marcador perdidas.
+        if(novoLink) onedriveDeltaSalvarLink(novoLink);
+        STATE.ultimoFullScanSegurancaEm = Date.now();
+      }
+      mesclados = r.mesclados;
+      usouVarreduraCompleta = true;
+    }else{
+      const r = await onedriveDeltaBuscarMudancas(link);
+      if(r.erro){
+        // Falha de rede: não mexe em nada — marcador antigo continua valendo,
+        // a Microsoft reanuncia tudo na próxima tentativa.
+      }else if(r.resync){
+        // Marcador invalidado pela Microsoft — recomeça: marcador novo + varredura.
+        onedriveDeltaSalvarLink(null);
+        const novoLink = await onedriveDeltaAdquirirLatest();
+        const rf = await sincronizarDownloadOneDriveUmaPassada();
+        if(!rf.erro){
+          if(novoLink) onedriveDeltaSalvarLink(novoLink);
+          STATE.ultimoFullScanSegurancaEm = Date.now();
+        }
+        mesclados = rf.mesclados;
+        usouVarreduraCompleta = true;
+      }else{
+        // Caminho rápido. REGRA 1 do protocolo: primeiro a fila persistente
+        // recebe tudo que foi anunciado e é gravada NO MESMO dbSet que
+        // antecede o avanço do marcador — só então o marcador anda.
+        const relevantes = r.itens.map(onedriveDeltaItemParaCaminho).filter(Boolean);
+        if(relevantes.length>0){
+          if(!Array.isArray(STATE.oneDriveDeltaFila)) STATE.oneDriveDeltaFila = [];
+          for(const rel of relevantes){
+            if(!STATE.oneDriveDeltaFila.some(f=>f.caminho===rel.caminho)) STATE.oneDriveDeltaFila.push({ ...rel, ts: Date.now() });
+          }
+          await dbSet(STATE); // fila em disco ANTES do marcador avançar
+        }
+        onedriveDeltaSalvarLink(r.novoLink);
+        mesclados = await onedriveDeltaProcessarFila();
+      }
+    }
+    // Mesmo com zero mesclados: a fila/pendentes podem ter mudado, e a
+    // varredura pode ter descoberto fotos — grava e atualiza a tela sempre.
+    dbSet(STATE);
+    render();
+    if(mesclados>0) toast("Novos itens recebidos do OneDrive");
+    atualizarChipSync();
+  }catch(e){
+    // Erro inesperado em qualquer etapa: nada foi perdido (fila persistida e
+    // marcador só avançam nas ordens seguras acima) — o próximo ciclo de 2
+    // minutos retoma de onde parou. Só não pode escapar como erro solto.
+    console.error("Download automático interrompido nesta rodada", e);
+  }finally{ __downloadAutoRodando = false; }
+}
+/* Localiza, nos pendentes, o pacote de fotos de um item específico (aquele
+   marcado com "fotos no Wi-Fi" na tela). */
+function pendenteFotosDoItem(itemId){
+  return (STATE.oneDrivePendentes||[]).find(p=>p.tipo==="fotos" && p.itemId===itemId) || null;
+}
+/* Download individual e imediato das fotos de UM item, acionado pelo toque no
+   selo do cartão. No Wi-Fi baixa direto; em dados móveis pede confirmação
+   mostrando o tamanho exato — a pessoa decide se aquele arquivo específico
+   vale o consumo agora, sem mudar a regra geral (o resto continua esperando
+   o Wi-Fi normalmente). */
+async function onedriveBaixarFotosDeItem(itemId){
+  const pend = pendenteFotosDoItem(itemId);
+  if(!pend){
+    toast("As fotos deste item ainda não subiram do outro aparelho — elas ficam disponíveis assim que ele tiver Wi-Fi (ou tocar em Sincronizar agora).");
+    return;
+  }
+  if(!onedriveEstaEmWifi()){
+    if(!confirm(`Baixar as fotos deste item agora usando DADOS MÓVEIS?\n\nTamanho: ${fmtBytes(pend.tamanho)}\n\n(No Wi-Fi este download acontece sozinho, sem custo de dados.)`)) return;
+  }
+  toast("Baixando fotos…");
+  const texto = await onedriveBaixarTexto(pend.caminho);
+  if(!texto){
+    toast("Não foi possível baixar agora — verifique a conexão e tente de novo.", false);
+    return;
+  }
+  try{
+    const dados = JSON.parse(texto);
+    if(onedriveMesclarItemNovo(pend, dados)){
+      STATE.oneDrivePendentes = (STATE.oneDrivePendentes||[]).filter(p=>p!==pend);
+      registrarEventoSync("down", pend.nome, (pend.alvoTipo||"item")+" (fotos)", pend.tamanho||0, true);
+      marcarAlterado();
+      render();
+      toast("Fotos baixadas");
+    }else{
+      // Alvo já estava completo (chegou por outro caminho nesse meio tempo) —
+      // só tira dos pendentes e segue.
+      STATE.oneDrivePendentes = (STATE.oneDrivePendentes||[]).filter(p=>p!==pend);
+      marcarAlterado();
+      render();
+    }
+  }catch(e){
+    toast("O arquivo de fotos veio corrompido — tente novamente mais tarde.", false);
+  }
 }
 async function onedriveBaixarPendentes(onProgresso){
   const pendentes = STATE.oneDrivePendentes || [];
@@ -2026,7 +2756,7 @@ async function onedriveBaixarPendentes(onProgresso){
     else{
       try{
         const dados = JSON.parse(texto);
-        if(onedriveMesclarItemNovo(item, dados)) algumaMudanca = true;
+        if(onedriveMesclarItemNovo(item, dados)){ algumaMudanca = true; registrarEventoSync("down", item.nome, item.tipo, item.tamanho||0, true); }
         else restantes.push(item);
       }catch(e){ restantes.push(item); }
     }
@@ -2165,7 +2895,42 @@ async function onedriveAtualizarStatusPendenteSeWifi(){
    esperar o ciclo automático de 2 minutos. Fora do Wi-Fi, mostra quanto vai
    consumir e só prossegue com a confirmação do usuário — mesmo espírito do
    botão de baixar fotos pendentes, só que cobrindo os dois sentidos de uma vez. */
+/* Mantém a tela acesa durante operações longas de rede (Sincronizar agora,
+   baixar fotos pendentes, trazer backup de aparelho novo) — no campo, a causa
+   mais comum de sincronização interrompida é o próprio celular apagar a tela
+   sozinho por inatividade no meio do processo; o sistema trata isso como "app
+   em segundo plano" e pausa tudo (é o mesmo caso coberto pelo aviso de
+   "aparelho ficou em segundo plano" já existente). Usa a Screen Wake Lock API,
+   nativa do navegador, sem biblioteca extra.
+   Limitações importantes, sem solução possível do lado do app:
+   - É liberada automaticamente pelo navegador se a aba for escondida (troca
+     de app, ou a pessoa apaga a tela na mão) — não é possível "forçar" a tela
+     a ficar acesa contra isso; só evita que ELA MESMA apague por inatividade
+     enquanto o app está aberto e visível.
+   - Em navegadores/aparelhos sem suporte, a chamada simplesmente não faz
+     nada — o app continua funcionando normalmente, só sem esse reforço. */
 let __sincronizandoAgora = false;
+let __wakeLock = null;
+async function manterTelaAcesa(){
+  try{
+    if('wakeLock' in navigator){
+      __wakeLock = await navigator.wakeLock.request('screen');
+    }
+  }catch(e){ __wakeLock = null; } // sem suporte, sem permissão, ou aba não visível no momento — segue sem
+}
+async function liberarTelaAcesa(){
+  try{ if(__wakeLock) await __wakeLock.release(); }catch(e){}
+  __wakeLock = null;
+}
+// Se a pessoa der uma espiada rápida em outro app e voltar antes do tempo
+// limite de segurança, a wake lock anterior já foi liberada sozinha pelo
+// navegador ao esconder a aba — readquire aqui se ainda houver uma
+// sincronização em andamento.
+document.addEventListener("visibilitychange", ()=>{
+  if(document.visibilityState==="visible" && __sincronizandoAgora && !__wakeLock){
+    manterTelaAcesa();
+  }
+});
 let __syncIniciadoEm = null; // marca quando "Sincronizar agora" começou — usado para destravar sozinho se o app for pro segundo plano no meio do caminho
 let __syncProgresso = null; // null quando parado; objeto com detalhes durante a sincronização
 let __syncGrupos = null; // null quando parado; { enviar:{tipo:{total,feito,bytes}}, receber:{...} } durante a sincronização — fica visível o tempo todo, com "Ok" aparecendo grupo a grupo conforme terminam
@@ -2212,6 +2977,7 @@ async function onedriveSincronizarAgora(){
   __sincronizandoAgora = true;
   __syncIniciadoEm = Date.now();
   marcarProgressoSync();
+  manterTelaAcesa();
   render(); // mostra o ícone girando e desativa o botão, para ficar claro que algo está acontecendo
   try{
     // 90s SEM NENHUM avanço é considerado travado — não é um tempo total fixo:
@@ -2358,6 +3124,7 @@ async function onedriveSincronizarAgora(){
     __syncIniciadoEm = null;
     __syncProgresso = null;
     __syncGrupos = null;
+    liberarTelaAcesa();
     render();
   }
 }
@@ -2371,6 +3138,15 @@ async function onedriveSincronizarAgora(){
 const ONEDRIVE_LIMITE_BOOTSTRAP_BYTES = 25 * 1024 * 1024; // acima disso, baixar o arquivo inteiro de uma vez arrisca travar a memória do celular
 async function onedriveVerificarBootstrapNovoDispositivo(avisar){
   if(!getOneDriveConta()){ if(avisar) toast("Conecte o OneDrive primeiro"); return; }
+  // CRÍTICO: espera o carregamento dos dados salvos no aparelho terminar de
+  // verdade antes de checar se ele está "vazio". Sem isto, esta função podia
+  // rodar automaticamente logo após o login do OneDrive (antes do carregamento
+  // local completar) e concluir erradamente que não havia nada aqui — trazendo
+  // um backup antigo da nuvem que, se confirmado, substituía dados reais e
+  // recentes (feitos offline, ainda não sincronizados) que só ainda não
+  // tinham aparecido na tela. Essa era a causa real de perda de dados ao
+  // reconectar depois de trabalhar offline.
+  if(__estadoLocalCarregadoPromise) await __estadoLocalCarregadoPromise;
   if((STATE.projetosSimples||[]).length > 0 || (STATE.projetos||[]).length > 0){
     if(avisar) toast("Este aparelho já tem dados — nada a trazer automaticamente");
     return;
@@ -2432,6 +3208,7 @@ async function onedriveBaixarPendentesConfirmar(){
   });
   __syncGrupos = { enviar:{}, receber:receberInicial };
   marcarProgressoSync();
+  manterTelaAcesa();
   render();
   try{
     await comVigilanciaDeProgresso((async () => {
@@ -2451,6 +3228,7 @@ async function onedriveBaixarPendentesConfirmar(){
     __syncIniciadoEm = null;
     __syncProgresso = null;
     __syncGrupos = null;
+    liberarTelaAcesa();
     render();
   }
 }
@@ -2465,6 +3243,21 @@ function onedriveToggleWifiConfirmado(){
   marcarAlterado();
   render();
   toast(STATE.wifiConfirmado ? "Ok, não vou mais perguntar sobre dados móveis" : "Voltando a avisar sobre consumo de dados");
+  // Se o modo econômico estava segurando envios esperando o Wi-Fi, confirmar
+  // o Wi-Fi agora é o momento de soltar tudo de uma vez, sem esperar o timer.
+  if(STATE.wifiConfirmado){ sincronizarIncrementalOneDrive(); sincronizarDownloadOneDrive(); }
+}
+function onedriveToggleDadosMoveis(){
+  STATE.sincronizarEmDadosMoveis = STATE.sincronizarEmDadosMoveis===false ? true : false;
+  marcarAlterado();
+  render();
+  if(STATE.sincronizarEmDadosMoveis!==false){
+    toast("Sincronização automática liberada em qualquer conexão");
+    // Religou — dispara agora o que estava represado esperando Wi-Fi.
+    sincronizarIncrementalOneDrive(); sincronizarDownloadOneDrive();
+  }else{
+    toast("Modo econômico: sincronização automática só no Wi-Fi. O botão \"Sincronizar agora\" continua valendo em qualquer rede.");
+  }
 }
 
 /* =========================================================================
@@ -2691,9 +3484,13 @@ function buscarTarefaPorId(id){ const proj=getCurrentProjeto(); if(!proj) return
 function getCurrentPerigo(){ const t=getCurrentTarefa(); return t && t.perigos.find(p=>p.id===STATE.ui.perigoId); }
 
 let __saveTimer = null;
+let __salvamentoPendente = false; // true entre a edição e a gravação de fato terminar
+let __ultimoErroSalvar = false;
 function marcarAlterado(){
   clearTimeout(__saveTimer);
-  setSaveChip(true);
+  __salvamentoPendente = true;
+  __ultimoErroSalvar = false;
+  setSaveChip("salvando");
   // Feedback imediato: assim que algo é editado, o selo já avisa "sincronizando…"
   // em vez de ficar mudo até o processo terminar (o que deixava a impressão de
   // que nada tinha acontecido). Não mexe em "sem-pasta"/"não suportado", que são
@@ -2702,20 +3499,62 @@ function marcarAlterado(){
     __syncStatusAtual = "sincronizando";
     atualizarChipSync();
   }
-  __saveTimer = setTimeout(persistir, 450);
+  // 300ms só serve para juntar edições muito próximas (ex.: cada tecla digitada)
+  // num único salvamento, em vez de gravar a cada caractere. Isso NÃo é a
+  // proteção contra perda de dados — essa vem do salvamento imediato disparado
+  // assim que a tela sai de foco (troca de app, tela apagada, aba fechada),
+  // ver flushSalvamentoPendente() e os listeners de visibilitychange/pagehide.
+  __saveTimer = setTimeout(persistir, 300);
 }
 async function persistir(){
-  try{ await dbSet(STATE); setSaveChip(false); }
-  catch(e){ console.error("Falha ao salvar localmente", e); }
+  clearTimeout(__saveTimer);
+  try{
+    const ok = await dbSet(STATE);
+    if(ok && __storageMode!=="memoria"){
+      __salvamentoPendente = false;
+      __ultimoErroSalvar = false;
+      setSaveChip("salvo");
+    }else{
+      // __storageMode "memoria" significa que nem IndexedDB nem localStorage
+      // funcionaram — os dados só existem na memória da aba e desaparecem ao
+      // fechar/recarregar. Isso precisa ficar visível, não pode passar como
+      // "salvo" quando na verdade não há nada durável gravado.
+      __ultimoErroSalvar = true;
+      setSaveChip("erro");
+    }
+  }catch(e){
+    console.error("Falha ao salvar localmente", e);
+    __ultimoErroSalvar = true;
+    setSaveChip("erro");
+  }
   sincronizarIncrementalNaPasta(); // em segundo plano, não atrasa nem depende do salvamento local
   sincronizarIncrementalOneDrive(); // idem, independente da pasta local — funciona mesmo sem ela configurada
 }
-function setSaveChip(saving){
+// Salva imediatamente, pulando a fila de 300ms — chamado quando a tela sai de
+// foco (troca de app, apaga a tela, fecha a aba). É a proteção real contra
+// perder a última edição feita em campo: sem isso, uma edição podia ficar até
+// 300ms só na memória, e se o app fosse encerrado nesse intervalo (comum
+// quando o celular apaga a tela sozinho ou o Android mata o app em segundo
+// plano), a edição desaparecia sem nenhum aviso.
+function flushSalvamentoPendente(){
+  if(!__salvamentoPendente) return;
+  clearTimeout(__saveTimer);
+  persistir();
+}
+document.addEventListener("visibilitychange", ()=>{
+  if(document.visibilityState==="hidden") flushSalvamentoPendente();
+});
+window.addEventListener("pagehide", flushSalvamentoPendente);
+function setSaveChip(estado){
   const el = document.getElementById("saveChip");
   if(!el) return;
-  el.classList.toggle("saving", saving);
+  el.classList.toggle("saving", estado==="salvando");
+  el.classList.toggle("erro-salvar", estado==="erro");
   const lbl = el.querySelector(".lbl");
-  if(lbl) lbl.textContent = saving ? "Salvando…" : "Salvo no aparelho";
+  if(!lbl) return;
+  if(estado==="salvando") lbl.textContent = "Salvando…";
+  else if(estado==="erro") lbl.textContent = "Não foi possível salvar — toque aqui";
+  else lbl.textContent = "Salvo no aparelho";
 }
 /* Texto relativo BEM curto (sem "há"), para caber ao lado do ícone no cabeçalho. */
 function tempoRelativoCurto(ts){
@@ -2873,6 +3712,65 @@ function dragHandleHtml(tipo, id){
   return `<div class="drag-handle" onpointerdown="App.iniciarDrag(event,'${tipo}','${id}')">${ic('grip')}</div>`;
 }
 
+/* =========================================================================
+   RASCUNHO PERSISTENTE — o formulário aberto (máquina/risco em edição) vive
+   só na memória até o toque em "Salvar". Em campo isso era um risco real:
+   a pessoa tira 4-5 fotos dentro do formulário, a tela apaga ou o Android
+   encerra o app em segundo plano, e TODAS as fotos do formulário sumiam.
+   Agora, cada foto adicionada grava o rascunho inteiro no aparelho na hora;
+   ao reabrir o app, se houver um rascunho não salvo, ele é oferecido de
+   volta. Salvar ou Cancelar o formulário limpa o rascunho guardado. */
+const DB_KEY_DRAFT = "draftEmAndamento";
+async function gravarDraftPersistente(){
+  if(!__draftEntity || !temIndexedDB()) return;
+  try{
+    const db = await dbOpen();
+    const pacote = { tipo: __draftTipo, parent: __draftParent, entity: __draftEntity, ts: Date.now() };
+    await new Promise((resolve,reject)=>{
+      const tx = db.transaction(DB_STORE,"readwrite");
+      tx.objectStore(DB_STORE).put(pacote, DB_KEY_DRAFT);
+      tx.oncomplete=()=>resolve(true);
+      tx.onerror=()=>reject(tx.error);
+    });
+  }catch(e){ /* rede de segurança extra falhou nesta vez — o fluxo normal segue */ }
+}
+async function limparDraftPersistente(){
+  if(!temIndexedDB()) return;
+  try{
+    const db = await dbOpen();
+    await new Promise((resolve)=>{
+      const tx = db.transaction(DB_STORE,"readwrite");
+      tx.objectStore(DB_STORE).delete(DB_KEY_DRAFT);
+      tx.oncomplete=()=>resolve(true);
+      tx.onerror=()=>resolve(false);
+    });
+  }catch(e){}
+}
+async function lerDraftPersistente(){
+  if(!temIndexedDB()) return null;
+  try{
+    const db = await dbOpen();
+    return await new Promise((resolve)=>{
+      const tx = db.transaction(DB_STORE,"readonly");
+      const rq = tx.objectStore(DB_STORE).get(DB_KEY_DRAFT);
+      rq.onsuccess=()=>resolve(rq.result||null);
+      rq.onerror=()=>resolve(null);
+    });
+  }catch(e){ return null; }
+}
+async function oferecerRecuperacaoDraft(){
+  const draft = await lerDraftPersistente();
+  if(!draft || !draft.entity) return;
+  const tiposLegiveis = { projetoS:"projeto", areaS:"área", maquinaS:"máquina", tarefaS:"tarefa", riscoS:"risco" };
+  const rotulo = tiposLegiveis[draft.tipo] || "item";
+  const quando = new Date(draft.ts).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+  const nFotos = (draft.entity.fotosOutras||[]).length + (draft.entity.foto?1:0) + (draft.entity.fotoGeral?1:0);
+  if(confirm(`Existe um formulário de ${rotulo} não salvo de ${quando}${nFotos>0? ` (com ${nFotos} foto${nFotos===1?'':'s'})`:''} — o app foi fechado antes de você tocar em Salvar. Quer recuperá-lo agora?`)){
+    abrirModalEntidade(draft.tipo, draft.entity, draft.parent, null);
+  }else{
+    limparDraftPersistente();
+  }
+}
 function abrirModalEntidade(tipo, draft, parent, onSaved){
   __draftTipo = tipo; __draftEntity = draft; __draftParent = parent||{}; __modalOnSaved = onSaved||null;
   renderModalEntidade();
@@ -3420,7 +4318,7 @@ function topBarS(){
     <div class="topbar-title"><span class="eyebrow">${escapeHtml(sub)}</span><h1>${escapeHtml(title)}</h1></div>
     ${chipSyncHtml()}
   </div>
-  ${s==="simples-projetos" ? `<div style="margin-top:8px"><span class="savechip" id="saveChip"><span class="dot"></span><span class="lbl">Salvo no aparelho</span></span></div>` : ""}
+  ${s!=="simples-tabela" ? `<div style="margin-top:8px"><span class="savechip${__ultimoErroSalvar?' erro-salvar':''}" id="saveChip" onclick="App.tentarSalvarNovamente()"><span class="dot"></span><span class="lbl">${__ultimoErroSalvar?'Não foi possível salvar — toque aqui':'Salvo no aparelho'}</span></span></div>` : ""}
   </div>`;
 }
 function crumbBarS(){
@@ -4147,7 +5045,8 @@ function screenSimplesMaquinas(){
         <div class="list-meta">
           <span class="stat-pill">${m.tarefas.length} tarefa${m.tarefas.length===1?'':'s'}</span>
           <span class="stat-pill">${totalRiscos} risco${totalRiscos===1?'':'s'}</span>
-          ${pendFotos>0? `<span class="stat-pill alert" title="${pendFotos} foto${pendFotos===1?'':'s'} pendente${pendFotos===1?'':'s'}">${ic('warn')} ${pendFotos}</span>`:''}
+          ${m.__fotosOmitidas? (()=>{ const pf = pendenteFotosDoItem(m.id); return `<span class="stat-pill" style="background:rgba(233,78,27,.14);color:var(--accent-ink);cursor:pointer" onclick="event.stopPropagation();App.onedriveBaixarFotosDeItem('${m.id}')" title="${pf? 'Toque para baixar as fotos agora ('+fmtBytes(pf.tamanho)+') — em dados móveis, pede confirmação' : 'Fotos ainda no outro aparelho — chegam quando ele tiver Wi-Fi'}">${pf? ic('download')+' fotos '+fmtBytes(pf.tamanho) : ic('camera')+' fotos a caminho'}</span>`; })():''}
+          ${pendFotos>0 && !m.__fotosOmitidas? `<span class="stat-pill alert" title="${pendFotos} foto${pendFotos===1?'':'s'} pendente${pendFotos===1?'':'s'}">${ic('warn')} ${pendFotos}</span>`:''}
         </div>
       </div>
       <button class="card-menu-btn" data-card-role="menu">${ic('dots')}</button>
@@ -4216,6 +5115,7 @@ function screenSimplesRiscos(){
         <div class="list-tag" style="font-family:inherit">${escapeHtml((r.descricao||'sem descrição').slice(0,60))}</div>
         <div class="list-meta">
           <span class="stat-pill" style="background:${hrnMeta.cor};color:${hrnMeta.texto};font-weight:800">HRN ${hrnData.hrn} · ${hrnData.nivel}</span>
+          ${r.__fotosOmitidas? (()=>{ const pf = pendenteFotosDoItem(r.id); return `<span class="stat-pill" style="background:rgba(233,78,27,.14);color:var(--accent-ink);cursor:pointer" onclick="event.stopPropagation();App.onedriveBaixarFotosDeItem('${r.id}')" title="${pf? 'Toque para baixar as fotos agora ('+fmtBytes(pf.tamanho)+') — em dados móveis, pede confirmação' : 'Fotos ainda no outro aparelho — chegam quando ele tiver Wi-Fi'}">${pf? ic('download')+' fotos '+fmtBytes(pf.tamanho) : ic('camera')+' fotos a caminho'}</span>`; })():''}
           ${totalFotos>0? `<span class="stat-pill"><span class="risk-icn">${ic('gallery')}</span> ${totalFotos}</span>`:''}
           ${semMitigacao? `<span class="stat-pill alert icon-only" title="Sem sugestão de mitigação"><span class="risk-icn">${ic('warn')}</span></span>`:''}
         </div>
@@ -4953,6 +5853,16 @@ function screenSimplesConfigBackup(){
     </div>
     <label class="switch"><input type="checkbox" ${STATE.wifiConfirmado?'checked':''} onchange="App.onedriveToggleWifiConfirmado()"><span class="switch-track"></span></label>
   </div>
+  <div class="card card-pad" style="display:flex;align-items:center;gap:12px;margin-top:8px">
+    <div style="flex:1">
+      <div style="font-weight:800;font-size:14px">Sincronizar também em dados móveis</div>
+      <div style="font-size:12px;color:var(--ink-dim)">Ligado (recomendado): suas anotações sobem para a nuvem em qualquer conexão, assim que existem — máxima proteção. Desligado: a sincronização automática espera o Wi-Fi; o botão "Sincronizar agora" continua funcionando em qualquer rede.</div>
+    </div>
+    <label class="switch"><input type="checkbox" ${STATE.sincronizarEmDadosMoveis!==false?'checked':''} onchange="App.onedriveToggleDadosMoveis()"><span class="switch-track"></span></label>
+  </div>
+  ${STATE.sincronizarEmDadosMoveis===false && !onedriveEstaEmWifi() ? `<div class="card card-pad" style="margin-top:8px;border:1px solid var(--r-medio)">
+    <p style="font-size:12.5px;color:var(--ink-dim)">${ic('warn')} Sincronização automática aguardando Wi-Fi (modo econômico ligado). Marque "Estou no Wi-Fi agora" quando conectar, ou use "Sincronizar agora" para enviar mesmo assim.</p>
+  </div>` : ''}
   <div class="card card-pad" style="margin-top:8px">
     <p style="font-size:12.5px;color:var(--ink-dim)">Áreas, máquinas, tarefas e riscos novos criados em outro aparelho (mesma conta OneDrive) aparecem aqui automaticamente. O texto vem sozinho, em qualquer conexão. Fotos ficam pendentes até você confirmar o download, para não gastar dados do seu plano sem avisar.</p>
   </div>
@@ -4993,6 +5903,41 @@ function screenSimplesConfigBackup(){
   <div class="section-title">Backup completo</div>
   <button class="btn btn-primary btn-block" onclick="App.exportarBackup()">${ic('download')} Exportar backup (.json) — ${STATE.projetosSimples.length} projeto(s) / ${linhas.length} risco(s)</button>
   <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="document.getElementById('fileImport').click()">${ic('upload')} Importar backup (.json)</button>
+  <div class="section-title">Histórico de sincronização</div>
+  <div class="card card-pad">
+    <p style="font-size:12.5px;color:var(--ink-dim)">Tudo que subiu (${'\u2191'}) ou desceu (${'\u2193'}) do OneDrive, com tamanho e horário — inclusive o que aconteceu sozinho em segundo plano. Últimos ${MAX_EVENTOS_LOG_SYNC} eventos.</p>
+  </div>
+  ${(STATE.logSincronizacao||[]).length===0 ? `<p style="font-size:12.5px;color:var(--ink-dim);margin-top:8px">Nenhum evento registrado ainda nesta versão.</p>` : `
+  <div class="card" style="margin-top:8px;max-height:280px;overflow-y:auto">
+    ${(STATE.logSincronizacao||[]).map(ev=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid rgba(0,0,0,.05)">
+      <span style="font-weight:900;font-size:15px;color:${ev.dir==='up' ? 'var(--accent)' : '#2E9E5B'};flex-shrink:0">${ev.dir==='up'?'\u2191':'\u2193'}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(ev.nome)}</div>
+        <div style="font-size:10.5px;color:var(--ink-dim)">${new Date(ev.ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}${ev.tipo? ' · '+escapeHtml(ev.tipo):''}</div>
+      </div>
+      <span style="font-size:11px;color:var(--ink-dim);flex-shrink:0">${fmtBytes(ev.bytes)}</span>
+      ${!ev.ok ? `<span style="font-size:10.5px;color:#FF6B5E;font-weight:800;flex-shrink:0">falhou</span>` : ''}
+    </div>`).join("")}
+  </div>`}
+  <div class="section-title">Pontos de restauração (neste aparelho)</div>
+  ${__statusArmazenamentoCache && __statusArmazenamentoCache.espaco ? `<div class="card card-pad" style="margin-bottom:8px">
+    <div style="font-size:12.5px;color:var(--ink-dim)">Espaço livre estimado no aparelho: <b>${(__statusArmazenamentoCache.espaco.livre/1024/1024/1024).toFixed(1)} GB</b>${__statusArmazenamentoCache.espaco.livre < FOLGA_MINIMA_DESEJADA_BYTES ? ' <span style="color:#FF6B5E;font-weight:700">— abaixo da folga recomendada de 2 GB</span>' : ''}${__statusArmazenamentoCache.persistente ? ' · dados protegidos contra limpeza automática do navegador' : ''}</div>
+  </div>` : ''}
+  <div class="card card-pad">
+    <p style="font-size:12.5px;color:var(--ink-dim)">Cópias completas guardadas sozinhas, sem precisar fazer nada: de tempos em tempos, e sempre antes de qualquer importação. Funciona mesmo sem internet. O app guarda mais pontos enquanto houver algo ainda não confirmado no OneDrive, e vai apagando os mais antigos automaticamente assim que tudo estiver garantido lá — nunca antes disso. Se algo der errado, dá pra voltar a um desses pontos.</p>
+  </div>
+  <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.criarPontoDeRestauracaoManual()">${ic('shield')} Criar um ponto extra agora (opcional)</button>
+  ${__pontosRestauracaoCache===null ? `<p style="font-size:12.5px;color:var(--ink-dim);margin-top:8px">Carregando…</p>` :
+    __pontosRestauracaoCache.length===0 ? `<p style="font-size:12.5px;color:var(--ink-dim);margin-top:8px">Nenhum ponto salvo ainda.</p>` :
+    __pontosRestauracaoCache.map(p=>`
+    <div class="card card-pad" style="margin-top:8px;display:flex;align-items:center;gap:10px">
+      <div style="flex:1">
+        <div style="font-weight:800;font-size:13.5px">${new Date(p.ts).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'})}</div>
+        <div style="font-size:11.5px;color:var(--ink-dim)">${p.resumo.projetos} projeto(s) · ${p.resumo.areas} área(s) · ${p.resumo.maquinas} máquina(s) · ${p.resumo.riscos} risco(s) · <span style="text-transform:capitalize">${escapeHtml(p.motivo)}</span></div>
+      </div>
+      <button class="btn btn-secondary" style="font-size:12px;padding:8px 12px;flex-shrink:0" onclick="App.confirmarRestaurarPonto(${p.ts})">Restaurar</button>
+    </div>`).join("")}
   <div class="section-title">Áreas para exportar</div>
   <div class="card card-pad">
     <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:10px">Escolha quais áreas entram no Excel e no Word abaixo. Cada área vira um arquivo separado; se sair mais de um arquivo, tudo é reunido automaticamente em um .zip.</p>
@@ -6680,8 +7625,30 @@ const App = {
   onedriveBaixarPendentesConfirmar,
   onedriveToggleAutoWifi,
   onedriveToggleWifiConfirmado,
+  onedriveToggleDadosMoveis,
+  onedriveBaixarFotosDeItem,
   onedriveVerificarBootstrapNovoDispositivo,
   onedriveSincronizarAgora,
+  tentarSalvarNovamente(){
+    if(!__ultimoErroSalvar) return; // toque no selo em estado normal não faz nada
+    marcarAlterado();
+  },
+  async criarPontoDeRestauracaoManual(){
+    toast("Criando ponto de restauração…");
+    const ok = await salvarPontoDeRestauracao("manual");
+    if(ok){ toast("Ponto de restauração criado"); await carregarPontosRestauracaoNaTela(); }
+    else toast("Não foi possível criar o ponto de restauração agora — armazenamento pode estar cheio", false);
+  },
+  async confirmarRestaurarPonto(ts){
+    const lista = __pontosRestauracaoCache || [];
+    const ponto = lista.find(p=>p.ts===ts);
+    const quando = ponto ? new Date(ponto.ts).toLocaleString('pt-BR') : '';
+    const resumo = ponto ? `${ponto.resumo.projetos} projeto(s), ${ponto.resumo.areas} área(s), ${ponto.resumo.maquinas} máquina(s), ${ponto.resumo.riscos} risco(s)` : '';
+    if(!confirm(`Restaurar a versão de ${quando}?\n\n${resumo}\n\nOs dados atuais deste aparelho serão substituídos pelos desta versão salva. Um ponto extra do que está agora será criado antes, então dá pra desfazer se for engano.`)) return;
+    const ok = await restaurarPontoDeRestauracao(ts);
+    if(ok){ toast("Versão restaurada"); await carregarPontosRestauracaoNaTela(); }
+    else toast("Não foi possível restaurar esta versão agora", false);
+  },
   fecharModal(){ const el=document.getElementById("overlayRoot"); if(el) el.remove(); },
   async compartilharArquivoPronto(){
     const pend = __arquivoProntoParaCompartilhar; if(!pend) return;
@@ -6794,6 +7761,17 @@ const App = {
   confirmarImportacaoBackup(){
     const pv = __importPreview;
     if(!pv) return;
+    // Recalcula a prévia com o STATE mais atual possível antes de aplicar —
+    // proteção extra contra qualquer defasagem entre o momento em que a tela
+    // de revisão foi aberta e o momento em que a pessoa realmente confirma
+    // (pode ter passado tempo, ou dados locais podem ter terminado de carregar
+    // nesse meio tempo). Sem isto, a importação aplicaria uma "foto antiga"
+    // do que existia localmente, arriscando substituir dados mais recentes.
+    recalcularPreviewImportacao();
+    // Ponto de restauração automático — qualquer importação substitui uma
+    // parte inteira dos dados locais de uma vez, então sempre vale a pena
+    // poder voltar atrás, mesmo que a importação em si esteja correta.
+    salvarPontoDeRestauracao("antes de importar backup");
     if(pv.dataCompleto.length>0) STATE.projetos.push(...pv.dataCompleto); // Módulo Completo (congelado): comportamento inalterado
     STATE.projetosSimples = pv.novoArrayProjetosSimples;
     marcarAlterado();
@@ -6898,53 +7876,95 @@ const App = {
   tirarFotoDraft(field){
     const input = document.getElementById("fileGeneral");
     input.onchange = async ()=>{
-      if(!input.files[0]) return;
-      const data = await comprimirImagem(input.files[0], 1920, 0.82);
-      __draftEntity[field] = data;
-      salvarFotoNaGaleria(data, "apr_"+field);
-      renderModalEntidade();
-      input.value = "";
+      // try/finally obrigatório: sem ele, uma falha na compressão fazia a
+      // foto sumir SILENCIOSAMENTE e deixava o input sujo — a PRÓXIMA
+      // tentativa com a mesma foto nem disparava o onchange (mesmo arquivo
+      // selecionado não gera evento). Era o "tirei a foto e não apareceu".
+      try{
+        if(!input.files[0]) return;
+        const data = await comprimirImagem(input.files[0], 1920, 0.82);
+        __draftEntity[field] = data;
+        salvarFotoNaGaleria(data, "apr_"+field);
+        gravarDraftPersistente(); // a foto sobrevive mesmo se o app for encerrado antes do Salvar
+        renderModalEntidade();
+      }catch(e){
+        toast("Não foi possível processar esta foto — tente tirar de novo", false);
+      }finally{
+        input.value = "";
+      }
     };
     input.click();
   },
   tirarFotoDraftGaleria(field){
     const input = document.getElementById("fileGeneralGaleria");
     input.onchange = async ()=>{
-      if(!input.files[0]) return;
-      const data = await comprimirImagem(input.files[0], 1920, 0.82);
-      __draftEntity[field] = data;
-      salvarFotoNaGaleria(data, "apr_"+field);
-      renderModalEntidade();
-      input.value = "";
+      try{
+        if(!input.files[0]) return;
+        const data = await comprimirImagem(input.files[0], 1920, 0.82);
+        __draftEntity[field] = data;
+        salvarFotoNaGaleria(data, "apr_"+field);
+        gravarDraftPersistente();
+        renderModalEntidade();
+      }catch(e){
+        toast("Não foi possível processar esta imagem — tente escolher de novo", false);
+      }finally{
+        input.value = "";
+      }
     };
     input.click();
   },
-  removerFotoDraft(field){ __draftEntity[field]=null; renderModalEntidade(); },
+  removerFotoDraft(field){ __draftEntity[field]=null; gravarDraftPersistente(); renderModalEntidade(); },
   tirarFotoOutraDraft(){
     const input = document.getElementById("fileHazard");
     input.onchange = async ()=>{
-      if(!input.files.length) return;
-      if(!__draftEntity.fotosOutras) __draftEntity.fotosOutras=[];
-      const prefixo = __draftTipo==="riscoS" ? "apr_risco_extra" : "apr_maquina_extra";
-      for(const file of input.files){ const data = await comprimirImagem(file, 1920, 0.82); salvarFotoNaGaleria(data,prefixo); __draftEntity.fotosOutras.push(data); }
-      renderModalEntidade();
-      input.value = "";
+      try{
+        if(!input.files.length) return;
+        if(!__draftEntity.fotosOutras) __draftEntity.fotosOutras=[];
+        const prefixo = __draftTipo==="riscoS" ? "apr_risco_extra" : "apr_maquina_extra";
+        let falhas = 0;
+        for(const file of input.files){
+          // Uma foto ruim no meio de várias não pode derrubar as outras —
+          // processa uma a uma, conta as que falharam, avisa no final.
+          try{
+            const data = await comprimirImagem(file, 1920, 0.82);
+            salvarFotoNaGaleria(data,prefixo);
+            __draftEntity.fotosOutras.push(data);
+          }catch(e){ falhas++; }
+        }
+        gravarDraftPersistente();
+        renderModalEntidade();
+        if(falhas>0) toast(`${falhas} foto${falhas===1?'':'s'} não p${falhas===1?'ôde':'uderam'} ser processada${falhas===1?'':'s'} — tente de novo`, false);
+      }finally{
+        input.value = "";
+      }
     };
     input.click();
   },
   tirarFotoOutraDraftGaleria(){
     const input = document.getElementById("fileHazardGaleria");
     input.onchange = async ()=>{
-      if(!input.files.length) return;
-      if(!__draftEntity.fotosOutras) __draftEntity.fotosOutras=[];
-      const prefixo = __draftTipo==="riscoS" ? "apr_risco_extra" : "apr_maquina_extra";
-      for(const file of input.files){ const data = await comprimirImagem(file, 1920, 0.82); salvarFotoNaGaleria(data,prefixo); __draftEntity.fotosOutras.push(data); }
-      renderModalEntidade();
-      input.value = "";
+      try{
+        if(!input.files.length) return;
+        if(!__draftEntity.fotosOutras) __draftEntity.fotosOutras=[];
+        const prefixo = __draftTipo==="riscoS" ? "apr_risco_extra" : "apr_maquina_extra";
+        let falhas = 0;
+        for(const file of input.files){
+          try{
+            const data = await comprimirImagem(file, 1920, 0.82);
+            salvarFotoNaGaleria(data,prefixo);
+            __draftEntity.fotosOutras.push(data);
+          }catch(e){ falhas++; }
+        }
+        gravarDraftPersistente();
+        renderModalEntidade();
+        if(falhas>0) toast(`${falhas} imagem${falhas===1?'':'ns'} não p${falhas===1?'ôde':'uderam'} ser processada${falhas===1?'':'s'} — tente de novo`, false);
+      }finally{
+        input.value = "";
+      }
     };
     input.click();
   },
-  removerFotoOutraDraft(idx){ __draftEntity.fotosOutras.splice(idx,1); renderModalEntidade(); },
+  removerFotoOutraDraft(idx){ __draftEntity.fotosOutras.splice(idx,1); gravarDraftPersistente(); renderModalEntidade(); },
   removerDraftRisco(){
     if(!confirm("Remover este risco?")) return;
     const tarefa = buscarTarefaSimplesPorId(__draftParent.tarefaSId);
@@ -6956,6 +7976,7 @@ const App = {
   },
   cancelarDraftEntidade(){
     __draftEntity=null; __draftParent=null; __draftTipo=null; __modalOnSaved=null; __infoHrnPOAberto=false; __extrasProjetoAberto=false;
+    limparDraftPersistente(); // cancelou de propósito — o rascunho guardado não deve voltar a assombrar na próxima abertura
     App.fecharModal();
   },
   salvarDraftEntidade(){
@@ -6969,6 +7990,7 @@ const App = {
     else if(tipo==="tarefaS"){ const maquina=buscarMaquinaSimplesPorId(parent.maquinaSId); substituirOuAdicionar(maquina.tarefas, ent); }
     else if(tipo==="riscoS"){ const tarefa=buscarTarefaSimplesPorId(parent.tarefaSId); substituirOuAdicionar(tarefa.riscos, ent); }
     marcarAlterado();
+    limparDraftPersistente(); // salvo de verdade no STATE — o rascunho de emergência não é mais necessário
     App.fecharModal();
     __draftEntity=null; __draftParent=null; __draftTipo=null; __modalOnSaved=null; __infoHrnPOAberto=false; __extrasProjetoAberto=false;
     if(cb){ cb(ent.id); } else { render(); toast("Salvo"); }
@@ -8397,6 +9419,7 @@ render();
 // clique — deixa a conexão mais rápida e é o que a checagem abaixo usa pra
 // detectar quando o navegador volta do site da Microsoft.
 getMsalInstance().catch(()=>{});
+solicitarArmazenamentoPersistente().catch(()=>{});
 // Verifica, toda vez que o app abre, se acabamos de voltar de um login feito
 // por redirecionamento (fluxo usado desde a correção do login no iPhone —
 // veja o comentário em onedriveConectar). Se ninguém acabou de fazer login,
@@ -8417,7 +9440,37 @@ lerModeloWordCustom().then(b64=>{
   __modeloCustomCarregado = !!b64;
   render();
 }).catch(()=>{});
-carregarEstadoSalvo().then(saved=>{
+/* Cache leve (sem o campo "dados", que é pesado — a cópia inteira do STATE)
+   só com o necessário para listar na tela: quando foi salvo, motivo, e a
+   contagem de itens. O conteúdo de verdade só é lido do IndexedDB no momento
+   de restaurar, não fica duplicado na memória o tempo todo. */
+let __pontosRestauracaoCache = null;
+async function carregarPontosRestauracaoNaTela(){
+  const lista = await listarPontosDeRestauracao();
+  __pontosRestauracaoCache = lista.map(p=>({ ts:p.ts, motivo:p.motivo, resumo:p.resumo }));
+  render();
+}
+carregarPontosRestauracaoNaTela();
+/* Status de armazenamento (espaço livre estimado + se está em modo
+   persistente) — só para mostrar na tela de Backup, sem exigir que a pessoa
+   abra as configurações do celular para saber se está tudo bem. */
+let __statusArmazenamentoCache = null;
+async function carregarStatusArmazenamentoNaTela(){
+  const espaco = await checarEspacoDisponivel();
+  const persistente = (navigator.storage && navigator.storage.persisted) ? await navigator.storage.persisted().catch(()=>null) : null;
+  __statusArmazenamentoCache = { espaco, persistente };
+  render();
+}
+carregarStatusArmazenamentoNaTela();
+/* Promise rastreável do carregamento inicial — outras partes do app (como a
+   checagem de "aparelho vazio, trazer dados da nuvem") precisam poder ESPERAR
+   por ela antes de decidir qualquer coisa com base no conteúdo do STATE.
+   Sem isso, um processo automático que roda logo na abertura do app (como o
+   retorno do login do OneDrive) podia rodar ANTES dos dados salvos no
+   aparelho terminarem de carregar, e concluir erradamente "este aparelho não
+   tem nada" — com um backup antigo da nuvem sendo proposto e, se confirmado,
+   substituindo dados reais que só ainda não tinham entrado na tela. */
+let __estadoLocalCarregadoPromise = carregarEstadoSalvo().then(saved=>{
   if(saved){
     let novoEstado = Array.isArray(saved.projetos) ? saved : migrarParaHierarquiaV4(saved);
     novoEstado.projetosSimples = Array.isArray(novoEstado.projetosSimples) ? novoEstado.projetosSimples : [];
@@ -8437,6 +9490,15 @@ carregarEstadoSalvo().then(saved=>{
     marcarAlterado();
     render();
   }
+  // Ponto de restauração automático de "início de sessão" — só se já fizer
+  // tempo desde o último (evita empilhar pontos toda vez que a pessoa só
+  // reabre o app várias vezes no mesmo dia). É a rede de segurança contra
+  // qualquer bug ainda não descoberto, não só o que foi corrigido aqui.
+  criarPontoDeRestauracaoSeNecessario("abertura do app");
+  // Se o app foi encerrado com um formulário aberto (fotos tiradas, Salvar
+  // nunca tocado), oferece o resgate agora — depois que o STATE carregou,
+  // para o Salvar do formulário recuperado ter onde se encaixar.
+  oferecerRecuperacaoDraft();
 }).catch(e=>{ console.warn("Não há dados salvos para recuperar (ou o armazenamento está indisponível):", e && e.message); });
 lerHandlePastaBase().then(handle=>{
   if(handle){
@@ -8453,7 +9515,7 @@ lerHandlePastaBase().then(handle=>{
      real na pasta — é o que detecta permissão perdida OU a pasta ter sido
      apagada no aparelho, mesmo sem nenhuma edição no meio do caminho. */
 setInterval(()=>{ atualizarChipSync(); }, 30000);
-setInterval(()=>{ if(document.visibilityState==="visible"){ sincronizarIncrementalNaPasta(); sincronizarIncrementalOneDrive(); sincronizarDownloadOneDrive(); onedriveAtualizarStatusPendenteSeWifi(); } }, 120000);
+setInterval(()=>{ if(document.visibilityState==="visible"){ sincronizarIncrementalNaPasta(); sincronizarIncrementalOneDrive(); sincronizarDownloadOneDrive(); onedriveAtualizarStatusPendenteSeWifi(); criarPontoDeRestauracaoSeNecessario("periódico"); podarPontosDeRestauracaoAgora(); carregarStatusArmazenamentoNaTela(); } }, 120000);
 document.addEventListener("visibilitychange", ()=>{
   if(document.visibilityState==="visible"){
     // Proteção extra específica para iPhone: se o aparelho foi para segundo
