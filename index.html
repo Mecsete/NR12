@@ -1212,7 +1212,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
    GitHub (útil especialmente dado o atraso de alguns minutos do GitHub para
    propagar cada atualização, e para diferenciar aparelhos que ainda não
    atualizaram dos que já atualizaram). */
-const APP_BUILD = "14/07/2026 21:40";
+const APP_BUILD = "15/07/2026 17:30";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -1302,10 +1302,11 @@ function onedriveDesconectar(){
   render();
 }
 let __onedriveSessaoExpirada = false;
-async function onedriveObterToken(){
+async function onedriveObterToken(forcarRenovacao){
   const inst = await getMsalInstance();
   if(!inst || !__msalContaAtiva) return null;
   const escopos = { scopes: ["Files.ReadWrite"], account: __msalContaAtiva };
+  if(forcarRenovacao) escopos.forceRefresh = true; // ignora o token em cache — usado quando a Microsoft respondeu 401 a um token que o cache achava válido
   try{
     const r = await inst.acquireTokenSilent(escopos);
     __onedriveSessaoExpirada = false; // token renovado com sucesso — se estava marcado como expirado, já não está mais
@@ -1321,32 +1322,91 @@ async function onedriveObterToken(){
     return null;
   }
 }
+/* Motivo da última falha de envio — lido pelo chamador para registrar no
+   histórico um "falhou (429)" / "falhou (sessão expirada)" em vez de um
+   "falhou" mudo que não permite diagnóstico nenhum em campo. */
+let __ultimoMotivoFalhaEnvio = "";
+const LIMITE_ENVIO_DIRETO_BYTES = 3.8 * 1024 * 1024; // a Microsoft aceita PUT direto até 4 MB; folga de segurança
 async function onedriveEnviarBlob(subpasta, blob, filename){
-  if(!navigator.onLine) return false;
-  const token = await onedriveObterToken();
-  if(!token) return false;
+  __ultimoMotivoFalhaEnvio = "";
+  if(!navigator.onLine){ __ultimoMotivoFalhaEnvio = "sem conexão"; return false; }
+  let token = await onedriveObterToken();
+  if(!token){ __ultimoMotivoFalhaEnvio = __onedriveSessaoExpirada ? "sessão expirada" : "sem login"; return false; }
+  const caminho = `${ONEDRIVE_PASTA_APP}/${subpasta}/${filename}`
+    .split("/").map(encodeURIComponent).join("/");
+  /* Executa uma requisição com as retentativas certas para cada tipo de erro:
+     - 429 (limite de requisições): espera o tempo que a própria Microsoft
+       pedir no cabeçalho Retry-After e tenta de novo (até 4 vezes). Era a
+       causa provável das rajadas de "falhou": dois aparelhos sincronizando
+       juntos estouram o limite e, sem retentativa, cada arquivo da leva
+       falhava de vez.
+     - 401 (token recusado): força a renovação do token UMA vez e repete; se
+       continuar recusado, marca a sessão como expirada — o aviso de
+       "reconectar OneDrive" já existente assume a partir daí.
+     - 5xx/erro de rede: uma nova tentativa após pausa curta. */
+  const executarComRetentativas = async (fazerRequisicao) => {
+    let renovouToken = false;
+    for(let tentativa=0; tentativa<5; tentativa++){
+      let resp;
+      try{ resp = await fazerRequisicao(token); }
+      catch(e){
+        if(tentativa>=1){ __ultimoMotivoFalhaEnvio = "erro de rede"; return null; }
+        await new Promise(r=>setTimeout(r, 1200));
+        marcarProgressoSync();
+        continue;
+      }
+      marcarProgressoSync();
+      if(resp.ok) return resp;
+      if(resp.status===429){
+        const esperaSeg = Number(resp.headers.get("Retry-After")) || (1+tentativa);
+        __ultimoMotivoFalhaEnvio = "limite de requisições (429)";
+        if(tentativa>=3) return null;
+        await new Promise(r=>setTimeout(r, esperaSeg*1000));
+        continue;
+      }
+      if(resp.status===401 && !renovouToken){
+        renovouToken = true;
+        const novo = await onedriveObterToken(true); // força renovação, ignorando o cache
+        if(novo){ token = novo; continue; }
+        __ultimoMotivoFalhaEnvio = "sessão expirada";
+        return null;
+      }
+      if(resp.status===401){ __ultimoMotivoFalhaEnvio = "sessão expirada"; __onedriveSessaoExpirada = true; return null; }
+      if(resp.status>=500 && tentativa<1){ await new Promise(r=>setTimeout(r, 1500)); continue; }
+      __ultimoMotivoFalhaEnvio = "erro " + resp.status;
+      return null;
+    }
+    return null;
+  };
   try{
-    const caminho = `${ONEDRIVE_PASTA_APP}/${subpasta}/${filename}`
-      .split("/").map(encodeURIComponent).join("/");
-    // Usa sessão de upload em vez de PUT direto: o envio direto da Microsoft só aceita
-    // arquivos de até 4 MB — um risco com várias fotos passa disso com facilidade. A
-    // sessão de upload não tem esse limite prático (suporta dezenas de MB numa só vez).
-    const sessaoUrl = `https://graph.microsoft.com/v1.0/me/drive/root:/${caminho}:/createUploadSession`;
-    const sessaoResp = await fetch(sessaoUrl, {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ item: { "@microsoft.graph.conflictBehavior": "replace" } })
-    });
-    if(!sessaoResp.ok) return false;
+    if(blob.size < LIMITE_ENVIO_DIRETO_BYTES){
+      // Arquivo pequeno (todos os textos e a maioria dos pacotes de fotos):
+      // envio direto numa ÚNICA requisição — metade das viagens de rede da
+      // sessão de upload, o que reduz na mesma proporção a chance de esbarrar
+      // no limite de requisições da Microsoft.
+      const resp = await executarComRetentativas((tok) => fetch(
+        `https://graph.microsoft.com/v1.0/me/drive/root:/${caminho}:/content?@microsoft.graph.conflictBehavior=replace`,
+        { method:"PUT", headers:{ "Authorization":`Bearer ${tok}`, "Content-Type":"application/json" }, body: blob }
+      ));
+      return !!resp;
+    }
+    // Arquivo grande (pacote de fotos volumoso): sessão de upload, que não tem
+    // o limite de 4 MB do envio direto.
+    const sessaoResp = await executarComRetentativas((tok) => fetch(
+      `https://graph.microsoft.com/v1.0/me/drive/root:/${caminho}:/createUploadSession`,
+      { method:"POST", headers:{ "Authorization":`Bearer ${tok}`, "Content-Type":"application/json" },
+        body: JSON.stringify({ item: { "@microsoft.graph.conflictBehavior": "replace" } }) }
+    ));
+    if(!sessaoResp) return false;
     const sessao = await sessaoResp.json();
     const tamanho = blob.size;
-    const uploadResp = await fetch(sessao.uploadUrl, {
+    const uploadResp = await executarComRetentativas(() => fetch(sessao.uploadUrl, {
       method: "PUT",
       headers: { "Content-Range": `bytes 0-${tamanho-1}/${tamanho}` },
       body: blob
-    });
-    return uploadResp.ok;
-  }catch(e){ return false; }
+    }));
+    return !!uploadResp;
+  }catch(e){ __ultimoMotivoFalhaEnvio = __ultimoMotivoFalhaEnvio || "erro inesperado"; return false; }
 }
 function suportaPastaLocal(){ return typeof window.showDirectoryPicker === "function"; }
 let __pastaBaseHandle = null; // cache em memória da sessão atual
@@ -1786,9 +1846,9 @@ let __assinaturasOneDriveCompleto = { mapa:null, chaveEstado:'oneDriveAssinatura
    sozinho em segundo plano, sem ninguém olhando. Limitado aos últimos 80
    eventos para não inflar o backup. */
 const MAX_EVENTOS_LOG_SYNC = 80;
-function registrarEventoSync(direcao, nome, tipo, bytes, ok){
+function registrarEventoSync(direcao, nome, tipo, bytes, ok, motivo){
   if(!Array.isArray(STATE.logSincronizacao)) STATE.logSincronizacao = [];
-  STATE.logSincronizacao.unshift({ ts: Date.now(), dir: direcao, nome: String(nome||"").slice(0,80), tipo, bytes: bytes||0, ok: ok!==false });
+  STATE.logSincronizacao.unshift({ ts: Date.now(), dir: direcao, nome: String(nome||"").slice(0,80), tipo, bytes: bytes||0, ok: ok!==false, motivo: ok===false ? String(motivo||"").slice(0,40) : undefined });
   if(STATE.logSincronizacao.length > MAX_EVENTOS_LOG_SYNC) STATE.logSincronizacao.length = MAX_EVENTOS_LOG_SYNC;
 }
 function fmtBytes(b){
@@ -1934,14 +1994,14 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
     if(textoPrecisaSubir){
       const blobTexto = new Blob([JSON.stringify(tinhaFotos ? semFotos : item.dados, null, 0)], {type:"application/json"});
       okTexto = await onedriveEnviarBlob(subpasta, blobTexto, item.arquivo);
-      registrarEventoSync("up", item.arquivo, item.tipo, blobTexto.size, okTexto);
+      registrarEventoSync("up", item.arquivo, item.tipo, blobTexto.size, okTexto, __ultimoMotivoFalhaEnvio);
       if(onProgresso) onProgresso(blobTexto.size, item.tipo);
     }
     let fotosSubiram = false;
     if(okTexto && tinhaFotos && podeSubirFotos){
       const blobFotos = new Blob([JSON.stringify(soFotos, null, 0)], {type:"application/json"});
       fotosSubiram = await onedriveEnviarBlob(subpasta, blobFotos, "fotos_"+item.arquivo);
-      registrarEventoSync("up", "fotos_"+item.arquivo, item.tipo+" (fotos)", blobFotos.size, fotosSubiram);
+      registrarEventoSync("up", "fotos_"+item.arquivo, item.tipo+" (fotos)", blobFotos.size, fotosSubiram, __ultimoMotivoFalhaEnvio);
       if(onProgresso) onProgresso(blobFotos.size, item.tipo);
     }
     if(okTexto){
@@ -5917,7 +5977,7 @@ function screenSimplesConfigBackup(){
         <div style="font-size:10.5px;color:var(--ink-dim)">${new Date(ev.ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}${ev.tipo? ' · '+escapeHtml(ev.tipo):''}</div>
       </div>
       <span style="font-size:11px;color:var(--ink-dim);flex-shrink:0">${fmtBytes(ev.bytes)}</span>
-      ${!ev.ok ? `<span style="font-size:10.5px;color:#FF6B5E;font-weight:800;flex-shrink:0">falhou</span>` : ''}
+      ${!ev.ok ? `<span style="font-size:10.5px;color:#FF6B5E;font-weight:800;flex-shrink:0">falhou${ev.motivo? ' ('+escapeHtml(ev.motivo)+')':''}</span>` : ''}
     </div>`).join("")}
   </div>`}
   <div class="section-title">Pontos de restauração (neste aparelho)</div>
