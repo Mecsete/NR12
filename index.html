@@ -1154,6 +1154,11 @@ async function salvarPontoDeRestauracao(motivo){
    diretamente, sem essa checagem de intervalo — esses precisam acontecer
    sempre, na hora exata. */
 async function criarPontoDeRestauracaoSeNecessario(motivo){
+  // Nunca no meio de uma sincronização: criar um ponto clona o STATE inteiro
+  // (fotos incluídas) na memória — em cima de um download pesado em andamento,
+  // esse pico é o tipo de coisa que faz o celular matar o app. O ponto fica
+  // para o próximo ciclo, já em águas calmas.
+  if(__sincronizandoAgora || __downloadAutoRodando) return false;
   const atuais = await listarPontosDeRestauracao();
   const maisRecente = atuais[0];
   if(maisRecente && (Date.now() - maisRecente.ts) < INTERVALO_MIN_ENTRE_PONTOS_MS) return false;
@@ -1212,7 +1217,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
    GitHub (útil especialmente dado o atraso de alguns minutos do GitHub para
    propagar cada atualização, e para diferenciar aparelhos que ainda não
    atualizaram dos que já atualizaram). */
-const APP_BUILD = "15/07/2026 19:15";
+const APP_BUILD = "15/07/2026 20:30";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -2443,7 +2448,7 @@ async function sincronizarDownloadOneDriveUmaPassada(onProgresso){
     await executarComConcorrencia(pequenos, 8, async (item) => {
       const texto = await onedriveBaixarTexto(item.caminho);
       if(texto){
-        try{ const dados = JSON.parse(texto); if(onedriveMesclarItemNovo(item, dados)){ mesclados++; registrarEventoSync("down", item.nome, item.tipo, item.tamanho||0, true); gravarIncrementalDownload(); } }
+        try{ const dados = JSON.parse(texto); if(onedriveMesclarItemNovo(item, dados)){ mesclados++; registrarEventoSync("down", item.nome, item.tipo, item.tamanho||0, true); journalGravarItem(item, dados); } }
         catch(e){ marcarArquivoCorrompido(item, texto); }
       }
       // Conta como "andamento" mesmo quando o item não pôde ser baixado agora
@@ -2679,7 +2684,7 @@ async function onedriveDeltaProcessarFila(){
       if(!texto){ manter.push(entrada); continue; } // rede falhou agora — permanece na fila
       try{
         const dados = JSON.parse(texto);
-        if(onedriveMesclarItemNovo(d, dados)){ mesclados++; progrediu = true; registrarEventoSync("down", d.nome, d.tipo, d.tamanho||0, true); gravarIncrementalDownload(); }
+        if(onedriveMesclarItemNovo(d, dados)){ mesclados++; progrediu = true; registrarEventoSync("down", d.nome, d.tipo, d.tamanho||0, true); journalGravarItem(d, dados); }
       }catch(e){ marcarArquivoCorrompido(entrada, texto); /* quarentena registrada — sai da fila e da contagem até o dono reenviar */ }
       marcarProgressoSync();
     }
@@ -2717,12 +2722,107 @@ function arquivoEstaEmQuarentena(caminho, tamanho){
   return Array.isArray(STATE.arquivosCorrompidosIgnorados) &&
     STATE.arquivosCorrompidosIgnorados.some(a=>a.chave===caminho+"|"+(tamanho||0));
 }
-let __ultimaGravacaoIncrementalEm = 0;
-function gravarIncrementalDownload(){
+/* DIÁRIO DE DOWNLOAD — a proteção contra perder itens quando o app fecha no
+   meio do recebimento. A versão anterior gravava o STATE INTEIRO (com todas
+   as fotos — centenas de MB) a cada 2,5s durante o download: cada gravação
+   clona o STATE completo na memória, e picos repetidos disso durante um
+   download pesado são exatamente o que faz o navegador do celular MATAR o
+   app — o remédio causava a doença. Agora, cada item recém-baixado é gravado
+   SOZINHO no disco (uma escrita pequena, do tamanho do próprio item), sob uma
+   chave própria ("dlj:..."). Ao abrir o app, itens do diário que não chegaram
+   ao STATE são reencaixados e o diário é limpo; ao fim de uma sincronização
+   bem-sucedida (quando o STATE inteiro é gravado uma única vez, como sempre
+   foi), o diário também é limpo por ter virado redundância. */
+let __journalSeq = 0;
+function journalGravarItem(descritor, dados){
+  if(!temIndexedDB()) return;
+  try{
+    dbOpen().then(db=>{
+      const chave = "dlj:" + Date.now() + "-" + (__journalSeq++);
+      const tx = db.transaction(DB_STORE,"readwrite");
+      tx.objectStore(DB_STORE).put({ descritor: {
+        tipo: descritor.tipo, alvoTipo: descritor.alvoTipo, itemId: descritor.itemId,
+        projId: descritor.projId, areaId: descritor.areaId, maquinaId: descritor.maquinaId, tarefaId: descritor.tarefaId,
+        nome: descritor.nome, tamanho: descritor.tamanho
+      }, dados }, chave);
+    }).catch(()=>{});
+  }catch(e){ /* rede de segurança extra falhou nesta escrita — o fluxo segue */ }
+}
+async function journalListarChaves(db){
+  return await new Promise((resolve)=>{
+    try{
+      const tx = db.transaction(DB_STORE,"readonly");
+      const rq = tx.objectStore(DB_STORE).getAllKeys();
+      rq.onsuccess = ()=>resolve((rq.result||[]).filter(k=>typeof k==="string" && k.startsWith("dlj:")));
+      rq.onerror = ()=>resolve([]);
+    }catch(e){ resolve([]); }
+  });
+}
+async function journalLimpar(){
+  if(!temIndexedDB()) return;
+  try{
+    const db = await dbOpen();
+    const chaves = await journalListarChaves(db);
+    if(chaves.length===0) return;
+    await new Promise((resolve)=>{
+      const tx = db.transaction(DB_STORE,"readwrite");
+      const store = tx.objectStore(DB_STORE);
+      chaves.forEach(k=>store.delete(k));
+      tx.oncomplete = ()=>resolve(true);
+      tx.onerror = ()=>resolve(false);
+    });
+  }catch(e){}
+}
+/* Na abertura do app: reencaixa no STATE tudo que estava no diário e ainda não
+   chegou lá (a mesclagem é idempotente — o que já existe é ignorado). Se algo
+   foi reencaixado, grava o STATE uma vez e limpa o diário. */
+async function journalReaplicar(){
+  if(!temIndexedDB()) return;
+  try{
+    const db = await dbOpen();
+    const chaves = await journalListarChaves(db);
+    if(chaves.length===0) return;
+    let recuperados = 0;
+    const entradas = [];
+    for(const chave of chaves){
+      const entrada = await new Promise((resolve)=>{
+        const tx = db.transaction(DB_STORE,"readonly");
+        const rq = tx.objectStore(DB_STORE).get(chave);
+        rq.onsuccess = ()=>resolve(rq.result||null);
+        rq.onerror = ()=>resolve(null);
+      });
+      if(entrada && entrada.descritor && entrada.dados) entradas.push(entrada);
+    }
+    // Duas passadas: se por qualquer motivo um filho tiver sido gravado no
+    // diário antes do pai, a segunda passada o encaixa (a mesclagem é
+    // idempotente — repetir o que já entrou não duplica nada).
+    for(let passe=0; passe<2; passe++){
+      for(const entrada of entradas){
+        try{ if(onedriveMesclarItemNovo(entrada.descritor, entrada.dados)) recuperados++; }catch(e){}
+      }
+    }
+    if(recuperados>0){
+      await dbSet(STATE);
+      render();
+      toast(`${recuperados} ite${recuperados===1?'m':'ns'} de uma sincronização interrompida ${recuperados===1?'foi recuperado':'foram recuperados'} — nada se perdeu.`);
+    }
+    await journalLimpar();
+  }catch(e){}
+}
+/* Mantido por compatibilidade com pontos de chamada de progresso, mas agora é
+   inofensivo: NÃO grava mais o STATE inteiro durante o download (era a causa
+   provável do app fechar por memória). A durabilidade item a item vem do
+   diário acima, escrito nos pontos de mesclagem. */
+function gravarIncrementalDownload(){}
+/* Render com ritmo controlado durante o progresso: redesenhar a tela inteira
+   a cada item (centenas de vezes por minuto) também pesa na memória do
+   celular durante downloads grandes. */
+let __ultimoRenderProgressoEm = 0;
+function renderProgresso(){
   const agora = Date.now();
-  if(agora - __ultimaGravacaoIncrementalEm < 2500) return;
-  __ultimaGravacaoIncrementalEm = agora;
-  dbSet(STATE); // sem await de propósito: a gravação segue em paralelo, o download não espera
+  if(agora - __ultimoRenderProgressoEm < 250) return;
+  __ultimoRenderProgressoEm = agora;
+  render();
 }
 let __downloadAutoRodando = false;
 async function sincronizarDownloadOneDrive(){
@@ -2787,7 +2887,8 @@ async function sincronizarDownloadOneDrive(){
     }
     // Mesmo com zero mesclados: a fila/pendentes podem ter mudado, e a
     // varredura pode ter descoberto fotos — grava e atualiza a tela sempre.
-    dbSet(STATE);
+    await dbSet(STATE);
+    if(mesclados>0) journalLimpar(); // STATE gravado com os itens dentro — o diário deles virou redundância
     render();
     if(mesclados>0) toast("Novos itens recebidos do OneDrive");
     atualizarChipSync();
@@ -2853,7 +2954,7 @@ async function onedriveBaixarPendentes(onProgresso){
     else{
       try{
         const dados = JSON.parse(texto);
-        if(onedriveMesclarItemNovo(item, dados)){ algumaMudanca = true; registrarEventoSync("down", item.nome, item.tipo, item.tamanho||0, true); gravarIncrementalDownload(); }
+        if(onedriveMesclarItemNovo(item, dados)){ algumaMudanca = true; registrarEventoSync("down", item.nome, item.tipo, item.tamanho||0, true); journalGravarItem(item, dados); }
         else restantes.push(item);
       }catch(e){ restantes.push(item); }
     }
@@ -3167,16 +3268,16 @@ async function onedriveSincronizarAgora(){
         // pai — sem o teto, o contador passava do total ("300 de 200").
         const g = __syncGrupos && __syncGrupos.receber[tipo];
         if(g && g.feito < g.total) g.feito++;
-        gravarIncrementalDownload(); // item já mesclado vai pro disco em segundos, não só no fim
         marcarProgressoSync();
-        render();
+        renderProgresso();
       });
       totalRecebidoTexto += r.mesclados;
       ultimaPassadaComErro = r.erro;
       passadas++;
       if(r.erro || r.mesclados===0) break; // parou de progredir (ou deu erro) — nada mais a fazer agora
     }
-    dbSet(STATE);
+    await dbSet(STATE); // STATE completo gravado com sucesso — o diário virou redundância
+    journalLimpar();
 
     const pendentesFotos = STATE.oneDrivePendentes||[];
     let recebidosFotos = 0;
@@ -3189,9 +3290,9 @@ async function onedriveSincronizarAgora(){
       await onedriveBaixarPendentes((bytesItem, tipo)=>{
         __syncProgresso.itemAtual++;
         __syncProgresso.bytesFeitos += bytesItem;
-        { const g = __syncGrupos && __syncGrupos.receber[tipo]; if(g && g.feito < g.total) g.feito++; } gravarIncrementalDownload();
+        { const g = __syncGrupos && __syncGrupos.receber[tipo]; if(g && g.feito < g.total) g.feito++; }
         marcarProgressoSync();
-        render();
+        renderProgresso();
       });
       recebidosFotos = antesLen - (STATE.oneDrivePendentes||[]).length;
     }
@@ -3316,9 +3417,9 @@ async function onedriveBaixarPendentesConfirmar(){
       await onedriveBaixarPendentes((bytesItem, tipo)=>{
         __syncProgresso.itemAtual++;
         __syncProgresso.bytesFeitos += bytesItem;
-        { const g = __syncGrupos && __syncGrupos.receber[tipo]; if(g && g.feito < g.total) g.feito++; } gravarIncrementalDownload();
+        { const g = __syncGrupos && __syncGrupos.receber[tipo]; if(g && g.feito < g.total) g.feito++; }
         marcarProgressoSync();
-        render();
+        renderProgresso();
       });
     })(), 90000);
     toast("Download concluído");
@@ -9599,6 +9700,10 @@ let __estadoLocalCarregadoPromise = carregarEstadoSalvo().then(saved=>{
   // tempo desde o último (evita empilhar pontos toda vez que a pessoa só
   // reabre o app várias vezes no mesmo dia). É a rede de segurança contra
   // qualquer bug ainda não descoberto, não só o que foi corrigido aqui.
+  // Reencaixa itens de uma sincronização interrompida (diário) ANTES de
+  // qualquer outra coisa — se o app fechou no meio do recebimento, é aqui
+  // que os itens já baixados voltam, sem depender de rede nenhuma.
+  journalReaplicar();
   criarPontoDeRestauracaoSeNecessario("abertura do app");
   // Se o app foi encerrado com um formulário aberto (fotos tiradas, Salvar
   // nunca tocado), oferece o resgate agora — depois que o STATE carregou,
