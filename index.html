@@ -2461,36 +2461,19 @@ async function sincronizarDownloadOneDriveUmaPassada(onProgresso){
     let pendentesRestantes = grandes;
     if(STATE.baixarFotosAutoWifi && onedriveEstaEmWifi()){
       const aindaPendentes = [];
-      // Só gerencia o progresso aqui quando ninguém de fora está cuidando dele —
-      // ou seja, no ciclo automático silencioso (sem onProgresso). Quando esta
-      // função é chamada de dentro de "Sincronizar agora" (COM onProgresso), o
-      // progresso já é gerenciado pelo chamador; mexer nele aqui sobrescreveria
-      // a fase "recebendo" dele no meio do caminho.
-      const gerenciarProgressoLocal = !onProgresso;
-      if(gerenciarProgressoLocal){
-        __syncProgresso = { fase:'fotos', itemAtual:0, totalItens:grandes.length, bytesFeitos:0, bytesTotal:grandes.reduce((s,p)=>s+(p.tamanho||0),0) };
-        renderProgresso();
-      }
       await executarComConcorrencia(grandes, 6, async (item) => {
         const texto = await onedriveBaixarTexto(item.caminho);
         if(!texto){ aindaPendentes.push(item); }
         else{
           try{
             const dados = JSON.parse(texto);
-            // Mesma proteção usada em todo o resto do download: grava o item já
-            // mesclado no diário imediatamente, para que uma foto que já baixou
-            // (e foi encaixada no projeto) não se perca nem precise ser baixada de
-            // novo se o app fechar ou a conexão cair no meio deste lote — antes,
-            // só este caminho (fotos automáticas via Wi-Fi) não tinha essa proteção.
-            if(onedriveMesclarItemNovo(item, dados)){ mesclados++; registrarEventoSync("down", item.nome, item.tipo, item.tamanho||0, true); journalGravarItem(item, dados); }
+            if(onedriveMesclarItemNovo(item, dados)){ mesclados++; registrarEventoSync("down", item.nome, item.tipo, item.tamanho||0, true); }
             else aindaPendentes.push(item);
           }catch(e){ aindaPendentes.push(item); }
         }
-        if(gerenciarProgressoLocal){ __syncProgresso.itemAtual++; __syncProgresso.bytesFeitos += (item.tamanho||0); renderProgresso(); }
         if(onProgresso) onProgresso(item.tamanho||0, item.tipo);
       });
       pendentesRestantes = aindaPendentes;
-      if(gerenciarProgressoLocal){ __syncProgresso = null; render(); }
     }
     STATE.oneDrivePendentes = pendentesRestantes;
     return { mesclados, erro:false };
@@ -2815,18 +2798,7 @@ async function journalReaplicar(){
     // idempotente — repetir o que já entrou não duplica nada).
     for(let passe=0; passe<2; passe++){
       for(const entrada of entradas){
-        try{
-          if(onedriveMesclarItemNovo(entrada.descritor, entrada.dados)){
-            recuperados++;
-            // A foto já foi recuperada e encaixada no projeto — tira também da lista
-            // de "pendentes para baixar", senão o app tentaria baixá-la de novo à toa
-            // (o dado já está aqui, só a lista de pendências não tinha sido gravada
-            // a tempo antes da interrupção).
-            if(entrada.descritor.tipo==="fotos" && Array.isArray(STATE.oneDrivePendentes)){
-              STATE.oneDrivePendentes = STATE.oneDrivePendentes.filter(p=>!(p.tipo==="fotos" && p.itemId===entrada.descritor.itemId));
-            }
-          }
-        }catch(e){}
+        try{ if(onedriveMesclarItemNovo(entrada.descritor, entrada.dados)) recuperados++; }catch(e){}
       }
     }
     if(recuperados>0){
@@ -2975,24 +2947,20 @@ async function onedriveBaixarPendentes(onProgresso){
   const pendentes = STATE.oneDrivePendentes || [];
   if(pendentes.length===0) return;
   let algumaMudanca = false;
+  const restantes = [];
   await executarComConcorrencia(pendentes, 6, async (item) => {
     const texto = await onedriveBaixarTexto(item.caminho);
-    if(texto){
+    if(!texto){ restantes.push(item); }
+    else{
       try{
         const dados = JSON.parse(texto);
         if(onedriveMesclarItemNovo(item, dados)){ algumaMudanca = true; registrarEventoSync("down", item.nome, item.tipo, item.tamanho||0, true); journalGravarItem(item, dados); }
-        // Tira da lista de pendentes assim que este item termina (sucesso, ou já
-        // estava completo por outro caminho) — não espera o lote inteiro acabar.
-        // Se o app fechar no meio de um lote grande, os itens já processados até
-        // aqui não aparecem mais como pendentes na próxima abertura, então não são
-        // baixados de novo à toa.
-        STATE.oneDrivePendentes = (STATE.oneDrivePendentes||[]).filter(p=>p!==item);
-      }catch(e){ /* falha ao interpretar — mantém pendente, tenta de novo depois */ }
+        else restantes.push(item);
+      }catch(e){ restantes.push(item); }
     }
-    // Quando não veio texto (falha de rede momentânea), o item continua na
-    // lista de pendentes normalmente, para ser tentado no próximo ciclo.
     if(onProgresso) onProgresso(item.tamanho||0, item.tipo);
   });
+  STATE.oneDrivePendentes = restantes;
   if(algumaMudanca){ dbSet(STATE); render(); }
   atualizarChipSync();
 }
@@ -3012,30 +2980,6 @@ const ONEDRIVE_TIPO_LABEL = {
 function onedriveRotuloTipo(tipo, qtd){
   const par = ONEDRIVE_TIPO_LABEL[tipo] || [tipo, tipo];
   return qtd===1 ? par[0] : par[1];
-}
-/* Estima quantas fotos (itens) e quantos MB ainda faltam subir ao OneDrive —
-   separado da contagem "por tipo" acima porque essa soma cobre só o TEXTO;
-   fotos que ficaram pendentes (texto já subiu, foto ainda não, por causa do
-   modo econômico fora do Wi-Fi) não apareciam em lugar nenhum antes disto. */
-function onedriveEstimarFotosParaEnviar(){
-  let totalBytes = 0, totalItens = 0;
-  const contar = (listarItens, mapaRef) => {
-    const itensAtuais = listarItens();
-    const assinaturas = mapaRef.mapa || new Map();
-    for(const item of itensAtuais){
-      const { soFotos, tinhaFotos } = separarFotosDoItem(item.dados);
-      if(!tinhaFotos) continue;
-      const registro = assinaturas.get(item.id);
-      const textoMudou = !registro || registro.atualizadoEm !== item.atualizadoEm;
-      if(textoMudou || (registro && registro.fotosPendentes)){
-        totalBytes += new TextEncoder().encode(JSON.stringify(soFotos||{})).length;
-        totalItens++;
-      }
-    }
-  };
-  contar(listarItensSincronizaveisSimples, __assinaturasOneDriveSimples);
-  contar(listarItensSincronizaveisCompleto, __assinaturasOneDriveCompleto);
-  return { totalBytes, totalItens };
 }
 function onedriveEstimarPendentesUpload(){
   let totalBytes = 0, totalItens = 0;
@@ -3081,17 +3025,13 @@ function onedriveStatusPendenteHtml(){
   const dt = new Date(s.verificadoEm);
   const dois = (n) => String(n).padStart(2,'0');
   const carimbo = `${dois(dt.getDate())}/${dois(dt.getMonth()+1)} ${dois(dt.getHours())}:${dois(dt.getMinutes())}`;
-  const fe = s.fotosEnviar || {qtd:0, bytes:0};
-  const fr = s.fotosReceber || {qtd:0, bytes:0};
-  if(s.totalEnviar===0 && s.totalReceber===0 && fe.qtd===0 && fr.qtd===0){
+  if(s.totalEnviar===0 && s.totalReceber===0){
     return `<p style="font-size:11.5px;color:var(--ink-dim);margin:6px 2px 0">Tudo sincronizado · verificado ${carimbo}</p>`;
   }
   const linhas = [
     ...onedriveLinhasPorGrupo(s.enviarPorTipo, 'enviar'),
-    fe.qtd>0 ? `${fe.qtd} ${fe.qtd===1?'foto':'fotos'} para enviar (${(fe.bytes/1024/1024).toFixed(1)} MB)` : null,
-    ...onedriveLinhasPorGrupo(s.receberPorTipo, 'receber'),
-    fr.qtd>0 ? `${fr.qtd} ${fr.qtd===1?'foto':'fotos'} para receber (${(fr.bytes/1024/1024).toFixed(1)} MB)` : null,
-  ].filter(Boolean);
+    ...onedriveLinhasPorGrupo(s.receberPorTipo, 'receber')
+  ];
   return `<div style="margin:6px 2px 0">
     ${linhas.map(l=>`<div style="font-size:11.5px;color:var(--ink-dim)">${l}</div>`).join('')}
     <div style="font-size:10.5px;color:var(--ink-faint);margin-top:2px">verificado ${carimbo}</div>
@@ -3126,17 +3066,12 @@ function onedriveSalvarStatusPendente(upload, download){
     receberPorTipo[item.tipo].qtd++;
     receberPorTipo[item.tipo].bytes += (item.tamanho||0);
   });
-  // Fotos contadas à parte (além do "por tipo" acima), para dar um número
-  // direto de "quantas fotos" e "quantos MB" sem precisar somar tipo por tipo.
-  const fotosEnviarEstim = onedriveEstimarFotosParaEnviar();
   STATE.oneDriveStatusPendente = {
     totalEnviar: upload.totalItens,
     totalReceber: download.pequenos.length + download.grandes.length,
     bytesTotal: upload.totalBytes + bytesFotos + bytesPequenos,
     enviarPorTipo: upload.porTipo || {},
     receberPorTipo,
-    fotosEnviar: { qtd: fotosEnviarEstim.totalItens, bytes: fotosEnviarEstim.totalBytes },
-    fotosReceber: { qtd: download.grandes.length, bytes: bytesFotos },
     verificadoEm: Date.now()
   };
   dbSet(STATE);
@@ -5312,7 +5247,7 @@ function screenSimplesMaquinas(){
         <div class="list-meta">
           <span class="stat-pill">${m.tarefas.length} tarefa${m.tarefas.length===1?'':'s'}</span>
           <span class="stat-pill">${totalRiscos} risco${totalRiscos===1?'':'s'}</span>
-          ${m.__fotosOmitidas? (()=>{ const pf = pendenteFotosDoItem(m.id); return `<span class="stat-pill" style="background:rgba(233,78,27,.14);color:var(--accent-ink);cursor:pointer" onclick="event.stopPropagation();App.onedriveBaixarFotosDeItem('${m.id}')" title="${pf? 'Toque para baixar as fotos agora ('+fmtBytes(pf.tamanho)+') — em dados móveis, pede confirmação' : 'Fotos ainda no outro aparelho — chegam quando ele tiver Wi-Fi'}">${pf? ic('download')+' fotos '+fmtBytes(pf.tamanho) : ic('download')}</span>`; })():''}
+          ${m.__fotosOmitidas? (()=>{ const pf = pendenteFotosDoItem(m.id); return `<span class="stat-pill" style="background:rgba(233,78,27,.14);color:var(--accent-ink);cursor:pointer" onclick="event.stopPropagation();App.onedriveBaixarFotosDeItem('${m.id}')" title="${pf? 'Toque para baixar as fotos agora ('+fmtBytes(pf.tamanho)+') — em dados móveis, pede confirmação' : 'Fotos ainda no outro aparelho — chegam quando ele tiver Wi-Fi'}">${pf? ic('download')+' fotos '+fmtBytes(pf.tamanho) : ic('camera')+' fotos a caminho'}</span>`; })():''}
           ${pendFotos>0 && !m.__fotosOmitidas? `<span class="stat-pill alert" title="${pendFotos} foto${pendFotos===1?'':'s'} pendente${pendFotos===1?'':'s'}">${ic('warn')} ${pendFotos}</span>`:''}
         </div>
       </div>
@@ -5382,7 +5317,7 @@ function screenSimplesRiscos(){
         <div class="list-tag" style="font-family:inherit">${escapeHtml((r.descricao||'sem descrição').slice(0,60))}</div>
         <div class="list-meta">
           <span class="stat-pill" style="background:${hrnMeta.cor};color:${hrnMeta.texto};font-weight:800">HRN ${hrnData.hrn} · ${hrnData.nivel}</span>
-          ${r.__fotosOmitidas? (()=>{ const pf = pendenteFotosDoItem(r.id); return `<span class="stat-pill" style="background:rgba(233,78,27,.14);color:var(--accent-ink);cursor:pointer" onclick="event.stopPropagation();App.onedriveBaixarFotosDeItem('${r.id}')" title="${pf? 'Toque para baixar as fotos agora ('+fmtBytes(pf.tamanho)+') — em dados móveis, pede confirmação' : 'Fotos ainda no outro aparelho — chegam quando ele tiver Wi-Fi'}">${pf? ic('download')+' fotos '+fmtBytes(pf.tamanho) : ic('download')}</span>`; })():''}
+          ${r.__fotosOmitidas? (()=>{ const pf = pendenteFotosDoItem(r.id); return `<span class="stat-pill" style="background:rgba(233,78,27,.14);color:var(--accent-ink);cursor:pointer" onclick="event.stopPropagation();App.onedriveBaixarFotosDeItem('${r.id}')" title="${pf? 'Toque para baixar as fotos agora ('+fmtBytes(pf.tamanho)+') — em dados móveis, pede confirmação' : 'Fotos ainda no outro aparelho — chegam quando ele tiver Wi-Fi'}">${pf? ic('download')+' fotos '+fmtBytes(pf.tamanho) : ic('camera')+' fotos a caminho'}</span>`; })():''}
           ${totalFotos>0? `<span class="stat-pill"><span class="risk-icn">${ic('gallery')}</span> ${totalFotos}</span>`:''}
           ${semMitigacao? `<span class="stat-pill alert icon-only" title="Sem sugestão de mitigação"><span class="risk-icn">${ic('warn')}</span></span>`:''}
         </div>
