@@ -1395,8 +1395,13 @@ async function onedriveEnviarBlob(subpasta, blob, filename){
       ));
       return !!resp;
     }
-    // Arquivo grande (pacote de fotos volumoso): sessão de upload, que não tem
-    // o limite de 4 MB do envio direto.
+    // Arquivo grande (pacote de fotos volumoso, backup completo): sessão de
+    // upload, enviada em FATIAS de 20 MiB. A Microsoft limita cada requisição
+    // da sessão a ~60 MiB — o envio antigo mandava o arquivo INTEIRO numa
+    // única requisição, então tudo acima disso (equipamento/risco com muitas
+    // fotos, backup .json completo) falhava SEMPRE, silenciosamente: era a
+    // causa dos "itens que nunca sincronizam". Fatia de 20 MiB é múltiplo de
+    // 320 KiB, como a documentação da Microsoft exige.
     const sessaoResp = await executarComRetentativas((tok) => fetch(
       `https://graph.microsoft.com/v1.0/me/drive/root:/${caminho}:/createUploadSession`,
       { method:"POST", headers:{ "Authorization":`Bearer ${tok}`, "Content-Type":"application/json" },
@@ -1405,12 +1410,26 @@ async function onedriveEnviarBlob(subpasta, blob, filename){
     if(!sessaoResp) return false;
     const sessao = await sessaoResp.json();
     const tamanho = blob.size;
-    const uploadResp = await executarComRetentativas(() => fetch(sessao.uploadUrl, {
-      method: "PUT",
-      headers: { "Content-Range": `bytes 0-${tamanho-1}/${tamanho}` },
-      body: blob
-    }));
-    return !!uploadResp;
+    const TAM_FRAGMENTO = 64 * 320 * 1024; // 20 MiB
+    let inicio = 0, respFinal = null;
+    while(inicio < tamanho){
+      const fim = Math.min(inicio + TAM_FRAGMENTO, tamanho);
+      const fatia = blob.slice(inicio, fim);
+      const resp = await executarComRetentativas(() => fetch(sessao.uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Range": `bytes ${inicio}-${fim-1}/${tamanho}` },
+        body: fatia
+      }));
+      if(!resp){
+        // Cancela a sessão para não deixar um upload pela metade pendurado na Microsoft.
+        try{ fetch(sessao.uploadUrl, { method:"DELETE" }); }catch(e){}
+        return false;
+      }
+      marcarProgressoSync();
+      respFinal = resp;
+      inicio = fim;
+    }
+    return !!respFinal;
   }catch(e){ __ultimoMotivoFalhaEnvio = __ultimoMotivoFalhaEnvio || "erro inesperado"; return false; }
 }
 function suportaPastaLocal(){ return typeof window.showDirectoryPicker === "function"; }
@@ -1540,10 +1559,20 @@ async function obterPastaBaseSemPedirPermissao(){
   }catch(e){ return null; }
 }
 function nomeArquivoSeguro(s){
-  return String(s||"sem-nome").trim().slice(0,80)
+  // Teto de 48 caracteres por segmento (era 80): a Microsoft recusa caminhos
+  // completos acima de ~400 caracteres, e com 4 níveis de pastas (Projeto >
+  // Área > Máquina > Tarefa) de 80 caracteres cada, itens com nomes longos
+  // estouravam esse limite e NUNCA conseguiam subir — sem nenhum aviso claro.
+  // Com 48 por nível, o caminho completo fica sempre folgadamente abaixo do
+  // teto. A identificação entre aparelhos não muda: ela usa só o sufixo (id)
+  // no fim do nome da pasta, que é preservado.
+  let n = String(s||"sem-nome").trim().slice(0,48)
     .replace(/[\\/:*?"<>|]/g, "-")   // caracteres proibidos em nomes de pasta/arquivo
     .replace(/\s+/g, " ")
-    .replace(/^\.+/, "") || "sem-nome";
+    .replace(/^\.+/, "")
+    .replace(/[. ]+$/, "");          // OneDrive RECUSA nome terminando em ponto ou espaço (inclusive quando o corte termina num espaço) — era uma das causas de item que nunca subia
+  if(/^(CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])$/i.test(n)) n = n + "_"; // nomes reservados do Windows/OneDrive — também recusados
+  return n || "sem-nome";
 }
 /* Segmento de pasta = nome (legível, pra quem for olhar a pasta pelo gerenciador
    de arquivos) + um sufixo curto do id (só os últimos 6 caracteres, que já vêm
@@ -1851,7 +1880,9 @@ let __assinaturasOneDriveCompleto = { mapa:null, chaveEstado:'oneDriveAssinatura
    sozinho em segundo plano, sem ninguém olhando. Limitado aos últimos 80
    eventos para não inflar o backup. */
 const MAX_EVENTOS_LOG_SYNC = 80;
+let __falhasEnvioNaSync = 0; // falhas de envio desde o início da sincronização manual atual — zera a cada toque em "Sincronizar agora"
 function registrarEventoSync(direcao, nome, tipo, bytes, ok, motivo){
+  if(direcao==="up" && ok===false) __falhasEnvioNaSync++;
   if(!Array.isArray(STATE.logSincronizacao)) STATE.logSincronizacao = [];
   STATE.logSincronizacao.unshift({ ts: Date.now(), dir: direcao, nome: String(nome||"").slice(0,80), tipo, bytes: bytes||0, ok: ok!==false, motivo: ok===false ? String(motivo||"").slice(0,40) : undefined });
   if(STATE.logSincronizacao.length > MAX_EVENTOS_LOG_SYNC) STATE.logSincronizacao.length = MAX_EVENTOS_LOG_SYNC;
@@ -3190,7 +3221,7 @@ function onedriveStatusPendenteHtml(){
   </div>`;
 }
 async function onedriveEstimarPendentesDownload(){
-  if(!getOneDriveConta()) return { pequenos:[], grandes:[], erro:false, camadaIncompleta:false };
+  if(!getOneDriveConta()) return { pequenos:[], grandes:[], erro:false, camadaIncompleta:false, arvore:null };
   try{
     const arvore = await onedriveListarArvore(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`, 4);
     const classificado = onedriveClassificarNovosSimples(arvore);
@@ -3202,8 +3233,70 @@ async function onedriveEstimarPendentesDownload(){
     // é sempre parcial até o Projeto/Área existirem aqui.
     const camadaIncompleta = classificado.pequenos.some(i=>i.tipo==='projeto'||i.tipo==='area')
       || classificado.grandes.some(i=>i.tipo==='projeto'||i.tipo==='area');
-    return { ...classificado, erro:false, camadaIncompleta };
-  }catch(e){ return { pequenos:[], grandes:[], erro:true, camadaIncompleta:false }; }
+    return { ...classificado, erro:false, camadaIncompleta, arvore };
+  }catch(e){ return { pequenos:[], grandes:[], erro:true, camadaIncompleta:false, arvore:null }; }
+}
+/* RECONCILIAÇÃO (autocura do envio) — compara o que este aparelho ACHA que já
+   enviou (assinaturas) com o que REALMENTE existe na nuvem (a árvore já
+   listada). Se um item consta como enviado mas o arquivo não está lá — porque
+   um envio antigo falhou de um jeito que passou despercebido, porque o
+   caminho era longo/inválido demais na época, ou porque alguém apagou o
+   arquivo direto no OneDrive — a assinatura é apagada e o item volta à fila
+   de envio na mesma hora. É a resposta definitiva para "itens que nunca são
+   sincronizados": qualquer que seja a causa, a próxima sincronização detecta
+   e reenvia sozinha. O mesmo vale para o arquivo-irmão de fotos ("fotos_"):
+   se o texto está lá mas as fotos não, elas voltam a ser pendentes de envio. */
+function itemTemFotosEmbutidas(dados){
+  for(const k in dados){
+    const v = dados[k];
+    if(__ehFotoEmbutida(v)) return true;
+    if(k===CAMPO_FOTOS_LISTA && Array.isArray(v) && v.length>0) return true;
+  }
+  return false;
+}
+function onedriveReconciliarComArvore(arvore){
+  try{
+    if(!Array.isArray(arvore)) return 0;
+    // Junta todos os caminhos de ARQUIVO existentes na nuvem (minúsculas — o
+    // OneDrive não diferencia maiúsculas/minúsculas em nomes).
+    const existentes = new Set();
+    const coletar = (nos) => { for(const n of (nos||[])){ if(n.pasta) coletar(n.filhos); else existentes.add(String(n.caminho).toLowerCase()); } };
+    coletar(arvore);
+    const temProjetosLocais = (STATE.projetosSimples||[]).length > 0;
+    // Proteção: se a listagem voltou VAZIA mas há projetos locais, o mais
+    // provável é falha de sessão/rede disfarçada — não conclui que "está tudo
+    // faltando" (isso dispararia um reenvio total à toa).
+    if(existentes.size===0 && temProjetosLocais) return 0;
+    const mapa = onedriveCarregarAssinaturas(__assinaturasOneDriveSimples);
+    const prefixo = `${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado/`.toLowerCase();
+    let reparos = 0;
+    for(const item of listarItensSincronizaveisSimples()){
+      const reg = mapa.get(item.id);
+      if(!reg || !Array.isArray(reg.pasta) || !reg.arquivo) continue; // sem assinatura = já vai subir normalmente
+      const caminhoTexto = prefixo + (reg.pasta.join("/") + "/" + reg.arquivo).toLowerCase();
+      if(!existentes.has(caminhoTexto)){
+        // Consta como enviado, mas o arquivo NÃO está na nuvem — apaga a
+        // assinatura: o próximo envio manda o item de novo, do zero.
+        mapa.delete(item.id);
+        if(STATE[__assinaturasOneDriveSimples.chaveEstado]) delete STATE[__assinaturasOneDriveSimples.chaveEstado][item.id];
+        reparos++;
+        registrarEventoSync("up", reg.arquivo, item.tipo, 0, false, "faltava na nuvem — reenvio agendado");
+        continue;
+      }
+      // Texto está lá; e as fotos? Se o item tem fotos e o arquivo "fotos_"
+      // não existe na nuvem, marca as fotos como pendentes de envio de novo.
+      if(!reg.fotosPendentes && itemTemFotosEmbutidas(item.dados)){
+        const caminhoFotos = prefixo + (reg.pasta.join("/") + "/fotos_" + reg.arquivo).toLowerCase();
+        if(!existentes.has(caminhoFotos)){
+          reg.fotosPendentes = true;
+          if(STATE[__assinaturasOneDriveSimples.chaveEstado] && STATE[__assinaturasOneDriveSimples.chaveEstado][item.id]) STATE[__assinaturasOneDriveSimples.chaveEstado][item.id].fotosPendentes = true;
+          reparos++;
+          registrarEventoSync("up", "fotos_"+reg.arquivo, item.tipo+" (fotos)", 0, false, "fotos faltavam na nuvem — reenvio agendado");
+        }
+      }
+    }
+    return reparos;
+  }catch(e){ return 0; }
 }
 /* Guarda o resultado do cálculo de pendências (quantos itens faltam enviar e
    receber, e o tamanho estimado) para exibir perto do botão "Sincronizar
@@ -3330,6 +3423,7 @@ async function onedriveSincronizarAgora(){
   if(__sincronizandoAgora) return; // já está rodando — evita clique duplo disparando duas sincronizações em paralelo
   if(!getOneDriveConta()){ toast("Conecte o OneDrive primeiro"); return; }
   __sincronizandoAgora = true;
+  __falhasEnvioNaSync = 0;
   __syncIniciadoEm = Date.now();
   marcarProgressoSync();
   manterTelaAcesa();
@@ -3341,9 +3435,18 @@ async function onedriveSincronizarAgora(){
     // desde que continue progredindo (mesmo devagar).
     await comVigilanciaDeProgresso((async () => {
     toast("Verificando o que precisa sincronizar…");
-    const upload = onedriveEstimarPendentesUpload();
     const download = await onedriveEstimarPendentesDownload();
     marcarProgressoSync();
+    // AUTOCURA: antes de contar o que falta enviar, confere item por item se o
+    // que este aparelho acha que já enviou REALMENTE existe na nuvem. O que
+    // estiver faltando lá (envio antigo que falhou sem aviso, arquivo apagado
+    // à mão no OneDrive, caminho recusado pela Microsoft) volta para a fila e
+    // sobe de novo NESTA mesma sincronização.
+    if(!download.erro && !__onedriveSessaoExpirada){
+      const reparos = onedriveReconciliarComArvore(download.arvore);
+      if(reparos>0) toast(`${reparos} ite${reparos===1?'m estava':'ns estavam'} faltando na nuvem — ${reparos===1?'será reenviado':'serão reenviados'} agora.`);
+    }
+    const upload = onedriveEstimarPendentesUpload();
     if(!download.erro) onedriveSalvarStatusPendente(upload, download);
     __syncGrupos = onedriveMontarGruposIniciais(upload, download);
     render();
@@ -3475,6 +3578,12 @@ async function onedriveSincronizarAgora(){
       marcarProgressoSync();
       if(!downloadFinal.erro) onedriveSalvarStatusPendente(uploadFinal, downloadFinal);
     }catch(e){}
+    if(__falhasEnvioNaSync>0){
+      // Falha de envio nunca mais passa em silêncio: avisa quantos itens não
+      // subiram e o motivo mais recente — eles ficam na fila e sobem na
+      // próxima tentativa (a reconciliação garante que nada é esquecido).
+      toast(`Atenção: ${__falhasEnvioNaSync} ite${__falhasEnvioNaSync===1?'m não conseguiu':'ns não conseguiram'} subir agora${__ultimoMotivoFalhaEnvio?` (motivo: ${__ultimoMotivoFalhaEnvio})`:''}. Eles continuam na fila e sobem na próxima sincronização.`, false);
+    }
     toast(resumo.length ? `Sincronização concluída — ${resumo.join(', ')}` : "Sincronização concluída");
     })(), 90000);
   }catch(e){
@@ -3548,7 +3657,7 @@ async function onedriveVerificarBootstrapNovoDispositivo(avisar){
       await onedriveSincronizarAgora();
       return;
     }
-    const dados = JSON.parse(texto);
+    const dados = interpretarTextoBackup(texto); // detecta sozinho: formato novo (v2, linha a linha) ou antigo (JSON único)
     if(!dados || (!Array.isArray(dados.projetos) && !Array.isArray(dados.projetosSimples))){
       if(avisar) toast("O backup encontrado no OneDrive não é válido");
       return;
@@ -6430,11 +6539,174 @@ function screenSimplesConfigModelo(){
   ${__modeloCustomCarregado? `<button class="btn btn-danger btn-block" style="margin-top:14px" onclick="App.onRestaurarModeloPadrao()">${ic('trash')} Remover e voltar ao modelo padrão</button>` : ""}
   `;
 }
+/* Serializa qualquer valor em JSON por PARTES (uma lista de pedaços de texto),
+   sem nunca montar uma única string gigante. O navegador tem um teto de
+   ~0,5 GB por string — JSON.stringify(STATE) estourava esse teto em backups
+   cheios de fotos (>1 GB) e a exportação simplesmente falhava. Cada pedaço
+   aqui é pequeno (uma foto, um trecho); o Blob final é montado direto da
+   lista, sem juntar tudo em texto nenhum momento. O resultado é byte a byte
+   idêntico ao de JSON.stringify(valor, null, 0). */
+function jsonEmPartes(valor, partes){
+  if(valor === null || valor === undefined){ partes.push("null"); return; }
+  const t = typeof valor;
+  if(t === "string" || t === "number" || t === "boolean" || t === "bigint"){ partes.push(JSON.stringify(valor)); return; }
+  if(Array.isArray(valor)){
+    partes.push("[");
+    for(let i=0;i<valor.length;i++){
+      if(i>0) partes.push(",");
+      const v = valor[i];
+      if(v === undefined || typeof v === "function") partes.push("null");
+      else jsonEmPartes(v, partes);
+    }
+    partes.push("]");
+    return;
+  }
+  if(t === "object"){
+    partes.push("{");
+    let primeiro = true;
+    for(const k in valor){
+      if(!Object.prototype.hasOwnProperty.call(valor, k)) continue;
+      const v = valor[k];
+      if(v === undefined || typeof v === "function") continue;
+      partes.push((primeiro ? "" : ",") + JSON.stringify(k) + ":");
+      primeiro = false;
+      jsonEmPartes(v, partes);
+    }
+    partes.push("}");
+    return;
+  }
+  partes.push("null");
+}
+/* =========================================================================
+   BACKUP FORMATO v2 (uma linha por item) — o formato antigo era um único
+   JSON gigante: para IMPORTAR, o navegador precisava carregar o arquivo
+   inteiro como UMA string, e strings têm teto de ~0,5 GB — backups com
+   muitas fotos (1 GB+) simplesmente não abriam mais em lugar nenhum.
+   No v2, a primeira linha traz as configurações e cada linha seguinte traz
+   UM item (Projeto, Área, Máquina, Tarefa, Risco — dos dois módulos). A
+   leitura é feita em fatias de 16 MB, linha a linha: nenhuma string gigante
+   é montada em momento algum, então NÃO HÁ MAIS LIMITE prático de tamanho
+   (no computador). Backups antigos (formato v1) continuam sendo importados
+   normalmente — o app detecta o formato sozinho pela primeira linha. */
+const __BACKUP_V2_MARCA = '{"__formatoBackup":"apr-v2"';
+// Caches internos deste aparelho que não devem viajar num backup (são
+// por-aparelho; levá-los junto confundia o controle de envio do destino).
+const __BACKUP_CAMPOS_EXCLUIR = new Set(["projetosSimples","projetos","oneDriveAssinaturasSimples","oneDriveAssinaturasCompleto","oneDrivePendentes","oneDriveDeltaFila","oneDriveJaExistentes","arquivosCorrompidosIgnorados","logSincronizacao","oneDriveStatusPendente"]);
+function backupV2EmPartes(partes){
+  const resto = {};
+  for(const k in STATE){ if(!__BACKUP_CAMPOS_EXCLUIR.has(k)) resto[k] = STATE[k]; }
+  jsonEmPartes({ __formatoBackup:"apr-v2", geradoEm: Date.now(), resto }, partes); partes.push("\n");
+  const linha = (obj) => { jsonEmPartes(obj, partes); partes.push("\n"); };
+  const sem = (obj, chave) => { const o={}; for(const k in obj){ if(k!==chave) o[k]=obj[k]; } return o; };
+  for(const p of (STATE.projetosSimples||[])){
+    linha({t:"pS", d:sem(p,"areas")});
+    for(const a of (p.areas||[])){
+      linha({t:"aS", pj:p.id, d:sem(a,"maquinas")});
+      for(const m of (a.maquinas||[])){
+        linha({t:"mS", pj:p.id, ar:a.id, d:sem(m,"tarefas")});
+        for(const tf of (m.tarefas||[])){
+          linha({t:"tS", pj:p.id, ar:a.id, mq:m.id, d:sem(tf,"riscos")});
+          for(const r of (tf.riscos||[])) linha({t:"rS", pj:p.id, ar:a.id, mq:m.id, tf:tf.id, d:r});
+        }
+      }
+    }
+  }
+  // Módulo Completo: apenas LEITURA de STATE.projetos (nenhuma função do
+  // módulo em si é tocada), no mesmo espírito de listarItensSincronizaveisCompleto.
+  for(const p of (STATE.projetos||[])){
+    linha({t:"pC", d:sem(p,"areas")});
+    for(const a of (p.areas||[])){
+      linha({t:"aC", pj:p.id, d:sem(a,"maquinas")});
+      for(const m of (a.maquinas||[])){
+        linha({t:"mC", pj:p.id, ar:a.id, d:sem(m,"tarefas")});
+        for(const tf of (m.tarefas||[])){
+          linha({t:"tC", pj:p.id, ar:a.id, mq:m.id, d:sem(tf,"perigos")});
+          for(const g of (tf.perigos||[])) linha({t:"gC", pj:p.id, ar:a.id, mq:m.id, tf:tf.id, d:g});
+        }
+      }
+    }
+  }
+}
+function __backupV2NovoEstado(cabecalho){
+  const data = Object.assign({}, (cabecalho && cabecalho.resto) || {});
+  data.projetosSimples = []; data.projetos = [];
+  return { data, idx:{ pS:new Map(), aS:new Map(), mS:new Map(), tS:new Map(), pC:new Map(), aC:new Map(), mC:new Map(), tC:new Map() } };
+}
+function __backupV2AplicarLinha(estado, l){
+  const { data, idx } = estado;
+  const d = l.d; if(!d) return;
+  switch(l.t){
+    case "pS": { const o={...d, areas:[]}; data.projetosSimples.push(o); idx.pS.set(d.id,o); break; }
+    case "aS": { const p=idx.pS.get(l.pj); if(!p) return; const o={...d, maquinas:[]}; p.areas.push(o); idx.aS.set(d.id,o); break; }
+    case "mS": { const a=idx.aS.get(l.ar); if(!a) return; const o={...d, tarefas:[]}; a.maquinas.push(o); idx.mS.set(d.id,o); break; }
+    case "tS": { const m=idx.mS.get(l.mq); if(!m) return; const o={...d, riscos:[]}; m.tarefas.push(o); idx.tS.set(d.id,o); break; }
+    case "rS": { const tf=idx.tS.get(l.tf); if(!tf) return; tf.riscos.push(d); break; }
+    case "pC": { const o={...d, areas:[]}; data.projetos.push(o); idx.pC.set(d.id,o); break; }
+    case "aC": { const p=idx.pC.get(l.pj); if(!p) return; const o={...d, maquinas:[]}; p.areas.push(o); idx.aC.set(d.id,o); break; }
+    case "mC": { const a=idx.aC.get(l.ar); if(!a) return; const o={...d, tarefas:[]}; a.maquinas.push(o); idx.mC.set(d.id,o); break; }
+    case "tC": { const m=idx.mC.get(l.mq); if(!m) return; const o={...d, perigos:[]}; m.tarefas.push(o); idx.tC.set(d.id,o); break; }
+    case "gC": { const tf=idx.tC.get(l.tf); if(!tf) return; tf.perigos.push(d); break; }
+  }
+}
+/* Interpreta um backup que JÁ está inteiro em memória como texto (usado pelo
+   caminho do OneDrive, que só baixa backups de até 25 MB). Detecta o formato
+   sozinho: v2 (linha a linha) ou v1 (JSON único). */
+function interpretarTextoBackup(texto){
+  if(texto.startsWith(__BACKUP_V2_MARCA)){
+    let estado = null;
+    for(const bruto of texto.split("\n")){
+      const linha = bruto.trim(); if(!linha) continue;
+      const obj = JSON.parse(linha);
+      if(!estado){ estado = __backupV2NovoEstado(obj); continue; }
+      __backupV2AplicarLinha(estado, obj);
+    }
+    if(!estado) throw new Error("backup v2 vazio");
+    return estado.data;
+  }
+  return JSON.parse(texto);
+}
+/* Lê um ARQUIVO de backup do disco. v2: em fatias de 16 MB, linha a linha,
+   sem nunca montar o arquivo inteiro numa string (funciona com qualquer
+   tamanho no computador). v1: leitura tradicional, com os limites de sempre. */
+async function lerArquivoBackup(file, onProgresso){
+  const inicio = await file.slice(0, 64).text();
+  if(!inicio.startsWith(__BACKUP_V2_MARCA)){
+    const texto = await file.text();
+    return JSON.parse(texto);
+  }
+  const decoder = new TextDecoder("utf-8");
+  const FATIA = 16 * 1024 * 1024;
+  let sobra = "", estado = null, processadas = 0;
+  const processar = (linhaTxt) => {
+    if(!linhaTxt) return;
+    const obj = JSON.parse(linhaTxt);
+    if(!estado){ estado = __backupV2NovoEstado(obj); return; }
+    __backupV2AplicarLinha(estado, obj);
+    processadas++;
+  };
+  for(let pos=0; pos<file.size; pos+=FATIA){
+    const buf = await file.slice(pos, Math.min(pos+FATIA, file.size)).arrayBuffer();
+    sobra += decoder.decode(buf, {stream:true});
+    let quebra;
+    while((quebra = sobra.indexOf("\n")) >= 0){
+      const linha = sobra.slice(0, quebra).trim();
+      sobra = sobra.slice(quebra+1);
+      processar(linha);
+    }
+    if(onProgresso) onProgresso(Math.min(pos+FATIA, file.size), file.size);
+    await new Promise(r=>setTimeout(r, 0)); // respiro para a tela não congelar durante arquivos grandes
+  }
+  sobra += decoder.decode();
+  if(sobra.trim()) processar(sobra.trim());
+  if(!estado) throw new Error("backup v2 vazio");
+  return estado.data;
+}
 function exportarBackup(){
   const filename = `backup_apr_${hoje()}.json`;
-  const blob = new Blob([JSON.stringify(STATE,null,0)], {type:"application/json"});
-  salvarBlobNaPasta(SUBPASTA_BACKUP, blob, filename); // silencioso e em paralelo
-  onedriveEnviarBlob(SUBPASTA_BACKUP, blob, filename); // silencioso e em paralelo, direto pro OneDrive
+  const partes = [];
+  backupV2EmPartes(partes); // formato v2 (uma linha por item) — importável em qualquer tamanho no computador
+  const blob = new Blob(partes, {type:"application/json"});
+  salvarBlobNaPasta(SUBPASTA_BACKUP, blob, filename); // silencioso e em paralelo — já envia também ao OneDrive (o envio duplicado direto que existia aqui foi removido: mandava o mesmo backup duas vezes)
   downloadBlobDireto(blob, filename);
   // Guarda quando foi o último backup local de verdade (arquivo baixado no aparelho,
   // não apenas o que já está salvo no IndexedDB) — é o que permite avisar a pessoa
@@ -9676,40 +9948,38 @@ function abrirRevisaoImportacao(dadosArquivo, nomeArquivo){
 const EH_DISPOSITIVO_MOVEL = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 // Celular: 60 MB (iOS Safari trava com arquivos grandes na importação — limitação já vivida em campo).
 // Computador: 400 MB — memória de sobra; era o bloqueio real de "não consigo mais importar" com backups cheios de fotos.
-const LIMITE_IMPORTACAO_MANUAL_BYTES = (EH_DISPOSITIVO_MOVEL ? 60 : 400) * 1024 * 1024;
-document.getElementById("fileImport").addEventListener("change", function(){
+// Limites por formato: no formato NOVO (v2, lido em fatias) o computador não
+// tem limite prático — só um teto de bom senso; no celular ainda vale um teto
+// menor porque os dados reconstruídos precisam caber na memória do aparelho.
+// No formato ANTIGO (v1, JSON único), permanecem os limites de sempre, porque
+// ele exige carregar o arquivo INTEIRO como uma única string (~0,5 GB é o
+// máximo físico do navegador).
+const LIMITE_IMPORTACAO_V1_BYTES = (EH_DISPOSITIVO_MOVEL ? 60 : 400) * 1024 * 1024;
+const LIMITE_IMPORTACAO_V2_BYTES = (EH_DISPOSITIVO_MOVEL ? 300 : 4096) * 1024 * 1024;
+document.getElementById("fileImport").addEventListener("change", async function(){
   const file = this.files[0]; if(!file) return;
-  if(file.size > LIMITE_IMPORTACAO_MANUAL_BYTES){
+  this.value = "";
+  let ehV2 = false;
+  try{ ehV2 = (await file.slice(0, 64).text()).startsWith(__BACKUP_V2_MARCA); }catch(e){}
+  const limite = ehV2 ? LIMITE_IMPORTACAO_V2_BYTES : LIMITE_IMPORTACAO_V1_BYTES;
+  if(file.size > limite){
     const mb = (file.size/1024/1024).toFixed(0);
-    alert(`Este arquivo tem ${mb} MB — grande demais para importar diretamente com segurança (mesmo em computador, arquivos muito grandes podem travar a página). Se esses dados também estiverem salvos no OneDrive, conecte-o em Configurações e use "Sincronizar agora": ele traz os dados aos poucos, sem esse limite de tamanho.`);
-    this.value = "";
+    alert(ehV2
+      ? `Este arquivo tem ${mb} MB — grande demais para a memória deste aparelho. Importe pelo computador (lá não há esse limite), ou use "Sincronizar agora" com o OneDrive conectado.`
+      : `Este arquivo tem ${mb} MB e está no formato antigo de backup — grande demais para abrir de uma vez. Exporte um backup novo no aparelho de origem (o formato novo não tem esse limite no computador), ou use "Sincronizar agora" com o OneDrive conectado.`);
     return;
   }
-  const file2 = file;
-  const reader = new FileReader();
-  reader.onload = ()=>{
-    let data;
-    try{
-      data = JSON.parse(reader.result);
-    }catch(e){
-      // JSON.parse pode falhar tanto por o arquivo estar realmente corrompido
-      // quanto por ter ficado grande demais pra memória processar de uma vez
-      // (comum perto do limite de tamanho acima) — a mensagem já orienta os
-      // dois casos, sem fingir certeza sobre qual foi.
-      alert("Não foi possível abrir este arquivo. Ou ele não é um backup válido (.json) gerado por este aplicativo, ou ficou grande demais para este navegador processar de uma vez — nesse caso, tente pelo computador, ou use \"Sincronizar agora\" com o OneDrive conectado.");
-      return;
-    }
+  try{
+    if(ehV2 && file.size > 30*1024*1024) toast("Lendo o backup aos poucos — arquivos grandes podem levar alguns instantes…");
+    const data = await lerArquivoBackup(file);
     if(!data || (!Array.isArray(data.projetos) && !Array.isArray(data.projetosSimples))){
       alert("Não foi possível importar este arquivo. Verifique se é um backup válido (.json) gerado por este aplicativo.");
       return;
     }
-    abrirRevisaoImportacao(data, file2.name);
-  };
-  reader.onerror = ()=>{
-    alert("Não foi possível ler este arquivo agora. Tente novamente.");
-  };
-  reader.readAsText(file);
-  this.value = "";
+    abrirRevisaoImportacao(data, file.name);
+  }catch(e){
+    alert("Não foi possível abrir este arquivo. Ou ele não é um backup válido (.json) gerado por este aplicativo, ou ficou grande demais para este aparelho processar — nesse caso, tente pelo computador, ou use \"Sincronizar agora\" com o OneDrive conectado.");
+  }
 });
 
 /* =========================================================================
