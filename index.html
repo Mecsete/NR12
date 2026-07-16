@@ -1945,11 +1945,7 @@ function avisarExclusaoMassaBloqueada(n){
 }
 async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinaturasRef, onProgresso){
   const itensAtuais = listarItens();
-  if(!mapaAssinaturasRef.mapa){
-    const salvo = STATE[mapaAssinaturasRef.chaveEstado] || {};
-    mapaAssinaturasRef.mapa = new Map(Object.entries(salvo));
-  }
-  const assinaturas = mapaAssinaturasRef.mapa;
+  const assinaturas = onedriveCarregarAssinaturas(mapaAssinaturasRef);
   const idsAtuais = new Set(itensAtuais.map(it=>it.id));
   // Fotos podem subir agora? Wi-Fi confirmado, ou sincronização manual (o
   // toque explícito no botão é a autorização para usar a rede que houver).
@@ -1988,7 +1984,10 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
     if(registro.fotosPendentes && podeSubirFotos) return true; // texto já subiu; agora dá pra completar com as fotos
     return false;
   });
-  await executarComConcorrencia(pendentes, 5, async (item) => {
+  // No máximo 3 envios ao mesmo tempo (era 5): itens com fotos geram textos de
+  // vários MB na memória durante o envio, e muitos simultâneos derrubavam o app
+  // em celulares com menos memória.
+  await executarComConcorrencia(pendentes, 3, async (item) => {
     const subpasta = [SUBPASTA_BACKUP, raizModulo, ...item.pasta].join("/");
     const { semFotos, soFotos, tinhaFotos } = separarFotosDoItem(item.dados);
     const registroAnterior = assinaturas.get(item.id);
@@ -2299,6 +2298,7 @@ function onedriveClassificarNovosSimples(arvoreProjetos){
   const pequenos = [], grandes = [];
   const registrar = (tamanho, reg) => {
     if(arquivoEstaEmQuarentena(reg.caminho, tamanho)) return; // corrompido conhecido — fora da contagem até o dono reenviar (tamanho novo = sai da quarentena sozinho)
+    if(arquivoJaExistente(reg.caminho, tamanho)) return; // já baixado antes e o conteúdo já existe aqui — não conta nem baixa de novo
     (tamanho<=ONEDRIVE_LIMITE_AUTO_BYTES ? pequenos : grandes).push(reg);
   };
   // Se um item local está esperando fotos (__fotosOmitidas) e o pacote
@@ -2378,7 +2378,40 @@ function onedriveClassificarNovosSimples(arvoreProjetos){
 /* Encaixa um item baixado no lugar certo da árvore local, por id — nunca
    sobrescreve algo que já existe (proteção extra contra corrida entre
    sincronizações simultâneas). Retorna true só se algo foi realmente inserido. */
+/* ANTI-ECO: quando um item chega da nuvem e é mesclado aqui, este aparelho
+   registra imediatamente a assinatura de upload dele — como se ele mesmo já
+   o tivesse enviado. Sem isto, TODO item recebido era tratado como "nunca
+   subiu" pelo envio deste aparelho e era reenviado inteiro de volta à nuvem
+   (texto E fotos) na sincronização seguinte: com dois aparelhos, cada dado
+   viajava em dobro, a fase "Enviando" ficava enorme sem motivo, e o contador
+   de pendências nunca zerava de verdade. */
+function onedriveRegistrarAssinaturaDeDownload(descritor, dados){
+  try{
+    if(!descritor || !descritor.caminho || !dados || !dados.id) return;
+    const prefixo = `${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado/`;
+    if(!descritor.caminho.startsWith(prefixo)) return;
+    const seg = descritor.caminho.slice(prefixo.length).split("/");
+    if(seg.length < 2) return;
+    const arquivo = seg.pop();
+    const pasta = seg;
+    const ref = __assinaturasOneDriveSimples;
+    if(!ref.mapa){
+      const salvo = STATE[ref.chaveEstado] || {};
+      ref.mapa = new Map(Object.entries(salvo));
+    }
+    const chave = descritor.tipo + ":" + dados.id;
+    const registro = { atualizadoEm: dados.atualizadoEm || dados.criadoEm || 0, pasta, arquivo, fotosPendentes:false };
+    ref.mapa.set(chave, registro);
+    if(!STATE[ref.chaveEstado] || typeof STATE[ref.chaveEstado] !== "object") STATE[ref.chaveEstado] = {};
+    STATE[ref.chaveEstado][chave] = registro;
+  }catch(e){ /* falha aqui só significa um reenvio a mais — nunca perde dado */ }
+}
 function onedriveMesclarItemNovo(descritor, dados){
+  const inseriu = __onedriveMesclarItemNovoInterno(descritor, dados);
+  if(inseriu && descritor.tipo !== "fotos") onedriveRegistrarAssinaturaDeDownload(descritor, dados);
+  return inseriu;
+}
+function __onedriveMesclarItemNovoInterno(descritor, dados){
   if(descritor.tipo==="fotos"){
     // Pacote de fotos de um item que já chegou como texto: encaixa as fotos
     // no item local e apaga a marca de "fotos virão no Wi-Fi".
@@ -2448,7 +2481,13 @@ async function sincronizarDownloadOneDriveUmaPassada(onProgresso){
     await executarComConcorrencia(pequenos, 8, async (item) => {
       const texto = await onedriveBaixarTexto(item.caminho);
       if(texto){
-        try{ const dados = JSON.parse(texto); if(onedriveMesclarItemNovo(item, dados)){ mesclados++; registrarEventoSync("down", item.nome, item.tipo, item.tamanho||0, true); journalGravarItem(item, dados); } }
+        try{
+          const dados = JSON.parse(texto);
+          if(onedriveMesclarItemNovo(item, dados)){ mesclados++; registrarEventoSync("down", item.nome, item.tipo, item.tamanho||0, true); journalGravarItem(item, dados); }
+          // Baixou, leu, e o conteúdo JÁ EXISTE aqui (mesmo id) — entra no cache
+          // de convergência para nunca mais ser contado nem baixado à toa.
+          else onedriveMarcarJaExistente(item);
+        }
         catch(e){ marcarArquivoCorrompido(item, texto); }
       }
       // Conta como "andamento" mesmo quando o item não pôde ser baixado agora
@@ -2461,19 +2500,44 @@ async function sincronizarDownloadOneDriveUmaPassada(onProgresso){
     let pendentesRestantes = grandes;
     if(STATE.baixarFotosAutoWifi && onedriveEstaEmWifi()){
       const aindaPendentes = [];
-      await executarComConcorrencia(grandes, 6, async (item) => {
+      // Só gerencia o progresso aqui quando ninguém de fora está cuidando dele —
+      // ou seja, no ciclo automático silencioso (sem onProgresso). Quando esta
+      // função é chamada de dentro de "Sincronizar agora" (COM onProgresso), o
+      // progresso já é gerenciado pelo chamador; mexer nele aqui sobrescreveria
+      // a fase "recebendo" dele no meio do caminho.
+      const gerenciarProgressoLocal = !onProgresso;
+      if(gerenciarProgressoLocal){
+        __syncProgresso = { fase:'fotos', itemAtual:0, totalItens:grandes.length, bytesFeitos:0, bytesTotal:grandes.reduce((s,p)=>s+(p.tamanho||0),0) };
+        renderProgresso();
+      }
+      await executarComConcorrencia(grandes, 2, async (item) => {
         const texto = await onedriveBaixarTexto(item.caminho);
         if(!texto){ aindaPendentes.push(item); }
         else{
           try{
             const dados = JSON.parse(texto);
-            if(onedriveMesclarItemNovo(item, dados)){ mesclados++; registrarEventoSync("down", item.nome, item.tipo, item.tamanho||0, true); }
-            else aindaPendentes.push(item);
+            // Mesma proteção usada em todo o resto do download: grava o item já
+            // mesclado no diário imediatamente, para que uma foto que já baixou
+            // (e foi encaixada no projeto) não se perca nem precise ser baixada de
+            // novo se o app fechar ou a conexão cair no meio deste lote — antes,
+            // só este caminho (fotos automáticas via Wi-Fi) não tinha essa proteção.
+            if(onedriveMesclarItemNovo(item, dados)){ mesclados++; registrarEventoSync("down", item.nome, item.tipo, item.tamanho||0, true); journalGravarItem(item, dados); }
+            else if(item.tipo==="fotos"){
+              // A mesclagem recusou porque o item alvo JÁ está completo (as fotos
+              // chegaram por outro caminho no meio tempo) — some da fila em vez de
+              // ficar "pendente" para sempre. Se o alvo simplesmente ainda não
+              // chegou, aí sim continua na fila para a próxima passada.
+              const alvo = localizarItemLocal(item);
+              if(!(alvo && !alvo.__fotosOmitidas)) aindaPendentes.push(item);
+            }
+            else onedriveMarcarJaExistente(item); // item de texto que já existe aqui — cache de convergência
           }catch(e){ aindaPendentes.push(item); }
         }
+        if(gerenciarProgressoLocal){ __syncProgresso.itemAtual++; __syncProgresso.bytesFeitos += (item.tamanho||0); renderProgresso(); }
         if(onProgresso) onProgresso(item.tamanho||0, item.tipo);
       });
       pendentesRestantes = aindaPendentes;
+      if(gerenciarProgressoLocal){ __syncProgresso = null; render(); }
     }
     STATE.oneDrivePendentes = pendentesRestantes;
     return { mesclados, erro:false };
@@ -2722,6 +2786,29 @@ function arquivoEstaEmQuarentena(caminho, tamanho){
   return Array.isArray(STATE.arquivosCorrompidosIgnorados) &&
     STATE.arquivosCorrompidosIgnorados.some(a=>a.chave===caminho+"|"+(tamanho||0));
 }
+/* CACHE DE CONVERGÊNCIA — arquivos da nuvem que foram baixados mas cuja
+   mesclagem descobriu que o conteúdo JÁ EXISTE neste aparelho (mesmo id).
+   Isso acontece, por exemplo, quando duas áreas de mesmo nome foram juntadas
+   ("É a mesma") num aparelho: a pasta antiga continua na nuvem e, sem este
+   cache, era contada e baixada DE NOVO a cada sincronização, para sempre —
+   a causa direta do "sempre tem mais itens para baixar" mesmo depois de
+   sincronizar várias vezes. A chave inclui o tamanho do arquivo: se o dono
+   reenviar o item com mudanças (tamanho muda), ele volta a ser considerado
+   normalmente, sozinho. */
+function onedriveMarcarJaExistente(item){
+  try{
+    if(!STATE.oneDriveJaExistentes || typeof STATE.oneDriveJaExistentes !== "object") STATE.oneDriveJaExistentes = {};
+    STATE.oneDriveJaExistentes[item.caminho] = (item.tamanho||0);
+    const chaves = Object.keys(STATE.oneDriveJaExistentes);
+    if(chaves.length > 4000){ // teto de segurança — remove as entradas mais antigas do objeto
+      chaves.slice(0, chaves.length-4000).forEach(k=>{ delete STATE.oneDriveJaExistentes[k]; });
+    }
+  }catch(e){}
+}
+function arquivoJaExistente(caminho, tamanho){
+  const m = STATE.oneDriveJaExistentes;
+  return !!(m && typeof m === "object" && m[caminho] === (tamanho||0));
+}
 /* DIÁRIO DE DOWNLOAD — a proteção contra perder itens quando o app fecha no
    meio do recebimento. A versão anterior gravava o STATE INTEIRO (com todas
    as fotos — centenas de MB) a cada 2,5s durante o download: cada gravação
@@ -2798,7 +2885,18 @@ async function journalReaplicar(){
     // idempotente — repetir o que já entrou não duplica nada).
     for(let passe=0; passe<2; passe++){
       for(const entrada of entradas){
-        try{ if(onedriveMesclarItemNovo(entrada.descritor, entrada.dados)) recuperados++; }catch(e){}
+        try{
+          if(onedriveMesclarItemNovo(entrada.descritor, entrada.dados)){
+            recuperados++;
+            // A foto já foi recuperada e encaixada no projeto — tira também da lista
+            // de "pendentes para baixar", senão o app tentaria baixá-la de novo à toa
+            // (o dado já está aqui, só a lista de pendências não tinha sido gravada
+            // a tempo antes da interrupção).
+            if(entrada.descritor.tipo==="fotos" && Array.isArray(STATE.oneDrivePendentes)){
+              STATE.oneDrivePendentes = STATE.oneDrivePendentes.filter(p=>!(p.tipo==="fotos" && p.itemId===entrada.descritor.itemId));
+            }
+          }
+        }catch(e){}
       }
     }
     if(recuperados>0){
@@ -2947,20 +3045,27 @@ async function onedriveBaixarPendentes(onProgresso){
   const pendentes = STATE.oneDrivePendentes || [];
   if(pendentes.length===0) return;
   let algumaMudanca = false;
-  const restantes = [];
-  await executarComConcorrencia(pendentes, 6, async (item) => {
+  // No máximo 2 fotos ao mesmo tempo: cada pacote de fotos pode ter dezenas de
+  // MB, e vários simultâneos na memória era exatamente o que fazia o navegador
+  // do celular (principalmente iPhone) matar o app no meio da sincronização.
+  await executarComConcorrencia(pendentes, 2, async (item) => {
     const texto = await onedriveBaixarTexto(item.caminho);
-    if(!texto){ restantes.push(item); }
-    else{
+    if(texto){
       try{
         const dados = JSON.parse(texto);
         if(onedriveMesclarItemNovo(item, dados)){ algumaMudanca = true; registrarEventoSync("down", item.nome, item.tipo, item.tamanho||0, true); journalGravarItem(item, dados); }
-        else restantes.push(item);
-      }catch(e){ restantes.push(item); }
+        // Tira da lista de pendentes assim que este item termina (sucesso, ou já
+        // estava completo por outro caminho) — não espera o lote inteiro acabar.
+        // Se o app fechar no meio de um lote grande, os itens já processados até
+        // aqui não aparecem mais como pendentes na próxima abertura, então não são
+        // baixados de novo à toa.
+        STATE.oneDrivePendentes = (STATE.oneDrivePendentes||[]).filter(p=>p!==item);
+      }catch(e){ /* falha ao interpretar — mantém pendente, tenta de novo depois */ }
     }
+    // Quando não veio texto (falha de rede momentânea), o item continua na
+    // lista de pendentes normalmente, para ser tentado no próximo ciclo.
     if(onProgresso) onProgresso(item.tamanho||0, item.tipo);
   });
-  STATE.oneDrivePendentes = restantes;
   if(algumaMudanca){ dbSet(STATE); render(); }
   atualizarChipSync();
 }
@@ -2981,16 +3086,54 @@ function onedriveRotuloTipo(tipo, qtd){
   const par = ONEDRIVE_TIPO_LABEL[tipo] || [tipo, tipo];
   return qtd===1 ? par[0] : par[1];
 }
+/* Estima quantas fotos (itens) e quantos MB ainda faltam subir ao OneDrive —
+   separado da contagem "por tipo" acima porque essa soma cobre só o TEXTO;
+   fotos que ficaram pendentes (texto já subiu, foto ainda não, por causa do
+   modo econômico fora do Wi-Fi) não apareciam em lugar nenhum antes disto. */
+function onedriveEstimarFotosParaEnviar(){
+  let totalBytes = 0, totalItens = 0;
+  const contar = (listarItens, mapaRef) => {
+    const itensAtuais = listarItens();
+    const assinaturas = onedriveCarregarAssinaturas(mapaRef); // carrega do STATE se ainda não carregado — evita pendências fantasmas ao abrir o app
+    for(const item of itensAtuais){
+      const { soFotos, tinhaFotos } = separarFotosDoItem(item.dados);
+      if(!tinhaFotos) continue;
+      const registro = assinaturas.get(item.id);
+      const textoMudou = !registro || registro.atualizadoEm !== item.atualizadoEm;
+      if(textoMudou || (registro && registro.fotosPendentes)){
+        totalBytes += JSON.stringify(soFotos||{}).length; // sem TextEncoder — mesma razão de memória da estimativa de upload
+        totalItens++;
+      }
+    }
+  };
+  contar(listarItensSincronizaveisSimples, __assinaturasOneDriveSimples);
+  contar(listarItensSincronizaveisCompleto, __assinaturasOneDriveCompleto);
+  return { totalBytes, totalItens };
+}
+/* Garante que o mapa de assinaturas (o "já enviei isto") esteja carregado do
+   STATE — as estimativas rodam ANTES do primeiro envio da sessão e, sem esta
+   carga, começavam do zero e contavam TUDO como "pendente de enviar" logo ao
+   abrir o app, mesmo com tudo em dia (pendências fantasmas de upload). */
+function onedriveCarregarAssinaturas(mapaRef){
+  if(!mapaRef.mapa){
+    const salvo = STATE[mapaRef.chaveEstado] || {};
+    mapaRef.mapa = new Map(Object.entries(salvo));
+  }
+  return mapaRef.mapa;
+}
 function onedriveEstimarPendentesUpload(){
   let totalBytes = 0, totalItens = 0;
   const porTipo = {};
   const contar = (listarItens, mapaRef) => {
     const itensAtuais = listarItens();
-    const assinaturas = mapaRef.mapa || new Map();
+    const assinaturas = onedriveCarregarAssinaturas(mapaRef);
     for(const item of itensAtuais){
       const registro = assinaturas.get(item.id);
       if(!registro || registro.atualizadoEm !== item.atualizadoEm){
-        const bytes = new TextEncoder().encode(JSON.stringify(item.dados||{})).length;
+        // .length direto do texto (sem TextEncoder): evita criar uma cópia inteira
+        // em bytes de cada item (fotos = vários MB) só para medir o tamanho —
+        // base64 é ASCII, então o comprimento do texto já é a medida certa.
+        const bytes = JSON.stringify(item.dados||{}).length;
         totalBytes += bytes;
         totalItens++;
         if(!porTipo[item.tipo]) porTipo[item.tipo] = {qtd:0, bytes:0};
@@ -3025,13 +3168,22 @@ function onedriveStatusPendenteHtml(){
   const dt = new Date(s.verificadoEm);
   const dois = (n) => String(n).padStart(2,'0');
   const carimbo = `${dois(dt.getDate())}/${dois(dt.getMonth()+1)} ${dois(dt.getHours())}:${dois(dt.getMinutes())}`;
-  if(s.totalEnviar===0 && s.totalReceber===0){
-    return `<p style="font-size:11.5px;color:var(--ink-dim);margin:6px 2px 0">Tudo sincronizado · verificado ${carimbo}</p>`;
+  const fe = s.fotosEnviar || {qtd:0, bytes:0};
+  const fr = s.fotosReceber || {qtd:0, bytes:0};
+  if(s.totalEnviar===0 && s.totalReceber===0 && fe.qtd===0 && fr.qtd===0){
+    return `<p style="font-size:11.5px;color:var(--ink-dim);margin:6px 2px 0">Tudo sincronizado · nenhuma foto pendente · verificado ${carimbo}</p>`;
   }
+  // As duas linhas de fotos aparecem SEMPRE (mesmo com zero) — pedido de campo:
+  // saber de imediato quantas fotos faltam subir e quantas faltam baixar.
+  const linhaFoto = (rotulo, g) => g.qtd>0
+    ? `${rotulo}: ${g.qtd} ${g.qtd===1?'foto':'fotos'} (${(g.bytes/1024/1024).toFixed(1)} MB)`
+    : `${rotulo}: nenhuma`;
   const linhas = [
     ...onedriveLinhasPorGrupo(s.enviarPorTipo, 'enviar'),
-    ...onedriveLinhasPorGrupo(s.receberPorTipo, 'receber')
-  ];
+    ...onedriveLinhasPorGrupo(s.receberPorTipo, 'receber'),
+    linhaFoto('Fotos para enviar', fe),
+    linhaFoto('Fotos para receber', fr),
+  ].filter(Boolean);
   return `<div style="margin:6px 2px 0">
     ${linhas.map(l=>`<div style="font-size:11.5px;color:var(--ink-dim)">${l}</div>`).join('')}
     <div style="font-size:10.5px;color:var(--ink-faint);margin-top:2px">verificado ${carimbo}</div>
@@ -3066,12 +3218,17 @@ function onedriveSalvarStatusPendente(upload, download){
     receberPorTipo[item.tipo].qtd++;
     receberPorTipo[item.tipo].bytes += (item.tamanho||0);
   });
+  // Fotos contadas à parte (além do "por tipo" acima), para dar um número
+  // direto de "quantas fotos" e "quantos MB" sem precisar somar tipo por tipo.
+  const fotosEnviarEstim = onedriveEstimarFotosParaEnviar();
   STATE.oneDriveStatusPendente = {
     totalEnviar: upload.totalItens,
     totalReceber: download.pequenos.length + download.grandes.length,
     bytesTotal: upload.totalBytes + bytesFotos + bytesPequenos,
     enviarPorTipo: upload.porTipo || {},
     receberPorTipo,
+    fotosEnviar: { qtd: fotosEnviarEstim.totalItens, bytes: fotosEnviarEstim.totalBytes },
+    fotosReceber: { qtd: download.grandes.length, bytes: bytesFotos },
     verificadoEm: Date.now()
   };
   dbSet(STATE);
@@ -3239,7 +3396,7 @@ async function onedriveSincronizarAgora(){
       __syncProgresso.bytesFeitos += bytesItem;
       if(__syncGrupos && __syncGrupos.enviar[tipo]) __syncGrupos.enviar[tipo].feito++;
       marcarProgressoSync();
-      render();
+      renderProgresso(); // com ritmo controlado — redesenhar a tela inteira a cada item pesava na memória e ajudava o app a fechar sozinho
     });
 
     toast("Recebendo alterações de outros aparelhos…");
@@ -3309,6 +3466,15 @@ async function onedriveSincronizarAgora(){
       }
       return;
     }
+    // Recalcula o status verdadeiro AGORA, no fim — antes, o texto sob o botão
+    // continuava exibindo a contagem de ANTES da sincronização (parecia que
+    // "sempre sobrava coisa para baixar" mesmo com tudo em dia).
+    try{
+      const uploadFinal = onedriveEstimarPendentesUpload();
+      const downloadFinal = await onedriveEstimarPendentesDownload();
+      marcarProgressoSync();
+      if(!downloadFinal.erro) onedriveSalvarStatusPendente(uploadFinal, downloadFinal);
+    }catch(e){}
     toast(resumo.length ? `Sincronização concluída — ${resumo.join(', ')}` : "Sincronização concluída");
     })(), 90000);
   }catch(e){
@@ -4300,7 +4466,7 @@ function renderCompleto(){
     <div class="hazard-stripe"></div>
     ${topBar()}
     ${crumbBar()}
-    <div class="screen ${(s==='perigo-form')?'screen-narrow':''}">${body}</div>
+    <div class="screen ${(s==='perigo-form')?'screen-narrow':''}">${s==='projetos'?avisoBackupDesatualizadoHtml():''}${body}</div>
     ${bottomNav()}
   `;
   setSaveChip(false);
@@ -4356,7 +4522,7 @@ function renderSimplificado(){
     <div class="hazard-stripe"></div>
     ${topBarS()}
     ${crumbBarS()}
-    <div class="screen" style="${emModoSelecao?'padding-bottom:84px':''}">${body}</div>
+    <div class="screen" style="${emModoSelecao?'padding-bottom:84px':''}">${s==='simples-projetos'?avisoBackupDesatualizadoHtml():''}${body}</div>
     ${emModoSelecao? renderSelBar() : bottomNavS()}
   `;
   setSaveChip(false);
@@ -5247,7 +5413,7 @@ function screenSimplesMaquinas(){
         <div class="list-meta">
           <span class="stat-pill">${m.tarefas.length} tarefa${m.tarefas.length===1?'':'s'}</span>
           <span class="stat-pill">${totalRiscos} risco${totalRiscos===1?'':'s'}</span>
-          ${m.__fotosOmitidas? (()=>{ const pf = pendenteFotosDoItem(m.id); return `<span class="stat-pill" style="background:rgba(233,78,27,.14);color:var(--accent-ink);cursor:pointer" onclick="event.stopPropagation();App.onedriveBaixarFotosDeItem('${m.id}')" title="${pf? 'Toque para baixar as fotos agora ('+fmtBytes(pf.tamanho)+') — em dados móveis, pede confirmação' : 'Fotos ainda no outro aparelho — chegam quando ele tiver Wi-Fi'}">${pf? ic('download')+' fotos '+fmtBytes(pf.tamanho) : ic('camera')+' fotos a caminho'}</span>`; })():''}
+          ${m.__fotosOmitidas? (()=>{ const pf = pendenteFotosDoItem(m.id); return `<span class="stat-pill" style="background:rgba(233,78,27,.14);color:var(--accent-ink);cursor:pointer" onclick="event.stopPropagation();App.onedriveBaixarFotosDeItem('${m.id}')" title="${pf? 'Toque para baixar as fotos agora ('+fmtBytes(pf.tamanho)+') — em dados móveis, pede confirmação' : 'Fotos ainda no outro aparelho — chegam quando ele tiver Wi-Fi'}">${pf? ic('download')+' fotos '+fmtBytes(pf.tamanho) : ic('download')}</span>`; })():''}
           ${pendFotos>0 && !m.__fotosOmitidas? `<span class="stat-pill alert" title="${pendFotos} foto${pendFotos===1?'':'s'} pendente${pendFotos===1?'':'s'}">${ic('warn')} ${pendFotos}</span>`:''}
         </div>
       </div>
@@ -5317,7 +5483,7 @@ function screenSimplesRiscos(){
         <div class="list-tag" style="font-family:inherit">${escapeHtml((r.descricao||'sem descrição').slice(0,60))}</div>
         <div class="list-meta">
           <span class="stat-pill" style="background:${hrnMeta.cor};color:${hrnMeta.texto};font-weight:800">HRN ${hrnData.hrn} · ${hrnData.nivel}</span>
-          ${r.__fotosOmitidas? (()=>{ const pf = pendenteFotosDoItem(r.id); return `<span class="stat-pill" style="background:rgba(233,78,27,.14);color:var(--accent-ink);cursor:pointer" onclick="event.stopPropagation();App.onedriveBaixarFotosDeItem('${r.id}')" title="${pf? 'Toque para baixar as fotos agora ('+fmtBytes(pf.tamanho)+') — em dados móveis, pede confirmação' : 'Fotos ainda no outro aparelho — chegam quando ele tiver Wi-Fi'}">${pf? ic('download')+' fotos '+fmtBytes(pf.tamanho) : ic('camera')+' fotos a caminho'}</span>`; })():''}
+          ${r.__fotosOmitidas? (()=>{ const pf = pendenteFotosDoItem(r.id); return `<span class="stat-pill" style="background:rgba(233,78,27,.14);color:var(--accent-ink);cursor:pointer" onclick="event.stopPropagation();App.onedriveBaixarFotosDeItem('${r.id}')" title="${pf? 'Toque para baixar as fotos agora ('+fmtBytes(pf.tamanho)+') — em dados móveis, pede confirmação' : 'Fotos ainda no outro aparelho — chegam quando ele tiver Wi-Fi'}">${pf? ic('download')+' fotos '+fmtBytes(pf.tamanho) : ic('download')}</span>`; })():''}
           ${totalFotos>0? `<span class="stat-pill"><span class="risk-icn">${ic('gallery')}</span> ${totalFotos}</span>`:''}
           ${semMitigacao? `<span class="stat-pill alert icon-only" title="Sem sugestão de mitigação"><span class="risk-icn">${ic('warn')}</span></span>`:''}
         </div>
@@ -6270,7 +6436,40 @@ function exportarBackup(){
   salvarBlobNaPasta(SUBPASTA_BACKUP, blob, filename); // silencioso e em paralelo
   onedriveEnviarBlob(SUBPASTA_BACKUP, blob, filename); // silencioso e em paralelo, direto pro OneDrive
   downloadBlobDireto(blob, filename);
+  // Guarda quando foi o último backup local de verdade (arquivo baixado no aparelho,
+  // não apenas o que já está salvo no IndexedDB) — é o que permite avisar a pessoa
+  // antes que ela vá pra campo sem internet com um backup desatualizado. Esse arquivo
+  // sobrevive mesmo se o navegador apagar os dados do app sozinho (comum no iOS).
+  STATE.ultimoBackupLocalEm = Date.now();
+  dbSet(STATE);
   toast("Backup exportado");
+}
+/* Aviso proativo de backup local desatualizado — mostrado na tela inicial de cada
+   módulo. Isso existe porque o navegador (principalmente no iOS/Safari) pode apagar
+   os dados do app sozinho sem aviso nenhum, mesmo com "armazenamento persistente"
+   pedido — é uma limitação do sistema, não do app, e não dá pra eliminar 100% via
+   código. O único jeito realmente confiável de nunca perder o trabalho é ter, fora do
+   navegador (na pasta Arquivos do aparelho, no OneDrive, etc.), um backup recente. */
+const BACKUP_LOCAL_AVISO_DIAS = 3;
+function avisoBackupDesatualizadoHtml(){
+  const temDados = (STATE.projetosSimples||[]).length>0 || (STATE.projetos||[]).length>0;
+  if(!temDados) return "";
+  const ultimo = STATE.ultimoBackupLocalEm;
+  const diasSemBackup = ultimo ? Math.floor((Date.now()-ultimo)/(24*60*60*1000)) : null;
+  if(diasSemBackup!==null && diasSemBackup < BACKUP_LOCAL_AVISO_DIAS) return "";
+  const texto = ultimo
+    ? `Já se passaram ${diasSemBackup} dia${diasSemBackup===1?'':'s'} desde o último backup local (.json) salvo no aparelho. Antes de ir a campo sem internet, exporte um novo — é a proteção real contra o navegador apagar os dados sozinho, o que pode acontecer sem aviso (principalmente no iOS).`
+    : `Você ainda não exportou nenhum backup local (.json) neste aparelho. Antes de ir a campo sem internet, exporte um — é a proteção real contra o navegador apagar os dados sozinho, o que pode acontecer sem aviso (principalmente no iOS).`;
+  return `<div class="card card-pad" style="margin-bottom:10px;border:1px solid var(--r-medio);background:rgba(233,78,27,.06)">
+    <div style="display:flex;gap:10px;align-items:flex-start">
+      <div style="flex-shrink:0;margin-top:1px">${ic('warn')}</div>
+      <div style="flex:1">
+        <div style="font-weight:800;font-size:13.5px">Backup local desatualizado</div>
+        <div style="font-size:12px;color:var(--ink-dim);margin-top:2px">${texto}</div>
+        <button class="btn btn-primary btn-block" style="margin-top:8px" onclick="App.exportarBackup()">${ic('download')} Exportar backup agora</button>
+      </div>
+    </div>
+  </div>`;
 }
 
 /* =========================================================================
