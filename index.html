@@ -996,15 +996,155 @@ async function apagarModeloWordCustom(){
   }
   try{ localStorage.removeItem(LS_KEY_MODELO); }catch(e){}
 }
+/* =========================================================================
+   FOTOS FORA DO STATE (camada de persistência) — cada foto vira uma chave
+   própria no IndexedDB ("foto:<id do conteúdo>") e o STATE gravado passa a
+   conter só uma referência curta ("idbfoto:<id>") no lugar dela. O STATE em
+   MEMÓRIA continua exatamente como sempre foi (fotos embutidas) — telas,
+   exportações e sincronização não mudam em nada. O que muda é o custo de
+   GRAVAR: antes, cada "Salvar" serializava o STATE inteiro com todas as
+   fotos (dezenas/centenas de MB clonados e escritos de uma vez — a causa do
+   "página não responde" em computadores mais fracos); agora, a gravação do
+   STATE é minúscula e cada foto é escrita UMA única vez na vida (o id vem do
+   conteúdo — a mesma foto nunca é regravada, nem quando aparece também num
+   ponto de restauração, que passa a custar quase nada pelo mesmo motivo).
+   Compatibilidade: um STATE antigo (fotos embutidas) é lido normalmente
+   (nenhuma referência para resolver) e é convertido ao formato novo na
+   primeira gravação, sem passo de migração. */
+const FOTO_REF_PREFIXO = "idbfoto:";
+const FOTO_KEY_PREFIXO = "foto:";
+function ehFotoDataUrlPersist(v){ return typeof v === "string" && v.startsWith("data:image"); }
+function ehFotoRefPersist(v){ return typeof v === "string" && v.startsWith(FOTO_REF_PREFIXO); }
+/* Impressão digital do conteúdo: comprimento + hash de amostras do início,
+   meio e fim. Rápido mesmo para fotos de vários MB (não percorre tudo) e
+   estável — a mesma foto sempre produz o mesmo id, em qualquer aparelho. */
+const __fotoIdCache = new Map();
+function fotoCalcularId(s){
+  const memo = __fotoIdCache.get(s);
+  if(memo) return memo;
+  let h1 = 5381, h2 = 52711;
+  const amostrar = (ini, fim) => { for(let i=ini;i<fim;i++){ const ch = s.charCodeAt(i); h1 = ((h1*33) ^ ch) >>> 0; h2 = ((h2*31) + ch) >>> 0; } };
+  const n = s.length, seg = 4096;
+  amostrar(0, Math.min(seg, n));
+  if(n > seg*3) amostrar((n>>1)-(seg>>1), (n>>1)+(seg>>1));
+  if(n > seg*2) amostrar(n-seg, n);
+  const fid = n.toString(36) + "-" + h1.toString(36) + h2.toString(36);
+  if(__fotoIdCache.size > 800) __fotoIdCache.clear();
+  __fotoIdCache.set(s, fid);
+  return fid;
+}
+/* Clona a estrutura trocando cada foto embutida por uma referência; as fotos
+   encontradas vão para mapaFotos (id → dataURL). Strings que não são foto são
+   compartilhadas por referência — o clone estrutural é leve. */
+function fotosExtrairParaRefs(valor, mapaFotos){
+  if(ehFotoDataUrlPersist(valor)){ const fid = fotoCalcularId(valor); mapaFotos.set(fid, valor); return FOTO_REF_PREFIXO + fid; }
+  if(Array.isArray(valor)) return valor.map(v => fotosExtrairParaRefs(v, mapaFotos));
+  if(valor && typeof valor === "object"){ const o = {}; for(const k in valor) o[k] = fotosExtrairParaRefs(valor[k], mapaFotos); return o; }
+  return valor;
+}
+function fotosColetarRefs(valor, conjunto){
+  if(ehFotoRefPersist(valor)){ conjunto.add(valor.slice(FOTO_REF_PREFIXO.length)); return; }
+  if(Array.isArray(valor)){ for(const v of valor) fotosColetarRefs(v, conjunto); return; }
+  if(valor && typeof valor === "object"){ for(const k in valor) fotosColetarRefs(valor[k], conjunto); }
+}
+function fotosColetarIdsEmbutidas(valor, conjunto){
+  if(ehFotoDataUrlPersist(valor)){ conjunto.add(fotoCalcularId(valor)); return; }
+  if(Array.isArray(valor)){ for(const v of valor) fotosColetarIdsEmbutidas(v, conjunto); return; }
+  if(valor && typeof valor === "object"){ for(const k in valor) fotosColetarIdsEmbutidas(valor[k], conjunto); }
+}
+/* Reconstrói a estrutura trocando referências pelas fotos lidas do banco.
+   Referência sem foto correspondente (corrupção improvável) vira null — o
+   app segue funcionando, só aquela foto se perde, nunca o app inteiro. */
+function fotosReinserirDeMapa(valor, mapa){
+  if(ehFotoRefPersist(valor)){ const f = mapa.get(valor.slice(FOTO_REF_PREFIXO.length)); return f !== undefined ? f : null; }
+  if(Array.isArray(valor)) return valor.map(v => fotosReinserirDeMapa(v, mapa));
+  if(valor && typeof valor === "object"){ const o = {}; for(const k in valor) o[k] = fotosReinserirDeMapa(valor[k], mapa); return o; }
+  return valor;
+}
+/* Índice em memória de quais fotos já estão no banco — evita regravar (e até
+   consultar) fotos que já subiram em gravações anteriores. */
+let __fotosNoBanco = null;
+async function fotosCarregarIndice(db){
+  if(__fotosNoBanco) return __fotosNoBanco;
+  const idx = new Set();
+  try{
+    const chaves = await new Promise((resolve)=>{
+      const tx = db.transaction(DB_STORE, "readonly");
+      const rq = tx.objectStore(DB_STORE).getAllKeys();
+      rq.onsuccess = ()=>resolve(rq.result||[]);
+      rq.onerror = ()=>resolve([]);
+    });
+    for(const k of chaves) if(typeof k === "string" && k.startsWith(FOTO_KEY_PREFIXO)) idx.add(k.slice(FOTO_KEY_PREFIXO.length));
+  }catch(e){}
+  __fotosNoBanco = idx;
+  return idx;
+}
+async function fotosLerLote(db, refs){
+  const mapa = new Map();
+  if(refs.size === 0) return mapa;
+  await new Promise((resolve)=>{
+    try{
+      const tx = db.transaction(DB_STORE, "readonly");
+      const store = tx.objectStore(DB_STORE);
+      let pend = refs.size;
+      refs.forEach(fid=>{
+        const rq = store.get(FOTO_KEY_PREFIXO + fid);
+        rq.onsuccess = ()=>{ if(typeof rq.result === "string") mapa.set(fid, rq.result); if(--pend === 0) resolve(); };
+        rq.onerror = ()=>{ if(--pend === 0) resolve(); };
+      });
+    }catch(e){ resolve(); }
+  });
+  return mapa;
+}
+/* Limpeza de fotos órfãs (itens apagados): roda no máximo a cada 10 minutos,
+   em segundo plano, e só remove uma foto quando NEM o STATE atual NEM nenhum
+   ponto de restauração a referencia. Pontos no formato antigo carregam as
+   próprias fotos embutidas, então não dependem de nenhuma chave "foto:" —
+   não precisam de proteção aqui. */
+let __ultimaLimpezaFotosEm = 0;
+async function fotosLimparOrfasSeForHora(){
+  if(!temIndexedDB()) return;
+  if(Date.now() - __ultimaLimpezaFotosEm < 10*60*1000) return;
+  __ultimaLimpezaFotosEm = Date.now();
+  try{
+    const db = await dbOpen();
+    const referenciadas = new Set();
+    fotosColetarIdsEmbutidas(STATE, referenciadas);
+    fotosColetarRefs(STATE, referenciadas);
+    const pontos = await listarPontosDeRestauracao();
+    for(const p of pontos) fotosColetarRefs(p, referenciadas);
+    const indice = await fotosCarregarIndice(db);
+    const remover = [];
+    indice.forEach(fid => { if(!referenciadas.has(fid)) remover.push(fid); });
+    if(remover.length === 0) return;
+    await new Promise((resolve)=>{
+      const tx = db.transaction(DB_STORE, "readwrite");
+      const store = tx.objectStore(DB_STORE);
+      remover.forEach(fid => store.delete(FOTO_KEY_PREFIXO + fid));
+      tx.oncomplete = ()=>{ remover.forEach(fid => indice.delete(fid)); resolve(); };
+      tx.onerror = ()=>resolve();
+    });
+  }catch(e){}
+}
 async function dbGet(){
   try{
     const db = await dbOpen();
-    return await new Promise((resolve,reject)=>{
+    const bruto = await new Promise((resolve,reject)=>{
       const tx = db.transaction(DB_STORE,"readonly");
       const rq = tx.objectStore(DB_STORE).get(DB_KEY);
       rq.onsuccess=function(){ resolve(rq.result||null); };
       rq.onerror=function(){ reject(rq.error); };
     });
+    if(!bruto) return null;
+    // Formato novo: o STATE gravado contém referências ("idbfoto:...") no
+    // lugar das fotos — lê todas de volta em lote e reencaixa. Um STATE no
+    // formato antigo (fotos embutidas) não tem referência nenhuma e passa
+    // reto por aqui, sem custo extra.
+    const refs = new Set();
+    fotosColetarRefs(bruto, refs);
+    if(refs.size === 0) return bruto;
+    const mapa = await fotosLerLote(db, refs);
+    return fotosReinserirDeMapa(bruto, mapa);
   }catch(e){
     // NÃO rebaixa __storageMode aqui: uma leitura com falha momentânea não
     // diz nada sobre a capacidade de GRAVAR daqui a pouco — e era esse
@@ -1025,15 +1165,27 @@ async function dbSet(val){
   // as gravações seguintes; cada tentativa merece o caminho completo.
   try{
     const db = await dbOpen();
+    // Fotos saem do pacote principal: cada uma vira uma chave própria no
+    // banco, gravada UMA única vez (o índice em memória diz quais já estão
+    // lá). O STATE em si vira um pacote minúsculo de texto — é isso que
+    // elimina o pico de memória e o travamento do "Salvar" com muitas fotos.
+    const mapaFotos = new Map();
+    const enxuto = fotosExtrairParaRefs(val, mapaFotos);
+    const indice = await fotosCarregarIndice(db);
+    const novas = [];
+    mapaFotos.forEach((dataUrl, fid)=>{ if(!indice.has(fid)) novas.push([fid, dataUrl]); });
     await new Promise((resolve,reject)=>{
       const tx = db.transaction(DB_STORE,"readwrite");
-      tx.objectStore(DB_STORE).put(val, DB_KEY);
-      tx.oncomplete=function(){ resolve(true); };
+      const store = tx.objectStore(DB_STORE);
+      for(const [fid, dataUrl] of novas) store.put(dataUrl, FOTO_KEY_PREFIXO + fid);
+      store.put(enxuto, DB_KEY);
+      tx.oncomplete=function(){ for(const [fid] of novas) indice.add(fid); resolve(true); };
       tx.onerror=function(){ reject(tx.error); };
     });
     __storageMode = "indexeddb"; // gravou de verdade — modo saudável (recupera mesmo se uma tentativa anterior tinha falhado)
+    fotosLimparOrfasSeForHora(); // remove fotos de itens apagados, em segundo plano e com trava de tempo
     return true;
-  }catch(e){ /* cai para os planos B abaixo, SÓ nesta tentativa */ }
+  }catch(e){ /* cai para os planos B abaixo, SÓ nesta tentativa — usando o val ORIGINAL, com as fotos embutidas */ }
   try{ localStorage.setItem(LS_KEY, JSON.stringify(val)); __storageMode = "localstorage"; return true; }
   catch(e){ /* localStorage cheio ou indisponível — último recurso abaixo */ }
   __storageMode = "memoria";
@@ -1181,12 +1333,27 @@ async function salvarPontoDeRestauracao(motivo){
   try{
     const db = await dbOpen();
     const atuais = await listarPontosDeRestauracao();
-    const novo = { ts: Date.now(), motivo, resumo: resumoContagemEstado(STATE), dados: JSON.parse(JSON.stringify(STATE)) };
+    // O ponto guarda o STATE com REFERÊNCIAS às fotos (não as fotos em si) —
+    // as fotos vivem em chaves próprias do banco, compartilhadas com o STATE
+    // principal. Antes, cada ponto era uma cópia inteira do STATE com todas
+    // as fotos, e a lista toda (até 8 pontos!) era reescrita a cada ponto
+    // novo — em computadores fracos, era um dos gatilhos do "página não
+    // responde". Agora um ponto custa alguns KB. Fotos que só existem no
+    // ponto (ex.: apagadas depois) continuam protegidas: a limpeza de órfãs
+    // nunca remove uma foto referenciada por qualquer ponto.
+    const mapaFotos = new Map();
+    const dadosEnxutos = fotosExtrairParaRefs(STATE, mapaFotos);
+    const novo = { ts: Date.now(), motivo, resumo: resumoContagemEstado(STATE), dados: dadosEnxutos };
     const lista = [novo, ...atuais].slice(0, await limitePontosRestauracaoAgora());
+    const indice = await fotosCarregarIndice(db);
+    const novas = [];
+    mapaFotos.forEach((dataUrl, fid)=>{ if(!indice.has(fid)) novas.push([fid, dataUrl]); });
     await new Promise((resolve,reject)=>{
       const tx = db.transaction(DB_STORE,"readwrite");
-      tx.objectStore(DB_STORE).put(lista, DB_KEY_PONTOS_RESTAURACAO);
-      tx.oncomplete=()=>resolve(true);
+      const store = tx.objectStore(DB_STORE);
+      for(const [fid, dataUrl] of novas) store.put(dataUrl, FOTO_KEY_PREFIXO + fid);
+      store.put(lista, DB_KEY_PONTOS_RESTAURACAO);
+      tx.oncomplete=()=>{ for(const [fid] of novas) indice.add(fid); resolve(true); };
       tx.onerror=()=>reject(tx.error);
     });
     return true;
@@ -1238,7 +1405,18 @@ async function restaurarPontoDeRestauracao(ts){
   const ponto = lista.find(p=>p.ts===ts);
   if(!ponto) return false;
   await salvarPontoDeRestauracao("antes de restaurar");
-  STATE = JSON.parse(JSON.stringify(ponto.dados));
+  // Ponto no formato novo guarda referências às fotos — lê e reencaixa.
+  // Ponto antigo (fotos embutidas) não tem referências e segue o caminho
+  // de sempre. Nos dois casos o STATE final fica completo, com as fotos.
+  const refsPonto = new Set();
+  fotosColetarRefs(ponto.dados, refsPonto);
+  if(refsPonto.size > 0){
+    const db = await dbOpen();
+    const mapa = await fotosLerLote(db, refsPonto);
+    STATE = fotosReinserirDeMapa(ponto.dados, mapa);
+  } else {
+    STATE = JSON.parse(JSON.stringify(ponto.dados));
+  }
   marcarAlterado();
   render();
   return true;
@@ -1265,7 +1443,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
    GitHub (útil especialmente dado o atraso de alguns minutos do GitHub para
    propagar cada atualização, e para diferenciar aparelhos que ainda não
    atualizaram dos que já atualizaram). */
-const APP_BUILD = "16/07/2026 21:40";
+const APP_BUILD = "17/07/2026 19:40";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -2088,12 +2266,18 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
       if(onProgresso) onProgresso(blobFotos.size, item.tipo);
     }
     if(okTexto){
-      assinaturas.set(item.id, {
+      const registroNovo = {
         atualizadoEm: item.atualizadoEm, pasta: item.pasta, arquivo: item.arquivo,
         // fotosPendentes=true faz o item reaparecer na fila assim que o Wi-Fi
         // chegar — o texto está protegido, as fotos ainda não.
         fotosPendentes: tinhaFotos && !fotosSubiram
-      });
+      };
+      assinaturas.set(item.id, registroNovo);
+      // Grava também no diário de envio AGORA — não espera o lote inteiro
+      // terminar. É o que garante que, mesmo se o app fechar sozinho no meio
+      // do envio, este item específico (que JÁ subiu com sucesso) não seja
+      // reenviado à toa na próxima sincronização.
+      sigJournalGravar(mapaAssinaturasRef.chaveEstado, item.id, registroNovo);
     }
   });
 
@@ -2128,9 +2312,23 @@ async function sincronizarIncrementalOneDrive(onProgresso){
     await onedriveSincronizarModulo("Simplificado", listarItensSincronizaveisSimples, __assinaturasOneDriveSimples, onProgresso);
     await onedriveSincronizarModulo("Completo", listarItensSincronizaveisCompleto, __assinaturasOneDriveCompleto, onProgresso);
     STATE.ultimaSincronizacaoOneDriveEm = Date.now();
-    dbSet(STATE); // grava logo o que já foi enviado, sem esperar a próxima edição pra isso ser lembrado
+    await dbSet(STATE); // grava logo o que já foi enviado, sem esperar a próxima edição pra isso ser lembrado
+    // O lote inteiro terminou e já está gravado no STATE de verdade — os
+    // registros do diário de envio (gravados item a item, "só por garantia")
+    // agora são redundantes. Limpa para o diário não crescer para sempre.
+    try{
+      const db = await dbOpen();
+      const chaves = await sigJournalListarChaves(db);
+      if(chaves.length>0) await sigJournalLimpar(chaves);
+    }catch(e){}
     atualizarChipSync();
-  }catch(e){}
+  }catch(e){
+    // Antes, esse erro desaparecia por completo (catch vazio) — o envio
+    // automático falhava sem deixar nenhum rastro, mesmo no console. Isso
+    // não muda o comportamento (continua não incomodando o usuário com
+    // toast), só passa a registrar no console para dar pra diagnosticar.
+    console.error("Envio automático ao OneDrive falhou nesta rodada:", e && e.message, e);
+  }
   finally{ __uploadAutoRodando = false; }
 }
 
@@ -2900,6 +3098,82 @@ function arquivoJaExistente(caminho, tamanho){
    bem-sucedida (quando o STATE inteiro é gravado uma única vez, como sempre
    foi), o diário também é limpo por ter virado redundância. */
 let __journalSeq = 0;
+/* DIÁRIO DE ENVIO — mesma ideia do diário de download (journalGravarItem)
+   só que para o outro sentido: registra, num escrita minúscula e imediata no
+   IndexedDB, que "este item específico já subiu com sucesso". Sem isto, a
+   única gravação da assinatura de envio acontecia no FINAL do lote inteiro
+   (dezenas de itens) — se o app fechasse sozinho no meio do envio (bug já
+   relatado em campo), os itens que JÁ tinham subido com sucesso perdiam essa
+   informação e eram reenviados do zero na sincronização seguinte: dado e
+   tempo gastos à toa, mesmo o arquivo já estando correto na nuvem. Agora cada
+   item confirma sua própria gravação na hora, e sobrevive a um fechamento
+   inesperado no meio do lote. */
+function sigJournalGravar(chaveEstado, id, registro){
+  if(!temIndexedDB()) return;
+  try{
+    dbOpen().then(db=>{
+      const chave = "sgj:" + Date.now() + "-" + (__journalSeq++);
+      const tx = db.transaction(DB_STORE,"readwrite");
+      tx.objectStore(DB_STORE).put({ chaveEstado, id, registro }, chave);
+    }).catch(()=>{});
+  }catch(e){}
+}
+async function sigJournalListarChaves(db){
+  return await new Promise((resolve)=>{
+    try{
+      const tx = db.transaction(DB_STORE,"readonly");
+      const rq = tx.objectStore(DB_STORE).getAllKeys();
+      rq.onsuccess = ()=>resolve((rq.result||[]).filter(k=>typeof k==="string" && k.startsWith("sgj:")));
+      rq.onerror = ()=>resolve([]);
+    }catch(e){ resolve([]); }
+  });
+}
+async function sigJournalLimpar(chaves){
+  if(!temIndexedDB() || chaves.length===0) return;
+  try{
+    const db = await dbOpen();
+    await new Promise((resolve)=>{
+      const tx = db.transaction(DB_STORE,"readwrite");
+      const store = tx.objectStore(DB_STORE);
+      chaves.forEach(k=>store.delete(k));
+      tx.oncomplete = ()=>resolve(true);
+      tx.onerror = ()=>resolve(false);
+    });
+  }catch(e){}
+}
+/* Na abertura do app: reaplica qualquer assinatura de envio que ficou só no
+   diário (o fechamento aconteceu antes da gravação em lote conseguir
+   terminar). Idempotente — reaplicar uma assinatura que já está no STATE não
+   causa nenhum efeito colateral, só confirma o que já era verdade. */
+async function sigJournalReaplicar(){
+  if(!temIndexedDB()) return;
+  try{
+    const db = await dbOpen();
+    const chaves = await sigJournalListarChaves(db);
+    if(chaves.length===0) return;
+    let recuperados = 0;
+    for(const chave of chaves){
+      const entrada = await new Promise((resolve)=>{
+        const tx = db.transaction(DB_STORE,"readonly");
+        const rq = tx.objectStore(DB_STORE).get(chave);
+        rq.onsuccess = ()=>resolve(rq.result||null);
+        rq.onerror = ()=>resolve(null);
+      });
+      if(entrada && entrada.chaveEstado && entrada.id && entrada.registro){
+        if(!STATE[entrada.chaveEstado] || typeof STATE[entrada.chaveEstado] !== "object") STATE[entrada.chaveEstado] = {};
+        // Só sobrescreve se a versão do diário for mais nova ou igual — nunca
+        // regride uma assinatura já atualizada por uma sincronização seguinte.
+        const atual = STATE[entrada.chaveEstado][entrada.id];
+        if(!atual || (entrada.registro.atualizadoEm||0) >= (atual.atualizadoEm||0)){
+          STATE[entrada.chaveEstado][entrada.id] = entrada.registro;
+          recuperados++;
+        }
+      }
+    }
+    await sigJournalLimpar(chaves);
+    if(recuperados>0) await dbSet(STATE);
+  }catch(e){}
+}
 function journalGravarItem(descritor, dados){
   if(!temIndexedDB()) return;
   try{
@@ -3302,14 +3576,50 @@ function itemTemFotosEmbutidas(dados){
   }
   return false;
 }
+/* Achata a árvore já buscada (nenhuma chamada de rede nova) num mapa
+   caminho-completo-em-minúsculas → tamanho em bytes. Usado tanto pela
+   reconciliação (o que sumiu da nuvem) quanto pela checagem de "já está lá"
+   antes de reenviar (evita reenvio à toa de algo que já existe idêntico). */
+function onedriveColetarArquivosDaArvore(arvore){
+  const mapa = new Map();
+  const coletar = (nos) => { for(const n of (nos||[])){ if(n.pasta) coletar(n.filhos); else mapa.set(String(n.caminho).toLowerCase(), n.tamanho||0); } };
+  coletar(arvore);
+  return mapa;
+}
+/* Cache da última árvore da nuvem buscada nesta sincronização manual — usada
+   pela checagem de "já está lá" (onedriveJaExisteNaNuvem) para não reenviar
+   à toa um item cuja assinatura local se perdeu (ex.: um fechamento do app no
+   meio de um envio anterior, antes do diário de envio existir). Só existe
+   durante uma sincronização manual — o ciclo automático em segundo plano não
+   busca a árvore inteira antes de cada envio (custaria caro fazer isso a
+   cada edição), então nele esta checagem simplesmente não se aplica. */
+let __arvoreSimplesCache = null;
+/* true = já existe um arquivo idêntico (mesmo caminho, mesmo tamanho em
+   bytes) na nuvem — não precisa reenviar, só "curar" a assinatura local.
+   Comparação por tamanho em bytes (não por conteúdo, que exigiria baixar o
+   arquivo): como o JSON é determinístico para os mesmos dados, bytes iguais
+   no mesmo caminho é uma evidência prática de que é o mesmo conteúdo. Usa
+   exatamente o mesmo corpo que o envio de verdade usaria (texto sem fotos,
+   quando o item tem fotos embutidas) — mesma função separarFotosDoItem. */
+function onedriveJaExisteNaNuvem(item){
+  if(!__arvoreSimplesCache) return false; // sem árvore fresca nesta sessão — não arrisca, envia normalmente
+  const prefixo = `${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado/`.toLowerCase();
+  const caminho = prefixo + (item.pasta.join("/") + "/" + item.arquivo).toLowerCase();
+  const tamanhoRemoto = __arvoreSimplesCache.get(caminho);
+  if(tamanhoRemoto===undefined) return false;
+  const { semFotos, tinhaFotos } = separarFotosDoItem(item.dados||{});
+  const corpo = tinhaFotos ? semFotos : (item.dados||{});
+  const bytesLocais = new Blob([JSON.stringify(corpo, null, 0)]).size;
+  return bytesLocais === tamanhoRemoto;
+}
 function onedriveReconciliarComArvore(arvore){
   try{
     if(!Array.isArray(arvore)) return 0;
     // Junta todos os caminhos de ARQUIVO existentes na nuvem (minúsculas — o
     // OneDrive não diferencia maiúsculas/minúsculas em nomes).
-    const existentes = new Set();
-    const coletar = (nos) => { for(const n of (nos||[])){ if(n.pasta) coletar(n.filhos); else existentes.add(String(n.caminho).toLowerCase()); } };
-    coletar(arvore);
+    const arquivosNaNuvem = onedriveColetarArquivosDaArvore(arvore);
+    const existentes = arquivosNaNuvem; // Map: .has() funciona igual a Set aqui
+    __arvoreSimplesCache = arquivosNaNuvem; // disponibiliza para a checagem de "já está lá" nesta mesma sincronização
     const temProjetosLocais = (STATE.projetosSimples||[]).length > 0;
     // Proteção: se a listagem voltou VAZIA mas há projetos locais, o mais
     // provável é falha de sessão/rede disfarçada — não conclui que "está tudo
@@ -3320,7 +3630,21 @@ function onedriveReconciliarComArvore(arvore){
     let reparos = 0;
     for(const item of listarItensSincronizaveisSimples()){
       const reg = mapa.get(item.id);
-      if(!reg || !Array.isArray(reg.pasta) || !reg.arquivo) continue; // sem assinatura = já vai subir normalmente
+      if(!reg || !Array.isArray(reg.pasta) || !reg.arquivo){
+        // Sem assinatura local (item "nunca subiu" nesta sessão — o caso
+        // clássico de uma assinatura perdida num fechamento antigo do app).
+        // Antes de deixá-lo entrar na fila de envio, confere se por acaso um
+        // arquivo idêntico já existe lá: se existir, cura a assinatura sem
+        // gastar banda reenviando algo que já está correto na nuvem.
+        if(onedriveJaExisteNaNuvem(item)){
+          const registro = { atualizadoEm:item.atualizadoEm, pasta:item.pasta, arquivo:item.arquivo, fotosPendentes:false };
+          mapa.set(item.id, registro);
+          if(!STATE[__assinaturasOneDriveSimples.chaveEstado]) STATE[__assinaturasOneDriveSimples.chaveEstado] = {};
+          STATE[__assinaturasOneDriveSimples.chaveEstado][item.id] = registro;
+          reparos++;
+        }
+        continue;
+      }
       const caminhoTexto = prefixo + (reg.pasta.join("/") + "/" + reg.arquivo).toLowerCase();
       if(!existentes.has(caminhoTexto)){
         // Consta como enviado, mas o arquivo NÃO está na nuvem — apaga a
@@ -3649,6 +3973,10 @@ async function onedriveSincronizarAgora(){
     __syncIniciadoEm = null;
     __syncProgresso = null;
     __syncGrupos = null;
+    // A árvore cacheada só vale para ESTA sincronização manual (pode ficar
+    // desatualizada logo em seguida) — nunca deixa o ciclo automático em
+    // segundo plano reaproveitá-la por engano.
+    __arvoreSimplesCache = null;
     liberarTelaAcesa();
     render();
   }
@@ -4177,6 +4505,7 @@ function abrirOverlay(html){
   div.id = "overlayRoot";
   div.innerHTML = html;
   document.body.appendChild(div);
+  hidratarImagens();
 }
 /* Mostra um modal simples de "arquivo pronto" com um botão "Compartilhar".
    Isso é necessário porque o menu nativo de compartilhamento do celular só abre
@@ -4478,7 +4807,7 @@ function formRiscoSHtml(){
 function outrasFotosHtml(label, fotos){
   const lista = fotos||[];
   const grid = lista.length
-    ? `<div class="photo-grid">${lista.map((f,i)=>`<div class="photo-thumb"><img src="${f}" onclick="App.verFoto('${f}')"><button class="rm" onclick="App.removerFotoOutraDraft(${i})">${ic('close')}</button></div>`).join("")}</div>`
+    ? `<div class="photo-grid">${lista.map((f,i)=>`<div class="photo-thumb"><img data-imgref="${imgReg(f)}" onclick="App.verFotoReg(this)"><button class="rm" onclick="App.removerFotoOutraDraft(${i})">${ic('close')}</button></div>`).join("")}</div>`
     : "";
   return `<div class="photo-extra-head">
       <label>${escapeHtml(label)}</label>
@@ -4493,7 +4822,7 @@ function checklistFotoHtml(field, label, foto){
   const pend = !foto;
   return `<div class="checklist-item" ${pend?`onclick="App.tirarFotoDraft('${field}')"`:''}>
     ${foto
-      ? `<img src="${foto}" onclick="event.stopPropagation();App.verFoto('${foto}')">`
+      ? `<img data-imgref="${imgReg(foto)}" onclick="event.stopPropagation();App.verFotoReg(this)">`
       : `<div class="checklist-icon">${ic('camera')}</div>`}
     <div class="checklist-txt" ${!pend?`onclick="event.stopPropagation();App.verFoto('${foto}')"`:''}><b>${label}</b><span style="${pend?'color:#C23F12;font-weight:700':''}">${pend?'Pendente — toque para fotografar':'Adicionada — toque para ver'}</span></div>
     ${pend
@@ -4595,12 +4924,39 @@ function go(screen, params){
   render();
   window.scrollTo(0,0);
 }
+/* =========================================================================
+   REGISTRO DE IMAGENS DA TELA — antes, cada miniatura de foto entrava no HTML
+   como o base64 COMPLETO (300–600 KB por foto, às vezes duas vezes no mesmo
+   cartão: no src e no onclick) — a tela inteira virava uma string de muitos
+   MB remontada e re-analisada pelo navegador a CADA renderização. Era isso
+   que deixava o app arrastado em computadores mais fracos, mesmo sem
+   sincronizar nada. Agora o template só carrega um número curto
+   (data-imgref="N"); depois que o HTML entra na página, uma passada rápida
+   liga cada <img> à sua foto direto pela propriedade .src — sem a foto
+   jamais passar pelo texto do HTML. O navegador reaproveita a imagem já
+   decodificada entre renderizações (mesma dataURL = mesmo cache). */
+let __imgReg = [];
+function imgReg(dataUrl){ __imgReg.push(dataUrl); return __imgReg.length - 1; }
+function imgRegLimparSePossivel(){
+  // Zera o registro só quando cresceu demais E não há modal aberto usando
+  // índices antigos (as <img> já hidratadas não dependem mais do registro).
+  if(__imgReg.length > 3000 && !document.getElementById("overlayRoot")) __imgReg = [];
+}
+function hidratarImagens(){
+  document.querySelectorAll("img[data-imgref]").forEach(el=>{
+    const f = __imgReg[+el.dataset.imgref];
+    el.removeAttribute("data-imgref");
+    if(f) el.src = f;
+  });
+}
 function render(){
   aplicarContraste();
+  imgRegLimparSePossivel();
   const app = document.getElementById("app");
   if(!STATE.modulo){ app.innerHTML = screenModuloSelect(); setSaveChip(false); return; }
-  if(STATE.modulo==="simplificado"){ renderSimplificado(); return; }
+  if(STATE.modulo==="simplificado"){ renderSimplificado(); hidratarImagens(); return; }
   renderCompleto();
+  hidratarImagens();
 }
 function renderCompleto(){
   const app = document.getElementById("app");
@@ -5152,7 +5508,7 @@ function screenMaquinas(){
     const pend = contarPerigosPendentes(todosM);
     return `
     <div class="card list-card">
-      <div class="list-thumb" onclick="App.abrirMaquina('${m.id}')">${m.fotoGeral? `<img src="${m.fotoGeral}">`:ic('shield')}</div>
+      <div class="list-thumb" onclick="App.abrirMaquina('${m.id}')">${m.fotoGeral? `<img data-imgref="${imgReg(m.fotoGeral)}">`:ic('shield')}</div>
       <div class="list-body" onclick="App.abrirMaquina('${m.id}')">
         <div class="list-name">${escapeHtml(m.nome||'Sem nome (toque para editar)')}</div>
         <div class="list-tag">${escapeHtml(m.tag||'sem código')}</div>
@@ -5179,7 +5535,7 @@ function screenMaquinaForm(){
       <div class="field">
         <label>Imagem do ativo</label>
         ${m.fotoGeral
-          ? `<div class="photo-thumb" style="width:140px;height:140px;aspect-ratio:auto"><img src="${m.fotoGeral}"><button class="rm" onclick="App.removerFotoGeral()">${ic('close')}</button></div>`
+          ? `<div class="photo-thumb" style="width:140px;height:140px;aspect-ratio:auto"><img data-imgref="${imgReg(m.fotoGeral)}"><button class="rm" onclick="App.removerFotoGeral()">${ic('close')}</button></div>`
           : `<button class="photo-add" style="width:140px;height:140px;aspect-ratio:auto" onclick="App.tirarFotoGeral()">${ic('camera')}<span>Adicionar foto</span></button>`}
       </div>
       <div class="field"><label>Código <span class="req">*</span></label><input type="text" placeholder="Ex.: TR-04" value="${escapeHtml(m.tag)}" oninput="App.setMaquinaField('tag', this.value)"></div>
@@ -5468,7 +5824,7 @@ function renderBlocoSugestaoMitigacao(p, precisa){
 }
 function renderHazardPhotos(p){
   const thumbs = p.fotos.map((f,i)=>`
-    <div class="photo-thumb"><img src="${f}" onclick="App.verFoto('${f.replace(/'/g,"\\'")}')"><button class="rm" onclick="App.removerFotoPerigo(${i})">${ic('close')}</button></div>
+    <div class="photo-thumb"><img data-imgref="${imgReg(f)}" onclick="App.verFotoReg(this)"><button class="rm" onclick="App.removerFotoPerigo(${i})">${ic('close')}</button></div>
   `).join("");
   return thumbs + `<button class="photo-add" onclick="App.tirarFotoPerigo()">${ic('camera')}<span>Adicionar</span></button>`;
 }
@@ -5566,10 +5922,10 @@ function screenSimplesMaquinas(){
   const cards = listaOrdenada.map(m=>{
     const pendFotos = (!m.fotoGeral?1:0) + (!m.fotoPlaqueta?1:0);
     const totalRiscos = m.tarefas.reduce((soma,t)=>soma+t.riscos.length, 0);
-    return `<div class="card list-card ${selClass('maquinaS',m.id)} ${classeRecemMovido('maquinaS',m.id)}" data-sel-tipo="maquinaS" data-sel-id="${m.id}" data-sel-ctx='{"areaSId":"${a.id}"}' onclick="App.cardClickGenerico(event,this)" data-card-open="App.abrirMaquinaS('${m.id}')" data-card-edit="App.tocarMaquinaS('${m.id}','${a.id}')" data-card-photo="App.tocarFotoMaquinaS('${m.id}','${a.id}','${m.fotoGeral||''}')" data-card-menu="App.menuMaquinaS(event,'${m.id}')">
+    return `<div class="card list-card ${selClass('maquinaS',m.id)} ${classeRecemMovido('maquinaS',m.id)}" data-sel-tipo="maquinaS" data-sel-id="${m.id}" data-sel-ctx='{"areaSId":"${a.id}"}' onclick="App.cardClickGenerico(event,this)" data-card-open="App.abrirMaquinaS('${m.id}')" data-card-edit="App.tocarMaquinaS('${m.id}','${a.id}')" data-card-photo="App.tocarFotoMaquinaS('${m.id}','${a.id}',${m.fotoGeral? imgReg(m.fotoGeral) : -1})" data-card-menu="App.menuMaquinaS(event,'${m.id}')">
       ${selCheckHtml('maquinaS',m.id)}
       ${dragHandleHtml('maquinaS',m.id)}
-      <div class="list-thumb lg" data-card-role="photo">${m.fotoGeral?`<img src="${m.fotoGeral}">`:ic('shield')}</div>
+      <div class="list-thumb lg" data-card-role="photo">${m.fotoGeral?`<img data-imgref="${imgReg(m.fotoGeral)}">`:ic('shield')}</div>
       <div class="list-body">
         <div class="list-name" data-card-role="name">${escapeHtml(nomeMaquinaS(m).slice(0,40) || 'Sem nome (toque para editar)')}</div>
         ${m.descricao? `<div class="list-tag" style="font-family:inherit">${escapeHtml(m.descricao.slice(0,60))}</div>` : ""}
@@ -5638,10 +5994,10 @@ function screenSimplesRiscos(){
     const totalFotos = (r.foto?1:0) + (r.fotosOutras||[]).length;
     const hrnData = hrnDoItem({tarefa:t,risco:r});
     const hrnMeta = NIVEL_HRN_META[hrnData.nivel];
-    return `<div class="card list-card risk-strip ${selClass('riscoS',r.id)} ${classeRecemMovido('riscoS',r.id)}" style="border-left-color:${hrnMeta.cor}" data-sel-tipo="riscoS" data-sel-id="${r.id}" data-sel-ctx='{"tarefaSId":"${t.id}"}' onclick="App.cardClickGenerico(event,this)" data-card-open="App.abrirModalRiscoS('${r.id}','${t.id}')" data-card-edit="App.abrirModalRiscoS('${r.id}','${t.id}')" data-card-photo="App.tocarFotoRiscoS('${r.id}','${t.id}','${r.foto||''}')" data-card-menu="App.menuRiscoS(event,'${r.id}','${t.id}')">
+    return `<div class="card list-card risk-strip ${selClass('riscoS',r.id)} ${classeRecemMovido('riscoS',r.id)}" style="border-left-color:${hrnMeta.cor}" data-sel-tipo="riscoS" data-sel-id="${r.id}" data-sel-ctx='{"tarefaSId":"${t.id}"}' onclick="App.cardClickGenerico(event,this)" data-card-open="App.abrirModalRiscoS('${r.id}','${t.id}')" data-card-edit="App.abrirModalRiscoS('${r.id}','${t.id}')" data-card-photo="App.tocarFotoRiscoS('${r.id}','${t.id}',${r.foto? imgReg(r.foto) : -1})" data-card-menu="App.menuRiscoS(event,'${r.id}','${t.id}')">
       ${selCheckHtml('riscoS',r.id)}
       ${dragHandleHtml('riscoS',r.id)}
-      <div class="list-thumb lg" data-card-role="photo">${r.foto?`<img src="${r.foto}">`:ic('warn')}</div>
+      <div class="list-thumb lg" data-card-role="photo">${r.foto?`<img data-imgref="${imgReg(r.foto)}">`:ic('warn')}</div>
       <div class="list-body">
         <div class="list-name" data-card-role="name">${escapeHtml(r.nome||('Risco '+String(i+1).padStart(2,'0')))}</div>
         <div class="list-tag" style="font-family:inherit">${escapeHtml((r.descricao||'sem descrição').slice(0,60))}</div>
@@ -5677,7 +6033,7 @@ function screenSimplesTabela(){
     return `<div class="card obj-card risk-strip" style="border-left-color:${pend?'#FF0000':'#92D050'}">
       <div class="obj-head">
         <div><div class="obj-machine">${escapeHtml(area.nome||'—')} · ${escapeHtml((nomeMaquinaS(maquina)||'—').slice(0,30))}</div><div class="obj-task">${escapeHtml(tarefaTxt||'—')}</div></div>
-        ${r.foto? `<img src="${r.foto}" style="width:44px;height:44px;border-radius:9px;object-fit:cover;flex-shrink:0">` : ''}
+        ${r.foto? `<img data-imgref="${imgReg(r.foto)}" style="width:44px;height:44px;border-radius:9px;object-fit:cover;flex-shrink:0">` : ''}
       </div>
       <div class="obj-grid">
         <div class="row"><span class="lab">Empresa</span><span class="val">${escapeHtml(proj.empresa||'—')}</span></div>
@@ -8960,12 +9316,14 @@ const App = {
     if(__selMode && __selMode.tipo==="maquinaS"){ App.toggleSelecao(id); return; }
     App.abrirModalMaquinaS(id, areaId);
   },
-  tocarFotoMaquinaS(id, areaId, foto){
+  tocarFotoMaquinaS(id, areaId, fotoIdx){
     if(__selMode && __selMode.tipo==="maquinaS"){ App.toggleSelecao(id); return; }
+    const foto = (typeof fotoIdx==="number" && fotoIdx>=0) ? __imgReg[fotoIdx] : (typeof fotoIdx==="string" && fotoIdx ? fotoIdx : null);
     if(foto) App.verFoto(foto); else App.abrirModalMaquinaS(id, areaId);
   },
-  tocarFotoRiscoS(id, tarefaId, foto){
+  tocarFotoRiscoS(id, tarefaId, fotoIdx){
     if(__selMode && __selMode.tipo==="riscoS"){ App.toggleSelecao(id); return; }
+    const foto = (typeof fotoIdx==="number" && fotoIdx>=0) ? __imgReg[fotoIdx] : (typeof fotoIdx==="string" && fotoIdx ? fotoIdx : null);
     if(foto) App.verFoto(foto); else App.abrirModalRiscoS(id, tarefaId);
   },
   duplicarMaquinaS(id){
@@ -9723,6 +10081,7 @@ const App = {
       for(const file of input.files){ const data = await comprimirImagem(file, 1920, 0.82); salvarFotoNaGaleria(data,"apr_perigo"); p.fotos.push(data); }
       marcarAlterado();
       document.getElementById("hazard-photo-grid").innerHTML = renderHazardPhotos(p);
+      hidratarImagens();
       input.value = "";
     };
     input.click();
@@ -9732,7 +10091,9 @@ const App = {
     p.fotos.splice(idx,1);
     marcarAlterado();
     document.getElementById("hazard-photo-grid").innerHTML = renderHazardPhotos(p);
+    hidratarImagens();
   },
+  verFotoReg(el){ if(el && el.src) App.verFoto(el.src); },
   verFoto(src){
     const lb = document.createElement("div");
     lb.className = "lightbox";
@@ -10360,6 +10721,7 @@ let __estadoLocalCarregadoPromise = carregarEstadoSalvo().then(saved=>{
   // qualquer outra coisa — se o app fechou no meio do recebimento, é aqui
   // que os itens já baixados voltam, sem depender de rede nenhuma.
   journalReaplicar();
+  sigJournalReaplicar();
   criarPontoDeRestauracaoSeNecessario("abertura do app");
   // Se o app foi encerrado com um formulário aberto (fotos tiradas, Salvar
   // nunca tocado), oferece o resgate agora — depois que o STATE carregou,
