@@ -1446,7 +1446,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
    GitHub (útil especialmente dado o atraso de alguns minutos do GitHub para
    propagar cada atualização, e para diferenciar aparelhos que ainda não
    atualizaram dos que já atualizaram). */
-const APP_BUILD = "17/07/2026 20:55";
+const APP_BUILD = "17/07/2026 22:42";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -3437,6 +3437,7 @@ const ONEDRIVE_TIPO_LABEL = {
   tarefa: ['Tarefa','Tarefas'],
   risco: ['Risco','Riscos'],
   perigo: ['Risco','Riscos'], // Módulo Completo usa "perigo" internamente pro mesmo conceito
+  fotos: ['Pacote de fotos','Pacotes de fotos'], // arquivo "fotos_*" de um item (as fotos viajam separadas do texto)
 };
 function onedriveRotuloTipo(tipo, qtd){
   const par = ONEDRIVE_TIPO_LABEL[tipo] || [tipo, tipo];
@@ -3778,14 +3779,18 @@ function syncGruposHtml(){
   if(!__syncGrupos) return "";
   const linhas = [];
   const montarLinhas = (grupo, rotulo) => {
-    ONEDRIVE_ORDEM_TIPOS.forEach(t=>{
+    // "fotos" entra por último: os pacotes de fotos são a etapa final da
+    // sincronização. Esta linha existia nos dados, mas não era exibida —
+    // a ordem de exibição não incluía o tipo "fotos".
+    [...ONEDRIVE_ORDEM_TIPOS, 'fotos'].forEach(t=>{
       const g = grupo[t];
       if(!g || g.total===0) return;
       const concluido = g.feito >= g.total;
       const mb = (g.bytes/1024/1024).toFixed(1);
-      linhas.push(`<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:3px 0;color:${concluido?'var(--ink-dim)':'var(--ink)'}">
-        <span>${g.total} ${onedriveRotuloTipo(t,g.total)} para ${rotulo} (${mb} MB)</span>
-        <span style="color:${concluido?'#1a9e5c':'var(--ink-faint)'};font-weight:800;font-size:11px;display:flex;align-items:center;gap:3px">${concluido?ic('check')+' Ok':`${g.feito}/${g.total}`}</span>
+      const mbFeito = ((g.bytesFeitos||0)/1024/1024).toFixed(1);
+      linhas.push(`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;padding:3px 0;color:${concluido?'var(--ink-dim)':'var(--ink)'}">
+        <span>${t==='fotos'? ic('gallery')+' ' : ''}${g.total} ${onedriveRotuloTipo(t,g.total)} para ${rotulo} (${mb} MB)</span>
+        <span style="color:${concluido?'#1a9e5c':'var(--ink-faint)'};font-weight:800;font-size:11px;display:flex;align-items:center;gap:3px;white-space:nowrap">${concluido?ic('check')+' Ok':`${g.feito}/${g.total} · ${mbFeito} de ${mb} MB`}</span>
       </div>`);
     });
   };
@@ -3872,7 +3877,7 @@ async function onedriveSincronizarAgora(){
     await sincronizarIncrementalOneDrive((bytesItem, tipo)=>{
       __syncProgresso.itemAtual++;
       __syncProgresso.bytesFeitos += bytesItem;
-      if(__syncGrupos && __syncGrupos.enviar[tipo]) __syncGrupos.enviar[tipo].feito++;
+      if(__syncGrupos && __syncGrupos.enviar[tipo]){ __syncGrupos.enviar[tipo].feito++; __syncGrupos.enviar[tipo].bytesFeitos = (__syncGrupos.enviar[tipo].bytesFeitos||0) + (bytesItem||0); }
       marcarProgressoSync();
       renderProgresso(); // com ritmo controlado — redesenhar a tela inteira a cada item pesava na memória e ajudava o app a fechar sozinho
     });
@@ -3902,7 +3907,7 @@ async function onedriveSincronizarAgora(){
         // Clamp: passadas repetidas podem reprocessar itens que aguardavam o
         // pai — sem o teto, o contador passava do total ("300 de 200").
         const g = __syncGrupos && __syncGrupos.receber[tipo];
-        if(g && g.feito < g.total) g.feito++;
+        if(g && g.feito < g.total){ g.feito++; g.bytesFeitos = (g.bytesFeitos||0) + (bytesItem||0); }
         marcarProgressoSync();
         renderProgresso();
       });
@@ -3925,7 +3930,7 @@ async function onedriveSincronizarAgora(){
       await onedriveBaixarPendentes((bytesItem, tipo)=>{
         __syncProgresso.itemAtual++;
         __syncProgresso.bytesFeitos += bytesItem;
-        { const g = __syncGrupos && __syncGrupos.receber[tipo]; if(g && g.feito < g.total) g.feito++; }
+        { const g = __syncGrupos && __syncGrupos.receber[tipo]; if(g && g.feito < g.total){ g.feito++; g.bytesFeitos = (g.bytesFeitos||0) + (bytesItem||0); } }
         marcarProgressoSync();
         renderProgresso();
       });
@@ -4071,7 +4076,7 @@ async function onedriveBaixarPendentesConfirmar(){
       await onedriveBaixarPendentes((bytesItem, tipo)=>{
         __syncProgresso.itemAtual++;
         __syncProgresso.bytesFeitos += bytesItem;
-        { const g = __syncGrupos && __syncGrupos.receber[tipo]; if(g && g.feito < g.total) g.feito++; }
+        { const g = __syncGrupos && __syncGrupos.receber[tipo]; if(g && g.feito < g.total){ g.feito++; g.bytesFeitos = (g.bytesFeitos||0) + (bytesItem||0); } }
         marcarProgressoSync();
         renderProgresso();
       });
@@ -4102,18 +4107,6 @@ function onedriveToggleWifiConfirmado(){
   // Se o modo econômico estava segurando envios esperando o Wi-Fi, confirmar
   // o Wi-Fi agora é o momento de soltar tudo de uma vez, sem esperar o timer.
   if(STATE.wifiConfirmado){ sincronizarIncrementalOneDrive(); sincronizarDownloadOneDrive(); }
-}
-function onedriveToggleDadosMoveis(){
-  STATE.sincronizarEmDadosMoveis = STATE.sincronizarEmDadosMoveis===false ? true : false;
-  marcarAlterado();
-  render();
-  if(STATE.sincronizarEmDadosMoveis!==false){
-    toast("Sincronização automática liberada em qualquer conexão");
-    // Religou — dispara agora o que estava represado esperando Wi-Fi.
-    sincronizarIncrementalOneDrive(); sincronizarDownloadOneDrive();
-  }else{
-    toast("Modo econômico: sincronização automática só no Wi-Fi. O botão \"Sincronizar agora\" continua valendo em qualquer rede.");
-  }
 }
 
 /* =========================================================================
@@ -6794,7 +6787,7 @@ function screenSimplesConfigBackup(){
     </div>
     <label class="switch"><input type="checkbox" ${STATE.contrasteAlto?'checked':''} onchange="App.toggleContraste()"><span class="switch-track"></span></label>
   </div>
-  <div class="section-title">OneDrive (backup automático na nuvem)</div>
+  <div class="section-title">Sincronização · Conta OneDrive</div>
   ${getOneDriveConta() ? `
   <div class="card card-pad">
     <div class="pasta-nome" style="font-weight:800;font-size:14px">${ic('onedrive')} Conectado</div>
@@ -6804,12 +6797,14 @@ function screenSimplesConfigBackup(){
   <button class="btn btn-onedrive btn-block" style="margin-top:8px" onclick="App.onedriveVerificarBootstrapNovoDispositivo(true)">${ic('onedrive')} Trazer dados já existentes no OneDrive</button>
   ` : ''}
   <button class="btn btn-danger btn-block" style="margin-top:8px" onclick="App.onedriveDesconectar()">${ic('trash')} Desconectar OneDrive deste aparelho</button>
-  <div class="section-title">Visibilidade entre aparelhos</div>
+  <div class="section-title">Sincronização · Entre aparelhos</div>
   <button class="btn btn-onedrive btn-block${__sincronizandoAgora?' btn-sincronizando':''}" ${__sincronizandoAgora?'disabled':''} onclick="App.onedriveSincronizarAgora()">${ic('onedrive')} ${__sincronizandoAgora?'Sincronizando…':'Sincronizar agora'}</button>
   ${syncProgressoHtml()}
   ${syncGruposHtml()}
   ${!__sincronizandoAgora ? onedriveStatusPendenteHtml() : ''}
   <p style="font-size:11.5px;color:var(--ink-dim);margin:4px 2px 0">Envia suas alterações e recebe as de outros aparelhos, nessa ordem.</p>
+  <div class="section-title">Sincronização · Fotos e consumo de dados</div>
+  <p style="font-size:11.5px;color:var(--ink-dim);margin:0 2px 6px">O texto dos itens sincroniza sempre, em qualquer conexão. Só as fotos aguardam Wi-Fi — os controles abaixo valem para elas.</p>
   <div class="card card-pad" style="display:flex;align-items:center;gap:12px;margin-top:8px">
     <div style="flex:1">
       <div style="font-weight:800;font-size:14px">Estou no Wi-Fi agora</div>
@@ -6817,16 +6812,6 @@ function screenSimplesConfigBackup(){
     </div>
     <label class="switch"><input type="checkbox" ${STATE.wifiConfirmado?'checked':''} onchange="App.onedriveToggleWifiConfirmado()"><span class="switch-track"></span></label>
   </div>
-  <div class="card card-pad" style="display:flex;align-items:center;gap:12px;margin-top:8px">
-    <div style="flex:1">
-      <div style="font-weight:800;font-size:14px">Sincronizar também em dados móveis</div>
-      <div style="font-size:12px;color:var(--ink-dim)">Ligado (recomendado): suas anotações sobem para a nuvem em qualquer conexão, assim que existem — máxima proteção. Desligado: a sincronização automática espera o Wi-Fi; o botão "Sincronizar agora" continua funcionando em qualquer rede.</div>
-    </div>
-    <label class="switch"><input type="checkbox" ${STATE.sincronizarEmDadosMoveis!==false?'checked':''} onchange="App.onedriveToggleDadosMoveis()"><span class="switch-track"></span></label>
-  </div>
-  ${STATE.sincronizarEmDadosMoveis===false && !onedriveEstaEmWifi() ? `<div class="card card-pad" style="margin-top:8px;border:1px solid var(--r-medio)">
-    <p style="font-size:12.5px;color:var(--ink-dim)">${ic('warn')} Sincronização automática aguardando Wi-Fi (modo econômico ligado). Marque "Estou no Wi-Fi agora" quando conectar, ou use "Sincronizar agora" para enviar mesmo assim.</p>
-  </div>` : ''}
   <div class="card card-pad" style="margin-top:8px">
     <p style="font-size:12.5px;color:var(--ink-dim)">Áreas, máquinas, tarefas e riscos novos criados em outro aparelho (mesma conta OneDrive) aparecem aqui automaticamente. O texto vem sozinho, em qualquer conexão. Fotos ficam pendentes até você confirmar o download, para não gastar dados do seu plano sem avisar.</p>
   </div>
@@ -6846,7 +6831,7 @@ function screenSimplesConfigBackup(){
   </div>
   <button class="btn btn-onedrive btn-block" style="margin-top:8px" onclick="App.onedriveConectar()">${ic('onedrive')} Conectar OneDrive</button>
   `}
-  <div class="section-title">Pasta de backup e exportações</div>
+  <div class="section-title">Backup · Pasta local do aparelho</div>
   ${!suportaPastaLocal() ? `
   <div class="card card-pad">
     <p style="font-size:13px;color:var(--ink-dim)">Este navegador não permite escolher uma pasta fixa. Os arquivos exportados continuam indo para a pasta padrão de Downloads do aparelho.</p>
@@ -6864,11 +6849,11 @@ function screenSimplesConfigBackup(){
   </div>
   <button class="btn btn-primary btn-block" style="margin-top:8px" onclick="App.escolherPastaBase()">${ic('folder')} Escolher pasta</button>
   `}
-  <div class="section-title">Backup completo</div>
+  <div class="section-title">Backup · Arquivo completo (.json)</div>
   <button class="btn btn-primary btn-block" onclick="App.exportarBackup()">${ic('download')} Exportar backup (.json) — ${STATE.projetosSimples.length} projeto(s) / ${linhas.length} risco(s)</button>
   <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="document.getElementById('fileImport').click()">${ic('upload')} Importar backup (.json)</button>
   <p style="text-align:center;font-size:11px;color:var(--ink-faint);margin-top:16px">Versão ${APP_BUILD}</p>
-  <div class="section-title">Histórico de sincronização</div>
+  <div class="section-title">Sincronização · Histórico</div>
   <div class="card card-pad">
     <p style="font-size:12.5px;color:var(--ink-dim)">Tudo que subiu (${'\u2191'}) ou desceu (${'\u2193'}) do OneDrive, com tamanho e horário — inclusive o que aconteceu sozinho em segundo plano. Últimos ${MAX_EVENTOS_LOG_SYNC} eventos.</p>
   </div>
@@ -6885,7 +6870,7 @@ function screenSimplesConfigBackup(){
       ${!ev.ok ? `<span style="font-size:10.5px;color:#FF6B5E;font-weight:800;flex-shrink:0">falhou${ev.motivo? ' ('+escapeHtml(ev.motivo)+')':''}</span>` : ''}
     </div>`).join("")}
   </div>`}
-  <div class="section-title">Pontos de restauração (neste aparelho)</div>
+  <div class="section-title">Backup · Pontos de restauração (neste aparelho)</div>
   ${__statusArmazenamentoCache && __statusArmazenamentoCache.espaco ? `<div class="card card-pad" style="margin-bottom:8px">
     <div style="font-size:12.5px;color:var(--ink-dim)">Espaço livre estimado no aparelho: <b>${(__statusArmazenamentoCache.espaco.livre/1024/1024/1024).toFixed(1)} GB</b>${__statusArmazenamentoCache.espaco.livre < FOLGA_MINIMA_DESEJADA_BYTES ? ' <span style="color:#FF6B5E;font-weight:700">— abaixo da folga recomendada de 2 GB</span>' : ''}${__statusArmazenamentoCache.persistente ? ' · dados protegidos contra limpeza automática do navegador' : ''}</div>
   </div>` : ''}
@@ -6903,7 +6888,7 @@ function screenSimplesConfigBackup(){
       </div>
       <button class="btn btn-secondary" style="font-size:12px;padding:8px 12px;flex-shrink:0" onclick="App.confirmarRestaurarPonto(${p.ts})">Restaurar</button>
     </div>`).join("")}
-  <div class="section-title">Áreas para exportar</div>
+  <div class="section-title">Exportações · Áreas para exportar</div>
   <div class="card card-pad">
     <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:10px">Escolha quais áreas entram no Excel e no Word abaixo. Cada área vira um arquivo separado; se sair mais de um arquivo, tudo é reunido automaticamente em um .zip.</p>
     ${STATE.projetosSimples.length===0 ? `<p style="font-size:13px;color:var(--ink-dim)">Nenhum projeto cadastrado ainda.</p>` :
@@ -6930,7 +6915,7 @@ function screenSimplesConfigBackup(){
       <button class="btn btn-ghost" style="flex:1" onclick="App.desmarcarTodasAreasExport()">Nenhuma</button>
     </div>` : ""}
   </div>
-  <div class="section-title">Exportação para planilha</div>
+  <div class="section-title">Exportações · Planilha (Excel)</div>
   <div style="display:flex;gap:8px">
     <button class="btn btn-primary" style="flex:1" onclick="App.exportarSimplesXLSXFotos()">${ic('download')} Exportar Excel</button>
     ${getIAApiKey()? `<button class="btn ${getIAConfig().usarNaExportacaoExcel?'btn-secondary':'btn-ghost'}" style="flex-shrink:0" onclick="App.toggleIAExportacaoExcel()" title="Ativar/desativar o uso da IA nesta exportação">IA: ${getIAConfig().usarNaExportacaoExcel?'ON':'OFF'}</button>` : ""}
@@ -8806,7 +8791,6 @@ const App = {
   onedriveBaixarPendentesConfirmar,
   onedriveToggleAutoWifi,
   onedriveToggleWifiConfirmado,
-  onedriveToggleDadosMoveis,
   onedriveBaixarFotosDeItem,
   onedriveVerificarBootstrapNovoDispositivo,
   onedriveSincronizarAgora,
@@ -10723,6 +10707,11 @@ let __estadoLocalCarregadoPromise = carregarEstadoSalvo().then(saved=>{
       // Não adivinha — deixa null para o seletor aparecer e o usuário escolher.
       novoEstado.modulo = null;
     }
+    // O texto sincroniza sempre, em qualquer conexão (comportamento permanente
+    // do app) — o antigo interruptor "Sincronizar também em dados móveis" foi
+    // removido da tela; limpa qualquer valor salvo para nenhum aparelho ficar
+    // preso no modo econômico sem ter mais como sair.
+    delete novoEstado.sincronizarEmDadosMoveis;
     if(novoEstado.modulo==="completo") novoEstado.ui.screen = "projetos";
     else if(novoEstado.modulo==="simplificado") novoEstado.ui.screen = "simples-projetos";
     STATE = novoEstado;
