@@ -120,6 +120,9 @@ a{color:var(--accent-ink);}
 .list-thumb{width:56px;flex-shrink:0;background:var(--bg-soft);display:flex;align-items:center;justify-content:center;color:var(--accent-ink);position:relative;}
 .list-thumb img{width:100%;height:100%;object-fit:cover;}
 .list-thumb svg{width:24px;height:24px;}
+.thumb-download{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;width:100%;height:100%;color:var(--accent-ink);background:rgba(233,78,27,.12);font-size:10px;font-weight:800;cursor:pointer;text-align:center;line-height:1.05;padding:2px;}
+.thumb-download svg{width:18px;height:18px;}
+.thumb-download span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .list-body{flex:1;padding:11px 30px 11px 11px;min-width:0;}
 .list-name{font-size:15.5px;font-weight:800;letter-spacing:-.01em;margin-bottom:1px;}
 .list-tag{font-size:11.5px;color:var(--ink-faint);font-family:var(--mono);}
@@ -278,7 +281,7 @@ details.section .section-body{padding:2px 14px 16px;border-top:1px solid var(--l
 .sheet-item.danger{color:var(--danger);}
 .sheet-item.danger svg{color:var(--danger);}
 .sheet-cancel{margin-top:6px;width:100%;text-align:center;padding:13px;border-radius:10px;font-weight:700;background:var(--bg-soft);border:none;color:var(--ink-dim);}
-.modal-card{background:var(--surface);border-radius:var(--radius);width:100%;max-width:420px;padding:18px;max-height:85vh;overflow:auto;}
+.modal-card{background:var(--surface);border-radius:var(--radius);width:100%;max-width:420px;padding:18px;max-height:85vh;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;}
 .modal-card h3{font-size:16px;font-weight:800;margin-bottom:4px;}
 .modal-card .sheet-sub{margin-bottom:14px;font-size:12px;color:var(--ink-faint);}
 .modal-actions{display:flex;gap:10px;margin-top:8px;}
@@ -1443,7 +1446,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
    GitHub (útil especialmente dado o atraso de alguns minutos do GitHub para
    propagar cada atualização, e para diferenciar aparelhos que ainda não
    atualizaram dos que já atualizaram). */
-const APP_BUILD = "17/07/2026 19:40";
+const APP_BUILD = "17/07/2026 20:55";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -5132,10 +5135,13 @@ function cardClickGenerico(ev, cardEl){
   const alvoNome = ev.target.closest('[data-card-role="name"]');
   if(alvoNome){
     const acaoEdit = cardEl.getAttribute("data-card-edit");
-    if(acaoEdit){ new Function(acaoEdit)(); return; }
+    if(acaoEdit){
+      try{ new Function(acaoEdit)(); return; }
+      catch(e){ console.error("Ação de editar do card falhou — caindo para abrir", e); }
+    }
   }
   const acaoOpen = cardEl.getAttribute("data-card-open");
-  if(acaoOpen) new Function(acaoOpen)();
+  if(acaoOpen){ try{ new Function(acaoOpen)(); }catch(e){ console.error("Ação de abrir do card falhou", e); } }
 }
 let __longPressTimer = null;
 let __longPressActive = false;
@@ -5894,12 +5900,12 @@ function screenSimplesAreas(){
   const listaFiltrada = q? p.areas.filter(a=> (a.nome||"").toLowerCase().includes(q) || (a.local||"").toLowerCase().includes(q)) : p.areas;
   const listaOrdenada = ordenarLista(listaFiltrada, a=>a.nome);
   const cards = listaOrdenada.map(a=>`
-    <div class="card list-card ${selClass('areaS',a.id)}" data-sel-tipo="areaS" data-sel-id="${a.id}" data-sel-ctx='{"projetoSId":"${p.id}"}'>
+    <div class="card list-card ${selClass('areaS',a.id)}" data-sel-tipo="areaS" data-sel-id="${a.id}" data-sel-ctx='{"projetoSId":"${p.id}"}' onclick="App.cardClickGenerico(event,this)" data-card-open="App.abrirAreaS('${a.id}')" data-card-edit="App.abrirModalAreaS('${a.id}','${p.id}')" data-card-photo="App.abrirAreaS('${a.id}')">
       ${selCheckHtml('areaS',a.id)}
       ${dragHandleHtml('areaS',a.id)}
-      <div class="list-thumb" onclick="App.abrirAreaS('${a.id}')">${ic('map')}</div>
-      <div class="list-body" onclick="App.abrirAreaS('${a.id}')">
-        <div class="list-name">${escapeHtml(a.nome||'Sem nome')}</div>
+      <div class="list-thumb" data-card-role="photo">${ic('map')}</div>
+      <div class="list-body">
+        <div class="list-name" data-card-role="name">${escapeHtml(a.nome||'Sem nome')}</div>
         <div class="list-tag">${escapeHtml(a.local||'sem local')}</div>
         <div class="list-meta"><span class="stat-pill">${a.maquinas.length} máquina${a.maquinas.length===1?'':'s'}</span></div>
       </div>
@@ -5925,7 +5931,7 @@ function screenSimplesMaquinas(){
     return `<div class="card list-card ${selClass('maquinaS',m.id)} ${classeRecemMovido('maquinaS',m.id)}" data-sel-tipo="maquinaS" data-sel-id="${m.id}" data-sel-ctx='{"areaSId":"${a.id}"}' onclick="App.cardClickGenerico(event,this)" data-card-open="App.abrirMaquinaS('${m.id}')" data-card-edit="App.tocarMaquinaS('${m.id}','${a.id}')" data-card-photo="App.tocarFotoMaquinaS('${m.id}','${a.id}',${m.fotoGeral? imgReg(m.fotoGeral) : -1})" data-card-menu="App.menuMaquinaS(event,'${m.id}')">
       ${selCheckHtml('maquinaS',m.id)}
       ${dragHandleHtml('maquinaS',m.id)}
-      <div class="list-thumb lg" data-card-role="photo">${m.fotoGeral?`<img data-imgref="${imgReg(m.fotoGeral)}">`:ic('shield')}</div>
+      <div class="list-thumb lg" data-card-role="photo">${m.fotoGeral? `<img data-imgref="${imgReg(m.fotoGeral)}">` : (m.__fotosOmitidas? (()=>{ const pf = pendenteFotosDoItem(m.id); return `<div class="thumb-download" onclick="event.stopPropagation();App.onedriveBaixarFotosDeItem('${m.id}')" title="${pf? 'Toque para baixar as fotos agora ('+fmtBytes(pf.tamanho)+') — em dados móveis, pede confirmação' : 'Fotos ainda no outro aparelho — chegam quando ele tiver Wi-Fi'}">${ic('download')}<span>${pf? fmtBytes(pf.tamanho) : 'fotos'}</span></div>`; })() : ic('shield'))}</div>
       <div class="list-body">
         <div class="list-name" data-card-role="name">${escapeHtml(nomeMaquinaS(m).slice(0,40) || 'Sem nome (toque para editar)')}</div>
         ${m.descricao? `<div class="list-tag" style="font-family:inherit">${escapeHtml(m.descricao.slice(0,60))}</div>` : ""}
@@ -5933,7 +5939,6 @@ function screenSimplesMaquinas(){
         <div class="list-meta">
           <span class="stat-pill">${m.tarefas.length} tarefa${m.tarefas.length===1?'':'s'}</span>
           <span class="stat-pill">${totalRiscos} risco${totalRiscos===1?'':'s'}</span>
-          ${m.__fotosOmitidas? (()=>{ const pf = pendenteFotosDoItem(m.id); return `<span class="stat-pill" style="background:rgba(233,78,27,.14);color:var(--accent-ink);cursor:pointer" onclick="event.stopPropagation();App.onedriveBaixarFotosDeItem('${m.id}')" title="${pf? 'Toque para baixar as fotos agora ('+fmtBytes(pf.tamanho)+') — em dados móveis, pede confirmação' : 'Fotos ainda no outro aparelho — chegam quando ele tiver Wi-Fi'}">${pf? ic('download')+' fotos '+fmtBytes(pf.tamanho) : ic('download')}</span>`; })():''}
           ${pendFotos>0 && !m.__fotosOmitidas? `<span class="stat-pill alert" title="${pendFotos} foto${pendFotos===1?'':'s'} pendente${pendFotos===1?'':'s'}">${ic('warn')} ${pendFotos}</span>`:''}
         </div>
       </div>
@@ -5997,13 +6002,12 @@ function screenSimplesRiscos(){
     return `<div class="card list-card risk-strip ${selClass('riscoS',r.id)} ${classeRecemMovido('riscoS',r.id)}" style="border-left-color:${hrnMeta.cor}" data-sel-tipo="riscoS" data-sel-id="${r.id}" data-sel-ctx='{"tarefaSId":"${t.id}"}' onclick="App.cardClickGenerico(event,this)" data-card-open="App.abrirModalRiscoS('${r.id}','${t.id}')" data-card-edit="App.abrirModalRiscoS('${r.id}','${t.id}')" data-card-photo="App.tocarFotoRiscoS('${r.id}','${t.id}',${r.foto? imgReg(r.foto) : -1})" data-card-menu="App.menuRiscoS(event,'${r.id}','${t.id}')">
       ${selCheckHtml('riscoS',r.id)}
       ${dragHandleHtml('riscoS',r.id)}
-      <div class="list-thumb lg" data-card-role="photo">${r.foto?`<img data-imgref="${imgReg(r.foto)}">`:ic('warn')}</div>
+      <div class="list-thumb lg" data-card-role="photo">${r.foto? `<img data-imgref="${imgReg(r.foto)}">` : (r.__fotosOmitidas? (()=>{ const pf = pendenteFotosDoItem(r.id); return `<div class="thumb-download" onclick="event.stopPropagation();App.onedriveBaixarFotosDeItem('${r.id}')" title="${pf? 'Toque para baixar as fotos agora ('+fmtBytes(pf.tamanho)+') — em dados móveis, pede confirmação' : 'Fotos ainda no outro aparelho — chegam quando ele tiver Wi-Fi'}">${ic('download')}<span>${pf? fmtBytes(pf.tamanho) : 'fotos'}</span></div>`; })() : ic('warn'))}</div>
       <div class="list-body">
         <div class="list-name" data-card-role="name">${escapeHtml(r.nome||('Risco '+String(i+1).padStart(2,'0')))}</div>
         <div class="list-tag" style="font-family:inherit">${escapeHtml((r.descricao||'sem descrição').slice(0,60))}</div>
         <div class="list-meta">
           <span class="stat-pill" style="background:${hrnMeta.cor};color:${hrnMeta.texto};font-weight:800">HRN ${hrnData.hrn} · ${hrnData.nivel}</span>
-          ${r.__fotosOmitidas? (()=>{ const pf = pendenteFotosDoItem(r.id); return `<span class="stat-pill" style="background:rgba(233,78,27,.14);color:var(--accent-ink);cursor:pointer" onclick="event.stopPropagation();App.onedriveBaixarFotosDeItem('${r.id}')" title="${pf? 'Toque para baixar as fotos agora ('+fmtBytes(pf.tamanho)+') — em dados móveis, pede confirmação' : 'Fotos ainda no outro aparelho — chegam quando ele tiver Wi-Fi'}">${pf? ic('download')+' fotos '+fmtBytes(pf.tamanho) : ic('download')}</span>`; })():''}
           ${totalFotos>0? `<span class="stat-pill"><span class="risk-icn">${ic('gallery')}</span> ${totalFotos}</span>`:''}
           ${semMitigacao? `<span class="stat-pill alert icon-only" title="Sem sugestão de mitigação"><span class="risk-icn">${ic('warn')}</span></span>`:''}
         </div>
@@ -10620,15 +10624,27 @@ function migrarParaHierarquiaV4(saved){
   }, {passive:true});
   document.addEventListener("touchmove", function(e){
     if(e.touches.length !== 1) return;
-    const yAtual = e.touches[0].clientY;
-    const arrastandoParaBaixo = yAtual > pontoYInicial;
-    const noTopoDaPagina = (window.scrollY || document.documentElement.scrollTop || 0) <= 0;
-    // Só bloqueia quando: arrastando para baixo E já no topo (sem nada acima para
-    // "puxar mais"). É exatamente essa combinação que o navegador interpreta como
-    // pedido de recarregar a página.
-    if(arrastandoParaBaixo && noTopoDaPagina){
-      e.preventDefault();
+    const deltaY = e.touches[0].clientY - pontoYInicial;
+    // 1) Micro-deslizes de um toque comum (o dedo sempre escorrega 1–2 px)
+    //    NÃO são um "puxão de recarregar": bloqueá-los fazia o iOS descartar
+    //    o clique que viria em seguida — era por isso que tocar no nome de
+    //    um card às vezes não abria nada. Só age em arrasto de verdade.
+    if(deltaY < 14) return;
+    // 2) Dentro de um modal/planilha aberto, quem rola é o próprio modal —
+    //    esse gesto nunca é pull-to-refresh, e bloqueá-lo travava a rolagem
+    //    do modal ("não rola ao deslizar o dedo").
+    if(e.target.closest && e.target.closest("#overlayRoot")) return;
+    // 3) Se algum elemento rolável sob o dedo ainda tem conteúdo acima
+    //    (scrollTop > 0), o gesto é rolagem normal dele — deixa passar.
+    let el = e.target;
+    while(el && el !== document.body){
+      if(el.scrollTop > 0) return;
+      el = el.parentElement;
     }
+    const noTopoDaPagina = (window.scrollY || document.documentElement.scrollTop || 0) <= 0;
+    // Só bloqueia o caso exato que o navegador interpreta como "recarregar":
+    // arrasto firme para baixo com a página já no topo.
+    if(noTopoDaPagina) e.preventDefault();
   }, {passive:false});
 })();
 
