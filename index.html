@@ -1880,12 +1880,95 @@ let __assinaturasOneDriveCompleto = { mapa:null, chaveEstado:'oneDriveAssinatura
    sozinho em segundo plano, sem ninguém olhando. Limitado aos últimos 80
    eventos para não inflar o backup. */
 const MAX_EVENTOS_LOG_SYNC = 80;
+/* Transforma um segmento de pasta ("Recepção (bbbb22)") no nome que a pessoa
+   reconhece ("Recepção") — tira só o sufixo "(id)" do final, que existe pra
+   dois aparelhos combinarem qual item é qual, mas não significa nada pra
+   quem está lendo o histórico. */
+function __semSufixoId(segmento){
+  const s = String(segmento||"").replace(/\s*\([^()]{1,20}\)\s*$/,"").trim();
+  return s || String(segmento||"");
+}
+/* Quebra um "pasta" (array de segmentos, usado no envio) OU um "caminho"
+   completo da nuvem (usado no recebimento) nos MESMOS nomes amigáveis, na
+   ordem Projeto > Área > Máquina > Tarefa. Aceita os dois formatos porque o
+   histórico registra eventos dos dois lados (upload usa pasta[]; download
+   usa o caminho inteiro devolvido pela Microsoft). */
+function __segmentosAmigaveis(pastaOuCaminho){
+  let segmentos;
+  if(Array.isArray(pastaOuCaminho)){
+    segmentos = pastaOuCaminho;
+  }else{
+    let rel = String(pastaOuCaminho||"");
+    for(const raiz of ["Simplificado","Completo"]){
+      const prefixo = `${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/${raiz}/`;
+      if(rel.toLowerCase().startsWith(prefixo.toLowerCase())){ rel = rel.slice(prefixo.length); break; }
+    }
+    segmentos = rel.split("/").filter(Boolean);
+    segmentos.pop(); // último pedaço é o nome do ARQUIVO (ex.: "_area.json") — não é uma pasta
+  }
+  return segmentos.map(__semSufixoId).filter(Boolean);
+}
+/* Acha o nome de um Risco/Perigo específico já salvo localmente — só é
+   preciso para o pacote de fotos de um risco, porque as fotos de risco não
+   moram numa pasta com o nome do risco (moram dentro da pasta da Tarefa) —
+   diferente de Área/Máquina/Tarefa, que sempre têm sua própria pasta. */
+function __nomeRiscoLocal(ids, itemId){
+  try{
+    const proj = STATE.projetosSimples.find(p=>p.id===ids.projId); if(!proj) return null;
+    const area = proj.areas.find(a=>a.id===ids.areaId); if(!area) return null;
+    const maq = area.maquinas.find(m=>m.id===ids.maquinaId); if(!maq) return null;
+    const tar = maq.tarefas.find(t=>t.id===ids.tarefaId); if(!tar) return null;
+    const r = tar.riscos.find(x=>x.id===itemId);
+    return r ? (r.nome||null) : null;
+  }catch(e){ return null; }
+}
+/* Monta a linha amigável do histórico: "Fazenda X › Recepção › Elevador ›
+   Limpeza › Esmagamento" em vez de "risco_mrj8qz2w9k9uny.json". Recebe o
+   descritor de sincronização (que toda função de envio/recebimento já tem —
+   com "pasta" OU "caminho") e, quando existir, os dados do item (pra pegar o
+   nome de Tarefas e Riscos, que não têm pasta própria com esse nome). Nunca
+   lança erro nem devolve vazio — na pior das hipóteses, volta ao nome do
+   arquivo de antes, pra nunca esconder uma linha do histórico. */
+function nomeAmigavelParaLog(item, dados){
+  try{
+    const partes = __segmentosAmigaveis(item.pasta || item.caminho);
+    if(item.tipo === "fotos"){
+      let extra = "";
+      if(item.alvoTipo === "risco"){
+        const nomeR = (dados && dados.nome) || __nomeRiscoLocal(item, item.itemId);
+        if(nomeR) extra = " › " + nomeR;
+      }
+      const base = partes.join(" › ") || item.nome || "?";
+      return base + extra + " (fotos)";
+    }
+    if(item.tipo === "risco" || item.tipo === "perigo"){
+      const nomeR = (dados && dados.nome) || __nomeRiscoLocal(item, item.id ? String(item.id).replace(/^(risco|c-risco|perigo|c-perigo):/,"") : null);
+      const base = partes.join(" › ");
+      return base ? (nomeR ? base + " › " + nomeR : base) : (item.nome || item.arquivo || "?");
+    }
+    return partes.join(" › ") || item.nome || item.arquivo || "?";
+  }catch(e){ return (item && (item.nome || item.arquivo)) || "?"; }
+}
 let __falhasEnvioNaSync = 0; // falhas de envio desde o início da sincronização manual atual — zera a cada toque em "Sincronizar agora"
 function registrarEventoSync(direcao, nome, tipo, bytes, ok, motivo){
   if(direcao==="up" && ok===false) __falhasEnvioNaSync++;
   if(!Array.isArray(STATE.logSincronizacao)) STATE.logSincronizacao = [];
   STATE.logSincronizacao.unshift({ ts: Date.now(), dir: direcao, nome: String(nome||"").slice(0,80), tipo, bytes: bytes||0, ok: ok!==false, motivo: ok===false ? String(motivo||"").slice(0,40) : undefined });
   if(STATE.logSincronizacao.length > MAX_EVENTOS_LOG_SYNC) STATE.logSincronizacao.length = MAX_EVENTOS_LOG_SYNC;
+}
+/* Selo pequeno "Atualizado DD/MM HH:MM" mostrado nos cartões de Área/Máquina/
+   Tarefa/Risco — pensado pra comparação direta entre dois aparelhos: quando
+   os dois olham a mesma tela, o horário aqui mostrado é a forma mais simples
+   de confirmar se já chegou a versão mais nova ou se ainda falta sincronizar
+   (sem precisar abrir o item nem entender nada de sincronização). Sem
+   atualizadoEm (item bem antigo, de antes desse campo existir), não mostra
+   nada em vez de inventar uma data. */
+function carimboAtualizadoHtml(item){
+  const ts = item && item.atualizadoEm;
+  if(!ts) return "";
+  const dt = new Date(ts);
+  const dois = (n) => String(n).padStart(2,'0');
+  return `<span class="stat-pill" style="background:var(--bg-soft);color:var(--ink-dim)" title="Última alteração salva neste aparelho">Atualizado ${dois(dt.getDate())}/${dois(dt.getMonth()+1)} ${dois(dt.getHours())}:${dois(dt.getMinutes())}</span>`;
 }
 function fmtBytes(b){
   if(!b || b<=0) return "—";
@@ -2036,14 +2119,14 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
     if(textoPrecisaSubir){
       const blobTexto = new Blob([JSON.stringify(tinhaFotos ? semFotos : item.dados, null, 0)], {type:"application/json"});
       okTexto = await onedriveEnviarBlob(subpasta, blobTexto, item.arquivo);
-      registrarEventoSync("up", item.arquivo, item.tipo, blobTexto.size, okTexto, __ultimoMotivoFalhaEnvio);
+      registrarEventoSync("up", nomeAmigavelParaLog(item, item.dados), item.tipo, blobTexto.size, okTexto, __ultimoMotivoFalhaEnvio);
       if(onProgresso) onProgresso(blobTexto.size, item.tipo);
     }
     let fotosSubiram = false;
     if(okTexto && tinhaFotos && podeSubirFotos){
       const blobFotos = new Blob([JSON.stringify(soFotos, null, 0)], {type:"application/json"});
       fotosSubiram = await onedriveEnviarBlob(subpasta, blobFotos, "fotos_"+item.arquivo);
-      registrarEventoSync("up", "fotos_"+item.arquivo, item.tipo+" (fotos)", blobFotos.size, fotosSubiram, __ultimoMotivoFalhaEnvio);
+      registrarEventoSync("up", nomeAmigavelParaLog({tipo:"fotos", alvoTipo:item.tipo, pasta:item.pasta}, item.dados), item.tipo+" (fotos)", blobFotos.size, fotosSubiram, __ultimoMotivoFalhaEnvio);
       if(onProgresso) onProgresso(blobFotos.size, item.tipo);
     }
     if(okTexto){
@@ -2612,8 +2695,7 @@ async function sincronizarDownloadOneDriveUmaPassada(onProgresso){
       if(texto){
         try{
           const dados = JSON.parse(texto);
-          if(onedriveMesclarItemNovo(item, dados)){ mesclados++; registrarEventoSync("down", item.nome, item.tipo, item.tamanho||0, true); journalGravarItem(item, dados); }
-          // Baixou, leu, e o conteúdo JÁ EXISTE aqui (mesmo id) — entra no cache
+          if(onedriveMesclarItemNovo(item, dados)){ mesclados++; registrarEventoSync("down", nomeAmigavelParaLog(item, dados), item.tipo, item.tamanho||0, true); journalGravarItem(item, dados); }
           // de convergência para nunca mais ser contado nem baixado à toa.
           else onedriveMarcarJaExistente(item);
         }
@@ -2650,7 +2732,7 @@ async function sincronizarDownloadOneDriveUmaPassada(onProgresso){
             // (e foi encaixada no projeto) não se perca nem precise ser baixada de
             // novo se o app fechar ou a conexão cair no meio deste lote — antes,
             // só este caminho (fotos automáticas via Wi-Fi) não tinha essa proteção.
-            if(onedriveMesclarItemNovo(item, dados)){ mesclados++; registrarEventoSync("down", item.nome, item.tipo, item.tamanho||0, true); journalGravarItem(item, dados); }
+            if(onedriveMesclarItemNovo(item, dados)){ mesclados++; registrarEventoSync("down", nomeAmigavelParaLog(item, dados), item.tipo, item.tamanho||0, true); journalGravarItem(item, dados); }
             else if(item.tipo==="fotos"){
               // A mesclagem recusou porque o item alvo JÁ está completo (as fotos
               // chegaram por outro caminho no meio tempo) — some da fila em vez de
@@ -2887,7 +2969,7 @@ async function onedriveDeltaProcessarFila(){
       if(!texto){ manter.push(entrada); continue; } // rede falhou agora — permanece na fila
       try{
         const dados = JSON.parse(texto);
-        if(onedriveMesclarItemNovo(d, dados)){ mesclados++; progrediu = true; registrarEventoSync("down", d.nome, d.tipo, d.tamanho||0, true); journalGravarItem(d, dados); }
+        if(onedriveMesclarItemNovo(d, dados)){ mesclados++; progrediu = true; registrarEventoSync("down", nomeAmigavelParaLog(d, dados), d.tipo, d.tamanho||0, true); journalGravarItem(d, dados); }
       }catch(e){ marcarArquivoCorrompido(entrada, texto); /* quarentena registrada — sai da fila e da contagem até o dono reenviar */ }
       marcarProgressoSync();
     }
@@ -2918,7 +3000,7 @@ function marcarArquivoCorrompido(item, texto){
   if(STATE.arquivosCorrompidosIgnorados.some(a=>a.chave===chave)) return; // já em quarentena — não repete o registro
   STATE.arquivosCorrompidosIgnorados.push({ chave, caminho:item.caminho, ts:Date.now() });
   if(STATE.arquivosCorrompidosIgnorados.length>60) STATE.arquivosCorrompidosIgnorados.splice(0, STATE.arquivosCorrompidosIgnorados.length-60);
-  registrarEventoSync("down", item.nome||item.caminho.split("/").pop(), item.tipo, item.tamanho||0, false, "arquivo corrompido — ignorado");
+  registrarEventoSync("down", nomeAmigavelParaLog(item, null), item.tipo, item.tamanho||0, false, "arquivo corrompido — ignorado");
   dbSet(STATE);
 }
 function arquivoEstaEmQuarentena(caminho, tamanho){
@@ -3241,7 +3323,7 @@ async function onedriveBaixarFotosDeItem(itemId){
     const dados = JSON.parse(texto);
     if(onedriveMesclarItemNovo(pend, dados)){
       STATE.oneDrivePendentes = (STATE.oneDrivePendentes||[]).filter(p=>p!==pend);
-      registrarEventoSync("down", pend.nome, (pend.alvoTipo||"item")+" (fotos)", pend.tamanho||0, true);
+      registrarEventoSync("down", nomeAmigavelParaLog(pend, dados), (pend.alvoTipo||"item")+" (fotos)", pend.tamanho||0, true);
       marcarAlterado();
       render();
       toast("Fotos baixadas");
@@ -3268,7 +3350,7 @@ async function onedriveBaixarPendentes(onProgresso){
     if(texto){
       try{
         const dados = JSON.parse(texto);
-        if(onedriveMesclarItemNovo(item, dados)){ algumaMudanca = true; registrarEventoSync("down", item.nome, item.tipo, item.tamanho||0, true); journalGravarItem(item, dados); }
+        if(onedriveMesclarItemNovo(item, dados)){ algumaMudanca = true; registrarEventoSync("down", nomeAmigavelParaLog(item, dados), item.tipo, item.tamanho||0, true); journalGravarItem(item, dados); }
         // Tira da lista de pendentes assim que este item termina (sucesso, ou já
         // estava completo por outro caminho) — não espera o lote inteiro acabar.
         // Se o app fechar no meio de um lote grande, os itens já processados até
@@ -3514,7 +3596,7 @@ function onedriveReconciliarComArvore(arvore){
         mapa.delete(item.id);
         if(STATE[__assinaturasOneDriveSimples.chaveEstado]) delete STATE[__assinaturasOneDriveSimples.chaveEstado][item.id];
         reparos++;
-        registrarEventoSync("up", reg.arquivo, item.tipo, 0, false, "faltava na nuvem — reenvio agendado");
+        registrarEventoSync("up", nomeAmigavelParaLog({...item, pasta:reg.pasta}, item.dados), item.tipo, 0, false, "faltava na nuvem — reenvio agendado");
         continue;
       }
       // Texto está lá; e as fotos? Se o item tem fotos e o arquivo "fotos_"
@@ -3525,7 +3607,7 @@ function onedriveReconciliarComArvore(arvore){
           reg.fotosPendentes = true;
           if(STATE[__assinaturasOneDriveSimples.chaveEstado] && STATE[__assinaturasOneDriveSimples.chaveEstado][item.id]) STATE[__assinaturasOneDriveSimples.chaveEstado][item.id].fotosPendentes = true;
           reparos++;
-          registrarEventoSync("up", "fotos_"+reg.arquivo, item.tipo+" (fotos)", 0, false, "fotos faltavam na nuvem — reenvio agendado");
+          registrarEventoSync("up", nomeAmigavelParaLog({tipo:"fotos", alvoTipo:item.tipo, pasta:reg.pasta}, item.dados), item.tipo+" (fotos)", 0, false, "fotos faltavam na nuvem — reenvio agendado");
         }
 
       }
@@ -5729,7 +5811,7 @@ function screenSimplesAreas(){
       <div class="list-body" onclick="App.abrirAreaS('${a.id}')">
         <div class="list-name">${escapeHtml(a.nome||'Sem nome')}</div>
         <div class="list-tag">${escapeHtml(a.local||'sem local')}</div>
-        <div class="list-meta"><span class="stat-pill">${a.maquinas.length} máquina${a.maquinas.length===1?'':'s'}</span></div>
+        <div class="list-meta"><span class="stat-pill">${a.maquinas.length} máquina${a.maquinas.length===1?'':'s'}</span>${carimboAtualizadoHtml(a)}</div>
       </div>
       <div class="list-actions"><button class="icon-btn" onclick="App.menuAreaS(event,'${a.id}')">${ic('dots')}</button></div>
     </div>`).join("") || `<div class="empty">${ic('map')}<h3>Nada encontrado</h3><p>Nenhuma área corresponde à busca.</p></div>`;
@@ -5763,6 +5845,7 @@ function screenSimplesMaquinas(){
           <span class="stat-pill">${totalRiscos} risco${totalRiscos===1?'':'s'}</span>
           ${m.__fotosOmitidas? (()=>{ const pf = pendenteFotosDoItem(m.id); return `<span class="stat-pill" style="background:rgba(233,78,27,.14);color:var(--accent-ink);cursor:pointer" onclick="event.stopPropagation();App.onedriveBaixarFotosDeItem('${m.id}')" title="${pf? 'Toque para baixar as fotos agora ('+fmtBytes(pf.tamanho)+') — em dados móveis, pede confirmação' : 'Fotos ainda no outro aparelho — chegam quando ele tiver Wi-Fi'}">${pf? ic('download')+' fotos '+fmtBytes(pf.tamanho) : ic('download')}</span>`; })():''}
           ${pendFotos>0 && !m.__fotosOmitidas? `<span class="stat-pill alert" title="${pendFotos} foto${pendFotos===1?'':'s'} pendente${pendFotos===1?'':'s'}">${ic('warn')} ${pendFotos}</span>`:''}
+          ${carimboAtualizadoHtml(m)}
         </div>
       </div>
       <button class="card-menu-btn" data-card-role="menu">${ic('dots')}</button>
@@ -5798,6 +5881,7 @@ function screenSimplesTarefas(){
         <div class="list-meta">
           <span class="stat-pill">${t.riscos.length} risco${t.riscos.length===1?'':'s'}</span>
           ${pend>0? `<span class="stat-pill alert">${ic('warn')} ${pend} sem mitigação</span>`:''}
+          ${carimboAtualizadoHtml(t)}
         </div>
       </div>
       <button class="card-menu-btn" data-card-role="menu">${ic('dots')}</button>
@@ -5834,6 +5918,7 @@ function screenSimplesRiscos(){
           ${r.__fotosOmitidas? (()=>{ const pf = pendenteFotosDoItem(r.id); return `<span class="stat-pill" style="background:rgba(233,78,27,.14);color:var(--accent-ink);cursor:pointer" onclick="event.stopPropagation();App.onedriveBaixarFotosDeItem('${r.id}')" title="${pf? 'Toque para baixar as fotos agora ('+fmtBytes(pf.tamanho)+') — em dados móveis, pede confirmação' : 'Fotos ainda no outro aparelho — chegam quando ele tiver Wi-Fi'}">${pf? ic('download')+' fotos '+fmtBytes(pf.tamanho) : ic('download')}</span>`; })():''}
           ${totalFotos>0? `<span class="stat-pill"><span class="risk-icn">${ic('gallery')}</span> ${totalFotos}</span>`:''}
           ${semMitigacao? `<span class="stat-pill alert icon-only" title="Sem sugestão de mitigação"><span class="risk-icn">${ic('warn')}</span></span>`:''}
+          ${carimboAtualizadoHtml(r)}
         </div>
       </div>
       <button class="card-menu-btn" data-card-role="menu">${ic('dots')}</button>
@@ -10413,6 +10498,15 @@ let __estadoLocalCarregadoPromise = carregarEstadoSalvo().then(saved=>{
   // que os itens já baixados voltam, sem depender de rede nenhuma.
   journalReaplicar();
   sigJournalReaplicar();
+  // Verificação automática JÁ NA ABERTURA do app — antes disto, a primeira
+  // checagem automática de novidades só acontecia 2 minutos depois de abrir
+  // (o intervalo periódico), e só se o app continuasse aberto até lá. Quem
+  // só abria o app, dava uma olhada rápida e fechava nunca chegava a receber
+  // as novidades de outro aparelho sozinho — precisava tocar em
+  // "Sincronizar agora" na mão. Agora a checagem roda imediatamente (sem
+  // travar a tela: acontece em segundo plano) sempre que o OneDrive já
+  // estiver conectado.
+  if(getOneDriveConta()) sincronizarDownloadOneDrive();
   criarPontoDeRestauracaoSeNecessario("abertura do app");
   // Se o app foi encerrado com um formulário aberto (fotos tiradas, Salvar
   // nunca tocado), oferece o resgate agora — depois que o STATE carregou,
