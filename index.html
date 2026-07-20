@@ -9873,7 +9873,7 @@ const App = {
   verFoto(src){
     const lb = document.createElement("div");
     lb.className = "lightbox";
-    lb.innerHTML = `<button class="lb-close">${ic('close')}</button><img src="${src}">`;
+    lb.innerHTML = `<button class="lb-close">${ic('close')}</button><img src="${src}" onerror="event.stopPropagation();App.imgFallback(this,'shield','Foto')">`;
     lb.onclick = ()=>lb.remove();
     document.body.appendChild(lb);
   },
@@ -9898,7 +9898,8 @@ const App = {
           const inicio = src.slice(0,35) || '(vazio)';
           const pareceValida = src.startsWith('data:image');
           const grandeEValida = tamanho>50000 && pareceValida;
-          toast(`Foto não carregou${contexto?' — '+contexto:''}: ${tamanho===0? 'nada está salvo neste campo (vazio)' : `${tamanho} caractere${tamanho===1?'':'s'} salvos, começa com "${inicio}"${!pareceValida?' (não parece um formato de imagem válido)':grandeEValida?' — o dado parece íntegro; pode ser o aparelho sem memória sobrando pra abrir tantas fotos de uma vez. Feche outros aplicativos e tente de novo.':''}`}`, false);
+          const msg = `Foto não carregou${contexto?' — '+contexto:''}.\n\n${tamanho===0? 'Nada está salvo neste campo (vazio).' : `${tamanho} caractere${tamanho===1?'':'s'} salvos.\nComeça com: "${inicio}"${!pareceValida?'\n\nNão parece um formato de imagem válido.':grandeEValida?'\n\nO dado parece íntegro — pode ser o aparelho sem memória sobrando pra abrir tantas fotos de uma vez. Feche outros aplicativos e tente de novo.':''}`}`;
+          alert(msg); // fica na tela até a pessoa tocar OK — dá tempo de ler e, se precisar, tirar print pra mandar
         });
         el.replaceWith(svg);
       }else el.style.display = 'none';
