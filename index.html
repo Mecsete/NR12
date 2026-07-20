@@ -4759,7 +4759,7 @@ function checklistFotoHtml(field, label, foto){
   const pend = !foto;
   return `<div class="checklist-item" ${pend?`onclick="App.tirarFotoDraft('${field}')"`:''}>
     ${foto
-      ? `<img src="${foto}" onclick="event.stopPropagation();App.verFoto('${foto}')">`
+      ? `<img src="${foto}" onclick="event.stopPropagation();App.verFoto('${foto}')" onerror="App.imgFallback(this,'camera','${escapeHtml(label)}')">`
       : `<div class="checklist-icon">${ic('camera')}</div>`}
     <div class="checklist-txt" ${!pend?`onclick="event.stopPropagation();App.verFoto('${foto}')"`:''}><b>${label}</b><span style="${pend?'color:#C23F12;font-weight:700':''}">${pend?'Pendente — toque para fotografar':'Adicionada — toque para ver'}</span></div>
     ${pend
@@ -5418,7 +5418,7 @@ function screenMaquinas(){
     const pend = contarPerigosPendentes(todosM);
     return `
     <div class="card list-card">
-      <div class="list-thumb" onclick="App.abrirMaquina('${m.id}')">${m.fotoGeral? `<img src="${m.fotoGeral}">`:ic('shield')}</div>
+      <div class="list-thumb" onclick="App.abrirMaquina('${m.id}')">${m.fotoGeral? `<img src="${m.fotoGeral}" loading="lazy" decoding="async" onerror="App.imgFallback(this,'shield','Foto Geral')">`:ic('shield')}</div>
       <div class="list-body" onclick="App.abrirMaquina('${m.id}')">
         <div class="list-name">${escapeHtml(m.nome||'Sem nome (toque para editar)')}</div>
         <div class="list-tag">${escapeHtml(m.tag||'sem código')}</div>
@@ -5835,7 +5835,7 @@ function screenSimplesMaquinas(){
     return `<div class="card list-card ${selClass('maquinaS',m.id)} ${classeRecemMovido('maquinaS',m.id)}" data-sel-tipo="maquinaS" data-sel-id="${m.id}" data-sel-ctx='{"areaSId":"${a.id}"}' onclick="App.cardClickGenerico(event,this)" data-card-open="App.abrirMaquinaS('${m.id}')" data-card-edit="App.tocarMaquinaS('${m.id}','${a.id}')" data-card-photo="App.tocarFotoMaquinaS('${m.id}','${a.id}','${m.fotoGeral||''}')" data-card-menu="App.menuMaquinaS(event,'${m.id}')">
       ${selCheckHtml('maquinaS',m.id)}
       ${dragHandleHtml('maquinaS',m.id)}
-      <div class="list-thumb lg" data-card-role="photo">${m.fotoGeral?`<img src="${m.fotoGeral}">`:ic('shield')}</div>
+      <div class="list-thumb lg" data-card-role="photo">${m.fotoGeral?`<img src="${m.fotoGeral}" loading="lazy" decoding="async" onerror="App.imgFallback(this,'shield','Foto Geral')">`:ic('shield')}</div>
       <div class="list-body">
         <div class="list-name" data-card-role="name">${escapeHtml(nomeMaquinaS(m).slice(0,40) || 'Sem nome (toque para editar)')}</div>
         ${m.descricao? `<div class="list-tag" style="font-family:inherit">${escapeHtml(m.descricao.slice(0,60))}</div>` : ""}
@@ -5909,7 +5909,7 @@ function screenSimplesRiscos(){
     return `<div class="card list-card risk-strip ${selClass('riscoS',r.id)} ${classeRecemMovido('riscoS',r.id)}" style="border-left-color:${hrnMeta.cor}" data-sel-tipo="riscoS" data-sel-id="${r.id}" data-sel-ctx='{"tarefaSId":"${t.id}"}' onclick="App.cardClickGenerico(event,this)" data-card-open="App.abrirModalRiscoS('${r.id}','${t.id}')" data-card-edit="App.abrirModalRiscoS('${r.id}','${t.id}')" data-card-photo="App.tocarFotoRiscoS('${r.id}','${t.id}','${r.foto||''}')" data-card-menu="App.menuRiscoS(event,'${r.id}','${t.id}')">
       ${selCheckHtml('riscoS',r.id)}
       ${dragHandleHtml('riscoS',r.id)}
-      <div class="list-thumb lg" data-card-role="photo">${r.foto?`<img src="${r.foto}">`:ic('warn')}</div>
+      <div class="list-thumb lg" data-card-role="photo">${r.foto?`<img src="${r.foto}" loading="lazy" decoding="async" onerror="App.imgFallback(this,'warn','Foto do risco')">`:ic('warn')}</div>
       <div class="list-body">
         <div class="list-name" data-card-role="name">${escapeHtml(r.nome||('Risco '+String(i+1).padStart(2,'0')))}</div>
         <div class="list-tag" style="font-family:inherit">${escapeHtml((r.descricao||'sem descrição').slice(0,60))}</div>
@@ -5946,7 +5946,7 @@ function screenSimplesTabela(){
     return `<div class="card obj-card risk-strip" style="border-left-color:${pend?'#FF0000':'#92D050'}">
       <div class="obj-head">
         <div><div class="obj-machine">${escapeHtml(area.nome||'—')} · ${escapeHtml((nomeMaquinaS(maquina)||'—').slice(0,30))}</div><div class="obj-task">${escapeHtml(tarefaTxt||'—')}</div></div>
-        ${r.foto? `<img src="${r.foto}" style="width:44px;height:44px;border-radius:9px;object-fit:cover;flex-shrink:0">` : ''}
+        ${r.foto? `<img src="${r.foto}" loading="lazy" decoding="async" style="width:44px;height:44px;border-radius:9px;object-fit:cover;flex-shrink:0" onerror="App.imgFallback(this,'warn','Foto do risco')">` : ''}
       </div>
       <div class="obj-grid">
         <div class="row"><span class="lab">Empresa</span><span class="val">${escapeHtml(proj.empresa||'—')}</span></div>
@@ -9876,6 +9876,33 @@ const App = {
     lb.innerHTML = `<button class="lb-close">${ic('close')}</button><img src="${src}">`;
     lb.onclick = ()=>lb.remove();
     document.body.appendChild(lb);
+  },
+  /* Se uma foto salva não conseguir carregar (dado corrompido, quota do
+     armazenamento estourada, etc.), troca pelo ícone do próprio app em vez
+     de deixar o navegador mostrar o ícone feio de "imagem quebrada" — evita
+     confundir "a foto não carregou agora" com "a foto sumiu para sempre"
+     (a foto continua salva; só a exibição falhou nesta tentativa). O ícone
+     fica tocável: mostra o tamanho e o início do que está gravado ali —
+     diagnóstico sem precisar de computador, só tocando na tela. */
+  imgFallback(el, iconName, contexto){
+    try{
+      const src = el.getAttribute('src') || '';
+      const div = document.createElement('div');
+      div.innerHTML = ic(iconName);
+      const svg = div.firstElementChild;
+      if(svg){
+        svg.style.cursor = 'pointer';
+        svg.addEventListener('click', (ev)=>{
+          ev.stopPropagation();
+          const tamanho = src.length;
+          const inicio = src.slice(0,35) || '(vazio)';
+          const pareceValida = src.startsWith('data:image');
+          const grandeEValida = tamanho>50000 && pareceValida;
+          toast(`Foto não carregou${contexto?' — '+contexto:''}: ${tamanho===0? 'nada está salvo neste campo (vazio)' : `${tamanho} caractere${tamanho===1?'':'s'} salvos, começa com "${inicio}"${!pareceValida?' (não parece um formato de imagem válido)':grandeEValida?' — o dado parece íntegro; pode ser o aparelho sem memória sobrando pra abrir tantas fotos de uma vez. Feche outros aplicativos e tente de novo.':''}`}`, false);
+        });
+        el.replaceWith(svg);
+      }else el.style.display = 'none';
+    }catch(e){ try{ el.style.display = 'none'; }catch(e2){} }
   },
 
   setTabelaScope(scope){ STATE.ui.tabelaScope = scope; render(); },
