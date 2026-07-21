@@ -1446,7 +1446,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
    GitHub (útil especialmente dado o atraso de alguns minutos do GitHub para
    propagar cada atualização, e para diferenciar aparelhos que ainda não
    atualizaram dos que já atualizaram). */
-const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "18/07/2026 20:07"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "18/07/2026 20:07"; } })();
+const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "21/07/2026 14:45"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "21/07/2026 14:45"; } })();
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -6356,13 +6356,15 @@ const GRUPOS_SIMPLES = [
    nenhum valor numérico — isso continua 100% na lógica determinística.
    A chave de API fica só no localStorage deste aparelho (nunca entra no
    backup/JSON exportado, para não vazar para outros aparelhos via OneDrive).
-   Construída no formato "OpenAI-compatible" (endpoint + /chat/completions),
-   que a própria Gemini gratuita aceita — trocar de provedor no futuro é só
-   trocar endpoint/chave/modelo, sem mexer neste código.
+   Construída no formato NATIVO da API Gemini (endpoint + /models/{modelo}:
+   generateContent, com a chave no cabeçalho X-goog-api-key) — é o formato
+   que continua aceitando as chaves novas do Google (prefixo "AQ."). Trocar
+   de provedor no futuro exige revisar o formato de chamada em chamarIA(),
+   já que nem todo provedor segue esse mesmo formato.
    ========================================================================= */
 const IA_LOCALSTORAGE_KEY = "apr_ia_apikey";
-const IA_ENDPOINT_PADRAO = "https://generativelanguage.googleapis.com/v1beta/openai";
-const IA_MODELO_PADRAO = "gemini-2.0-flash";
+const IA_ENDPOINT_PADRAO = "https://generativelanguage.googleapis.com/v1beta";
+const IA_MODELO_PADRAO = "gemini-flash-latest";
 const IA_PROMPTS_PADRAO = {
   equipamento:"Você é um engenheiro de segurança do trabalho especializado em NR-12. Reescreva a descrição do equipamento abaixo de forma técnica, clara e objetiva, em português, sem inventar dados que não foram informados. Devolva só o texto final, sem comentários.",
   escopo:"Você é um engenheiro de segurança do trabalho especializado em NR-12 e ISO 12100. Com base no nome e na descrição do equipamento, escreva um parágrafo curto (3 a 5 linhas) descrevendo os limites de uso do equipamento (limite de espaço, limite de uso e limite de tempo, quando aplicável). Não invente dados técnicos específicos (capacidade, modelo, etc.) que não foram informados. Devolva só o texto final, sem comentários.",
@@ -6472,18 +6474,31 @@ async function chamarIA(tipo, textoUsuario){
   if(!apiKey) return null;
   const cfg = getIAConfig();
   const prompt = ((cfg.prompts && cfg.prompts[tipo]) || IA_PROMPTS_PADRAO[tipo]) + contextoNormasIA();
-  const endpoint = (cfg.endpoint || IA_ENDPOINT_PADRAO).replace(/\/+$/,"");
+  /* A partir de meados de 2026 o Google passou a emitir por padrão as chaves
+     novas do Gemini no formato "AQ." (em vez do antigo "AIza"). Essas chaves
+     novas só são aceitas pelo endpoint NATIVO da API (X-goog-api-key +
+     /models/{modelo}:generateContent) — o antigo caminho "compatível com
+     OpenAI" (/openai/chat/completions + Authorization Bearer) passa a
+     devolver 401 para elas. Por isso a chamada usa sempre o formato nativo
+     abaixo; caso o endpoint salvo no aparelho ainda seja o formato antigo
+     (config feita antes desta correção), o sufixo "/openai" é removido
+     automaticamente para continuar funcionando sem exigir reconfiguração. */
+  const endpointBase = (cfg.endpoint || IA_ENDPOINT_PADRAO).replace(/\/+$/,"").replace(/\/openai$/,"");
   const modelo = cfg.modelo || IA_MODELO_PADRAO;
   try{
-    const resp = await fetch(`${endpoint}/chat/completions`, {
+    const resp = await fetch(`${endpointBase}/models/${modelo}:generateContent`, {
       method:"POST",
-      headers:{ "Content-Type":"application/json", "Authorization":`Bearer ${apiKey}` },
-      body: JSON.stringify({ model: modelo, temperature: 0.3,
-        messages:[ { role:"system", content: prompt }, { role:"user", content: textoUsuario || "" } ] })
+      headers:{ "Content-Type":"application/json", "X-goog-api-key": apiKey },
+      body: JSON.stringify({
+        systemInstruction: { parts:[ { text: prompt } ] },
+        contents: [ { role:"user", parts:[ { text: textoUsuario || "" } ] } ],
+        generationConfig: { temperature: 0.3 }
+      })
     });
     if(!resp.ok) return null;
     const data = await resp.json();
-    const texto = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+    const cand = data && data.candidates && data.candidates[0];
+    const texto = cand && cand.content && cand.content.parts && cand.content.parts[0] && cand.content.parts[0].text;
     return texto ? String(texto).trim() : null;
   }catch(e){ console.error("Erro ao chamar IA:", e); return null; }
 }
@@ -7002,7 +7017,7 @@ function screenSimplesConfigIA(){
   <div class="field">
     <label>Link da API (endpoint)</label>
     <input type="text" value="${escapeHtml(cfg.endpoint)}" oninput="App.onIAConfigInput('endpoint', this.value)">
-    <div class="field-hint">Padrão: Gemini gratuito, no formato compatível com OpenAI. Só troque se for usar outro provedor.</div>
+    <div class="field-hint">Padrão: endpoint nativo do Gemini gratuito. Só troque se for usar outro provedor.</div>
   </div>
   <div class="field">
     <label>Modelo</label>
