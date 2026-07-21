@@ -1446,7 +1446,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
    GitHub (útil especialmente dado o atraso de alguns minutos do GitHub para
    propagar cada atualização, e para diferenciar aparelhos que ainda não
    atualizaram dos que já atualizaram). */
-const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "21/07/2026 14:45"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "21/07/2026 14:45"; } })();
+const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "21/07/2026 15:48"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "21/07/2026 15:48"; } })();
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -6363,8 +6363,45 @@ const GRUPOS_SIMPLES = [
    já que nem todo provedor segue esse mesmo formato.
    ========================================================================= */
 const IA_LOCALSTORAGE_KEY = "apr_ia_apikey";
-const IA_ENDPOINT_PADRAO = "https://generativelanguage.googleapis.com/v1beta";
-const IA_MODELO_PADRAO = "gemini-flash-latest";
+/* Lista de provedores prontos: o usuário escolhe um nome na lista e só cola
+   a chave — o app já sabe o endpoint, o modelo padrão e o formato de chamada
+   certos para cada um. Isso existe porque pedir para o usuário digitar/colar
+   um "endpoint" manualmente é fonte constante de erro (barra a mais, versão
+   de API errada, sufixo faltando). "formato" define qual API é chamada:
+   - "gemini": formato NATIVO do Google (X-goog-api-key + generateContent)
+   - "openai-compat": formato padrão OpenAI (Authorization Bearer + /chat/completions),
+     usado por OpenAI e por vários outros provedores compatíveis (Groq, DeepSeek, OpenRouter etc.) */
+const IA_PROVEDORES = {
+  "google-gemini": {
+    nome: "Google Gemini (gratuito)",
+    formato: "gemini",
+    endpoint: "https://generativelanguage.googleapis.com/v1beta",
+    modelo: "gemini-flash-latest",
+    dicaChave: "Gratuita: crie em aistudio.google.com/apikey → Get API key.",
+  },
+  "openai": {
+    nome: "OpenAI (ChatGPT)",
+    formato: "openai-compat",
+    endpoint: "https://api.openai.com/v1",
+    modelo: "gpt-4o-mini",
+    dicaChave: "Paga: crie em platform.openai.com/api-keys.",
+  },
+  "groq": {
+    nome: "Groq (gratuito e rápido)",
+    formato: "openai-compat",
+    endpoint: "https://api.groq.com/openai/v1",
+    modelo: "llama-3.3-70b-versatile",
+    dicaChave: "Gratuita: crie em console.groq.com/keys.",
+  },
+  "personalizado": {
+    nome: "Personalizado (avançado)",
+    formato: "openai-compat",
+    endpoint: "",
+    modelo: "",
+    dicaChave: "Para outro provedor compatível com o padrão OpenAI (ex.: OpenRouter, DeepSeek). Preencha o endpoint e o modelo manualmente abaixo.",
+  },
+};
+const IA_PROVEDOR_PADRAO = "google-gemini";
 const IA_PROMPTS_PADRAO = {
   equipamento:"Você é um engenheiro de segurança do trabalho especializado em NR-12. Reescreva a descrição do equipamento abaixo de forma técnica, clara e objetiva, em português, sem inventar dados que não foram informados. Devolva só o texto final, sem comentários.",
   escopo:"Você é um engenheiro de segurança do trabalho especializado em NR-12 e ISO 12100. Com base no nome e na descrição do equipamento, escreva um parágrafo curto (3 a 5 linhas) descrevendo os limites de uso do equipamento (limite de espaço, limite de uso e limite de tempo, quando aplicável). Não invente dados técnicos específicos (capacidade, modelo, etc.) que não foram informados. Devolva só o texto final, sem comentários.",
@@ -6400,8 +6437,10 @@ function setIAApiKey(v){ try{ if(v) localStorage.setItem(IA_LOCALSTORAGE_KEY, v)
 function getIAConfig(){
   if(!STATE.ui.iaConfig) STATE.ui.iaConfig = {};
   const c = STATE.ui.iaConfig;
-  if(c.endpoint===undefined) c.endpoint = IA_ENDPOINT_PADRAO;
-  if(c.modelo===undefined) c.modelo = IA_MODELO_PADRAO;
+  if(c.provedor===undefined || !IA_PROVEDORES[c.provedor]) c.provedor = IA_PROVEDOR_PADRAO;
+  const preset = IA_PROVEDORES[c.provedor];
+  if(c.endpoint===undefined) c.endpoint = preset.endpoint;
+  if(c.modelo===undefined) c.modelo = preset.modelo;
   if(c.usarNaExportacaoExcel===undefined) c.usarNaExportacaoExcel = true;
   if(!c.prompts) c.prompts = {};
   ["equipamento","escopo","risco","mitigacao","tarefa"].forEach(k=>{ if(c.prompts[k]===undefined) c.prompts[k] = IA_PROMPTS_PADRAO[k]; });
@@ -6473,33 +6512,46 @@ async function chamarIA(tipo, textoUsuario){
   const apiKey = getIAApiKey();
   if(!apiKey) return null;
   const cfg = getIAConfig();
+  const preset = IA_PROVEDORES[cfg.provedor] || IA_PROVEDORES[IA_PROVEDOR_PADRAO];
   const prompt = ((cfg.prompts && cfg.prompts[tipo]) || IA_PROMPTS_PADRAO[tipo]) + contextoNormasIA();
-  /* A partir de meados de 2026 o Google passou a emitir por padrão as chaves
-     novas do Gemini no formato "AQ." (em vez do antigo "AIza"). Essas chaves
-     novas só são aceitas pelo endpoint NATIVO da API (X-goog-api-key +
-     /models/{modelo}:generateContent) — o antigo caminho "compatível com
-     OpenAI" (/openai/chat/completions + Authorization Bearer) passa a
-     devolver 401 para elas. Por isso a chamada usa sempre o formato nativo
-     abaixo; caso o endpoint salvo no aparelho ainda seja o formato antigo
-     (config feita antes desta correção), o sufixo "/openai" é removido
-     automaticamente para continuar funcionando sem exigir reconfiguração. */
-  const endpointBase = (cfg.endpoint || IA_ENDPOINT_PADRAO).replace(/\/+$/,"").replace(/\/openai$/,"");
-  const modelo = cfg.modelo || IA_MODELO_PADRAO;
+  const endpointBase = (cfg.endpoint || preset.endpoint || "").replace(/\/+$/,"");
+  const modelo = cfg.modelo || preset.modelo;
+  if(!endpointBase || !modelo) return null;
   try{
-    const resp = await fetch(`${endpointBase}/models/${modelo}:generateContent`, {
-      method:"POST",
-      headers:{ "Content-Type":"application/json", "X-goog-api-key": apiKey },
-      body: JSON.stringify({
-        systemInstruction: { parts:[ { text: prompt } ] },
-        contents: [ { role:"user", parts:[ { text: textoUsuario || "" } ] } ],
-        generationConfig: { temperature: 0.3 }
-      })
-    });
-    if(!resp.ok) return null;
-    const data = await resp.json();
-    const cand = data && data.candidates && data.candidates[0];
-    const texto = cand && cand.content && cand.content.parts && cand.content.parts[0] && cand.content.parts[0].text;
-    return texto ? String(texto).trim() : null;
+    let resp;
+    if(preset.formato==="gemini"){
+      /* Formato NATIVO do Google (X-goog-api-key + /models/{modelo}:generateContent).
+         É o único formato aceito pelas chaves novas do Gemini (prefixo "AQ.",
+         emitidas por padrão desde meados de 2026) — o antigo caminho "compatível
+         com OpenAI" devolve 401 para essas chaves. */
+      resp = await fetch(`${endpointBase}/models/${modelo}:generateContent`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", "X-goog-api-key": apiKey },
+        body: JSON.stringify({
+          systemInstruction: { parts:[ { text: prompt } ] },
+          contents: [ { role:"user", parts:[ { text: textoUsuario || "" } ] } ],
+          generationConfig: { temperature: 0.3 }
+        })
+      });
+      if(!resp.ok) return null;
+      const data = await resp.json();
+      const cand = data && data.candidates && data.candidates[0];
+      const texto = cand && cand.content && cand.content.parts && cand.content.parts[0] && cand.content.parts[0].text;
+      return texto ? String(texto).trim() : null;
+    }else{
+      /* Formato compatível com OpenAI (Authorization Bearer + /chat/completions),
+         usado por OpenAI e por provedores compatíveis (Groq, DeepSeek, OpenRouter etc.). */
+      resp = await fetch(`${endpointBase}/chat/completions`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", "Authorization":`Bearer ${apiKey}` },
+        body: JSON.stringify({ model: modelo, temperature: 0.3,
+          messages:[ { role:"system", content: prompt }, { role:"user", content: textoUsuario || "" } ] })
+      });
+      if(!resp.ok) return null;
+      const data = await resp.json();
+      const texto = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+      return texto ? String(texto).trim() : null;
+    }
   }catch(e){ console.error("Erro ao chamar IA:", e); return null; }
 }
 async function testarConexaoIA(){ return (await chamarIA("risco","Teste de conexão. Responda apenas: OK.")) !== null; }
@@ -7010,19 +7062,28 @@ function screenSimplesConfigIA(){
   </div>
   <div class="section-title">Conexão</div>
   <div class="field">
-    <label>Chave de API</label>
-    <input type="password" value="${escapeHtml(getIAApiKey())}" placeholder="Cole aqui sua chave (ex.: do Google AI Studio, gratuita)" oninput="App.onIAApiKeyInput(this.value)">
-    <div class="field-hint">Gratuita: crie em ai.google.dev → Get API key.</div>
+    <label>Provedor de IA</label>
+    <select oninput="App.onIAProvedorInput(this.value)">
+      ${Object.keys(IA_PROVEDORES).map(id=>`<option value="${id}" ${cfg.provedor===id?"selected":""}>${IA_PROVEDORES[id].nome}</option>`).join("")}
+    </select>
   </div>
   <div class="field">
+    <label>Chave de API</label>
+    <input type="password" value="${escapeHtml(getIAApiKey())}" placeholder="Cole aqui a chave do provedor escolhido acima" oninput="App.onIAApiKeyInput(this.value)">
+    <div class="field-hint">${escapeHtml((IA_PROVEDORES[cfg.provedor]||IA_PROVEDORES[IA_PROVEDOR_PADRAO]).dicaChave)}</div>
+  </div>
+  ${cfg.provedor==="personalizado" ? `
+  <div class="field">
     <label>Link da API (endpoint)</label>
-    <input type="text" value="${escapeHtml(cfg.endpoint)}" oninput="App.onIAConfigInput('endpoint', this.value)">
-    <div class="field-hint">Padrão: endpoint nativo do Gemini gratuito. Só troque se for usar outro provedor.</div>
+    <input type="text" value="${escapeHtml(cfg.endpoint)}" placeholder="https://..." oninput="App.onIAConfigInput('endpoint', this.value)">
   </div>
   <div class="field">
     <label>Modelo</label>
-    <input type="text" value="${escapeHtml(cfg.modelo)}" oninput="App.onIAConfigInput('modelo', this.value)">
+    <input type="text" value="${escapeHtml(cfg.modelo)}" placeholder="ex.: gpt-4o-mini" oninput="App.onIAConfigInput('modelo', this.value)">
   </div>
+  ` : `
+  <div class="field-hint" style="margin:-6px 2px 14px">Modelo usado: ${escapeHtml(cfg.modelo)}</div>
+  `}
   <button class="btn btn-secondary btn-block" onclick="App.testarIA()">${ic('check')} Testar conexão</button>
   <div class="section-title">Instruções para a IA (prompt por campo)</div>
   <div class="field"><label>Descrição do Equipamento</label><textarea oninput="App.onIAConfigPromptInput('equipamento', this.value)">${escapeHtml(cfg.prompts.equipamento)}</textarea></div>
@@ -8919,6 +8980,18 @@ const App = {
 
   /* ---------- Inteligência Artificial (opcional) ---------- */
   onIAApiKeyInput(v){ setIAApiKey(v.trim()); },
+  onIAProvedorInput(v){
+    const c = getIAConfig();
+    c.provedor = IA_PROVEDORES[v] ? v : IA_PROVEDOR_PADRAO;
+    const preset = IA_PROVEDORES[c.provedor];
+    // Troca de provedor sempre preenche endpoint/modelo com o preset certo —
+    // é o que garante que "escolher da lista + colar a chave" funcione sem
+    // o usuário precisar editar mais nada, mesmo se ele tinha personalizado
+    // esses campos antes num provedor diferente.
+    c.endpoint = preset.endpoint;
+    c.modelo = preset.modelo;
+    marcarAlterado(); render();
+  },
   onIAConfigInput(campo, v){ getIAConfig()[campo] = v; marcarAlterado(); },
   onIAConfigPromptInput(tipo, v){ getIAConfig().prompts[tipo] = v; marcarAlterado(); },
   restaurarPromptsIAPadrao(){ getIAConfig().prompts = {...IA_PROMPTS_PADRAO}; marcarAlterado(); render(); toast("Instruções restauradas"); },
