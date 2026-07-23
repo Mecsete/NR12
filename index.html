@@ -1557,7 +1557,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
    GitHub (útil especialmente dado o atraso de alguns minutos do GitHub para
    propagar cada atualização, e para diferenciar aparelhos que ainda não
    atualizaram dos que já atualizaram). */
-const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "23/07/2026 14:29"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "23/07/2026 14:29"; } })();
+const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "23/07/2026 17:14"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "23/07/2026 17:14"; } })();
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -2221,10 +2221,30 @@ let __assinaturasOneDriveCompleto = { mapa:null, chaveEstado:'oneDriveAssinatura
    eventos para não inflar o backup. */
 const MAX_EVENTOS_LOG_SYNC = 80;
 let __falhasEnvioNaSync = 0; // falhas de envio desde o início da sincronização manual atual — zera a cada toque em "Sincronizar agora"
-function registrarEventoSync(direcao, nome, tipo, bytes, ok, motivo){
+/* Transforma os segmentos de pasta ("Corteva (a1b2c3)", "Área X (d4e5f6)")
+   no caminho legível que a pessoa reconhece na tela: "Corteva › Área X".
+   O sufixo entre parênteses é o identificador interno usado para casar o item
+   entre aparelhos — serve ao app, não a quem lê. */
+function rotuloCaminhoSync(segmentos){
+  return (segmentos||[]).map(x=>String(x).replace(/\s*\([0-9a-zA-Z]{4,10}\)\s*$/,"").trim()).filter(Boolean).join(" › ");
+}
+/* Mesma coisa, partindo de um caminho completo da nuvem (o arquivo no fim é
+   descartado — quem identifica o item é a hierarquia acima dele). */
+function rotuloCaminhoNuvem(caminhoCompleto){
+  try{
+    const marca = "/" + SUBPASTA_BACKUP + "/";
+    const i = String(caminhoCompleto||"").indexOf(marca);
+    if(i < 0) return "";
+    const seg = String(caminhoCompleto).slice(i + marca.length).split("/");
+    seg.shift();       // "Simplificado" / "Completo" — o módulo já está claro no app
+    seg.pop();         // nome do arquivo
+    return rotuloCaminhoSync(seg);
+  }catch(e){ return ""; }
+}
+function registrarEventoSync(direcao, nome, tipo, bytes, ok, motivo, caminho){
   if(direcao==="up" && ok===false) __falhasEnvioNaSync++;
   if(!Array.isArray(STATE.logSincronizacao)) STATE.logSincronizacao = [];
-  STATE.logSincronizacao.unshift({ ts: Date.now(), dir: direcao, nome: String(nome||"").slice(0,80), tipo, bytes: bytes||0, ok: ok!==false, motivo: ok===false ? String(motivo||"").slice(0,40) : undefined });
+  STATE.logSincronizacao.unshift({ ts: Date.now(), dir: direcao, nome: String(nome||"").slice(0,80), caminho: String(caminho||"").slice(0,140) || undefined, tipo, bytes: bytes||0, ok: ok!==false, motivo: ok===false ? String(motivo||"").slice(0,40) : undefined });
   if(STATE.logSincronizacao.length > MAX_EVENTOS_LOG_SYNC) STATE.logSincronizacao.length = MAX_EVENTOS_LOG_SYNC;
 }
 function fmtBytes(b){
@@ -2304,6 +2324,68 @@ function localizarItemLocal(descritor){
    cadeia exata de uma perda real em campo). Regra: 8 ou mais itens sumidos E
    representando mais de 30% do total conhecido = suspeito. Aí a sincronização
    automática NUNCA apaga (só avisa); a manual pergunta explicitamente. */
+/* LÁPIDES DE EXCLUSÃO — quando a pessoa confirma que quer apagar um item
+   TAMBÉM da nuvem, o app guarda a marca "este id foi apagado de propósito".
+   Ela serve para duas coisas:
+   1) autorizar a exclusão do arquivo na nuvem sem passar pelo freio de
+      exclusão em massa nem perguntar de novo;
+   2) impedir que o item RENASÇA — antes, se o arquivo ainda estivesse na nuvem
+      (porque a exclusão ainda não tinha subido, ou porque outro aparelho
+      reenviou), o download simplesmente trazia o item de volta, e o usuário
+      via o item apagado reaparecer sozinho. Agora a mesclagem recusa qualquer
+      item com lápide.
+   Validade de 120 dias: tempo mais que suficiente para todos os aparelhos da
+   equipe sincronizarem, sem deixar a lista crescer para sempre. */
+const LAPIDE_VALIDADE_MS = 120*24*60*60*1000;
+function registrarLapidesExclusao(ids){
+  if(!STATE.exclusoesConfirmadas || typeof STATE.exclusoesConfirmadas !== "object") STATE.exclusoesConfirmadas = {};
+  const agora = Date.now();
+  ids.forEach(id=>{ if(id) STATE.exclusoesConfirmadas[id] = agora; });
+  for(const k in STATE.exclusoesConfirmadas){ if(agora - STATE.exclusoesConfirmadas[k] > LAPIDE_VALIDADE_MS) delete STATE.exclusoesConfirmadas[k]; }
+}
+function exclusaoConfirmadaPeloUsuario(id){
+  const m = STATE.exclusoesConfirmadas;
+  if(!m || typeof m !== "object") return false;
+  const ts = m[id];
+  return !!ts && (Date.now() - ts) <= LAPIDE_VALIDADE_MS;
+}
+/* Quando a pessoa escolhe MANTER na nuvem, o app precisa esquecer que um dia
+   enviou aquele item — senão a sincronização seguinte entenderia o sumiço
+   local como "apague lá também". Sem a assinatura, o item simplesmente volta
+   na próxima descida, que é exatamente o que foi prometido na pergunta. */
+function esquecerAssinaturasDeUpload(ids){
+  [__assinaturasOneDriveSimples, __assinaturasOneDriveCompleto].forEach(ref=>{
+    const mapa = onedriveCarregarAssinaturas(ref);
+    ids.forEach(id=>{
+      mapa.delete(id);
+      if(STATE[ref.chaveEstado]) delete STATE[ref.chaveEstado][id];
+    });
+  });
+}
+/* Reúne o id sincronizável do item E de tudo que existe dentro dele — apagar
+   uma Área precisa apagar na nuvem também suas Máquinas, Tarefas e Riscos. */
+function idsSincronizaveisDe(tipo, obj){
+  const ids = [];
+  const risco = r => ids.push("risco:"+r.id);
+  const tarefa = t => { ids.push("tarefa:"+t.id); (t.riscos||[]).forEach(risco); };
+  const maquina = m => { ids.push("maquina:"+m.id); (m.tarefas||[]).forEach(tarefa); };
+  const area = a => { ids.push("area:"+a.id); (a.maquinas||[]).forEach(maquina); };
+  const projeto = p => { ids.push("projeto:"+p.id); (p.areas||[]).forEach(area); };
+  if(tipo==="projeto") projeto(obj); else if(tipo==="area") area(obj);
+  else if(tipo==="maquina") maquina(obj); else if(tipo==="tarefa") tarefa(obj);
+  else if(tipo==="risco") risco(obj);
+  return ids;
+}
+/* Pergunta única, feita NA HORA de apagar (não depois, escondida dentro da
+   sincronização). Devolve true se o usuário quer apagar também na nuvem.
+   Sem OneDrive conectado não há o que perguntar. */
+function perguntarApagarTambemNaNuvem(descricao, ids){
+  if(!getOneDriveConta() || !ids || ids.length===0) return false;
+  const sim = confirm(`Apagar ${descricao} também do OneDrive?\n\nOK = apagar também na nuvem (some dos outros aparelhos na próxima sincronização deles)\nCancelar = manter na nuvem (o item volta para este aparelho na próxima sincronização)`);
+  if(sim) registrarLapidesExclusao(ids);
+  else esquecerAssinaturasDeUpload(ids);
+  return sim;
+}
 function exclusaoEmMassaSuspeita(nExcluidos, nAtuais){
   const total = nAtuais + nExcluidos;
   return nExcluidos >= 8 && total > 0 && nExcluidos > total * 0.3;
@@ -2322,8 +2404,13 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
   // toque explícito no botão é a autorização para usar a rede que houver).
   const podeSubirFotos = onedriveEstaEmWifi() || !!onProgresso;
 
-  const idsExcluidos = [];
-  assinaturas.forEach((registro, id)=>{ if(!idsAtuais.has(id)) idsExcluidos.push(id); });
+  const idsExcluidosTodos = [];
+  assinaturas.forEach((registro, id)=>{ if(!idsAtuais.has(id)) idsExcluidosTodos.push(id); });
+  // Separa o que a pessoa JÁ confirmou apagar (lápide gravada no momento da
+  // exclusão) do que sumiu sem explicação. O confirmado vai direto; só o
+  // incerto passa pelo freio de exclusão em massa.
+  const idsConfirmados = idsExcluidosTodos.filter(exclusaoConfirmadaPeloUsuario);
+  const idsExcluidos = idsExcluidosTodos.filter(id=>!exclusaoConfirmadaPeloUsuario(id));
   let podeApagar = idsExcluidos.length > 0;
   if(podeApagar && exclusaoEmMassaSuspeita(idsExcluidos.length, itensAtuais.length)){
     if(!onProgresso){
@@ -2337,8 +2424,9 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
       podeApagar = confirm(`${idsExcluidos.length} itens foram removidos deste aparelho e a sincronização vai apagá-los da nuvem também (e do outro aparelho na próxima sincronização dele).\n\nEssa exclusão foi intencional?\n\nOK = apagar da nuvem · Cancelar = manter na nuvem (os itens voltarão para este aparelho)`);
     }
   }
-  if(podeApagar){
-    await executarComConcorrencia(idsExcluidos, 5, async (id) => {
+  const idsParaApagar = idsConfirmados.concat(podeApagar ? idsExcluidos : []);
+  if(idsParaApagar.length > 0){
+    await executarComConcorrencia(idsParaApagar, 5, async (id) => {
       const registro = assinaturas.get(id);
       const subpasta = [SUBPASTA_BACKUP, raizModulo, ...registro.pasta].join("/");
       const ok = await onedriveApagarBlob(subpasta, registro.arquivo);
@@ -2364,19 +2452,25 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
     const registroAnterior = assinaturas.get(item.id);
     // O texto só precisa subir de novo se o item mudou (se estamos aqui apenas
     // para completar as fotos de um texto já enviado, não repete o texto).
-    const textoPrecisaSubir = !registroAnterior || registroAnterior.atualizadoEm !== item.atualizadoEm;
+    let textoPrecisaSubir = !registroAnterior || registroAnterior.atualizadoEm !== item.atualizadoEm;
+    // TRAVA DE DADOS MÓVEIS: arquivo idêntico já na nuvem (mesmo caminho, mesmo
+    // tamanho) não sobe de novo — só a marca local é corrigida.
+    const jaEstaLa = raizModulo==="Simplificado" && textoPrecisaSubir && onedriveJaExisteNaNuvem(item);
+    if(jaEstaLa) textoPrecisaSubir = false;
     let okTexto = true;
     if(textoPrecisaSubir){
       const blobTexto = new Blob([JSON.stringify(tinhaFotos ? semFotos : item.dados, null, 0)], {type:"application/json"});
       okTexto = await onedriveEnviarBlob(subpasta, blobTexto, item.arquivo);
-      registrarEventoSync("up", item.arquivo, item.tipo, blobTexto.size, okTexto, __ultimoMotivoFalhaEnvio);
+      registrarEventoSync("up", item.arquivo, item.tipo, blobTexto.size, okTexto, __ultimoMotivoFalhaEnvio, rotuloCaminhoSync(item.pasta));
       if(onProgresso) onProgresso(blobTexto.size, item.tipo);
     }
     let fotosSubiram = false;
-    if(okTexto && tinhaFotos && podeSubirFotos){
+    if(okTexto && tinhaFotos && podeSubirFotos && raizModulo==="Simplificado" && onedriveFotosJaExistemNaNuvem(item, soFotos)){
+      fotosSubiram = true; // pacote de fotos idêntico já está na nuvem — nada a enviar
+    } else if(okTexto && tinhaFotos && podeSubirFotos){
       const blobFotos = new Blob([JSON.stringify(soFotos, null, 0)], {type:"application/json"});
       fotosSubiram = await onedriveEnviarBlob(subpasta, blobFotos, "fotos_"+item.arquivo);
-      registrarEventoSync("up", "fotos_"+item.arquivo, item.tipo+" (fotos)", blobFotos.size, fotosSubiram, __ultimoMotivoFalhaEnvio);
+      registrarEventoSync("up", "fotos_"+item.arquivo, item.tipo+" (fotos)", blobFotos.size, fotosSubiram, __ultimoMotivoFalhaEnvio, rotuloCaminhoSync(item.pasta));
       if(onProgresso) onProgresso(blobFotos.size, item.tipo);
     }
     if(okTexto){
@@ -2780,7 +2874,14 @@ function onedriveRegistrarAssinaturaDeDownload(descritor, dados){
   try{
     if(!descritor || !descritor.caminho || !dados || !dados.id) return;
     const prefixo = `${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado/`;
-    if(!descritor.caminho.startsWith(prefixo)) return;
+    /* O OneDrive não diferencia maiúsculas de minúsculas, e o caminho que
+       chega pelo aviso rápido de mudanças vem com a grafia real das pastas —
+       que pode diferir do texto fixo escrito aqui. Comparando letra por letra,
+       qualquer diferença de caixa fazia o registro ser DESCARTADO em silêncio:
+       o item recém-baixado passava a ser tratado como "nunca enviei isto" e
+       voltava inteiro para a nuvem (texto E fotos) na sincronização seguinte —
+       consumo de dados móveis do zero, para nada. */
+    if(descritor.caminho.slice(0, prefixo.length).toLowerCase() !== prefixo.toLowerCase()) return;
     const seg = descritor.caminho.slice(prefixo.length).split("/");
     if(seg.length < 2) return;
     const arquivo = seg.pop();
@@ -2803,6 +2904,9 @@ function onedriveMesclarItemNovo(descritor, dados){
   return inseriu;
 }
 function __onedriveMesclarItemNovoInterno(descritor, dados){
+  // Item apagado de propósito neste aparelho não volta a existir só porque o
+  // arquivo ainda está na nuvem (ver LÁPIDES DE EXCLUSÃO).
+  if(descritor.tipo!=="fotos" && dados && dados.id && exclusaoConfirmadaPeloUsuario(descritor.tipo+":"+dados.id)) return false;
   if(descritor.tipo==="fotos"){
     // Pacote de fotos de um item que já chegou como texto: encaixa as fotos
     // no item local e apaga a marca de "fotos virão no Wi-Fi".
@@ -2874,7 +2978,7 @@ async function sincronizarDownloadOneDriveUmaPassada(onProgresso){
       if(texto){
         try{
           const dados = JSON.parse(texto);
-          if(onedriveMesclarItemNovo(item, dados)){ mesclados++; registrarEventoSync("down", item.nome, item.tipo, item.tamanho||0, true); journalGravarItem(item, dados); }
+          if(onedriveMesclarItemNovo(item, dados)){ mesclados++; registrarEventoSync("down", item.nome, item.tipo, item.tamanho||0, true, undefined, rotuloCaminhoNuvem(item.caminho)); journalGravarItem(item, dados); }
           // Baixou, leu, e o conteúdo JÁ EXISTE aqui (mesmo id) — entra no cache
           // de convergência para nunca mais ser contado nem baixado à toa.
           else onedriveMarcarJaExistente(item);
@@ -2912,7 +3016,7 @@ async function sincronizarDownloadOneDriveUmaPassada(onProgresso){
             // (e foi encaixada no projeto) não se perca nem precise ser baixada de
             // novo se o app fechar ou a conexão cair no meio deste lote — antes,
             // só este caminho (fotos automáticas via Wi-Fi) não tinha essa proteção.
-            if(onedriveMesclarItemNovo(item, dados)){ mesclados++; registrarEventoSync("down", item.nome, item.tipo, item.tamanho||0, true); journalGravarItem(item, dados); }
+            if(onedriveMesclarItemNovo(item, dados)){ mesclados++; registrarEventoSync("down", item.nome, item.tipo, item.tamanho||0, true, undefined, rotuloCaminhoNuvem(item.caminho)); journalGravarItem(item, dados); }
             else if(item.tipo==="fotos"){
               // A mesclagem recusou porque o item alvo JÁ está completo (as fotos
               // chegaram por outro caminho no meio tempo) — some da fila em vez de
@@ -3139,7 +3243,7 @@ async function onedriveDeltaProcessarFila(){
       if(!texto){ manter.push(entrada); continue; } // rede falhou agora — permanece na fila
       try{
         const dados = JSON.parse(texto);
-        if(onedriveMesclarItemNovo(d, dados)){ mesclados++; progrediu = true; registrarEventoSync("down", d.nome, d.tipo, d.tamanho||0, true); journalGravarItem(d, dados); }
+        if(onedriveMesclarItemNovo(d, dados)){ mesclados++; progrediu = true; registrarEventoSync("down", d.nome, d.tipo, d.tamanho||0, true, undefined, rotuloCaminhoNuvem(d.caminho)); journalGravarItem(d, dados); }
       }catch(e){ marcarArquivoCorrompido(entrada, texto); /* quarentena registrada — sai da fila e da contagem até o dono reenviar */ }
       marcarProgressoSync();
     }
@@ -3170,7 +3274,7 @@ function marcarArquivoCorrompido(item, texto){
   if(STATE.arquivosCorrompidosIgnorados.some(a=>a.chave===chave)) return; // já em quarentena — não repete o registro
   STATE.arquivosCorrompidosIgnorados.push({ chave, caminho:item.caminho, ts:Date.now() });
   if(STATE.arquivosCorrompidosIgnorados.length>60) STATE.arquivosCorrompidosIgnorados.splice(0, STATE.arquivosCorrompidosIgnorados.length-60);
-  registrarEventoSync("down", item.nome||item.caminho.split("/").pop(), item.tipo, item.tamanho||0, false, "arquivo corrompido — ignorado");
+  registrarEventoSync("down", item.nome||item.caminho.split("/").pop(), item.tipo, item.tamanho||0, false, "arquivo corrompido — ignorado", rotuloCaminhoNuvem(item.caminho));
   dbSet(STATE);
 }
 function arquivoEstaEmQuarentena(caminho, tamanho){
@@ -3493,7 +3597,7 @@ async function onedriveBaixarFotosDeItem(itemId){
     const dados = JSON.parse(texto);
     if(onedriveMesclarItemNovo(pend, dados)){
       STATE.oneDrivePendentes = (STATE.oneDrivePendentes||[]).filter(p=>p!==pend);
-      registrarEventoSync("down", pend.nome, (pend.alvoTipo||"item")+" (fotos)", pend.tamanho||0, true);
+      registrarEventoSync("down", pend.nome, (pend.alvoTipo||"item")+" (fotos)", pend.tamanho||0, true, undefined, rotuloCaminhoNuvem(pend.caminho));
       marcarAlterado();
       render();
       toast("Fotos baixadas");
@@ -3520,7 +3624,7 @@ async function onedriveBaixarPendentes(onProgresso){
     if(texto){
       try{
         const dados = JSON.parse(texto);
-        if(onedriveMesclarItemNovo(item, dados)){ algumaMudanca = true; registrarEventoSync("down", item.nome, item.tipo, item.tamanho||0, true); journalGravarItem(item, dados); }
+        if(onedriveMesclarItemNovo(item, dados)){ algumaMudanca = true; registrarEventoSync("down", item.nome, item.tipo, item.tamanho||0, true, undefined, rotuloCaminhoNuvem(item.caminho)); journalGravarItem(item, dados); }
         // Tira da lista de pendentes assim que este item termina (sucesso, ou já
         // estava completo por outro caminho) — não espera o lote inteiro acabar.
         // Se o app fechar no meio de um lote grande, os itens já processados até
@@ -3560,13 +3664,20 @@ function onedriveRotuloTipo(tipo, qtd){
    modo econômico fora do Wi-Fi) não apareciam em lugar nenhum antes disto. */
 function onedriveEstimarFotosParaEnviar(){
   let totalBytes = 0, totalItens = 0;
-  const contar = (listarItens, mapaRef) => {
+  const contar = (listarItens, mapaRef, ehSimplificado) => {
     const itensAtuais = listarItens();
     const assinaturas = onedriveCarregarAssinaturas(mapaRef); // carrega do STATE se ainda não carregado — evita pendências fantasmas ao abrir o app
     for(const item of itensAtuais){
       const { soFotos, tinhaFotos } = separarFotosDoItem(item.dados);
       if(!tinhaFotos) continue;
-      const registro = assinaturas.get(item.id);
+      let registro = assinaturas.get(item.id);
+      // CONFERE A NUVEM ANTES DE ACUSAR: se o pacote de fotos idêntico já está
+      // lá, isto não é pendência nenhuma — só a marca local que se perdeu.
+      if((!registro || registro.atualizadoEm !== item.atualizadoEm || registro.fotosPendentes) && ehSimplificado
+         && onedriveJaExisteNaNuvem(item) && onedriveFotosJaExistemNaNuvem(item, soFotos)){
+        onedriveCurarAssinatura(item, mapaRef, false);
+        registro = assinaturas.get(item.id);
+      }
       const textoMudou = !registro || registro.atualizadoEm !== item.atualizadoEm;
       if(textoMudou || (registro && registro.fotosPendentes)){
         totalBytes += JSON.stringify(soFotos||{}).length; // sem TextEncoder — mesma razão de memória da estimativa de upload
@@ -3574,8 +3685,8 @@ function onedriveEstimarFotosParaEnviar(){
       }
     }
   };
-  contar(listarItensSincronizaveisSimples, __assinaturasOneDriveSimples);
-  contar(listarItensSincronizaveisCompleto, __assinaturasOneDriveCompleto);
+  contar(listarItensSincronizaveisSimples, __assinaturasOneDriveSimples, true);
+  contar(listarItensSincronizaveisCompleto, __assinaturasOneDriveCompleto, false);
   return { totalBytes, totalItens };
 }
 /* Garante que o mapa de assinaturas (o "já enviei isto") esteja carregado do
@@ -3592,11 +3703,19 @@ function onedriveCarregarAssinaturas(mapaRef){
 function onedriveEstimarPendentesUpload(){
   let totalBytes = 0, totalItens = 0;
   const porTipo = {};
-  const contar = (listarItens, mapaRef) => {
+  const contar = (listarItens, mapaRef, ehSimplificado) => {
     const itensAtuais = listarItens();
     const assinaturas = onedriveCarregarAssinaturas(mapaRef);
     for(const item of itensAtuais){
-      const registro = assinaturas.get(item.id);
+      let registro = assinaturas.get(item.id);
+      // Antes de contar como "falta enviar", confere se o arquivo idêntico já
+      // está na nuvem. Se estiver, a assinatura local é corrigida na hora e o
+      // item some da fila — nada é reenviado, nenhum dado móvel é gasto.
+      if((!registro || registro.atualizadoEm !== item.atualizadoEm) && ehSimplificado && onedriveJaExisteNaNuvem(item)){
+        const { soFotos, tinhaFotos } = separarFotosDoItem(item.dados||{});
+        onedriveCurarAssinatura(item, mapaRef, tinhaFotos && !onedriveFotosJaExistemNaNuvem(item, soFotos));
+        registro = assinaturas.get(item.id);
+      }
       if(!registro || registro.atualizadoEm !== item.atualizadoEm){
         // .length direto do texto (sem TextEncoder): evita criar uma cópia inteira
         // em bytes de cada item (fotos = vários MB) só para medir o tamanho —
@@ -3610,8 +3729,8 @@ function onedriveEstimarPendentesUpload(){
       }
     }
   };
-  contar(listarItensSincronizaveisSimples, __assinaturasOneDriveSimples);
-  contar(listarItensSincronizaveisCompleto, __assinaturasOneDriveCompleto);
+  contar(listarItensSincronizaveisSimples, __assinaturasOneDriveSimples, true);
+  contar(listarItensSincronizaveisCompleto, __assinaturasOneDriveCompleto, false);
   return { totalBytes, totalItens, porTipo };
 }
 /* Mesma checagem leve (só metadados) usada pela sincronização automática de
@@ -3630,16 +3749,36 @@ function onedriveLinhasPorGrupo(porTipo, rotuloDirecao){
     return `${g.qtd} ${onedriveRotuloTipo(t,g.qtd)} para ${rotuloDirecao} (${mb} MB)`;
   });
 }
+/* A tela de Backup é redesenhada várias vezes seguidas (progresso, toasts,
+   troca de aba). Recalcular a lista inteira a cada redesenho é desperdício em
+   celular fraco — 1,5 s de memória basta para o número ficar sempre atual sem
+   pesar. Qualquer edição zera o memo pelo caminho normal de gravação. */
+let __memoEnvio = { em:0, up:null, fotos:null };
+function onedriveEstimativaEnvioComMemo(){
+  if(!__memoEnvio.up || (Date.now() - __memoEnvio.em) > 1500){
+    __memoEnvio = { em: Date.now(), up: onedriveEstimarPendentesUpload(), fotos: onedriveEstimarFotosParaEnviar() };
+  }
+  return __memoEnvio.up;
+}
 function onedriveStatusPendenteHtml(){
   const s = STATE.oneDriveStatusPendente;
   if(!s) return "";
   const dt = new Date(s.verificadoEm);
   const dois = (n) => String(n).padStart(2,'0');
   const carimbo = `${dois(dt.getDate())}/${dois(dt.getMonth()+1)} ${dois(dt.getHours())}:${dois(dt.getMinutes())}`;
-  const fe = s.fotosEnviar || {qtd:0, bytes:0};
+  /* O QUE FALTA ENVIAR é recalculado AGORA, na hora de desenhar a tela: é uma
+     conta local, sem internet e sem custo de dados. Antes vinha congelado da
+     última sincronização MANUAL — tudo que subia sozinho em segundo plano
+     continuava aparecendo como "para enviar" por horas, e era isso que fazia o
+     app parecer ter pendências de itens que ninguém tinha criado.
+     O que falta RECEBER continua vindo da última verificação (essa sim precisa
+     consultar a nuvem, e não faz sentido fazer isso a cada toque na tela). */
+  const upAgora = onedriveEstimativaEnvioComMemo();
+  const fotosAgora = __memoEnvio.fotos;
+  const fe = { qtd: fotosAgora.totalItens, bytes: fotosAgora.totalBytes };
   const fr = s.fotosReceber || {qtd:0, bytes:0};
-  if(s.totalEnviar===0 && s.totalReceber===0 && fe.qtd===0 && fr.qtd===0){
-    return `<p style="font-size:11.5px;color:var(--ink-dim);margin:6px 2px 0">Tudo sincronizado · nenhuma foto pendente · verificado ${carimbo}</p>`;
+  if(upAgora.totalItens===0 && s.totalReceber===0 && fe.qtd===0 && fr.qtd===0){
+    return `<p style="font-size:11.5px;color:var(--ink-dim);margin:6px 2px 0">Tudo sincronizado · nenhuma foto pendente · nuvem verificada ${carimbo}</p>`;
   }
   // As duas linhas de fotos aparecem SEMPRE (mesmo com zero) — pedido de campo:
   // saber de imediato quantas fotos faltam subir e quantas faltam baixar.
@@ -3647,20 +3786,21 @@ function onedriveStatusPendenteHtml(){
     ? `${rotulo}: ${g.qtd} ${g.qtd===1?'foto':'fotos'} (${(g.bytes/1024/1024).toFixed(1)} MB)`
     : `${rotulo}: nenhuma`;
   const linhas = [
-    ...onedriveLinhasPorGrupo(s.enviarPorTipo, 'enviar'),
+    ...onedriveLinhasPorGrupo(upAgora.porTipo, 'enviar'),
     ...onedriveLinhasPorGrupo(s.receberPorTipo, 'receber'),
     linhaFoto('Fotos para enviar', fe),
     linhaFoto('Fotos para receber', fr),
   ].filter(Boolean);
   return `<div style="margin:6px 2px 0">
     ${linhas.map(l=>`<div style="font-size:11.5px;color:var(--ink-dim)">${l}</div>`).join('')}
-    <div style="font-size:10.5px;color:var(--ink-faint);margin-top:2px">verificado ${carimbo}</div>
+    <div style="font-size:10.5px;color:var(--ink-faint);margin-top:2px">envio conferido agora · nuvem verificada ${carimbo}</div>
   </div>`;
 }
 async function onedriveEstimarPendentesDownload(){
   if(!getOneDriveConta()) return { pequenos:[], grandes:[], erro:false, camadaIncompleta:false, arvore:null };
   try{
     const arvore = await onedriveListarArvore(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`, 4);
+    onedriveGuardarIndiceNuvem(onedriveColetarArquivosDaArvore(arvore)); // mantém o índice fresco também no ciclo automático
     const classificado = onedriveClassificarNovosSimples(arvore);
     // Se existe Projeto ou Área ainda não conhecidos por este aparelho, tudo o
     // que está "dentro" deles (Máquinas, Tarefas, Riscos) ainda não pôde ser
@@ -3709,6 +3849,45 @@ function onedriveColetarArquivosDaArvore(arvore){
    busca a árvore inteira antes de cada envio (custaria caro fazer isso a
    cada edição), então nele esta checagem simplesmente não se aplica. */
 let __arvoreSimplesCache = null;
+/* O cache acima só vivia durante UMA sincronização manual. Guardar o mesmo
+   índice no aparelho (caminho → tamanho em bytes) faz a checagem de "isto já
+   está lá" valer também para o ciclo automático em segundo plano — é o que
+   impede, de forma definitiva, reenviar por dados móveis um arquivo que já
+   está correto na nuvem, seja qual for o motivo de a assinatura local ter se
+   perdido. Validade de 24h: passou disso, o app prefere não arriscar e envia. */
+const INDICE_NUVEM_VALIDADE_MS = 24*60*60*1000;
+const INDICE_NUVEM_MAX_ITENS = 6000;
+function onedriveGuardarIndiceNuvem(mapaArquivos){
+  try{
+    if(!mapaArquivos || mapaArquivos.size===0) return;
+    const arquivos = {};
+    let n = 0;
+    for(const [k,v] of mapaArquivos){ if(n++ >= INDICE_NUVEM_MAX_ITENS) break; arquivos[k] = v; }
+    STATE.oneDriveIndiceNuvem = { em: Date.now(), arquivos };
+  }catch(e){}
+}
+function onedriveIndiceNuvem(){
+  if(__arvoreSimplesCache) return __arvoreSimplesCache;
+  const guardado = STATE.oneDriveIndiceNuvem;
+  if(!guardado || !guardado.arquivos) return null;
+  if(Date.now() - (guardado.em||0) > INDICE_NUVEM_VALIDADE_MS) return null;
+  if(!__indiceNuvemMapa || __indiceNuvemMapaEm !== guardado.em){
+    __indiceNuvemMapa = new Map(Object.entries(guardado.arquivos));
+    __indiceNuvemMapaEm = guardado.em;
+  }
+  return __indiceNuvemMapa;
+}
+let __indiceNuvemMapa = null, __indiceNuvemMapaEm = 0;
+/* Grava a assinatura de um item que já está idêntico na nuvem, sem enviar
+   nada. Devolve true quando conseguiu curar. */
+function onedriveCurarAssinatura(item, mapaRef, fotosPendentes){
+  const mapa = onedriveCarregarAssinaturas(mapaRef);
+  const registro = { atualizadoEm:item.atualizadoEm, pasta:item.pasta, arquivo:item.arquivo, fotosPendentes: !!fotosPendentes };
+  mapa.set(item.id, registro);
+  if(!STATE[mapaRef.chaveEstado] || typeof STATE[mapaRef.chaveEstado] !== "object") STATE[mapaRef.chaveEstado] = {};
+  STATE[mapaRef.chaveEstado][item.id] = registro;
+  return true;
+}
 /* true = já existe um arquivo idêntico (mesmo caminho, mesmo tamanho em
    bytes) na nuvem — não precisa reenviar, só "curar" a assinatura local.
    Comparação por tamanho em bytes (não por conteúdo, que exigiria baixar o
@@ -3717,15 +3896,26 @@ let __arvoreSimplesCache = null;
    exatamente o mesmo corpo que o envio de verdade usaria (texto sem fotos,
    quando o item tem fotos embutidas) — mesma função separarFotosDoItem. */
 function onedriveJaExisteNaNuvem(item){
-  if(!__arvoreSimplesCache) return false; // sem árvore fresca nesta sessão — não arrisca, envia normalmente
+  const indice = onedriveIndiceNuvem();
+  if(!indice) return false; // sem índice confiável — não arrisca, envia normalmente
   const prefixo = `${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado/`.toLowerCase();
   const caminho = prefixo + (item.pasta.join("/") + "/" + item.arquivo).toLowerCase();
-  const tamanhoRemoto = __arvoreSimplesCache.get(caminho);
+  const tamanhoRemoto = indice.get(caminho);
   if(tamanhoRemoto===undefined) return false;
   const { semFotos, tinhaFotos } = separarFotosDoItem(item.dados||{});
   const corpo = tinhaFotos ? semFotos : (item.dados||{});
   const bytesLocais = new Blob([JSON.stringify(corpo, null, 0)]).size;
   return bytesLocais === tamanhoRemoto;
+}
+/* Mesma checagem, para o arquivo-irmão de fotos. */
+function onedriveFotosJaExistemNaNuvem(item, soFotos){
+  const indice = onedriveIndiceNuvem();
+  if(!indice) return false;
+  const prefixo = `${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado/`.toLowerCase();
+  const caminho = prefixo + (item.pasta.join("/") + "/fotos_" + item.arquivo).toLowerCase();
+  const tamanhoRemoto = indice.get(caminho);
+  if(tamanhoRemoto===undefined) return false;
+  return new Blob([JSON.stringify(soFotos||{}, null, 0)]).size === tamanhoRemoto;
 }
 function onedriveReconciliarComArvore(arvore){
   try{
@@ -3735,6 +3925,7 @@ function onedriveReconciliarComArvore(arvore){
     const arquivosNaNuvem = onedriveColetarArquivosDaArvore(arvore);
     const existentes = arquivosNaNuvem; // Map: .has() funciona igual a Set aqui
     __arvoreSimplesCache = arquivosNaNuvem; // disponibiliza para a checagem de "já está lá" nesta mesma sincronização
+    onedriveGuardarIndiceNuvem(arquivosNaNuvem);
     const temProjetosLocais = (STATE.projetosSimples||[]).length > 0;
     // Proteção: se a listagem voltou VAZIA mas há projetos locais, o mais
     // provável é falha de sessão/rede disfarçada — não conclui que "está tudo
@@ -3767,7 +3958,7 @@ function onedriveReconciliarComArvore(arvore){
         mapa.delete(item.id);
         if(STATE[__assinaturasOneDriveSimples.chaveEstado]) delete STATE[__assinaturasOneDriveSimples.chaveEstado][item.id];
         reparos++;
-        registrarEventoSync("up", reg.arquivo, item.tipo, 0, false, "faltava na nuvem — reenvio agendado");
+        registrarEventoSync("up", reg.arquivo, item.tipo, 0, false, "faltava na nuvem — reenvio agendado", rotuloCaminhoSync(reg.pasta));
         continue;
       }
       // Texto está lá; e as fotos? Se o item tem fotos e o arquivo "fotos_"
@@ -3778,7 +3969,7 @@ function onedriveReconciliarComArvore(arvore){
           reg.fotosPendentes = true;
           if(STATE[__assinaturasOneDriveSimples.chaveEstado] && STATE[__assinaturasOneDriveSimples.chaveEstado][item.id]) STATE[__assinaturasOneDriveSimples.chaveEstado][item.id].fotosPendentes = true;
           reparos++;
-          registrarEventoSync("up", "fotos_"+reg.arquivo, item.tipo+" (fotos)", 0, false, "fotos faltavam na nuvem — reenvio agendado");
+          registrarEventoSync("up", "fotos_"+reg.arquivo, item.tipo+" (fotos)", 0, false, "fotos faltavam na nuvem — reenvio agendado", rotuloCaminhoSync(reg.pasta));
         }
       }
     }
@@ -4658,6 +4849,27 @@ let __lendoPlaquetaIA = false; // trava o botão "Ler plaqueta com IA" enquanto 
 let __selMode = null; // { tipo:'areaS'|'maquinaS'|'tarefaS'|'riscoS', ids:Set<string>, ctx:{...} }
 let __ultimoMovimento = null; // { tipo, idsMovidos:Set<string>, origemScreen, origemParams, origemLabel, expiraEm }
 let __buscaAtual = "";
+/* A cada tecla digitada a tela inteira é redesenhada — o campo de busca é
+   destruído e recriado, e com ele some o foco: no celular isso FECHA o teclado
+   a cada letra. Guardar foco e posição do cursor antes de redesenhar, e
+   devolvê-los logo em seguida (ainda dentro do mesmo toque do usuário, que é o
+   que o iPhone exige para não fechar o teclado), resolve sem mudar nada na
+   forma como as listas são montadas. */
+let __buscaPrecisaFoco = false, __buscaCaret = null;
+function restaurarFocoBusca(){
+  if(!__buscaPrecisaFoco) return;
+  __buscaPrecisaFoco = false;
+  try{
+    const el = document.getElementById("buscaInput");
+    if(!el) return;
+    el.focus({ preventScroll:true });
+    if(__buscaCaret !== null && el.setSelectionRange){
+      const pos = Math.min(__buscaCaret, el.value.length);
+      el.setSelectionRange(pos, pos);
+    }
+  }catch(e){}
+  __buscaCaret = null;
+}
 function aplicarContraste(){
   document.documentElement.setAttribute("data-contraste", STATE.contrasteAlto ? "alto" : "normal");
 }
@@ -4665,7 +4877,7 @@ function renderBuscaInput(placeholder){
   const labels = {manual:"Manual",alfabetica:"A-Z",recente:"Recentes"};
   return `<div class="list-toolbar">
     <div class="search-wrap">
-      <input type="text" class="search-input" placeholder="${escapeHtml(placeholder)}" value="${escapeHtml(__buscaAtual)}" oninput="App.onBuscaChange(this.value)">
+      <input type="text" id="buscaInput" class="search-input" placeholder="${escapeHtml(placeholder)}" value="${escapeHtml(__buscaAtual)}" oninput="App.onBuscaChange(this.value)">
       ${__buscaAtual? `<button class="search-clear" onclick="App.onBuscaChange('')">${ic('close')}</button>` : ""}
     </div>
     <button class="ordem-btn" onclick="App.abrirMenuOrdem()">${ic('sort')}<span>${labels[STATE.ordemModo]||"Manual"}</span></button>
@@ -6389,6 +6601,14 @@ function exportarObjetivaXLS(){
 /* ---------- Gerador de Excel nativo (SpreadsheetML / "Excel 2003 XML") — sem imagens ---------- */
 function escapeXml(s){
   return String(s==null?"":s)
+    /* Caracteres de controle (vindos de texto colado, de OCR ou da resposta da
+       IA) são PROIBIDOS em XML 1.0. Um único deles no meio de um texto tornava
+       a planilha inválida e o Excel abria com "Encontramos um problema em um
+       conteúdo… Registros Reparados: Informações sobre a célula". Remover aqui
+       protege TODAS as exportações de uma vez (Excel e demais partes XML). */
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g,"")
+    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g,"")   // metade solta de par substituto (emoji quebrado)
+    .replace(/(^|[^\uD800-\uDBFF])[\uDC00-\uDFFF]/g,"$1")
     .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
     .replace(/"/g,"&quot;").replace(/'/g,"&apos;")
     .replace(/\r\n/g,"&#10;").replace(/\n/g,"&#10;").replace(/\r/g,"&#10;");
@@ -6665,7 +6885,14 @@ function contextoNormasIA(){
   if(blocos.length===0) return "";
   return `\n\nUse os trechos de normas abaixo como referência técnica, quando forem relevantes ao que está sendo escrito. Não cite as normas literalmente nem mencione que está consultando um documento — apenas use o conteúdo para embasar o texto:\n${blocos.join("\n\n")}`;
 }
+/* Último código de resposta HTTP da IA (0 = ainda não chamou, -1 = falha de
+   rede). É o que permite distinguir "chave recusada" (401/403 — insistir não
+   adianta) de "limite de uso momentâneo" (429) e "servidor fora do ar" (5xx),
+   onde esperar e tentar de novo resolve. */
+let __iaUltimoStatus = 0;
+let __iaMotivoFalha = "";
 async function chamarIA(tipo, textoUsuario){
+  __iaUltimoStatus = 0;
   const apiKey = getIAApiKey();
   if(!apiKey) return null;
   const cfg = getIAConfig();
@@ -6690,7 +6917,7 @@ async function chamarIA(tipo, textoUsuario){
           generationConfig: { temperature: 0.3 }
         })
       });
-      if(!resp.ok) return null;
+      if(!resp.ok){ __iaUltimoStatus = resp.status; return null; }
       const data = await resp.json();
       const cand = data && data.candidates && data.candidates[0];
       const texto = cand && cand.content && cand.content.parts && cand.content.parts[0] && cand.content.parts[0].text;
@@ -6704,12 +6931,38 @@ async function chamarIA(tipo, textoUsuario){
         body: JSON.stringify({ model: modelo, temperature: 0.3,
           messages:[ { role:"system", content: prompt }, { role:"user", content: textoUsuario || "" } ] })
       });
-      if(!resp.ok) return null;
+      if(!resp.ok){ __iaUltimoStatus = resp.status; return null; }
       const data = await resp.json();
       const texto = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
       return texto ? String(texto).trim() : null;
     }
-  }catch(e){ console.error("Erro ao chamar IA:", e); return null; }
+  }catch(e){ __iaUltimoStatus = -1; console.error("Erro ao chamar IA:", e); return null; }
+}
+/* A causa real de "só a primeira linha veio preenchida": a chamada era feita
+   UMA única vez e, em qualquer erro, devolvia vazio em silêncio. Numa
+   exportação com dezenas de riscos são centenas de chamadas em sequência, e
+   todo provedor de IA limita quantas aceita por minuto — a partir de certo
+   ponto ele respondia 429 ("espere um pouco") e o app entendia isso como
+   "a IA não tinha nada a dizer", deixando o resto das linhas em branco sem
+   avisar ninguém. Agora cada chamada é repetida com esperas crescentes, e o
+   motivo da desistência fica registrado para ser mostrado ao usuário no fim. */
+const IA_ESPERAS_RETENTATIVA = [0, 2000, 5000, 12000, 25000];
+let __iaChamadasFalhas = 0;
+async function chamarIAResiliente(tipo, textoUsuario){
+  for(let t=0; t<IA_ESPERAS_RETENTATIVA.length; t++){
+    if(IA_ESPERAS_RETENTATIVA[t]) await esperar(IA_ESPERAS_RETENTATIVA[t]);
+    const r = await chamarIA(tipo, textoUsuario);
+    if(r) return r;
+    const st = __iaUltimoStatus;
+    if(st===401 || st===403){ __iaMotivoFalha = "a chave de IA foi recusada (erro " + st + ") — confira em Configurações → IA"; break; }
+    if(st===400){ __iaMotivoFalha = "o provedor recusou o pedido (erro 400) — modelo inválido ou texto muito longo"; break; }
+    if(st===429) __iaMotivoFalha = "limite de uso da IA atingido (erro 429) — o provedor pediu para esperar";
+    else if(st>=500) __iaMotivoFalha = "o servidor da IA está indisponível (erro " + st + ")";
+    else if(st===-1) __iaMotivoFalha = "falha de conexão com a IA";
+    else if(st>0) __iaMotivoFalha = "resposta inesperada da IA (erro " + st + ")";
+  }
+  __iaChamadasFalhas++;
+  return null;
 }
 /* Igual a chamarIA(), mas envia também uma imagem (foto da plaqueta) — usada
    só pela leitura automática de plaqueta no formulário de Máquina. Requer um
@@ -6851,7 +7104,20 @@ function parseRespostaJsonIA(resposta){
     const limpo = String(resposta).replace(/^```json\s*|^```\s*|```\s*$/g, "").trim();
     const obj = JSON.parse(limpo);
     return (obj && typeof obj==="object") ? obj : null;
-  }catch(e){ return null; }
+  }catch(e){
+    // Alguns modelos escrevem uma frase antes ou depois do JSON. Em vez de
+    // descartar a resposta inteira (e deixar a célula vazia), procura o
+    // primeiro bloco { ... } e tenta de novo.
+    try{
+      const bruto = String(resposta);
+      const ini = bruto.indexOf("{"), fim = bruto.lastIndexOf("}");
+      if(ini>=0 && fim>ini){
+        const obj2 = JSON.parse(bruto.slice(ini, fim+1));
+        return (obj2 && typeof obj2==="object") ? obj2 : null;
+      }
+    }catch(e2){}
+    return null;
+  }
 }
 /* Gera, para cada item (máquina × tarefa × risco), os textos e as dúvidas da
    IA para a exportação em Excel no modelo Corteva — SEM tocar em nenhum campo
@@ -6863,6 +7129,7 @@ function parseRespostaJsonIA(resposta){
    Sem chave de IA configurada, devolve os itens com essas propriedades vazias
    — a exportação continua funcionando 100% offline, só sem os textos da IA. */
 async function calcularIATextosPorItem(linhasRaw, onProgress){
+  __iaChamadasFalhas = 0; __iaMotivoFalha = "";
   if(!getIAApiKey()) return linhasRaw.map(item=>({ ...item, iaDuvidas:{}, iaTextos:{} }));
   const cacheMaquina = new Map(); // maquinaId -> { duvidaEquipamento, textoEscopo, duvidaEscopo }
   const cacheTarefa = new Map();  // tarefaId -> { texto, duvida }
@@ -6872,8 +7139,8 @@ async function calcularIATextosPorItem(linhasRaw, onProgress){
     if(onProgress) onProgress(i+1, linhasRaw.length);
     if(!cacheMaquina.has(item.maquina.id)){
       const [respEquip, respEscopo] = await Promise.all([
-        chamarIA("equipamento_xlsx", item.maquina.descricao || nomeMaquinaS(item.maquina)),
-        chamarIA("escopo_xlsx", `Nome: ${nomeMaquinaS(item.maquina)}\nDescrição: ${item.maquina.descricao||"(não informada)"}`),
+        chamarIAResiliente("equipamento_xlsx", item.maquina.descricao || nomeMaquinaS(item.maquina)),
+        chamarIAResiliente("escopo_xlsx", `Nome: ${nomeMaquinaS(item.maquina)}\nDescrição: ${item.maquina.descricao||"(não informada)"}`),
       ]);
       const jEquip = parseRespostaJsonIA(respEquip) || {};
       const jEscopo = parseRespostaJsonIA(respEscopo) || {};
@@ -6886,7 +7153,7 @@ async function calcularIATextosPorItem(linhasRaw, onProgress){
     }
     if(!cacheTarefa.has(item.tarefa.id)){
       const nomeTarefa = valOuOutro(item.tarefa.tarefa, item.tarefa.tarefaOutro);
-      const respTarefa = await chamarIA("tarefa_xlsx", `Tarefa: ${nomeTarefa}\nMáquina/Ativo: ${nomeMaquinaS(item.maquina)}\nNota do inspetor: ${item.tarefa.descricao||"(não informada)"}`);
+      const respTarefa = await chamarIAResiliente("tarefa_xlsx", `Tarefa: ${nomeTarefa}\nMáquina/Ativo: ${nomeMaquinaS(item.maquina)}\nNota do inspetor: ${item.tarefa.descricao||"(não informada)"}`);
       const jTarefa = parseRespostaJsonIA(respTarefa) || {};
       cacheTarefa.set(item.tarefa.id, { texto: jTarefa.texto || "", duvida: jTarefa.duvida || "" });
       await esperar(200);
@@ -6895,8 +7162,8 @@ async function calcularIATextosPorItem(linhasRaw, onProgress){
     const cacheT = cacheTarefa.get(item.tarefa.id);
     const medidaExistente = item.risco.medidaImplementada === "Sim";
     const [respRisco, respSolucao] = await Promise.all([
-      chamarIA("risco_xlsx", item.risco.descricao),
-      chamarIA("mitigacao_xlsx", medidaExistente ? item.risco.descMedida : item.risco.sugestaoMitigacao),
+      chamarIAResiliente("risco_xlsx", item.risco.descricao),
+      chamarIAResiliente("mitigacao_xlsx", medidaExistente ? item.risco.descMedida : item.risco.sugestaoMitigacao),
     ]);
     const jRisco = parseRespostaJsonIA(respRisco) || {};
     const jSolucao = parseRespostaJsonIA(respSolucao) || {};
@@ -6904,10 +7171,57 @@ async function calcularIATextosPorItem(linhasRaw, onProgress){
       iaDuvidas: { equipamento:cacheM.duvidaEquipamento, escopo:cacheM.duvidaEscopo, tarefa:cacheT.duvida, risco:jRisco.duvida||"", solucao:jSolucao.duvida||"" },
       iaTextos: { escopo:cacheM.textoEscopo, tarefa:cacheT.texto, risco:jRisco.texto||"", solucao:jSolucao.texto||"" },
     });
-    await esperar(200);
+    await esperar(350);
   }
+  // ---- SEGUNDA PASSADA: preenche só o que ficou em branco ----
+  // Mesmo com as repetições acima, um pico de limite de uso pode deixar
+  // algumas linhas sem texto. Esta passada final volta apenas nessas linhas
+  // (nunca reescreve o que já veio) — é o que garante que a planilha saia com
+  // TODAS as células preenchidas, e não só as primeiras.
+  const faltando = resultado.filter(r => !r.iaTextos.risco || !r.iaTextos.solucao || !r.iaTextos.escopo || !r.iaTextos.tarefa);
+  if(faltando.length > 0){
+    if(onProgress) onProgress(linhasRaw.length, linhasRaw.length);
+    for(let i=0;i<faltando.length;i++){
+      const r = faltando[i];
+      if(onProgress) onProgress(linhasRaw.length, linhasRaw.length, `completando ${i+1}/${faltando.length}`);
+      if(!r.iaTextos.escopo){
+        const resp = await chamarIAResiliente("escopo_xlsx", `Nome: ${nomeMaquinaS(r.maquina)}\nDescrição: ${r.maquina.descricao||"(não informada)"}`);
+        const j = parseRespostaJsonIA(resp) || {};
+        if(j.texto){ r.iaTextos.escopo = j.texto; r.iaDuvidas.escopo = r.iaDuvidas.escopo || j.duvida || ""; cacheMaquina.set(r.maquina.id, { ...(cacheMaquina.get(r.maquina.id)||{}), textoEscopo:j.texto }); }
+      }
+      if(!r.iaTextos.tarefa){
+        const nomeTarefa = valOuOutro(r.tarefa.tarefa, r.tarefa.tarefaOutro);
+        const resp = await chamarIAResiliente("tarefa_xlsx", `Tarefa: ${nomeTarefa}\nMáquina/Ativo: ${nomeMaquinaS(r.maquina)}\nNota do inspetor: ${r.tarefa.descricao||"(não informada)"}`);
+        const j = parseRespostaJsonIA(resp) || {};
+        if(j.texto){ r.iaTextos.tarefa = j.texto; r.iaDuvidas.tarefa = r.iaDuvidas.tarefa || j.duvida || ""; }
+      }
+      if(!r.iaTextos.risco){
+        const j = parseRespostaJsonIA(await chamarIAResiliente("risco_xlsx", r.risco.descricao)) || {};
+        if(j.texto){ r.iaTextos.risco = j.texto; r.iaDuvidas.risco = r.iaDuvidas.risco || j.duvida || ""; }
+      }
+      if(!r.iaTextos.solucao){
+        const medidaExistente = r.risco.medidaImplementada === "Sim";
+        const j = parseRespostaJsonIA(await chamarIAResiliente("mitigacao_xlsx", medidaExistente ? r.risco.descMedida : r.risco.sugestaoMitigacao)) || {};
+        if(j.texto){ r.iaTextos.solucao = j.texto; r.iaDuvidas.solucao = r.iaDuvidas.solucao || j.duvida || ""; }
+      }
+      await esperar(350);
+    }
+  }
+  // Preenchimento herdado: escopo é por MÁQUINA e tarefa é por TAREFA — se
+  // uma linha conseguiu o texto e outra da mesma máquina/tarefa não, copia,
+  // em vez de deixar célula vazia com o texto já existindo ao lado.
+  const porMaquina = new Map(), porTarefa = new Map();
+  resultado.forEach(r=>{ if(r.iaTextos.escopo && !porMaquina.has(r.maquina.id)) porMaquina.set(r.maquina.id, r.iaTextos.escopo); });
+  resultado.forEach(r=>{ if(r.iaTextos.tarefa && !porTarefa.has(r.tarefa.id)) porTarefa.set(r.tarefa.id, r.iaTextos.tarefa); });
+  resultado.forEach(r=>{
+    if(!r.iaTextos.escopo && porMaquina.has(r.maquina.id)) r.iaTextos.escopo = porMaquina.get(r.maquina.id);
+    if(!r.iaTextos.tarefa && porTarefa.has(r.tarefa.id)) r.iaTextos.tarefa = porTarefa.get(r.tarefa.id);
+  });
+  __iaCelulasVazias = resultado.reduce((n,r)=> n + (r.iaTextos.escopo?0:1) + (r.iaTextos.tarefa?0:1) + (r.iaTextos.risco?0:1) + (r.iaTextos.solucao?0:1), 0);
+  __iaCelulasTotal = resultado.length * 4;
   return resultado;
 }
+let __iaCelulasVazias = 0, __iaCelulasTotal = 0;
 function getAreasSelecionadasExport(){
   const todasAreaIds = [];
   STATE.projetosSimples.forEach(p=>p.areas.forEach(a=>todasAreaIds.push(a.id)));
@@ -7059,6 +7373,19 @@ async function gerarBytesXlsxSimples(linhasRaw){
    (xl/vbaProject.bin) — sem tocar. Sem modelo enviado, a exportação de
    Excel continua no formato simples de sempre (gerarBytesXlsxSimples).
    ========================================================================= */
+/* Uma fórmula compartilhada tem UMA célula "dona" (com ref=) e várias células
+   "dependentes" (só com si=). Quando a dona é substituída por texto, as
+   dependentes ficam órfãs e o Excel considera o arquivo danificado. Aqui elas
+   viram valor puro: perde-se a fórmula (que já não existia mesmo), o número
+   calculado continua igual e o arquivo abre limpo. */
+function xlsmDesarmarFormulasOrfas(xml, siOrfaos){
+  if(!siOrfaos || siOrfaos.size===0) return xml;
+  return xml.replace(/<f[^>]*\bt="shared"[^>]*?(?:\/>|>[\s\S]*?<\/f>)/g, (m)=>{
+    const mSi = /\bsi="(\d+)"/.exec(m);
+    if(!mSi || !siOrfaos.has(mSi[1])) return m;
+    return "";
+  });
+}
 function xlsmCellTexto(ref, style, texto){
   const t = (texto===null||texto===undefined||texto==="") ? "" : String(texto);
   if(t==="") return `<c r="${ref}" s="${style}"/>`;
@@ -7289,7 +7616,23 @@ async function gerarBytesXlsmCorteva(modeloB64, linhasComIA, itensInventario, da
 
   // ---------- Informações (sheet4) — só os campos que o app já conhece ----------
   let s4 = zip.file("xl/worksheets/sheet4.xml").asText();
+  /* Índices de fórmula compartilhada (si=) cujo "dono" foi substituído por
+     texto nesta aba. Sem desarmar as células que dependiam dele, o Excel abre
+     acusando "Informações sobre a célula" reparadas. */
+  const __siOrfaos = new Set();
   function setCel(xml, ref, style, texto){
+    // Estilo: usa SEMPRE o que já existe na célula do modelo. Índice fixo no
+    // código só vale enquanto o modelo não mudar — se o arquivo enviado tiver
+    // menos estilos, o índice inexistente é exatamente o que o Excel repara
+    // como "informação de célula" corrompida.
+    const reOrig = new RegExp(`<c r="${ref}"[^>]*?(?:/>|>[\\s\\S]*?</c>)`);
+    const orig = (xml.match(reOrig)||[])[0];
+    if(orig){
+      const mS = /<c [^>]*?\bs="(\d+)"/.exec(orig);
+      if(mS) style = mS[1];
+      const mShared = /<f[^>]*\bt="shared"[^>]*\bsi="(\d+)"[^>]*\bref="/.exec(orig);
+      if(mShared) __siOrfaos.add(mShared[1]);
+    }
     const nova = xlsmCellTexto(ref, style, texto);
     // "[^>]*?" preguiçoso — veja o comentário em xlsmSubstituiLinhas: sem isso,
     // ao mirar uma célula em branco (a maioria das da aba Informações, que vem
@@ -7326,6 +7669,7 @@ async function gerarBytesXlsmCorteva(modeloB64, linhasComIA, itensInventario, da
   s4 = setCel(s4, "L16", 29, "");
   s4 = setCel(s4, "L18", 29, "");
   s4 = setCel(s4, "L19", 29, "");
+  s4 = xlsmDesarmarFormulasOrfas(s4, __siOrfaos);
   zip.file("xl/worksheets/sheet4.xml", s4);
 
   // ---------- Inventário (sheet6) ----------
@@ -7362,10 +7706,14 @@ async function gerarBytesXlsmCorteva(modeloB64, linhasComIA, itensInventario, da
   // ---------- calcChain.xml — remove; o Excel reconstrói sozinho ao abrir ----------
   zip.remove("xl/calcChain.xml");
   let ct = zip.file("[Content_Types].xml").asText();
-  ct = ct.replace(/<Override PartName="\/xl\/calcChain\.xml"[^/]*\/>/, "");
+  /* [^/]* não servia: o valor de ContentType contém "/" (application/vnd...),
+     então a remoção NUNCA acontecia. O resultado era um arquivo declarando uma
+     parte (calcChain.xml) que tinha acabado de ser removida — outra causa
+     direta do aviso de conteúdo danificado ao abrir. */
+  ct = ct.replace(/<Override[^>]*PartName="\/xl\/calcChain\.xml"[^>]*\/>/g, "");
   zip.file("[Content_Types].xml", ct);
   let wbRels = zip.file("xl/_rels/workbook.xml.rels").asText();
-  wbRels = wbRels.replace(/<Relationship Id="[^"]*" Type="[^"]*calcChain"[^/]*\/>/, "");
+  wbRels = wbRels.replace(/<Relationship[^>]*calcChain[^>]*\/>/g, "");
   zip.file("xl/_rels/workbook.xml.rels", wbRels);
 
   return zip.generate({ type: "uint8array", compression: "DEFLATE" });
@@ -7470,7 +7818,13 @@ async function _exportarSimplesXLSXFotosReal(){
       // ---- Modelo oficial da Corteva (.xlsm, com macros) ----
       let linhasComIA = linhasRaw.map(item=>({...item, iaDuvidas:{}, iaTextos:{}}));
       if(getIAApiKey() && getIAConfig().usarNaExportacaoExcel){
-        linhasComIA = await calcularIATextosPorItem(linhasRaw, (i,total)=> toast(`Escrevendo textos da IA… ${i}/${total}`));
+        linhasComIA = await calcularIATextosPorItem(linhasRaw, (i,total,extra)=> toast(`Escrevendo textos da IA… ${i}/${total}${extra?` · ${extra}`:''}`));
+        // Transparência: se alguma célula ficou sem texto, o usuário fica
+        // sabendo AGORA (com o motivo real), em vez de descobrir só ao abrir a
+        // planilha e ver colunas em branco sem explicação nenhuma.
+        if(__iaCelulasVazias > 0){
+          toast(`Atenção: ${__iaCelulasVazias} de ${__iaCelulasTotal} textos da IA não puderam ser gerados${__iaMotivoFalha? ` — ${__iaMotivoFalha}` : ""}. As demais células foram preenchidas normalmente; refazer a exportação mais tarde completa o que faltou.`, false);
+        }
       }
       const grupos = agruparLinhasPorArea(linhasComIA);
       const arquivos = [];
@@ -7710,8 +8064,8 @@ function screenSimplesConfigBackup(){
     <div style="display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid rgba(0,0,0,.05)">
       <span style="font-weight:900;font-size:15px;color:${ev.dir==='up' ? 'var(--accent)' : '#2E9E5B'};flex-shrink:0">${ev.dir==='up'?'\u2191':'\u2193'}</span>
       <div style="flex:1;min-width:0">
-        <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(ev.nome)}</div>
-        <div style="font-size:10.5px;color:var(--ink-dim)">${new Date(ev.ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}${ev.tipo? ' · '+escapeHtml(ev.tipo):''}</div>
+        <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(ev.caminho || ev.nome)}</div>
+        <div style="font-size:10.5px;color:var(--ink-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${new Date(ev.ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}${ev.tipo? ' · '+escapeHtml(ev.tipo):''}${ev.caminho? ' · '+escapeHtml(ev.nome):''}</div>
       </div>
       <span style="font-size:11px;color:var(--ink-dim);flex-shrink:0">${fmtBytes(ev.bytes)}</span>
       ${!ev.ok ? `<span style="font-size:10.5px;color:#FF6B5E;font-weight:800;flex-shrink:0">falhou${ev.motivo? ' ('+escapeHtml(ev.motivo)+')':''}</span>` : ''}
@@ -7905,7 +8259,7 @@ function jsonEmPartes(valor, partes){
 const __BACKUP_V2_MARCA = '{"__formatoBackup":"apr-v2"';
 // Caches internos deste aparelho que não devem viajar num backup (são
 // por-aparelho; levá-los junto confundia o controle de envio do destino).
-const __BACKUP_CAMPOS_EXCLUIR = new Set(["projetosSimples","projetos","oneDriveAssinaturasSimples","oneDriveAssinaturasCompleto","oneDrivePendentes","oneDriveDeltaFila","oneDriveJaExistentes","arquivosCorrompidosIgnorados","logSincronizacao","oneDriveStatusPendente"]);
+const __BACKUP_CAMPOS_EXCLUIR = new Set(["projetosSimples","projetos","oneDriveAssinaturasSimples","oneDriveAssinaturasCompleto","oneDrivePendentes","oneDriveDeltaFila","oneDriveJaExistentes","arquivosCorrompidosIgnorados","logSincronizacao","oneDriveStatusPendente","oneDriveIndiceNuvem","exclusoesConfirmadas"]);
 function backupV2EmPartes(partes){
   const resto = {};
   for(const k in STATE){ if(!__BACKUP_CAMPOS_EXCLUIR.has(k)) resto[k] = STATE[k]; }
@@ -9667,7 +10021,14 @@ const App = {
     if(m==="completo") go("projetos"); else go("simples-projetos");
   },
   trocarModulo(){ STATE.modulo = null; marcarAlterado(); render(); },
-  onBuscaChange(value){ __buscaAtual = value; render(); },
+  onBuscaChange(value){
+    const el = document.getElementById("buscaInput");
+    __buscaPrecisaFoco = !!el && document.activeElement === el; // só devolve o foco se ele ESTAVA no campo (o botão de limpar não reabre o teclado)
+    __buscaCaret = (el && typeof el.selectionStart === "number") ? el.selectionStart : null;
+    __buscaAtual = value;
+    render();
+    restaurarFocoBusca();
+  },
   toggleContraste(){ STATE.contrasteAlto = !STATE.contrasteAlto; marcarAlterado(); render(); toast(STATE.contrasteAlto? "Alto contraste ativado" : "Alto contraste desativado"); },
   onMecseteConfigInput(campo, v){ getMecseteConfig()[campo] = v; marcarAlterado(); },
   adicionarUsuarioInspetor(){ getUsuariosInspetores().push({id:uid(), nome:"", cargo:""}); marcarAlterado(); render(); },
@@ -10091,6 +10452,8 @@ const App = {
   removerDraftRisco(){
     if(!confirm("Remover este risco?")) return;
     const tarefa = buscarTarefaSimplesPorId(__draftParent.tarefaSId);
+    const alvoR = tarefa.riscos.find(r=>r.id===__draftEntity.id);
+    if(alvoR) perguntarApagarTambemNaNuvem("este risco", idsSincronizaveisDe("risco", alvoR));
     tarefa.riscos = tarefa.riscos.filter(r=>r.id!==__draftEntity.id);
     marcarAlterado();
     App.fecharModal();
@@ -10130,7 +10493,9 @@ const App = {
     ]);
   },
   removerProjetoS(id){
+    const alvo = STATE.projetosSimples.find(x=>x.id===id);
     if(!confirm("Excluir este projeto e tudo dentro dele? Esta ação não pode ser desfeita.")) return;
+    if(alvo) perguntarApagarTambemNaNuvem("este projeto e tudo dentro dele", idsSincronizaveisDe("projeto", alvo));
     STATE.projetosSimples = STATE.projetosSimples.filter(x=>x.id!==id);
     marcarAlterado(); render(); toast("Projeto excluído");
   },
@@ -10203,7 +10568,9 @@ const App = {
   },
   removerAreaS(id){
     const p = getCurrentProjetoSimples();
+    const alvo = p.areas.find(x=>x.id===id);
     if(!confirm("Excluir esta área e tudo dentro dela?")) return;
+    if(alvo) perguntarApagarTambemNaNuvem("esta área e tudo dentro dela", idsSincronizaveisDe("area", alvo));
     p.areas = p.areas.filter(x=>x.id!==id);
     marcarAlterado(); go("simples-areas",{projetoSId:p.id}); toast("Área excluída");
   },
@@ -10278,7 +10645,9 @@ const App = {
   },
   removerMaquinaS(id){
     const a = getCurrentAreaSimples();
+    const alvo = a.maquinas.find(x=>x.id===id);
     if(!confirm("Excluir esta máquina e tudo dentro dela?")) return;
+    if(alvo) perguntarApagarTambemNaNuvem("este equipamento e tudo dentro dele", idsSincronizaveisDe("maquina", alvo));
     a.maquinas = a.maquinas.filter(x=>x.id!==id);
     marcarAlterado(); go("simples-maquinas",{areaSId:a.id}); toast("Máquina excluída");
   },
@@ -10346,7 +10715,9 @@ const App = {
   },
   removerTarefaS(id){
     const m = getCurrentMaquinaSimples();
+    const alvo = m.tarefas.find(x=>x.id===id);
     if(!confirm("Excluir esta tarefa e todos os seus riscos?")) return;
+    if(alvo) perguntarApagarTambemNaNuvem("esta tarefa e todos os seus riscos", idsSincronizaveisDe("tarefa", alvo));
     m.tarefas = m.tarefas.filter(x=>x.id!==id);
     marcarAlterado(); go("simples-tarefas",{maquinaSId:m.id}); toast("Tarefa excluída");
   },
@@ -10410,7 +10781,9 @@ const App = {
   },
   removerRiscoS(id, tarefaId){
     const t = buscarTarefaSimplesPorId(tarefaId) || getCurrentTarefaSimples();
+    const alvo = t.riscos.find(x=>x.id===id);
     if(!confirm("Excluir este risco?")) return;
+    if(alvo) perguntarApagarTambemNaNuvem("este risco", idsSincronizaveisDe("risco", alvo));
     t.riscos = t.riscos.filter(x=>x.id!==id);
     marcarAlterado(); render(); toast("Risco excluído");
   },
@@ -10467,6 +10840,10 @@ const App = {
     const n = sm.ids.size;
     const plur = {areaS:"áreas",maquinaS:"máquinas",tarefaS:"tarefas",riscoS:"riscos"}[sm.tipo];
     if(!confirm(`Excluir ${n} ${plur} selecionada(s)? Tudo o que estiver dentro delas também será excluído.`)) return;
+    const tipoSync = {areaS:"area", maquinaS:"maquina", tarefaS:"tarefa", riscoS:"risco"}[sm.tipo];
+    const idsNuvem = [];
+    arr.forEach(x=>{ if(sm.ids.has(x.id)) idsNuvem.push(...idsSincronizaveisDe(tipoSync, x)); });
+    perguntarApagarTambemNaNuvem(`${n} ${plur} e tudo dentro delas`, idsNuvem);
     const restantes = arr.filter(x=>!sm.ids.has(x.id));
     arr.length = 0; arr.push(...restantes);
     marcarAlterado();
