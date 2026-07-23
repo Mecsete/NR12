@@ -999,6 +999,57 @@ async function apagarModeloWordCustom(){
   }
   try{ localStorage.removeItem(LS_KEY_MODELO); }catch(e){}
 }
+/* Mesmo esquema acima, para o arquivo .xlsm oficial da Corteva (com as macros
+   e as abas Base Completa/Resumo/Informações/Inventário). Enviado uma vez em
+   Configurações → Exportações e reaproveitado em toda exportação de Excel
+   daqui pra frente — sem ele, a exportação de Excel volta a usar o motor
+   antigo (Base Completa + Resumo + _Matriz simples, sem macros). */
+const DB_KEY_MODELO_XLSM = "modeloExcelCortevaB64";
+const LS_KEY_MODELO_XLSM = "apr_campo_modelo_excel_corteva_v1";
+async function salvarModeloExcelCorteva(base64){
+  if(temIndexedDB()){
+    try{
+      const db = await dbOpen();
+      await new Promise((resolve,reject)=>{
+        const tx = db.transaction(DB_STORE,"readwrite");
+        tx.objectStore(DB_STORE).put(base64, DB_KEY_MODELO_XLSM);
+        tx.oncomplete=()=>resolve(true);
+        tx.onerror=()=>reject(tx.error);
+      });
+      return true;
+    }catch(e){}
+  }
+  try{ localStorage.setItem(LS_KEY_MODELO_XLSM, base64); return true; }catch(e){ return false; }
+}
+async function lerModeloExcelCorteva(){
+  if(temIndexedDB()){
+    try{
+      const db = await dbOpen();
+      const val = await new Promise((resolve,reject)=>{
+        const tx = db.transaction(DB_STORE,"readonly");
+        const rq = tx.objectStore(DB_STORE).get(DB_KEY_MODELO_XLSM);
+        rq.onsuccess=()=>resolve(rq.result||null);
+        rq.onerror=()=>reject(rq.error);
+      });
+      if(val) return val;
+    }catch(e){}
+  }
+  try{ return localStorage.getItem(LS_KEY_MODELO_XLSM) || null; }catch(e){ return null; }
+}
+async function apagarModeloExcelCorteva(){
+  if(temIndexedDB()){
+    try{
+      const db = await dbOpen();
+      await new Promise((resolve,reject)=>{
+        const tx = db.transaction(DB_STORE,"readwrite");
+        tx.objectStore(DB_STORE).delete(DB_KEY_MODELO_XLSM);
+        tx.oncomplete=()=>resolve(true);
+        tx.onerror=()=>reject(tx.error);
+      });
+    }catch(e){}
+  }
+  try{ localStorage.removeItem(LS_KEY_MODELO_XLSM); }catch(e){}
+}
 /* =========================================================================
    FOTOS FORA DO STATE (camada de persistência) — cada foto vira uma chave
    própria no IndexedDB ("foto:<id do conteúdo>") e o STATE gravado passa a
@@ -1446,7 +1497,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
    GitHub (útil especialmente dado o atraso de alguns minutos do GitHub para
    propagar cada atualização, e para diferenciar aparelhos que ainda não
    atualizaram dos que já atualizaram). */
-const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "21/07/2026 16:17"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "21/07/2026 16:17"; } })();
+const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "21/07/2026 19:50"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "21/07/2026 19:50"; } })();
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -4246,7 +4297,15 @@ function necessitaMitigacao(p){ return p.medidaImplementada==="Não" || p.result
 /* ---------- Módulo Simplificado: fábricas de dados ---------- */
 function novaAreaSimples(){ return { id:uid(), nome:"", descricao:"", local:"", maquinas:[], criadoEm:Date.now(), atualizadoEm:Date.now() }; }
 function novaMaquinaSimples(){
-  return { id:uid(), nome:"", descricao:"", escopo:"", manual:"", manualOutro:"", fotoGeral:null, fotoPlaqueta:null, fotosOutras:[], tarefas:[], criadoEm:Date.now(), atualizadoEm:Date.now() };
+  return { id:uid(), nome:"", descricao:"", escopo:"", manual:"", manualOutro:"", fotoGeral:null, fotoPlaqueta:null, fotosOutras:[], tarefas:[], criadoEm:Date.now(), atualizadoEm:Date.now(),
+    modelo:"", marca:"", numeroSerie:"", anoFabricacao:"", capacidade:"", tensao:"" };
+}
+/* Garante que máquinas criadas antes desta versão (sem os campos de inventário)
+   não quebrem nada — os campos aparecem como string vazia em vez de undefined. */
+function migrarInventarioMaquinaSimples(m){
+  if(!m) return m;
+  ["modelo","marca","numeroSerie","anoFabricacao","capacidade","tensao"].forEach(k=>{ if(m[k]===undefined) m[k]=""; });
+  return m;
 }
 /* Migração: máquinas antigas guardavam o identificador no campo "descricao".
    Se "nome" estiver vazio e "descricao" tiver conteúdo, o conteúdo é transferido
@@ -4534,6 +4593,8 @@ let __draftTipo = null;
 let __modalOnSaved = null;
 let __infoHrnPOAberto = false; // popover de ajuda da Probabilidade, no formulário de Risco
 let __extrasProjetoAberto = false; // seção "informações adicionais" no formulário de Projeto
+let __extrasMaquinaAberto = false; // seção "dados de inventário" no formulário de Máquina
+let __lendoPlaquetaIA = false; // trava o botão "Ler plaqueta com IA" enquanto a chamada está em andamento
 let __selMode = null; // { tipo:'areaS'|'maquinaS'|'tarefaS'|'riscoS', ids:Set<string>, ctx:{...} }
 let __ultimoMovimento = null; // { tipo, idsMovidos:Set<string>, origemScreen, origemParams, origemLabel, expiraEm }
 let __buscaAtual = "";
@@ -4701,8 +4762,21 @@ function formMaquinaSHtml(){
       <label>Fotos</label>
       ${checklistFotoHtml('fotoGeral', 'Foto Geral', m.fotoGeral)}
       ${checklistFotoHtml('fotoPlaqueta', 'Plaqueta', m.fotoPlaqueta)}
+      ${getIAApiKey() && m.fotoPlaqueta ? `<button type="button" class="clear-text-btn" style="margin-top:8px" ${__lendoPlaquetaIA?'disabled':''} onclick="App.lerPlaquetaIA()">${ic('check')} ${__lendoPlaquetaIA?'Lendo a plaqueta…':'Ler dados da plaqueta com IA'}</button>` : ""}
     </div>
-    <div class="field" style="margin-bottom:0">
+    <button type="button" class="btn btn-ghost btn-block" style="margin-top:14px;display:flex;align-items:center;justify-content:center;gap:6px" onclick="App.toggleExtrasMaquina()">
+      ${ic('info')} Dados de inventário (opcional) ${__extrasMaquinaAberto? "▲" : "▼"}
+    </button>
+    ${__extrasMaquinaAberto? `
+    <div class="info-box" style="margin-top:10px">
+      <div class="field"><label>Modelo</label><input type="text" value="${escapeHtml(m.modelo||"")}" oninput="App.setDraftField('modelo', this.value)"></div>
+      <div class="field"><label>Marca</label><input type="text" value="${escapeHtml(m.marca||"")}" oninput="App.setDraftField('marca', this.value)"></div>
+      <div class="field"><label>Nº de Série</label><input type="text" value="${escapeHtml(m.numeroSerie||"")}" oninput="App.setDraftField('numeroSerie', this.value)"></div>
+      <div class="field"><label>Ano de Fabricação</label><input type="text" inputmode="numeric" value="${escapeHtml(m.anoFabricacao||"")}" oninput="App.setDraftField('anoFabricacao', this.value)"></div>
+      <div class="field"><label>Capacidade</label><input type="text" value="${escapeHtml(m.capacidade||"")}" oninput="App.setDraftField('capacidade', this.value)"></div>
+      <div class="field" style="margin-bottom:0"><label>Tensão</label><input type="text" placeholder="Ex.: 380V" value="${escapeHtml(m.tensao||"")}" oninput="App.setDraftField('tensao', this.value)"></div>
+    </div>` : ""}
+    <div class="field" style="margin-bottom:0;margin-top:14px">
       ${outrasFotosHtml('Outras fotos da máquina', m.fotosOutras)}
     </div>
     <div class="modal-actions" style="margin-top:14px"><button class="btn btn-secondary" onclick="App.cancelarDraftEntidade()">Cancelar</button>
@@ -5027,6 +5101,7 @@ function renderSimplificado(){
     else if(s==="simples-config-empresa") body = screenSimplesConfigEmpresa();
     else if(s==="simples-config-ia") body = screenSimplesConfigIA();
     else if(s==="simples-config-modelo") body = screenSimplesConfigModelo();
+    else if(s==="simples-config-modelo-excel") body = screenSimplesConfigModeloExcel();
     else body = screenSimplesProjetos();
   }catch(e){
     console.error("Erro ao renderizar tela (simplificado)", s, e);
@@ -5196,12 +5271,14 @@ function topBarS(){
   if(s==="simples-config-empresa"){ title="Empresa e Responsáveis"; sub="Configurações"; }
   if(s==="simples-config-ia"){ title="Inteligência Artificial"; sub="Configurações"; }
   if(s==="simples-config-modelo"){ title="Modelo do Laudo"; sub="Configurações"; }
+  if(s==="simples-config-modelo-excel"){ title="Modelo Excel (Corteva)"; sub="Configurações"; }
   const showBack = s!=="simples-projetos" && s!=="simples-config" && s!=="simples-tabela";
   let backTarget="simples-projetos", backParams={projetoSId:STATE.ui.projetoSId, areaSId:null, maquinaSId:null, tarefaSId:null};
   if(s==="simples-maquinas") { backTarget="simples-areas"; backParams={projetoSId:STATE.ui.projetoSId, areaSId:null, maquinaSId:null, tarefaSId:null}; }
   if(s==="simples-tarefas") { backTarget="simples-maquinas"; backParams={areaSId:STATE.ui.areaSId, maquinaSId:null, tarefaSId:null}; }
   if(s==="simples-riscos") { backTarget="simples-tarefas"; backParams={maquinaSId:STATE.ui.maquinaSId, tarefaSId:null}; }
   if(s==="simples-config-backup" || s==="simples-config-exportacoes" || s==="simples-config-ia" || s==="simples-config-empresa") { backTarget="simples-config"; backParams={}; }
+  if(s==="simples-config-modelo-excel") { backTarget="simples-config-exportacoes"; backParams={}; }
   return `<div class="topbar"><div class="topbar-row">
     ${showBack? `<button class="topbar-back" onclick='App.go("${backTarget}", ${JSON.stringify(backParams)})'>${ic('back')}</button>`:""}
     <div class="topbar-title"><span class="eyebrow">${escapeHtml(sub)}</span><h1>${escapeHtml(title)}</h1></div>
@@ -6408,6 +6485,18 @@ const IA_PROMPTS_PADRAO = {
   risco:"Você é um engenheiro de segurança do trabalho especializado em NR-12. Reescreva a descrição do risco abaixo de forma técnica, clara e objetiva, em português, mantendo exatamente o mesmo sentido e sem inventar informações novas. Devolva só o texto final, sem comentários.",
   mitigacao:"Você é um engenheiro de segurança do trabalho especializado em NR-12 e ISO 12100. Reescreva o texto de medida/mitigação abaixo de forma técnica, clara e objetiva, em português, sem inventar medidas que não foram informadas. Devolva só o texto final, sem comentários.",
   tarefa:"Você é um engenheiro de segurança do trabalho especializado em NR-12. Com base no nome da tarefa e, se houver, em uma breve nota do inspetor, escreva uma descrição técnica curta e objetiva (2 a 4 linhas) do que é executado nessa tarefa na máquina/ativo informado. Não invente equipamentos, ferramentas ou etapas que não foram informados. Devolva só o texto final, sem comentários.",
+  /* --- Variantes usadas SÓ pela exportação em Excel no modelo Corteva (colunas
+     AL-AP "dúvidas da IA" e AQ-AT "informação para o laudo"). Diferente dos
+     prompts acima (que reescrevem o texto do usuário por cima, usados pelo
+     Word), estas nunca substituem o que o usuário escreveu — só geram um
+     texto extra e, quando cabível, uma dúvida sobre o que falta informar.
+     Chaves separadas para não interferir nos prompts customizados dos campos
+     originais em Configurações → Inteligência Artificial. */
+  equipamento_xlsx:"Você é um engenheiro de segurança do trabalho especializado em NR-12. Leia a descrição do equipamento escrita pelo inspetor e responda SOMENTE em JSON válido, sem nenhum texto antes ou depois, exatamente neste formato: {\"duvida\":\"\"}. Em \"duvida\": se a descrição estiver vaga ou faltar alguma informação importante para o laudo (ex.: capacidade, forma de acionamento, modelo), escreva uma pergunta curta e objetiva sobre o que falta; se a descrição já estiver completa, devolva \"duvida\":\"\".",
+  escopo_xlsx:"Você é um engenheiro de segurança do trabalho especializado em NR-12 e ISO 12100. Com base no nome e na descrição do equipamento informados, responda SOMENTE em JSON válido, sem nenhum texto antes ou depois, exatamente neste formato: {\"texto\":\"\",\"duvida\":\"\"}. Em \"texto\": escreva um parágrafo curto (3 a 5 linhas) descrevendo os limites de uso do equipamento (espaço, uso e tempo, quando aplicável), sem inventar dados não informados. Em \"duvida\": uma pergunta curta sobre alguma informação que falte para definir melhor o escopo, ou \"\" se não houver.",
+  tarefa_xlsx:"Você é um engenheiro de segurança do trabalho especializado em NR-12. Com base no nome da tarefa e em uma eventual nota do inspetor, responda SOMENTE em JSON válido, sem nenhum texto antes ou depois, exatamente neste formato: {\"texto\":\"\",\"duvida\":\"\"}. Em \"texto\": descrição técnica curta e objetiva (2 a 4 linhas) do que é executado nessa tarefa, sem inventar etapas não informadas. Em \"duvida\": uma pergunta curta sobre o que falta saber sobre essa tarefa, ou \"\" se não houver.",
+  risco_xlsx:"Você é um engenheiro de segurança do trabalho especializado em NR-12. Responda SOMENTE em JSON válido, sem nenhum texto antes ou depois, exatamente neste formato: {\"texto\":\"\",\"duvida\":\"\"}. Em \"texto\": reescreva a descrição do risco abaixo de forma técnica e objetiva, mantendo exatamente o mesmo sentido, sem inventar informação nova. Em \"duvida\": uma pergunta curta sobre o que falta esclarecer nesse risco, ou \"\" se não houver.",
+  mitigacao_xlsx:"Você é um engenheiro de segurança do trabalho especializado em NR-12 e ISO 12100. Responda SOMENTE em JSON válido, sem nenhum texto antes ou depois, exatamente neste formato: {\"texto\":\"\",\"duvida\":\"\"}. Em \"texto\": reescreva o texto de medida/mitigação abaixo de forma técnica e objetiva, sem inventar medidas não informadas. Em \"duvida\": uma pergunta curta sobre o que falta definir na solução/mitigação, ou \"\" se não houver.",
 };
 /* =========================================================================
    EMPRESA (MecSete) E USUÁRIOS INSPETORES — dados fixos do laudo NR-12 que
@@ -6443,7 +6532,7 @@ function getIAConfig(){
   if(c.modelo===undefined) c.modelo = preset.modelo;
   if(c.usarNaExportacaoExcel===undefined) c.usarNaExportacaoExcel = true;
   if(!c.prompts) c.prompts = {};
-  ["equipamento","escopo","risco","mitigacao","tarefa"].forEach(k=>{ if(c.prompts[k]===undefined) c.prompts[k] = IA_PROMPTS_PADRAO[k]; });
+  ["equipamento","escopo","risco","mitigacao","tarefa","equipamento_xlsx","escopo_xlsx","tarefa_xlsx","risco_xlsx","mitigacao_xlsx"].forEach(k=>{ if(c.prompts[k]===undefined) c.prompts[k] = IA_PROMPTS_PADRAO[k]; });
   return c;
 }
 function esperar(ms){ return new Promise(r=>setTimeout(r,ms)); }
@@ -6557,6 +6646,57 @@ async function chamarIA(tipo, textoUsuario){
     }
   }catch(e){ console.error("Erro ao chamar IA:", e); return null; }
 }
+/* Igual a chamarIA(), mas envia também uma imagem (foto da plaqueta) — usada
+   só pela leitura automática de plaqueta no formulário de Máquina. Requer um
+   modelo com suporte a visão (gemini-flash-latest e gpt-4o-mini já suportam;
+   modelos só-texto, como o padrão do Groq, simplesmente não respondem nada
+   útil e a função devolve null, tratado como "não deu para ler"). */
+async function chamarIAImagem(prompt, imageDataUrl){
+  const apiKey = getIAApiKey();
+  if(!apiKey || !imageDataUrl) return null;
+  const partes = /^data:([^;]+);base64,(.*)$/.exec(imageDataUrl);
+  if(!partes) return null;
+  const mimeType = partes[1], base64 = partes[2];
+  const cfg = getIAConfig();
+  const preset = IA_PROVEDORES[cfg.provedor] || IA_PROVEDORES[IA_PROVEDOR_PADRAO];
+  const endpointBase = (cfg.endpoint || preset.endpoint || "").replace(/\/+$/,"");
+  const modelo = cfg.modelo || preset.modelo;
+  if(!endpointBase || !modelo) return null;
+  try{
+    let resp;
+    if(preset.formato==="gemini"){
+      resp = await fetch(`${endpointBase}/models/${modelo}:generateContent`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", "X-goog-api-key": apiKey },
+        body: JSON.stringify({
+          contents: [ { role:"user", parts:[ { text: prompt }, { inline_data:{ mime_type: mimeType, data: base64 } } ] } ],
+          generationConfig: { temperature: 0.1 }
+        })
+      });
+      if(!resp.ok) return null;
+      const data = await resp.json();
+      const cand = data && data.candidates && data.candidates[0];
+      const texto = cand && cand.content && cand.content.parts && cand.content.parts[0] && cand.content.parts[0].text;
+      return texto ? String(texto).trim() : null;
+    }else{
+      resp = await fetch(`${endpointBase}/chat/completions`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", "Authorization":`Bearer ${apiKey}` },
+        body: JSON.stringify({ model: modelo, temperature: 0.1,
+          messages:[ { role:"user", content:[ { type:"text", text:prompt }, { type:"image_url", image_url:{ url: imageDataUrl } } ] } ] })
+      });
+      if(!resp.ok) return null;
+      const data = await resp.json();
+      const texto = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+      return texto ? String(texto).trim() : null;
+    }
+  }catch(e){ console.error("Erro ao chamar IA (imagem):", e); return null; }
+}
+const PROMPT_LEITURA_PLAQUETA = `Você é um engenheiro que está lendo a foto de uma plaqueta de identificação (placa de dados) de uma máquina industrial.
+Extraia SOMENTE as informações que estiverem claramente legíveis na imagem, sem adivinhar ou estimar nada.
+Responda EXCLUSIVAMENTE em JSON válido, sem nenhum texto antes ou depois, exatamente neste formato:
+{"modelo":"","marca":"","numeroSerie":"","anoFabricacao":"","capacidade":"","tensao":""}
+Para cada campo: se não estiver visível na foto ou você não tiver certeza, devolva esse campo como string vazia "". Nunca invente um valor.`;
 async function testarConexaoIA(){
   const apiKey = getIAApiKey();
   if(!apiKey) return { ok:false, mensagem:"Cole uma chave de API primeiro" };
@@ -6633,6 +6773,72 @@ async function enriquecerLinhasComIA(linhasRaw, onProgress){
     if(medidaExistente) riscoEnriquecido.descMedida = mitig || item.risco.descMedida;
     else riscoEnriquecido.sugestaoMitigacao = mitig || item.risco.sugestaoMitigacao;
     resultado.push({ ...item, maquina:{...item.maquina, descricao:cacheM.descricao, escopo:cacheM.escopo}, tarefa:{...item.tarefa, descricao:cacheTarefa.get(item.tarefa.id)}, risco:riscoEnriquecido });
+    await esperar(200);
+  }
+  return resultado;
+}
+/* Tenta interpretar a resposta da IA como JSON (removendo eventuais cercas
+   ```json``` que alguns modelos adicionam por conta própria). Devolve null
+   se não for um JSON válido — quem chama trata esse caso com segurança. */
+function parseRespostaJsonIA(resposta){
+  if(!resposta) return null;
+  try{
+    const limpo = String(resposta).replace(/^```json\s*|^```\s*|```\s*$/g, "").trim();
+    const obj = JSON.parse(limpo);
+    return (obj && typeof obj==="object") ? obj : null;
+  }catch(e){ return null; }
+}
+/* Gera, para cada item (máquina × tarefa × risco), os textos e as dúvidas da
+   IA para a exportação em Excel no modelo Corteva — SEM tocar em nenhum campo
+   original do item (maquina.descricao, tarefa.descricao, risco.descricao,
+   risco.descMedida, risco.sugestaoMitigacao continuam exatamente como o
+   usuário escreveu). O resultado de cada item ganha duas propriedades novas:
+   iaDuvidas:{equipamento,escopo,tarefa,risco,solucao} (vão nas colunas AL-AP)
+   iaTextos:{escopo,tarefa,risco,solucao} (vão nas colunas AQ-AT)
+   Sem chave de IA configurada, devolve os itens com essas propriedades vazias
+   — a exportação continua funcionando 100% offline, só sem os textos da IA. */
+async function calcularIATextosPorItem(linhasRaw, onProgress){
+  if(!getIAApiKey()) return linhasRaw.map(item=>({ ...item, iaDuvidas:{}, iaTextos:{} }));
+  const cacheMaquina = new Map(); // maquinaId -> { duvidaEquipamento, textoEscopo, duvidaEscopo }
+  const cacheTarefa = new Map();  // tarefaId -> { texto, duvida }
+  const resultado = [];
+  for(let i=0;i<linhasRaw.length;i++){
+    const item = linhasRaw[i];
+    if(onProgress) onProgress(i+1, linhasRaw.length);
+    if(!cacheMaquina.has(item.maquina.id)){
+      const [respEquip, respEscopo] = await Promise.all([
+        chamarIA("equipamento_xlsx", item.maquina.descricao || nomeMaquinaS(item.maquina)),
+        chamarIA("escopo_xlsx", `Nome: ${nomeMaquinaS(item.maquina)}\nDescrição: ${item.maquina.descricao||"(não informada)"}`),
+      ]);
+      const jEquip = parseRespostaJsonIA(respEquip) || {};
+      const jEscopo = parseRespostaJsonIA(respEscopo) || {};
+      cacheMaquina.set(item.maquina.id, {
+        duvidaEquipamento: jEquip.duvida || "",
+        textoEscopo: jEscopo.texto || "",
+        duvidaEscopo: jEscopo.duvida || "",
+      });
+      await esperar(200);
+    }
+    if(!cacheTarefa.has(item.tarefa.id)){
+      const nomeTarefa = valOuOutro(item.tarefa.tarefa, item.tarefa.tarefaOutro);
+      const respTarefa = await chamarIA("tarefa_xlsx", `Tarefa: ${nomeTarefa}\nMáquina/Ativo: ${nomeMaquinaS(item.maquina)}\nNota do inspetor: ${item.tarefa.descricao||"(não informada)"}`);
+      const jTarefa = parseRespostaJsonIA(respTarefa) || {};
+      cacheTarefa.set(item.tarefa.id, { texto: jTarefa.texto || "", duvida: jTarefa.duvida || "" });
+      await esperar(200);
+    }
+    const cacheM = cacheMaquina.get(item.maquina.id);
+    const cacheT = cacheTarefa.get(item.tarefa.id);
+    const medidaExistente = item.risco.medidaImplementada === "Sim";
+    const [respRisco, respSolucao] = await Promise.all([
+      chamarIA("risco_xlsx", item.risco.descricao),
+      chamarIA("mitigacao_xlsx", medidaExistente ? item.risco.descMedida : item.risco.sugestaoMitigacao),
+    ]);
+    const jRisco = parseRespostaJsonIA(respRisco) || {};
+    const jSolucao = parseRespostaJsonIA(respSolucao) || {};
+    resultado.push({ ...item,
+      iaDuvidas: { equipamento:cacheM.duvidaEquipamento, escopo:cacheM.duvidaEscopo, tarefa:cacheT.duvida, risco:jRisco.duvida||"", solucao:jSolucao.duvida||"" },
+      iaTextos: { escopo:cacheM.textoEscopo, tarefa:cacheT.texto, risco:jRisco.texto||"", solucao:jSolucao.texto||"" },
+    });
     await esperar(200);
   }
   return resultado;
@@ -6778,6 +6984,354 @@ async function gerarBytesXlsxSimples(linhasRaw){
   const colunasFoto = [colFotoGeral, colFotoPlaqueta, ...colsFotoExtraMaquina, colFotoRisco, ...colsFotoExtraRisco];
   return buildXlsxPackageSimples({grupos, headers, dataRows, anchors, imgMap, colunasFoto, resumoLinhasRaw:linhasRaw});
 }
+/* =========================================================================
+   EXPORTAÇÃO EM EXCEL — MODELO OFICIAL DA CORTEVA (.xlsm, com macros)
+   Só entra em ação quando o usuário enviou o arquivo .xlsm oficial em
+   Configurações → Exportações → Modelo Excel (Corteva). Abre esse arquivo
+   como um .zip (com o PizZip, a mesma lib já usada para o Word), reescreve
+   só as linhas de dados das abas Base Completa / Resumo / Informações /
+   Inventário, e preserva tudo o mais do arquivo — inclusive as macros
+   (xl/vbaProject.bin) — sem tocar. Sem modelo enviado, a exportação de
+   Excel continua no formato simples de sempre (gerarBytesXlsxSimples).
+   ========================================================================= */
+function xlsmCellTexto(ref, style, texto){
+  const t = (texto===null||texto===undefined||texto==="") ? "" : String(texto);
+  if(t==="") return `<c r="${ref}" s="${style}"/>`;
+  return `<c r="${ref}" s="${style}" t="inlineStr"><is><t xml:space="preserve">${escapeXml(t)}</t></is></c>`;
+}
+function xlsmCellNum(ref, style, num){
+  if(num===null||num===undefined||num===""||isNaN(num)) return `<c r="${ref}" s="${style}"/>`;
+  return `<c r="${ref}" s="${style}"><v>${num}</v></c>`;
+}
+function xlsmCellFormulaNum(ref, style, formula, cached){
+  return `<c r="${ref}" s="${style}"><f>${escapeXml(formula)}</f><v>${cached!=null?cached:0}</v></c>`;
+}
+function xlsmCellFormulaStr(ref, style, formula, cached){
+  return `<c r="${ref}" s="${style}" t="str"><f>${escapeXml(formula)}</f><v>${escapeXml(cached||"")}</v></c>`;
+}
+function xlsmDataSerial(dataStr){
+  if(!dataStr) return null;
+  const d = new Date(dataStr+"T00:00:00");
+  if(isNaN(d.getTime())) return null;
+  const epoch = Date.UTC(1899,11,30);
+  return Math.round((Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())-epoch)/86400000);
+}
+/* Remove as linhas de dados originais (entre primeiraLinha e ultimaLinhaOriginal,
+   inclusive) e insere as novas linhas no lugar, logo antes de </sheetData>;
+   atualiza também o <dimension>. Preserva cabeçalho, estilos, tudo o mais. */
+function xlsmSubstituiLinhas(xml, novasLinhasXml, primeiraLinha, ultimaLinhaOriginal, novoDimensionRef){
+  let out = xml.replace(/<row r="(\d+)"[^>]*>[\s\S]*?<\/row>|<row r="(\d+)"[^>]*\/>/g, (m,r1,r2)=>{
+    const r = parseInt(r1||r2,10);
+    return (r>=primeiraLinha && r<=ultimaLinhaOriginal) ? "" : m;
+  });
+  out = out.replace("</sheetData>", novasLinhasXml.join("")+"</sheetData>");
+  out = out.replace(/<dimension ref="[^"]*"\/>/, `<dimension ref="${novoDimensionRef}"/>`);
+  return out;
+}
+const XLSM_BASE_STYLES = {
+  A:4,B:3,C:3,D:3,E:3,F:2,G:3,H:3,I:3,J:3,K:3,L:3,M:3,N:3,O:3,
+  P:63,Q:63,R:4,S:3,T:3,U:3,V:3,W:3,X:3,Y:3,Z:3,AA:3,
+  AB:3,AC:3,AD:3,AE:3,AF:3,AG:3,AH:3,AI:3,AJ:3,AK:3,
+  AL:20,AM:20,AN:20,AO:20,AP:20,AQ:20,AR:20,AS:20,AT:20,
+};
+/* Base Completa: uma linha por item (área × máquina × tarefa × risco), a
+   partir da linha 3 (linhas 1-2 são o cabeçalho de duas linhas do modelo).
+   As colunas com foto (A, B, R, AB-AK) ficam com a célula vazia — a foto
+   entra por cima como um desenho ancorado (xlsmMontarFotosESheets cuida
+   disso), exatamente como já acontecia no motor antigo. */
+function xlsmLinhaBaseCompleta(rowNum, item){
+  const {proj,area,maquina,tarefa,risco} = item;
+  const hrn = hrnDoItem({tarefa,risco});
+  const d = item.iaDuvidas||{}, t = item.iaTextos||{};
+  const S = XLSM_BASE_STYLES;
+  const c = [];
+  c.push(`<c r="A${rowNum}" s="${S.A}"/>`, `<c r="B${rowNum}" s="${S.B}"/>`);
+  c.push(xlsmCellTexto(`C${rowNum}`,S.C,proj.empresa));
+  c.push(xlsmCellTexto(`D${rowNum}`,S.D,proj.cidade));
+  c.push(xlsmCellTexto(`E${rowNum}`,S.E,proj.responsavel));
+  const serial = xlsmDataSerial(proj.data);
+  c.push(serial!=null ? xlsmCellNum(`F${rowNum}`,S.F,serial) : xlsmCellTexto(`F${rowNum}`,S.F,proj.data));
+  c.push(xlsmCellTexto(`G${rowNum}`,S.G,area.nome));
+  c.push(xlsmCellTexto(`H${rowNum}`,S.H,area.descricao));
+  c.push(xlsmCellTexto(`I${rowNum}`,S.I,area.local));
+  c.push(xlsmCellTexto(`J${rowNum}`,S.J,nomeMaquinaS(maquina)));
+  c.push(xlsmCellTexto(`K${rowNum}`,S.K,maquina.descricao));
+  c.push(xlsmCellTexto(`L${rowNum}`,S.L,valOuOutro(maquina.manual, maquina.manualOutro)));
+  c.push(xlsmCellTexto(`M${rowNum}`,S.M,valOuOutro(tarefa.tarefa, tarefa.tarefaOutro)));
+  c.push(xlsmCellTexto(`N${rowNum}`,S.N,tarefa.descricao));
+  c.push(xlsmCellTexto(`O${rowNum}`,S.O,valOuOutro(tarefa.numPessoas, tarefa.numPessoasOutro)));
+  c.push(xlsmCellTexto(`P${rowNum}`,S.P, risco.nome===OUTRO?risco.nomeOutro:risco.nome));
+  c.push(xlsmCellTexto(`Q${rowNum}`,S.Q,risco.descricao));
+  c.push(`<c r="R${rowNum}" s="${S.R}"/>`);
+  c.push(xlsmCellTexto(`S${rowNum}`,S.S,risco.medidaImplementada));
+  c.push(xlsmCellTexto(`T${rowNum}`,S.T,risco.descMedida));
+  c.push(xlsmCellTexto(`U${rowNum}`,S.U,risco.sugestaoMitigacao));
+  c.push(xlsmCellTexto(`V${rowNum}`,S.V, labelHRN(HRN_PO_OPTS,hrn.po,HRN_PO_TABELA)));
+  c.push(xlsmCellTexto(`W${rowNum}`,S.W, labelHRN(HRN_FE_OPTS,hrn.fe,HRN_FE_TABELA)));
+  c.push(xlsmCellTexto(`X${rowNum}`,S.X, labelHRN(HRN_GPD_OPTS,hrn.gpd,HRN_GPD_TABELA)));
+  c.push(xlsmCellTexto(`Y${rowNum}`,S.Y, labelHRN(HRN_NP_OPTS,hrn.np,HRN_NP_TABELA)));
+  c.push(xlsmCellFormulaNum(`Z${rowNum}`,S.Z, `VLOOKUP(V${rowNum},TabelaPO[],2)*VLOOKUP(W${rowNum},TabelaFE[],2,0)*VLOOKUP(X${rowNum},TabelaGPD[],2,0)*VLOOKUP(Y${rowNum},TabelaNP[],2,0)`, hrn.hrn));
+  c.push(xlsmCellFormulaStr(`AA${rowNum}`,S.AA, `IF(Z${rowNum}>=500,"INACEITÁVEL",IF(Z${rowNum}>=50,"ALTO",IF(Z${rowNum}>=5,"BAIXO","DESPREZÍVEL")))`, hrn.nivel));
+  ["AB","AC","AD","AE","AF","AG","AH","AI","AJ","AK"].forEach(col=> c.push(`<c r="${col}${rowNum}" s="${S[col]}"/>`));
+  c.push(xlsmCellTexto(`AL${rowNum}`,S.AL, d.equipamento));
+  c.push(xlsmCellTexto(`AM${rowNum}`,S.AM, d.escopo));
+  c.push(xlsmCellTexto(`AN${rowNum}`,S.AN, d.tarefa));
+  c.push(xlsmCellTexto(`AO${rowNum}`,S.AO, d.risco));
+  c.push(xlsmCellTexto(`AP${rowNum}`,S.AP, d.solucao));
+  c.push(xlsmCellTexto(`AQ${rowNum}`,S.AQ, t.escopo));
+  c.push(xlsmCellTexto(`AR${rowNum}`,S.AR, t.tarefa));
+  c.push(xlsmCellTexto(`AS${rowNum}`,S.AS, t.risco));
+  c.push(xlsmCellTexto(`AT${rowNum}`,S.AT, t.solucao));
+  return `<row r="${rowNum}" spans="1:46" ht="69.95" customHeight="1">${c.join("")}</row>`;
+}
+const XLSM_RESUMO_STYLES = {A:4,B:3,C:3,D:3,E:3,F:3,G:3,H:3,I:3,J:3,K:3,L:3,M:3};
+/* Resumo: mesma ordem de itens da Base Completa, a partir da linha 2 (linha 1
+   é o cabeçalho). As colunas F (Descrição do Risco) e G (Mitigação) usam o
+   MESMO texto final da IA (colunas AS/AT da Base Completa) quando existir —
+   é o que garante que os dois lugares tragam exatamente o mesmo texto. */
+function xlsmLinhaResumo(rowNum, item){
+  const {area,maquina,tarefa,risco} = item;
+  const hrn = hrnDoItem({tarefa,risco});
+  const t = item.iaTextos||{};
+  const S = XLSM_RESUMO_STYLES;
+  const c = [];
+  c.push(`<c r="A${rowNum}" s="${S.A}"/>`);
+  c.push(xlsmCellTexto(`B${rowNum}`,S.B,area.nome));
+  c.push(xlsmCellTexto(`C${rowNum}`,S.C,nomeMaquinaS(maquina)));
+  c.push(xlsmCellTexto(`D${rowNum}`,S.D,valOuOutro(tarefa.tarefa,tarefa.tarefaOutro)));
+  c.push(xlsmCellTexto(`E${rowNum}`,S.E, risco.nome===OUTRO?risco.nomeOutro:risco.nome));
+  c.push(xlsmCellTexto(`F${rowNum}`,S.F, t.risco || risco.descricao));
+  const mitigOriginal = risco.medidaImplementada==="Sim" ? risco.descMedida : (risco.sugestaoMitigacao||"");
+  c.push(xlsmCellTexto(`G${rowNum}`,S.G, t.solucao || mitigOriginal));
+  c.push(xlsmCellTexto(`H${rowNum}`,S.H, labelHRN(HRN_PO_OPTS,hrn.po,HRN_PO_TABELA)));
+  c.push(xlsmCellTexto(`I${rowNum}`,S.I, labelHRN(HRN_FE_OPTS,hrn.fe,HRN_FE_TABELA)));
+  c.push(xlsmCellTexto(`J${rowNum}`,S.J, labelHRN(HRN_GPD_OPTS,hrn.gpd,HRN_GPD_TABELA)));
+  c.push(xlsmCellTexto(`K${rowNum}`,S.K, labelHRN(HRN_NP_OPTS,hrn.np,HRN_NP_TABELA)));
+  c.push(xlsmCellFormulaNum(`L${rowNum}`,S.L, `VLOOKUP(H${rowNum},TabelaPO[],2)*VLOOKUP(I${rowNum},TabelaFE[],2,0)*VLOOKUP(J${rowNum},TabelaGPD[],2,0)*VLOOKUP(K${rowNum},TabelaNP[],2,0)`, hrn.hrn));
+  c.push(xlsmCellFormulaStr(`M${rowNum}`,S.M, `IF(L${rowNum}>=500,"INACEITÁVEL",IF(L${rowNum}>=50,"ALTO",IF(L${rowNum}>=5,"BAIXO","DESPREZÍVEL")))`, hrn.nivel));
+  return `<row r="${rowNum}" spans="1:13" ht="69.95" customHeight="1">${c.join("")}</row>`;
+}
+const XLSM_INV_STYLES = {A:65,B:66,C:66,D:66,E:66,F:66,G:66,H:66,I:66,J:66,K:67,L:46};
+/* Inventário: uma linha por máquina (não por item — cada máquina aparece uma
+   vez só, mesmo com várias tarefas/riscos). Modelo/Marca/Nº de Série/Ano/
+   Capacidade/Tensão saem em branco quando o usuário (ou a leitura da
+   plaqueta pela IA) ainda não preencheu esse campo — nunca inventados. */
+function xlsmLinhaInventario(rowNum, numLegenda, maquina, area){
+  const S = XLSM_INV_STYLES;
+  const c = [];
+  c.push(`<c r="A${rowNum}" s="${S.A}"/>`);
+  c.push(xlsmCellNum(`B${rowNum}`,S.B,numLegenda));
+  c.push(xlsmCellTexto(`C${rowNum}`,S.C, nomeMaquinaS(maquina)));
+  c.push(xlsmCellTexto(`D${rowNum}`,S.D, maquina.descricao));
+  c.push(xlsmCellTexto(`E${rowNum}`,S.E, area.nome));
+  c.push(xlsmCellTexto(`F${rowNum}`,S.F, area.local));
+  c.push(xlsmCellTexto(`G${rowNum}`,S.G, maquina.modelo));
+  c.push(xlsmCellTexto(`H${rowNum}`,S.H, maquina.marca));
+  c.push(xlsmCellTexto(`I${rowNum}`,S.I, maquina.numeroSerie));
+  c.push(xlsmCellTexto(`J${rowNum}`,S.J, maquina.anoFabricacao));
+  c.push(xlsmCellTexto(`K${rowNum}`,S.K, maquina.capacidade));
+  c.push(xlsmCellTexto(`L${rowNum}`,S.L, maquina.tensao));
+  return `<row r="${rowNum}" spans="1:26" ht="131.25" customHeight="1" thickTop="1" thickBot="1">${c.join("")}</row>`;
+}
+function xlsmAnchorPic(id, name, col0, row0, relId){
+  return `<xdr:oneCellAnchor><xdr:from><xdr:col>${col0}</xdr:col><xdr:colOff>19050</xdr:colOff><xdr:row>${row0}</xdr:row><xdr:rowOff>19050</xdr:rowOff></xdr:from><xdr:ext cx="1028700" cy="850900"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="${id}" name="${escapeXml(name)}"/><xdr:cNvPicPr/></xdr:nvPicPr><xdr:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="${relId}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor>`;
+}
+function xlsmBuildDrawingXml(anchorsXml){
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">${anchorsXml.join("")}</xdr:wsDr>`;
+}
+function xlsmBuildDrawingRels(rels){
+  const items = rels.map(r=>`<Relationship Id="${r.id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="${r.target}"/>`).join("");
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${items}</Relationships>`;
+}
+/* Monta o arquivo .xlsm final a partir do modelo oficial da Corteva (base64)
+   e dos itens já com iaDuvidas/iaTextos calculados (ver calcularIATextosPorItem).
+   itensInventario: lista de {numLegenda, maquina, area}, uma entrada por
+   máquina (não por item). Devolve um Uint8Array pronto para baixar/compartilhar. */
+async function gerarBytesXlsmCorteva(modeloB64, linhasComIA, itensInventario, dadosInformacoes){
+  const zip = new window.PizZip(modeloB64, { base64: true });
+
+  // ---------- fotos: um único mapa de imagens compartilhado entre as 3 abas ----------
+  const imgMap = new Map(); // dataUrl -> {mediaName, bytes, ext}
+  let mediaCounter = 0;
+  async function registrarFoto(dataUrl){
+    if(!dataUrl || imgMap.has(dataUrl)) return;
+    mediaCounter++;
+    const dataUrlExport = await recomprimirParaExport(dataUrl);
+    const ext = dataUrlExport.startsWith("data:image/png") ? "png" : "jpeg";
+    imgMap.set(dataUrl, { mediaName:`aprimg${mediaCounter}.${ext}`, bytes:dataUrlToBytes(dataUrlExport), ext });
+  }
+  for(const item of linhasComIA){
+    await registrarFoto(item.maquina.fotoGeral);
+    await registrarFoto(item.maquina.fotoPlaqueta);
+    for(const f of (item.maquina.fotosOutras||[]).slice(0,5)) await registrarFoto(f);
+    await registrarFoto(item.risco.foto);
+    for(const f of (item.risco.fotosOutras||[]).slice(0,5)) await registrarFoto(f);
+  }
+  for(const inv of itensInventario) await registrarFoto(inv.maquina.fotoGeral);
+  for(const info of imgMap.values()) zip.file(`xl/media/${info.mediaName}`, info.bytes, { binary:true });
+
+  // ---------- Base Completa (sheet1) ----------
+  const linhasBase = linhasComIA.map((item,i)=> xlsmLinhaBaseCompleta(3+i, item));
+  const lastRowBase = 2 + linhasComIA.length;
+  let s1 = zip.file("xl/worksheets/sheet1.xml").asText();
+  s1 = xlsmSubstituiLinhas(s1, linhasBase, 3, 999, `A1:AT${lastRowBase}`);
+  s1 = s1.replace(/<autoFilter ref="[^"]*"/, `<autoFilter ref="A2:AT${lastRowBase}"`);
+  zip.file("xl/worksheets/sheet1.xml", s1);
+  const anchorsD1 = [], relsD1 = [];
+  let shapeId1 = 1;
+  linhasComIA.forEach((item,i)=>{
+    const row0 = 2+i; // linha 3 => índice 2
+    const add = (col0, dataUrl)=>{
+      if(!dataUrl || !imgMap.has(dataUrl)) return;
+      shapeId1++;
+      const relId = "rId"+shapeId1;
+      relsD1.push({ id:relId, target:`../media/${imgMap.get(dataUrl).mediaName}` });
+      anchorsD1.push(xlsmAnchorPic(shapeId1, `Foto${shapeId1}`, col0, row0, relId));
+    };
+    add(0, item.maquina.fotoGeral);    // A
+    add(1, item.maquina.fotoPlaqueta); // B
+    add(17, item.risco.foto);          // R
+    (item.maquina.fotosOutras||[]).slice(0,5).forEach((f,idx)=> add(27+idx, f)); // AB-AF
+    (item.risco.fotosOutras||[]).slice(0,5).forEach((f,idx)=> add(32+idx, f));   // AG-AK
+  });
+  zip.file("xl/drawings/drawing1.xml", xlsmBuildDrawingXml(anchorsD1));
+  zip.file("xl/drawings/_rels/drawing1.xml.rels", xlsmBuildDrawingRels(relsD1));
+
+  // ---------- Resumo (sheet2) ----------
+  const linhasResumo = linhasComIA.map((item,i)=> xlsmLinhaResumo(2+i, item));
+  const lastRowResumo = 1 + linhasComIA.length;
+  let s2 = zip.file("xl/worksheets/sheet2.xml").asText();
+  s2 = xlsmSubstituiLinhas(s2, linhasResumo, 2, 999, `A1:M${lastRowResumo}`);
+  s2 = s2.replace(/<autoFilter ref="[^"]*"/, `<autoFilter ref="A1:M${lastRowResumo}"`);
+  zip.file("xl/worksheets/sheet2.xml", s2);
+  const anchorsD2 = [], relsD2 = [];
+  let shapeId2 = 1;
+  linhasComIA.forEach((item,i)=>{
+    const dataUrl = item.risco.foto;
+    if(!dataUrl || !imgMap.has(dataUrl)) return;
+    shapeId2++;
+    const relId = "rId"+shapeId2;
+    relsD2.push({ id:relId, target:`../media/${imgMap.get(dataUrl).mediaName}` });
+    anchorsD2.push(xlsmAnchorPic(shapeId2, `Foto${shapeId2}`, 0, 1+i, relId));
+  });
+  zip.file("xl/drawings/drawing2.xml", xlsmBuildDrawingXml(anchorsD2));
+  zip.file("xl/drawings/_rels/drawing2.xml.rels", xlsmBuildDrawingRels(relsD2));
+
+  // ---------- Informações (sheet4) — só os campos que o app já conhece ----------
+  let s4 = zip.file("xl/worksheets/sheet4.xml").asText();
+  function setCel(xml, ref, style, texto){
+    const nova = xlsmCellTexto(ref, style, texto);
+    const re = new RegExp(`<c r="${ref}"[^>]*(?:/>|>[\\s\\S]*?</c>)`);
+    return re.test(xml) ? xml.replace(re, nova) : xml;
+  }
+  const di = dadosInformacoes;
+  s4 = setCel(s4, "D4", 161, di.dataInspecao);
+  s4 = setCel(s4, "I4", 161, di.numDocumento);
+  s4 = setCel(s4, "D5", 161, di.numeroART);
+  s4 = setCel(s4, "B8", 29, di.empresaCliente);
+  s4 = setCel(s4, "H8", 29, di.responsavelCliente);
+  s4 = setCel(s4, "B9", 29, di.cnpjCliente);
+  s4 = setCel(s4, "H9", 29, di.emailCliente);
+  s4 = setCel(s4, "B10", 29, di.cidadeCliente);
+  s4 = setCel(s4, "H10", 29, di.cargoResponsavel);
+  s4 = setCel(s4, "B11", 29, di.telefoneCliente);
+  s4 = setCel(s4, "B12", 29, di.enderecoCliente);
+  s4 = setCel(s4, "B15", 29, di.empresaMecsete);
+  s4 = setCel(s4, "B16", 29, di.enderecoMecsete);
+  s4 = setCel(s4, "B17", 29, di.cidadeMecsete);
+  s4 = setCel(s4, "B18", 29, di.telefoneMecsete);
+  s4 = setCel(s4, "B19", 29, di.emailMecsete);
+  s4 = setCel(s4, "H15", 29, di.respNomeMecsete);
+  s4 = setCel(s4, "H16", 29, di.respFuncaoMecsete);
+  s4 = setCel(s4, "H17", 29, di.respCREAMecsete);
+  s4 = setCel(s4, "H18", 29, di.nomeInspetor);
+  s4 = setCel(s4, "H19", 29, di.cargoInspetor); // valor direto — a fórmula original comparava só 2 nomes fixos
+  s4 = setCel(s4, "L15", 29, "");
+  s4 = setCel(s4, "L16", 29, "");
+  s4 = setCel(s4, "L18", 29, "");
+  s4 = setCel(s4, "L19", 29, "");
+  zip.file("xl/worksheets/sheet4.xml", s4);
+
+  // ---------- Inventário (sheet6) ----------
+  const linhasInv = itensInventario.map((inv,i)=> xlsmLinhaInventario(4+i, inv.numLegenda, inv.maquina, inv.area));
+  const lastRowInv = 3 + itensInventario.length;
+  let s6 = zip.file("xl/worksheets/sheet6.xml").asText();
+  s6 = xlsmSubstituiLinhas(s6, linhasInv, 4, 999, `A1:L${lastRowInv}`);
+  zip.file("xl/worksheets/sheet6.xml", s6);
+  const anchorsD5 = [], relsD5 = [];
+  let shapeId5 = 1;
+  itensInventario.forEach((inv,i)=>{
+    const dataUrl = inv.maquina.fotoGeral;
+    if(!dataUrl || !imgMap.has(dataUrl)) return;
+    shapeId5++;
+    const relId = "rId"+shapeId5;
+    relsD5.push({ id:relId, target:`../media/${imgMap.get(dataUrl).mediaName}` });
+    anchorsD5.push(xlsmAnchorPic(shapeId5, `Img${shapeId5}`, 0, 3+i, relId));
+  });
+  zip.file("xl/drawings/drawing5.xml", xlsmBuildDrawingXml(anchorsD5));
+  zip.file("xl/drawings/_rels/drawing5.xml.rels", xlsmBuildDrawingRels(relsD5));
+
+  // ---------- table1.xml (tabela "Inventario", vinculada ao sheet6) ----------
+  let t1 = zip.file("xl/tables/table1.xml").asText();
+  t1 = t1.replace(/ref="A3:L\d+"/, `ref="A3:L${lastRowInv}"`);
+  t1 = t1.replace(/<autoFilter ref="A3:L\d+"\/>/, `<autoFilter ref="A3:L${lastRowInv}"/>`);
+  zip.file("xl/tables/table1.xml", t1);
+
+  // ---------- workbook.xml — ranges dos filtros (_FilterDatabase) ----------
+  let wb = zip.file("xl/workbook.xml").asText();
+  wb = wb.replace(/'Base Completa'!\$A\$2:\$AT\$\d+/, `'Base Completa'!$A$2:$AT$${lastRowBase}`);
+  wb = wb.replace(/Resumo!\$A\$1:\$M\$\d+/, `Resumo!$A$1:$M$${lastRowResumo}`);
+  zip.file("xl/workbook.xml", wb);
+
+  // ---------- calcChain.xml — remove; o Excel reconstrói sozinho ao abrir ----------
+  zip.remove("xl/calcChain.xml");
+  let ct = zip.file("[Content_Types].xml").asText();
+  ct = ct.replace(/<Override PartName="\/xl\/calcChain\.xml"[^/]*\/>/, "");
+  zip.file("[Content_Types].xml", ct);
+  let wbRels = zip.file("xl/_rels/workbook.xml.rels").asText();
+  wbRels = wbRels.replace(/<Relationship Id="[^"]*" Type="[^"]*calcChain"[^/]*\/>/, "");
+  zip.file("xl/_rels/workbook.xml.rels", wbRels);
+
+  return zip.generate({ type: "uint8array", compression: "DEFLATE" });
+}
+/* Monta os dados da aba Informações a partir do que o app já conhece
+   (projeto + config fixa da MecSete + inspetor selecionado) — nada aqui
+   depende de campo novo no formulário, tudo já existe hoje. */
+function montarDadosInformacoes(proj){
+  const cfg = getMecseteConfig();
+  const usuarios = getUsuariosInspetores();
+  const inspetor = proj.inspetorId ? usuarios.find(u=>u.id===proj.inspetorId) : null;
+  let dataInspecao = "";
+  if(proj.criadoEm){
+    const d = new Date(proj.criadoEm);
+    dataInspecao = `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}`;
+  }
+  return {
+    dataInspecao, numDocumento: proj.numDocumento||"", numeroART: proj.numeroART||"",
+    empresaCliente: proj.empresa||"", responsavelCliente: proj.responsavel||"",
+    cnpjCliente: proj.cnpjCliente||"", emailCliente: proj.emailCliente||"",
+    cidadeCliente: proj.cidade||"", cargoResponsavel: proj.cargoResponsavel||"",
+    telefoneCliente: proj.telefoneCliente||"", enderecoCliente: proj.enderecoCliente||"",
+    empresaMecsete: cfg.empresa||"", enderecoMecsete: cfg.endereco||"", cidadeMecsete: cfg.cidade||"",
+    telefoneMecsete: cfg.telefone||"", emailMecsete: cfg.email||"",
+    respNomeMecsete: cfg.respNome||"", respFuncaoMecsete: cfg.respFuncao||"", respCREAMecsete: cfg.respCREA||"",
+    nomeInspetor: inspetor ? inspetor.nome : "", cargoInspetor: inspetor ? inspetor.cargo : "",
+  };
+}
+/* Uma linha por MÁQUINA (não por item) para a aba Inventário, na ordem em que
+   as máquinas aparecem dentro das áreas selecionadas para exportação. */
+function montarItensInventario(linhasRaw){
+  const vistos = new Set();
+  const itens = [];
+  let n = 0;
+  linhasRaw.forEach(item=>{
+    if(vistos.has(item.maquina.id)) return;
+    vistos.add(item.maquina.id);
+    n++;
+    itens.push({ numLegenda:n, maquina:item.maquina, area:item.area });
+  });
+  return itens;
+}
 const CAMPOS_ADMIN_PROJETO = [
   { campo:"responsavel", label:"Responsável (contato no cliente)" },
   { campo:"cargoResponsavel", label:"Cargo do Responsável" },
@@ -6833,11 +7387,39 @@ async function _exportarSimplesXLSXFotosReal(){
   if(idsSelecionados.length===0){ toast("Selecione ao menos uma área em Configurações", false); return; }
   let linhasRaw = linhasEscopoSimples().filter(item=>idsSelecionados.includes(item.area.id));
   if(linhasRaw.length===0){ toast("Nada para exportar ainda", false); return; }
+  const modeloXlsmB64 = await lerModeloExcelCorteva();
   toast("Gerando Excel por área… aguarde");
-  if(getIAApiKey() && getIAConfig().usarNaExportacaoExcel){
-    linhasRaw = await enriquecerLinhasComIA(linhasRaw, (i,total)=> toast(`Melhorando textos com IA… ${i}/${total}`));
-  }
   try {
+    if(modeloXlsmB64){
+      // ---- Modelo oficial da Corteva (.xlsm, com macros) ----
+      let linhasComIA = linhasRaw.map(item=>({...item, iaDuvidas:{}, iaTextos:{}}));
+      if(getIAApiKey() && getIAConfig().usarNaExportacaoExcel){
+        linhasComIA = await calcularIATextosPorItem(linhasRaw, (i,total)=> toast(`Escrevendo textos da IA… ${i}/${total}`));
+      }
+      const grupos = agruparLinhasPorArea(linhasComIA);
+      const arquivos = [];
+      for(let i=0;i<grupos.length;i++){
+        const g = grupos[i];
+        toast(`Gerando Excel… área ${i+1}/${grupos.length}: ${g.area.nome||"—"}`);
+        const dadosInformacoes = montarDadosInformacoes(g.proj);
+        const itensInventario = montarItensInventario(g.linhas);
+        const bytes = await gerarBytesXlsmCorteva(modeloXlsmB64, g.linhas, itensInventario, dadosInformacoes);
+        arquivos.push({ name: nomeArquivoArea(g.proj, g.area, "xlsm"), data: bytes });
+      }
+      if(arquivos.length===1){
+        const blob = new Blob([arquivos[0].data], {type:"application/vnd.ms-excel.sheet.macroEnabled.12"});
+        await compartilharOuBaixarBlob(blob, arquivos[0].name, blob.type, "Excel exportado (modelo Corteva, com macros)");
+      } else {
+        const zipBytes = buildZip(arquivos);
+        const blob = new Blob([zipBytes], {type:"application/zip"});
+        await compartilharOuBaixarBlob(blob, `relatorios_excel_${hoje()}.zip`, blob.type, `${arquivos.length} arquivos Excel exportados em .zip`);
+      }
+      return;
+    }
+    // ---- Sem modelo enviado: formato simples de sempre (sem macros) ----
+    if(getIAApiKey() && getIAConfig().usarNaExportacaoExcel){
+      linhasRaw = await enriquecerLinhasComIA(linhasRaw, (i,total)=> toast(`Melhorando textos com IA… ${i}/${total}`));
+    }
     const grupos = agruparLinhasPorArea(linhasRaw);
     const arquivos = [];
     for(let i=0;i<grupos.length;i++){
@@ -6918,6 +7500,13 @@ function screenSimplesConfigExportacoes(){
     </div>` : ""}
   </div>
   <div class="section-title">Exportações · Planilha (Excel)</div>
+  <div class="card card-pad" style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+    <div style="flex:1">
+      <div style="font-weight:800;font-size:13.5px">${__modeloExcelCortevaCarregado ? "Usando o modelo oficial da Corteva (com macros)" : "Usando o formato simples (sem macros)"}</div>
+      <div style="font-size:12px;color:var(--ink-dim)">${__modeloExcelCortevaCarregado ? "Base Completa, Resumo, Informações e Inventário saem no arquivo .xlsm oficial." : "Envie o .xlsm oficial uma vez para exportar nesse formato."}</div>
+    </div>
+    <button class="btn btn-ghost" style="flex-shrink:0;font-size:12px" onclick="App.go('simples-config-modelo-excel')">${__modeloExcelCortevaCarregado?'Trocar':'Enviar'}</button>
+  </div>
   <div style="display:flex;gap:8px">
     <button class="btn btn-primary" style="flex:1" onclick="App.exportarSimplesXLSXFotos()">${ic('download')} Exportar Excel</button>
     ${getIAApiKey()? `<button class="btn ${getIAConfig().usarNaExportacaoExcel?'btn-secondary':'btn-ghost'}" style="flex-shrink:0" onclick="App.toggleIAExportacaoExcel()" title="Ativar/desativar o uso da IA nesta exportação">IA: ${getIAConfig().usarNaExportacaoExcel?'ON':'OFF'}</button>` : ""}
@@ -6926,6 +7515,26 @@ function screenSimplesConfigExportacoes(){
   <div class="section-title">Relatório do trabalho</div>
   <button class="btn btn-primary btn-block" onclick="App.exportarSimplesDOCX()">${ic('download')} Exportar Word</button>
   <div class="field-hint" style="margin:6px 2px 14px">Um arquivo por área, organizado por máquina e tarefa, com fotos numeradas (1.1.1). Mais de uma área sai em .zip.${getIAApiKey()?' Os textos passam pela IA configurada antes de exportar.':''}</div>
+  `;
+}
+function screenSimplesConfigModeloExcel(){
+  return `
+  <div class="card card-pad">
+    <div style="font-weight:800;font-size:14.5px;margin-bottom:4px">Modelo Excel (Corteva)</div>
+    <p style="font-size:13px;color:var(--ink-dim)">Envie o arquivo .xlsm oficial da Corteva (o mesmo que você já usa, com as macros e as abas Base Completa, Resumo, Informações e Inventário). A partir daí, todo "Exportar Excel" gera esse mesmo arquivo preenchido com os dados de cada inspeção — mantendo as macros, as fórmulas e as outras abas intactas.</p>
+    <p style="font-size:12px;color:var(--ink-dim);margin-top:8px">Sem um modelo enviado, a exportação de Excel continua funcionando normalmente, só que no formato simples do app (sem macros).</p>
+  </div>
+  <div class="section-title">Status atual</div>
+  <div class="card card-pad" style="display:flex;align-items:center;gap:12px">
+    <div style="flex:1">
+      <div style="font-weight:800;font-size:14px">${__modeloExcelCortevaCarregado ? "Usando o modelo oficial da Corteva" : "Usando o formato simples (sem macros)"}</div>
+      <div style="font-size:12px;color:var(--ink-dim)">${__modeloExcelCortevaCarregado ? "Toda exportação de Excel a partir de agora usa esse arquivo." : "Nenhum modelo próprio foi enviado ainda."}</div>
+    </div>
+  </div>
+  <div class="section-title">Enviar modelo</div>
+  <input id="inputModeloExcelCorteva" type="file" accept=".xlsm" style="display:none" onchange="App.onUploadModeloExcelCorteva(this.files[0])">
+  <button class="btn btn-primary btn-block" onclick="document.getElementById('inputModeloExcelCorteva').click()">${ic('upload')||''} Selecionar arquivo .xlsm</button>
+  ${__modeloExcelCortevaCarregado? `<button class="btn btn-danger btn-block" style="margin-top:14px" onclick="App.onRestaurarModeloExcelPadrao()">${ic('trash')} Remover e voltar ao formato simples</button>` : ""}
   `;
 }
 function screenSimplesConfigBackup(){
@@ -9084,6 +9693,38 @@ const App = {
     render();
     toast("Modelo padrão da MecSete restaurado");
   },
+  async onUploadModeloExcelCorteva(file){
+    if(!file) return;
+    if(!/\.xlsm$/i.test(file.name)){ toast("Selecione o arquivo .xlsm oficial da Corteva", false); return; }
+    try{
+      const buf = await file.arrayBuffer();
+      let binStr = ""; const bytes = new Uint8Array(buf);
+      const FATIA = 32768;
+      for(let i=0;i<bytes.length;i+=FATIA) binStr += String.fromCharCode.apply(null, bytes.subarray(i, i+FATIA));
+      const base64 = btoa(binStr);
+      // valida que é um .xlsm de verdade, com macro e com as 4 abas que a exportação preenche —
+      // evita gravar um arquivo errado e só descobrir isso na hora de gerar um relatório.
+      const zipTeste = new window.PizZip(base64, { base64: true });
+      if(!zipTeste.file("xl/workbook.xml")){ toast("Esse arquivo não parece ser um Excel válido", false); return; }
+      if(!zipTeste.file("xl/vbaProject.bin")){ toast("Esse arquivo não tem macros — confirme que é o .xlsm oficial da Corteva", false); return; }
+      const wbXml = zipTeste.file("xl/workbook.xml").asText();
+      const abasNecessarias = ["Base Completa","Resumo","Informações","Inventário"];
+      const faltando = abasNecessarias.filter(nome=> !wbXml.includes(`name="${nome}"`));
+      if(faltando.length>0){ toast("Esse arquivo não tem a(s) aba(s): "+faltando.join(", "), false); return; }
+      await salvarModeloExcelCorteva(base64);
+      __modeloExcelCortevaCarregado = true;
+      render();
+      toast("Modelo enviado! As próximas exportações de Excel já usam esse arquivo, com as macros.");
+    }catch(e){
+      toast("Não foi possível ler o arquivo: " + (e && e.message || "erro desconhecido"), false);
+    }
+  },
+  async onRestaurarModeloExcelPadrao(){
+    await apagarModeloExcelCorteva();
+    __modeloExcelCortevaCarregado = false;
+    render();
+    toast("Modelo removido — a exportação de Excel volta a usar o formato simples (sem macros)");
+  },
   async testarIA(){
     if(!getIAApiKey()){ toast("Cole uma chave de API primeiro", false); return; }
     toast("Testando conexão…");
@@ -9147,7 +9788,7 @@ const App = {
   },
   abrirModalMaquinaS(id, areaSId, onSaved){
     const area = buscarAreaSimplesPorId(areaSId);
-    const ent = id? migrarNomeMaquinaSimples(JSON.parse(JSON.stringify(area.maquinas.find(m=>m.id===id)))) : novaMaquinaSimples();
+    const ent = id? migrarInventarioMaquinaSimples(migrarNomeMaquinaSimples(JSON.parse(JSON.stringify(area.maquinas.find(m=>m.id===id))))) : novaMaquinaSimples();
     abrirModalEntidade("maquinaS", ent, {areaSId}, onSaved);
   },
   abrirModalTarefaS(id, maquinaSId, onSaved){
@@ -9184,6 +9825,40 @@ const App = {
         toast("Não foi possível gerar o texto — confira a conexão com a IA", false);
       }
     } finally {
+      renderModalEntidade();
+    }
+  },
+  async lerPlaquetaIA(){
+    if(!__draftEntity || !__draftEntity.fotoPlaqueta || __lendoPlaquetaIA) return;
+    if(!getIAApiKey()){ toast("Configure a IA em Configurações primeiro", false); return; }
+    __lendoPlaquetaIA = true; renderModalEntidade();
+    try{
+      const resposta = await chamarIAImagem(PROMPT_LEITURA_PLAQUETA, __draftEntity.fotoPlaqueta);
+      if(!resposta){ toast("Não foi possível ler a plaqueta — confira a conexão com a IA", false); return; }
+      let dados = null;
+      try{ dados = JSON.parse(resposta.replace(/^```json\s*|^```\s*|```\s*$/g, "").trim()); }catch(e){ dados = null; }
+      if(!dados || typeof dados!=="object"){ toast("A IA não devolveu os dados da plaqueta em um formato reconhecível — preencha manualmente", false); return; }
+      const campos = ["modelo","marca","numeroSerie","anoFabricacao","capacidade","tensao"];
+      let preenchidos = 0;
+      campos.forEach(c=>{
+        const v = dados[c];
+        const jaTemValor = __draftEntity[c] && String(__draftEntity[c]).trim();
+        if(v && typeof v==="string" && v.trim() && !jaTemValor){
+          __draftEntity[c] = v.trim();
+          preenchidos++;
+        }
+      });
+      if(preenchidos>0){
+        __extrasMaquinaAberto = true;
+        marcarAlterado();
+        toast(`${preenchidos} campo${preenchidos===1?'':'s'} preenchido${preenchidos===1?'':'s'} pela IA a partir da plaqueta — confira antes de salvar`);
+      } else {
+        toast("A IA não conseguiu identificar novos dados nessa plaqueta com segurança", false);
+      }
+    }catch(e){
+      toast("Erro ao ler a plaqueta: "+(e && e.message ? e.message : String(e)), false);
+    }finally{
+      __lendoPlaquetaIA = false;
       renderModalEntidade();
     }
   },
@@ -9232,6 +9907,7 @@ const App = {
   onDraftMedidaChange(value){ __draftEntity.medidaImplementada=value; renderModalEntidade(); },
   toggleInfoHrnPO(){ __infoHrnPOAberto = !__infoHrnPOAberto; renderModalEntidade(); },
   toggleExtrasProjeto(){ __extrasProjetoAberto = !__extrasProjetoAberto; renderModalEntidade(); },
+  toggleExtrasMaquina(){ __extrasMaquinaAberto = !__extrasMaquinaAberto; renderModalEntidade(); },
   confirmarGerarMesmoAssim(){ if(__acaoGerarPendente) __acaoGerarPendente(); __acaoGerarPendente = null; },
   tirarFotoDraft(field){
     const input = document.getElementById("fileGeneral");
@@ -9331,11 +10007,11 @@ const App = {
     tarefa.riscos = tarefa.riscos.filter(r=>r.id!==__draftEntity.id);
     marcarAlterado();
     App.fecharModal();
-    __draftEntity=null; __draftParent=null; __draftTipo=null; __modalOnSaved=null; __infoHrnPOAberto=false; __extrasProjetoAberto=false;
+    __draftEntity=null; __draftParent=null; __draftTipo=null; __modalOnSaved=null; __infoHrnPOAberto=false; __extrasProjetoAberto=false; __extrasMaquinaAberto=false;
     render(); toast("Risco removido");
   },
   cancelarDraftEntidade(){
-    __draftEntity=null; __draftParent=null; __draftTipo=null; __modalOnSaved=null; __infoHrnPOAberto=false; __extrasProjetoAberto=false;
+    __draftEntity=null; __draftParent=null; __draftTipo=null; __modalOnSaved=null; __infoHrnPOAberto=false; __extrasProjetoAberto=false; __extrasMaquinaAberto=false;
     limparDraftPersistente(); // cancelou de propósito — o rascunho guardado não deve voltar a assombrar na próxima abertura
     App.fecharModal();
   },
@@ -9352,7 +10028,7 @@ const App = {
     marcarAlterado();
     limparDraftPersistente(); // salvo de verdade no STATE — o rascunho de emergência não é mais necessário
     App.fecharModal();
-    __draftEntity=null; __draftParent=null; __draftTipo=null; __modalOnSaved=null; __infoHrnPOAberto=false; __extrasProjetoAberto=false;
+    __draftEntity=null; __draftParent=null; __draftTipo=null; __modalOnSaved=null; __infoHrnPOAberto=false; __extrasProjetoAberto=false; __extrasMaquinaAberto=false;
     if(cb){ cb(ent.id); } else { render(); toast("Salvo"); }
   },
 
@@ -10791,6 +11467,7 @@ function migrarParaHierarquiaV4(saved){
    INICIALIZAÇÃO
    ========================================================================= */
 let __modeloCustomCarregado = false;
+let __modeloExcelCortevaCarregado = false;
 attachLongPressHandlers();
 render();
 // Pré-carrega a instância do MSAL assim que o app abre, sem esperar nenhum
@@ -10816,6 +11493,10 @@ if("serviceWorker" in navigator){
 }
 lerModeloWordCustom().then(b64=>{
   __modeloCustomCarregado = !!b64;
+  render();
+}).catch(()=>{});
+lerModeloExcelCorteva().then(b64=>{
+  __modeloExcelCortevaCarregado = !!b64;
   render();
 }).catch(()=>{});
 /* Cache leve (sem o campo "dados", que é pesado — a cópia inteira do STATE)
