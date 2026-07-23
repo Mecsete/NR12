@@ -1557,7 +1557,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
    GitHub (útil especialmente dado o atraso de alguns minutos do GitHub para
    propagar cada atualização, e para diferenciar aparelhos que ainda não
    atualizaram dos que já atualizaram). */
-const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "23/07/2026 10:54"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "23/07/2026 10:54"; } })();
+const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "23/07/2026 14:29"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "23/07/2026 14:29"; } })();
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -6196,7 +6196,6 @@ function screenSimplesTabela(){
   </div>
   <div class="export-row">
     <button class="btn btn-primary" onclick="App.exportarSimplesXLSXFotos()">${ic('download')} Exportar Excel</button>
-    <button class="btn btn-primary" onclick="App.exportarSimplesDOCX()">${ic('download')} Exportar Word</button>
     <button class="btn btn-secondary" onclick="window.print()">${ic('print')} Imprimir / PDF</button>
   </div>
   <div class="section-title">${linhas.length} risco${linhas.length===1?'':'s'}</div>
@@ -7086,8 +7085,13 @@ function xlsmDataSerial(dataStr){
    inclusive) e insere as novas linhas no lugar, logo antes de </sheetData>;
    atualiza também o <dimension>. Preserva cabeçalho, estilos, tudo o mais. */
 function xlsmSubstituiLinhas(xml, novasLinhasXml, primeiraLinha, ultimaLinhaOriginal, novoDimensionRef){
-  let out = xml.replace(/<row r="(\d+)"[^>]*>[\s\S]*?<\/row>|<row r="(\d+)"[^>]*\/>/g, (m,r1,r2)=>{
-    const r = parseInt(r1||r2,10);
+  // "[^>]*?" (preguiçoso) em vez de "[^>]*" (guloso): sem isso, uma linha vazia
+  // e auto-fechada (<row .../>) era tratada como "linha aberta" e a busca pelo
+  // </row> seguinte "comia" a linha seguinte inteira junto — apagando dados
+  // que deveriam ficar intactos. Com a versão preguiçosa, cada linha para
+  // exatamente no seu próprio fechamento, seja "/>" ou "</row>".
+  let out = xml.replace(/<row r="(\d+)"[^>]*?(?:\/>|>[\s\S]*?<\/row>)/g, (m,r1)=>{
+    const r = parseInt(r1,10);
     return (r>=primeiraLinha && r<=ultimaLinhaOriginal) ? "" : m;
   });
   out = out.replace("</sheetData>", novasLinhasXml.join("")+"</sheetData>");
@@ -7287,7 +7291,13 @@ async function gerarBytesXlsmCorteva(modeloB64, linhasComIA, itensInventario, da
   let s4 = zip.file("xl/worksheets/sheet4.xml").asText();
   function setCel(xml, ref, style, texto){
     const nova = xlsmCellTexto(ref, style, texto);
-    const re = new RegExp(`<c r="${ref}"[^>]*(?:/>|>[\\s\\S]*?</c>)`);
+    // "[^>]*?" preguiçoso — veja o comentário em xlsmSubstituiLinhas: sem isso,
+    // ao mirar uma célula em branco (a maioria das da aba Informações, que vem
+    // vazia esperando ser preenchida), a busca "comia" células e rótulos
+    // vizinhos até achar o próximo "</c>", apagando informação que devia
+    // ficar intacta (foi o que sumiu com "Nº Documento:", "Dados do
+    // Solicitante" etc. na exportação).
+    const re = new RegExp(`<c r="${ref}"[^>]*?(?:/>|>[\\s\\S]*?</c>)`);
     return re.test(xml) ? xml.replace(re, nova) : xml;
   }
   const di = dadosInformacoes;
@@ -7517,13 +7527,10 @@ function screenSimplesConfig(){
     ${ic('onedrive')}<span style="flex:1;text-align:left"><b>Backup</b><br><span style="font-size:12px;color:var(--ink-dim);font-weight:400">${getOneDriveConta() && __onedriveSessaoExpirada ? 'Sessão do OneDrive expirou' : getOneDriveConta()?`OneDrive conectado — ${getOneDriveConta().email}`:'OneDrive não conectado neste aparelho'}</span></span>${ic('chevR')}
   </button>
   <button class="btn btn-secondary btn-block" style="display:flex;align-items:center;gap:10px;justify-content:flex-start;padding:14px 16px;margin-top:10px" onclick="App.go('simples-config-exportacoes')">
-    ${ic('download')}<span style="flex:1;text-align:left"><b>Exportações</b><br><span style="font-size:12px;color:var(--ink-dim);font-weight:400">Word e Excel do que já foi cadastrado</span></span>${ic('chevR')}
+    ${ic('download')}<span style="flex:1;text-align:left"><b>Exportações</b><br><span style="font-size:12px;color:var(--ink-dim);font-weight:400">Excel do que já foi cadastrado</span></span>${ic('chevR')}
   </button>
   <button class="btn btn-secondary btn-block" style="display:flex;align-items:center;gap:10px;justify-content:flex-start;padding:14px 16px;margin-top:10px" onclick="App.go('simples-config-empresa')">
     ${ic('briefcase')}<span style="flex:1;text-align:left"><b>Empresa e Responsáveis</b><br><span style="font-size:12px;color:var(--ink-dim);font-weight:400">Dados fixos do laudo e lista de inspetores</span></span>${ic('chevR')}
-  </button>
-  <button class="btn btn-secondary btn-block" style="display:flex;align-items:center;gap:10px;justify-content:flex-start;padding:14px 16px;margin-top:10px" onclick="App.go('simples-config-modelo')">
-    ${ic('doc')}<span style="flex:1;text-align:left"><b>Modelo do Laudo (Word)</b><br><span style="font-size:12px;color:var(--ink-dim);font-weight:400">${__modeloCustomCarregado?'Modelo próprio em uso':'Usando o modelo padrão da MecSete'}</span></span>${ic('chevR')}
   </button>
   <button class="btn btn-secondary btn-block" style="display:flex;align-items:center;gap:10px;justify-content:flex-start;padding:14px 16px;margin-top:10px" onclick="App.go('simples-config-ia')">
     ${ic('cog')}<span style="flex:1;text-align:left"><b>Inteligência Artificial</b><br><span style="font-size:12px;color:var(--ink-dim);font-weight:400">${getIAApiKey()?'Configurada':'Opcional — melhora os textos do relatório'}</span></span>${ic('chevR')}
@@ -7579,9 +7586,6 @@ function screenSimplesConfigExportacoes(){
     ${getIAApiKey()? `<button class="btn ${getIAConfig().usarNaExportacaoExcel?'btn-secondary':'btn-ghost'}" style="flex-shrink:0" onclick="App.toggleIAExportacaoExcel()" title="Ativar/desativar o uso da IA nesta exportação">IA: ${getIAConfig().usarNaExportacaoExcel?'ON':'OFF'}</button>` : ""}
   </div>
   <div class="field-hint" style="margin:6px 2px 14px">Um arquivo por área, com a foto da máquina e a foto do risco dentro das próprias células. Mais de uma área sai em .zip.${getIAApiKey() && getIAConfig().usarNaExportacaoExcel?' Os textos passam pela IA configurada antes de exportar.':getIAApiKey()?' IA desativada para esta exportação — os textos saem como estão no app.':''}</div>
-  <div class="section-title">Relatório do trabalho</div>
-  <button class="btn btn-primary btn-block" onclick="App.exportarSimplesDOCX()">${ic('download')} Exportar Word</button>
-  <div class="field-hint" style="margin:6px 2px 14px">Um arquivo por área, organizado por máquina e tarefa, com fotos numeradas (1.1.1). Mais de uma área sai em .zip.${getIAApiKey()?' Os textos passam pela IA configurada antes de exportar.':''}</div>
   `;
 }
 function screenSimplesConfigModeloExcel(){
@@ -9555,9 +9559,6 @@ function b64ParaBytes(b64){
   return bytes;
 }
 
-async function exportarSimplesDOCX(){
-  confirmarGeracaoComCamposFaltando(_exportarSimplesDOCXReal);
-}
 async function _exportarSimplesDOCXReal(){
   const idsSelecionados = getAreasSelecionadasExport();
   if(idsSelecionados.length===0){ toast("Selecione ao menos uma área em Configurações", false); return; }
@@ -11010,7 +11011,7 @@ const App = {
   setTabelaScope(scope){ STATE.ui.tabelaScope = scope; render(); },
   setTabelaScopeSimples(scope){ STATE.ui.tabelaScopeSimples = scope; render(); },
   exportarObjetivaCSV, exportarObjetivaXLS, exportarMasterCSV, exportarMasterXLS, exportarMasterXLSXFotos, exportarBackup,
-  exportarSimplesCSV, exportarSimplesXLS, exportarSimplesXLSXFotos, exportarSimplesDOCX,
+  exportarSimplesCSV, exportarSimplesXLS, exportarSimplesXLSXFotos,
 
   apagarTudo(){
     const r = prompt('Esta ação apaga TODOS os projetos, áreas, máquinas, tarefas e perigos do Módulo Completo deste aparelho.\nDigite APAGAR para confirmar:');
