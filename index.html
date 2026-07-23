@@ -1049,6 +1049,66 @@ async function apagarModeloExcelCorteva(){
     }catch(e){}
   }
   try{ localStorage.removeItem(LS_KEY_MODELO_XLSM); }catch(e){}
+  await apagarModeloExcelCortevaMeta();
+}
+/* Nome do arquivo e data/hora do envio do modelo Excel Corteva — só para
+   mostrar na tela de Exportações, não influencia a geração do Excel em si. */
+const DB_KEY_MODELO_XLSM_META = "modeloExcelCortevaMeta";
+const LS_KEY_MODELO_XLSM_META = "apr_campo_modelo_excel_corteva_meta_v1";
+async function salvarModeloExcelCortevaMeta(meta){
+  const json = JSON.stringify(meta);
+  if(temIndexedDB()){
+    try{
+      const db = await dbOpen();
+      await new Promise((resolve,reject)=>{
+        const tx = db.transaction(DB_STORE,"readwrite");
+        tx.objectStore(DB_STORE).put(json, DB_KEY_MODELO_XLSM_META);
+        tx.oncomplete=()=>resolve(true);
+        tx.onerror=()=>reject(tx.error);
+      });
+      return;
+    }catch(e){}
+  }
+  try{ localStorage.setItem(LS_KEY_MODELO_XLSM_META, json); }catch(e){}
+}
+async function lerModeloExcelCortevaMeta(){
+  let json = null;
+  if(temIndexedDB()){
+    try{
+      const db = await dbOpen();
+      json = await new Promise((resolve,reject)=>{
+        const tx = db.transaction(DB_STORE,"readonly");
+        const rq = tx.objectStore(DB_STORE).get(DB_KEY_MODELO_XLSM_META);
+        rq.onsuccess=()=>resolve(rq.result||null);
+        rq.onerror=()=>reject(rq.error);
+      });
+    }catch(e){}
+  }
+  if(!json){ try{ json = localStorage.getItem(LS_KEY_MODELO_XLSM_META); }catch(e){} }
+  if(!json) return null;
+  try{ return JSON.parse(json); }catch(e){ return null; }
+}
+async function apagarModeloExcelCortevaMeta(){
+  if(temIndexedDB()){
+    try{
+      const db = await dbOpen();
+      await new Promise((resolve,reject)=>{
+        const tx = db.transaction(DB_STORE,"readwrite");
+        tx.objectStore(DB_STORE).delete(DB_KEY_MODELO_XLSM_META);
+        tx.oncomplete=()=>resolve(true);
+        tx.onerror=()=>reject(tx.error);
+      });
+    }catch(e){}
+  }
+  try{ localStorage.removeItem(LS_KEY_MODELO_XLSM_META); }catch(e){}
+}
+/* Formata "quando" (timestamp) no padrão DD/MM/AAAA HH:MM, fuso de Brasília. */
+function formatarDataHoraBR(timestamp){
+  if(!timestamp) return "";
+  try{
+    const f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false});
+    return f.format(new Date(timestamp)).replace(",","");
+  }catch(e){ return ""; }
 }
 /* =========================================================================
    FOTOS FORA DO STATE (camada de persistência) — cada foto vira uma chave
@@ -1497,7 +1557,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
    GitHub (útil especialmente dado o atraso de alguns minutos do GitHub para
    propagar cada atualização, e para diferenciar aparelhos que ainda não
    atualizaram dos que já atualizaram). */
-const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "21/07/2026 19:50"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "21/07/2026 19:50"; } })();
+const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "23/07/2026 10:54"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "23/07/2026 10:54"; } })();
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -4688,11 +4748,17 @@ function abrirModalEntidade(tipo, draft, parent, onSaved){
 }
 function renderModalEntidade(){
   let html = "";
-  if(__draftTipo==="projetoS") html = formProjetoSHtml();
-  else if(__draftTipo==="areaS") html = formAreaSHtml();
-  else if(__draftTipo==="maquinaS") html = formMaquinaSHtml();
-  else if(__draftTipo==="tarefaS") html = formTarefaSHtml();
-  else if(__draftTipo==="riscoS") html = formRiscoSHtml();
+  try{
+    if(__draftTipo==="projetoS") html = formProjetoSHtml();
+    else if(__draftTipo==="areaS") html = formAreaSHtml();
+    else if(__draftTipo==="maquinaS") html = formMaquinaSHtml();
+    else if(__draftTipo==="tarefaS") html = formTarefaSHtml();
+    else if(__draftTipo==="riscoS") html = formRiscoSHtml();
+  }catch(e){
+    console.error("Erro ao montar o formulário:", e);
+    toast("Não foi possível abrir essa tela. Tente novamente — se persistir, avise o suporte.", false);
+    return;
+  }
   abrirOverlay(html);
 }
 function formProjetoSHtml(){
@@ -7504,6 +7570,7 @@ function screenSimplesConfigExportacoes(){
     <div style="flex:1">
       <div style="font-weight:800;font-size:13.5px">${__modeloExcelCortevaCarregado ? "Usando o modelo oficial da Corteva (com macros)" : "Usando o formato simples (sem macros)"}</div>
       <div style="font-size:12px;color:var(--ink-dim)">${__modeloExcelCortevaCarregado ? "Base Completa, Resumo, Informações e Inventário saem no arquivo .xlsm oficial." : "Envie o .xlsm oficial uma vez para exportar nesse formato."}</div>
+      ${__modeloExcelCortevaCarregado && __modeloExcelCortevaMeta? `<div style="font-size:11.5px;color:var(--ink-dim);margin-top:2px">${escapeHtml(__modeloExcelCortevaMeta.nome||"")} · enviado em ${formatarDataHoraBR(__modeloExcelCortevaMeta.quando)}</div>` : ""}
     </div>
     <button class="btn btn-ghost" style="flex-shrink:0;font-size:12px" onclick="App.go('simples-config-modelo-excel')">${__modeloExcelCortevaCarregado?'Trocar':'Enviar'}</button>
   </div>
@@ -7529,6 +7596,7 @@ function screenSimplesConfigModeloExcel(){
     <div style="flex:1">
       <div style="font-weight:800;font-size:14px">${__modeloExcelCortevaCarregado ? "Usando o modelo oficial da Corteva" : "Usando o formato simples (sem macros)"}</div>
       <div style="font-size:12px;color:var(--ink-dim)">${__modeloExcelCortevaCarregado ? "Toda exportação de Excel a partir de agora usa esse arquivo." : "Nenhum modelo próprio foi enviado ainda."}</div>
+      ${__modeloExcelCortevaCarregado && __modeloExcelCortevaMeta? `<div style="font-size:12px;color:var(--ink-dim);margin-top:6px"><b>Arquivo:</b> ${escapeHtml(__modeloExcelCortevaMeta.nome||"—")}<br><b>Enviado em:</b> ${formatarDataHoraBR(__modeloExcelCortevaMeta.quando)}</div>` : ""}
     </div>
   </div>
   <div class="section-title">Enviar modelo</div>
@@ -9712,7 +9780,10 @@ const App = {
       const faltando = abasNecessarias.filter(nome=> !wbXml.includes(`name="${nome}"`));
       if(faltando.length>0){ toast("Esse arquivo não tem a(s) aba(s): "+faltando.join(", "), false); return; }
       await salvarModeloExcelCorteva(base64);
+      const meta = { nome: file.name, quando: Date.now() };
+      await salvarModeloExcelCortevaMeta(meta);
       __modeloExcelCortevaCarregado = true;
+      __modeloExcelCortevaMeta = meta;
       render();
       toast("Modelo enviado! As próximas exportações de Excel já usam esse arquivo, com as macros.");
     }catch(e){
@@ -9722,6 +9793,7 @@ const App = {
   async onRestaurarModeloExcelPadrao(){
     await apagarModeloExcelCorteva();
     __modeloExcelCortevaCarregado = false;
+    __modeloExcelCortevaMeta = null;
     render();
     toast("Modelo removido — a exportação de Excel volta a usar o formato simples (sem macros)");
   },
@@ -9778,29 +9850,43 @@ const App = {
 
   /* ---------- Módulo Simplificado: abrir modais ---------- */
   abrirModalProjetoS(id){
-    const ent = id? JSON.parse(JSON.stringify(STATE.projetosSimples.find(p=>p.id===id))) : novoProjetoSimplesExtra();
-    abrirModalEntidade("projetoS", ent, {}, null);
+    if(!id){ abrirModalEntidade("projetoS", novoProjetoSimplesExtra(), {}, null); return; }
+    const achado = STATE.projetosSimples.find(p=>p.id===id);
+    if(!achado){ toast("Não foi possível localizar esse projeto — pode ter sido removido. Feche esta janela e tente de novo.", false); return; }
+    abrirModalEntidade("projetoS", JSON.parse(JSON.stringify(achado)), {}, null);
   },
   abrirModalAreaS(id, projetoSId, onSaved){
     const proj = STATE.projetosSimples.find(p=>p.id===projetoSId);
-    const ent = id? JSON.parse(JSON.stringify(proj.areas.find(a=>a.id===id))) : novaAreaSimples();
-    abrirModalEntidade("areaS", ent, {projetoSId}, onSaved);
+    if(!proj){ toast("Não foi possível localizar esse projeto — pode ter sido removido.", false); return; }
+    if(!id){ abrirModalEntidade("areaS", novaAreaSimples(), {projetoSId}, onSaved); return; }
+    const achada = proj.areas.find(a=>a.id===id);
+    if(!achada){ toast("Não foi possível localizar essa área — pode ter sido removida.", false); return; }
+    abrirModalEntidade("areaS", JSON.parse(JSON.stringify(achada)), {projetoSId}, onSaved);
   },
   abrirModalMaquinaS(id, areaSId, onSaved){
     const area = buscarAreaSimplesPorId(areaSId);
-    const ent = id? migrarInventarioMaquinaSimples(migrarNomeMaquinaSimples(JSON.parse(JSON.stringify(area.maquinas.find(m=>m.id===id))))) : novaMaquinaSimples();
-    abrirModalEntidade("maquinaS", ent, {areaSId}, onSaved);
+    if(!area){ toast("Não foi possível localizar essa área — pode ter sido removida.", false); return; }
+    if(!id){ abrirModalEntidade("maquinaS", novaMaquinaSimples(), {areaSId}, onSaved); return; }
+    const achada = area.maquinas.find(m=>m.id===id);
+    if(!achada){ toast("Não foi possível localizar essa máquina — pode ter sido removida.", false); return; }
+    abrirModalEntidade("maquinaS", migrarInventarioMaquinaSimples(migrarNomeMaquinaSimples(JSON.parse(JSON.stringify(achada)))), {areaSId}, onSaved);
   },
   abrirModalTarefaS(id, maquinaSId, onSaved){
     const maquina = buscarMaquinaSimplesPorId(maquinaSId);
-    const ent = id? JSON.parse(JSON.stringify(maquina.tarefas.find(t=>t.id===id))) : novaTarefaSimples();
-    abrirModalEntidade("tarefaS", ent, {maquinaSId}, onSaved);
+    if(!maquina){ toast("Não foi possível localizar essa máquina — pode ter sido removida.", false); return; }
+    if(!id){ abrirModalEntidade("tarefaS", novaTarefaSimples(), {maquinaSId}, onSaved); return; }
+    const achada = maquina.tarefas.find(t=>t.id===id);
+    if(!achada){ toast("Não foi possível localizar essa tarefa — pode ter sido removida.", false); return; }
+    abrirModalEntidade("tarefaS", JSON.parse(JSON.stringify(achada)), {maquinaSId}, onSaved);
   },
   abrirModalRiscoS(id, tarefaSId, onSaved){
     if(id && __selMode && __selMode.tipo==="riscoS"){ App.toggleSelecao(id); return; }
     const tarefa = buscarTarefaSimplesPorId(tarefaSId);
-    const ent = id? JSON.parse(JSON.stringify(tarefa.riscos.find(r=>r.id===id))) : novoRiscoSimples();
-    abrirModalEntidade("riscoS", ent, {tarefaSId}, onSaved);
+    if(!tarefa){ toast("Não foi possível localizar essa tarefa — pode ter sido removida.", false); return; }
+    if(!id){ abrirModalEntidade("riscoS", novoRiscoSimples(), {tarefaSId}, onSaved); return; }
+    const achado = tarefa.riscos.find(r=>r.id===id);
+    if(!achado){ toast("Não foi possível localizar esse risco — pode ter sido removido.", false); return; }
+    abrirModalEntidade("riscoS", JSON.parse(JSON.stringify(achado)), {tarefaSId}, onSaved);
   },
 
   /* ---------- Módulo Simplificado: campos do rascunho ---------- */
@@ -11468,6 +11554,7 @@ function migrarParaHierarquiaV4(saved){
    ========================================================================= */
 let __modeloCustomCarregado = false;
 let __modeloExcelCortevaCarregado = false;
+let __modeloExcelCortevaMeta = null; // {nome, quando} — nome do arquivo e data/hora do envio
 attachLongPressHandlers();
 render();
 // Pré-carrega a instância do MSAL assim que o app abre, sem esperar nenhum
@@ -11497,6 +11584,10 @@ lerModeloWordCustom().then(b64=>{
 }).catch(()=>{});
 lerModeloExcelCorteva().then(b64=>{
   __modeloExcelCortevaCarregado = !!b64;
+  render();
+}).catch(()=>{});
+lerModeloExcelCortevaMeta().then(meta=>{
+  __modeloExcelCortevaMeta = meta;
   render();
 }).catch(()=>{});
 /* Cache leve (sem o campo "dados", que é pesado — a cópia inteira do STATE)
