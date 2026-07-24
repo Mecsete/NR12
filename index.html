@@ -1557,7 +1557,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
    GitHub (útil especialmente dado o atraso de alguns minutos do GitHub para
    propagar cada atualização, e para diferenciar aparelhos que ainda não
    atualizaram dos que já atualizaram). */
-const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "24/07/2026 11:10"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "24/07/2026 11:10"; } })();
+const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "24/07/2026 12:19"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "24/07/2026 12:19"; } })();
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -2460,6 +2460,8 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
     // O texto só precisa subir de novo se o item mudou (se estamos aqui apenas
     // para completar as fotos de um texto já enviado, não repete o texto).
     let textoPrecisaSubir = !registroAnterior || registroAnterior.atualizadoEm !== item.atualizadoEm;
+    // Mesmo conteúdo já enviado, só o carimbo mudou: acerta a marca e não gasta dados.
+    if(textoPrecisaSubir && onedriveConteudoJaEnviado(item, registroAnterior)) textoPrecisaSubir = false;
     // TRAVA DE DADOS MÓVEIS: arquivo idêntico já na nuvem (mesmo caminho, mesmo
     // tamanho) não sobe de novo — só a marca local é corrigida.
     const jaEstaLa = raizModulo==="Simplificado" && textoPrecisaSubir && onedriveJaExisteNaNuvem(item);
@@ -2845,6 +2847,7 @@ function onedriveClassificarNovosSimples(arvoreProjetos){
        aproveita para anotar o tamanho — de graça, sem baixar — e a partir de
        agora qualquer edição feita no outro aparelho é detectada na hora. */
     if(arquivoJaExistente(arq.caminho, arq.tamanho)){ onedriveAnotarTamanho(chave, "tamanho", arq.tamanho); return; }
+    if(onedriveMesmaVersaoPeloTamanho(tipo, itemLocal, chave, arq.tamanho)) return;
     registrar(arq.tamanho, { tipo, ...ids, atualizacao:true, chaveAssinatura:chave, caminho:arq.caminho, nome:arq.nome, tamanho:arq.tamanho });
   };
   for(const nodeProj of arvoreProjetos){
@@ -2914,7 +2917,9 @@ function onedriveClassificarNovosSimples(arvoreProjetos){
             const riscoExistente = tarLocal.riscos.find(r=>r.id===m[1]);
             if(!riscoExistente){
               registrar(arq.tamanho, { tipo:"risco", ...idsRisco, caminho:arq.caminho, tamanho:arq.tamanho });
-            }else if(onedriveArquivoMudouNaNuvem("risco:"+riscoExistente.id, "tamanho", arq.tamanho, true)){
+            }else if(onedriveArquivoMudouNaNuvem("risco:"+riscoExistente.id, "tamanho", arq.tamanho, true)
+                     && !arquivoJaExistente(arq.caminho, arq.tamanho)
+                     && !onedriveMesmaVersaoPeloTamanho("risco", riscoExistente, "risco:"+riscoExistente.id, arq.tamanho)){
               registrar(arq.tamanho, { tipo:"risco", ...idsRisco, atualizacao:true, chaveAssinatura:"risco:"+riscoExistente.id, caminho:arq.caminho, nome:arq.nome, tamanho:arq.tamanho });
             }
           }
@@ -3269,6 +3274,7 @@ function onedriveDescritorDeCaminho(entrada){
   const montarAtualizacao = (tipo, alvo, ids) => {
     const chave = tipo + ":" + alvo.id;
     if(!onedriveArquivoMudouNaNuvem(chave, "tamanho", base.tamanho, true)) return { jaExiste:true };
+    if(onedriveMesmaVersaoPeloTamanho(tipo, alvo, chave, base.tamanho)) return { jaExiste:true };
     return { ...base, tipo, atualizacao:true, chaveAssinatura:chave, ...ids };
   };
   if(pastas.length===1 && nomeArq==="_projeto.json"){
@@ -3848,6 +3854,53 @@ function onedriveArquivoMudouNaNuvem(chave, campo, tamanhoRemoto, seAindaNaoSabe
    - tamanho ainda desconhecido (dado gravado por versão antiga do app) → só
      busca se o texto acabou de avisar que o item mudou; senão apenas aprende
      o tamanho de graça, sem baixar nada. */
+/* Campo que guarda os "filhos" de cada nível. Ele NÃO entra no arquivo do
+   item (cada filho tem o seu próprio arquivo) — por isso precisa ficar de
+   fora também na hora de medir o tamanho. */
+const CAMPO_FILHOS_POR_TIPO = { projeto:"areas", area:"maquinas", maquina:"tarefas", tarefa:"riscos" };
+/* Quantos bytes o arquivo deste item teria se fosse enviado agora. Serve para
+   responder, SEM BAIXAR NADA, a pergunta "o arquivo que está na nuvem é o
+   mesmo que eu tenho aqui?" — se o tamanho bate, é a mesma versão.
+   É isso que evita uma enxurrada de "itens para receber" logo depois de
+   atualizar o app: sem esta conta, todo item cujo tamanho ainda não era
+   conhecido precisava ser baixado uma vez só para ser conferido. */
+function tamanhoTextoLocalDoItem(tipo, obj){
+  try{
+    const campoFilhos = CAMPO_FILHOS_POR_TIPO[tipo];
+    const proprios = {};
+    for(const k in obj){ if(k !== campoFilhos) proprios[k] = obj[k]; }
+    const { semFotos, tinhaFotos } = separarFotosDoItem(proprios);
+    /* Tem de ser o tamanho em BYTES, não a quantidade de caracteres: o
+       OneDrive informa bytes, e em português cada acento ocupa 2 bytes
+       ("Área", "Descrição", "Operação"). Medindo caracteres, praticamente
+       todo item pareceria diferente do que está na nuvem — e a conferência
+       não pouparia download nenhum. */
+    return new Blob([JSON.stringify(tinhaFotos ? semFotos : proprios, null, 0)]).size;
+  }catch(e){ return -1; }
+}
+/* true quando dá para afirmar, só pelo tamanho, que a cópia daqui é igual à
+   da nuvem. Nesse caso o tamanho é anotado e o item sai da fila. */
+/* O item consta como alterado, mas o arquivo que ESTE aparelho enviou para a
+   nuvem tem exatamente o mesmo tamanho que a versão atual daqui teria. Ou
+   seja: o conteúdo é o mesmo e só o carimbo de data/hora mudou. Corrige a
+   marca local e não envia nada.
+   Diferente da checagem pelo índice da nuvem, esta funciona SEM internet e
+   vale também para o Módulo Completo — é o que limpa, de uma vez, tudo o que
+   já ficou marcado como pendente sem ter mudado de verdade. */
+function onedriveConteudoJaEnviado(item, registro){
+  if(!registro || typeof registro.tamanho !== "number") return false;
+  /* Endereço diferente = o item MUDOU DE LUGAR na nuvem (mover área de
+     projeto). O conteúdo é o mesmo, mas precisa subir para o caminho novo —
+     senão a mudança nunca chegaria aos outros aparelhos. */
+  if(!Array.isArray(registro.pasta) || registro.pasta.join("/") !== item.pasta.join("/")) return false;
+  if(registro.arquivo !== item.arquivo) return false;
+  return tamanhoTextoLocalDoItem(item.tipo, item.dados || {}) === registro.tamanho;
+}
+function onedriveMesmaVersaoPeloTamanho(tipo, itemLocal, chave, tamanhoRemoto){
+  if(tamanhoTextoLocalDoItem(tipo, itemLocal) !== tamanhoRemoto) return false;
+  onedriveAnotarTamanho(chave, "tamanho", tamanhoRemoto);
+  return true;
+}
 function onedrivePrecisaBaixarFotos(itemLocal, chave, tamanhoRemoto){
   const reg = onedriveAssinaturaDe(chave);
   const conhecido = (reg && typeof reg.tamanhoFotos === "number") ? reg.tamanhoFotos : null;
@@ -3899,7 +3952,8 @@ function onedriveCarregarAssinaturas(mapaRef){
 }
 function onedriveEstimarPendentesUpload(){
   let totalBytes = 0, totalItens = 0;
-  const porTipo = {};
+  const porTipo = {};          // itens que a nuvem ainda não tem (novos)
+  const porTipoAlterado = {};  // itens que já estão lá e foram editados aqui
   const contar = (listarItens, mapaRef, ehSimplificado) => {
     const itensAtuais = listarItens();
     const assinaturas = onedriveCarregarAssinaturas(mapaRef);
@@ -3908,6 +3962,11 @@ function onedriveEstimarPendentesUpload(){
       // Antes de contar como "falta enviar", confere se o arquivo idêntico já
       // está na nuvem. Se estiver, a assinatura local é corrigida na hora e o
       // item some da fila — nada é reenviado, nenhum dado móvel é gasto.
+      if(registro && registro.atualizadoEm !== item.atualizadoEm && onedriveConteudoJaEnviado(item, registro)){
+        registro.atualizadoEm = item.atualizadoEm;         // mesmo conteúdo — só acerta o carimbo
+        assinaturas.set(item.id, registro);
+        if(STATE[mapaRef.chaveEstado]) STATE[mapaRef.chaveEstado][item.id] = registro;
+      }
       if((!registro || registro.atualizadoEm !== item.atualizadoEm) && ehSimplificado && onedriveJaExisteNaNuvem(item)){
         const { soFotos, tinhaFotos } = separarFotosDoItem(item.dados||{});
         onedriveCurarAssinatura(item, mapaRef, tinhaFotos && !onedriveFotosJaExistemNaNuvem(item, soFotos));
@@ -3920,15 +3979,18 @@ function onedriveEstimarPendentesUpload(){
         const bytes = JSON.stringify(item.dados||{}).length;
         totalBytes += bytes;
         totalItens++;
-        if(!porTipo[item.tipo]) porTipo[item.tipo] = {qtd:0, bytes:0};
-        porTipo[item.tipo].qtd++;
-        porTipo[item.tipo].bytes += bytes;
+        // Já existe assinatura = a nuvem já tem este item e o que muda é uma
+        // EDIÇÃO feita aqui. Sem assinatura = item novo, que a nuvem não conhece.
+        const grupo = registro ? porTipoAlterado : porTipo;
+        if(!grupo[item.tipo]) grupo[item.tipo] = {qtd:0, bytes:0};
+        grupo[item.tipo].qtd++;
+        grupo[item.tipo].bytes += bytes;
       }
     }
   };
   contar(listarItensSincronizaveisSimples, __assinaturasOneDriveSimples, true);
   contar(listarItensSincronizaveisCompleto, __assinaturasOneDriveCompleto, false);
-  return { totalBytes, totalItens, porTipo };
+  return { totalBytes, totalItens, porTipo, porTipoAlterado };
 }
 /* Mesma checagem leve (só metadados) usada pela sincronização automática de
    download, mas chamada isoladamente para poder mostrar a estimativa ANTES
@@ -3938,12 +4000,17 @@ function onedriveEstimarPendentesUpload(){
    estimado) e quando essa contagem foi calculada — data, hora e minuto,
    como pedido, não um "há X minutos" relativo. */
 const ONEDRIVE_ORDEM_TIPOS = ['projeto','area','maquina','tarefa','risco','perigo'];
-function onedriveLinhasPorGrupo(porTipo, rotuloDirecao){
+/* rotuloDirecao é o texto que fecha a frase: "para enviar", "para receber",
+   "alterados aqui, para atualizar na nuvem", "atualizados em outro aparelho".
+   Separar NOVO de ALTERADO deixa claro, num relance, o que é trabalho novo
+   chegando e o que é correção/edição feita em outro aparelho. */
+function onedriveLinhasPorGrupo(porTipo, rotuloSingular, rotuloPlural){
   if(!porTipo) return [];
   return ONEDRIVE_ORDEM_TIPOS.filter(t=>porTipo[t] && porTipo[t].qtd>0).map(t=>{
     const g = porTipo[t];
     const mb = (g.bytes/1024/1024).toFixed(1);
-    return `${g.qtd} ${onedriveRotuloTipo(t,g.qtd)} para ${rotuloDirecao} (${mb} MB)`;
+    const fecho = (g.qtd===1 ? rotuloSingular : (rotuloPlural || rotuloSingular));
+    return `${g.qtd} ${onedriveRotuloTipo(t,g.qtd)} ${fecho} (${mb} MB)`;
   });
 }
 /* A tela de Backup é redesenhada várias vezes seguidas (progresso, toasts,
@@ -3983,8 +4050,10 @@ function onedriveStatusPendenteHtml(){
     ? `${rotulo}: ${g.qtd} ${g.qtd===1?'foto':'fotos'} (${(g.bytes/1024/1024).toFixed(1)} MB)`
     : `${rotulo}: nenhuma`;
   const linhas = [
-    ...onedriveLinhasPorGrupo(upAgora.porTipo, 'enviar'),
-    ...onedriveLinhasPorGrupo(s.receberPorTipo, 'receber'),
+    ...onedriveLinhasPorGrupo(upAgora.porTipo, 'para enviar'),
+    ...onedriveLinhasPorGrupo(upAgora.porTipoAlterado, 'alterado aqui, para atualizar na nuvem', 'alterados aqui, para atualizar na nuvem'),
+    ...onedriveLinhasPorGrupo(s.receberPorTipo, 'para receber'),
+    ...onedriveLinhasPorGrupo(s.atualizarPorTipo, 'atualizado em outro aparelho, para receber', 'atualizados em outro aparelho, para receber'),
     linhaFoto('Fotos para enviar', fe),
     linhaFoto('Fotos para receber', fr),
   ].filter(Boolean);
@@ -4184,11 +4253,13 @@ function onedriveReconciliarComArvore(arvore){
 function onedriveSalvarStatusPendente(upload, download){
   const bytesFotos = download.grandes.reduce((s,p)=>s+(p.tamanho||0),0);
   const bytesPequenos = download.pequenos.reduce((s,p)=>s+(p.tamanho||0),0);
-  const receberPorTipo = {};
+  const receberPorTipo = {};    // itens que este aparelho ainda não tem
+  const atualizarPorTipo = {};  // itens que já existem aqui e foram editados em OUTRO aparelho
   [...download.pequenos, ...download.grandes].forEach(item=>{
-    if(!receberPorTipo[item.tipo]) receberPorTipo[item.tipo] = {qtd:0, bytes:0};
-    receberPorTipo[item.tipo].qtd++;
-    receberPorTipo[item.tipo].bytes += (item.tamanho||0);
+    const grupo = item.atualizacao ? atualizarPorTipo : receberPorTipo;
+    if(!grupo[item.tipo]) grupo[item.tipo] = {qtd:0, bytes:0};
+    grupo[item.tipo].qtd++;
+    grupo[item.tipo].bytes += (item.tamanho||0);
   });
   // Fotos contadas à parte (além do "por tipo" acima), para dar um número
   // direto de "quantas fotos" e "quantos MB" sem precisar somar tipo por tipo.
@@ -4198,7 +4269,9 @@ function onedriveSalvarStatusPendente(upload, download){
     totalReceber: download.pequenos.length + download.grandes.length,
     bytesTotal: upload.totalBytes + bytesFotos + bytesPequenos,
     enviarPorTipo: upload.porTipo || {},
+    alterarPorTipo: upload.porTipoAlterado || {},
     receberPorTipo,
+    atualizarPorTipo,
     fotosEnviar: { qtd: fotosEnviarEstim.totalItens, bytes: fotosEnviarEstim.totalBytes },
     fotosReceber: { qtd: download.grandes.length, bytes: bytesFotos },
     verificadoEm: Date.now()
@@ -4782,6 +4855,29 @@ function novoRiscoSimples(){
 function substituirOuAdicionar(array, entidade){
   const idx = array.findIndex(x=>x.id===entidade.id);
   if(idx>=0) array[idx] = entidade; else array.push(entidade);
+}
+/* Compara o que está sendo salvo com o que já estava guardado, ignorando o
+   carimbo de data/hora e as marcas internas de sincronização. Devolve true
+   quando NADA mudou de fato.
+   Por que isto importa: abrir um equipamento (ou tarefa, ou risco) só para
+   conferir e tocar em "Salvar" é o gesto mais natural do mundo em campo — e
+   era o que fazia o app tratar o item como alterado, reenviando o texto E o
+   pacote de fotos inteiro para a nuvem. Dez equipamentos revisados assim
+   viravam dezenas de MB de dados móveis, sem uma linha de conteúdo nova. */
+function conteudoIgualAoSalvo(lista, entidade){
+  try{
+    const anterior = (lista||[]).find(x=>x.id===entidade.id);
+    if(!anterior) return false; // item novo
+    const normalizar = (o)=>{
+      const c = {};
+      Object.keys(o).sort().forEach(k=>{
+        if(k==="atualizadoEm" || k==="__fotosOmitidas" || k==="__fotosAtualizar") return;
+        c[k] = o[k];
+      });
+      return JSON.stringify(c);
+    };
+    return normalizar(anterior) === normalizar(entidade);
+  }catch(e){ return false; }
 }
 
 let STATE = {
@@ -10802,7 +10898,17 @@ const App = {
     const ent = __draftEntity, parent = __draftParent, tipo = __draftTipo, cb = __modalOnSaved;
     if(tipo==="riscoS" && !ent.medidaImplementada){ ent.medidaImplementada = "Não"; }
     if(tipo==="tarefaS" && ent.tarefa && ent.tarefa!==OUTRO){ registrarUsoTarefa(ent.tarefa); }
-    ent.atualizadoEm = Date.now();
+    /* Só carimba como alterado se ALGUMA COISA mudou de verdade. Abrir para
+       conferir e tocar em "Salvar" não é uma alteração — e não pode custar
+       um reenvio de fotos. */
+    const listaAlvo = (tipo==="projetoS") ? STATE.projetosSimples
+      : (tipo==="areaS") ? (STATE.projetosSimples.find(p=>p.id===parent.projetoSId)||{}).areas
+      : (tipo==="maquinaS") ? (buscarAreaSimplesPorId(parent.areaSId)||{}).maquinas
+      : (tipo==="tarefaS") ? (buscarMaquinaSimplesPorId(parent.maquinaSId)||{}).tarefas
+      : (tipo==="riscoS") ? (buscarTarefaSimplesPorId(parent.tarefaSId)||{}).riscos
+      : null;
+    const semMudanca = listaAlvo && conteudoIgualAoSalvo(listaAlvo, ent);
+    if(!semMudanca) ent.atualizadoEm = Date.now();
     if(tipo==="projetoS"){ substituirOuAdicionar(STATE.projetosSimples, ent); }
     else if(tipo==="areaS"){ const proj=STATE.projetosSimples.find(p=>p.id===parent.projetoSId); substituirOuAdicionar(proj.areas, ent); }
     else if(tipo==="maquinaS"){ const area=buscarAreaSimplesPorId(parent.areaSId); substituirOuAdicionar(area.maquinas, ent); }
