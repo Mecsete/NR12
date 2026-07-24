@@ -1557,7 +1557,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
    GitHub (útil especialmente dado o atraso de alguns minutos do GitHub para
    propagar cada atualização, e para diferenciar aparelhos que ainda não
    atualizaram dos que já atualizaram). */
-const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "23/07/2026 17:14"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "23/07/2026 17:14"; } })();
+const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "24/07/2026 11:10"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "24/07/2026 11:10"; } })();
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -2282,6 +2282,7 @@ function separarFotosDoItem(dados){
     if(k===CAMPO_FOTOS_LISTA && Array.isArray(v) && v.length>0){ tinhaFotos = true; semFotos[k] = []; soFotos[k] = v; continue; }
     semFotos[k] = v;
   }
+  delete semFotos.__fotosAtualizar; // marca interna de "o pacote mudou" — não faz sentido viajar para a nuvem
   if(tinhaFotos) semFotos.__fotosOmitidas = true;
   return { semFotos, soFotos, tinhaFotos };
 }
@@ -2289,13 +2290,19 @@ function separarFotosDoItem(dados){
    Só preenche campos vazios — nunca sobrescreve foto que já existe (o item
    local pode já estar completo por outro caminho). */
 function completarFotosDeItem(local, pacoteFotos){
+  // __fotosAtualizar = o pacote na nuvem MUDOU (o outro aparelho trocou ou
+  // acrescentou fotos). Nesse caso as fotos daqui são substituídas pelas de
+  // lá; no caso normal (primeira chegada) só preenche o que está vazio, como
+  // sempre — nunca sobrescrevendo foto que já existe por engano.
+  const substituir = !!local.__fotosAtualizar;
   let mudou = false;
   for(const k in pacoteFotos){
     if(k==="id") continue;
     const v = pacoteFotos[k];
-    if(__ehFotoEmbutida(v) && !local[k]){ local[k] = v; mudou = true; }
-    if(k===CAMPO_FOTOS_LISTA && Array.isArray(v) && v.length>0 && (!Array.isArray(local[k]) || local[k].length===0)){ local[k] = v.slice(); mudou = true; }
+    if(__ehFotoEmbutida(v) && (substituir || !local[k])){ if(local[k]!==v){ local[k] = v; mudou = true; } }
+    if(k===CAMPO_FOTOS_LISTA && Array.isArray(v) && v.length>0 && (substituir || !Array.isArray(local[k]) || local[k].length===0)){ local[k] = v.slice(); mudou = true; }
   }
+  if(local.__fotosAtualizar){ delete local.__fotosAtualizar; mudou = true; }
   if(local.__fotosOmitidas){ delete local.__fotosOmitidas; mudou = true; }
   return mudou;
 }
@@ -2458,8 +2465,16 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
     const jaEstaLa = raizModulo==="Simplificado" && textoPrecisaSubir && onedriveJaExisteNaNuvem(item);
     if(jaEstaLa) textoPrecisaSubir = false;
     let okTexto = true;
+    /* Tamanho do arquivo tal como ele ficou na nuvem. Guardado na assinatura,
+       vira a referência de comparação: quando o outro aparelho editar o item,
+       o arquivo lá passa a ter outro tamanho — e é assim que este aparelho
+       descobre, sem baixar nada, que existe novidade para receber. */
+    let tamTexto = registroAnterior && registroAnterior.tamanho;
+    let tamFotos = registroAnterior && registroAnterior.tamanhoFotos;
+    if(jaEstaLa) tamTexto = new Blob([JSON.stringify(tinhaFotos ? semFotos : item.dados, null, 0)]).size;
     if(textoPrecisaSubir){
       const blobTexto = new Blob([JSON.stringify(tinhaFotos ? semFotos : item.dados, null, 0)], {type:"application/json"});
+      tamTexto = blobTexto.size;
       okTexto = await onedriveEnviarBlob(subpasta, blobTexto, item.arquivo);
       registrarEventoSync("up", item.arquivo, item.tipo, blobTexto.size, okTexto, __ultimoMotivoFalhaEnvio, rotuloCaminhoSync(item.pasta));
       if(onProgresso) onProgresso(blobTexto.size, item.tipo);
@@ -2467,18 +2482,34 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
     let fotosSubiram = false;
     if(okTexto && tinhaFotos && podeSubirFotos && raizModulo==="Simplificado" && onedriveFotosJaExistemNaNuvem(item, soFotos)){
       fotosSubiram = true; // pacote de fotos idêntico já está na nuvem — nada a enviar
+      tamFotos = new Blob([JSON.stringify(soFotos, null, 0)]).size;
     } else if(okTexto && tinhaFotos && podeSubirFotos){
       const blobFotos = new Blob([JSON.stringify(soFotos, null, 0)], {type:"application/json"});
       fotosSubiram = await onedriveEnviarBlob(subpasta, blobFotos, "fotos_"+item.arquivo);
+      if(fotosSubiram) tamFotos = blobFotos.size;
       registrarEventoSync("up", "fotos_"+item.arquivo, item.tipo+" (fotos)", blobFotos.size, fotosSubiram, __ultimoMotivoFalhaEnvio, rotuloCaminhoSync(item.pasta));
       if(onProgresso) onProgresso(blobFotos.size, item.tipo);
+    }
+    /* MUDANÇA DE ENDEREÇO — o item continua o mesmo (mesmo id), mas passou a
+       morar em outra pasta da nuvem (é o que acontece ao mover uma área de
+       projeto). Depois que a cópia nova sobe com sucesso, a cópia antiga é
+       apagada; sem isso ela ficaria órfã lá e os outros aparelhos a baixariam
+       de volta como se fosse um item novo, criando duplicata. */
+    if(okTexto && registroAnterior && Array.isArray(registroAnterior.pasta)
+       && registroAnterior.pasta.join("/") !== item.pasta.join("/")){
+      const subpastaAntiga = [SUBPASTA_BACKUP, raizModulo, ...registroAnterior.pasta].join("/");
+      const arquivoAntigo = registroAnterior.arquivo || item.arquivo;
+      await onedriveApagarBlob(subpastaAntiga, arquivoAntigo);
+      await onedriveApagarBlob(subpastaAntiga, "fotos_" + arquivoAntigo);
+      registrarEventoSync("up", arquivoAntigo, item.tipo, 0, true, undefined, rotuloCaminhoSync(registroAnterior.pasta) + " · cópia antiga removida");
     }
     if(okTexto){
       const registroNovo = {
         atualizadoEm: item.atualizadoEm, pasta: item.pasta, arquivo: item.arquivo,
         // fotosPendentes=true faz o item reaparecer na fila assim que o Wi-Fi
         // chegar — o texto está protegido, as fotos ainda não.
-        fotosPendentes: tinhaFotos && !fotosSubiram
+        fotosPendentes: tinhaFotos && !fotosSubiram,
+        tamanho: tamTexto, tamanhoFotos: tamFotos
       };
       assinaturas.set(item.id, registroNovo);
       // Grava também no diário de envio AGORA — não espera o lote inteiro
@@ -2519,6 +2550,10 @@ async function sincronizarIncrementalOneDrive(onProgresso){
   try{
     await onedriveSincronizarModulo("Simplificado", listarItensSincronizaveisSimples, __assinaturasOneDriveSimples, onProgresso);
     await onedriveSincronizarModulo("Completo", listarItensSincronizaveisCompleto, __assinaturasOneDriveCompleto, onProgresso);
+    // Configurações de IA (chave, prompts, base de normas) — arquivo pequeno,
+    // conferido no máximo de 10 em 10 minutos para não pesar no ciclo.
+    const cfgIA = await onedriveSincronizarConfigIA(!!onProgresso);
+    if(cfgIA && cfgIA.recebeu) render();
     STATE.ultimaSincronizacaoOneDriveEm = Date.now();
     await dbSet(STATE); // grava logo o que já foi enviado, sem esperar a próxima edição pra isso ser lembrado
     // O lote inteiro terminou e já está gravado no STATE de verdade — os
@@ -2783,16 +2818,34 @@ function onedriveClassificarNovosSimples(arvoreProjetos){
   const pequenos = [], grandes = [];
   const registrar = (tamanho, reg) => {
     if(arquivoEstaEmQuarentena(reg.caminho, tamanho)) return; // corrompido conhecido — fora da contagem até o dono reenviar (tamanho novo = sai da quarentena sozinho)
-    if(arquivoJaExistente(reg.caminho, tamanho)) return; // já baixado antes e o conteúdo já existe aqui — não conta nem baixa de novo
+    if(!reg.atualizacao && arquivoJaExistente(reg.caminho, tamanho)) return; // já baixado antes e o conteúdo já existe aqui — não conta nem baixa de novo
     (tamanho<=ONEDRIVE_LIMITE_AUTO_BYTES ? pequenos : grandes).push(reg);
   };
   // Se um item local está esperando fotos (__fotosOmitidas) e o pacote
   // "fotos_..." já existe na nuvem, registra para download — o pacote é
   // grande, então cai no fluxo de pendentes (Wi-Fi/manual), como toda foto.
   const registrarFotosSeEsperando = (nodePai, nomeArquivoBase, itemLocal, alvoTipo, ids) => {
-    if(!itemLocal || !itemLocal.__fotosOmitidas) return;
+    if(!itemLocal) return;
     const arq = nodePai.filhos.find(f=>!f.pasta && f.nome==="fotos_"+nomeArquivoBase);
-    if(arq) registrar(arq.tamanho, { tipo:"fotos", alvoTipo, itemId:itemLocal.id, ...ids, caminho:arq.caminho, nome:arq.nome, tamanho:arq.tamanho });
+    if(!arq) return;
+    const chave = alvoTipo + ":" + itemLocal.id;
+    if(!onedrivePrecisaBaixarFotos(itemLocal, chave, arq.tamanho)) return;
+    registrar(arq.tamanho, { tipo:"fotos", alvoTipo, itemId:itemLocal.id, ...ids, chaveAssinatura:chave, caminho:arq.caminho, nome:arq.nome, tamanho:arq.tamanho });
+  };
+  // Arquivo de TEXTO de um item que já existe aqui: se o tamanho na nuvem
+  // mudou, o outro aparelho editou o item — baixa e aplica.
+  const registrarTextoSeMudou = (nodePai, nomeArquivo, tipo, itemLocal, ids) => {
+    if(!itemLocal) return;
+    const arq = nodePai.filhos.find(f=>!f.pasta && f.nome===nomeArquivo);
+    if(!arq) return;
+    const chave = tipo + ":" + itemLocal.id;
+    if(!onedriveArquivoMudouNaNuvem(chave, "tamanho", arq.tamanho, true)) return;
+    /* Este arquivo, exatamente deste tamanho, já foi baixado antes e o conteúdo
+       já bateu com o daqui (cache de convergência). Então não há nada de novo:
+       aproveita para anotar o tamanho — de graça, sem baixar — e a partir de
+       agora qualquer edição feita no outro aparelho é detectada na hora. */
+    if(arquivoJaExistente(arq.caminho, arq.tamanho)){ onedriveAnotarTamanho(chave, "tamanho", arq.tamanho); return; }
+    registrar(arq.tamanho, { tipo, ...ids, atualizacao:true, chaveAssinatura:chave, caminho:arq.caminho, nome:arq.nome, tamanho:arq.tamanho });
   };
   for(const nodeProj of arvoreProjetos){
     if(!nodeProj.pasta) continue;
@@ -2810,6 +2863,7 @@ function onedriveClassificarNovosSimples(arvoreProjetos){
       if(arq) registrar(arq.tamanho, { tipo:"projeto", caminho:arq.caminho, tamanho:arq.tamanho });
       continue;
     }
+    registrarTextoSeMudou(nodeProj, "_projeto.json", "projeto", projLocal, {});
     registrarFotosSeEsperando(nodeProj, "_projeto.json", projLocal, "projeto", {});
     for(const nodeArea of nodeProj.filhos){
       if(!nodeArea.pasta) continue;
@@ -2819,6 +2873,7 @@ function onedriveClassificarNovosSimples(arvoreProjetos){
         if(arq) registrar(arq.tamanho, { tipo:"area", projId:projLocal.id, caminho:arq.caminho, tamanho:arq.tamanho });
         continue; // sem a área local, não dá pra descer pra máquina (não se sabe onde encaixar)
       }
+      registrarTextoSeMudou(nodeArea, "_area.json", "area", areaLocal, { projId:projLocal.id });
       registrarFotosSeEsperando(nodeArea, "_area.json", areaLocal, "area", { projId:projLocal.id });
       for(const nodeMaq of nodeArea.filhos){
         if(!nodeMaq.pasta) continue;
@@ -2828,6 +2883,7 @@ function onedriveClassificarNovosSimples(arvoreProjetos){
           if(arq) registrar(arq.tamanho, { tipo:"maquina", projId:projLocal.id, areaId:areaLocal.id, caminho:arq.caminho, tamanho:arq.tamanho });
           continue;
         }
+        registrarTextoSeMudou(nodeMaq, "_maquina.json", "maquina", maqLocal, { projId:projLocal.id, areaId:areaLocal.id });
         registrarFotosSeEsperando(nodeMaq, "_maquina.json", maqLocal, "maquina", { projId:projLocal.id, areaId:areaLocal.id });
         for(const nodeTar of nodeMaq.filhos){
           if(!nodeTar.pasta) continue;
@@ -2837,21 +2893,29 @@ function onedriveClassificarNovosSimples(arvoreProjetos){
             if(arq) registrar(arq.tamanho, { tipo:"tarefa", projId:projLocal.id, areaId:areaLocal.id, maquinaId:maqLocal.id, caminho:arq.caminho, tamanho:arq.tamanho });
             continue;
           }
+          registrarTextoSeMudou(nodeTar, "_tarefa.json", "tarefa", tarLocal, { projId:projLocal.id, areaId:areaLocal.id, maquinaId:maqLocal.id });
           registrarFotosSeEsperando(nodeTar, "_tarefa.json", tarLocal, "tarefa", { projId:projLocal.id, areaId:areaLocal.id, maquinaId:maqLocal.id });
           for(const arq of nodeTar.filhos){
             if(arq.pasta || arq.nome==="_tarefa.json") continue;
             const mFotos = /^fotos_risco_(.+)\.json$/.exec(arq.nome);
+            const idsRisco = { projId:projLocal.id, areaId:areaLocal.id, maquinaId:maqLocal.id, tarefaId:tarLocal.id };
             if(mFotos){
               const riscoLocal = tarLocal.riscos.find(r=>r.id===mFotos[1]);
-              if(riscoLocal && riscoLocal.__fotosOmitidas){
-                registrar(arq.tamanho, { tipo:"fotos", alvoTipo:"risco", itemId:riscoLocal.id, projId:projLocal.id, areaId:areaLocal.id, maquinaId:maqLocal.id, tarefaId:tarLocal.id, caminho:arq.caminho, nome:arq.nome, tamanho:arq.tamanho });
+              if(riscoLocal){
+                const chaveR = "risco:" + riscoLocal.id;
+                if(onedrivePrecisaBaixarFotos(riscoLocal, chaveR, arq.tamanho)){
+                  registrar(arq.tamanho, { tipo:"fotos", alvoTipo:"risco", itemId:riscoLocal.id, ...idsRisco, chaveAssinatura:chaveR, caminho:arq.caminho, nome:arq.nome, tamanho:arq.tamanho });
+                }
               }
               continue;
             }
             const m = /^risco_(.+)\.json$/.exec(arq.nome);
             if(!m) continue;
-            if(!tarLocal.riscos.some(r=>r.id===m[1])){
-              registrar(arq.tamanho, { tipo:"risco", projId:projLocal.id, areaId:areaLocal.id, maquinaId:maqLocal.id, tarefaId:tarLocal.id, caminho:arq.caminho, tamanho:arq.tamanho });
+            const riscoExistente = tarLocal.riscos.find(r=>r.id===m[1]);
+            if(!riscoExistente){
+              registrar(arq.tamanho, { tipo:"risco", ...idsRisco, caminho:arq.caminho, tamanho:arq.tamanho });
+            }else if(onedriveArquivoMudouNaNuvem("risco:"+riscoExistente.id, "tamanho", arq.tamanho, true)){
+              registrar(arq.tamanho, { tipo:"risco", ...idsRisco, atualizacao:true, chaveAssinatura:"risco:"+riscoExistente.id, caminho:arq.caminho, nome:arq.nome, tamanho:arq.tamanho });
             }
           }
         }
@@ -2892,7 +2956,10 @@ function onedriveRegistrarAssinaturaDeDownload(descritor, dados){
       ref.mapa = new Map(Object.entries(salvo));
     }
     const chave = descritor.tipo + ":" + dados.id;
-    const registro = { atualizadoEm: dados.atualizadoEm || dados.criadoEm || 0, pasta, arquivo, fotosPendentes:false };
+    const anterior = ref.mapa.get(chave) || {};
+    const registro = { atualizadoEm: dados.atualizadoEm || dados.criadoEm || 0, pasta, arquivo, fotosPendentes:false,
+                       tamanho: (typeof descritor.tamanho === "number" ? descritor.tamanho : anterior.tamanho),
+                       tamanhoFotos: anterior.tamanhoFotos };
     ref.mapa.set(chave, registro);
     if(!STATE[ref.chaveEstado] || typeof STATE[ref.chaveEstado] !== "object") STATE[ref.chaveEstado] = {};
     STATE[ref.chaveEstado][chave] = registro;
@@ -2901,6 +2968,13 @@ function onedriveRegistrarAssinaturaDeDownload(descritor, dados){
 function onedriveMesclarItemNovo(descritor, dados){
   const inseriu = __onedriveMesclarItemNovoInterno(descritor, dados);
   if(inseriu && descritor.tipo !== "fotos") onedriveRegistrarAssinaturaDeDownload(descritor, dados);
+  /* Anota o tamanho do arquivo que acabou de ser lido — inclusive quando nada
+     mudou. É essa memória que permite, na próxima verificação, saber num
+     relance se o outro aparelho mexeu no item, sem precisar baixar de novo. */
+  const chaveFotos = descritor.chaveAssinatura || (descritor.alvoTipo && descritor.itemId ? descritor.alvoTipo + ":" + descritor.itemId : null);
+  const chaveTexto = descritor.chaveAssinatura || (dados && dados.id ? descritor.tipo + ":" + dados.id : null);
+  if(descritor.tipo === "fotos") onedriveAnotarTamanho(chaveFotos, "tamanhoFotos", descritor.tamanho);
+  else onedriveAnotarTamanho(chaveTexto, "tamanho", descritor.tamanho);
   return inseriu;
 }
 function __onedriveMesclarItemNovoInterno(descritor, dados){
@@ -2915,35 +2989,58 @@ function __onedriveMesclarItemNovoInterno(descritor, dados){
     return completarFotosDeItem(alvo, dados);
   }
   if(descritor.tipo==="projeto"){
-    if(STATE.projetosSimples.some(p=>p.id===dados.id)) return false;
+    const existente = STATE.projetosSimples.find(p=>p.id===dados.id);
+    if(existente) return aplicarAtualizacaoRemota(existente, dados);
     STATE.projetosSimples.push({ ...dados, areas: dados.areas || [] });
     return true;
   }
   const proj = STATE.projetosSimples.find(p=>p.id===descritor.projId);
   if(!proj) return false;
   if(descritor.tipo==="area"){
-    if(proj.areas.some(a=>a.id===dados.id)) return false;
+    const existente = proj.areas.find(a=>a.id===dados.id);
+    if(existente) return aplicarAtualizacaoRemota(existente, dados);
+    /* A área chegou dentro de OUTRO projeto, mas já existe aqui em algum
+       lugar: isso é uma área que foi movida de projeto no outro aparelho.
+       Move a mesma área (com máquinas, tarefas e riscos juntos) em vez de
+       criar uma segunda cópia com o mesmo id em dois projetos ao mesmo
+       tempo — que era o que aconteceria antes. */
+    for(const outro of STATE.projetosSimples){
+      if(outro.id === proj.id) continue;
+      const i = (outro.areas||[]).findIndex(a=>a.id===dados.id);
+      if(i < 0) continue;
+      const area = outro.areas[i];
+      const tsRemoto = dados.atualizadoEm || dados.criadoEm || 0;
+      const tsLocal = area.atualizadoEm || area.criadoEm || 0;
+      if(tsRemoto <= tsLocal) return false; // a versão daqui é mais nova — quem move é este aparelho
+      outro.areas.splice(i, 1);
+      proj.areas.push(area);
+      aplicarAtualizacaoRemota(area, dados);
+      return true;
+    }
     proj.areas.push({ ...dados, maquinas: dados.maquinas || [] });
     return true;
   }
   const area = proj.areas.find(a=>a.id===descritor.areaId);
   if(!area) return false;
   if(descritor.tipo==="maquina"){
-    if(area.maquinas.some(m=>m.id===dados.id)) return false;
+    const existente = area.maquinas.find(m=>m.id===dados.id);
+    if(existente) return aplicarAtualizacaoRemota(existente, dados);
     area.maquinas.push({ ...dados, tarefas: dados.tarefas || [] });
     return true;
   }
   const maquina = area.maquinas.find(m=>m.id===descritor.maquinaId);
   if(!maquina) return false;
   if(descritor.tipo==="tarefa"){
-    if(maquina.tarefas.some(t=>t.id===dados.id)) return false;
+    const existente = maquina.tarefas.find(t=>t.id===dados.id);
+    if(existente) return aplicarAtualizacaoRemota(existente, dados);
     maquina.tarefas.push({ ...dados, riscos: dados.riscos || [] });
     return true;
   }
   const tarefa = maquina.tarefas.find(t=>t.id===descritor.tarefaId);
   if(!tarefa) return false;
   if(descritor.tipo==="risco"){
-    if(tarefa.riscos.some(r=>r.id===dados.id)) return false;
+    const existente = tarefa.riscos.find(r=>r.id===dados.id);
+    if(existente) return aplicarAtualizacaoRemota(existente, dados);
     tarefa.riscos.push(dados);
     return true;
   }
@@ -3160,34 +3257,45 @@ function onedriveDescritorDeCaminho(entrada){
   if(ehPacoteFotos) nomeArq = nomeArq.slice("fotos_".length);
   const montarFotos = (alvoTipo, itemLocal, ids) => {
     if(!itemLocal) return { aguardandoPai:true }; // o texto ainda não chegou — o pacote espera
-    if(!itemLocal.__fotosOmitidas) return { jaExiste:true }; // item já completo — nada a fazer (inclusive eco do próprio upload)
-    return { ...base, tipo:"fotos", alvoTipo, itemId:itemLocal.id, ...ids };
+    const chave = alvoTipo + ":" + itemLocal.id;
+    // Antes isto caía sempre em "já existe" e a foto nova nunca chegava aqui.
+    if(!onedrivePrecisaBaixarFotos(itemLocal, chave, base.tamanho)) return { jaExiste:true };
+    return { ...base, tipo:"fotos", alvoTipo, itemId:itemLocal.id, chaveAssinatura:chave, ...ids };
+  };
+  /* Item de texto que já existe aqui: só é ignorado se o arquivo na nuvem
+     estiver do mesmo tamanho que este aparelho viu por último — que é o caso
+     do eco do próprio upload. Tamanho diferente = edição do outro aparelho,
+     e aí o arquivo é baixado e aplicado. */
+  const montarAtualizacao = (tipo, alvo, ids) => {
+    const chave = tipo + ":" + alvo.id;
+    if(!onedriveArquivoMudouNaNuvem(chave, "tamanho", base.tamanho, true)) return { jaExiste:true };
+    return { ...base, tipo, atualizacao:true, chaveAssinatura:chave, ...ids };
   };
   if(pastas.length===1 && nomeArq==="_projeto.json"){
     const projAlvo = STATE.projetosSimples.find(p=>idBateComSufixo(p.id, extrairSufixoDoNome(pastas[0])));
     if(ehPacoteFotos) return montarFotos("projeto", projAlvo, {});
-    return projAlvo ? { jaExiste:true } : { ...base, tipo:"projeto" };
+    return projAlvo ? montarAtualizacao("projeto", projAlvo, {}) : { ...base, tipo:"projeto" };
   }
   const proj = STATE.projetosSimples.find(p=>idBateComSufixo(p.id, extrairSufixoDoNome(pastas[0])));
   if(!proj) return { aguardandoPai:true }; // projeto ainda não chegou — o item espera
   if(pastas.length===2 && nomeArq==="_area.json"){
     const areaAlvo = proj.areas.find(a=>idBateComSufixo(a.id, extrairSufixoDoNome(pastas[1])));
     if(ehPacoteFotos) return montarFotos("area", areaAlvo, { projId:proj.id });
-    return areaAlvo ? { jaExiste:true } : { ...base, tipo:"area", projId:proj.id };
+    return areaAlvo ? montarAtualizacao("area", areaAlvo, { projId:proj.id }) : { ...base, tipo:"area", projId:proj.id };
   }
   const area = proj.areas.find(a=>idBateComSufixo(a.id, extrairSufixoDoNome(pastas[1])));
   if(!area) return { aguardandoPai:true };
   if(pastas.length===3 && nomeArq==="_maquina.json"){
     const maqAlvo = area.maquinas.find(m=>idBateComSufixo(m.id, extrairSufixoDoNome(pastas[2])));
     if(ehPacoteFotos) return montarFotos("maquina", maqAlvo, { projId:proj.id, areaId:area.id });
-    return maqAlvo ? { jaExiste:true } : { ...base, tipo:"maquina", projId:proj.id, areaId:area.id };
+    return maqAlvo ? montarAtualizacao("maquina", maqAlvo, { projId:proj.id, areaId:area.id }) : { ...base, tipo:"maquina", projId:proj.id, areaId:area.id };
   }
   const maq = area.maquinas.find(m=>idBateComSufixo(m.id, extrairSufixoDoNome(pastas[2])));
   if(!maq) return { aguardandoPai:true };
   if(pastas.length===4 && nomeArq==="_tarefa.json"){
     const tarAlvo = maq.tarefas.find(t=>idBateComSufixo(t.id, extrairSufixoDoNome(pastas[3])));
     if(ehPacoteFotos) return montarFotos("tarefa", tarAlvo, { projId:proj.id, areaId:area.id, maquinaId:maq.id });
-    return tarAlvo ? { jaExiste:true } : { ...base, tipo:"tarefa", projId:proj.id, areaId:area.id, maquinaId:maq.id };
+    return tarAlvo ? montarAtualizacao("tarefa", tarAlvo, { projId:proj.id, areaId:area.id, maquinaId:maq.id }) : { ...base, tipo:"tarefa", projId:proj.id, areaId:area.id, maquinaId:maq.id };
   }
   const tar = maq.tarefas.find(t=>idBateComSufixo(t.id, extrairSufixoDoNome(pastas[3])));
   if(!tar) return { aguardandoPai:true };
@@ -3195,7 +3303,7 @@ function onedriveDescritorDeCaminho(entrada){
   if(pastas.length===4 && m){
     const riscoAlvo = tar.riscos.find(r=>r.id===m[1]);
     if(ehPacoteFotos) return montarFotos("risco", riscoAlvo, { projId:proj.id, areaId:area.id, maquinaId:maq.id, tarefaId:tar.id });
-    return riscoAlvo ? { jaExiste:true } : { ...base, tipo:"risco", projId:proj.id, areaId:area.id, maquinaId:maq.id, tarefaId:tar.id };
+    return riscoAlvo ? montarAtualizacao("risco", riscoAlvo, { projId:proj.id, areaId:area.id, maquinaId:maq.id, tarefaId:tar.id }) : { ...base, tipo:"risco", projId:proj.id, areaId:area.id, maquinaId:maq.id, tarefaId:tar.id };
   }
   return null; // nome de arquivo fora do padrão do app — ignora
 }
@@ -3693,6 +3801,95 @@ function onedriveEstimarFotosParaEnviar(){
    STATE — as estimativas rodam ANTES do primeiro envio da sessão e, sem esta
    carga, começavam do zero e contavam TUDO como "pendente de enviar" logo ao
    abrir o app, mesmo com tudo em dia (pendências fantasmas de upload). */
+/* ====================================================================
+   ATUALIZAÇÕES VINDAS DO OUTRO APARELHO
+   Até aqui o download só sabia CRIAR o que não existia: se o item já
+   existisse neste aparelho, o arquivo era ignorado ("já existe") e a edição
+   feita no outro aparelho — texto novo, foto nova, campo corrigido — NUNCA
+   chegava. Agora o app compara o tamanho do arquivo na nuvem com o tamanho
+   que ele viu pela última vez; se mudou, baixa e aplica, decidindo pelo
+   carimbo de data/hora quem tem a versão mais nova (o mais recente vence,
+   nunca há sobrescrita de um trabalho mais novo por um mais antigo).
+   ==================================================================== */
+function onedriveAssinaturaDe(chave){
+  return onedriveCarregarAssinaturas(__assinaturasOneDriveSimples).get(chave) || null;
+}
+function onedriveAnotarTamanho(chave, campo, tamanho){
+  if(!chave || typeof tamanho !== "number") return;
+  const mapa = onedriveCarregarAssinaturas(__assinaturasOneDriveSimples);
+  const reg = mapa.get(chave);
+  if(!reg) return;
+  if(reg[campo] === tamanho) return;
+  reg[campo] = tamanho;
+  mapa.set(chave, reg);
+  if(!STATE[__assinaturasOneDriveSimples.chaveEstado] || typeof STATE[__assinaturasOneDriveSimples.chaveEstado] !== "object") STATE[__assinaturasOneDriveSimples.chaveEstado] = {};
+  STATE[__assinaturasOneDriveSimples.chaveEstado][chave] = reg;
+}
+/* true = o arquivo na nuvem está diferente do que este aparelho viu por
+   último. "seAindaNaoSabe" decide o que fazer quando o tamanho anterior é
+   desconhecido (dado gravado por uma versão antiga do app): para o TEXTO vale
+   a pena conferir uma vez (são poucos KB); para o pacote de FOTOS, não — seria
+   rebaixar megabytes à toa. O tamanho das fotos é aprendido de graça na
+   varredura, sem baixar nada, e a partir daí toda troca é detectada. */
+function onedriveArquivoMudouNaNuvem(chave, campo, tamanhoRemoto, seAindaNaoSabe){
+  const reg = onedriveAssinaturaDe(chave);
+  if(!reg) return false; // sem assinatura o item nem foi enviado/baixado por aqui — outro caminho cuida
+  const conhecido = reg[campo];
+  if(typeof conhecido !== "number") return !!seAindaNaoSabe;
+  return conhecido !== tamanhoRemoto;
+}
+/* Quando alguém edita um item no outro aparelho, o ARQUIVO DE TEXTO muda
+   sempre (o carimbo de data/hora entra nele) — inclusive quando o que mudou
+   foram as fotos. Por isso o texto é o gatilho confiável: é pequeno, é baixado
+   e avisa que pode haver foto nova. Só que buscar o pacote de fotos à toa
+   custa megabytes, então antes confere-se o tamanho:
+   - tamanho na nuvem diferente do último visto → tem foto nova, busca;
+   - tamanho igual → nada mudou nas fotos, não gasta dados;
+   - tamanho ainda desconhecido (dado gravado por versão antiga do app) → só
+     busca se o texto acabou de avisar que o item mudou; senão apenas aprende
+     o tamanho de graça, sem baixar nada. */
+function onedrivePrecisaBaixarFotos(itemLocal, chave, tamanhoRemoto){
+  const reg = onedriveAssinaturaDe(chave);
+  const conhecido = (reg && typeof reg.tamanhoFotos === "number") ? reg.tamanhoFotos : null;
+  const mudou = (conhecido === null) ? !!itemLocal.__fotosAtualizar : (conhecido !== tamanhoRemoto);
+  if(mudou){ itemLocal.__fotosOmitidas = true; itemLocal.__fotosAtualizar = true; return true; }
+  if(itemLocal.__fotosAtualizar && itemTemFotosEmbutidas(itemLocal)){
+    delete itemLocal.__fotosAtualizar; delete itemLocal.__fotosOmitidas; // texto mudou, mas as fotos são as mesmas
+  }
+  if(itemLocal.__fotosOmitidas) return true; // primeira chegada: o texto veio, as fotos ainda não
+  onedriveAnotarTamanho(chave, "tamanhoFotos", tamanhoRemoto);
+  return false;
+}
+const CAMPOS_FILHOS_SYNC = ["areas","maquinas","tarefas","riscos","perigos"];
+/* Aplica no item local a versão que veio da nuvem. Regras:
+   - só aplica se a versão remota for MAIS NOVA (carimbo atualizadoEm);
+   - nunca mexe na hierarquia de baixo (áreas, máquinas, tarefas, riscos):
+     cada uma tem o próprio arquivo e o próprio carimbo;
+   - nunca apaga uma foto local só porque o texto veio sem ela — no arquivo de
+     texto as fotos vêm sempre em branco (viajam separadas). Quando o outro
+     aparelho realmente apagou todas as fotos, o texto vem SEM a marca
+     __fotosOmitidas, e aí sim a remoção é aplicada. */
+function aplicarAtualizacaoRemota(local, remoto){
+  if(!local || !remoto) return false;
+  const tsLocal = local.atualizadoEm || local.criadoEm || 0;
+  const tsRemoto = remoto.atualizadoEm || remoto.criadoEm || 0;
+  if(tsRemoto <= tsLocal) return false; // versão daqui é igual ou mais nova — quem sobe é este aparelho
+  const remotoOmitiuFotos = !!remoto.__fotosOmitidas;
+  for(const k in remoto){
+    if(k === "__fotosOmitidas" || k === "__fotosAtualizar") continue;
+    if(CAMPOS_FILHOS_SYNC.includes(k)) continue;
+    const v = remoto[k];
+    const vazioPorqueViajouSeparado = remotoOmitiuFotos && (v === null || (Array.isArray(v) && v.length === 0));
+    const localTemFotoAqui = __ehFotoEmbutida(local[k]) || (Array.isArray(local[k]) && local[k].length > 0 && k === CAMPO_FOTOS_LISTA);
+    if(vazioPorqueViajouSeparado && localTemFotoAqui) continue;
+    local[k] = v;
+  }
+  /* A versão de lá é mais nova e tem fotos: marca para reconferir o pacote.
+     Quem decide se baixa mesmo é onedrivePrecisaBaixarFotos, comparando
+     tamanhos — se as fotos não mudaram, nada é baixado. */
+  if(remotoOmitiuFotos){ local.__fotosOmitidas = true; local.__fotosAtualizar = true; }
+  return true;
+}
 function onedriveCarregarAssinaturas(mapaRef){
   if(!mapaRef.mapa){
     const salvo = STATE[mapaRef.chaveEstado] || {};
@@ -3882,7 +4079,11 @@ let __indiceNuvemMapa = null, __indiceNuvemMapaEm = 0;
    nada. Devolve true quando conseguiu curar. */
 function onedriveCurarAssinatura(item, mapaRef, fotosPendentes){
   const mapa = onedriveCarregarAssinaturas(mapaRef);
-  const registro = { atualizadoEm:item.atualizadoEm, pasta:item.pasta, arquivo:item.arquivo, fotosPendentes: !!fotosPendentes };
+  const indice = onedriveIndiceNuvem();
+  const raiz = `${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado/`.toLowerCase();
+  const tam  = indice ? indice.get(raiz + (item.pasta.join("/") + "/" + item.arquivo).toLowerCase()) : undefined;
+  const tamF = indice ? indice.get(raiz + (item.pasta.join("/") + "/fotos_" + item.arquivo).toLowerCase()) : undefined;
+  const registro = { atualizadoEm:item.atualizadoEm, pasta:item.pasta, arquivo:item.arquivo, fotosPendentes: !!fotosPendentes, tamanho: tam, tamanhoFotos: tamF };
   mapa.set(item.id, registro);
   if(!STATE[mapaRef.chaveEstado] || typeof STATE[mapaRef.chaveEstado] !== "object") STATE[mapaRef.chaveEstado] = {};
   STATE[mapaRef.chaveEstado][item.id] = registro;
@@ -4117,6 +4318,8 @@ async function onedriveSincronizarAgora(){
     // desde que continue progredindo (mesmo devagar).
     await comVigilanciaDeProgresso((async () => {
     toast("Verificando o que precisa sincronizar…");
+    const cfgIAManual = await onedriveSincronizarConfigIA(true);
+    if(cfgIAManual && cfgIAManual.recebeu) toast("Configurações de IA recebidas de outro aparelho");
     const download = await onedriveEstimarPendentesDownload();
     marcarProgressoSync();
     // AUTOCURA: antes de contar o que falta enviar, confere item por item se o
@@ -4645,6 +4848,22 @@ function getCurrentPerigo(){ const t=getCurrentTarefa(); return t && t.perigos.f
 let __saveTimer = null;
 let __salvamentoPendente = false; // true entre a edição e a gravação de fato terminar
 let __ultimoErroSalvar = false;
+/* Carimba a área e tudo que existe dentro dela como "alterado agora". Usado
+   quando a área muda de projeto: o conteúdo é o mesmo, mas o endereço de cada
+   arquivo na nuvem passa a ser outro, e é o carimbo que faz a sincronização
+   reenviar a subárvore inteira para o lugar novo. */
+function marcarSubarvoreAreaAlterada(area){
+  const agora = Date.now();
+  if(!area) return;
+  area.atualizadoEm = agora;
+  (area.maquinas||[]).forEach(m=>{
+    m.atualizadoEm = agora;
+    (m.tarefas||[]).forEach(t=>{
+      t.atualizadoEm = agora;
+      (t.riscos||[]).forEach(r=>{ r.atualizadoEm = agora; });
+    });
+  });
+}
 function marcarAlterado(){
   clearTimeout(__saveTimer);
   __salvamentoPendente = true;
@@ -6821,6 +7040,117 @@ function getIAConfig(){
   return c;
 }
 function esperar(ms){ return new Promise(r=>setTimeout(r,ms)); }
+/* ===================================================================
+   CONFIGURAÇÕES DE IA COMPARTILHADAS ENTRE APARELHOS
+   Chave da API, provedor, modelo, instruções (prompts) e a base de
+   normas em PDF ficavam só no aparelho em que foram digitadas — cada
+   celular ou notebook precisava ser configurado do zero. Agora tudo
+   isso viaja pelo OneDrive, na pasta Backup/Config.
+   O truque para não gastar dados à toa: a data/hora da versão vai no
+   NOME do arquivo (ia_<carimbo>.json). Assim, só listando a pasta —
+   alguns bytes — o app já sabe se o outro aparelho mudou alguma coisa,
+   e só baixa quando realmente vale a pena. Vence sempre a alteração
+   mais recente, do mesmo jeito que acontece com os projetos.
+   =================================================================== */
+const SUBPASTA_CONFIG_IA = SUBPASTA_BACKUP + "/Config";
+const IA_SYNC_INTERVALO_AUTO_MS = 10*60*1000; // no ciclo automático, no máximo de 10 em 10 minutos
+let __iaSyncUltimaVerificacao = 0;
+let __iaSyncEmAndamento = false;
+function getIASyncEm(){
+  if(typeof STATE.ui.iaSyncEm !== "number"){
+    // Primeira vez com esta versão: se já existe configuração aqui, ela é
+    // tratada como "recém-alterada" para ser enviada e não sobrescrita.
+    const temAlgo = !!getIAApiKey() || (Array.isArray(STATE.ui.normasIA) && STATE.ui.normasIA.length>0)
+                    || (STATE.ui.iaConfig && Object.keys(STATE.ui.iaConfig).length>0);
+    STATE.ui.iaSyncEm = temAlgo ? Date.now() : 0;
+  }
+  return STATE.ui.iaSyncEm;
+}
+/* Chamada por TODOS os pontos que alteram algo em Configurações → IA.
+   O carimbo é obrigatoriamente MAIOR que o anterior. Duas alterações no
+   mesmo milissegundo (ou o relógio do aparelho voltando atrás, o que
+   acontece ao corrigir o horário) gerariam o mesmo carimbo — e a segunda
+   alteração simplesmente nunca sairia deste aparelho. */
+function marcarIAAlterada(){
+  const anterior = (typeof STATE.ui.iaSyncEm === "number") ? STATE.ui.iaSyncEm : 0;
+  STATE.ui.iaSyncEm = Math.max(Date.now(), anterior + 1);
+  marcarAlterado();
+}
+function montarPacoteIA(){
+  const c = getIAConfig();
+  return {
+    atualizadoEm: getIASyncEm(),
+    apiKey: getIAApiKey(),
+    config: { provedor:c.provedor, endpoint:c.endpoint, modelo:c.modelo,
+              usarNaExportacaoExcel:c.usarNaExportacaoExcel, prompts:{...(c.prompts||{})} },
+    normas: (STATE.ui.normasIA||[]).map(n=>({ id:n.id, nome:n.nome, texto:n.texto, ativo:n.ativo!==false, criadoEm:n.criadoEm }))
+  };
+}
+function aplicarPacoteIA(pacote){
+  if(!pacote || typeof pacote !== "object") return false;
+  if(typeof pacote.apiKey === "string") setIAApiKey(pacote.apiKey);
+  const c = getIAConfig();
+  const p = pacote.config || {};
+  if(p.provedor && IA_PROVEDORES[p.provedor]) c.provedor = p.provedor;
+  if(typeof p.endpoint === "string") c.endpoint = p.endpoint;
+  if(typeof p.modelo === "string") c.modelo = p.modelo;
+  if(typeof p.usarNaExportacaoExcel === "boolean") c.usarNaExportacaoExcel = p.usarNaExportacaoExcel;
+  if(p.prompts && typeof p.prompts === "object") c.prompts = { ...IA_PROMPTS_PADRAO, ...p.prompts };
+  if(Array.isArray(pacote.normas)) STATE.ui.normasIA = pacote.normas.filter(n=>n && n.texto);
+  STATE.ui.iaSyncEm = pacote.atualizadoEm || Date.now();
+  return true;
+}
+async function onedriveSincronizarConfigIA(forcar){
+  if(!getOneDriveConta() || !navigator.onLine) return { mudou:false };
+  if(__iaSyncEmAndamento) return { mudou:false };
+  if(!forcar && (Date.now() - __iaSyncUltimaVerificacao) < IA_SYNC_INTERVALO_AUTO_MS) return { mudou:false };
+  __iaSyncEmAndamento = true;
+  try{
+    const pasta = `${ONEDRIVE_PASTA_APP}/${SUBPASTA_CONFIG_IA}`;
+    const mapa = await onedriveListarFilhosEmLote([pasta]);
+    const filhos = mapa.get(pasta) || [];
+    let remotoTs = 0, remotoNome = "";
+    const antigos = [];
+    filhos.forEach(f=>{
+      const m = /^ia_(\d+)\.json$/.exec(f.nome||"");
+      if(!m) return;
+      const ts = Number(m[1]);
+      antigos.push(f.nome);
+      if(ts > remotoTs){ remotoTs = ts; remotoNome = f.nome; }
+    });
+    const localTs = getIASyncEm();
+    if(remotoTs > localTs){
+      const texto = await onedriveBaixarTexto(`${pasta}/${remotoNome}`);
+      if(texto){
+        try{
+          if(aplicarPacoteIA(JSON.parse(texto))){
+            marcarAlterado();
+            registrarEventoSync("down", remotoNome, "config IA", new Blob([texto]).size, true, undefined, "Configurações → IA");
+            __iaSyncUltimaVerificacao = Date.now();
+            return { mudou:true, recebeu:true };
+          }
+        }catch(e){ /* arquivo ilegível — ignora, o próximo envio conserta */ }
+      }
+    }else if(localTs > remotoTs && localTs > 0){
+      const nome = `ia_${localTs}.json`;
+      const blob = new Blob([JSON.stringify(montarPacoteIA(), null, 0)], {type:"application/json"});
+      const ok = await onedriveEnviarBlob(SUBPASTA_CONFIG_IA, blob, nome);
+      registrarEventoSync("up", nome, "config IA", blob.size, ok, __ultimoMotivoFalhaEnvio, "Configurações → IA");
+      if(ok){
+        // limpa versões anteriores para a pasta não acumular arquivos
+        for(const antigo of antigos){ if(antigo !== nome) await onedriveApagarBlob(SUBPASTA_CONFIG_IA, antigo); }
+        __iaSyncUltimaVerificacao = Date.now();
+        return { mudou:true, enviou:true };
+      }
+    }
+    __iaSyncUltimaVerificacao = Date.now();
+    return { mudou:false };
+  }catch(e){
+    return { mudou:false, erro:true };
+  }finally{
+    __iaSyncEmAndamento = false;
+  }
+}
 function getNormasIA(){
   if(!STATE.ui.normasIA) STATE.ui.normasIA = [];
   return STATE.ui.normasIA;
@@ -8132,6 +8462,9 @@ function screenSimplesConfigIA(){
   return `
   <div class="card card-pad">
     <div style="font-weight:800;font-size:14.5px;margin-bottom:4px">Inteligência Artificial (opcional)</div>
+    <div style="font-size:11.5px;color:var(--ink-dim);margin-bottom:8px">${getOneDriveConta()
+      ? "Tudo desta tela — chave, provedor, instruções e base de normas — é sincronizado pelo OneDrive com seus outros aparelhos. Configure uma vez só."
+      : "Conecte o OneDrive para que estas configurações sejam compartilhadas com seus outros aparelhos automaticamente."}</div>
     <p style="font-size:13px;color:var(--ink-dim)">Quando configurada, a IA melhora automaticamente 5 campos de texto ao gerar o relatório em Excel ou Word: Descrição do Equipamento, Escopo, Descrição da Tarefa, Descrição do Risco e Mitigação. Ela nunca participa do cálculo de HRN — Probabilidade, Frequência, Grau e Nº de Pessoas continuam sendo escolhidos por você ou estimados pela lógica do app. Requer internet só na hora de gerar o relatório; sem chave configurada, tudo funciona offline como sempre.</p>
     <p style="font-size:12px;color:var(--ink-dim);margin-top:8px">A chave de API fica salva só neste aparelho (nunca é incluída no backup .json).</p>
   </div>
@@ -10060,7 +10393,7 @@ const App = {
   },
 
   /* ---------- Inteligência Artificial (opcional) ---------- */
-  onIAApiKeyInput(v){ setIAApiKey(v.trim()); },
+  onIAApiKeyInput(v){ setIAApiKey(v.trim()); marcarIAAlterada(); },
   onIAProvedorInput(v){
     const c = getIAConfig();
     c.provedor = IA_PROVEDORES[v] ? v : IA_PROVEDOR_PADRAO;
@@ -10071,13 +10404,13 @@ const App = {
     // esses campos antes num provedor diferente.
     c.endpoint = preset.endpoint;
     c.modelo = preset.modelo;
-    marcarAlterado(); render();
+    marcarIAAlterada(); render();
   },
-  onIAConfigInput(campo, v){ getIAConfig()[campo] = v; marcarAlterado(); },
-  onIAConfigPromptInput(tipo, v){ getIAConfig().prompts[tipo] = v; marcarAlterado(); },
-  restaurarPromptsIAPadrao(){ getIAConfig().prompts = {...IA_PROMPTS_PADRAO}; marcarAlterado(); render(); toast("Instruções restauradas"); },
-  removerChaveIA(){ setIAApiKey(""); render(); toast("Chave removida — IA desativada"); },
-  toggleIAExportacaoExcel(){ const c=getIAConfig(); c.usarNaExportacaoExcel=!c.usarNaExportacaoExcel; marcarAlterado(); render(); },
+  onIAConfigInput(campo, v){ getIAConfig()[campo] = v; marcarIAAlterada(); },
+  onIAConfigPromptInput(tipo, v){ getIAConfig().prompts[tipo] = v; marcarIAAlterada(); },
+  restaurarPromptsIAPadrao(){ getIAConfig().prompts = {...IA_PROMPTS_PADRAO}; marcarIAAlterada(); render(); toast("Instruções restauradas"); },
+  removerChaveIA(){ setIAApiKey(""); marcarIAAlterada(); render(); toast("Chave removida — IA desativada"); },
+  toggleIAExportacaoExcel(){ const c=getIAConfig(); c.usarNaExportacaoExcel=!c.usarNaExportacaoExcel; marcarIAAlterada(); render(); },
   async onUploadNormaPDF(file){
     if(!file) return;
     if(!/\.pdf$/i.test(file.name)){ toast("Selecione um arquivo .pdf", false); return; }
@@ -10087,14 +10420,14 @@ const App = {
       const texto = await extrairTextoPDF(buf);
       if(!texto){ toast("Não foi possível extrair texto desse PDF (pode ser um documento escaneado sem texto)", false); return; }
       getNormasIA().push({ id:uid(), nome:file.name.replace(/\.pdf$/i,""), texto, ativo:true, criadoEm:Date.now() });
-      marcarAlterado(); render();
+      marcarIAAlterada(); render();
       toast("Norma adicionada à base de consulta da IA");
     }catch(e){
       toast("Erro ao ler o PDF: "+(e && e.message || "erro desconhecido"), false);
     }
   },
-  toggleNormaIA(id){ const n=getNormasIA().find(x=>x.id===id); if(n){ n.ativo = n.ativo===false; marcarAlterado(); render(); } },
-  removerNormaIA(id){ const arr=getNormasIA(); const i=arr.findIndex(x=>x.id===id); if(i>=0){ arr.splice(i,1); marcarAlterado(); render(); toast("Norma removida"); } },
+  toggleNormaIA(id){ const n=getNormasIA().find(x=>x.id===id); if(n){ n.ativo = n.ativo===false; marcarIAAlterada(); render(); } },
+  removerNormaIA(id){ const arr=getNormasIA(); const i=arr.findIndex(x=>x.id===id); if(i>=0){ arr.splice(i,1); marcarIAAlterada(); render(); toast("Norma removida"); } },
   async onUploadModeloWord(file){
     if(!file) return;
     if(!/\.docx$/i.test(file.name)){ toast("Selecione um arquivo .docx", false); return; }
@@ -10531,9 +10864,17 @@ const App = {
     const destino = STATE.projetosSimples.find(x=>x.id===idProjetoDestino); if(!destino) return;
     p.areas = p.areas.filter(x=>x.id!==idArea);
     destino.areas.push(a);
+    /* Na nuvem, o endereço de cada item é montado a partir da pasta do projeto.
+       Ao trocar de projeto, TODA a subárvore muda de endereço — por isso todos
+       os itens de dentro precisam ser marcados como alterados. Sem isso a
+       sincronização não via novidade nenhuma e a mudança simplesmente nunca
+       saía deste aparelho: os outros continuavam com a área no projeto antigo.
+       Os arquivos que ficaram no endereço antigo são apagados sozinhos assim
+       que a nova cópia sobe (ver "MUDANÇA DE ENDEREÇO" na sincronização). */
+    marcarSubarvoreAreaAlterada(a);
     marcarAlterado();
     go("simples-areas",{projetoSId:p.id});
-    toast(`Área movida para "${destino.empresa||'Sem nome'}"`);
+    toast(`Área movida para "${destino.empresa||'Sem nome'}" — será sincronizada`);
   },
   menuDuplicarAreaSOutroProjeto(id){
     const p = getCurrentProjetoSimples();
