@@ -1557,7 +1557,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
    GitHub (útil especialmente dado o atraso de alguns minutos do GitHub para
    propagar cada atualização, e para diferenciar aparelhos que ainda não
    atualizaram dos que já atualizaram). */
-const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "24/07/2026 12:19"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "24/07/2026 12:19"; } })();
+const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "25/07/2026 18:09"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "25/07/2026 18:09"; } })();
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -2244,7 +2244,7 @@ function rotuloCaminhoNuvem(caminhoCompleto){
 function registrarEventoSync(direcao, nome, tipo, bytes, ok, motivo, caminho){
   if(direcao==="up" && ok===false) __falhasEnvioNaSync++;
   if(!Array.isArray(STATE.logSincronizacao)) STATE.logSincronizacao = [];
-  STATE.logSincronizacao.unshift({ ts: Date.now(), dir: direcao, nome: String(nome||"").slice(0,80), caminho: String(caminho||"").slice(0,140) || undefined, tipo, bytes: bytes||0, ok: ok!==false, motivo: ok===false ? String(motivo||"").slice(0,40) : undefined });
+  STATE.logSincronizacao.unshift({ ts: Date.now(), dir: direcao, nome: String(nome||"").slice(0,80), caminho: String(caminho||"").slice(0,140) || undefined, tipo, bytes: bytes||0, ok: ok!==false, motivo: String(motivo||"").slice(0,40) || undefined });
   if(STATE.logSincronizacao.length > MAX_EVENTOS_LOG_SYNC) STATE.logSincronizacao.length = MAX_EVENTOS_LOG_SYNC;
 }
 function fmtBytes(b){
@@ -2475,10 +2475,14 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
     let tamFotos = registroAnterior && registroAnterior.tamanhoFotos;
     if(jaEstaLa) tamTexto = new Blob([JSON.stringify(tinhaFotos ? semFotos : item.dados, null, 0)]).size;
     if(textoPrecisaSubir){
+      // DIAGNOSTICO (nao altera nenhuma decisao): por que este texto esta subindo?
+      const __motivoTxt = !registroAnterior ? "novo (sem registro local)"
+        : (registroAnterior.atualizadoEm !== item.atualizadoEm ? "carimbo mudou (conteudo diferente)"
+        : "reconferencia");
       const blobTexto = new Blob([JSON.stringify(tinhaFotos ? semFotos : item.dados, null, 0)], {type:"application/json"});
       tamTexto = blobTexto.size;
       okTexto = await onedriveEnviarBlob(subpasta, blobTexto, item.arquivo);
-      registrarEventoSync("up", item.arquivo, item.tipo, blobTexto.size, okTexto, __ultimoMotivoFalhaEnvio, rotuloCaminhoSync(item.pasta));
+      registrarEventoSync("up", item.arquivo, item.tipo, blobTexto.size, okTexto, okTexto ? __motivoTxt : __ultimoMotivoFalhaEnvio, rotuloCaminhoSync(item.pasta));
       if(onProgresso) onProgresso(blobTexto.size, item.tipo);
     }
     let fotosSubiram = false;
@@ -2486,10 +2490,12 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
       fotosSubiram = true; // pacote de fotos idêntico já está na nuvem — nada a enviar
       tamFotos = new Blob([JSON.stringify(soFotos, null, 0)]).size;
     } else if(okTexto && tinhaFotos && podeSubirFotos){
+      // DIAGNOSTICO (nao altera nenhuma decisao): por que estas fotos estao subindo?
+      const __motivoFoto = (registroAnterior && registroAnterior.fotosPendentes) ? "fotos pendentes de antes" : "fotos novas/alteradas";
       const blobFotos = new Blob([JSON.stringify(soFotos, null, 0)], {type:"application/json"});
       fotosSubiram = await onedriveEnviarBlob(subpasta, blobFotos, "fotos_"+item.arquivo);
       if(fotosSubiram) tamFotos = blobFotos.size;
-      registrarEventoSync("up", "fotos_"+item.arquivo, item.tipo+" (fotos)", blobFotos.size, fotosSubiram, __ultimoMotivoFalhaEnvio, rotuloCaminhoSync(item.pasta));
+      registrarEventoSync("up", "fotos_"+item.arquivo, item.tipo+" (fotos)", blobFotos.size, fotosSubiram, fotosSubiram ? __motivoFoto : __ultimoMotivoFalhaEnvio, rotuloCaminhoSync(item.pasta));
       if(onProgresso) onProgresso(blobFotos.size, item.tipo);
     }
     /* MUDANÇA DE ENDEREÇO — o item continua o mesmo (mesmo id), mas passou a
@@ -8494,6 +8500,7 @@ function screenSimplesConfigBackup(){
         <div style="font-size:10.5px;color:var(--ink-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${new Date(ev.ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}${ev.tipo? ' · '+escapeHtml(ev.tipo):''}${ev.caminho? ' · '+escapeHtml(ev.nome):''}</div>
       </div>
       <span style="font-size:11px;color:var(--ink-dim);flex-shrink:0">${fmtBytes(ev.bytes)}</span>
+      ${ev.ok && ev.dir==='up' && ev.motivo ? `<span style="font-size:10px;color:var(--ink-dim);flex-shrink:0;max-width:38%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(ev.motivo)}</span>` : ''}
       ${!ev.ok ? `<span style="font-size:10.5px;color:#FF6B5E;font-weight:800;flex-shrink:0">falhou${ev.motivo? ' ('+escapeHtml(ev.motivo)+')':''}</span>` : ''}
     </div>`).join("")}
   </div>`}
@@ -12557,6 +12564,21 @@ window.addEventListener("pageshow", (event) => {
       }
     }catch(e){}
   })();
+});
+
+/* Quando a conexao volta (saiu do modo aviao, Wi-Fi reconectou), retomar a
+   sincronizacao IMEDIATAMENTE, em qualquer tela — sem esperar o ciclo de 2
+   minutos. Chama exatamente as mesmas funcoes que o ciclo periodico ja usa;
+   elas tem guardas internas contra execucao concorrente, entao isto nao
+   duplica envio nem cria loop. As fotos continuam subindo so no Wi-Fi
+   (regra que ja vive dentro dessas funcoes). */
+window.addEventListener("online", ()=>{
+  try{
+    sincronizarIncrementalNaPasta();
+    sincronizarIncrementalOneDrive();
+    sincronizarDownloadOneDrive();
+    if(typeof atualizarChipSync==="function") atualizarChipSync();
+  }catch(e){}
 });
 
 </script>
