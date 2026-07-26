@@ -1557,7 +1557,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
    GitHub (útil especialmente dado o atraso de alguns minutos do GitHub para
    propagar cada atualização, e para diferenciar aparelhos que ainda não
    atualizaram dos que já atualizaram). */
-const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "26/07/2026 00:32"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "26/07/2026 00:32"; } })();
+const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "26/07/2026 00:59"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "26/07/2026 00:59"; } })();
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -4211,15 +4211,15 @@ function __diagConvergenciaSync(){
   if(__diagCache && (agora - __diagCacheEm) < 30000) return __diagCache;
   const idx = onedriveIndiceNuvem();
   const prefixo = `${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado/`.toLowerCase();
-  // Índice com as chaves normalizadas (NFC): serve para descobrir se um arquivo
-  // "ausente" na verdade EXISTE na nuvem, só com a acentuação escrita de forma
-  // diferente (é o típico "operação" gravado com o "ç"/"ã" em Unicode composto
-  // num aparelho e decomposto no outro). Se muitos ausentes aparecerem aqui, a
-  // causa do reenvio sem fim é essa diferença de acentuação nos caminhos.
-  let idxNFC = null;
-  if(idx){ idxNFC = new Set(); for(const k of idx.keys()) idxNFC.add(k.normalize("NFC")); }
-  let total=0, iguais=0, difAN=0, ausente=0, ausentePorAcento=0;
+  // Texto com TODOS os caminhos da nuvem, para procurar um arquivo pelo seu nome
+  // único (risco_ID.json) mesmo que ele esteja num CAMINHO diferente do que o app
+  // calcula. Se ele existe na nuvem em outro caminho, o problema é o endereço da
+  // pasta (algum nível acima mudou de nome/grafia), não o arquivo em si.
+  let idxBlob = "";
+  if(idx){ idxBlob = [...idx.keys()].join("\n"); }
+  let total=0, iguais=0, difAN=0, ausente=0, existeEmOutroCaminho=0;
   const exemplos=[];
+  let exCalc=null, exNuvem=null; // um par (calculado vs achado na nuvem) para comparar
   try{
     for(const item of listarItensSincronizaveisSimples()){
       total++;
@@ -4229,15 +4229,23 @@ function __diagConvergenciaSync(){
       const t = idx.get(cam);
       if(t===undefined){
         ausente++;
-        const apareceNormalizado = idxNFC && idxNFC.has(cam.normalize("NFC"));
-        if(apareceNormalizado) ausentePorAcento++;
-        if(exemplos.length<4) exemplos.push(`${item.tipo}: ${apareceNormalizado ? "existe na nuvem, mas com acentuação diferente" : "aqui "+a+", nuvem ausente"}`);
+        // O arquivo existe na nuvem, só num caminho diferente? Procura pelo nome
+        // único do arquivo (riscos) ou pelo id da pasta (tarefas/máquinas/áreas).
+        let alvo = null;
+        if(item.tipo==="risco"){ alvo = item.arquivo.toLowerCase(); }
+        else { const seg = item.pasta[item.pasta.length-1]||""; const m = seg.match(/\(([^)]+)\)\s*$/); if(m) alvo = "("+m[1].toLowerCase()+")/"+item.arquivo.toLowerCase(); }
+        const existeNoutro = !!(alvo && idxBlob.includes(alvo));
+        if(existeNoutro){
+          existeEmOutroCaminho++;
+          if(!exCalc){ exCalc = cam; exNuvem = ([...idx.keys()].find(k=>k.includes(alvo)) || "").trim(); }
+        }
+        if(exemplos.length<4) exemplos.push(`${item.tipo}: ${existeNoutro ? "existe na nuvem em OUTRO caminho" : "aqui "+a+", realmente não está na nuvem"}`);
       }
       else if(t===a){ iguais++; }
       else { difAN++; if(exemplos.length<4) exemplos.push(`${item.tipo}: aqui ${a} vs nuvem ${t}`); }
     }
   }catch(e){}
-  __diagCache = { total, iguais, difAN, ausente, ausentePorAcento, temIndice: !!idx, exemplos };
+  __diagCache = { total, iguais, difAN, ausente, existeEmOutroCaminho, exCalc, exNuvem, temIndice: !!idx, exemplos };
   __diagCacheEm = agora;
   return __diagCache;
 }
@@ -8547,7 +8555,7 @@ function screenSimplesConfigBackup(){
   <div class="card card-pad">
     <p style="font-size:12.5px;color:var(--ink-dim)">Tudo que subiu (${'\u2191'}) ou desceu (${'\u2193'}) do OneDrive, com tamanho e horário — inclusive o que aconteceu sozinho em segundo plano. Últimos ${MAX_EVENTOS_LOG_SYNC} eventos.</p>
   </div>
-  ${(()=>{ try{ const d=__diagConvergenciaSync(); if(!d.temIndice) return `<div class="card card-pad" style="margin-top:8px"><p style="font-size:12.5px;color:var(--ink-dim)">Diagnóstico: o índice da nuvem ainda não foi carregado nesta sessão. Toque em <b>Sincronizar agora</b> uma vez e volte a esta tela.</p></div>`; const cor = d.difAN>0 ? '#FF6B5E' : '#2E9E5B'; return `<div class="card card-pad" style="margin-top:8px"><p style="font-size:12.5px;color:var(--ink)"><b>Diagnóstico da sincronização (Módulo Simplificado)</b><br>${d.total} itens · <b style="color:#2E9E5B">${d.iguais}</b> iguais à nuvem · <b style="color:${cor}">${d.difAN}</b> com tamanho diferente aqui≠nuvem · <b>${d.ausente}</b> sem arquivo na nuvem${d.ausentePorAcento? ` <b style="color:#FF6B5E">(${d.ausentePorAcento} deles existem na nuvem, só com acentuação diferente)</b>`:''}${d.exemplos.length? `<br><span style="color:var(--ink-dim);font-size:11.5px">exemplos: ${d.exemplos.map(escapeHtml).join(' · ')}</span>`:''}</p></div>`; }catch(e){ return ''; } })()}
+  ${(()=>{ try{ const d=__diagConvergenciaSync(); if(!d.temIndice) return `<div class="card card-pad" style="margin-top:8px"><p style="font-size:12.5px;color:var(--ink-dim)">Diagnóstico: o índice da nuvem ainda não foi carregado nesta sessão. Toque em <b>Sincronizar agora</b> uma vez e volte a esta tela.</p></div>`; const cor = d.difAN>0 ? '#FF6B5E' : '#2E9E5B'; return `<div class="card card-pad" style="margin-top:8px"><p style="font-size:12.5px;color:var(--ink)"><b>Diagnóstico da sincronização (Módulo Simplificado)</b><br>${d.total} itens · <b style="color:#2E9E5B">${d.iguais}</b> iguais à nuvem · <b style="color:${cor}">${d.difAN}</b> com tamanho diferente aqui≠nuvem · <b>${d.ausente}</b> sem arquivo na nuvem${d.existeEmOutroCaminho? ` <b style="color:#FF6B5E">(${d.existeEmOutroCaminho} existem na nuvem em OUTRO caminho)</b>`:''}${d.exemplos.length? `<br><span style="color:var(--ink-dim);font-size:11.5px">exemplos: ${d.exemplos.map(escapeHtml).join(' · ')}</span>`:''}${d.exCalc? `<br><span style="color:var(--ink-dim);font-size:10.5px;word-break:break-all">app calcula: ${escapeHtml(d.exCalc)}<br>na nuvem: ${escapeHtml(d.exNuvem||'(não achado)')}</span>`:''}</p></div>`; }catch(e){ return ''; } })()}
   ${(STATE.logSincronizacao||[]).length===0 ? `<p style="font-size:12.5px;color:var(--ink-dim);margin-top:8px">Nenhum evento registrado ainda nesta versão.</p>` : `
   <div class="card" style="margin-top:8px;max-height:280px;overflow-y:auto">
     ${(STATE.logSincronizacao||[]).map(ev=>`
