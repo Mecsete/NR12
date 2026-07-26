@@ -1557,7 +1557,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
    GitHub (útil especialmente dado o atraso de alguns minutos do GitHub para
    propagar cada atualização, e para diferenciar aparelhos que ainda não
    atualizaram dos que já atualizaram). */
-const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "26/07/2026 00:59"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "26/07/2026 00:59"; } })();
+const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "26/07/2026 12:20"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "26/07/2026 12:20"; } })();
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -2447,6 +2447,14 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
     const registro = assinaturas.get(it.id);
     if(!registro) return true;                              // nunca subiu
     if(registro.atualizadoEm !== it.atualizadoEm) return true; // mudou desde a última subida
+    // MUDOU DE ENDEREÇO: o item continua o mesmo (mesmo id e conteúdo), mas o
+    // caminho da pasta na nuvem mudou — é o que acontece quando um PAI é
+    // renomeado (ex.: renomear a máquina muda o endereço de todas as tarefas e
+    // riscos dentro dela). Sem esta linha, os filhos ficavam órfãos no endereço
+    // antigo e o app os reprocurava eternamente no novo. Entra na fila para ser
+    // reenviado ao novo endereço; a cópia antiga é removida depois, com o novo
+    // arquivo já gravado (ver bloco "MUDANÇA DE ENDEREÇO" abaixo).
+    if(Array.isArray(registro.pasta) && registro.pasta.join("/") !== it.pasta.join("/")) return true;
     if(registro.fotosPendentes && podeSubirFotos) return true; // texto já subiu; agora dá pra completar com as fotos
     return false;
   });
@@ -2459,7 +2467,11 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
     const registroAnterior = assinaturas.get(item.id);
     // O texto só precisa subir de novo se o item mudou (se estamos aqui apenas
     // para completar as fotos de um texto já enviado, não repete o texto).
-    let textoPrecisaSubir = !registroAnterior || registroAnterior.atualizadoEm !== item.atualizadoEm;
+    // Também sobe quando o ENDEREÇO da pasta mudou, para gravar a cópia no lugar
+    // novo ANTES de a antiga ser removida — nunca o contrário, para não haver
+    // um instante sem o arquivo na nuvem.
+    let textoPrecisaSubir = !registroAnterior || registroAnterior.atualizadoEm !== item.atualizadoEm
+      || (Array.isArray(registroAnterior.pasta) && registroAnterior.pasta.join("/") !== item.pasta.join("/"));
     // Mesmo conteúdo já enviado, só o carimbo mudou: acerta a marca e não gasta dados.
     if(textoPrecisaSubir && onedriveConteudoJaEnviado(item, registroAnterior)) textoPrecisaSubir = false;
     // TRAVA DE DADOS MÓVEIS: arquivo idêntico já na nuvem (mesmo caminho, mesmo
