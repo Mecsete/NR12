@@ -1681,7 +1681,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
    GitHub (útil especialmente dado o atraso de alguns minutos do GitHub para
    propagar cada atualização, e para diferenciar aparelhos que ainda não
    atualizaram dos que já atualizaram). */
-const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "31/07/2026 23:55"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "31/07/2026 23:55"; } })();
+const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "03/08/2026 20:35"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "03/08/2026 20:35"; } })();
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -2679,7 +2679,9 @@ async function sincronizarIncrementalOneDrive(onProgresso){
     // Configurações de IA (chave, prompts, base de normas) — arquivo pequeno,
     // conferido no máximo de 10 em 10 minutos para não pesar no ciclo.
     const cfgIA = await onedriveSincronizarConfigIA(!!onProgresso);
-    if(cfgIA && cfgIA.recebeu) render();
+    // Equipe (inspetores e dados da MecSete) — mesmo tamanho e mesmo ritmo.
+    const equipe = await onedriveSincronizarEquipe(!!onProgresso);
+    if((cfgIA && cfgIA.recebeu) || (equipe && equipe.recebeu)) render();
     STATE.ultimaSincronizacaoOneDriveEm = Date.now();
     await dbSet(STATE); // grava logo o que já foi enviado, sem esperar a próxima edição pra isso ser lembrado
     // O lote inteiro terminou e já está gravado no STATE de verdade — os
@@ -3106,7 +3108,56 @@ function onedriveMesclarItemNovo(descritor, dados){
   else onedriveAnotarTamanho(chaveTexto, "tamanho", descritor.tamanho);
   return inseriu;
 }
+/* Todas as listas da árvore onde um item deste tipo pode estar — usado para
+   descobrir que um item "novo" na verdade já existe aqui, só que embaixo de
+   outro pai (foi MOVIDO no outro aparelho). */
+function __listasIrmasDe(tipo){
+  const listas = [];
+  const projs = STATE.projetosSimples || [];
+  if(tipo==="area"){
+    projs.forEach(p=>{ if(Array.isArray(p.areas)) listas.push(p.areas); });
+  }else if(tipo==="maquina"){
+    projs.forEach(p=>(p.areas||[]).forEach(a=>{ if(Array.isArray(a.maquinas)) listas.push(a.maquinas); }));
+  }else if(tipo==="tarefa"){
+    projs.forEach(p=>(p.areas||[]).forEach(a=>(a.maquinas||[]).forEach(m=>{ if(Array.isArray(m.tarefas)) listas.push(m.tarefas); })));
+  }else if(tipo==="risco"){
+    projs.forEach(p=>(p.areas||[]).forEach(a=>(a.maquinas||[]).forEach(m=>(m.tarefas||[]).forEach(t=>{ if(Array.isArray(t.riscos)) listas.push(t.riscos); }))));
+  }
+  return listas;
+}
+/* ITEM QUE MUDOU DE LUGAR — não é item novo, é o MESMO item.
+   Chegou um arquivo dizendo que a máquina X mora na área B, mas aqui ela está
+   na área A: alguém a moveu no outro aparelho. Antes, só a ÁREA tinha esse
+   tratamento; máquina, tarefa e risco caíam direto no "push" e passavam a
+   existir em DOIS lugares ao mesmo tempo, com o mesmo id. As duas cópias
+   disputavam a mesma assinatura de sincronização, então cada aparelho ficava
+   reenviando a sua versão para o outro — era isso que fazia a sincronização
+   nunca terminar, e fazia um aparelho que só RECEBEU passar a ter itens
+   "para enviar" sem ninguém ter criado nada nele.
+   Devolve: true = moveu · false = a versão daqui é mais nova (quem move é
+   este aparelho) · null = não existe em outro pai, é item novo mesmo. */
+function __moverItemEntrePais(tipo, listaDestino, dados){
+  const alvo = dados && dados.id;
+  if(!alvo) return null;
+  for(const lista of __listasIrmasDe(tipo)){
+    if(lista === listaDestino) continue;
+    const i = lista.findIndex(x=>x && x.id===alvo);
+    if(i < 0) continue;
+    const item = lista[i];
+    const tsRemoto = dados.atualizadoEm || dados.criadoEm || 0;
+    const tsLocal = item.atualizadoEm || item.criadoEm || 0;
+    if(tsRemoto <= tsLocal) return false; // a versão daqui é mais nova — quem move é este aparelho
+    lista.splice(i, 1);
+    listaDestino.push(item);
+    aplicarAtualizacaoRemota(item, dados);
+    return true;
+  }
+  return null;
+}
 function __onedriveMesclarItemNovoInterno(descritor, dados){
+  // Todo carimbo que chega de fora entra na conta do relógio lógico, para que
+  // a próxima edição feita aqui vença — mesmo com a data do aparelho errada.
+  if(dados && typeof dados.atualizadoEm === "number") registrarCarimboVisto(dados.atualizadoEm);
   // Item apagado de propósito neste aparelho não volta a existir só porque o
   // arquivo ainda está na nuvem (ver LÁPIDES DE EXCLUSÃO).
   if(descritor.tipo!=="fotos" && dados && dados.id && exclusaoConfirmadaPeloUsuario(descritor.tipo+":"+dados.id)) return false;
@@ -3128,24 +3179,8 @@ function __onedriveMesclarItemNovoInterno(descritor, dados){
   if(descritor.tipo==="area"){
     const existente = proj.areas.find(a=>a.id===dados.id);
     if(existente) return aplicarAtualizacaoRemota(existente, dados);
-    /* A área chegou dentro de OUTRO projeto, mas já existe aqui em algum
-       lugar: isso é uma área que foi movida de projeto no outro aparelho.
-       Move a mesma área (com máquinas, tarefas e riscos juntos) em vez de
-       criar uma segunda cópia com o mesmo id em dois projetos ao mesmo
-       tempo — que era o que aconteceria antes. */
-    for(const outro of STATE.projetosSimples){
-      if(outro.id === proj.id) continue;
-      const i = (outro.areas||[]).findIndex(a=>a.id===dados.id);
-      if(i < 0) continue;
-      const area = outro.areas[i];
-      const tsRemoto = dados.atualizadoEm || dados.criadoEm || 0;
-      const tsLocal = area.atualizadoEm || area.criadoEm || 0;
-      if(tsRemoto <= tsLocal) return false; // a versão daqui é mais nova — quem move é este aparelho
-      outro.areas.splice(i, 1);
-      proj.areas.push(area);
-      aplicarAtualizacaoRemota(area, dados);
-      return true;
-    }
+    const movida = __moverItemEntrePais("area", proj.areas, dados);
+    if(movida !== null) return movida;
     proj.areas.push({ ...dados, maquinas: dados.maquinas || [] });
     return true;
   }
@@ -3154,6 +3189,8 @@ function __onedriveMesclarItemNovoInterno(descritor, dados){
   if(descritor.tipo==="maquina"){
     const existente = area.maquinas.find(m=>m.id===dados.id);
     if(existente) return aplicarAtualizacaoRemota(existente, dados);
+    const movida = __moverItemEntrePais("maquina", area.maquinas, dados);
+    if(movida !== null) return movida;
     area.maquinas.push({ ...dados, tarefas: dados.tarefas || [] });
     return true;
   }
@@ -3162,6 +3199,8 @@ function __onedriveMesclarItemNovoInterno(descritor, dados){
   if(descritor.tipo==="tarefa"){
     const existente = maquina.tarefas.find(t=>t.id===dados.id);
     if(existente) return aplicarAtualizacaoRemota(existente, dados);
+    const movida = __moverItemEntrePais("tarefa", maquina.tarefas, dados);
+    if(movida !== null) return movida;
     maquina.tarefas.push({ ...dados, riscos: dados.riscos || [] });
     return true;
   }
@@ -3170,6 +3209,8 @@ function __onedriveMesclarItemNovoInterno(descritor, dados){
   if(descritor.tipo==="risco"){
     const existente = tarefa.riscos.find(r=>r.id===dados.id);
     if(existente) return aplicarAtualizacaoRemota(existente, dados);
+    const movido = __moverItemEntrePais("risco", tarefa.riscos, dados);
+    if(movido !== null) return movido;
     tarefa.riscos.push(dados);
     return true;
   }
@@ -3290,8 +3331,9 @@ async function sincronizarDownloadOneDriveUmaPassada(onProgresso){
       410), ou se ele não existir ainda, o app cai para a varredura completa
       de sempre e adquire um marcador novo — nada muda para o usuário.
    5) Rede de segurança: uma varredura completa roda de qualquer forma a cada
-      6 horas (e em toda sincronização manual), cobrindo qualquer caso
-      teórico que o delta pudesse deixar passar. */
+      30 minutos (ver INTERVALO_FULLSCAN_SEGURANCA_MS logo abaixo) e em toda
+      sincronização manual, cobrindo qualquer caso teórico que o delta
+      pudesse deixar passar. */
 const ONEDRIVE_DELTA_LS_PREFIXO = "onedriveDeltaLink:";
 const INTERVALO_FULLSCAN_SEGURANCA_MS = 30 * 60 * 1000; // 30 min — com a listagem em lotes, a varredura completa custa poucas requisições; como rede de segurança do delta, meia hora garante que itens novos SEMPRE chegam sozinhos em no máximo esse intervalo, qualquer que seja o ambiente
 function __idDaContaOneDrive(){
@@ -3457,7 +3499,7 @@ async function onedriveDeltaProcessarFila(){
   });
   let mesclados = 0;
   const AGORA = Date.now();
-  const VALIDADE_FILA_MS = 14 * 24 * 60 * 60 * 1000; // 14 dias: cobre férias/offline longo; após isso, um arquivo que só dá erro provavelmente foi apagado da nuvem à mão — e a varredura de segurança de 6h redescobre qualquer item real
+  const VALIDADE_FILA_MS = 14 * 24 * 60 * 60 * 1000; // 14 dias: cobre férias/offline longo; após isso, um arquivo que só dá erro provavelmente foi apagado da nuvem à mão — e a varredura de segurança de 30 min redescobre qualquer item real
   // Passadas repetidas até uma passada inteira não mesclar nada: um filho cujo
   // pai chegou NESTA MESMA leva é resolvido ainda nesta chamada, em vez de
   // esperar o próximo ciclo de 2 minutos.
@@ -4517,6 +4559,8 @@ async function onedriveSincronizarAgora(){
     toast("Verificando o que precisa sincronizar…");
     const cfgIAManual = await onedriveSincronizarConfigIA(true);
     if(cfgIAManual && cfgIAManual.recebeu) toast("Configurações de IA recebidas de outro aparelho");
+    const equipeManual = await onedriveSincronizarEquipe(true);
+    if(equipeManual && equipeManual.recebeu) toast("Lista de inspetores atualizada por outro aparelho");
     const download = await onedriveEstimarPendentesDownload();
     marcarProgressoSync();
     // AUTOCURA: antes de contar o que falta enviar, confere item por item se o
@@ -5069,6 +5113,55 @@ function buscarMaquinaPorId(id){ const proj=getCurrentProjeto(); if(!proj) retur
 function buscarTarefaPorId(id){ const proj=getCurrentProjeto(); if(!proj) return null; for(const a of proj.areas){ for(const m of a.maquinas){ const t=m.tarefas.find(x=>x.id===id); if(t) return t; } } return null; }
 function getCurrentPerigo(){ const t=getCurrentTarefa(); return t && t.perigos.find(p=>p.id===STATE.ui.perigoId); }
 
+/* =========================================================================
+   CARIMBO DE TEMPO À PROVA DE RELÓGIO ERRADO
+
+   Date.now() JÁ é um instante global: ele conta milissegundos desde 1970 em
+   UTC. Trocar de fuso horário, entrar ou sair do horário de verão, viajar —
+   nada disso muda o valor. O fuso só aparece na hora de ESCREVER a data na
+   tela, nunca no número guardado.
+
+   O que realmente estraga a sincronização é o RELÓGIO DO APARELHO estar
+   errado: celular que ficou sem bateria e voltou com a data de fábrica,
+   tablet com data ajustada à mão, aparelho que perdeu a hora da operadora.
+   Como quem vence um conflito é o carimbo MAIOR, um aparelho atrasado teria
+   todas as suas edições descartadas em silêncio pelos outros — e ninguém
+   perceberia.
+
+   A regra abaixo elimina isso sem depender do relógio estar certo: todo
+   carimbo novo é obrigatoriamente MAIOR que qualquer carimbo que este
+   aparelho já viu, inclusive os que chegaram da nuvem. Assim, quem editou
+   por último sempre vence, mesmo com a data do aparelho errada. É a mesma
+   proteção que a configuração de IA já usava (marcarIAAlterada), agora
+   valendo para projeto, área, máquina, tarefa e risco.
+   ========================================================================= */
+let __ultimoCarimboVisto = 0;
+function __carregarUltimoCarimbo(){
+  if(!__ultimoCarimboVisto && STATE && STATE.ui && typeof STATE.ui.ultimoCarimboVisto === "number"){
+    __ultimoCarimboVisto = STATE.ui.ultimoCarimboVisto;
+  }
+  return __ultimoCarimboVisto;
+}
+/* Toda vez que um carimbo vindo de fora é visto (item baixado da nuvem,
+   backup restaurado), ele entra na conta — é o que garante que a próxima
+   edição feita AQUI vença a que veio de lá, mesmo com o relógio atrasado. */
+function registrarCarimboVisto(ts){
+  if(typeof ts !== "number" || !isFinite(ts) || ts <= 0) return;
+  __carregarUltimoCarimbo();
+  if(ts > __ultimoCarimboVisto){
+    __ultimoCarimboVisto = ts;
+    if(STATE && STATE.ui) STATE.ui.ultimoCarimboVisto = ts;
+  }
+}
+/* Substitui Date.now() em TODO carimbo de "alterado em". Nunca anda para
+   trás e nunca repete o mesmo valor duas vezes seguidas. */
+function agoraSync(){
+  __carregarUltimoCarimbo();
+  const ts = Math.max(Date.now(), __ultimoCarimboVisto + 1);
+  __ultimoCarimboVisto = ts;
+  if(STATE && STATE.ui) STATE.ui.ultimoCarimboVisto = ts;
+  return ts;
+}
 let __saveTimer = null;
 let __salvamentoPendente = false; // true entre a edição e a gravação de fato terminar
 let __ultimoErroSalvar = false;
@@ -5077,7 +5170,7 @@ let __ultimoErroSalvar = false;
    arquivo na nuvem passa a ser outro, e é o carimbo que faz a sincronização
    reenviar a subárvore inteira para o lugar novo. */
 function marcarSubarvoreAreaAlterada(area){
-  const agora = Date.now();
+  const agora = agoraSync();
   if(!area) return;
   area.atualizadoEm = agora;
   (area.maquinas||[]).forEach(m=>{
@@ -5087,6 +5180,28 @@ function marcarSubarvoreAreaAlterada(area){
       (t.riscos||[]).forEach(r=>{ r.atualizadoEm = agora; });
     });
   });
+}
+/* MESMA COISA PARA OS DEMAIS NÍVEIS — e isto era um buraco de verdade.
+   Mover uma máquina de área (ou uma tarefa de máquina, ou um risco de tarefa)
+   também troca o endereço na nuvem de tudo que está dentro dela. Só que essas
+   três movimentações não carimbavam nada: a sincronização não via novidade
+   nenhuma, o arquivo nunca subia para o endereço novo, a cópia antiga nunca
+   era apagada — e nos outros aparelhos a máquina continuava na área antiga
+   PARA SEMPRE. Agora carimbam, exatamente como a área já fazia. */
+function marcarSubarvoreMaquinaAlterada(maquina){
+  const agora = agoraSync();
+  if(!maquina) return;
+  maquina.atualizadoEm = agora;
+  (maquina.tarefas||[]).forEach(t=>{
+    t.atualizadoEm = agora;
+    (t.riscos||[]).forEach(r=>{ r.atualizadoEm = agora; });
+  });
+}
+function marcarSubarvoreTarefaAlterada(tarefa){
+  const agora = agoraSync();
+  if(!tarefa) return;
+  tarefa.atualizadoEm = agora;
+  (tarefa.riscos||[]).forEach(r=>{ r.atualizadoEm = agora; });
 }
 function marcarAlterado(){
   clearTimeout(__saveTimer);
@@ -8045,11 +8160,69 @@ function getMecseteConfig(){
   Object.keys(padrao).forEach(k=>{ if(c[k]===undefined) c[k] = padrao[k]; });
   return c;
 }
+/* INSPETORES PADRÃO COM ID FIXO.
+   Até aqui, o inspetor padrão nascia com um id SORTEADO em cada aparelho: o
+   mesmo Daniel tinha um código no celular e outro no computador. Como o
+   projeto sincronizado guarda o CÓDIGO do inspetor (não o nome), o outro
+   aparelho recebia um código que não conhecia — e a capa do laudo saía com
+   "Nome Inspetor" e "Cargo Inspetor" em branco. Com id fixo, todo aparelho
+   chama a mesma pessoa pelo mesmo código. */
+const INSPETORES_PADRAO = [
+  { id:"insp-daniel-costa-goncalves", nome:"Daniel Costa Gonçalves", cargo:"Técnico Mecânico" },
+  { id:"insp-luiz-hermelino-araujo",  nome:"Luiz Hermelino Araujo",  cargo:"Engenheiro Mecânico" },
+];
+/* Lápides de inspetor removido — sem elas, um inspetor apagado num aparelho
+   voltaria do outro na sincronização seguinte. */
+function getInspetoresRemovidos(){
+  if(!STATE.ui.inspetoresRemovidos || typeof STATE.ui.inspetoresRemovidos !== "object") STATE.ui.inspetoresRemovidos = {};
+  return STATE.ui.inspetoresRemovidos;
+}
 function getUsuariosInspetores(){
-  if(!STATE.ui.usuariosInspetores){
-    STATE.ui.usuariosInspetores = [{ id:uid(), nome:"Daniel Costa Gonçalves", cargo:"Técnico Mecânico" }];
+  if(!Array.isArray(STATE.ui.usuariosInspetores)) STATE.ui.usuariosInspetores = [];
+  const lista = STATE.ui.usuariosInspetores;
+  if(!STATE.ui.inspetoresPadraoAplicados){
+    const removidos = getInspetoresRemovidos();
+    const norm = (v)=> String(v||"").trim().toLowerCase();
+    INSPETORES_PADRAO.forEach(padrao=>{
+      if(removidos[padrao.id]) return;                       // apagado de propósito — respeita
+      if(lista.some(u=>u.id===padrao.id)) return;            // já está com o id novo
+      const mesmoNome = lista.find(u=> norm(u.nome)===norm(padrao.nome));
+      if(mesmoNome){
+        /* Já existia aqui com o id sorteado antigo: reaproveita a pessoa e
+           reaponta os projetos que citavam o código velho. Não carimba nada —
+           todo aparelho faz exatamente esta mesma conversão, então eles
+           convergem sozinhos, sem reenviar projeto nenhum. */
+        const idAntigo = mesmoNome.id;
+        mesmoNome.id = padrao.id;
+        (STATE.projetosSimples||[]).forEach(p=>{ if(p.inspetorId === idAntigo) p.inspetorId = padrao.id; });
+        return;
+      }
+      lista.push({ ...padrao, atualizadoEm:0 });
+    });
+    STATE.ui.inspetoresPadraoAplicados = true;
   }
-  return STATE.ui.usuariosInspetores;
+  return lista;
+}
+/* Nome e cargo de um inspetor, procurando primeiro na lista deste aparelho e,
+   se ele não conhecer esse código, na cópia gravada dentro do próprio projeto
+   (ver gravarInspetorNoProjeto). É esta reserva que impede a capa do laudo de
+   sair em branco num aparelho que ainda não recebeu a lista da equipe. */
+function inspetorDoProjeto(proj){
+  if(!proj) return { nome:"", cargo:"", conhecido:true };
+  const achado = getUsuariosInspetores().find(u=>u.id===proj.inspetorId);
+  if(achado) return { nome:achado.nome||"", cargo:achado.cargo||"", conhecido:true };
+  if(proj.inspetorNome) return { nome:proj.inspetorNome, cargo:proj.inspetorCargo||"", conhecido:false };
+  return { nome:"", cargo:"", conhecido:true };
+}
+/* Copia o nome e o cargo para dentro do projeto no momento da escolha. O
+   projeto sincroniza; a lista de inspetores também passou a sincronizar, mas
+   esta cópia é a garantia de que o laudo sai correto mesmo que a lista ainda
+   não tenha chegado no aparelho que vai imprimir. */
+function gravarInspetorNoProjeto(p){
+  if(!p) return;
+  const u = getUsuariosInspetores().find(x=>x.id===p.inspetorId);
+  if(u){ p.inspetorNome = u.nome||""; p.inspetorCargo = u.cargo||""; }
+  else if(!p.inspetorId){ p.inspetorNome = ""; p.inspetorCargo = ""; }
 }
 function getIAApiKey(){ try{ return localStorage.getItem(IA_LOCALSTORAGE_KEY) || ""; }catch(e){ return ""; } }
 function setIAApiKey(v){ try{ if(v) localStorage.setItem(IA_LOCALSTORAGE_KEY, v); else localStorage.removeItem(IA_LOCALSTORAGE_KEY); }catch(e){} }
@@ -8175,6 +8348,139 @@ async function onedriveSincronizarConfigIA(forcar){
     return { mudou:false, erro:true };
   }finally{
     __iaSyncEmAndamento = false;
+  }
+}
+/* =========================================================================
+   SINCRONIZAÇÃO DA EQUIPE — lista de inspetores e dados da MecSete
+
+   Estes dados são os únicos do app que NÃO viajavam entre aparelhos: quem
+   cadastrasse um inspetor no celular não o via no computador, e a correção
+   do CREA feita num lugar não chegava no outro. Usa o mesmo caminho já
+   provado da configuração de IA (um arquivo pequeno na pasta Config), com
+   uma diferença importante: aqui a mesclagem é por UNIÃO, não "o mais novo
+   apaga o outro". Dois inspetores cadastrados ao mesmo tempo em aparelhos
+   diferentes aparecem os dois; só o MESMO inspetor editado nos dois lugares
+   precisa de desempate, e aí vence o carimbo maior. Remoção viaja como
+   lápide, senão o inspetor apagado aqui voltaria de lá.
+   ========================================================================= */
+const SUBPASTA_CONFIG_EQUIPE = SUBPASTA_BACKUP + "/Config";
+const EQUIPE_SYNC_INTERVALO_AUTO_MS = 10*60*1000;
+let __equipeSyncUltimaVerificacao = 0;
+let __equipeSyncEmAndamento = false;
+function getEquipeSyncEm(){
+  if(typeof STATE.ui.equipeSyncEm !== "number") STATE.ui.equipeSyncEm = 0;
+  return STATE.ui.equipeSyncEm;
+}
+function marcarEquipeAlterada(){
+  STATE.ui.equipeSyncEm = agoraSync();
+  marcarAlterado();
+}
+function montarPacoteEquipe(){
+  return {
+    atualizadoEm: getEquipeSyncEm(),
+    inspetores: getUsuariosInspetores().map(u=>({ id:u.id, nome:u.nome||"", cargo:u.cargo||"", atualizadoEm:u.atualizadoEm||0 })),
+    removidos: { ...getInspetoresRemovidos() },
+    mecsete: { ...getMecseteConfig() },
+    mecseteEm: (typeof STATE.ui.mecseteEm === "number") ? STATE.ui.mecseteEm : 0,
+  };
+}
+/* Devolve { mudou, faltaNoRemoto }: "faltaNoRemoto" avisa que este aparelho
+   tem gente que o arquivo da nuvem não tinha — nesse caso a união precisa ser
+   reenviada, senão o inspetor cadastrado aqui nunca chegaria nos outros. */
+function aplicarPacoteEquipe(pacote){
+  if(!pacote || typeof pacote !== "object") return { mudou:false, faltaNoRemoto:false };
+  let mudou = false;
+  const removidos = getInspetoresRemovidos();
+  if(pacote.removidos && typeof pacote.removidos === "object"){
+    for(const id in pacote.removidos){
+      const ts = pacote.removidos[id];
+      if(typeof ts === "number" && ts > (removidos[id]||0)){ removidos[id] = ts; mudou = true; }
+    }
+  }
+  const lista = getUsuariosInspetores();
+  const idsRemotos = new Set();
+  if(Array.isArray(pacote.inspetores)){
+    pacote.inspetores.forEach(remoto=>{
+      if(!remoto || !remoto.id) return;
+      idsRemotos.add(remoto.id);
+      const ts = remoto.atualizadoEm || 0;
+      registrarCarimboVisto(ts);
+      const local = lista.find(u=>u.id===remoto.id);
+      if(!local){ lista.push({ id:remoto.id, nome:remoto.nome||"", cargo:remoto.cargo||"", atualizadoEm:ts }); mudou = true; return; }
+      if(ts > (local.atualizadoEm||0)){
+        local.nome = remoto.nome||""; local.cargo = remoto.cargo||""; local.atualizadoEm = ts; mudou = true;
+      }
+    });
+  }
+  // Aplica as lápides: some quem foi removido DEPOIS da última edição dele.
+  const vivos = lista.filter(u=> !removidos[u.id] || (u.atualizadoEm||0) > removidos[u.id]);
+  if(vivos.length !== lista.length){ STATE.ui.usuariosInspetores = vivos; mudou = true; }
+  // Dados da MecSete: aqui sim é o mais novo que vale (é um bloco só).
+  const mecEm = pacote.mecseteEm || 0;
+  if(pacote.mecsete && typeof pacote.mecsete === "object" && mecEm > ((typeof STATE.ui.mecseteEm === "number") ? STATE.ui.mecseteEm : 0)){
+    STATE.ui.mecseteConfig = { ...getMecseteConfig(), ...pacote.mecsete };
+    STATE.ui.mecseteEm = mecEm;
+    registrarCarimboVisto(mecEm);
+    mudou = true;
+  }
+  const faltaNoRemoto = getUsuariosInspetores().some(u=>!idsRemotos.has(u.id));
+  return { mudou, faltaNoRemoto };
+}
+async function onedriveSincronizarEquipe(forcar){
+  if(!getOneDriveConta() || !navigator.onLine) return { mudou:false };
+  if(__equipeSyncEmAndamento) return { mudou:false };
+  if(!forcar && (Date.now() - __equipeSyncUltimaVerificacao) < EQUIPE_SYNC_INTERVALO_AUTO_MS) return { mudou:false };
+  __equipeSyncEmAndamento = true;
+  try{
+    const pasta = `${ONEDRIVE_PASTA_APP}/${SUBPASTA_CONFIG_EQUIPE}`;
+    const mapa = await onedriveListarFilhosEmLote([pasta]);
+    const filhos = mapa.get(pasta) || [];
+    let remotoTs = 0, remotoNome = "";
+    const antigos = [];
+    filhos.forEach(f=>{
+      const m = /^equipe_(\d+)\.json$/.exec(f.nome||"");
+      if(!m) return;
+      antigos.push(f.nome);
+      const ts = Number(m[1]);
+      if(ts > remotoTs){ remotoTs = ts; remotoNome = f.nome; }
+    });
+    const localTs = getEquipeSyncEm();
+    let recebeu = false;
+    if(remotoTs > localTs && remotoNome){
+      const texto = await onedriveBaixarTexto(`${pasta}/${remotoNome}`);
+      if(texto){
+        try{
+          const r = aplicarPacoteEquipe(JSON.parse(texto));
+          STATE.ui.equipeSyncEm = remotoTs;
+          registrarCarimboVisto(remotoTs);
+          if(r.mudou){
+            marcarAlterado();
+            registrarEventoSync("down", remotoNome, "equipe", new Blob([texto]).size, true, undefined, "Configurações → Empresa e Responsáveis");
+            recebeu = true;
+          }
+          // A união ficou maior que o arquivo da nuvem — precisa devolver.
+          if(r.faltaNoRemoto) marcarEquipeAlterada();
+        }catch(e){ /* arquivo ilegível — o próximo envio conserta */ }
+      }
+    }
+    const agoraLocal = getEquipeSyncEm();
+    if(agoraLocal > remotoTs && agoraLocal > 0){
+      const nome = `equipe_${agoraLocal}.json`;
+      const blob = new Blob([JSON.stringify(montarPacoteEquipe(), null, 0)], {type:"application/json"});
+      const ok = await onedriveEnviarBlob(SUBPASTA_CONFIG_EQUIPE, blob, nome);
+      registrarEventoSync("up", nome, "equipe", blob.size, ok, __ultimoMotivoFalhaEnvio, "Configurações → Empresa e Responsáveis");
+      if(ok){
+        for(const antigo of antigos){ if(antigo !== nome) await onedriveApagarBlob(SUBPASTA_CONFIG_EQUIPE, antigo); }
+        __equipeSyncUltimaVerificacao = Date.now();
+        return { mudou:true, enviou:true, recebeu };
+      }
+    }
+    __equipeSyncUltimaVerificacao = Date.now();
+    return { mudou:recebeu, recebeu };
+  }catch(e){
+    return { mudou:false, erro:true };
+  }finally{
+    __equipeSyncEmAndamento = false;
   }
 }
 function getNormasIA(){
@@ -9584,11 +9890,15 @@ async function _exportarSimplesXLSXFotosReal(){
    para ser usada no computador (layout de duas colunas em telas largas),
    mas continua funcionando no celular.
    ========================================================================= */
+/* Ordem das abas = ordem do trabalho: primeiro os dados do laudo (Projeto),
+   depois o que entra nele (Áreas), a configuração da IA que vai escrever os
+   textos, a revisão desses textos e, por fim, as saídas (Exportar e, quando o
+   módulo de impressão está instalado, Imprimir — que se acrescenta ao final). */
 const LAUDO_ABAS = [
-  { k:"revisao",  rot:"Revisão" },
   { k:"projeto",  rot:"Projeto" },
   { k:"escopo",   rot:"Áreas" },
   { k:"ia",       rot:"IA" },
+  { k:"revisao",  rot:"Revisão" },
   { k:"exportar", rot:"Exportar" },
 ];
 /* Dicas de preenchimento dos campos administrativos, iguais às do formulário
@@ -9668,7 +9978,7 @@ function laudoGravarFoto(item, f, dataUrl){
   }else{
     alvo[f.campo] = dataUrl;
   }
-  alvo.atualizadoEm = Date.now();
+  alvo.atualizadoEm = agoraSync();
   return true;
 }
 /* Gira a imagem em 90° usando um canvas. Mantém a resolução original (só
@@ -9866,6 +10176,33 @@ function laudoProjetosDoEscopo(){
   const ids = getAreasSelecionadasExport();
   return STATE.projetosSimples.filter(p=> p.areas.some(a=> ids.includes(a.id)));
 }
+/* ---------- Cadastro rápido de inspetor (modal da aba Projeto) ----------
+   Mesmos campos da lista de Configurações → Empresa e Responsáveis (Nome e
+   Cargo) — é a MESMA lista, só que alcançável de onde o inspetor é escolhido,
+   sem perder o que já foi digitado na tela do projeto. Ao salvar, o inspetor
+   novo já fica selecionado no projeto de onde o botão foi tocado.
+   O rascunho vive fora do STATE: enquanto o modal está aberto nada é gravado,
+   e fechar/cancelar não deixa inspetor em branco na lista. */
+let __inspetorDraft = null; // { pid, uid, nome, cargo } — uid preenchido = edição
+function laudoModalInspetorHtml(){
+  const d = __inspetorDraft;
+  const editando = !!d.uid;
+  return `<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.laudoFecharInspetor()"><div class="modal-card">
+    <h3>${editando? "Editar inspetor" : "Novo inspetor"}</h3>
+    <p style="font-size:12.5px;color:var(--ink-dim);margin:6px 0 12px">${editando
+      ? "A correção vale para <b>todos</b> os laudos que citam esta pessoa, em todos os aparelhos."
+      : "Entra na mesma lista de <b>Configurações → Empresa e Responsáveis</b>, já fica escolhido neste projeto e aparece nos outros aparelhos na próxima sincronização."}</p>
+    <div class="field"><label>Nome <span class="req">*</span></label>
+      <input type="text" value="${escapeHtml(d.nome||"")}" oninput="App.laudoSetInspetorDraft('nome', this.value)"></div>
+    <div class="field" style="margin-bottom:0"><label>Cargo</label>
+      <input type="text" placeholder="Ex.: Técnico Mecânico" value="${escapeHtml(d.cargo||"")}" oninput="App.laudoSetInspetorDraft('cargo', this.value)"></div>
+    ${editando? `<button class="btn btn-danger btn-block" style="margin-top:14px" onclick="App.laudoRemoverInspetor()">${ic('trash')} Remover da lista</button>` : ""}
+    <div class="modal-actions" style="margin-top:14px">
+      <button class="btn btn-secondary" onclick="App.laudoFecharInspetor()">Cancelar</button>
+      <button class="btn btn-primary" onclick="App.laudoSalvarInspetor()">${ic('check')} Salvar</button>
+    </div>
+  </div></div>`;
+}
 function laudoAbaProjeto(){
   const projetos = laudoProjetosDoEscopo();
   if(projetos.length===0){
@@ -9896,11 +10233,21 @@ function laudoAbaProjeto(){
           <input type="text" value="${escapeHtml(p.empresa||"")}" oninput="App.laudoSetProjeto('${p.id}','empresa', this.value)"></div>
         <div class="field" style="margin-bottom:0"><label>Cidade</label>
           <input type="text" value="${escapeHtml(p.cidade||"")}" oninput="App.laudoSetProjeto('${p.id}','cidade', this.value)"></div>
-        <div class="field" style="margin-bottom:0"><label>Inspetor</label>
-          <select onchange="App.laudoSetProjeto('${p.id}','inspetorId', this.value)">
-            <option value="">Selecionar…</option>
-            ${usuarios.map(u=>`<option value="${u.id}" ${p.inspetorId===u.id?'selected':''}>${escapeHtml(u.nome||"Sem nome")}${u.cargo?" — "+escapeHtml(u.cargo):""}</option>`).join("")}
-          </select></div>
+        ${(()=>{
+          const insp = inspetorDoProjeto(p);
+          const escolhido = usuarios.find(u=>u.id===p.inspetorId);
+          return `<div class="field" style="margin-bottom:0"><label>Inspetor</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <select style="flex:1;min-width:0" onchange="App.laudoSetProjeto('${p.id}','inspetorId', this.value)">
+              <option value="">Selecionar…</option>
+              ${usuarios.map(u=>`<option value="${u.id}" ${p.inspetorId===u.id?'selected':''}>${escapeHtml(u.nome||"Sem nome")}${u.cargo?" — "+escapeHtml(u.cargo):""}</option>`).join("")}
+            </select>
+            ${escolhido? `<button class="btn btn-ghost" style="flex-shrink:0;padding:9px 11px" title="Editar ou remover este inspetor" onclick="App.laudoEditarInspetor('${p.id}','${escolhido.id}')">${ic('edit')}</button>` : ""}
+            <button class="btn btn-secondary" style="flex-shrink:0;padding:9px 11px" title="Cadastrar um inspetor novo" onclick="App.laudoAbrirInspetor('${p.id}')">${ic('plus')}</button>
+          </div>
+          ${insp.conhecido? "" : `<div class="field-hint" style="color:#8A5B00;margin-top:6px"><b>${escapeHtml(insp.nome)}</b> foi cadastrado em outro aparelho e a lista ainda não chegou aqui. O laudo sai com esse nome normalmente; para escolher outro, use a lista acima.</div>`}
+          </div>`;
+        })()}
         <div class="field" style="margin-bottom:0"><label>Data da inspeção</label>
           <input type="text" value="${escapeHtml(dataInsp)}" disabled style="background:var(--bg-soft);color:var(--ink-dim)">
           <div class="field-hint">Vem da data de criação do projeto.</div></div>
@@ -9913,7 +10260,7 @@ function laudoAbaProjeto(){
     </div>`;
   }).join("")}
   <div class="card card-pad" style="background:var(--bg-soft)">
-    <div style="font-size:12.5px;color:var(--ink-dim)">A lista de inspetores e os dados da MecSete (CREA, endereço, responsável técnico) continuam em <b>Configurações → Empresa e Responsáveis</b> — são fixos e valem para todos os laudos.</div>
+    <div style="font-size:12.5px;color:var(--ink-dim)">Ao lado de Inspetor, o botão <b>+</b> cadastra um nome novo e o botão de lápis corrige ou remove o que está escolhido — tudo sem sair daqui. A lista é a mesma de <b>Configurações → Empresa e Responsáveis</b> (onde também ficam CREA, endereço e responsável técnico da MecSete) e agora é <b>compartilhada entre todos os aparelhos</b>: quem você cadastrar aqui aparece no celular e no computador na próxima sincronização.</div>
   </div>
   `;
 }
@@ -12499,10 +12846,22 @@ const App = {
     restaurarFocoBusca();
   },
   toggleContraste(){ STATE.contrasteAlto = !STATE.contrasteAlto; marcarAlterado(); render(); toast(STATE.contrasteAlto? "Alto contraste ativado" : "Alto contraste desativado"); },
-  onMecseteConfigInput(campo, v){ getMecseteConfig()[campo] = v; marcarAlterado(); },
-  adicionarUsuarioInspetor(){ getUsuariosInspetores().push({id:uid(), nome:"", cargo:""}); marcarAlterado(); render(); },
-  removerUsuarioInspetor(id){ STATE.ui.usuariosInspetores = getUsuariosInspetores().filter(u=>u.id!==id); marcarAlterado(); render(); },
-  onUsuarioInspetorInput(id, campo, v){ const u = getUsuariosInspetores().find(u=>u.id===id); if(u) u[campo]=v; marcarAlterado(); },
+  onMecseteConfigInput(campo, v){
+    getMecseteConfig()[campo] = v;
+    STATE.ui.mecseteEm = agoraSync(); // faz os dados da MecSete viajarem para os outros aparelhos
+    marcarEquipeAlterada();
+  },
+  adicionarUsuarioInspetor(){ getUsuariosInspetores().push({id:uid(), nome:"", cargo:"", atualizadoEm:agoraSync()}); marcarEquipeAlterada(); render(); },
+  removerUsuarioInspetor(id){
+    getInspetoresRemovidos()[id] = agoraSync(); // lápide: sem ela, o inspetor voltaria do outro aparelho
+    STATE.ui.usuariosInspetores = getUsuariosInspetores().filter(u=>u.id!==id);
+    marcarEquipeAlterada(); render();
+  },
+  onUsuarioInspetorInput(id, campo, v){
+    const u = getUsuariosInspetores().find(u=>u.id===id);
+    if(u){ u[campo]=v; u.atualizadoEm = agoraSync(); }
+    marcarEquipeAlterada();
+  },
   toggleAreaSelecionadaExport(id){
     const arr = getAreasSelecionadasExport();
     const idx = arr.indexOf(id);
@@ -12817,7 +13176,7 @@ const App = {
   laudoSetPLr(rid, campo, valor){
     const item = laudoItemPorId(rid); if(!item) return;
     item.risco[campo] = valor || "";
-    item.risco.atualizadoEm = Date.now();
+    item.risco.atualizadoEm = agoraSync();
     marcarAlterado(); render();
   },
   /* ---- Biblioteca de medidas ---- */
@@ -13058,7 +13417,7 @@ const App = {
       : (tipo==="riscoS") ? (buscarTarefaSimplesPorId(parent.tarefaSId)||{}).riscos
       : null;
     const semMudanca = listaAlvo && conteudoIgualAoSalvo(listaAlvo, ent);
-    if(!semMudanca) ent.atualizadoEm = Date.now();
+    if(!semMudanca) ent.atualizadoEm = agoraSync();
     if(tipo==="projetoS"){ substituirOuAdicionar(STATE.projetosSimples, ent); }
     else if(tipo==="areaS"){ const proj=STATE.projetosSimples.find(p=>p.id===parent.projetoSId); substituirOuAdicionar(proj.areas, ent); }
     else if(tipo==="maquinaS"){ const area=buscarAreaSimplesPorId(parent.areaSId); substituirOuAdicionar(area.maquinas, ent); }
@@ -13235,6 +13594,7 @@ const App = {
     const idx = origem.maquinas.findIndex(m=>m.id===maquinaId);
     const [m] = origem.maquinas.splice(idx,1);
     destino.maquinas.push(m);
+    marcarSubarvoreMaquinaAlterada(m); // sem isto a mudança nunca sai deste aparelho
     marcarAlterado();
     registrarMovimento("maquinaS", [maquinaId], "simples-maquinas", {areaSId:origem.id}, origem.nome||"área anterior");
     go("simples-maquinas",{areaSId:destino.id});
@@ -13305,6 +13665,7 @@ const App = {
     const idx = origem.tarefas.findIndex(t=>t.id===tarefaId);
     const [t] = origem.tarefas.splice(idx,1);
     destino.tarefas.push(t);
+    marcarSubarvoreTarefaAlterada(t); // sem isto a mudança nunca sai deste aparelho
     marcarAlterado();
     registrarMovimento("tarefaS", [tarefaId], "simples-tarefas", {maquinaSId:origem.id}, nomeMaquinaS(origem)||"máquina anterior");
     go("simples-tarefas",{maquinaSId:destino.id});
@@ -13371,6 +13732,7 @@ const App = {
     const idx = origem.riscos.findIndex(r=>r.id===riscoId);
     const [r] = origem.riscos.splice(idx,1);
     destino.riscos.push(r);
+    r.atualizadoEm = agoraSync(); // sem isto a mudança nunca sai deste aparelho
     marcarAlterado();
     registrarMovimento("riscoS", [riscoId], "simples-riscos", {tarefaSId:origem.id}, valOuOutro(origem.tarefa,origem.tarefaOutro)||"tarefa anterior");
     go("simples-riscos",{tarefaSId:destino.id});
@@ -13921,7 +14283,7 @@ const App = {
   },
   setPField(field,value,rerender){
     const p = getCurrentPerigo(); if(!p) return;
-    p[field]=value; p.atualizadoEm=Date.now(); marcarAlterado();
+    p[field]=value; p.atualizadoEm=agoraSync(); marcarAlterado();
     if(rerender) render();
   },
   onCategoriaChange(value){
@@ -13998,10 +14360,68 @@ const App = {
     const p = STATE.projetosSimples.find(x=>x.id===pid);
     if(!p) return;
     p[campo] = valor;
-    p.atualizadoEm = Date.now();
+    if(campo === "inspetorId") gravarInspetorNoProjeto(p); // nome e cargo viajam junto com o projeto
+    p.atualizadoEm = agoraSync();
     marcarAlterado();
+    if(campo === "inspetorId") render();
   },
   laudoIrParaProjeto(){ STATE.ui.laudoAba = "projeto"; go("simples-laudo"); },
+  laudoAbrirInspetor(pid){ __inspetorDraft = { pid, uid:"", nome:"", cargo:"" }; abrirOverlay(laudoModalInspetorHtml()); },
+  laudoEditarInspetor(pid, uid){
+    const u = getUsuariosInspetores().find(x=>x.id===uid); if(!u) return;
+    __inspetorDraft = { pid, uid, nome:u.nome||"", cargo:u.cargo||"" };
+    abrirOverlay(laudoModalInspetorHtml());
+  },
+  laudoRemoverInspetor(){
+    const d = __inspetorDraft; if(!d || !d.uid) return;
+    const usados = (STATE.projetosSimples||[]).filter(p=>p.inspetorId===d.uid).length;
+    const aviso = usados>0
+      ? `\n\n${usados} projeto(s) citam esta pessoa. O nome já gravado neles continua saindo no laudo, mas ela sai da lista de escolha.`
+      : "";
+    if(!confirm(`Remover "${d.nome||"este inspetor"}" da lista de inspetores?${aviso}`)) return;
+    getInspetoresRemovidos()[d.uid] = agoraSync(); // lápide: não volta do outro aparelho
+    STATE.ui.usuariosInspetores = getUsuariosInspetores().filter(u=>u.id!==d.uid);
+    __inspetorDraft = null;
+    App.fecharModal();
+    marcarEquipeAlterada();
+    render();
+    toast("Inspetor removido da lista");
+  },
+  laudoSetInspetorDraft(campo, v){ if(__inspetorDraft) __inspetorDraft[campo] = v; },
+  laudoFecharInspetor(){ __inspetorDraft = null; App.fecharModal(); },
+  laudoSalvarInspetor(){
+    const d = __inspetorDraft; if(!d) return;
+    const nome = (d.nome||"").trim();
+    if(!nome){ toast("Informe o nome do inspetor", false); return; }
+    const cargo = (d.cargo||"").trim();
+    let alvoId = d.uid;
+    if(alvoId){
+      const u = getUsuariosInspetores().find(x=>x.id===alvoId);
+      if(u){ u.nome = nome; u.cargo = cargo; u.atualizadoEm = agoraSync(); }
+    }else{
+      const novo = { id:uid(), nome, cargo, atualizadoEm:agoraSync() };
+      getUsuariosInspetores().push(novo);
+      alvoId = novo.id;
+    }
+    marcarEquipeAlterada(); // a lista viaja para TODOS os aparelhos
+    const p = STATE.projetosSimples.find(x=>x.id===d.pid);
+    if(p){ p.inspetorId = alvoId; gravarInspetorNoProjeto(p); p.atualizadoEm = agoraSync(); }
+    /* Um nome corrigido precisa alcançar os laudos que já citavam esta pessoa:
+       a cópia gravada dentro de cada projeto é atualizada junto, senão o laudo
+       antigo continuaria imprimindo o nome errado. */
+    if(d.uid){
+      (STATE.projetosSimples||[]).forEach(x=>{
+        if(x.inspetorId !== d.uid || x === p) return;
+        gravarInspetorNoProjeto(x);
+        x.atualizadoEm = agoraSync();
+      });
+    }
+    __inspetorDraft = null;
+    App.fecharModal();
+    marcarAlterado();
+    render();
+    toast(d.uid? "Inspetor atualizado" : "Inspetor cadastrado");
+  },
   laudoMostrarMais(){ STATE.ui.laudoLimite = (STATE.ui.laudoLimite||60) + 60; render(); },
   laudoAbrirItem(id){ STATE.ui.laudoRiscoId = id; STATE.ui.laudoEditandoCampo = null; STATE.ui.screen = "simples-laudo-item"; render(); window.scrollTo(0,0); },
   laudoIrPara(pos){
@@ -14080,7 +14500,7 @@ const App = {
   laudoSetPlaqueta(rid, campo, valor){
     const item = laudoItemPorId(rid); if(!item) return;
     item.maquina[campo] = valor;
-    item.maquina.atualizadoEm = Date.now();
+    item.maquina.atualizadoEm = agoraSync();
     marcarAlterado();
   },
   laudoVerPlaqueta(rid){
@@ -14118,7 +14538,7 @@ const App = {
         if(!input.files[0]) return;
         const data = await comprimirImagem(input.files[0], 1920, 0.82);
         item.maquina.fotoPlaqueta = data;
-        item.maquina.atualizadoEm = Date.now();
+        item.maquina.atualizadoEm = agoraSync();
         salvarFotoNaGaleria(data, "apr_fotoPlaqueta");
         marcarAlterado(); render();
         toast("Foto da plaqueta atualizada");
@@ -14159,7 +14579,7 @@ const App = {
         if(v && typeof v === "string" && v.trim() && (substituir || !jaTem)){ m[c.k] = v.trim(); n++; }
       });
       if(n > 0){
-        m.atualizadoEm = Date.now();
+        m.atualizadoEm = agoraSync();
         marcarAlterado();
         toast(n + " campo(s) preenchido(s) pela IA — confira antes de emitir o laudo");
       }else{
@@ -14175,7 +14595,7 @@ const App = {
   laudoSetHRN(rid, chave, valor){
     const item = laudoItemPorId(rid); if(!item) return;
     item.risco[chave] = valor || "";
-    item.risco.atualizadoEm = Date.now();
+    item.risco.atualizadoEm = agoraSync();
     marcarAlterado(); render();
     toast(valor? "HRN atualizado" : "Voltou para a estimativa automática");
   },
@@ -14200,7 +14620,7 @@ const App = {
   laudoSetMedida(rid, tipo){
     const item = laudoItemPorId(rid); if(!item) return;
     item.risco.medidaPropostaTipo = tipo || "";
-    item.risco.atualizadoEm = Date.now();
+    item.risco.atualizadoEm = agoraSync();
     marcarAlterado(); render();
   },
   laudoAplicarMedida(rid){
@@ -15144,7 +15564,7 @@ window.addEventListener("pageshow", (event) => {
   }
   function dadosDoc(proj, area){
     const m = getMecseteConfig();
-    const insp = (getUsuariosInspetores().find(u=> u.id === proj.inspetorId)) || {};
+    const insp = inspetorDoProjeto(proj); // usa a lista; se este aparelho não conhecer o código, cai na cópia do projeto
     let dataInsp = "";
     try{ dataInsp = proj.criadoEm ? new Date(proj.criadoEm).toLocaleDateString("pt-BR") : ""; }catch(e){}
     return { proj, area, m, insp, dataInsp, hoje: new Date().toLocaleDateString("pt-BR") };

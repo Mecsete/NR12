@@ -1,0 +1,12 @@
+# Normas ABNT e modelos do cliente — material pago / dado do cliente.
+# O repositório é público (serve o GitHub Pages), então nada disso entra.
+normas/
+modelos/
+*.xlsm
+*.pdf
+
+# Referência de comparação gerada por sessão (git show HEAD:index.html)
+original.html
+
+# Temporários dos scripts de validação
+remocao_ok.txt
