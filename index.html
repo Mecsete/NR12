@@ -1681,7 +1681,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
    GitHub (útil especialmente dado o atraso de alguns minutos do GitHub para
    propagar cada atualização, e para diferenciar aparelhos que ainda não
    atualizaram dos que já atualizaram). */
-const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "03/08/2026 20:35"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "03/08/2026 20:35"; } })();
+const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "05/08/2026 17:30"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "05/08/2026 17:30"; } })();
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -8248,8 +8248,20 @@ function esperar(ms){ return new Promise(r=>setTimeout(r,ms)); }
    O truque para não gastar dados à toa: a data/hora da versão vai no
    NOME do arquivo (ia_<carimbo>.json). Assim, só listando a pasta —
    alguns bytes — o app já sabe se o outro aparelho mudou alguma coisa,
-   e só baixa quando realmente vale a pena. Vence sempre a alteração
-   mais recente, do mesmo jeito que acontece com os projetos.
+   e só baixa quando realmente vale a pena.
+
+   MESCLAGEM POR UNIÃO — e isto importa muito com 4 aparelhos em uso.
+   Antes, o pacote mais recente substituía o outro INTEIRO: se uma pessoa
+   subisse uma norma no celular enquanto a outra subia outra norma no
+   computador, a que sincronizasse por último apagava a da outra. O mesmo
+   valia para as instruções (prompts). Agora cada parte é mesclada
+   separadamente:
+     · normas em PDF — união por id: as duas aparecem, nenhuma se perde.
+       Remoção viaja como lápide, senão a norma apagada aqui voltaria de lá.
+     · instruções — carimbo POR instrução: editar a instrução de Risco num
+       aparelho e a de Escopo em outro mantém as duas.
+     · chave de API — carimbo próprio, para que um aparelho que nunca teve
+       chave não apague a chave dos outros ao sincronizar.
    =================================================================== */
 const SUBPASTA_CONFIG_IA = SUBPASTA_BACKUP + "/Config";
 const IA_SYNC_INTERVALO_AUTO_MS = 10*60*1000; // no ciclo automático, no máximo de 10 em 10 minutos
@@ -8275,29 +8287,132 @@ function marcarIAAlterada(){
   STATE.ui.iaSyncEm = Math.max(Date.now(), anterior + 1);
   marcarAlterado();
 }
+/* Lápides das normas removidas — sem elas, uma norma apagada num aparelho
+   voltaria do outro na sincronização seguinte. */
+function getNormasRemovidas(){
+  if(!STATE.ui.normasRemovidas || typeof STATE.ui.normasRemovidas !== "object") STATE.ui.normasRemovidas = {};
+  return STATE.ui.normasRemovidas;
+}
+/* Carimbo individual de cada instrução (prompt). É o que permite duas
+   pessoas editarem instruções DIFERENTES sem uma apagar a da outra. */
+function getPromptsEm(){
+  if(!STATE.ui.promptsEm || typeof STATE.ui.promptsEm !== "object") STATE.ui.promptsEm = {};
+  return STATE.ui.promptsEm;
+}
+function marcarPromptAlterado(tipo){
+  getPromptsEm()[tipo] = agoraSync();
+  marcarIAAlterada();
+}
+function marcarChaveIAAlterada(){
+  STATE.ui.apiKeyEm = agoraSync();
+  marcarIAAlterada();
+}
 function montarPacoteIA(){
   const c = getIAConfig();
   return {
     atualizadoEm: getIASyncEm(),
     apiKey: getIAApiKey(),
+    apiKeyEm: (typeof STATE.ui.apiKeyEm === "number") ? STATE.ui.apiKeyEm : 0,
     config: { provedor:c.provedor, endpoint:c.endpoint, modelo:c.modelo,
               usarNaExportacaoExcel:c.usarNaExportacaoExcel, prompts:{...(c.prompts||{})} },
-    normas: (STATE.ui.normasIA||[]).map(n=>({ id:n.id, nome:n.nome, texto:n.texto, ativo:n.ativo!==false, criadoEm:n.criadoEm }))
+    promptsEm: { ...getPromptsEm() },
+    normasRemovidas: { ...getNormasRemovidas() },
+    normas: (STATE.ui.normasIA||[]).map(n=>({ id:n.id, nome:n.nome, texto:n.texto, ativo:n.ativo!==false,
+                                              criadoEm:n.criadoEm, atualizadoEm:n.atualizadoEm||n.criadoEm||0 }))
   };
 }
+/* Devolve { mudou, faltaNoRemoto }. "faltaNoRemoto" avisa que este aparelho
+   tem norma ou instrução que o arquivo da nuvem não tinha — nesse caso a
+   união precisa ser reenviada, senão o que foi cadastrado aqui nunca
+   chegaria nos outros aparelhos. */
 function aplicarPacoteIA(pacote){
-  if(!pacote || typeof pacote !== "object") return false;
-  if(typeof pacote.apiKey === "string") setIAApiKey(pacote.apiKey);
+  if(!pacote || typeof pacote !== "object") return { mudou:false, faltaNoRemoto:false };
+  let mudou = false, faltaNoRemoto = false;
   const c = getIAConfig();
   const p = pacote.config || {};
-  if(p.provedor && IA_PROVEDORES[p.provedor]) c.provedor = p.provedor;
-  if(typeof p.endpoint === "string") c.endpoint = p.endpoint;
-  if(typeof p.modelo === "string") c.modelo = p.modelo;
-  if(typeof p.usarNaExportacaoExcel === "boolean") c.usarNaExportacaoExcel = p.usarNaExportacaoExcel;
-  if(p.prompts && typeof p.prompts === "object") c.prompts = { ...IA_PROMPTS_PADRAO, ...p.prompts };
-  if(Array.isArray(pacote.normas)) STATE.ui.normasIA = pacote.normas.filter(n=>n && n.texto);
-  STATE.ui.iaSyncEm = pacote.atualizadoEm || Date.now();
-  return true;
+
+  /* CHAVE DE API — só troca se a de lá for comprovadamente mais recente.
+     Sem este carimbo, um aparelho que nunca teve chave apagava a chave de
+     todos os outros na primeira sincronização. */
+  const chaveRemotaEm = pacote.apiKeyEm || 0;
+  const chaveLocalEm = (typeof STATE.ui.apiKeyEm === "number") ? STATE.ui.apiKeyEm : 0;
+  if(typeof pacote.apiKey === "string"){
+    if(chaveRemotaEm > chaveLocalEm){
+      if(pacote.apiKey !== getIAApiKey()){ setIAApiKey(pacote.apiKey); mudou = true; }
+      STATE.ui.apiKeyEm = chaveRemotaEm;
+      registrarCarimboVisto(chaveRemotaEm);
+    }else if(chaveRemotaEm === 0 && chaveLocalEm === 0 && pacote.apiKey && !getIAApiKey()){
+      // Nenhum dos dois lados carimbou ainda (configuração anterior a esta
+      // versão): aceita a chave de lá só se aqui não existe nenhuma.
+      setIAApiKey(pacote.apiKey); mudou = true;
+    }
+    if(chaveLocalEm > chaveRemotaEm) faltaNoRemoto = true;
+  }
+
+  if(p.provedor && IA_PROVEDORES[p.provedor] && c.provedor !== p.provedor){ c.provedor = p.provedor; mudou = true; }
+  if(typeof p.endpoint === "string" && c.endpoint !== p.endpoint){ c.endpoint = p.endpoint; mudou = true; }
+  if(typeof p.modelo === "string" && c.modelo !== p.modelo){ c.modelo = p.modelo; mudou = true; }
+  if(typeof p.usarNaExportacaoExcel === "boolean" && c.usarNaExportacaoExcel !== p.usarNaExportacaoExcel){
+    c.usarNaExportacaoExcel = p.usarNaExportacaoExcel; mudou = true;
+  }
+
+  /* INSTRUÇÕES — uma a uma, cada qual com seu carimbo. */
+  if(!c.prompts || typeof c.prompts !== "object") c.prompts = { ...IA_PROMPTS_PADRAO };
+  const meusEm = getPromptsEm();
+  const delesEm = (pacote.promptsEm && typeof pacote.promptsEm === "object") ? pacote.promptsEm : {};
+  if(p.prompts && typeof p.prompts === "object"){
+    Object.keys(p.prompts).forEach(tipo=>{
+      const tsRem = delesEm[tipo] || 0, tsLoc = meusEm[tipo] || 0;
+      if(tsRem > tsLoc){
+        if(c.prompts[tipo] !== p.prompts[tipo]){ c.prompts[tipo] = p.prompts[tipo]; mudou = true; }
+        meusEm[tipo] = tsRem;
+        registrarCarimboVisto(tsRem);
+      }else if(tsLoc > tsRem){
+        faltaNoRemoto = true; // a instrução daqui é mais nova — precisa voltar
+      }else if(tsRem === 0 && tsLoc === 0 && c.prompts[tipo] === undefined){
+        c.prompts[tipo] = p.prompts[tipo]; mudou = true;
+      }
+    });
+  }
+  Object.keys(meusEm).forEach(tipo=>{ if(!(tipo in delesEm)) faltaNoRemoto = true; });
+
+  /* NORMAS EM PDF — união por id, com lápide para remoção. */
+  const removidas = getNormasRemovidas();
+  if(pacote.normasRemovidas && typeof pacote.normasRemovidas === "object"){
+    for(const id in pacote.normasRemovidas){
+      const ts = pacote.normasRemovidas[id];
+      if(typeof ts === "number" && ts > (removidas[id]||0)){ removidas[id] = ts; mudou = true; }
+    }
+  }
+  if(!Array.isArray(STATE.ui.normasIA)) STATE.ui.normasIA = [];
+  const lista = STATE.ui.normasIA;
+  const idsRemotos = new Set();
+  if(Array.isArray(pacote.normas)){
+    pacote.normas.forEach(remota=>{
+      if(!remota || !remota.id || !remota.texto) return;
+      idsRemotos.add(remota.id);
+      const ts = remota.atualizadoEm || remota.criadoEm || 0;
+      registrarCarimboVisto(ts);
+      const local = lista.find(n=>n.id===remota.id);
+      if(!local){
+        lista.push({ id:remota.id, nome:remota.nome, texto:remota.texto,
+                     ativo:remota.ativo!==false, criadoEm:remota.criadoEm, atualizadoEm:ts });
+        mudou = true;
+        return;
+      }
+      if(ts > (local.atualizadoEm||local.criadoEm||0)){
+        local.nome = remota.nome; local.texto = remota.texto;
+        local.ativo = remota.ativo!==false; local.atualizadoEm = ts;
+        mudou = true;
+      }
+    });
+  }
+  // Aplica as lápides: some a norma removida DEPOIS da última edição dela.
+  const vivas = lista.filter(n=> !removidas[n.id] || (n.atualizadoEm||n.criadoEm||0) > removidas[n.id]);
+  if(vivas.length !== lista.length){ STATE.ui.normasIA = vivas; mudou = true; }
+  if((STATE.ui.normasIA||[]).some(n=>!idsRemotos.has(n.id))) faltaNoRemoto = true;
+
+  return { mudou, faltaNoRemoto };
 }
 async function onedriveSincronizarConfigIA(forcar){
   if(!getOneDriveConta() || !navigator.onLine) return { mudou:false };
@@ -8318,20 +8433,33 @@ async function onedriveSincronizarConfigIA(forcar){
       if(ts > remotoTs){ remotoTs = ts; remotoNome = f.nome; }
     });
     const localTs = getIASyncEm();
+    let recebeuAlgo = false;
     if(remotoTs > localTs){
       const texto = await onedriveBaixarTexto(`${pasta}/${remotoNome}`);
       if(texto){
         try{
-          if(aplicarPacoteIA(JSON.parse(texto))){
+          const r = aplicarPacoteIA(JSON.parse(texto));
+          STATE.ui.iaSyncEm = remotoTs;
+          registrarCarimboVisto(remotoTs);
+          if(r.mudou){
             marcarAlterado();
             registrarEventoSync("down", remotoNome, "config IA", new Blob([texto]).size, true, undefined, "Configurações → IA");
+          }
+          /* A união ficou maior que o arquivo da nuvem (norma ou instrução que
+             só existe aqui): reenvia, senão o que foi cadastrado neste
+             aparelho nunca chegaria nos outros. */
+          if(r.faltaNoRemoto) marcarIAAlterada();
+          if(r.mudou && !r.faltaNoRemoto){
             __iaSyncUltimaVerificacao = Date.now();
             return { mudou:true, recebeu:true };
           }
+          if(r.mudou) recebeuAlgo = true;
         }catch(e){ /* arquivo ilegível — ignora, o próximo envio conserta */ }
       }
-    }else if(localTs > remotoTs && localTs > 0){
-      const nome = `ia_${localTs}.json`;
+    }
+    const agoraLocal = getIASyncEm();
+    if(agoraLocal > remotoTs && agoraLocal > 0){
+      const nome = `ia_${agoraLocal}.json`;
       const blob = new Blob([JSON.stringify(montarPacoteIA(), null, 0)], {type:"application/json"});
       const ok = await onedriveEnviarBlob(SUBPASTA_CONFIG_IA, blob, nome);
       registrarEventoSync("up", nome, "config IA", blob.size, ok, __ultimoMotivoFalhaEnvio, "Configurações → IA");
@@ -8339,11 +8467,11 @@ async function onedriveSincronizarConfigIA(forcar){
         // limpa versões anteriores para a pasta não acumular arquivos
         for(const antigo of antigos){ if(antigo !== nome) await onedriveApagarBlob(SUBPASTA_CONFIG_IA, antigo); }
         __iaSyncUltimaVerificacao = Date.now();
-        return { mudou:true, enviou:true };
+        return { mudou:true, enviou:true, recebeu:recebeuAlgo };
       }
     }
     __iaSyncUltimaVerificacao = Date.now();
-    return { mudou:false };
+    return { mudou:recebeuAlgo, recebeu:recebeuAlgo };
   }catch(e){
     return { mudou:false, erro:true };
   }finally{
@@ -12888,7 +13016,7 @@ const App = {
   },
 
   /* ---------- Inteligência Artificial (opcional) ---------- */
-  onIAApiKeyInput(v){ setIAApiKey(v.trim()); marcarIAAlterada(); },
+  onIAApiKeyInput(v){ setIAApiKey(v.trim()); marcarChaveIAAlterada(); },
   onIAProvedorInput(v){
     const c = getIAConfig();
     c.provedor = IA_PROVEDORES[v] ? v : IA_PROVEDOR_PADRAO;
@@ -12902,9 +13030,13 @@ const App = {
     marcarIAAlterada(); render();
   },
   onIAConfigInput(campo, v){ getIAConfig()[campo] = v; marcarIAAlterada(); },
-  onIAConfigPromptInput(tipo, v){ getIAConfig().prompts[tipo] = v; marcarIAAlterada(); },
-  restaurarPromptsIAPadrao(){ getIAConfig().prompts = {...IA_PROMPTS_PADRAO}; marcarIAAlterada(); render(); toast("Instruções restauradas"); },
-  removerChaveIA(){ setIAApiKey(""); marcarIAAlterada(); render(); toast("Chave removida — IA desativada"); },
+  onIAConfigPromptInput(tipo, v){ getIAConfig().prompts[tipo] = v; marcarPromptAlterado(tipo); },
+  restaurarPromptsIAPadrao(){
+    getIAConfig().prompts = {...IA_PROMPTS_PADRAO};
+    Object.keys(IA_PROMPTS_PADRAO).forEach(tipo=>{ getPromptsEm()[tipo] = agoraSync(); });
+    marcarIAAlterada(); render(); toast("Instruções restauradas");
+  },
+  removerChaveIA(){ setIAApiKey(""); marcarChaveIAAlterada(); render(); toast("Chave removida — IA desativada"); },
   toggleIAExportacaoExcel(){ const c=getIAConfig(); c.usarNaExportacaoExcel=!c.usarNaExportacaoExcel; marcarIAAlterada(); render(); },
   async onUploadNormaPDF(file){
     if(!file) return;
@@ -12914,15 +13046,25 @@ const App = {
       const buf = await file.arrayBuffer();
       const texto = await extrairTextoPDF(buf);
       if(!texto){ toast("Não foi possível extrair texto desse PDF (pode ser um documento escaneado sem texto)", false); return; }
-      getNormasIA().push({ id:uid(), nome:file.name.replace(/\.pdf$/i,""), texto, ativo:true, criadoEm:Date.now() });
+      const agora = agoraSync();
+      getNormasIA().push({ id:uid(), nome:file.name.replace(/\.pdf$/i,""), texto, ativo:true, criadoEm:agora, atualizadoEm:agora });
       marcarIAAlterada(); render();
       toast("Norma adicionada à base de consulta da IA");
     }catch(e){
       toast("Erro ao ler o PDF: "+(e && e.message || "erro desconhecido"), false);
     }
   },
-  toggleNormaIA(id){ const n=getNormasIA().find(x=>x.id===id); if(n){ n.ativo = n.ativo===false; marcarIAAlterada(); render(); } },
-  removerNormaIA(id){ const arr=getNormasIA(); const i=arr.findIndex(x=>x.id===id); if(i>=0){ arr.splice(i,1); marcarIAAlterada(); render(); toast("Norma removida"); } },
+  toggleNormaIA(id){
+    const n=getNormasIA().find(x=>x.id===id);
+    if(n){ n.ativo = n.ativo===false; n.atualizadoEm = agoraSync(); marcarIAAlterada(); render(); }
+  },
+  removerNormaIA(id){
+    const arr=getNormasIA(); const i=arr.findIndex(x=>x.id===id);
+    if(i>=0){
+      getNormasRemovidas()[id] = agoraSync(); // lápide: senão a norma voltaria do outro aparelho
+      arr.splice(i,1); marcarIAAlterada(); render(); toast("Norma removida");
+    }
+  },
   async onUploadModeloWord(file){
     if(!file) return;
     if(!/\.docx$/i.test(file.name)){ toast("Selecione um arquivo .docx", false); return; }

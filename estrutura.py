@@ -111,9 +111,9 @@ chk("AU = ID_Risco", novo.count('xlsmCellTexto(`AU${rowNum}`') == 1)
 chk("AV = ID_Maquina", novo.count('xlsmCellTexto(`AV${rowNum}`') == 1)
 
 print("\n=== 9. SELO DE VERSAO ===")
-chk("APP_BUILD atualizado 2x", novo.count('"03/08/2026 20:35"') == 2, "achei %d" % novo.count('"03/08/2026 20:35"'))
+chk("APP_BUILD atualizado 2x", novo.count('"05/08/2026 17:30"') == 2, "achei %d" % novo.count('"05/08/2026 17:30"'))
 chk("nenhum resquicio de build antigo",
-    all(novo.count('"%s"' % b) == 0 for b in ["29/07/2026 08:44","30/07/2026 16:20","30/07/2026 18:05","30/07/2026 19:40","30/07/2026 21:10","31/07/2026 09:30","31/07/2026 11:20","31/07/2026 15:40","31/07/2026 19:15","31/07/2026 22:30","31/07/2026 23:55","03/08/2026 17:20"]))
+    all(novo.count('"%s"' % b) == 0 for b in ["29/07/2026 08:44","30/07/2026 16:20","30/07/2026 18:05","30/07/2026 19:40","30/07/2026 21:10","31/07/2026 09:30","31/07/2026 11:20","31/07/2026 15:40","31/07/2026 19:15","31/07/2026 22:30","31/07/2026 23:55","03/08/2026 17:20","03/08/2026 20:35"]))
 
 print("\n=== 10. CRESCIMENTO DO ARQUIVO ===")
 d = len(novo) - len(orig)
@@ -247,6 +247,33 @@ chk("a capa do laudo usa a reserva gravada no projeto",
 chk("remocao de inspetor deixa lapide (senao ele volta do outro aparelho)",
     novo.count("getInspetoresRemovidos()[d.uid] = agoraSync();") == 1
     and novo.count("getInspetoresRemovidos()[id] = agoraSync();") == 1)
+
+print("\n=== 17. CONFIG DE IA MESCLADA POR UNIAO ===")
+for marca, n in [("function getNormasRemovidas(", 1), ("function getPromptsEm(", 1),
+                 ("function marcarPromptAlterado(", 1), ("function marcarChaveIAAlterada(", 1)]:
+    chk("'%s' x%d" % (marca, n), novo.count(marca) == n, "achei %d" % novo.count(marca))
+chk("o pacote de IA leva carimbo por parte",
+    all(novo.count(m) == 1 for m in ["apiKeyEm: (typeof STATE.ui.apiKeyEm",
+                                     "promptsEm: { ...getPromptsEm() }",
+                                     "normasRemovidas: { ...getNormasRemovidas() }"]))
+# 2 = equipe (entrega anterior) + IA (esta entrega): as duas mesclagens por
+# uniao usam exatamente o mesmo contrato de retorno.
+chk("aplicarPacoteIA devolve {mudou, faltaNoRemoto} (nao mais booleano)",
+    novo.count("return { mudou, faltaNoRemoto };") == 2
+    and novo.count("if(Array.isArray(pacote.normas)) STATE.ui.normasIA = pacote.normas.filter(n=>n && n.texto);") == 0)
+chk("a substituicao em bloco das instrucoes foi removida",
+    novo.count("c.prompts = { ...IA_PROMPTS_PADRAO, ...p.prompts };") == 0)
+chk("cada ponto de edicao carimba a parte certa",
+    novo.count("marcarPromptAlterado(tipo);") == 1
+    and novo.count("marcarChaveIAAlterada();") == 2
+    and novo.count("getNormasRemovidas()[id] = agoraSync();") == 1)
+chk("norma nova nasce com carimbo proprio",
+    novo.count("criadoEm:agora, atualizadoEm:agora") == 1)
+chk("o download reenvia a uniao quando ha algo so aqui",
+    novo.count("if(r.faltaNoRemoto) marcarIAAlterada();") == 1)
+chk("a sincronizacao da equipe (entrega anterior) continua intacta",
+    novo.count("async function onedriveSincronizarEquipe(") == 1
+    and novo.count("if(r.faltaNoRemoto) marcarEquipeAlterada();") == 1)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")

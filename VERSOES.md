@@ -15,6 +15,34 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 05/08/2026 17:30
+
+Instruções da IA e normas em PDF deixam de se perder entre aparelhos.
+
+**O problema.** A configuração de IA (chave, instruções e normas em PDF) já
+viajava entre os aparelhos, mas como um bloco único: o pacote mais recente
+substituía o outro **inteiro**. Na prática, se uma pessoa subisse uma norma no
+celular enquanto a outra subia outra norma no computador, quem sincronizasse
+por último **apagava a da outra** — e o mesmo valia para as instruções
+personalizadas. Com quatro aparelhos em uso, isso acontecia com facilidade.
+
+**A correção.** Cada parte passa a ser mesclada separadamente:
+
+- **Normas em PDF** — união por documento. As duas aparecem, nenhuma se perde.
+  Remover uma norma continua funcionando e a remoção viaja para os outros
+  aparelhos (ela não volta sozinha).
+- **Instruções (prompts)** — cada instrução tem seu próprio registro de
+  alteração. Editar a instrução de Risco num aparelho e a de Escopo em outro
+  mantém as duas.
+- **Chave de API** — ganhou registro próprio. Antes, um aparelho que nunca
+  tinha recebido a chave podia apagar a chave dos outros ao sincronizar.
+
+Quando um aparelho percebe que tem uma norma ou instrução que ainda não está
+na nuvem, ele reenvia a versão completa automaticamente — então nada fica só
+num aparelho.
+
+---
+
 ## 03/08/2026 20:35
 
 Correções no motor de sincronização e na lista de inspetores.

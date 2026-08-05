@@ -81,8 +81,15 @@ let overlayHtml=""; function abrirOverlay(h){ overlayHtml=h; }
 let __buscaAtual = "";
 let __laudoGaleriaTeste = false;
 let __iaCelulasVazias=0,__iaCelulasTotal=0,__iaChamadasFalhas=0,__iaMotivoFalha="";
-let CHAVE="k"; function getIAApiKey(){ return CHAVE; }
-function getIAConfig(){ return { usarNaExportacaoExcel:true, provedor:"anthropic", modelo:"claude-sonnet-5" }; }
+let CHAVE="k"; function getIAApiKey(){ return CHAVE; } function setIAApiKey(v){ CHAVE = v||""; }
+/* Config de IA persistente (antes era um objeto novo a cada chamada, o que
+   impedia testar mesclagem — qualquer alteração se perdia na chamada seguinte). */
+let __iaConfigTeste = { usarNaExportacaoExcel:true, provedor:"anthropic", modelo:"claude-sonnet-5", endpoint:"", prompts:{} };
+function getIAConfig(){ return __iaConfigTeste; }
+function resetIAConfigTeste(){
+  __iaConfigTeste = { usarNaExportacaoExcel:true, provedor:"anthropic", modelo:"claude-sonnet-5", endpoint:"", prompts:{} };
+  return __iaConfigTeste;
+}
 let chamadas=[];
 async function chamarIAResiliente(tipo,texto){ chamadas.push([tipo,texto]); return JSON.stringify({texto:"[IA:"+tipo+"] "+String(texto||"").slice(0,30), duvida: tipo==="risco_xlsx"?"Qual a altura?":""}); }
 function parseRespostaJsonIA(r){ try{ return r?JSON.parse(r):null; }catch(e){ return null; } }
@@ -111,7 +118,8 @@ function getAreasSelecionadasExport(){
 
 const ouvintes = [], estiloRaiz = {};
 const ctx = { OUTRO, STATE, linhasEscopoSimples, nomeMaquinaS, valOuOutro, escapeHtml, ic, toast, marcarAlterado,
-  render, go, esperar, uid, imgReg, abrirOverlay, getIAApiKey, getIAConfig, chamarIAResiliente, parseRespostaJsonIA,
+  render, go, esperar, uid, imgReg, abrirOverlay, getIAApiKey, setIAApiKey, getIAConfig, resetIAConfigTeste,
+  chamarIAResiliente, parseRespostaJsonIA,
   getAreasSelecionadasExport, formatarDataHoraBR, screenSimplesConfigIA, getMecseteConfig, getCurrentProjetoSimples,
   __modeloExcelCortevaCarregado, __modeloExcelCortevaMeta, __buscaAtual,
   __iaCelulasVazias, __iaCelulasTotal, __iaChamadasFalhas, __iaMotivoFalha,
@@ -147,6 +155,15 @@ vm.runInContext(constante("INSPETORES_PADRAO"), ctx);
    const não é içada como function. Reexecuta a função agora que a tabela
    está no contexto. */
 vm.runInContext(funcao("getUsuariosInspetores"), ctx);
+
+/* configuracao de IA compartilhada, extraida do arquivo entregue */
+/* IA_PROVEDOR_PADRAO e uma string simples: constante() so sabe delimitar
+   objetos/arrays, entao vem por regex direto. */
+[ "IA_PROVEDORES", "IA_PROMPTS_PADRAO" ].forEach(n=> vm.runInContext(constante(n), ctx));
+vm.runInContext((/\nconst IA_PROVEDOR_PADRAO\s*=\s*"[^"]*";/.exec(HTML)||[""])[0], ctx);
+[ "getNormasIA", "getNormasRemovidas", "getPromptsEm", "marcarPromptAlterado", "marcarChaveIAAlterada",
+  "getIASyncEm", "marcarIAAlterada", "montarPacoteIA", "aplicarPacoteIA"
+].forEach(n=> vm.runInContext(funcao(n), ctx));
 
 /* blocos novos, extraidos do arquivo entregue */
 const BLOCO_A = trecho("/* =========================================================================\n   GESTÃO DO LAUDO — os textos da IA passam a morar DENTRO do app", "\nfunction hrnDoItem({tarefa,risco}){");
@@ -1934,6 +1951,126 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(corpo.indexOf("getInspetoresRemovidos()[d.uid] = agoraSync();") > 0, "sem lápide — voltaria do outro aparelho");
     ok(corpo.indexOf("projeto(s) citam esta pessoa") > 0, "não avisa o impacto");
     ok(corpo.indexOf("marcarEquipeAlterada();") > 0, "a remoção não viaja");
+  });
+
+  console.log("\n=== t55 · IA compartilhada: nenhuma norma ou instrução se perde ===");
+  function iaLimpa(){
+    STATE.ui.normasIA = []; STATE.ui.normasRemovidas = {}; STATE.ui.promptsEm = {};
+    STATE.ui.iaSyncEm = 0; STATE.ui.apiKeyEm = 0;
+    vm.runInContext("setIAApiKey(''); resetIAConfigTeste();", ctx);
+  }
+  function pacoteDe(normas, prompts, promptsEm, chave, chaveEm){
+    iaLimpa();
+    STATE.ui.normasIA = normas.map(n=>({...n}));
+    const c = vm.runInContext("getIAConfig()", ctx);
+    Object.assign(c.prompts, prompts);
+    STATE.ui.promptsEm = { ...promptsEm };
+    if(chave !== undefined){ vm.runInContext("setIAApiKey(" + JSON.stringify(chave) + ")", ctx); STATE.ui.apiKeyEm = chaveEm||0; }
+    STATE.ui.iaSyncEm = 5000;
+    return JSON.parse(JSON.stringify(vm.runInContext("montarPacoteIA()", ctx)));
+  }
+  const NORMA_A1 = { id:"n1", nome:"NR-12", texto:"txt1", ativo:true, criadoEm:1000, atualizadoEm:1000 };
+  const NORMA_A2 = { id:"n2", nome:"NBR ISO 12100", texto:"txt2", ativo:true, criadoEm:1001, atualizadoEm:1001 };
+  const NORMA_B  = { id:"n3", nome:"NBR 14153", texto:"txt3", ativo:true, criadoEm:2000, atualizadoEm:2000 };
+
+  t("o pacote leva normas, lápides, carimbo por instrução e da chave", ()=>{
+    const pac = pacoteDe([NORMA_A1], {risco_xlsx:"X"}, {risco_xlsx:1100}, "k1", 1200);
+    ["atualizadoEm","apiKey","apiKeyEm","config","promptsEm","normasRemovidas","normas"].forEach(k=> ok(k in pac, "faltou "+k));
+    ok("atualizadoEm" in pac.normas[0], "norma sem carimbo próprio");
+  });
+  t("duas normas cadastradas em aparelhos diferentes: nenhuma se perde", ()=>{
+    const pacB = pacoteDe([NORMA_B], {}, {});
+    // aparelho A recebe o pacote de B
+    iaLimpa();
+    STATE.ui.normasIA = [ {...NORMA_A1}, {...NORMA_A2} ];
+    const r = vm.runInContext("aplicarPacoteIA(" + JSON.stringify(pacB) + ")", ctx);
+    const nomes = (STATE.ui.normasIA||[]).map(n=>n.nome);
+    eq(nomes.length, 3, "perdeu norma: " + nomes.join(", "));
+    ["NR-12","NBR ISO 12100","NBR 14153"].forEach(n=> ok(nomes.indexOf(n) >= 0, "faltou "+n));
+    ok(r.faltaNoRemoto, "não avisou que a união precisa voltar para a nuvem");
+  });
+  t("instruções diferentes editadas em aparelhos diferentes: as duas ficam", ()=>{
+    const pacB = pacoteDe([], {escopo_xlsx:"INSTRUCAO B"}, {escopo_xlsx:2100});
+    iaLimpa();
+    const c = vm.runInContext("getIAConfig()", ctx);
+    c.prompts.risco_xlsx = "INSTRUCAO A";
+    STATE.ui.promptsEm = { risco_xlsx: 1100 };
+    vm.runInContext("aplicarPacoteIA(" + JSON.stringify(pacB) + ")", ctx);
+    eq(vm.runInContext("getIAConfig().prompts.risco_xlsx", ctx), "INSTRUCAO A", "a instrução daqui foi apagada");
+    eq(vm.runInContext("getIAConfig().prompts.escopo_xlsx", ctx), "INSTRUCAO B", "a instrução de lá não chegou");
+  });
+  t("a mesma instrução editada nos dois: vence o carimbo maior", ()=>{
+    const pacB = pacoteDe([], {risco_xlsx:"DE LA MAIS NOVO"}, {risco_xlsx:9000});
+    iaLimpa();
+    vm.runInContext("getIAConfig()", ctx).prompts.risco_xlsx = "DAQUI ANTIGO";
+    STATE.ui.promptsEm = { risco_xlsx: 1000 };
+    vm.runInContext("aplicarPacoteIA(" + JSON.stringify(pacB) + ")", ctx);
+    eq(vm.runInContext("getIAConfig().prompts.risco_xlsx", ctx), "DE LA MAIS NOVO");
+    const pacC = pacoteDe([], {risco_xlsx:"DE LA ANTIGO"}, {risco_xlsx:1000});
+    iaLimpa();
+    vm.runInContext("getIAConfig()", ctx).prompts.risco_xlsx = "DAQUI MAIS NOVO";
+    STATE.ui.promptsEm = { risco_xlsx: 9000 };
+    vm.runInContext("aplicarPacoteIA(" + JSON.stringify(pacC) + ")", ctx);
+    eq(vm.runInContext("getIAConfig().prompts.risco_xlsx", ctx), "DAQUI MAIS NOVO");
+  });
+  t("aparelho sem chave NÃO apaga a chave dos outros", ()=>{
+    const pacSemChave = pacoteDe([], {}, {}, "", 0);
+    iaLimpa();
+    vm.runInContext("setIAApiKey('chave-boa')", ctx);
+    STATE.ui.apiKeyEm = 5000;
+    vm.runInContext("aplicarPacoteIA(" + JSON.stringify(pacSemChave) + ")", ctx);
+    eq(vm.runInContext("getIAApiKey()", ctx), "chave-boa", "a chave foi apagada por um aparelho que nunca teve chave");
+  });
+  t("chave nova de outro aparelho chega em quem ainda não tinha", ()=>{
+    const pacComChave = pacoteDe([], {}, {}, "chave-nova", 7000);
+    iaLimpa();
+    vm.runInContext("aplicarPacoteIA(" + JSON.stringify(pacComChave) + ")", ctx);
+    eq(vm.runInContext("getIAApiKey()", ctx), "chave-nova");
+  });
+  t("remover a chave de propósito propaga para os outros", ()=>{
+    const pacRemocao = pacoteDe([], {}, {}, "", 9000);
+    iaLimpa();
+    vm.runInContext("setIAApiKey('chave-antiga')", ctx);
+    STATE.ui.apiKeyEm = 100;
+    vm.runInContext("aplicarPacoteIA(" + JSON.stringify(pacRemocao) + ")", ctx);
+    eq(vm.runInContext("getIAApiKey()", ctx), "", "a remoção não viajou");
+  });
+  t("norma removida vira lápide e não volta do outro aparelho", ()=>{
+    const pacComNorma = pacoteDe([NORMA_A1], {}, {});
+    iaLimpa();
+    STATE.ui.normasRemovidas = { n1: 9999 };
+    vm.runInContext("aplicarPacoteIA(" + JSON.stringify(pacComNorma) + ")", ctx);
+    ok(!(STATE.ui.normasIA||[]).some(n=>n.id==="n1"), "a norma ressuscitou");
+  });
+  t("norma editada depois da remoção volta a valer", ()=>{
+    const viva = { ...NORMA_A1, atualizadoEm: 20000 };
+    const pac = pacoteDe([viva], {}, {});
+    iaLimpa();
+    STATE.ui.normasRemovidas = { n1: 9999 };
+    vm.runInContext("aplicarPacoteIA(" + JSON.stringify(pac) + ")", ctx);
+    ok((STATE.ui.normasIA||[]).some(n=>n.id==="n1"), "a norha reeditada deveria voltar");
+  });
+  t("a mesma norma editada dos dois lados: vence o carimbo maior", ()=>{
+    const pac = pacoteDe([{ ...NORMA_A1, nome:"NR-12 rev 2026", atualizadoEm: 8000 }], {}, {});
+    iaLimpa();
+    STATE.ui.normasIA = [{ ...NORMA_A1, nome:"NR-12 antiga", atualizadoEm: 1000 }];
+    vm.runInContext("aplicarPacoteIA(" + JSON.stringify(pac) + ")", ctx);
+    eq((STATE.ui.normasIA||[]).find(n=>n.id==="n1").nome, "NR-12 rev 2026");
+  });
+  t("cada ponto de edição carimba a parte certa", ()=>{
+    ok(HTML.indexOf("onIAConfigPromptInput(tipo, v){ getIAConfig().prompts[tipo] = v; marcarPromptAlterado(tipo); }") > 0,
+       "instrução não carimba por instrução");
+    ok(HTML.indexOf("onIAApiKeyInput(v){ setIAApiKey(v.trim()); marcarChaveIAAlterada(); }") > 0,
+       "chave não tem carimbo próprio");
+    ok(HTML.indexOf("getNormasRemovidas()[id] = agoraSync();") > 0, "remover norma não deixa lápide");
+    const iUp = HTML.indexOf("async onUploadNormaPDF(");
+    ok(HTML.slice(iUp, iUp+900).indexOf("criadoEm:agora, atualizadoEm:agora") > 0, "norma nova nasce sem carimbo");
+  });
+  t("o download reenvia a união quando este aparelho tem algo a mais", ()=>{
+    const i = HTML.indexOf("async function onedriveSincronizarConfigIA(");
+    const corpo = HTML.slice(i, HTML.indexOf("function getNormasIA(", i));
+    ok(corpo.indexOf("if(r.faltaNoRemoto) marcarIAAlterada();") > 0, "não reenvia a união");
+    ok(corpo.indexOf("const r = aplicarPacoteIA(JSON.parse(texto));") > 0, "não usa o novo retorno");
   });
 
   console.log("\n---------------------------------------");
