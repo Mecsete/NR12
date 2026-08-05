@@ -111,9 +111,9 @@ chk("AU = ID_Risco", novo.count('xlsmCellTexto(`AU${rowNum}`') == 1)
 chk("AV = ID_Maquina", novo.count('xlsmCellTexto(`AV${rowNum}`') == 1)
 
 print("\n=== 9. SELO DE VERSAO ===")
-chk("APP_BUILD atualizado 2x", novo.count('"05/08/2026 19:05"') == 2, "achei %d" % novo.count('"05/08/2026 19:05"'))
+chk("APP_BUILD atualizado 2x", novo.count('"05/08/2026 21:40"') == 2, "achei %d" % novo.count('"05/08/2026 21:40"'))
 chk("nenhum resquicio de build antigo",
-    all(novo.count('"%s"' % b) == 0 for b in ["29/07/2026 08:44","30/07/2026 16:20","30/07/2026 18:05","30/07/2026 19:40","30/07/2026 21:10","31/07/2026 09:30","31/07/2026 11:20","31/07/2026 15:40","31/07/2026 19:15","31/07/2026 22:30","31/07/2026 23:55","03/08/2026 17:20","03/08/2026 20:35","05/08/2026 17:30"]))
+    all(novo.count('"%s"' % b) == 0 for b in ["29/07/2026 08:44","30/07/2026 16:20","30/07/2026 18:05","30/07/2026 19:40","30/07/2026 21:10","31/07/2026 09:30","31/07/2026 11:20","31/07/2026 15:40","31/07/2026 19:15","31/07/2026 22:30","31/07/2026 23:55","03/08/2026 17:20","03/08/2026 20:35","05/08/2026 17:30","05/08/2026 19:05"]))
 
 print("\n=== 10. CRESCIMENTO DO ARQUIVO ===")
 # ATENCAO ao ler este numero: original.html e a versao publicada ANTES da
@@ -315,6 +315,21 @@ chk("o motor de semelhanca nao chama nada de fora",
 chk("a regra de qual texto vai para o laudo NAO foi tocada",
     novo.count("function laudoTextoFinal(item, campo){") == 1
     and novo.count('if(g.st==="no") return laudoTextoOriginal(item, campo);') == 1)
+
+print("\n=== 19. A DECISAO DO LAUDO SINCRONIZA ===")
+chk("laudoSet carimba a entidade dona do campo",
+    novo.count("function laudoCarimbarParaSincronizar(") == 1
+    and novo.count("laudoCarimbarParaSincronizar(item, campo);") == 1)
+chk("o carimbo usa o relogio logico",
+    novo.count("if(alvo) alvo.atualizadoEm = agoraSync();") == 1)
+chk("o carimbo esta DENTRO do laudoSet (nao espalhado nos botoes)",
+    "laudoCarimbarParaSincronizar" in novo[novo.find("function laudoSet(item, campo, patch){"):
+                                          novo.find("function laudoSet(item, campo, patch){") + 220])
+chk("os pontos de decisao continuam existindo",
+    all(novo.count(m) == 1 for m in ["laudoAplicar(rid, campo){", "laudoRecusar(rid, campo){",
+                                     "laudoSalvarEdicao(rid, campo){", "laudoAprovarLinha(rid){"]))
+chk("a regra de qual texto vai para o laudo NAO foi tocada (de novo)",
+    novo.count('if(g.st==="no") return laudoTextoOriginal(item, campo);') == 1)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")

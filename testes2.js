@@ -2220,6 +2220,71 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(bloco.indexOf(m) < 0, "o motor de semelhança não pode chamar nada de fora: " + m));
   });
 
+  console.log("\n=== t57 · a decisão do laudo chega nos outros aparelhos ===");
+  const TS0 = 1750000000000;
+  function cenarioDecisao(){
+    const risco = { id:"r1", nome:"Agarramento", nomeOutro:"", descricao:"correia sem protecao",
+      medidaImplementada:"Não", descMedida:"", sugestaoMitigacao:"", fotosOutras:[], po:"", gpd:"", fe:"", np:"",
+      criadoEm:TS0, atualizadoEm:TS0,
+      laudoIA:{ riscoSug:"Sugestao da IA", riscoFin:"", riscoSt:"pend", duvRisco:"", riscoRefs:[],
+                solucaoSug:"Sugestao solucao", solucaoFin:"", solucaoSt:"pend", duvSolucao:"", solucaoRefs:[] } };
+    const tarefa = { id:"t1", tarefa:"Limpeza", tarefaOutro:"", descricao:"d", frequencia:"Diário", numPessoas:"1",
+      riscos:[risco], criadoEm:TS0, atualizadoEm:TS0, laudoIA:{ tarefaSug:"sug", tarefaSt:"pend" } };
+    const maquina = { id:"m1", nome:"TC-01", descricao:"transportador", fotoGeral:null, fotosOutras:[],
+      tarefas:[tarefa], criadoEm:TS0, atualizadoEm:TS0, laudoIA:{ escopoSug:"sug", escopoSt:"pend" } };
+    const area = { id:"a1", nome:"Recepcao", descricao:"", local:"", maquinas:[maquina], criadoEm:TS0, atualizadoEm:TS0 };
+    const proj = { id:"p1", empresa:"Corteva", areas:[area], criadoEm:TS0, atualizadoEm:TS0 };
+    STATE.projetosSimples = [proj];
+    return { item:{ proj, area, maquina, tarefa, risco }, maquina, tarefa, risco };
+  }
+  t("aprovar uma sugestão marca o risco para sincronizar", ()=>{
+    const c = cenarioDecisao();
+    ctx.__it = c.item;
+    vm.runInContext("laudoSet(__it, 'risco', { fin:'texto aprovado', st:'ok' })", ctx);
+    eq(vm.runInContext("laudoGet(__it,'risco').st", ctx), "ok", "a decisão não foi gravada");
+    ok(c.risco.atualizadoEm > TS0, "o carimbo do risco não mudou — a decisão nunca sairia deste aparelho");
+  });
+  t("recusar e editar também marcam", ()=>{
+    let c = cenarioDecisao(); ctx.__it = c.item;
+    vm.runInContext("laudoSet(__it, 'solucao', { st:'no', fin:'' })", ctx);
+    ok(c.risco.atualizadoEm > TS0, "recusar não marcou");
+    c = cenarioDecisao(); ctx.__it = c.item;
+    vm.runInContext("laudoSet(__it, 'risco', { fin:'meu texto', st:'edit' })", ctx);
+    ok(c.risco.atualizadoEm > TS0, "editar não marcou");
+  });
+  t("cada campo marca a entidade dona dele", ()=>{
+    let c = cenarioDecisao(); ctx.__it = c.item;
+    vm.runInContext("laudoSet(__it, 'escopo', { fin:'x', st:'ok' })", ctx);
+    ok(c.maquina.atualizadoEm > TS0, "escopo deveria marcar a MÁQUINA");
+    eq(c.risco.atualizadoEm, TS0, "escopo não pode marcar o risco à toa");
+    c = cenarioDecisao(); ctx.__it = c.item;
+    vm.runInContext("laudoSet(__it, 'tarefa', { fin:'x', st:'ok' })", ctx);
+    ok(c.tarefa.atualizadoEm > TS0, "tarefa deveria marcar a TAREFA");
+    eq(c.maquina.atualizadoEm, TS0, "tarefa não pode marcar a máquina à toa");
+  });
+  t("a sugestão recém-gerada pela IA também viaja", ()=>{
+    const c = cenarioDecisao(); ctx.__it = c.item;
+    vm.runInContext("laudoSet(__it, 'risco', { sug:'sugestao nova', duv:'', st:'pend', fin:'' })", ctx);
+    ok(c.risco.atualizadoEm > TS0, "quem gerou vê a sugestão, o outro não veria");
+  });
+  t("o carimbo usa o relógio lógico, não Date.now direto", ()=>{
+    ok(HTML.indexOf("if(alvo) alvo.atualizadoEm = agoraSync();") > 0, "voltou a depender do relógio do aparelho");
+    ok(HTML.indexOf("laudoCarimbarParaSincronizar(item, campo);") > 0, "laudoSet não carimba mais");
+  });
+  t("o carimbo mora dentro do laudoSet, não espalhado nos botões", ()=>{
+    const i = HTML.indexOf("function laudoSet(item, campo, patch){");
+    ok(HTML.slice(i, i+220).indexOf("laudoCarimbarParaSincronizar") > 0,
+       "o carimbo precisa estar na raiz, senão cada botão novo esquece de fazer");
+    ["laudoAplicar(rid, campo){", "laudoRecusar(rid, campo){", "laudoAprovarLinha(rid){"].forEach(m=>
+      ok(HTML.indexOf(m) > 0, "sumiu o método " + m));
+  });
+  t("o que já funcionava continua igual", ()=>{
+    const c = cenarioDecisao(); ctx.__it = c.item;
+    vm.runInContext("laudoSet(__it, 'risco', { fin:'aprovado', st:'ok' })", ctx);
+    eq(vm.runInContext("laudoTextoFinal(__it,'risco')", ctx), "aprovado", "a regra de qual texto vai ao laudo mudou");
+    ok(vm.runInContext("laudoGet(__it,'risco')", ctx).refs !== undefined, "as referências sumiram do laudoGet");
+  });
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

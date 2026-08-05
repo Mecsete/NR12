@@ -1681,7 +1681,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
    GitHub (útil especialmente dado o atraso de alguns minutos do GitHub para
    propagar cada atualização, e para diferenciar aparelhos que ainda não
    atualizaram dos que já atualizaram). */
-const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "05/08/2026 19:05"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "05/08/2026 19:05"; } })();
+const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "05/08/2026 21:40"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "05/08/2026 21:40"; } })();
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -9300,8 +9300,25 @@ function laudoGet(item, campo){
   if(campo==="risco"){  const l = getLaudoRisco(item.risco);     return { sug:l.riscoSug, fin:l.riscoFin, st:l.riscoSt, duv:l.duvRisco, refs:l.riscoRefs||[] }; }
   const l = getLaudoRisco(item.risco);                           return { sug:l.solucaoSug, fin:l.solucaoFin, st:l.solucaoSt, duv:l.duvSolucao, refs:l.solucaoRefs||[] };
 }
+/* CARIMBO DE SINCRONIZAÇÃO — sem isto, a revisão do laudo era um trabalho
+   solitário. Aprovar uma sugestão, recusar, editar o texto ou receber uma
+   sugestão nova da IA gravava tudo certinho em .laudoIA e salvava no
+   aparelho, mas NÃO mexia no "atualizadoEm" da máquina/tarefa/risco — e é
+   esse carimbo que faz a sincronização enxergar o item como pendente de
+   envio. Resultado: o item aparecia "Aplicado" para quem decidiu e continuava
+   "Aguardando sua decisão" para o outro, para sempre. Dois inspetores
+   revisando o mesmo laudo refaziam o trabalho um do outro sem perceber.
+   Carimbar aqui dentro cobre TODOS os pontos de decisão de uma vez, em vez de
+   depender de cada um deles lembrar de fazer isso. */
+function laudoCarimbarParaSincronizar(item, campo){
+  const alvo = (campo === "escopo") ? item.maquina
+             : (campo === "tarefa") ? item.tarefa
+             : item.risco;
+  if(alvo) alvo.atualizadoEm = agoraSync();
+}
 function laudoSet(item, campo, patch){
   const agora = new Date().toISOString();
+  laudoCarimbarParaSincronizar(item, campo);
   if(campo==="escopo"){
     const l = getLaudoMaquina(item.maquina);
     if(patch.sug!==undefined) l.escopoSug = patch.sug;

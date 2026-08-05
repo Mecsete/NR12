@@ -15,6 +15,35 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 05/08/2026 21:40
+
+**Correção importante:** a revisão do laudo não chegava nos outros aparelhos.
+
+Aprovar uma sugestão, recusar, editar o texto ou receber uma sugestão nova da
+IA gravava tudo corretamente **no aparelho de quem fez** — e parava por aí. A
+alteração não era marcada como pendente de envio, então nunca subia para a
+nuvem. Na prática: o item aparecia "Aplicado" para quem decidiu e continuava
+"Aguardando sua decisão" para o outro, indefinidamente. Dois inspetores
+revisando o mesmo laudo refaziam o trabalho um do outro sem perceber.
+
+Agora toda decisão marca o item para sincronizar, no nível certo: escopo marca
+o equipamento, descrição da tarefa marca a tarefa, risco e solução marcam o
+risco.
+
+**O que isso muda no dia a dia.** Duas pessoas passam a poder revisar o mesmo
+laudo: o que um decide aparece para o outro na sincronização seguinte (no
+máximo 2 minutos com o app aberto e internet). O contador de "prontas" na aba
+Revisão passa a refletir o trabalho dos dois somado.
+
+**O que ainda não é.** Isto não é edição simultânea ao vivo. A tela não muda
+sozinha no instante em que a outra pessoa decide — ela atualiza no próximo
+ciclo de sincronização. E se as duas pessoas editarem **o mesmo campo do mesmo
+risco** antes de sincronizar, vale a última alteração; a outra se perde sem
+aviso. Para trabalhar em paralelo com segurança, o combinado continua sendo
+dividir por área ou por equipamento.
+
+---
+
 ## 05/08/2026 19:05
 
 A IA passa a aprender com os laudos que você já aprovou.
