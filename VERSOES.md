@@ -15,6 +15,47 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 05/08/2026 19:05
+
+A IA passa a aprender com os laudos que você já aprovou.
+
+**Como era.** Cada texto nascia do zero. A IA recebia a instrução configurada,
+os trechos das normas em PDF e a anotação que o inspetor escreveu naquele item
+— nada mais. Dois riscos de correia idênticos, em laudos diferentes, podiam
+sair redigidos de formas diferentes, e uma correção feita à mão no laudo
+passado não influenciava em nada o laudo seguinte.
+
+**Como ficou.** Ao gerar um texto, o app procura nos laudos deste aparelho os
+casos parecidos em que você já **aplicou** ou **editou** a sugestão, e envia
+os mais próximos como exemplo. A IA passa a escrever no padrão já consolidado
+pela engenharia em vez de começar do zero.
+
+- A semelhança considera, nesta ordem de peso: o texto do próprio campo, o
+  risco, a tarefa e o equipamento.
+- No máximo 3 casos entram em cada pedido — os mais parecidos.
+- Campos **recusados** ficam de fora de propósito: ali o texto que valeu foi o
+  do inspetor, e usá-lo como exemplo ensinaria a IA a repetir a anotação em
+  vez de redigi-la.
+- Tarefa e equipamento iguais **não bastam**: se o assunto não tem relação, o
+  caso não entra. Sem essa trava, um risco de choque elétrico num painel
+  puxaria como exemplo um risco de agarramento em correia, só por estarem na
+  mesma tarefa de limpeza.
+
+**Rastreabilidade.** Cada sugestão mostra na tela de revisão em quais casos ela
+se baseou, com o percentual de semelhança. O laudo é assinado com ART: se um
+texto antigo tiver um erro, é preciso conseguir descobrir por onde ele se
+propagou. A etapa de aprovação continua igual — nada é aplicado sozinho.
+
+**Onde ligar ou desligar.** Configurações → Inteligência Artificial, em
+"Aprender com os laudos já aprovados". Nasce ligado e mostra quantos casos
+aprovados já existem. Desligado, tudo volta a funcionar como antes.
+
+Todo o cálculo de semelhança é feito dentro do aparelho, comparando palavras.
+Não há serviço externo nem treinamento de modelo, e nada é enviado à IA além
+do que já era enviado antes.
+
+---
+
 ## 05/08/2026 17:30
 
 Instruções da IA e normas em PDF deixam de se perder entre aparelhos.

@@ -1681,7 +1681,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
    GitHub (útil especialmente dado o atraso de alguns minutos do GitHub para
    propagar cada atualização, e para diferenciar aparelhos que ainda não
    atualizaram dos que já atualizaram). */
-const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "05/08/2026 17:30"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "05/08/2026 17:30"; } })();
+const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "05/08/2026 19:05"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "05/08/2026 19:05"; } })();
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -8234,6 +8234,7 @@ function getIAConfig(){
   if(c.endpoint===undefined) c.endpoint = preset.endpoint;
   if(c.modelo===undefined) c.modelo = preset.modelo;
   if(c.usarNaExportacaoExcel===undefined) c.usarNaExportacaoExcel = true;
+  if(c.usarReferencias===undefined) c.usarReferencias = true;
   if(!c.prompts) c.prompts = {};
   ["equipamento","escopo","risco","mitigacao","tarefa","equipamento_xlsx","escopo_xlsx","tarefa_xlsx","risco_xlsx","mitigacao_xlsx"].forEach(k=>{ if(c.prompts[k]===undefined) c.prompts[k] = IA_PROMPTS_PADRAO[k]; });
   return c;
@@ -8314,7 +8315,8 @@ function montarPacoteIA(){
     apiKey: getIAApiKey(),
     apiKeyEm: (typeof STATE.ui.apiKeyEm === "number") ? STATE.ui.apiKeyEm : 0,
     config: { provedor:c.provedor, endpoint:c.endpoint, modelo:c.modelo,
-              usarNaExportacaoExcel:c.usarNaExportacaoExcel, prompts:{...(c.prompts||{})} },
+              usarNaExportacaoExcel:c.usarNaExportacaoExcel, usarReferencias:c.usarReferencias,
+              prompts:{...(c.prompts||{})} },
     promptsEm: { ...getPromptsEm() },
     normasRemovidas: { ...getNormasRemovidas() },
     normas: (STATE.ui.normasIA||[]).map(n=>({ id:n.id, nome:n.nome, texto:n.texto, ativo:n.ativo!==false,
@@ -8354,6 +8356,9 @@ function aplicarPacoteIA(pacote){
   if(typeof p.modelo === "string" && c.modelo !== p.modelo){ c.modelo = p.modelo; mudou = true; }
   if(typeof p.usarNaExportacaoExcel === "boolean" && c.usarNaExportacaoExcel !== p.usarNaExportacaoExcel){
     c.usarNaExportacaoExcel = p.usarNaExportacaoExcel; mudou = true;
+  }
+  if(typeof p.usarReferencias === "boolean" && c.usarReferencias !== p.usarReferencias){
+    c.usarReferencias = p.usarReferencias; mudou = true;
   }
 
   /* INSTRUÇÕES — uma a uma, cada qual com seu carimbo. */
@@ -9119,27 +9124,181 @@ function getLaudoMaquina(m){
   if(!m.laudoIA) m.laudoIA = {};
   const l = m.laudoIA;
   ["escopoSug","escopoFin","escopoSt","duvEquip","duvEscopo","em"].forEach(k=>{ if(l[k]===undefined) l[k] = ""; });
+  if(!Array.isArray(l.escopoRefs)) l.escopoRefs = [];
   return l;
 }
 function getLaudoTarefa(t){
   if(!t.laudoIA) t.laudoIA = {};
   const l = t.laudoIA;
   ["tarefaSug","tarefaFin","tarefaSt","duvTarefa","em"].forEach(k=>{ if(l[k]===undefined) l[k] = ""; });
+  if(!Array.isArray(l.tarefaRefs)) l.tarefaRefs = [];
   return l;
 }
 function getLaudoRisco(r){
   if(!r.laudoIA) r.laudoIA = {};
   const l = r.laudoIA;
   ["riscoSug","riscoFin","riscoSt","duvRisco","solucaoSug","solucaoFin","solucaoSt","duvSolucao","em"].forEach(k=>{ if(l[k]===undefined) l[k] = ""; });
+  if(!Array.isArray(l.riscoRefs)) l.riscoRefs = [];
+  if(!Array.isArray(l.solucaoRefs)) l.solucaoRefs = [];
   return l;
+}
+/* =========================================================================
+   APRENDER COM OS LAUDOS JÁ APROVADOS
+
+   Antes, cada texto nascia do zero: a IA recebia a instrução fixa, os
+   trechos das normas e a anotação do inspetor daquele item — nada mais.
+   Dois riscos de correia idênticos, em laudos diferentes, podiam sair
+   redigidos de formas diferentes, e uma correção feita à mão no laudo
+   passado não influenciava em nada o laudo seguinte.
+
+   Agora, ao gerar, o app varre o histórico DESTE APARELHO atrás dos campos
+   em que você já se manifestou — aplicou a sugestão ou editou o texto — e
+   escolhe os mais parecidos com o que está sendo escrito, comparando o
+   texto do próprio campo, o nome do risco, a tarefa e a máquina. Esses
+   casos entram no pedido como EXEMPLOS de entrada → saída aprovada.
+
+   POR QUE SÓ "APLICADO" E "EDITADO": nesses dois estados existem os dois
+   lados da conta — o que o inspetor anotou em campo e o texto que a
+   engenharia aceitou. É esse par que ensina o padrão de redação da casa.
+   Campo RECUSADO fica de fora de propósito: ali o que valeu foi o próprio
+   texto do inspetor, e usá-lo como exemplo ensinaria a IA a copiar a
+   entrada em vez de redigi-la.
+
+   TUDO LOCAL: a semelhança é calculada no próprio aparelho, comparando
+   palavras. Não há serviço externo, não há treinamento de modelo, e não
+   sai do aparelho nada além do que já era enviado à IA.
+
+   RASTREABILIDADE: cada campo gerado guarda de quais itens se baseou. O
+   laudo é assinado com ART — se um texto antigo tiver um erro, é preciso
+   conseguir descobrir por onde ele se propagou.
+   ========================================================================= */
+const REFS_IA_MAX = 3;            // no máximo 3 exemplos por pedido
+const REFS_IA_MIN_SCORE = 0.18;   // abaixo disso não é "parecido", é ruído
+const REFS_IA_MAX_CHARS = 600;    // corte de cada exemplo, para não inchar o pedido
+/* Palavras que aparecem em tudo e não ajudam a distinguir um risco de outro. */
+const REFS_IA_VAZIAS = new Set(("a o as os um uma uns umas de do da dos das em no na nos nas " +
+  "por para com sem sob sobre entre ao aos e ou que se quando onde qual quais este esta isso " +
+  "ser sao foi era tem ter ha pode podem deve devem mais menos muito pouco durante apos antes").split(" "));
+function refsTokens(texto){
+  return String(texto||"")
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter(p => p.length > 2 && !REFS_IA_VAZIAS.has(p));
+}
+function refsConjunto(texto){ return new Set(refsTokens(texto)); }
+/* Semelhança de Jaccard: quantas palavras os dois textos têm em comum,
+   dividido pelo total de palavras distintas. 0 = nada a ver, 1 = iguais. */
+function refsSemelhanca(a, b){
+  if(!a || !b || !a.size || !b.size) return 0;
+  let comuns = 0;
+  a.forEach(p => { if(b.has(p)) comuns++; });
+  return comuns / (a.size + b.size - comuns);
+}
+function laudoNomeDoRisco(r){ return ((r && (r.nome===OUTRO ? r.nomeOutro : r.nome)) || ""); }
+function laudoRotuloItem(o){
+  return [nomeMaquinaS(o.maquina), valOuOutro(o.tarefa.tarefa, o.tarefa.tarefaOutro), laudoNomeDoRisco(o.risco)]
+    .filter(Boolean).join(" · ");
+}
+/* Índice dos campos já aprovados, com as palavras já separadas — montado UMA
+   vez por geração, não a cada item (com centenas de linhas, recalcular isso
+   por item deixaria a geração lenta à toa). */
+function laudoExemplosAprovados(campo){
+  const out = [], vistos = new Set();
+  linhasEscopoSimples().forEach(o => {
+    const g = laudoGet(o, campo);
+    if(g.st !== "ok" && g.st !== "edit") return;
+    const saida = String(g.fin || g.sug || "").trim();
+    const entrada = String(laudoTextoOriginal(o, campo) || "").trim();
+    if(!saida || !entrada) return;
+    const chave = entrada + "\u0000" + saida;
+    if(vistos.has(chave)) return;      // mesmo par repetido em várias linhas
+    vistos.add(chave);
+    const risco = laudoNomeDoRisco(o.risco);
+    const tarefa = valOuOutro(o.tarefa.tarefa, o.tarefa.tarefaOutro);
+    const maquina = nomeMaquinaS(o.maquina);
+    out.push({
+      id: o.risco.id, rot: laudoRotuloItem(o),
+      entrada, saida, risco, tarefa, maquina,
+      tokTexto: refsConjunto(entrada),
+      tokRisco: refsConjunto(risco + " " + (o.risco.descricao || "")),
+      tokTarefa: refsConjunto(tarefa),
+      tokMaquina: refsConjunto(maquina + " " + (o.maquina.descricao || "")),
+    });
+  });
+  return out;
+}
+/* Escolhe os exemplos mais parecidos. O peso maior é do texto do próprio
+   campo — é ele que a IA vai reescrever; risco, tarefa e máquina entram
+   como contexto, na ordem de importância pedida. */
+function laudoRefsParaItem(item, campo, exemplos){
+  if(!exemplos || !exemplos.length) return [];
+  const alvoTexto   = refsConjunto(laudoTextoOriginal(item, campo));
+  const alvoRisco   = refsConjunto(laudoNomeDoRisco(item.risco) + " " + (item.risco.descricao || ""));
+  const alvoTarefa  = refsConjunto(valOuOutro(item.tarefa.tarefa, item.tarefa.tarefaOutro));
+  const alvoMaquina = refsConjunto(nomeMaquinaS(item.maquina) + " " + (item.maquina.descricao || ""));
+  const pontuados = [];
+  exemplos.forEach(ex => {
+    if(ex.id === item.risco.id) return;    // o próprio item nunca é exemplo de si mesmo
+    const simTexto = refsSemelhanca(alvoTexto, ex.tokTexto);
+    const simRisco = refsSemelhanca(alvoRisco, ex.tokRisco);
+    /* TRAVA DE ASSUNTO — tarefa e equipamento iguais NÃO bastam. Sem isto, um
+       risco de choque elétrico num painel puxava como exemplo um risco de
+       agarramento em correia, só porque os dois estavam na mesma tarefa de
+       limpeza do mesmo tipo de equipamento: 25% de "semelhança" sem nenhuma
+       relação de assunto, e a IA sairia redigindo o risco errado. O caso só
+       serve de exemplo se tiver algo em comum no texto do campo OU no risco;
+       tarefa e máquina entram apenas para desempatar. */
+    if(simTexto === 0 && simRisco === 0) return;
+    const s = 0.50 * simTexto
+            + 0.25 * simRisco
+            + 0.15 * refsSemelhanca(alvoTarefa,  ex.tokTarefa)
+            + 0.10 * refsSemelhanca(alvoMaquina, ex.tokMaquina);
+    if(s >= REFS_IA_MIN_SCORE) pontuados.push({ ex, s });
+  });
+  pontuados.sort((a, b) => b.s - a.s);
+  return pontuados.slice(0, REFS_IA_MAX);
+}
+/* Bloco que vai junto ao pedido. Fica no texto do USUÁRIO, não na instrução —
+   assim continua funcionando mesmo com os prompts personalizados por você. */
+function laudoBlocoReferencias(escolhidos){
+  if(!escolhidos || !escolhidos.length) return "";
+  const blocos = escolhidos.map((p, i) => {
+    const ex = p.ex;
+    return `Exemplo ${i+1} — ${ex.rot || "caso anterior"}:\n` +
+           `Anotação do inspetor: ${ex.entrada.slice(0, REFS_IA_MAX_CHARS)}\n` +
+           `Texto aprovado no laudo: ${ex.saida.slice(0, REFS_IA_MAX_CHARS)}`;
+  }).join("\n\n");
+  return `\n\n--- Casos semelhantes já aprovados pela engenharia ---\n` +
+    `Os textos abaixo saíram em laudos anteriores desta empresa e foram aprovados. ` +
+    `Siga o mesmo padrão de redação, vocabulário e nível de detalhe. NÃO copie um exemplo ` +
+    `palavra por palavra e NÃO misture dados de equipamentos diferentes — escreva sobre o caso atual.\n\n${blocos}`;
+}
+/* Liga/desliga o uso das referências. Nasce ligado; fica em Configurações →
+   IA porque é o engenheiro quem responde pelo texto assinado. */
+function laudoUsaReferencias(){
+  const c = getIAConfig();
+  return c.usarReferencias !== false;
+}
+/* Junta tudo: devolve { texto, refs } — o texto já com o bloco de exemplos e
+   a lista do que foi usado, para gravar junto e poder rastrear depois. */
+function laudoEntradaComReferencias(item, campo, entrada, exemplos){
+  if(!laudoUsaReferencias() || !exemplos || !exemplos.length) return { texto: entrada, refs: [] };
+  const escolhidos = laudoRefsParaItem(item, campo, exemplos);
+  if(!escolhidos.length) return { texto: entrada, refs: [] };
+  return {
+    texto: entrada + laudoBlocoReferencias(escolhidos),
+    refs: escolhidos.map(p => ({ id: p.ex.id, rot: p.ex.rot, sem: Math.round(p.s * 100) })),
+  };
 }
 /* Lê o trio (sugestão / texto final / estado) + a dúvida de um campo, sem
    precisar saber em qual nível ele está guardado. */
 function laudoGet(item, campo){
-  if(campo==="escopo"){ const l = getLaudoMaquina(item.maquina); return { sug:l.escopoSug, fin:l.escopoFin, st:l.escopoSt, duv:l.duvEscopo }; }
-  if(campo==="tarefa"){ const l = getLaudoTarefa(item.tarefa);   return { sug:l.tarefaSug, fin:l.tarefaFin, st:l.tarefaSt, duv:l.duvTarefa }; }
-  if(campo==="risco"){  const l = getLaudoRisco(item.risco);     return { sug:l.riscoSug, fin:l.riscoFin, st:l.riscoSt, duv:l.duvRisco }; }
-  const l = getLaudoRisco(item.risco);                           return { sug:l.solucaoSug, fin:l.solucaoFin, st:l.solucaoSt, duv:l.duvSolucao };
+  if(campo==="escopo"){ const l = getLaudoMaquina(item.maquina); return { sug:l.escopoSug, fin:l.escopoFin, st:l.escopoSt, duv:l.duvEscopo, refs:l.escopoRefs||[] }; }
+  if(campo==="tarefa"){ const l = getLaudoTarefa(item.tarefa);   return { sug:l.tarefaSug, fin:l.tarefaFin, st:l.tarefaSt, duv:l.duvTarefa, refs:l.tarefaRefs||[] }; }
+  if(campo==="risco"){  const l = getLaudoRisco(item.risco);     return { sug:l.riscoSug, fin:l.riscoFin, st:l.riscoSt, duv:l.duvRisco, refs:l.riscoRefs||[] }; }
+  const l = getLaudoRisco(item.risco);                           return { sug:l.solucaoSug, fin:l.solucaoFin, st:l.solucaoSt, duv:l.duvSolucao, refs:l.solucaoRefs||[] };
 }
 function laudoSet(item, campo, patch){
   const agora = new Date().toISOString();
@@ -9149,6 +9308,7 @@ function laudoSet(item, campo, patch){
     if(patch.fin!==undefined) l.escopoFin = patch.fin;
     if(patch.st !==undefined) l.escopoSt  = patch.st;
     if(patch.duv!==undefined) l.duvEscopo = patch.duv;
+    if(patch.refs!==undefined) l.escopoRefs = patch.refs;
     l.em = agora; return;
   }
   if(campo==="tarefa"){
@@ -9157,6 +9317,7 @@ function laudoSet(item, campo, patch){
     if(patch.fin!==undefined) l.tarefaFin = patch.fin;
     if(patch.st !==undefined) l.tarefaSt  = patch.st;
     if(patch.duv!==undefined) l.duvTarefa = patch.duv;
+    if(patch.refs!==undefined) l.tarefaRefs = patch.refs;
     l.em = agora; return;
   }
   const l = getLaudoRisco(item.risco);
@@ -9165,11 +9326,13 @@ function laudoSet(item, campo, patch){
     if(patch.fin!==undefined) l.riscoFin = patch.fin;
     if(patch.st !==undefined) l.riscoSt  = patch.st;
     if(patch.duv!==undefined) l.duvRisco = patch.duv;
+    if(patch.refs!==undefined) l.riscoRefs = patch.refs;
   }else{
     if(patch.sug!==undefined) l.solucaoSug = patch.sug;
     if(patch.fin!==undefined) l.solucaoFin = patch.fin;
     if(patch.st !==undefined) l.solucaoSt  = patch.st;
     if(patch.duv!==undefined) l.duvSolucao = patch.duv;
+    if(patch.refs!==undefined) l.solucaoRefs = patch.refs;
   }
   l.em = agora;
 }
@@ -9275,6 +9438,13 @@ async function gerarLaudoIAItens(itens, onProgress, opts){
   __iaChamadasFalhas = 0; __iaMotivoFalha = "";
   if(!getIAApiKey()){ toast("Configure a chave da IA em Configurações → Inteligência Artificial", false); return 0; }
   const reuso = laudoMontarIndiceReuso();
+  /* Índice dos casos já aprovados, montado UMA vez para a leva inteira.
+     Vale a foto de ANTES desta geração de propósito: um texto gerado agora
+     ainda não foi aprovado por ninguém e não pode servir de exemplo. */
+  const exemplos = laudoUsaReferencias()
+    ? { escopo:laudoExemplosAprovados("escopo"), tarefa:laudoExemplosAprovados("tarefa"),
+        risco:laudoExemplosAprovados("risco"),  solucao:laudoExemplosAprovados("solucao") }
+    : { escopo:[], tarefa:[], risco:[], solucao:[] };
   const maquinasFeitas = new Set(), tarefasFeitas = new Set();
   let gravados = 0;
   for(let i=0;i<itens.length;i++){
@@ -9284,15 +9454,17 @@ async function gerarLaudoIAItens(itens, onProgress, opts){
     const lm = getLaudoMaquina(item.maquina);
     if(laudoPrecisaGerar(item, "escopo", refazer) && !maquinasFeitas.has(item.maquina.id)){
       maquinasFeitas.add(item.maquina.id);
+      const entradaEscopo = laudoEntradaComReferencias(item, "escopo",
+        `Nome: ${nomeMaquinaS(item.maquina)}\nDescrição: ${item.maquina.descricao||"(não informada)"}`, exemplos.escopo);
       const [respEquip, respEscopo] = await Promise.all([
         chamarIAResiliente("equipamento_xlsx", item.maquina.descricao || nomeMaquinaS(item.maquina)),
-        chamarIAResiliente("escopo_xlsx", `Nome: ${nomeMaquinaS(item.maquina)}\nDescrição: ${item.maquina.descricao||"(não informada)"}`),
+        chamarIAResiliente("escopo_xlsx", entradaEscopo.texto),
       ]);
       const jEquip  = parseRespostaJsonIA(respEquip) || {};
       const jEscopo = parseRespostaJsonIA(respEscopo) || {};
       if(jEquip.duvida!==undefined) lm.duvEquip = jEquip.duvida || "";
       if(jEscopo.texto){
-        laudoSet(item, "escopo", { sug:jEscopo.texto, duv:jEscopo.duvida||"", st:"pend", fin:"" });
+        laudoSet(item, "escopo", { sug:jEscopo.texto, duv:jEscopo.duvida||"", st:"pend", fin:"", refs:entradaEscopo.refs });
         gravados++;
       }
       await esperar(200);
@@ -9301,8 +9473,10 @@ async function gerarLaudoIAItens(itens, onProgress, opts){
     if(laudoPrecisaGerar(item, "tarefa", refazer) && !tarefasFeitas.has(item.tarefa.id)){
       tarefasFeitas.add(item.tarefa.id);
       const nomeTarefa = valOuOutro(item.tarefa.tarefa, item.tarefa.tarefaOutro);
-      const j = parseRespostaJsonIA(await chamarIAResiliente("tarefa_xlsx", `Tarefa: ${nomeTarefa}\nMáquina/Ativo: ${nomeMaquinaS(item.maquina)}\nNota do inspetor: ${item.tarefa.descricao||"(não informada)"}`)) || {};
-      if(j.texto){ laudoSet(item, "tarefa", { sug:j.texto, duv:j.duvida||"", st:"pend", fin:"" }); gravados++; }
+      const entradaTarefa = laudoEntradaComReferencias(item, "tarefa",
+        `Tarefa: ${nomeTarefa}\nMáquina/Ativo: ${nomeMaquinaS(item.maquina)}\nNota do inspetor: ${item.tarefa.descricao||"(não informada)"}`, exemplos.tarefa);
+      const j = parseRespostaJsonIA(await chamarIAResiliente("tarefa_xlsx", entradaTarefa.texto)) || {};
+      if(j.texto){ laudoSet(item, "tarefa", { sug:j.texto, duv:j.duvida||"", st:"pend", fin:"", refs:entradaTarefa.refs }); gravados++; }
       await esperar(200);
     }
     // ---- Risco e Solução (por LINHA, com reuso de casos idênticos) ----
@@ -9312,14 +9486,15 @@ async function gerarLaudoIAItens(itens, onProgress, opts){
       const ch = laudoChaveReuso(campo, orig);
       if(orig.trim() && reuso.has(ch)){
         const r = reuso.get(ch);
-        laudoSet(item, campo, { sug:r.texto, duv:r.duv, st:"pend", fin:"" });
+        laudoSet(item, campo, { sug:r.texto, duv:r.duv, st:"pend", fin:"", refs:r.refs||[] });
         gravados++;
         continue;
       }
-      const j = parseRespostaJsonIA(await chamarIAResiliente(LAUDO_TIPO_PROMPT[campo], orig)) || {};
+      const entradaCampo = laudoEntradaComReferencias(item, campo, orig, exemplos[campo]);
+      const j = parseRespostaJsonIA(await chamarIAResiliente(LAUDO_TIPO_PROMPT[campo], entradaCampo.texto)) || {};
       if(j.texto){
-        laudoSet(item, campo, { sug:j.texto, duv:j.duvida||"", st:"pend", fin:"" });
-        if(orig.trim()) reuso.set(ch, { texto:j.texto, duv:j.duvida||"" });
+        laudoSet(item, campo, { sug:j.texto, duv:j.duvida||"", st:"pend", fin:"", refs:entradaCampo.refs });
+        if(orig.trim()) reuso.set(ch, { texto:j.texto, duv:j.duvida||"", refs:entradaCampo.refs });
         gravados++;
       }
       await esperar(250);
@@ -9341,9 +9516,11 @@ async function refazerSugestaoLaudo(item, campo, instrucao){
   const g = laudoGet(item, campo);
   const base = laudoTextoOriginal(item, campo);
   const entrada = instrucao ? laudoTextoUsuarioRefino(base, g.fin || g.sug, instrucao) : base;
-  const j = parseRespostaJsonIA(await chamarIAResiliente(LAUDO_TIPO_PROMPT[campo], entrada)) || {};
+  const comRefs = laudoEntradaComReferencias(item, campo, entrada,
+    laudoUsaReferencias() ? laudoExemplosAprovados(campo) : []);
+  const j = parseRespostaJsonIA(await chamarIAResiliente(LAUDO_TIPO_PROMPT[campo], comRefs.texto)) || {};
   if(!j.texto) return false;
-  laudoSet(item, campo, { sug:j.texto, duv:(j.duvida!==undefined? j.duvida : g.duv), st:"pend", fin:"" });
+  laudoSet(item, campo, { sug:j.texto, duv:(j.duvida!==undefined? j.duvida : g.duv), st:"pend", fin:"", refs:comRefs.refs });
   marcarAlterado();
   return true;
 }
@@ -10581,6 +10758,11 @@ function laudoBlocoCampo(item, campo){
       ? `<div style="font-size:13.5px;color:var(--ink);background:#F3F6FC;border:1px solid #D6E2F5;border-radius:8px;padding:10px;white-space:pre-wrap">${escapeHtml(g.sug)}</div>`
       : `<div style="font-size:13px;color:var(--ink-faint);background:var(--bg-soft);border-radius:8px;padding:9px 10px">Ainda não gerada.</div>`}
 
+    ${(g.refs && g.refs.length)? `<div style="margin-top:8px;font-size:11.5px;color:var(--ink-dim)">
+        <b>Baseada em:</b> ${g.refs.map(r=>escapeHtml(r.rot||"caso anterior")+(r.sem?` <span style="color:var(--ink-faint)">(${r.sem}%)</span>`:"")).join(" · ")}
+        <div style="color:var(--ink-faint);margin-top:2px">Casos que você já aprovou e que a IA usou como padrão de redação. Confira se a semelhança faz sentido — o laudo é assinado por você.</div>
+      </div>`:""}
+
     ${g.duv? `<div style="margin-top:10px;background:#FFF3D6;border:1px solid #E9C46A;border-radius:8px;padding:9px 10px">
         <div style="font-size:10.5px;font-weight:800;color:#8A5B00;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Dúvida da IA</div>
         <div style="font-size:13px;color:#5C3D00">${escapeHtml(g.duv)}</div>
@@ -11102,6 +11284,24 @@ function screenSimplesConfigIA(){
   <button class="btn btn-secondary btn-block" onclick="App.testarIA()">${ic('check')} Testar conexão</button>
   ${__ultimoTesteIA ? `<div class="field-hint" style="margin-top:8px;color:${__ultimoTesteIA.ok?'var(--ok, #2e7d32)':'var(--danger, #c0392b)'}">${escapeHtml(__ultimoTesteIA.mensagem)}</div>` : ""}
   ${cfg.provedor==="openai" ? `<div class="field-hint" style="margin-top:8px">Atenção: a OpenAI costuma bloquear chamadas feitas direto pelo navegador (sem servidor intermediário). Se o teste falhar com erro de rede/CORS, use Google Gemini ou Groq, que funcionam direto neste app.</div>` : ""}
+  <div class="section-title">Aprender com os laudos já aprovados</div>
+  <div class="card card-pad">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+      <div style="min-width:0">
+        <div style="font-weight:800;font-size:13.5px;margin-bottom:3px">Usar casos anteriores como referência</div>
+        <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:0">Ao gerar um texto, o app procura nos laudos deste aparelho os casos parecidos que você já <b>aplicou</b> ou <b>editou</b> e os envia como exemplo, para a IA escrever no padrão da casa em vez de começar do zero. A semelhança considera o texto do campo, o risco, a tarefa e o equipamento — e é calculada aqui mesmo, sem enviar nada a mais para fora.</p>
+      </div>
+      <label class="switch" style="flex-shrink:0"><input type="checkbox" ${laudoUsaReferencias()?'checked':''} onchange="App.toggleIAReferencias()"><span class="switch-track"></span></label>
+    </div>
+    ${(()=>{
+      const n = LAUDO_CAMPOS.reduce((t,c)=> t + laudoExemplosAprovados(c.k).length, 0);
+      if(!laudoUsaReferencias()) return `<div class="field-hint" style="margin-top:10px">Desligado — cada texto é escrito do zero, como antes.</div>`;
+      return n===0
+        ? `<div class="field-hint" style="margin-top:10px">Ainda não há nenhum caso aprovado neste aparelho. A partir do momento em que você aplicar ou editar as sugestões na aba Revisão, eles passam a servir de referência sozinhos.</div>`
+        : `<div class="field-hint" style="margin-top:10px"><b>${n}</b> caso(s) aprovado(s) disponível(is) como referência. No máximo ${REFS_IA_MAX} entram em cada pedido — os mais parecidos com o item que está sendo escrito.</div>`;
+    })()}
+    <div class="field-hint" style="margin-top:8px">Campos <b>recusados</b> ficam de fora de propósito: ali o texto que valeu foi o seu, e usá-lo como exemplo ensinaria a IA a repetir a anotação em vez de redigi-la.</div>
+  </div>
   <div class="section-title">Instruções para a IA (prompt por campo)</div>
   <div class="field"><label>Descrição do Equipamento</label><textarea oninput="App.onIAConfigPromptInput('equipamento', this.value)">${escapeHtml(cfg.prompts.equipamento)}</textarea></div>
   <div class="field"><label>Escopo</label><textarea oninput="App.onIAConfigPromptInput('escopo', this.value)">${escapeHtml(cfg.prompts.escopo)}</textarea></div>
@@ -13038,6 +13238,12 @@ const App = {
   },
   removerChaveIA(){ setIAApiKey(""); marcarChaveIAAlterada(); render(); toast("Chave removida — IA desativada"); },
   toggleIAExportacaoExcel(){ const c=getIAConfig(); c.usarNaExportacaoExcel=!c.usarNaExportacaoExcel; marcarIAAlterada(); render(); },
+  toggleIAReferencias(){
+    const c=getIAConfig();
+    c.usarReferencias = !laudoUsaReferencias();
+    marcarIAAlterada(); render();
+    toast(c.usarReferencias ? "A IA passa a se basear nos casos já aprovados" : "A IA volta a escrever cada texto do zero");
+  },
   async onUploadNormaPDF(file){
     if(!file) return;
     if(!/\.pdf$/i.test(file.name)){ toast("Selecione um arquivo .pdf", false); return; }

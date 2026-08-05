@@ -2073,6 +2073,153 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(corpo.indexOf("const r = aplicarPacoteIA(JSON.parse(texto));") > 0, "não usa o novo retorno");
   });
 
+  console.log("\n=== t56 · a IA aprende com os laudos já aprovados ===");
+  function mkRisco(id, nome, desc, laudo){
+    return { id, nome, nomeOutro:"", descricao:desc, medidaImplementada:"Não", descMedida:"",
+             sugestaoMitigacao:"", fotosOutras:[], po:"", gpd:"", fe:"", np:"", laudoIA: laudo||{} };
+  }
+  function cenarioRefs(){
+    const h1 = mkRisco("h1","Agarramento","correia transportadora sem protecao na regiao do tambor",
+      { riscoFin:"Risco de agarramento e arrasto do operador pelo contato com a correia e o tambor desprotegidos.", riscoSt:"edit" });
+    const h2 = mkRisco("h2","Corte","chapa com rebarba na porta da grade",
+      { riscoFin:"Risco de corte nas maos por contato com aresta viva na porta da grade.", riscoSt:"ok" });
+    const h3 = mkRisco("h3","Choque eletrico","painel de comando sem tampa",
+      { riscoFin:"Risco de choque eletrico por contato com partes energizadas expostas no painel.", riscoSt:"ok" });
+    const h4 = mkRisco("h4","Queda","plataforma sem guarda corpo",
+      { riscoSug:"sugestao que foi recusada", riscoSt:"no" });   // recusado — não pode virar exemplo
+    const h5 = mkRisco("h5","Esmagamento","prensa sem cortina de luz", { riscoSug:"gerada, ainda sem decisão", riscoSt:"pend" });
+    const tH = { id:"th", tarefa:"Limpeza e higienizacao", tarefaOutro:"", descricao:"limpeza", frequencia:"Diário", numPessoas:"1", riscos:[h1,h2,h3,h4,h5], laudoIA:{} };
+    const mH = { id:"mh", nome:"Transportador de correia TC-01", descricao:"transportador", fotoGeral:null, fotosOutras:[], tarefas:[tH], laudoIA:{} };
+    const x1 = mkRisco("x1","Agarramento","correia do transportador sem protecao junto ao tambor");
+    const x2 = mkRisco("x2","Choque eletrico","painel eletrico aberto sem sinalizacao");
+    const x3 = mkRisco("x3","Atropelamento","empilhadeira circulando sem faixa demarcada");
+    const tN = { id:"tn", tarefa:"Limpeza e higienizacao", tarefaOutro:"", descricao:"limpeza", frequencia:"Diário", numPessoas:"1", riscos:[x1,x2,x3], laudoIA:{} };
+    const mN = { id:"mn", nome:"Transportador de correia TC-07", descricao:"transportador", fotoGeral:null, fotosOutras:[], tarefas:[tN], laudoIA:{} };
+    STATE.projetosSimples = [{ id:"p1", empresa:"Corteva", cidade:"Formosa/GO", criadoEm:1, atualizadoEm:1,
+      areas:[ { id:"ah", nome:"Recepcao", descricao:"", local:"", maquinas:[mH] },
+              { id:"an", nome:"Expedicao", descricao:"", local:"", maquinas:[mN] } ] }];
+    STATE.ui.areasSelecionadasExport = ["ah","an"]; STATE.ui.areasExportConhecidas = ["ah","an"];
+    vm.runInContext("getIAConfig().usarReferencias = true;", ctx);
+    const item = (r, m, t)=>({ proj:STATE.projetosSimples[0], area:STATE.projetosSimples[0].areas[1], maquina:m||mN, tarefa:t||tN, risco:r });
+    return { item, x1, x2, x3, h1, mH, tH };
+  }
+
+  t("só entram campos aplicados ou editados", ()=>{
+    cenarioRefs();
+    const ex = vm.runInContext("laudoExemplosAprovados('risco')", ctx);
+    eq(ex.length, 3, "deveria pegar só os 3 decididos (ok/edit)");
+    ok(!ex.some(e=>e.entrada.indexOf("guarda corpo") >= 0), "campo RECUSADO virou exemplo");
+    ok(!ex.some(e=>e.entrada.indexOf("cortina de luz") >= 0), "campo ainda sem decisão virou exemplo");
+  });
+  t("o exemplo guarda o par anotação → texto aprovado", ()=>{
+    cenarioRefs();
+    const ex = vm.runInContext("laudoExemplosAprovados('risco')", ctx);
+    const ag = ex.find(e=>e.risco==="Agarramento");
+    ok(ag.entrada.indexOf("correia transportadora") >= 0, "sem a anotação do inspetor");
+    ok(ag.saida.indexOf("Risco de agarramento") >= 0, "sem o texto aprovado");
+    ok(ag.rot.indexOf("TC-01") >= 0, "sem o rótulo de origem");
+  });
+  t("escolhe o caso do mesmo assunto, não o da mesma tarefa", ()=>{
+    const c = cenarioRefs();
+    const ex = vm.runInContext("laudoExemplosAprovados('risco')", ctx);
+    ctx.__it = c.item(c.x1); ctx.__ex = ex;
+    const correia = vm.runInContext("laudoRefsParaItem(__it, 'risco', __ex)", ctx);
+    eq(correia.length, 1, "puxou exemplo demais");
+    eq(correia[0].ex.risco, "Agarramento");
+    ctx.__it = c.item(c.x2);
+    const choque = vm.runInContext("laudoRefsParaItem(__it, 'risco', __ex)", ctx);
+    eq(choque.length, 1);
+    eq(choque[0].ex.risco, "Choque eletrico", "trouxe o risco errado");
+  });
+  t("tarefa e equipamento iguais NÃO bastam — assunto diferente fica fora", ()=>{
+    const c = cenarioRefs();
+    ctx.__it = c.item(c.x3);   // atropelamento por empilhadeira, mesma tarefa e área
+    ctx.__ex = vm.runInContext("laudoExemplosAprovados('risco')", ctx);
+    eq(vm.runInContext("laudoRefsParaItem(__it, 'risco', __ex)", ctx).length, 0,
+       "puxou exemplo sem relação de assunto — a IA redigiria o risco errado");
+    ok(HTML.indexOf("if(simTexto === 0 && simRisco === 0) return;") > 0, "a trava de assunto sumiu do código");
+  });
+  t("um item nunca é exemplo de si mesmo", ()=>{
+    const c = cenarioRefs();
+    ctx.__ex = vm.runInContext("laudoExemplosAprovados('risco')", ctx);
+    ctx.__it = { proj:STATE.projetosSimples[0], area:STATE.projetosSimples[0].areas[0], maquina:c.mH, tarefa:c.tH, risco:c.h1 };
+    ok(!vm.runInContext("laudoRefsParaItem(__it, 'risco', __ex)", ctx).some(p=>p.ex.id === "h1"));
+  });
+  t("no máximo 3 exemplos por pedido", ()=>{
+    eq(vm.runInContext("REFS_IA_MAX", ctx), 3);
+    const c = cenarioRefs();
+    const muitos = [];
+    for(let i=0;i<40;i++) muitos.push({ id:"g"+i, rot:"Caso "+i, entrada:"correia sem protecao no tambor", saida:"Risco de agarramento "+i,
+      risco:"Agarramento", tarefa:"Limpeza", maquina:"Transportador",
+      tokTexto:vm.runInContext("refsConjunto('correia sem protecao no tambor')", ctx),
+      tokRisco:vm.runInContext("refsConjunto('Agarramento')", ctx),
+      tokTarefa:vm.runInContext("refsConjunto('Limpeza')", ctx),
+      tokMaquina:vm.runInContext("refsConjunto('Transportador')", ctx) });
+    ctx.__it = c.item(c.x1); ctx.__ex = muitos;
+    eq(vm.runInContext("laudoRefsParaItem(__it, 'risco', __ex)", ctx).length, 3);
+  });
+  t("o bloco enviado traz os pares e proíbe copiar palavra por palavra", ()=>{
+    const c = cenarioRefs();
+    ctx.__ex = vm.runInContext("laudoExemplosAprovados('risco')", ctx);
+    ctx.__it = c.item(c.x1);
+    const m = vm.runInContext("laudoEntradaComReferencias(__it, 'risco', 'correia do transportador sem protecao', __ex)", ctx);
+    ok(m.texto.indexOf("correia do transportador sem protecao") === 0, "a anotação atual deixou de vir primeiro");
+    ok(m.texto.indexOf("Anotação do inspetor:") > 0, "sem a entrada do exemplo");
+    ok(m.texto.indexOf("Texto aprovado no laudo:") > 0, "sem a saída aprovada");
+    ok(m.texto.indexOf("NÃO copie um exemplo") > 0, "não proíbe a cópia literal");
+    eq(m.refs.length, 1, "não registrou a origem");
+    ok(m.refs[0].rot.indexOf("TC-01") >= 0);
+    ok(m.refs[0].sem > 0, "sem o percentual de semelhança");
+  });
+  t("desligado, tudo volta a ser como antes", ()=>{
+    const c = cenarioRefs();
+    vm.runInContext("getIAConfig().usarReferencias = false;", ctx);
+    ctx.__ex = vm.runInContext("laudoExemplosAprovados('risco')", ctx);
+    ctx.__it = c.item(c.x1);
+    const m = vm.runInContext("laudoEntradaComReferencias(__it, 'risco', 'texto puro', __ex)", ctx);
+    eq(m.texto, "texto puro", "ainda anexou exemplos com o recurso desligado");
+    eq(m.refs.length, 0);
+    vm.runInContext("getIAConfig().usarReferencias = true;", ctx);
+  });
+  t("sem histórico nenhum, o pedido sai igual ao de antes", ()=>{
+    cenarioRefs();
+    STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos.forEach(r=>{ r.laudoIA = {}; });
+    ctx.__ex = vm.runInContext("laudoExemplosAprovados('risco')", ctx);
+    eq(ctx.__ex.length, 0);
+    const c2 = cenarioRefs();
+    ctx.__it = c2.item(c2.x1);
+    ctx.__ex = [];
+    eq(vm.runInContext("laudoEntradaComReferencias(__it, 'risco', 'so o texto', __ex)", ctx).texto, "so o texto");
+  });
+  t("as quatro camadas de geração usam as referências", ()=>{
+    ["escopo","tarefa"].forEach(k=> ok(HTML.indexOf('laudoEntradaComReferencias(item, "'+k+'"') > 0, "faltou "+k));
+    ok(HTML.indexOf("laudoEntradaComReferencias(item, campo, orig, exemplos[campo])") > 0, "risco/solução não usam");
+    ok(HTML.indexOf("const comRefs = laudoEntradaComReferencias(item, campo, entrada,") > 0, "refazer sugestão não usa");
+  });
+  t("o índice é montado uma vez por leva, não por item", ()=>{
+    const i = HTML.indexOf("async function gerarLaudoIAItens(");
+    const corpo = HTML.slice(i, HTML.indexOf("for(let i=0;i<itens.length;i++)", i));
+    ok(corpo.indexOf("laudoExemplosAprovados(\"risco\")") > 0, "o índice não é pré-montado");
+  });
+  t("a origem fica gravada e aparece na tela de revisão", ()=>{
+    ok(HTML.indexOf("if(patch.refs!==undefined) l.riscoRefs = patch.refs;") > 0, "não grava a origem no risco");
+    ok(HTML.indexOf("if(patch.refs!==undefined) l.solucaoRefs = patch.refs;") > 0, "não grava a origem na solução");
+    ok(HTML.indexOf("<b>Baseada em:</b>") > 0, "a tela não mostra de onde veio");
+    ok(HTML.indexOf("o laudo é assinado por você") > 0, "não avisa que a conferência é do engenheiro");
+  });
+  t("o interruptor existe, nasce ligado e viaja entre aparelhos", ()=>{
+    ok(HTML.indexOf("if(c.usarReferencias===undefined) c.usarReferencias = true;") > 0, "não nasce ligado");
+    ok(HTML.indexOf("toggleIAReferencias()") > 0, "sem o interruptor");
+    ok(HTML.indexOf("usarReferencias:c.usarReferencias") > 0, "não entra no pacote de sincronização");
+    ok(HTML.indexOf('if(typeof p.usarReferencias === "boolean"') > 0, "não é mesclado na chegada");
+  });
+  t("nada aqui depende de internet ou de serviço externo", ()=>{
+    const i = HTML.indexOf("const REFS_IA_MAX = 3;");
+    const bloco = HTML.slice(i, HTML.indexOf("function laudoGet(item, campo){", i));
+    ["fetch(", "XMLHttpRequest", "embedding", "http://", "https://"].forEach(m=>
+      ok(bloco.indexOf(m) < 0, "o motor de semelhança não pode chamar nada de fora: " + m));
+  });
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

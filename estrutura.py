@@ -111,13 +111,18 @@ chk("AU = ID_Risco", novo.count('xlsmCellTexto(`AU${rowNum}`') == 1)
 chk("AV = ID_Maquina", novo.count('xlsmCellTexto(`AV${rowNum}`') == 1)
 
 print("\n=== 9. SELO DE VERSAO ===")
-chk("APP_BUILD atualizado 2x", novo.count('"05/08/2026 17:30"') == 2, "achei %d" % novo.count('"05/08/2026 17:30"'))
+chk("APP_BUILD atualizado 2x", novo.count('"05/08/2026 19:05"') == 2, "achei %d" % novo.count('"05/08/2026 19:05"'))
 chk("nenhum resquicio de build antigo",
-    all(novo.count('"%s"' % b) == 0 for b in ["29/07/2026 08:44","30/07/2026 16:20","30/07/2026 18:05","30/07/2026 19:40","30/07/2026 21:10","31/07/2026 09:30","31/07/2026 11:20","31/07/2026 15:40","31/07/2026 19:15","31/07/2026 22:30","31/07/2026 23:55","03/08/2026 17:20","03/08/2026 20:35"]))
+    all(novo.count('"%s"' % b) == 0 for b in ["29/07/2026 08:44","30/07/2026 16:20","30/07/2026 18:05","30/07/2026 19:40","30/07/2026 21:10","31/07/2026 09:30","31/07/2026 11:20","31/07/2026 15:40","31/07/2026 19:15","31/07/2026 22:30","31/07/2026 23:55","03/08/2026 17:20","03/08/2026 20:35","05/08/2026 17:30"]))
 
 print("\n=== 10. CRESCIMENTO DO ARQUIVO ===")
+# ATENCAO ao ler este numero: original.html e a versao publicada ANTES da
+# Central do Laudo, e o delta e CUMULATIVO — Central do Laudo (~185 KB) mais
+# as entregas de sincronizacao, equipe, IA compartilhada e aprendizado com
+# laudos aprovados (~42 KB). O teto so existe para pegar acidente grosseiro
+# (arquivo duplicado, bloco colado duas vezes), nao para medir uma entrega.
 d = len(novo) - len(orig)
-chk("crescimento coerente com os novos modulos (%d bytes)" % d, 20000 < d < 220000, "delta=%d" % d)
+chk("crescimento coerente com os novos modulos (%d bytes)" % d, 20000 < d < 320000, "delta=%d" % d)
 chk("nada foi removido do original por engano",
     all(novo.count(m) >= 1 for m in ["exportarMasterXLSXFotos", "gerarBytesXlsmCorteva", "montarItensInventario", "gerarBytesDocxSimples"]))
 
@@ -274,6 +279,42 @@ chk("o download reenvia a uniao quando ha algo so aqui",
 chk("a sincronizacao da equipe (entrega anterior) continua intacta",
     novo.count("async function onedriveSincronizarEquipe(") == 1
     and novo.count("if(r.faltaNoRemoto) marcarEquipeAlterada();") == 1)
+
+print("\n=== 18. APRENDER COM OS LAUDOS APROVADOS ===")
+for marca, n in [("function refsTokens(", 1), ("function refsConjunto(", 1), ("function refsSemelhanca(", 1),
+                 ("function laudoExemplosAprovados(", 1), ("function laudoRefsParaItem(", 1),
+                 ("function laudoBlocoReferencias(", 1), ("function laudoEntradaComReferencias(", 1),
+                 ("function laudoUsaReferencias(", 1), ("const REFS_IA_MAX = 3;", 1)]:
+    chk("'%s' x%d" % (marca, n), novo.count(marca) == n, "achei %d" % novo.count(marca))
+chk("so campos aplicados/editados viram exemplo",
+    novo.count('if(g.st !== "ok" && g.st !== "edit") return;') == 1)
+chk("a trava de assunto existe (tarefa/maquina iguais nao bastam)",
+    novo.count("if(simTexto === 0 && simRisco === 0) return;") == 1)
+chk("o item nunca e exemplo de si mesmo",
+    novo.count("if(ex.id === item.risco.id) return;") == 1)
+chk("as 4 camadas de geracao usam as referencias",
+    novo.count('laudoEntradaComReferencias(item, "escopo"') == 1
+    and novo.count('laudoEntradaComReferencias(item, "tarefa"') == 1
+    and novo.count("laudoEntradaComReferencias(item, campo, orig, exemplos[campo])") == 1
+    and novo.count("const comRefs = laudoEntradaComReferencias(item, campo, entrada,") == 1)
+chk("o indice e montado uma vez por leva (nao por item)",
+    novo.count('risco:laudoExemplosAprovados("risco"),  solucao:laudoExemplosAprovados("solucao")') == 1)
+chk("a origem fica gravada nos 4 campos",
+    all(novo.count("if(patch.refs!==undefined) l.%sRefs = patch.refs;" % k) == 1
+        for k in ["escopo", "tarefa", "risco", "solucao"]))
+chk("a tela mostra de onde veio a sugestao",
+    novo.count("<b>Baseada em:</b>") == 1 and novo.count("o laudo é assinado por você") == 1)
+chk("o interruptor nasce ligado e viaja entre aparelhos",
+    novo.count("if(c.usarReferencias===undefined) c.usarReferencias = true;") == 1
+    and novo.count("usarReferencias:c.usarReferencias") == 1
+    and novo.count('if(typeof p.usarReferencias === "boolean"') == 1)
+_i = novo.find("const REFS_IA_MAX = 3;")
+_bloco_refs = novo[_i:novo.find("function laudoGet(item, campo){", _i)]
+chk("o motor de semelhanca nao chama nada de fora",
+    all(m not in _bloco_refs for m in ["fetch(", "XMLHttpRequest", "http://", "https://"]))
+chk("a regra de qual texto vai para o laudo NAO foi tocada",
+    novo.count("function laudoTextoFinal(item, campo){") == 1
+    and novo.count('if(g.st==="no") return laudoTextoOriginal(item, campo);') == 1)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
