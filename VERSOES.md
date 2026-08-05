@@ -15,6 +15,31 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 05/08/2026 22:30
+
+Botão para recuperar normas em PDF que sumiram.
+
+Normas que estavam cadastradas desapareceram da aba IA. A causa foi o defeito
+corrigido na versão de 05/08 17:30: até ali, a configuração de IA sincronizava
+como bloco único, e um aparelho **sem** normas podia sobrescrever o arquivo da
+nuvem, apagando as normas de todo mundo. A correção impede que isso volte a
+acontecer, mas não desfaz o que já tinha sido apagado.
+
+Em **Configurações → Inteligência Artificial → Base de Normas** existe agora
+**"Recuperar normas de uma cópia salva"**. Ele procura nas cópias de segurança
+guardadas no aparelho (as mesmas usadas para restaurar dados) e traz de volta
+**apenas a base de normas** — projetos, áreas, máquinas, tarefas e riscos
+ficam exatamente como estão. Restaurar uma cópia inteira desfaria o trabalho
+dos laudos; este botão não.
+
+Normas recuperadas são reenviadas automaticamente para os outros aparelhos.
+
+Se as cópias deste aparelho também estiverem sem as normas, tente em outro
+aparelho da equipe. Vale também procurar na lixeira do OneDrive, na pasta
+`Apps/APR_Campo_NR12/Backup/Config`, por arquivos `ia_*.json` apagados.
+
+---
+
 ## 05/08/2026 21:40
 
 **Correção importante:** a revisão do laudo não chegava nos outros aparelhos.

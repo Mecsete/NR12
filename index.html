@@ -1681,7 +1681,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
    GitHub (útil especialmente dado o atraso de alguns minutos do GitHub para
    propagar cada atualização, e para diferenciar aparelhos que ainda não
    atualizaram dos que já atualizaram). */
-const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "05/08/2026 21:40"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "05/08/2026 21:40"; } })();
+const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "05/08/2026 22:30"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "05/08/2026 22:30"; } })();
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -8266,6 +8266,7 @@ function esperar(ms){ return new Promise(r=>setTimeout(r,ms)); }
    =================================================================== */
 const SUBPASTA_CONFIG_IA = SUBPASTA_BACKUP + "/Config";
 const IA_SYNC_INTERVALO_AUTO_MS = 10*60*1000; // no ciclo automático, no máximo de 10 em 10 minutos
+let __pontosNormasCache = null;
 let __iaSyncUltimaVerificacao = 0;
 let __iaSyncEmAndamento = false;
 function getIASyncEm(){
@@ -8615,6 +8616,49 @@ async function onedriveSincronizarEquipe(forcar){
   }finally{
     __equipeSyncEmAndamento = false;
   }
+}
+/* =========================================================================
+   RECUPERAR NORMAS DE UM PONTO DE RESTAURAÇÃO
+
+   Os pontos de restauração guardam o STATE inteiro — inclusive o texto
+   extraído dos PDFs de normas e as instruções da IA. Restaurar um ponto
+   inteiro, porém, desfaz TAMBÉM os laudos: é remédio pior que a doença
+   quando o que sumiu foi só a base de normas.
+
+   Isto aqui abre os pontos, mostra quais têm normas guardadas e traz de
+   volta apenas essa parte, deixando projetos, áreas, máquinas, tarefas e
+   riscos exatamente como estão.
+
+   As normas recuperadas nascem com carimbo de AGORA de propósito: assim
+   vencem qualquer lápide de remoção antiga e são reenviadas para os outros
+   aparelhos na sincronização seguinte.
+   ========================================================================= */
+async function normasEmPontosDeRestauracao(){
+  const pontos = await listarPontosDeRestauracao();
+  return pontos.map(p=>{
+    const ui = (p.dados && p.dados.ui) || {};
+    const normas = Array.isArray(ui.normasIA) ? ui.normasIA.filter(n=>n && n.texto) : [];
+    const prompts = (ui.iaConfig && ui.iaConfig.prompts && typeof ui.iaConfig.prompts === "object") ? ui.iaConfig.prompts : null;
+    return { ts:p.ts, motivo:p.motivo||"", normas, prompts };
+  }).filter(x=> x.normas.length > 0);
+}
+/* Junta as normas do ponto com as que existem agora, sem apagar nada do que
+   já está aqui. Devolve quantas voltaram. */
+function recuperarNormasDoPonto(ponto){
+  if(!ponto || !Array.isArray(ponto.normas)) return 0;
+  const lista = getNormasIA();
+  const removidas = getNormasRemovidas();
+  let voltaram = 0;
+  ponto.normas.forEach(n=>{
+    if(!n || !n.texto) return;
+    const jaTem = lista.some(x=> x.id===n.id || (x.nome===n.nome && x.texto===n.texto));
+    if(jaTem) return;
+    delete removidas[n.id];               // uma lápide antiga não pode barrar a recuperação
+    lista.push({ id:n.id || uid(), nome:n.nome || "Norma recuperada", texto:n.texto,
+                 ativo:n.ativo!==false, criadoEm:n.criadoEm || Date.now(), atualizadoEm: agoraSync() });
+    voltaram++;
+  });
+  return voltaram;
 }
 function getNormasIA(){
   if(!STATE.ui.normasIA) STATE.ui.normasIA = [];
@@ -11332,6 +11376,8 @@ function screenSimplesConfigIA(){
     <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:10px">Envie PDFs de normas (NR-12, ISO 12100, manuais de fabricante etc.). O app extrai o texto e passa como referência para a IA sempre que ela escreve ou melhora um texto — sem citar a norma no resultado. A leitura é feita neste aparelho, sem enviar o PDF para lugar nenhum; só o texto extraído fica guardado (o arquivo original é descartado).</p>
     <input type="file" id="fileNormaPDF" accept="application/pdf" hidden onchange="App.onUploadNormaPDF(this.files[0]); this.value='';">
     <button class="btn btn-secondary btn-block" onclick="document.getElementById('fileNormaPDF').click()">${ic('plus')} Adicionar norma em PDF</button>
+    <button class="btn btn-ghost btn-block" style="margin-top:8px" onclick="App.abrirRecuperarNormas()">${ic('upload')} Recuperar normas de uma cópia salva</button>
+    <div class="field-hint" style="margin-top:6px">Se alguma norma sumiu, procure nas cópias de segurança guardadas neste aparelho. Traz de volta só a base de normas — não mexe nos laudos.</div>
   </div>
   ${normas.length===0 ? "" : normas.map(n=>`
   <div class="card card-pad" style="margin-top:8px;display:flex;align-items:center;gap:10px">
@@ -13276,6 +13322,46 @@ const App = {
     }catch(e){
       toast("Erro ao ler o PDF: "+(e && e.message || "erro desconhecido"), false);
     }
+  },
+  async abrirRecuperarNormas(){
+    const pontos = await normasEmPontosDeRestauracao();
+    if(pontos.length===0){
+      abrirOverlay(`<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card">
+        <h3>Nenhuma cópia com normas</h3>
+        <p style="font-size:13px;color:var(--ink-dim);margin:8px 0 14px">As cópias de segurança guardadas neste aparelho não têm nenhuma norma. Tente em outro aparelho da equipe — quem ainda estiver com as normas na tela pode reenviá-las, e elas voltam para todos na sincronização.</p>
+        <div class="modal-actions"><button class="btn btn-primary" onclick="App.fecharModal()">Entendi</button></div>
+      </div></div>`);
+      return;
+    }
+    __pontosNormasCache = pontos;
+    const linhas = pontos.map((p,i)=>{
+      let quando = "";
+      try{ quando = new Date(p.ts).toLocaleString('pt-BR'); }catch(e){ quando = String(p.ts); }
+      const nomes = p.normas.map(n=>n.nome).join(" · ");
+      return `<button class="sheet-item" onclick="App.recuperarNormasDeIndice(${i})">
+        <span style="flex:1;text-align:left">
+          <b>${escapeHtml(quando)}</b> — ${p.normas.length} norma(s)
+          <br><span style="font-size:11.5px;color:var(--ink-dim)">${escapeHtml(nomes.slice(0,120))}${nomes.length>120?"…":""}</span>
+        </span></button>`;
+    }).join("");
+    abrirOverlay(`<div class="sheet-overlay" id="overlayInner" onclick="if(event.target===this)App.fecharModal()">
+      <div class="sheet" style="max-height:84vh;display:flex;flex-direction:column">
+        <div class="sheet-handle"></div>
+        <h3>Recuperar normas</h3>
+        <div class="sheet-sub">Escolha de qual cópia trazer as normas de volta. Só a base de normas é tocada — os laudos ficam como estão.</div>
+        <div style="overflow:auto;flex:1;min-height:0">${linhas}</div>
+        <button class="sheet-cancel" onclick="App.fecharModal()">Cancelar</button>
+      </div></div>`);
+  },
+  recuperarNormasDeIndice(i){
+    const ponto = (__pontosNormasCache||[])[i];
+    if(!ponto) return;
+    const n = recuperarNormasDoPonto(ponto);
+    App.fecharModal();
+    if(n===0){ toast("Essas normas já estão aqui — nada a recuperar", false); return; }
+    marcarIAAlterada();   // sobe para a nuvem e chega nos outros aparelhos
+    render();
+    toast(`${n} norma(s) recuperada(s) — serão enviadas aos outros aparelhos`);
   },
   toggleNormaIA(id){
     const n=getNormasIA().find(x=>x.id===id);

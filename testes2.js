@@ -2285,6 +2285,66 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(vm.runInContext("laudoGet(__it,'risco')", ctx).refs !== undefined, "as referências sumiram do laudoGet");
   });
 
+  console.log("\n=== t58 · recuperar normas sem desfazer os laudos ===");
+  vm.runInContext(funcao("recuperarNormasDoPonto"), ctx);
+  function pontoComNormas(){
+    return { ts:1000, motivo:"teste", normas:[
+      { id:"n1", nome:"NR-12", texto:"txt 12", ativo:true, criadoEm:1000 },
+      { id:"n2", nome:"NBR ISO 12100", texto:"txt 12100", ativo:true, criadoEm:1001 }] };
+  }
+  t("traz as normas de volta", ()=>{
+    STATE.ui.normasIA = []; STATE.ui.normasRemovidas = {};
+    ctx.__p = pontoComNormas();
+    eq(vm.runInContext("recuperarNormasDoPonto(__p)", ctx), 2);
+    eq((STATE.ui.normasIA||[]).map(n=>n.nome).join(","), "NR-12,NBR ISO 12100");
+  });
+  t("NÃO mexe nos laudos", ()=>{
+    STATE.ui.normasIA = []; STATE.ui.normasRemovidas = {};
+    STATE.projetosSimples = [{ id:"pA", empresa:"Corteva", criadoEm:1, atualizadoEm:1,
+      areas:[{ id:"aA", nome:"Recepcao", maquinas:[] }, { id:"aB", nome:"Expedicao", maquinas:[] }] }];
+    const antes = JSON.stringify(STATE.projetosSimples);
+    ctx.__p = pontoComNormas();
+    vm.runInContext("recuperarNormasDoPonto(__p)", ctx);
+    eq(JSON.stringify(STATE.projetosSimples), antes, "a recuperação encostou nos projetos");
+  });
+  t("não duplica o que já está aqui", ()=>{
+    STATE.ui.normasIA = []; STATE.ui.normasRemovidas = {};
+    ctx.__p = pontoComNormas();
+    vm.runInContext("recuperarNormasDoPonto(__p)", ctx);
+    eq(vm.runInContext("recuperarNormasDoPonto(__p)", ctx), 0, "recuperou de novo o que já existia");
+    eq((STATE.ui.normasIA||[]).length, 2);
+  });
+  t("norma de mesmo nome e texto, com outro id, não vira cópia", ()=>{
+    STATE.ui.normasIA = [{ id:"outro", nome:"NR-12", texto:"txt 12", ativo:true, criadoEm:5 }];
+    STATE.ui.normasRemovidas = {};
+    ctx.__p = pontoComNormas();
+    eq(vm.runInContext("recuperarNormasDoPonto(__p)", ctx), 1, "deveria trazer só a que falta");
+    eq((STATE.ui.normasIA||[]).length, 2);
+  });
+  t("lápide antiga não barra a recuperação", ()=>{
+    STATE.ui.normasIA = []; STATE.ui.normasRemovidas = { n1: 99999999999999 };
+    ctx.__p = pontoComNormas();
+    eq(vm.runInContext("recuperarNormasDoPonto(__p)", ctx), 2, "a lápide impediu a norma de voltar");
+    ok(!STATE.ui.normasRemovidas.n1, "a lápide deveria ter sido apagada");
+  });
+  t("a norma recuperada nasce carimbada, para vencer a lápide e sincronizar", ()=>{
+    STATE.ui.normasIA = []; STATE.ui.normasRemovidas = {};
+    ctx.__p = pontoComNormas();
+    vm.runInContext("recuperarNormasDoPonto(__p)", ctx);
+    ok((STATE.ui.normasIA||[]).every(n=> n.atualizadoEm > 1001), "sem carimbo novo, não sairia do aparelho");
+  });
+  t("a tela oferece a recuperação e o método existe", ()=>{
+    ok(HTML.indexOf("App.abrirRecuperarNormas()") > 0, "sem o botão");
+    ok(HTML.indexOf("Recuperar normas de uma cópia salva") > 0, "sem o rótulo");
+    ok(HTML.indexOf("async function normasEmPontosDeRestauracao(") > 0, "sem a leitura dos pontos");
+    ok(HTML.indexOf("recuperarNormasDeIndice(i){") > 0, "sem o método de aplicar");
+    ok(HTML.indexOf("não mexe nos laudos") > 0, "a tela não diz que é seguro");
+  });
+  t("recuperar marca a IA para sincronizar com os outros aparelhos", ()=>{
+    const i = HTML.indexOf("recuperarNormasDeIndice(i){");
+    ok(HTML.slice(i, i+520).indexOf("marcarIAAlterada();") > 0, "as normas voltariam só neste aparelho");
+  });
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

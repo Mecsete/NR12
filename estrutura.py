@@ -111,9 +111,9 @@ chk("AU = ID_Risco", novo.count('xlsmCellTexto(`AU${rowNum}`') == 1)
 chk("AV = ID_Maquina", novo.count('xlsmCellTexto(`AV${rowNum}`') == 1)
 
 print("\n=== 9. SELO DE VERSAO ===")
-chk("APP_BUILD atualizado 2x", novo.count('"05/08/2026 21:40"') == 2, "achei %d" % novo.count('"05/08/2026 21:40"'))
+chk("APP_BUILD atualizado 2x", novo.count('"05/08/2026 22:30"') == 2, "achei %d" % novo.count('"05/08/2026 22:30"'))
 chk("nenhum resquicio de build antigo",
-    all(novo.count('"%s"' % b) == 0 for b in ["29/07/2026 08:44","30/07/2026 16:20","30/07/2026 18:05","30/07/2026 19:40","30/07/2026 21:10","31/07/2026 09:30","31/07/2026 11:20","31/07/2026 15:40","31/07/2026 19:15","31/07/2026 22:30","31/07/2026 23:55","03/08/2026 17:20","03/08/2026 20:35","05/08/2026 17:30","05/08/2026 19:05"]))
+    all(novo.count('"%s"' % b) == 0 for b in ["29/07/2026 08:44","30/07/2026 16:20","30/07/2026 18:05","30/07/2026 19:40","30/07/2026 21:10","31/07/2026 09:30","31/07/2026 11:20","31/07/2026 15:40","31/07/2026 19:15","31/07/2026 22:30","31/07/2026 23:55","03/08/2026 17:20","03/08/2026 20:35","05/08/2026 17:30","05/08/2026 19:05","05/08/2026 21:40"]))
 
 print("\n=== 10. CRESCIMENTO DO ARQUIVO ===")
 # ATENCAO ao ler este numero: original.html e a versao publicada ANTES da
@@ -330,6 +330,28 @@ chk("os pontos de decisao continuam existindo",
                                      "laudoSalvarEdicao(rid, campo){", "laudoAprovarLinha(rid){"]))
 chk("a regra de qual texto vai para o laudo NAO foi tocada (de novo)",
     novo.count('if(g.st==="no") return laudoTextoOriginal(item, campo);') == 1)
+
+print("\n=== 20. RECUPERAR NORMAS SEM DESFAZER OS LAUDOS ===")
+for marca, n in [("async function normasEmPontosDeRestauracao(", 1),
+                 ("function recuperarNormasDoPonto(", 1),
+                 ("async abrirRecuperarNormas(){", 1),
+                 ("recuperarNormasDeIndice(i){", 1),
+                 ("App.abrirRecuperarNormas()", 1)]:
+    chk("'%s' x%d" % (marca, n), novo.count(marca) == n, "achei %d" % novo.count(marca))
+_i = novo.find("function recuperarNormasDoPonto(")
+_corpo = novo[_i:novo.find("function getNormasIA(", _i)]
+chk("a recuperacao NAO encosta nos projetos",
+    "projetosSimples" not in _corpo,
+    "recuperarNormasDoPonto nao pode tocar em projetosSimples")
+chk("a norma recuperada nasce carimbada (vence lapide e sincroniza)",
+    "atualizadoEm: agoraSync()" in _corpo)
+chk("lapide antiga nao barra a recuperacao",
+    "delete removidas[n.id];" in _corpo)
+chk("recuperar marca a IA para sincronizar",
+    "marcarIAAlterada();" in novo[novo.find("recuperarNormasDeIndice(i){"):
+                                  novo.find("recuperarNormasDeIndice(i){") + 520])
+chk("restaurar ponto INTEIRO continua existindo e separado",
+    novo.count("async function restaurarPontoDeRestauracao(") == 1)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
