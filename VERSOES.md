@@ -15,6 +15,33 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 06/08/2026 19:30
+
+**Diagnóstico da sincronização.** Em Configurações → OneDrive, o botão
+"Diagnóstico da sincronização" mostra **item por item** o que está pendente e o
+motivo de cada um: "nunca subiu", "editado aqui depois do último envio",
+"faltam as fotos (esperando Wi-Fi)", "esperando o item pai", "arquivo ilegível
+na nuvem". Também há um botão para copiar tudo como texto.
+
+Serve para responder de forma objetiva à sensação de que a sincronização não
+termina. Se a lista sair vazia, o selo "sincronizando" que aparece de vez em
+quando é apenas o ciclo automático de 2 em 2 minutos conferindo a nuvem — não
+há trabalho parado. Se a lista trouxer itens, ela diz exatamente quais e por
+quê. O diagnóstico é só leitura: não envia, não apaga, não altera nada.
+
+**Chave de API compartilhada.** A chave já viajava entre os aparelhos, mas só
+a partir do momento em que fosse digitada de novo. Quem já tinha a chave antes
+da atualização nunca a compartilhava. Agora uma chave já existente é
+reconhecida e enviada aos outros aparelhos sozinha. Aparelho que nunca teve
+chave continua sem apagar a de ninguém.
+
+**Confirmação ao restaurar as instruções da IA.** O botão "Restaurar
+instruções padrão" apagava todo o texto personalizado dos 5 campos num toque
+só — e a mudança ia para todos os aparelhos. Agora pede confirmação e avisa
+disso antes.
+
+---
+
 ## 05/08/2026 22:30
 
 Botão para recuperar normas em PDF que sumiram.

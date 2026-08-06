@@ -162,7 +162,7 @@ vm.runInContext(funcao("getUsuariosInspetores"), ctx);
 [ "IA_PROVEDORES", "IA_PROMPTS_PADRAO" ].forEach(n=> vm.runInContext(constante(n), ctx));
 vm.runInContext((/\nconst IA_PROVEDOR_PADRAO\s*=\s*"[^"]*";/.exec(HTML)||[""])[0], ctx);
 [ "getNormasIA", "getNormasRemovidas", "getPromptsEm", "marcarPromptAlterado", "marcarChaveIAAlterada",
-  "getIASyncEm", "marcarIAAlterada", "montarPacoteIA", "aplicarPacoteIA"
+  "getApiKeyEm", "getIASyncEm", "marcarIAAlterada", "montarPacoteIA", "aplicarPacoteIA"
 ].forEach(n=> vm.runInContext(funcao(n), ctx));
 
 /* blocos novos, extraidos do arquivo entregue */
@@ -2343,6 +2343,59 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   t("recuperar marca a IA para sincronizar com os outros aparelhos", ()=>{
     const i = HTML.indexOf("recuperarNormasDeIndice(i){");
     ok(HTML.slice(i, i+520).indexOf("marcarIAAlterada();") > 0, "as normas voltariam só neste aparelho");
+  });
+
+  console.log("\n=== t59 · confirmação, chave compartilhada e diagnóstico ===");
+  t("restaurar instruções padrão pede confirmação", ()=>{
+    const i = HTML.indexOf("restaurarPromptsIAPadrao(){");
+    const corpo = HTML.slice(i, i + 700);
+    ok(corpo.indexOf("if(!confirm(") > 0, "apaga tudo sem perguntar");
+    ok(corpo.indexOf("Restaurar as instruções padrão da IA?") > 0, "sem a pergunta");
+    ok(corpo.indexOf("TODOS os aparelhos") > 0, "não avisa que afeta os outros aparelhos");
+    ok(corpo.indexOf("if(!confirm(") < corpo.indexOf("getIAConfig().prompts = {...IA_PROMPTS_PADRAO}"),
+       "a confirmação precisa vir ANTES de apagar");
+  });
+  t("chave que já existia ganha carimbo e passa a viajar", ()=>{
+    STATE.ui.apiKeyEm = undefined;
+    vm.runInContext("setIAApiKey('chave-antiga')", ctx);
+    ok(vm.runInContext("getApiKeyEm()", ctx) > 0, "a chave nunca sairia deste aparelho");
+  });
+  t("aparelho sem chave continua em zero e não apaga a dos outros", ()=>{
+    STATE.ui.apiKeyEm = undefined;
+    vm.runInContext("setIAApiKey('')", ctx);
+    eq(vm.runInContext("getApiKeyEm()", ctx), 0);
+  });
+  t("o carimbo da chave não é recalculado toda hora", ()=>{
+    STATE.ui.apiKeyEm = undefined;
+    vm.runInContext("setIAApiKey('k')", ctx);
+    const a = vm.runInContext("getApiKeyEm()", ctx);
+    eq(vm.runInContext("getApiKeyEm()", ctx), a, "mudaria a cada chamada e viveria em conflito");
+  });
+  t("o pacote e a mesclagem usam o carimbo migrado", ()=>{
+    ok(HTML.indexOf("apiKeyEm: getApiKeyEm(),") > 0, "o pacote não leva o carimbo migrado");
+    ok(HTML.indexOf("const chaveLocalEm = getApiKeyEm();") > 0, "a mesclagem não usa o carimbo migrado");
+  });
+  t("o diagnóstico existe e diz o motivo de cada pendência", ()=>{
+    ["function onedriveDiagnosticoDados(","function onedriveDiagnosticoTexto(","function onedriveDiagnosticoHtml(",
+     "abrirDiagnosticoSync(){","async copiarDiagnosticoSync(){"].forEach(m=>
+      ok(HTML.indexOf(m) > 0, "faltou " + m));
+    ["nunca subiu","editado aqui depois do último envio","faltam as fotos (esperando Wi-Fi)",
+     "arquivo ilegível na nuvem — ignorado"].forEach(m=>
+      ok(HTML.indexOf(m) > 0, "faltou o motivo: " + m));
+  });
+  t("o diagnóstico é só leitura — não muda nada", ()=>{
+    const i = HTML.indexOf("function onedriveDiagnosticoDados(");
+    const corpo = HTML.slice(i, HTML.indexOf("function onedriveDiagnosticoTexto(", i));
+    ["marcarAlterado(", "dbSet(", "= agoraSync()", "onedriveEnviarBlob", "onedriveApagarBlob"].forEach(m=>
+      ok(corpo.indexOf(m) < 0, "o diagnóstico não pode alterar nada: " + m));
+  });
+  t("o diagnóstico aparece na tela do OneDrive", ()=>{
+    ok(HTML.indexOf("App.abrirDiagnosticoSync()") > 0, "sem o botão");
+    ok(HTML.indexOf("use se parecer que a sincronização não termina") > 0, "sem a explicação de quando usar");
+  });
+  t("quando nada está pendente, o diagnóstico explica o selo", ()=>{
+    ok(HTML.indexOf("é só o ciclo automático de 2 em 2 minutos verificando a nuvem") > 0,
+       "sem isso, 'sincronizando' continua parecendo problema");
   });
 
   console.log("\n---------------------------------------");

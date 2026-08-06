@@ -20,9 +20,13 @@ for marca in ["idbfoto:", "foto:", "CAMADA_FOTOS"]:
     chk("ocorrencias de '%s' inalteradas (%d)" % (marca, a), a == b, "orig=%d novo=%d" % (a, b))
 
 print("\n=== 4. MOTOR DE SINCRONIZACAO ===")
+# oneDriveDeltaFila ganhou +1 ocorrencia de proposito: o diagnostico da
+# sincronizacao LE a fila para mostrar o que esta esperando. E leitura pura —
+# a checagem seguinte prova que o diagnostico nao escreve nada.
+_extra = {"oneDriveDeltaFila": 1}
 for marca in ["oneDriveDeltaFila", "lapide", "tombstone", "exclusoesConfirmadas", "__backupV2AplicarLinha"]:
-    a, b = orig.count(marca), novo.count(marca)
-    chk("'%s' inalterado (%d)" % (marca, a), a == b, "orig=%d novo=%d" % (a, b))
+    a, b = orig.count(marca) + _extra.get(marca, 0), novo.count(marca)
+    chk("'%s' inalterado (%d)" % (marca, a), a == b, "orig+extra=%d novo=%d" % (a, b))
 
 # O numero cresceu porque esta entrega mexeu de proposito nos carimbos:
 # subarvore de maquina/tarefa ao mover, equipe, inspetor no projeto e o proprio
@@ -111,9 +115,9 @@ chk("AU = ID_Risco", novo.count('xlsmCellTexto(`AU${rowNum}`') == 1)
 chk("AV = ID_Maquina", novo.count('xlsmCellTexto(`AV${rowNum}`') == 1)
 
 print("\n=== 9. SELO DE VERSAO ===")
-chk("APP_BUILD atualizado 2x", novo.count('"05/08/2026 22:30"') == 2, "achei %d" % novo.count('"05/08/2026 22:30"'))
+chk("APP_BUILD atualizado 2x", novo.count('"06/08/2026 19:30"') == 2, "achei %d" % novo.count('"06/08/2026 19:30"'))
 chk("nenhum resquicio de build antigo",
-    all(novo.count('"%s"' % b) == 0 for b in ["29/07/2026 08:44","30/07/2026 16:20","30/07/2026 18:05","30/07/2026 19:40","30/07/2026 21:10","31/07/2026 09:30","31/07/2026 11:20","31/07/2026 15:40","31/07/2026 19:15","31/07/2026 22:30","31/07/2026 23:55","03/08/2026 17:20","03/08/2026 20:35","05/08/2026 17:30","05/08/2026 19:05","05/08/2026 21:40"]))
+    all(novo.count('"%s"' % b) == 0 for b in ["29/07/2026 08:44","30/07/2026 16:20","30/07/2026 18:05","30/07/2026 19:40","30/07/2026 21:10","31/07/2026 09:30","31/07/2026 11:20","31/07/2026 15:40","31/07/2026 19:15","31/07/2026 22:30","31/07/2026 23:55","03/08/2026 17:20","03/08/2026 20:35","05/08/2026 17:30","05/08/2026 19:05","05/08/2026 21:40","05/08/2026 22:30"]))
 
 print("\n=== 10. CRESCIMENTO DO ARQUIVO ===")
 # ATENCAO ao ler este numero: original.html e a versao publicada ANTES da
@@ -257,8 +261,9 @@ print("\n=== 17. CONFIG DE IA MESCLADA POR UNIAO ===")
 for marca, n in [("function getNormasRemovidas(", 1), ("function getPromptsEm(", 1),
                  ("function marcarPromptAlterado(", 1), ("function marcarChaveIAAlterada(", 1)]:
     chk("'%s' x%d" % (marca, n), novo.count(marca) == n, "achei %d" % novo.count(marca))
+# apiKeyEm passou a vir de getApiKeyEm() (migracao da chave que ja existia).
 chk("o pacote de IA leva carimbo por parte",
-    all(novo.count(m) == 1 for m in ["apiKeyEm: (typeof STATE.ui.apiKeyEm",
+    all(novo.count(m) == 1 for m in ["apiKeyEm: getApiKeyEm(),",
                                      "promptsEm: { ...getPromptsEm() }",
                                      "normasRemovidas: { ...getNormasRemovidas() }"]))
 # 2 = equipe (entrega anterior) + IA (esta entrega): as duas mesclagens por
@@ -352,6 +357,31 @@ chk("recuperar marca a IA para sincronizar",
                                   novo.find("recuperarNormasDeIndice(i){") + 520])
 chk("restaurar ponto INTEIRO continua existindo e separado",
     novo.count("async function restaurarPontoDeRestauracao(") == 1)
+
+print("\n=== 21. CONFIRMACAO, CHAVE COMPARTILHADA E DIAGNOSTICO ===")
+_i = novo.find("restaurarPromptsIAPadrao(){")
+_corpo = novo[_i:_i+700]
+chk("restaurar instrucoes padrao pede confirmacao ANTES de apagar",
+    "if(!confirm(" in _corpo
+    and _corpo.find("if(!confirm(") < _corpo.find("getIAConfig().prompts = {...IA_PROMPTS_PADRAO}"))
+chk("a confirmacao avisa que afeta os outros aparelhos", "TODOS os aparelhos" in _corpo)
+chk("a chave que ja existia ganha carimbo e passa a viajar",
+    novo.count("function getApiKeyEm(") == 1
+    and novo.count("STATE.ui.apiKeyEm = getIAApiKey() ? agoraSync() : 0;") == 1
+    and novo.count("apiKeyEm: getApiKeyEm(),") == 1
+    and novo.count("const chaveLocalEm = getApiKeyEm();") == 1)
+for marca in ["function onedriveDiagnosticoDados(", "function onedriveDiagnosticoTexto(",
+              "function onedriveDiagnosticoHtml(", "abrirDiagnosticoSync(){",
+              "async copiarDiagnosticoSync(){", "App.abrirDiagnosticoSync()"]:
+    chk("'%s' x1" % marca, novo.count(marca) == 1, "achei %d" % novo.count(marca))
+chk("o diagnostico explica o motivo de cada pendencia",
+    all(m in novo for m in ["nunca subiu", "editado aqui depois do último envio",
+                            "faltam as fotos (esperando Wi-Fi)", "arquivo ilegível na nuvem — ignorado"]))
+_j = novo.find("function onedriveDiagnosticoDados(")
+_diag = novo[_j:novo.find("function onedriveDiagnosticoTexto(", _j)]
+chk("o diagnostico e SO LEITURA (nao altera nem envia nada)",
+    all(m not in _diag for m in ["marcarAlterado(", "dbSet(", "= agoraSync()",
+                                 "onedriveEnviarBlob", "onedriveApagarBlob"]))
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
