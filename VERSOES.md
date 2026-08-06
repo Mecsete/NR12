@@ -15,6 +15,22 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 06/08/2026 20:45
+
+O diagnóstico da sincronização passa a abrir **na própria tela**.
+
+Ele só existia dentro de uma janela sobreposta, e num aparelho ela não abriu —
+o toque não produziu nada e não houve nem mensagem de erro, justamente no
+recurso que existe para dar informação. Agora o diagnóstico é um bloco que
+abre e fecha na própria tela de Configurações → OneDrive, sem janela nenhuma
+para falhar. E se algo der errado ao montá-lo, o erro **aparece escrito** em
+vez de simplesmente não acontecer nada.
+
+A versão em janela foi removida, para não existirem dois caminhos fazendo a
+mesma coisa.
+
+---
+
 ## 06/08/2026 19:30
 
 **Diagnóstico da sincronização.** Em Configurações → OneDrive, o botão

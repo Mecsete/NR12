@@ -1681,7 +1681,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
    GitHub (útil especialmente dado o atraso de alguns minutos do GitHub para
    propagar cada atualização, e para diferenciar aparelhos que ainda não
    atualizaram dos que já atualizaram). */
-const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "06/08/2026 19:30"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "06/08/2026 19:30"; } })();
+const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "06/08/2026 20:45"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "06/08/2026 20:45"; } })();
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -4256,37 +4256,48 @@ function onedriveDiagnosticoTexto(){
   d.quarentena.slice(0,30).forEach(x=> l.push("  · " + x.nome + " — " + x.motivo));
   return l.join("\n");
 }
-function onedriveDiagnosticoHtml(){
-  const d = onedriveDiagnosticoDados();
-  const secao = (titulo, arr, vazio) => {
-    if(!arr.length) return `<div class="section-title">${titulo} · 0</div><p style="font-size:12.5px;color:var(--ink-dim);margin:0 2px 10px">${vazio}</p>`;
-    return `<div class="section-title">${titulo} · ${arr.length}</div>` + arr.slice(0,60).map(x=>`
-      <div class="card card-pad" style="margin-bottom:6px">
-        <div style="font-size:12.5px;font-weight:700;word-break:break-word">${escapeHtml(x.nome||"")}</div>
-        <div style="font-size:11.5px;color:var(--ink-dim)">${escapeHtml(x.motivo||"")}${x.quando?" · alterado em "+escapeHtml(x.quando):""}${x.tamanho?" · "+escapeHtml(x.tamanho):""}</div>
-      </div>`).join("") + (arr.length>60? `<p style="font-size:11.5px;color:var(--ink-faint);margin:0 2px 10px">… e mais ${arr.length-60}</p>`:"");
-  };
-  const tudoZero = !d.enviar.length && !d.receber.length && !d.fila.length && !d.quarentena.length;
-  return `<div class="sheet-overlay" id="overlayInner" onclick="if(event.target===this)App.fecharModal()">
-    <div class="sheet" style="max-height:88vh;display:flex;flex-direction:column">
-      <div class="sheet-handle"></div>
-      <h3>Diagnóstico da sincronização</h3>
-      <div class="sheet-sub">O que está pendente neste aparelho, item por item, e o motivo de cada um.</div>
-      <div style="overflow:auto;flex:1;min-height:0;padding:0 2px">
-        <div class="card card-pad" style="background:var(--bg-soft);margin-bottom:10px">
-          <div style="font-size:12.5px">OneDrive conectado: <b>${d.conta?"sim":"NÃO"}</b> · internet: <b>${d.online?"sim":"NÃO"}</b> · Wi-Fi confirmado: <b>${d.wifiConfirmado?"sim":"não"}</b></div>
-          <div style="font-size:12.5px;color:var(--ink-dim);margin-top:2px">${d.totalItens} item(ns) neste aparelho</div>
-        </div>
-        ${tudoZero? `<div class="card card-pad" style="background:#E3F4E4;border-color:#A5D6A7">
-          <div style="font-size:13px;color:#2E7D32"><b>Nada pendente.</b> Se o selo ainda mostra "sincronizando", é só o ciclo automático de 2 em 2 minutos verificando a nuvem — não há trabalho parado.</div></div>` : ""}
-        ${secao("Para enviar", d.enviar, "Nada esperando envio.")}
-        ${secao("Para receber", d.receber, "Nada esperando download.")}
-        ${secao("Fila da nuvem", d.fila, "Fila vazia.")}
-        ${secao("Quarentena", d.quarentena, "Nenhum arquivo ilegível.")}
-      </div>
-      <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.copiarDiagnosticoSync()">${ic('copy')} Copiar como texto</button>
-      <button class="sheet-cancel" onclick="App.fecharModal()">Fechar</button>
-    </div></div>`;
+/* Versão que vive DENTRO da tela de Configurações, sem janela sobreposta.
+   Uma janela que não abre deixa a pessoa sem informação e sem pista do
+   motivo — e informação é justamente o que este recurso existe para dar.
+   Aqui é só abrir/fechar um bloco: não há sobreposição para falhar.
+   Qualquer erro no meio é MOSTRADO, não engolido. */
+function onedriveDiagnosticoInlineHtml(){
+  if(!STATE.ui.diagSyncAberto){
+    return `<button class="btn btn-ghost btn-block" style="margin-top:8px" onclick="App.toggleDiagnosticoSync()">${ic('info')} Diagnóstico da sincronização</button>
+      <div class="field-hint" style="margin:4px 2px 0">Mostra item por item o que está pendente e por quê — use se parecer que a sincronização não termina.</div>`;
+  }
+  let corpo = "";
+  try{
+    const d = onedriveDiagnosticoDados();
+    const secao = (titulo, arr, vazio) => {
+      if(!arr.length) return `<div style="font-size:12px;font-weight:800;margin:10px 2px 2px">${titulo} · 0</div><div style="font-size:12px;color:var(--ink-dim);margin:0 2px">${vazio}</div>`;
+      return `<div style="font-size:12px;font-weight:800;margin:10px 2px 4px">${titulo} · ${arr.length}</div>` +
+        arr.slice(0,40).map(x=>`<div style="font-size:11.5px;padding:5px 8px;background:var(--bg-soft);border-radius:6px;margin-bottom:4px;word-break:break-word">
+          <b>${escapeHtml(x.nome||"")}</b><br><span style="color:var(--ink-dim)">${escapeHtml(x.motivo||"")}${x.quando?" · alterado em "+escapeHtml(x.quando):""}${x.tamanho?" · "+escapeHtml(x.tamanho):""}</span>
+        </div>`).join("") +
+        (arr.length>40? `<div style="font-size:11px;color:var(--ink-faint);margin:0 2px">… e mais ${arr.length-40}</div>`:"");
+    };
+    const zero = !d.enviar.length && !d.receber.length && !d.fila.length && !d.quarentena.length;
+    corpo = `
+      <div style="font-size:12px">OneDrive: <b>${d.conta?"conectado":"NÃO conectado"}</b> · internet: <b>${d.online?"sim":"NÃO"}</b> · Wi-Fi confirmado: <b>${d.wifiConfirmado?"sim":"não"}</b> · ${d.totalItens} item(ns) aqui</div>
+      ${zero? `<div style="margin-top:8px;padding:8px 10px;background:#E3F4E4;border-radius:6px;font-size:12.5px;color:#2E7D32"><b>Nada pendente.</b> O selo "sincronizando" que aparece de vez em quando é só a verificação automática de 2 em 2 minutos — não há trabalho parado.</div>`:""}
+      ${secao("Para enviar", d.enviar, "Nada esperando envio.")}
+      ${secao("Para receber", d.receber, "Nada esperando download.")}
+      ${secao("Fila da nuvem", d.fila, "Fila vazia.")}
+      ${secao("Quarentena", d.quarentena, "Nenhum arquivo ilegível.")}
+      <button class="btn btn-secondary btn-block" style="margin-top:10px" onclick="App.copiarDiagnosticoSync()">${ic('copy')} Copiar como texto</button>`;
+  }catch(e){
+    corpo = `<div style="margin-top:8px;padding:9px 10px;background:#FFF3D6;border:1px solid #E9C46A;border-radius:6px;font-size:12.5px;color:#5C3D00">
+      <b>Não foi possível montar o diagnóstico.</b><br>${escapeHtml((e && e.message) || "erro desconhecido")}
+      <div style="margin-top:4px;color:#8A5B00">Mande este texto para o suporte — ele já diz onde está o problema.</div></div>`;
+  }
+  return `<div class="card card-pad" style="margin-top:8px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <b style="font-size:13px">Diagnóstico da sincronização</b>
+      <button class="btn btn-ghost btn-sm" onclick="App.toggleDiagnosticoSync()">Fechar</button>
+    </div>
+    ${corpo}
+  </div>`;
 }
 function onedriveStatusPendenteHtml(){
   const s = STATE.oneDriveStatusPendente;
@@ -11285,8 +11296,7 @@ function screenSimplesConfigBackup(){
   ${syncGruposHtml()}
   ${!__sincronizandoAgora ? onedriveStatusPendenteHtml() : ''}
   <p style="font-size:11.5px;color:var(--ink-dim);margin:4px 2px 0">Envia suas alterações e recebe as de outros aparelhos, nessa ordem.</p>
-  <button class="btn btn-ghost btn-block" style="margin-top:8px" onclick="App.abrirDiagnosticoSync()">${ic('info')} Diagnóstico da sincronização</button>
-  <div class="field-hint" style="margin:4px 2px 0">Mostra item por item o que está pendente e por quê — use se parecer que a sincronização não termina.</div>
+  ${onedriveDiagnosticoInlineHtml()}
   ` : `
   <div class="card card-pad">
     <p style="font-size:13px;color:var(--ink-dim)">Conecte sua conta Microsoft uma vez para os backups subirem automaticamente para o OneDrive, direto pelo app — sem depender de sincronização de pasta.</p>
@@ -13306,7 +13316,7 @@ const App = {
     else toast("Não foi possível restaurar esta versão agora", false);
   },
   fecharModal(){ const el=document.getElementById("overlayRoot"); if(el) el.remove(); },
-  abrirDiagnosticoSync(){ abrirOverlay(onedriveDiagnosticoHtml()); },
+  toggleDiagnosticoSync(){ STATE.ui.diagSyncAberto = !STATE.ui.diagSyncAberto; render(); },
   async copiarDiagnosticoSync(){
     const txt = onedriveDiagnosticoTexto();
     try{

@@ -2376,8 +2376,8 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(HTML.indexOf("const chaveLocalEm = getApiKeyEm();") > 0, "a mesclagem não usa o carimbo migrado");
   });
   t("o diagnóstico existe e diz o motivo de cada pendência", ()=>{
-    ["function onedriveDiagnosticoDados(","function onedriveDiagnosticoTexto(","function onedriveDiagnosticoHtml(",
-     "abrirDiagnosticoSync(){","async copiarDiagnosticoSync(){"].forEach(m=>
+    ["function onedriveDiagnosticoDados(","function onedriveDiagnosticoTexto(",
+     "function onedriveDiagnosticoInlineHtml(","toggleDiagnosticoSync(){","async copiarDiagnosticoSync(){"].forEach(m=>
       ok(HTML.indexOf(m) > 0, "faltou " + m));
     ["nunca subiu","editado aqui depois do último envio","faltam as fotos (esperando Wi-Fi)",
      "arquivo ilegível na nuvem — ignorado"].forEach(m=>
@@ -2390,12 +2390,40 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(corpo.indexOf(m) < 0, "o diagnóstico não pode alterar nada: " + m));
   });
   t("o diagnóstico aparece na tela do OneDrive", ()=>{
-    ok(HTML.indexOf("App.abrirDiagnosticoSync()") > 0, "sem o botão");
+    ok(HTML.indexOf("${onedriveDiagnosticoInlineHtml()}") > 0, "sem o bloco na tela");
     ok(HTML.indexOf("use se parecer que a sincronização não termina") > 0, "sem a explicação de quando usar");
   });
   t("quando nada está pendente, o diagnóstico explica o selo", ()=>{
-    ok(HTML.indexOf("é só o ciclo automático de 2 em 2 minutos verificando a nuvem") > 0,
+    ok(HTML.indexOf("é só a verificação automática de 2 em 2 minutos") > 0,
        "sem isso, 'sincronizando' continua parecendo problema");
+    ok(HTML.indexOf("não há trabalho parado") > 0, "não deixa claro que está tudo em dia");
+  });
+
+  console.log("\n=== t60 · diagnóstico não depende de janela sobreposta ===");
+  t("aparece na própria tela, sem overlay", ()=>{
+    ok(HTML.indexOf("function onedriveDiagnosticoInlineHtml(") > 0, "sem a versão de tela");
+    ok(HTML.indexOf("${onedriveDiagnosticoInlineHtml()}") > 0, "a tela não usa a versão inline");
+    ok(HTML.indexOf("toggleDiagnosticoSync(){") > 0, "sem o abre/fecha");
+    ok(HTML.indexOf("onedriveDiagnosticoHtml") < 0, "sobrou o caminho antigo em janela");
+  });
+  t("erro ao montar é MOSTRADO, não engolido", ()=>{
+    const i = HTML.indexOf("function onedriveDiagnosticoInlineHtml(");
+    const corpo = HTML.slice(i, HTML.indexOf("function onedriveStatusPendenteHtml(", i));
+    ok(corpo.indexOf("}catch(e){") > 0, "sem proteção contra erro");
+    ok(corpo.indexOf("Não foi possível montar o diagnóstico.") > 0, "o erro sumiria em silêncio");
+    ok(corpo.indexOf("(e && e.message)") > 0, "não mostra qual foi o erro");
+  });
+  t("continua sendo só leitura", ()=>{
+    const i = HTML.indexOf("function onedriveDiagnosticoInlineHtml(");
+    const corpo = HTML.slice(i, HTML.indexOf("function onedriveStatusPendenteHtml(", i));
+    ["marcarAlterado(", "dbSet(", "onedriveEnviarBlob", "onedriveApagarBlob"].forEach(m=>
+      ok(corpo.indexOf(m) < 0, "o diagnóstico não pode alterar nada: " + m));
+  });
+  t("o abre/fecha guarda o estado, sem mexer em dado nenhum", ()=>{
+    const i = HTML.indexOf("toggleDiagnosticoSync(){");
+    const corpo = HTML.slice(i, i + 160);
+    ok(corpo.indexOf("STATE.ui.diagSyncAberto") > 0, "não guarda o estado");
+    ok(corpo.indexOf("marcarAlterado") < 0, "abrir o diagnóstico não pode marcar alteração");
   });
 
   console.log("\n---------------------------------------");
