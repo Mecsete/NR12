@@ -120,7 +120,7 @@ chk("AV = ID_Maquina", novo.count('xlsmCellTexto(`AV${rowNum}`') == 1)
 print("\n=== 9. SELO DE VERSAO ===")
 # APP_BUILD passou a ser UM texto fixo (antes eram 2: o valor e o fallback da
 # IIFE que lia document.lastModified). O numero na tela agora e exatamente este.
-chk("APP_BUILD atualizado", novo.count('"07/08/2026 14:10"') == 1, "achei %d" % novo.count('"07/08/2026 14:10"'))
+chk("APP_BUILD atualizado", novo.count('"07/08/2026 15:00"') == 1, "achei %d" % novo.count('"07/08/2026 15:00"'))
 chk("APP_BUILD e texto fixo, nao derivado da data do arquivo",
     novo.count('const APP_BUILD = "') == 1
     and len([l for l in novo.split(chr(10)) if "document.lastModified" in l and not l.strip().startswith("document.lastModified, ou seja")]) == 0)
@@ -497,12 +497,20 @@ chk("a configuracao se conserta sozinha ao ser lida",
     and "if(c.endpoint !== preset.endpoint) c.endpoint = preset.endpoint;" in novo)
 
 print("\n=== 26. NORMAS EM PDF CHEGAM DE FORMA UTIL ===")
-chk("orcamento repartido entre as normas ativas",
-    "NORMAS_IA_LIMITE_CARACTERES / normas.length" in novo
-    and "let orcamento = NORMAS_IA_LIMITE_CARACTERES;" not in novo)
+chk("os trechos de TODAS as normas disputam o mesmo ranking",
+    novo.count("function normasTrechosEscolhidos(") == 1
+    and "let orcamento = NORMAS_IA_LIMITE_CARACTERES;" not in novo
+    and "NORMAS_IA_LIMITE_CARACTERES / normas.length" not in novo)
 chk("a norma e dividida em pedacos e o relevante e escolhido",
     novo.count("function normasPedacos(") == 1
     and "refsSemelhanca(alvo, refsConjunto(p))" in novo)
+chk("a tela de conferencia usa o MESMO calculo da geracao",
+    novo.count("function conferirNormasHtml(") == 1
+    and novo.count("normasTrechosEscolhidos(exemplo, NORMAS_IA_LIMITE_CARACTERES)") == 1
+    # 2 = o botao que abre + o "Fechar" de dentro do proprio bloco
+    and novo.count("App.toggleConferirNormas()") == 2)
+chk("a conferencia explica a norma que ficou de fora",
+    novo.count("Sem trecho relacionado desta vez") == 1)
 chk("o trecho e escolhido pelo texto que a IA vai reescrever",
     novo.count("+ contextoNormasIA(textoUsuario);") == 1)
 # 2 = a definicao da funcao + o UNICO ponto que monta o prompt (chamarIA).

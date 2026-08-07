@@ -22,6 +22,36 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/08/2026 15:00
+
+**Dá para conferir, na tela, o que a IA recebe das normas.**
+
+Com nove PDFs somando mais de um megabyte de texto, é razoável duvidar que
+tudo esteja sendo usado. Em vez de pedir confiança, o app agora mostra.
+
+Em **Configurações → IA → Base de Normas**, o botão **"Conferir o que a IA
+recebe destas normas"** abre um campo onde você escreve uma descrição de risco
+como escreveria em campo. Ele mostra quais normas entrariam naquele pedido,
+quanto de cada uma, e os primeiros trechos escolhidos com o percentual de
+semelhança. É o **mesmo cálculo** que a geração usa — não uma simulação
+parecida.
+
+**Como os trechos são escolhidos agora.** Antes eu repartia o espaço em partes
+iguais entre as normas ativas; com nove normas, cada uma levava um pedaço
+pequeno mesmo quando os melhores trechos estavam todos na NR-12. Agora os
+trechos de todas as normas **disputam entre si** e entram os melhores, venham
+de onde vierem.
+
+**Norma que não tem relação com o risco não aparece naquele pedido** — e isso é
+o certo, não um defeito. Encher o espaço com texto sem relação só atrapalharia
+a sugestão. Ela volta a entrar quando o assunto for dela.
+
+**Não vale a pena reduzir a quantidade de PDFs.** Quanto mais normas
+cadastradas, maior a chance de existir um trecho pertinente para cada risco. O
+app escolhe; você não paga por ter normas a mais.
+
+---
+
 ## 07/08/2026 14:10
 
 **As normas em PDF passam a servir de verdade para a IA.**

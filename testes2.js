@@ -2743,7 +2743,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   console.log("\n=== t68 · as normas em PDF chegam à IA de forma útil ===");
   vm.runInContext((/\nconst NORMAS_IA_LIMITE_CARACTERES\s*=\s*\d+;/.exec(HTML)||[""])[0], ctx);
   vm.runInContext((/\nconst NORMAS_IA_TAM_PEDACO\s*=\s*\d+;/.exec(HTML)||[""])[0], ctx);
-  [ "normasPedacos", "contextoNormasIA" ].forEach(n=> vm.runInContext(funcao(n), ctx));
+  [ "normasPedacos", "normasTrechosEscolhidos", "contextoNormasIA" ].forEach(n=> vm.runInContext(funcao(n), ctx));
   const encher = (t, n)=> (t + " ").repeat(n);
   function tresNormas(){
     STATE.ui.normasIA = [
@@ -2759,11 +2759,21 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
           " A distancia de seguranca considera o tempo de parada do equipamento. " }
     ];
   }
-  t("TODA norma ativa contribui (antes só a primeira entrava)", ()=>{
+  t("qualquer norma pode contribuir, não só a primeira da lista", ()=>{
+    tresNormas();
+    /* Antes, a primeira norma consumia o orçamento inteiro e as demais nunca
+       entravam, por mais relevantes que fossem. Agora, com um texto que toca
+       os assuntos de duas normas diferentes, as duas aparecem. */
+    const ctxN = vm.runInContext("contextoNormasIA('correia transportadora sem protecao no tambor com agarramento e arrasto em elementos moveis de transmissao')", ctx);
+    ok(ctxN.indexOf("--- Norma: NR-12 ---") > 0, "a NR-12 ficou de fora");
+    ok(ctxN.indexOf("--- Norma: NBR ISO 12100 ---") > 0,
+       "a segunda norma ficou de fora mesmo tendo o trecho do assunto");
+  });
+  t("norma sem relação com o texto não ocupa espaço", ()=>{
     tresNormas();
     const ctxN = vm.runInContext("contextoNormasIA('correia transportadora sem protecao no tambor')", ctx);
-    ["NR-12","NBR ISO 12100","NBR 14153"].forEach(n=>
-      ok(ctxN.indexOf("--- Norma: "+n+" ---") > 0, "a norma "+n+" ficou de fora"));
+    ok(ctxN.indexOf("--- Norma: NBR 14153 ---") < 0,
+       "norma de outro assunto entrou e gastou espaço do pedido");
   });
   t("entra o trecho relacionado, não o começo do documento", ()=>{
     tresNormas();
@@ -2771,12 +2781,43 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(ctxN.indexOf("impedir o acesso a zona de perigo da correia") > 0, "não trouxe o trecho da proteção fixa");
     ok(ctxN.indexOf("agarramento e o arrasto sao fenomenos perigosos") > 0, "não trouxe o trecho do agarramento");
   });
-  t("o orçamento é repartido, não tomado pela primeira", ()=>{
-    tresNormas();
-    const i = HTML.indexOf("function contextoNormasIA(");
-    const corpo = HTML.slice(i, i + 1400);
-    ok(corpo.indexOf("NORMAS_IA_LIMITE_CARACTERES / normas.length") > 0, "não reparte o orçamento");
+  t("os trechos de todas as normas disputam o mesmo ranking", ()=>{
+    ok(HTML.indexOf("function normasTrechosEscolhidos(") > 0, "sem o ranking global");
     ok(HTML.indexOf("let orcamento = NORMAS_IA_LIMITE_CARACTERES;") < 0, "sobrou o cálculo antigo");
+    ok(HTML.indexOf("NORMAS_IA_LIMITE_CARACTERES / normas.length") < 0,
+       "voltou a repartir em partes iguais — a norma mais relevante ficaria limitada");
+  });
+  t("a norma mais relevante leva mais espaço que as outras", ()=>{
+    STATE.ui.normasIA = [
+      { id:"x", nome:"Muito relacionada", ativo:true, criadoEm:1, texto:
+          " correia transportadora tambor agarramento protecao fixa zona de perigo ".repeat(40) },
+      { id:"y", nome:"Nada a ver", ativo:true, criadoEm:2, texto:
+          " caldeiras vasos de pressao inspecao periodica hidrostatica ".repeat(40) }
+    ];
+    const tr = vm.runInContext("normasTrechosEscolhidos('correia transportadora sem protecao no tambor, agarramento', 60000)", ctx);
+    const porNorma = {};
+    tr.forEach(t=>{ porNorma[t.norma] = (porNorma[t.norma]||0) + t.texto.length; });
+    ok((porNorma["Muito relacionada"]||0) > 0, "a norma do assunto não entrou");
+    ok((porNorma["Nada a ver"]||0) === 0 || porNorma["Muito relacionada"] > porNorma["Nada a ver"],
+       "a norma sem relação ocupou tanto espaço quanto a do assunto");
+  });
+  t("norma sem relação com o risco simplesmente não entra", ()=>{
+    STATE.ui.normasIA = [
+      { id:"y", nome:"Nada a ver", ativo:true, criadoEm:2, texto:
+          " caldeiras vasos de pressao inspecao periodica hidrostatica ".repeat(40) }
+    ];
+    const tr = vm.runInContext("normasTrechosEscolhidos('choque eletrico em painel de comando energizado', 60000)", ctx);
+    ok(tr.length === 0 || tr.every(t=>t.sem === 0),
+       "trouxe trecho sem relação, gastando espaço do pedido à toa");
+  });
+  t("a tela de conferência usa o MESMO cálculo da geração", ()=>{
+    ok(HTML.indexOf("function conferirNormasHtml(") > 0, "sem a tela de conferência");
+    const i = HTML.indexOf("function conferirNormasHtml(");
+    const corpo = HTML.slice(i, i + 2600);
+    ok(corpo.indexOf("normasTrechosEscolhidos(exemplo, NORMAS_IA_LIMITE_CARACTERES)") > 0,
+       "a conferência simula por conta própria — poderia mostrar uma coisa e enviar outra");
+    ok(corpo.indexOf("Sem trecho relacionado desta vez") > 0, "não explica a norma que ficou de fora");
+    ok(HTML.indexOf("App.toggleConferirNormas()") > 0, "sem o botão");
   });
   t("norma desativada não entra", ()=>{
     tresNormas();

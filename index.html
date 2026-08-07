@@ -1696,7 +1696,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/08/2026 14:10";
+const APP_BUILD = "07/08/2026 15:00";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -8634,6 +8634,7 @@ function esperar(ms){ return new Promise(r=>setTimeout(r,ms)); }
 const SUBPASTA_CONFIG_IA = SUBPASTA_BACKUP + "/Config";
 const IA_SYNC_INTERVALO_AUTO_MS = 10*60*1000; // no ciclo automático, no máximo de 10 em 10 minutos
 let __pontosNormasCache = null;
+let __conferirNormasTimer = null;
 let __iaSyncUltimaVerificacao = 0;
 let __iaSyncEmAndamento = false;
 function getIASyncEm(){
@@ -9108,36 +9109,58 @@ function normasPedacos(texto){
   for(let i=0; i<t.length; i+=NORMAS_IA_TAM_PEDACO) out.push(t.slice(i, i+NORMAS_IA_TAM_PEDACO));
   return out;
 }
-function contextoNormasIA(textoAlvo){
+/* Escolhe os trechos que vão para a IA, DISPUTANDO ENTRE SI.
+
+   Repartir o orçamento em partes iguais entre as normas seria injusto com o
+   caso real: com 9 normas cadastradas, cada uma levaria ~6 mil caracteres,
+   mesmo quando os dez melhores trechos estão todos na NR-12. Aqui os pedaços
+   de TODAS as normas concorrem no mesmo ranking e entram os melhores, venham
+   de onde vierem. Norma sem nada a ver com o risco simplesmente não aparece
+   naquela chamada — o que é o comportamento certo, e não um defeito.
+
+   Devolve a lista já ordenada, com a norma de origem: é o mesmo cálculo que
+   a tela de conferência usa para mostrar o que seria enviado. */
+function normasTrechosEscolhidos(textoAlvo, orcamento){
   const normas = getNormasIA().filter(n=>n.ativo!==false && n.texto);
-  if(normas.length===0) return "";
+  if(normas.length===0) return [];
+  const teto = orcamento || NORMAS_IA_LIMITE_CARACTERES;
   const alvo = refsConjunto(textoAlvo || "");
-  const porNorma = Math.max(1500, Math.floor(NORMAS_IA_LIMITE_CARACTERES / normas.length));
-  const blocos = [];
-  for(const n of normas){
-    const pedacos = normasPedacos(n.texto);
-    let escolhidos;
-    if(alvo.size === 0){
-      escolhidos = pedacos;   // sem texto de referência, mantém a ordem original
-    }else{
-      escolhidos = pedacos
-        .map(p => ({ p, s: refsSemelhanca(alvo, refsConjunto(p)) }))
-        .sort((a,b) => b.s - a.s)
-        .filter(x => x.s > 0)
-        .map(x => x.p);
-      if(escolhidos.length === 0) escolhidos = pedacos; // nada parecido — usa o começo
-    }
-    let usado = 0;
-    const partes = [];
-    for(const p of escolhidos){
-      if(usado >= porNorma) break;
-      const fatia = p.slice(0, porNorma - usado);
-      partes.push(fatia);
-      usado += fatia.length;
-    }
-    if(partes.length) blocos.push(`--- Norma: ${n.nome} ---\n${partes.join("\n(...)\n")}`);
+  const candidatos = [];
+  normas.forEach(n=>{
+    normasPedacos(n.texto).forEach((p, i)=>{
+      candidatos.push({ norma:n.nome, ordem:i, texto:p,
+                        s: alvo.size ? refsSemelhanca(alvo, refsConjunto(p)) : 0 });
+    });
+  });
+  let fila;
+  if(alvo.size === 0){
+    /* Sem texto de referência (ex.: a tela de conferência sem exemplo): mostra
+       o começo de cada norma, alternando, para dar uma amostra de todas. */
+    fila = candidatos.filter(c=>c.ordem < 3).sort((a,b)=> a.ordem - b.ordem);
+  }else{
+    fila = candidatos.filter(c=>c.s > 0).sort((a,b)=> b.s - a.s);
+    if(fila.length === 0) fila = candidatos.filter(c=>c.ordem === 0);
   }
-  if(blocos.length===0) return "";
+  const saida = [];
+  let usado = 0;
+  for(const c of fila){
+    if(usado >= teto) break;
+    const fatia = c.texto.slice(0, teto - usado);
+    saida.push({ norma:c.norma, texto:fatia, sem: Math.round((c.s||0)*100) });
+    usado += fatia.length;
+  }
+  return saida;
+}
+function contextoNormasIA(textoAlvo){
+  const trechos = normasTrechosEscolhidos(textoAlvo, NORMAS_IA_LIMITE_CARACTERES);
+  if(trechos.length===0) return "";
+  const porNorma = new Map();
+  trechos.forEach(t=>{
+    if(!porNorma.has(t.norma)) porNorma.set(t.norma, []);
+    porNorma.get(t.norma).push(t.texto);
+  });
+  const blocos = [];
+  porNorma.forEach((partes, nome)=> blocos.push(`--- Norma: ${nome} ---\n${partes.join("\n(...)\n")}`));
   return `\n\nUse os trechos de normas abaixo como referência técnica, quando forem relevantes ao que está sendo escrito. Não cite as normas literalmente nem mencione que está consultando um documento — apenas use o conteúdo para embasar o texto:\n${blocos.join("\n\n")}`;
 }
 /* Último código de resposta HTTP da IA (0 = ainda não chamou, -1 = falha de
@@ -11805,6 +11828,7 @@ function screenSimplesConfigIA(){
     <input type="file" id="fileNormaPDF" accept="application/pdf" hidden onchange="App.onUploadNormaPDF(this.files[0]); this.value='';">
     <button class="btn btn-secondary btn-block" onclick="document.getElementById('fileNormaPDF').click()">${ic('plus')} Adicionar norma em PDF</button>
     <button class="btn btn-ghost btn-block" style="margin-top:8px" onclick="App.abrirRecuperarNormas()">${ic('upload')} Recuperar normas de uma cópia salva</button>
+    <button class="btn btn-ghost btn-block" style="margin-top:6px" onclick="App.toggleConferirNormas()">${ic('info')} Conferir o que a IA recebe destas normas</button>
     <div class="field-hint" style="margin-top:6px">Se alguma norma sumiu, procure nas cópias de segurança guardadas neste aparelho. Traz de volta só a base de normas — não mexe nos laudos.</div>
   </div>
   ${normas.length===0 ? "" : normas.map(n=>`
@@ -11816,7 +11840,56 @@ function screenSimplesConfigIA(){
     <button class="btn ${n.ativo===false?'btn-ghost':'btn-secondary'}" style="flex-shrink:0;font-size:12px;padding:8px 12px" onclick="App.toggleNormaIA('${n.id}')">${n.ativo===false?'Ativar':'Ativa'}</button>
     <button class="btn btn-danger" style="padding:9px;flex-shrink:0" onclick="App.removerNormaIA('${n.id}')">${ic('trash')}</button>
   </div>`).join("")}
+  ${conferirNormasHtml()}
   `;
+}
+/* CONFERIR O QUE A IA RECEBE DAS NORMAS
+
+   Com nove PDFs somando mais de um megabyte de texto, é razoável duvidar que
+   tudo esteja sendo usado — e a resposta certa não é pedir confiança, é
+   mostrar. Aqui você escreve uma descrição de risco como escreveria em campo
+   e vê exatamente quais trechos, de quais normas, iriam junto no pedido.
+   O cálculo é o MESMO que a geração usa (normasTrechosEscolhidos), não uma
+   simulação parecida — se mudasse um, mudaria o outro. */
+function conferirNormasHtml(){
+  if(!STATE.ui.conferirNormasAberto) return "";
+  const exemplo = STATE.ui.conferirNormasTexto || "";
+  const normasAtivas = getNormasIA().filter(n=>n.ativo!==false && n.texto);
+  const totalTexto = normasAtivas.reduce((t,n)=>t+(n.texto||"").length, 0);
+  const trechos = exemplo.trim() ? normasTrechosEscolhidos(exemplo, NORMAS_IA_LIMITE_CARACTERES) : [];
+  const porNorma = new Map();
+  trechos.forEach(t=>{ porNorma.set(t.norma, (porNorma.get(t.norma)||0) + t.texto.length); });
+  const semNada = normasAtivas.filter(n=>!porNorma.has(n.nome)).map(n=>n.nome);
+  return `<div class="card card-pad" style="margin-top:10px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <b style="font-size:13px">O que a IA recebe destas normas</b>
+      <button class="btn btn-ghost btn-sm" onclick="App.toggleConferirNormas()">Fechar</button>
+    </div>
+    <p style="font-size:12.5px;color:var(--ink-dim);margin:6px 0 8px">
+      ${normasAtivas.length} norma(s) ativa(s), ${(totalTexto/1024).toFixed(0)} KB de texto no total.
+      Em cada pedido, cabem <b>${(NORMAS_IA_LIMITE_CARACTERES/1024).toFixed(0)} KB</b> — e vão os trechos
+      mais parecidos com o que está sendo escrito, venham da norma que vierem.
+    </p>
+    <div class="field" style="margin-bottom:8px">
+      <label>Escreva uma descrição de risco, como faria em campo</label>
+      <textarea placeholder="Ex.: correia transportadora sem proteção na região do tambor, risco de agarramento" oninput="App.setConferirNormasTexto(this.value)">${escapeHtml(exemplo)}</textarea>
+    </div>
+    ${!exemplo.trim() ? `<div class="field-hint">Escreva acima para ver quais trechos entrariam.</div>` : `
+      <div style="font-size:12px;font-weight:800;margin:8px 2px 4px">Entraria neste pedido</div>
+      ${porNorma.size===0 ? `<div class="field-hint">Nenhum trecho com relação ao texto — a IA receberia o pedido sem apoio de norma.</div>` :
+        [...porNorma.entries()].sort((a,b)=>b[1]-a[1]).map(([nome, chars])=>`
+        <div style="font-size:11.5px;padding:5px 8px;background:var(--bg-soft);border-radius:6px;margin-bottom:4px">
+          <b>${escapeHtml(nome)}</b> — ${(chars/1024).toFixed(1)} KB
+        </div>`).join("")}
+      ${semNada.length ? `<div class="field-hint" style="margin-top:6px">Sem trecho relacionado desta vez: ${escapeHtml(semNada.join(" · "))}. Isso é o esperado — norma que não tem a ver com o risco não ocupa espaço no pedido, e volta a entrar quando o assunto for dela.</div>`:""}
+      <div style="font-size:12px;font-weight:800;margin:10px 2px 4px">Trechos escolhidos (os 3 primeiros)</div>
+      ${trechos.slice(0,3).map(t=>`
+        <div style="font-size:11px;padding:6px 8px;background:var(--bg-soft);border-radius:6px;margin-bottom:4px">
+          <b>${escapeHtml(t.norma)}</b> <span style="color:var(--ink-faint)">(${t.sem}% de semelhança)</span>
+          <div style="color:var(--ink-dim);margin-top:2px">${escapeHtml(t.texto.slice(0,300))}${t.texto.length>300?"…":""}</div>
+        </div>`).join("")}
+    `}
+  </div>`;
 }
 function screenSimplesConfigModelo(){
   return `
@@ -13831,6 +13904,14 @@ const App = {
     marcarIAAlterada();   // sobe para a nuvem e chega nos outros aparelhos
     render();
     toast(`${n} norma(s) recuperada(s) — serão enviadas aos outros aparelhos`);
+  },
+  toggleConferirNormas(){ STATE.ui.conferirNormasAberto = !STATE.ui.conferirNormasAberto; render(); },
+  setConferirNormasTexto(v){
+    STATE.ui.conferirNormasTexto = v;
+    /* Sem render() aqui: redesenhar a cada tecla tiraria o foco do campo.
+       O resultado atualiza ao sair do campo ou ao reabrir o bloco. */
+    clearTimeout(__conferirNormasTimer);
+    __conferirNormasTimer = setTimeout(()=>{ if(STATE.ui.conferirNormasAberto) render(); }, 900);
   },
   toggleNormaIA(id){
     const n=getNormasIA().find(x=>x.id===id);
