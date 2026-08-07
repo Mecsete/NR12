@@ -120,7 +120,7 @@ chk("AV = ID_Maquina", novo.count('xlsmCellTexto(`AV${rowNum}`') == 1)
 print("\n=== 9. SELO DE VERSAO ===")
 # APP_BUILD passou a ser UM texto fixo (antes eram 2: o valor e o fallback da
 # IIFE que lia document.lastModified). O numero na tela agora e exatamente este.
-chk("APP_BUILD atualizado", novo.count('"07/08/2026 15:45"') == 1, "achei %d" % novo.count('"07/08/2026 15:45"'))
+chk("APP_BUILD atualizado", novo.count('"07/08/2026 16:30"') == 1, "achei %d" % novo.count('"07/08/2026 16:30"'))
 chk("APP_BUILD e texto fixo, nao derivado da data do arquivo",
     novo.count('const APP_BUILD = "') == 1
     and len([l for l in novo.split(chr(10)) if "document.lastModified" in l and not l.strip().startswith("document.lastModified, ou seja")]) == 0)
@@ -540,6 +540,21 @@ chk("o nome do risco junta evento e componente",
     and "const nomeSugerido = montarNomeRisco(r);" in novo)
 chk("nome escrito a mao nunca e sobrescrito",
     'nomeAtual === String(r.nomeAuto||"").trim()' in novo)
+
+print("\n=== 28. BARRA INFERIOR COM O TECLADO ABERTO ===")
+chk("existe o vigia da janela visivel",
+    novo.count("function vigiarTeclado(){") == 1
+    and "window.visualViewport" in novo)
+chk("o corte evita confundir com a barra de endereco",
+    "(window.innerHeight - vv.height) > 140" in novo)
+chk("a classe some quando o teclado fecha",
+    'classList.toggle("teclado-aberto", agora)' in novo)
+chk("a barra e os botoes flutuantes somem com o teclado",
+    "html.teclado-aberto .bottomnav," in novo
+    and "html.teclado-aberto .fab-wrap," in novo
+    and "html.teclado-aberto .laudo-fab{display:none!important;}" in novo)
+chk("sem visualViewport (computador/navegador antigo) nada muda",
+    "if(!vv) return;" in novo[novo.find("function vigiarTeclado(){"):novo.find("function vigiarTeclado(){")+300])
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")

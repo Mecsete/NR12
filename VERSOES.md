@@ -22,6 +22,24 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/08/2026 16:30
+
+**A barra inferior não fica mais no meio da tela ao digitar no celular.**
+
+A barra de opções (Projetos · Riscos · Laudo · Configurações) é fixada no
+"fundo da tela". No iPhone, esse fundo é o da janela **antes** do teclado
+subir — e o sistema não avisa a página quando o teclado aparece. Resultado: ao
+digitar um texto no laudo, a barra ficava flutuando no meio, por cima do que
+estava sendo escrito.
+
+Agora o app percebe o teclado pelo tamanho da área realmente visível e
+**esconde a barra enquanto se digita** — o que ainda devolve espaço de tela.
+Ao fechar o teclado, ela volta. Os botões flutuantes seguem a mesma regra.
+
+No computador nada muda.
+
+---
+
 ## 07/08/2026 15:45
 
 Ajustes no cadastro de risco em campo.
