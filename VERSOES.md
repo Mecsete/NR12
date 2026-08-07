@@ -22,6 +22,38 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/08/2026 17:20
+
+Montagem do risco: nome completo, na posição certa, e explicação de cada
+evento.
+
+**O nome do risco passa a usar os quatro itens**, em frase corrida com a
+concordância certa — as preposições já vêm cadastradas nas listas, e para
+item digitado à mão o app deduz pelo termo:
+
+- *Agarramento na correia, na transmissão de potência, com lesão nas mãos*
+- *Queda na plataforma*
+- *Enroscamento nos roletes, com lesão nos braços*
+
+**O campo do nome desceu para logo abaixo do quadro de montagem.** Assim você
+monta, vê o nome que saiu e ajusta se quiser — em vez de preencher o nome
+antes de ter escolhido qualquer coisa.
+
+**Cada item de "O que pode acontecer?" ganhou uma explicação curta**, no ícone
+de informação ao lado do rótulo. Vários são parecidos no nome e diferentes na
+consequência — agarramento, enroscamento e arrastamento, por exemplo — e a
+escolha muda o Grau do Dano e, por consequência, o HRN.
+
+**Correção de texto:** sem componente, a frase deixa de ter uma vírgula
+sobrando. Era *"Risco de queda, na plataforma da máquina"*; agora é *"Risco de
+queda na plataforma da máquina"*. Vale para o nome e para a descrição, que
+seguem a mesma regra.
+
+Como sempre: o que você escrever por cima não é mais mexido, e riscos já
+cadastrados não são renomeados.
+
+---
+
 ## 07/08/2026 16:30
 
 **A barra inferior não fica mais no meio da tela ao digitar no celular.**

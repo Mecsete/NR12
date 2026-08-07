@@ -171,6 +171,9 @@ const BLOCO_B = trecho("/* =====================================================
 vm.runInContext(BLOCO_A, ctx);
 vm.runInContext(BLOCO_B, ctx);
 const BLOCO_R = trecho("/* =========================================================================\n   MONTADOR DE RISCO EM CAMPO", "\nfunction formRiscoSHtml(){");
+/* Sinalizadores de painel aberto que o bloco do montador consulta. Ficam
+   declarados fora dele no app, então precisam existir aqui antes. */
+vm.runInContext("let __infoHrnPOAberto = false; let __infoEventosAberto = false;", ctx);
 vm.runInContext(BLOCO_R, ctx);
 const C = ctx;
 
@@ -1107,7 +1110,11 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   });
   t("funciona com seleção parcial", ()=>{
     eq(C.montarDescricaoRisco({ evento:"Corte", componente:"Lâmina" }), "Risco de corte na lâmina.");
-    eq(C.montarDescricaoRisco({ evento:"Queda", local:"Escada" }), "Risco de queda, na escada da máquina.");
+    /* Sem componente, o complemento emenda direto no evento — a vírgula só
+       entra quando já houve um complemento antes dela. */
+    eq(C.montarDescricaoRisco({ evento:"Queda", local:"Escada" }), "Risco de queda na escada da máquina.");
+    eq(C.montarDescricaoRisco({ evento:"Queda", componente:"Guarda-corpo", local:"Escada" }),
+       "Risco de queda no guarda-corpo, na escada da máquina.");
     eq(C.montarDescricaoRisco({ local:"Escada" }), "Risco na escada da máquina.");
     eq(C.montarDescricaoRisco({ componente:"Correia" }), "Risco na correia.");
     eq(C.montarDescricaoRisco({ parteCorpo:"Mão" }), "Risco com possível lesão na mão.");
@@ -1208,7 +1215,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   t("a frase montada aparece na tela antes de salvar", ()=>{
     const h = C.blocoMontadorRiscoHtml({ local:"Escada", componente:"", evento:"Queda", parteCorpo:"Cabeça", descricao:"", gpd:"" });
     ok(h.indexOf("risco-montador-frase") > 0);
-    ok(h.indexOf("Risco de queda, na escada da máquina, com possível lesão na cabeça.") > 0);
+    ok(h.indexOf("Risco de queda na escada da máquina, com possível lesão na cabeça.") > 0);
   });
   t("o grau sugerido aparece com o motivo e botão de aplicar", ()=>{
     const h = C.blocoMontadorRiscoHtml({ local:"", componente:"", evento:"Queda", parteCorpo:"Cabeça", descricao:"", gpd:"" });
@@ -2844,9 +2851,40 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
 
   console.log("\n=== t69 · modal de criação de risco (bloco 1) ===");
   vm.runInContext(funcao("montarNomeRisco"), ctx);
+  t("o nome do risco usa os quatro itens em frase corrida", ()=>{
+    ctx.__r = { evento:"Agarramento", componente:"Correia", local:"Transmissão de potência", parteCorpo:"Mãos" };
+    eq(vm.runInContext("montarNomeRisco(__r)", ctx),
+       "Agarramento na correia, na transmissão de potência, com lesão nas mãos");
+  });
+  t("sem componente, o complemento emenda sem vírgula", ()=>{
+    ctx.__r = { evento:"Queda", componente:"", local:"Plataforma", parteCorpo:"" };
+    eq(vm.runInContext("montarNomeRisco(__r)", ctx), "Queda na plataforma");
+    ctx.__r = { evento:"Corte", componente:"", local:"", parteCorpo:"Dedos" };
+    eq(vm.runInContext("montarNomeRisco(__r)", ctx), "Corte com lesão nos dedos");
+  });
   t("o nome do risco junta evento e componente", ()=>{
     ctx.__r = { evento:"Agarramento", componente:"Correia transportadora" };
     eq(vm.runInContext("montarNomeRisco(__r)", ctx), "Agarramento na correia transportadora");
+  });
+  t("nome e descrição seguem a MESMA regra de vírgula", ()=>{
+    const r = { evento:"Queda", componente:"", local:"Escada", parteCorpo:"Cabeça" };
+    ctx.__r = r;
+    ok(vm.runInContext("montarNomeRisco(__r)", ctx).indexOf("Queda na escada") === 0, "nome com vírgula sobrando");
+    ok(C.montarDescricaoRisco(r).indexOf("Risco de queda na escada") === 0, "descrição com vírgula sobrando");
+  });
+  t("cada evento tem explicação e ela aparece no painel", ()=>{
+    const eventos = vm.runInContext("RISCO_EVENTOS", ctx);
+    eventos.forEach(e=> ok(e.desc && e.desc.length > 20, "evento sem explicação: " + e.v));
+    ok(HTML.indexOf("App.toggleInfoEventos()") > 0, "sem o ícone de informação");
+    ok(HTML.indexOf("__infoEventosAberto? `<div class=\"info-box\"") > 0, "o painel não abre");
+  });
+  t("o nome fica DEPOIS do quadro de montagem", ()=>{
+    const i = HTML.indexOf("function formRiscoSHtml(){");
+    const corpo = HTML.slice(i, i + 1600);
+    const iMont = corpo.indexOf("${blocoMontadorRiscoHtml(r)}");
+    const iNome = corpo.indexOf('id="risco-nome-input"');
+    ok(iMont > 0 && iNome > 0, "não achou os dois blocos");
+    ok(iMont < iNome, "o nome continua acima do quadro de montagem");
   });
   t("sem componente, fica só o evento", ()=>{
     ctx.__r = { evento:"Agarramento", componente:"" };

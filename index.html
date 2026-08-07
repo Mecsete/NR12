@@ -1709,7 +1709,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/08/2026 16:30";
+const APP_BUILD = "07/08/2026 17:20";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -5758,7 +5758,8 @@ let __draftEntity = null;
 let __draftParent = null;
 let __draftTipo = null;
 let __modalOnSaved = null;
-let __infoHrnPOAberto = false; // popover de ajuda da Probabilidade, no formulário de Risco
+let __infoHrnPOAberto = false;
+let __infoEventosAberto = false; // popover de ajuda da Probabilidade, no formulário de Risco
 let __extrasProjetoAberto = false; // seção "informações adicionais" no formulário de Projeto
 let __extrasMaquinaAberto = false; // seção "dados de inventário" no formulário de Máquina
 let __lendoPlaquetaIA = false; // trava o botão "Ler plaqueta com IA" enquanto a chamada está em andamento
@@ -6065,26 +6066,50 @@ const RISCO_COMPONENTES = [
 /* Cada evento traz o Grau do Dano que ele costuma produzir. É um ponto de
    partida conservador, alinhado com a tabela GPD_POR_RISCO que o app já usava
    — e que o engenheiro pode trocar a qualquer momento. */
+/* Cada evento traz uma explicação curta, do jeito que a diferença aparece em
+   campo. Vários deles são parecidos no nome e diferentes na consequência —
+   agarramento, enroscamento e arrastamento, por exemplo — e escolher o errado
+   muda o Grau do Dano e, por consequência, o HRN. A explicação aparece no
+   ícone de informação ao lado de "O que pode acontecer?". */
 const RISCO_EVENTOS = [
-  { v:"Esmagamento",            gpd:"Perda de Vários membros" },
-  { v:"Amputação",              gpd:"Perda de membro, visão ou audição" },
-  { v:"Corte",                  gpd:"Corte" },
-  { v:"Laceração",              gpd:"Fratura osso menor" },
-  { v:"Perfuração",             gpd:"Fratura osso menor" },
-  { v:"Arrastamento",           gpd:"Perda de Vários membros" },
-  { v:"Agarramento",            gpd:"Perda de membro, visão ou audição" },
-  { v:"Enroscamento",           gpd:"Perda de Vários membros" },
-  { v:"Fratura",                gpd:"Fratura osso maior" },
-  { v:"Contusão",               gpd:"Fratura osso menor" },
-  { v:"Queda",                  gpd:"Fratura osso maior" },
-  { v:"Queimadura",             gpd:"Fratura osso maior" },
-  { v:"Choque elétrico",        gpd:"Fatalidade" },
-  { v:"Incêndio",               gpd:"Fatalidade" },
-  { v:"Explosão",               gpd:"Fatalidade" },
-  { v:"Intoxicação",            gpd:"Fatalidade" },
-  { v:"Asfixia",                gpd:"Fatalidade" },
-  { v:"Projeção de partículas", gpd:"Corte" },
-  { v:"Queda de material",      gpd:"Fratura osso maior" },
+  { v:"Esmagamento",            gpd:"Perda de Vários membros",
+    desc:"A parte do corpo é prensada entre duas superfícies que se aproximam, ou entre uma móvel e uma fixa." },
+  { v:"Amputação",              gpd:"Perda de membro, visão ou audição",
+    desc:"Separação completa de um membro ou parte dele, típica de elementos cortantes ou de zonas de prensagem." },
+  { v:"Corte",                  gpd:"Corte",
+    desc:"Lesão por aresta ou elemento afiado, sem separação do membro." },
+  { v:"Laceração",              gpd:"Fratura osso menor",
+    desc:"Rasgo do tecido por superfície irregular ou rebarba — a borda da ferida fica irregular, não limpa como no corte." },
+  { v:"Perfuração",             gpd:"Fratura osso menor",
+    desc:"Penetração por elemento pontiagudo, como haste, prego ou jato sob pressão." },
+  { v:"Arrastamento",           gpd:"Perda de Vários membros",
+    desc:"O corpo é puxado ao longo do equipamento depois que uma parte foi apanhada, como numa esteira em movimento." },
+  { v:"Agarramento",            gpd:"Perda de membro, visão ou audição",
+    desc:"Roupa, cabelo ou membro é apanhado por elemento girante ou por ponto de convergência, como correia e tambor." },
+  { v:"Enroscamento",           gpd:"Perda de Vários membros",
+    desc:"O corpo ou a roupa se enrola em elemento que gira, como eixo, rosca transportadora ou broca." },
+  { v:"Fratura",                gpd:"Fratura osso maior",
+    desc:"Quebra de osso por impacto, prensagem ou queda." },
+  { v:"Contusão",               gpd:"Fratura osso menor",
+    desc:"Pancada sem ferida aberta — batida contra parte da máquina ou golpe de peça em movimento." },
+  { v:"Queda",                  gpd:"Fratura osso maior",
+    desc:"Queda da própria altura ou de nível diferente: plataforma, escada, passarela ou abertura no piso." },
+  { v:"Queimadura",            gpd:"Fratura osso maior",
+    desc:"Contato com superfície quente ou fria, chama, vapor ou produto químico." },
+  { v:"Choque elétrico",        gpd:"Fatalidade",
+    desc:"Contato com parte energizada, exposta ou energizada por falha de isolamento." },
+  { v:"Incêndio",               gpd:"Fatalidade",
+    desc:"Início de fogo por material combustível, sobreaquecimento, faísca ou atrito." },
+  { v:"Explosão",               gpd:"Fatalidade",
+    desc:"Liberação súbita de energia — pressão, poeira em suspensão ou gás inflamável." },
+  { v:"Intoxicação",            gpd:"Fatalidade",
+    desc:"Exposição a produto químico, vapor ou gás, por respiração ou contato." },
+  { v:"Asfixia",                gpd:"Fatalidade",
+    desc:"Falta de oxigênio ou soterramento, típico de espaço confinado, silo e moega." },
+  { v:"Projeção de partículas", gpd:"Corte",
+    desc:"Material, estilhaço ou fluido lançado pela máquina em direção ao operador." },
+  { v:"Queda de material",      gpd:"Fratura osso maior",
+    desc:"Peça, carga ou produto cai de altura sobre a pessoa." },
 ];
 const RISCO_PARTES = [
   { v:"Cabeça",        em:"na cabeça" },
@@ -6199,20 +6224,41 @@ function montarDescricaoRisco(r){
   const seq = [];
   if(loc) seq.push(riscoArtigoEm(loc) + " da máquina");
   if(parte) seq.push("com possível lesão " + riscoArtigoEm(parte));
-  // Sem evento e sem componente a frase começa só com "Risco" — aí o resto
-  // entra sem vírgula ("Risco na escada da máquina."), que é como se fala.
-  const emenda = seq.length ? (cabeca === "Risco" ? " " : ", ") + seq.join(", ") : "";
+  /* A vírgula só faz sentido quando já houve um complemento antes dela — ou
+     seja, quando o componente entrou. Sem componente, o resto emenda direto:
+     "Risco de queda na plataforma da máquina", e não "Risco de queda, na
+     plataforma da máquina". Mesma regra usada no nome do risco, para os dois
+     textos soarem iguais. */
+  const emenda = seq.length ? (comp ? ", " : " ") + seq.join(", ") : "";
   const texto = cabeca + emenda;
   return texto.charAt(0).toUpperCase() + texto.slice(1) + ".";
 }
-/* Nome curto do risco, para as listas e para o laudo: o evento mais o
-   componente onde ele acontece. Sem componente, fica só o evento. */
+/* Nome do risco a partir dos QUATRO itens da montagem, em frase corrida.
+   As preposições ("na correia", "nos roletes") já vêm cadastradas nas listas,
+   então a concordância sai certa sem adivinhação; para item digitado à mão,
+   riscoArtigoEm deduz pelo núcleo do termo.
+
+   Fica sem o "Risco de" da descrição e sem ponto final — é um título de lista,
+   não uma frase de laudo. Ex.: "Agarramento na correia transportadora, na
+   transmissão, com lesão nas mãos". */
 function montarNomeRisco(r){
   if(!r) return "";
   const ev = String(r.evento||"").trim();
   const comp = String(r.componente||"").trim();
+  const loc = String(r.local||"").trim();
+  const parte = String(r.parteCorpo||"").trim();
   if(!ev) return "";
-  return comp ? (ev + " " + riscoArtigoEm(comp)) : ev;
+  let nome = ev.charAt(0).toUpperCase() + ev.slice(1);
+  if(comp) nome += " " + riscoArtigoEm(comp);
+  const seq = [];
+  if(loc) seq.push(riscoArtigoEm(loc));
+  if(parte) seq.push("com lesão " + riscoArtigoEm(parte));
+  /* Sem componente, o que vem depois emenda direto no evento — "Queda na
+     plataforma", e não "Queda, na plataforma". Com componente, a vírgula
+     separa: "Agarramento na correia, na transmissão". Mesma regra da
+     descrição, para os dois textos soarem iguais. */
+  if(seq.length) nome += (comp ? ", " : " ") + seq.join(", ");
+  return nome;
 }
 /* Grau do Dano sugerido: parte do evento e agrava quando a parte do corpo
    atingida é vital (ou quando são os olhos). */
@@ -6817,10 +6863,13 @@ function blocoMontadorRiscoHtml(r){
     <div class="risco-montador-head">${ic('shield')} Montar o risco em lista</div>
     <div class="risco-montador-grid">
       ${RISCO_CAMPOS.map(c=>`<div class="field" style="margin-bottom:0">
-        <label>${escapeHtml(c.rot)}</label>
+        <label style="display:flex;align-items:center;gap:4px">${escapeHtml(c.rot)}
+          ${c.k==="evento"? `<button type="button" class="info-btn" onclick="App.toggleInfoEventos()" title="O que significa cada opção?">${ic('info')}</button>` : ""}
+        </label>
         ${selectRiscoCampoHtml(c.k, r[c.k]||"", proj)}
       </div>`).join("")}
     </div>
+    ${__infoEventosAberto? `<div class="info-box" style="margin-top:8px">${RISCO_EVENTOS.filter(e=>e.desc).map(e=>`<div class="info-row"><b>${escapeHtml(e.v)}</b><span>${escapeHtml(e.desc)}</span></div>`).join("")}</div>` : ""}
     ${sugestao? `<div class="risco-montador-frase">${escapeHtml(sugestao)}</div>` : `<div class="field-hint" style="margin-top:8px">Escolha as opções acima e a descrição é escrita sozinha — nada aqui é obrigatório.</div>`}
     ${podeAplicar? `<button type="button" class="btn btn-secondary btn-sm btn-block" style="margin-top:8px" onclick="App.aplicarDescricaoSugerida()">${ic('copy')} Usar esta descrição</button>` : ""}
     ${gpdSug? `<div class="field-hint" style="margin-top:8px">Grau do Dano sugerido: <b>${escapeHtml(gpdSug)}</b> ${escapeHtml(motivoGPDSugerido(r))}${r.gpd===gpdSug? " — já aplicado." : `. <button type="button" class="clear-text-btn" onclick="App.aplicarGPDSugerido()">Aplicar</button>`}</div>` : ""}
@@ -6836,13 +6885,13 @@ function formRiscoSHtml(){
   const opcoesGPD = HRN_GPD_TABELA.map(x=>x.classificacao);
   return `<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.cancelarDraftEntidade()"><div class="modal-card">
     <h3>Risco</h3>
+    ${blocoMontadorRiscoHtml(r)}
     <div class="field">
       <label>Nome do Risco <span class="req">*</span></label>
       <input type="text" id="risco-nome-input" placeholder="Digite o nome do risco" value="${escapeHtml(r.nome)}" oninput="App.onDraftNomeRiscoInput(this.value)" onfocus="App.onFocoNomeRisco()">
       <div id="sugestoes-risco-wrap">${renderSugestoesRiscoHtml(r.nome)}</div>
-      <div class="field-hint">Sugestões: riscos já usados neste projeto e riscos mecânicos comuns.</div>
+      <div class="field-hint">Escrito sozinho a partir das escolhas acima — pode ajustar à vontade, e o que você escrever não é mais mexido.</div>
     </div>
-    ${blocoMontadorRiscoHtml(r)}
     <div class="field">
       <label style="display:flex;align-items:center;justify-content:space-between">
         <span>Descrição do Risco <span style="font-weight:400;color:var(--ink-faint)">(opcional)</span></span>
@@ -14337,6 +14386,7 @@ const App = {
     textarea && textarea.focus();
   },
   onDraftMedidaChange(value){ __draftEntity.medidaImplementada=value; renderModalEntidade(); },
+  toggleInfoEventos(){ __infoEventosAberto = !__infoEventosAberto; renderModalEntidade(); },
   toggleInfoHrnPO(){ __infoHrnPOAberto = !__infoHrnPOAberto; renderModalEntidade(); },
   toggleExtrasProjeto(){ __extrasProjetoAberto = !__extrasProjetoAberto; renderModalEntidade(); },
   toggleExtrasMaquina(){ __extrasMaquinaAberto = !__extrasMaquinaAberto; renderModalEntidade(); },

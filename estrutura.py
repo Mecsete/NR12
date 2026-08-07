@@ -120,7 +120,7 @@ chk("AV = ID_Maquina", novo.count('xlsmCellTexto(`AV${rowNum}`') == 1)
 print("\n=== 9. SELO DE VERSAO ===")
 # APP_BUILD passou a ser UM texto fixo (antes eram 2: o valor e o fallback da
 # IIFE que lia document.lastModified). O numero na tela agora e exatamente este.
-chk("APP_BUILD atualizado", novo.count('"07/08/2026 16:30"') == 1, "achei %d" % novo.count('"07/08/2026 16:30"'))
+chk("APP_BUILD atualizado", novo.count('"07/08/2026 17:20"') == 1, "achei %d" % novo.count('"07/08/2026 17:20"'))
 chk("APP_BUILD e texto fixo, nao derivado da data do arquivo",
     novo.count('const APP_BUILD = "') == 1
     and len([l for l in novo.split(chr(10)) if "document.lastModified" in l and not l.strip().startswith("document.lastModified, ou seja")]) == 0)
@@ -555,6 +555,28 @@ chk("a barra e os botoes flutuantes somem com o teclado",
     and "html.teclado-aberto .laudo-fab{display:none!important;}" in novo)
 chk("sem visualViewport (computador/navegador antigo) nada muda",
     "if(!vv) return;" in novo[novo.find("function vigiarTeclado(){"):novo.find("function vigiarTeclado(){")+300])
+
+print("\n=== 29. MONTAGEM DO RISCO (BLOCO 2a) ===")
+chk("o nome do risco usa os quatro itens",
+    novo.count("function montarNomeRisco(") == 1
+    and all(m in novo[novo.find("function montarNomeRisco("):novo.find("function montarNomeRisco(")+900]
+            for m in ["r.evento", "r.componente", "r.local", "r.parteCorpo"]))
+chk("nome e descricao usam a MESMA regra de virgula",
+    novo.count('nome += (comp ? ", " : " ") + seq.join(", ");') == 1
+    and novo.count('const emenda = seq.length ? (comp ? ", " : " ") + seq.join(", ") : "";') == 1)
+chk("a regra antiga da descricao (cabeca === 'Risco') saiu",
+    'cabeca === "Risco" ? " " : ", "' not in novo)
+_ff = novo.find("function formRiscoSHtml(){")
+_ffc = novo[_ff:_ff+1600]
+chk("o campo do nome fica DEPOIS do quadro de montagem",
+    _ffc.find("${blocoMontadorRiscoHtml(r)}") < _ffc.find('id="risco-nome-input"')
+    and _ffc.find("${blocoMontadorRiscoHtml(r)}") > 0)
+chk("todo evento tem explicacao curta",
+    len(re.findall(r'\{ v:"[^"]+",\s*\n?\s*gpd:"[^"]+",\s*\n?\s*desc:"', novo)) >= 19)
+chk("o icone de informacao dos eventos existe e abre o painel",
+    novo.count("App.toggleInfoEventos()") == 1
+    and novo.count("toggleInfoEventos(){") == 1
+    and "let __infoEventosAberto = false;" in novo)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
