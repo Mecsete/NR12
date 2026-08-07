@@ -1696,7 +1696,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/08/2026 12:05";
+const APP_BUILD = "07/08/2026 12:40";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -4352,6 +4352,19 @@ function onedriveDiagnosticoDados(){
     enviar.push({ tipo:it.tipo, nome:(it.pasta||[]).join(" / ") + " / " + it.arquivo,
                   motivo, quando:"", detalhe });
   });
+  /* A OUTRA fonte: o que a última verificação da nuvem encontrou lá e ainda
+     não chegou aqui. É ela que alimenta a linha "N Riscos para receber" logo
+     acima na tela — sem ler isto, o diagnóstico dizia "nada pendente" com
+     itens claramente esperando. É uma FOTO de um momento, não um número
+     recalculado agora; por isso vem com a hora em que foi tirada. */
+  const snap = STATE.oneDriveStatusPendente || null;
+  const nuvem = {
+    itens: snap ? (snap.totalReceber||0) : 0,
+    fotos: snap && snap.fotosReceber ? (snap.fotosReceber.qtd||0) : 0,
+    bytesFotos: snap && snap.fotosReceber ? (snap.fotosReceber.bytes||0) : 0,
+    verificadoEm: snap && snap.verificadoEm ? dataCurta(snap.verificadoEm) : "",
+    temSnap: !!snap
+  };
   const receber = (STATE.oneDrivePendentes||[]).map(p=>({
     tipo: p.tipo || "item", nome: rotuloCaminhoNuvem(p.caminho||""),
     motivo: (p.tipo==="fotos" ? "pacote de fotos — esperando Wi-Fi" : "aguardando download"),
@@ -4372,11 +4385,15 @@ function onedriveDiagnosticoDados(){
     detalhe: g.ocorrencias.map(o=>o.caminho).join("   ·VS·   ") }));
   const log = Array.isArray(STATE.logSincronizacao) ? STATE.logSincronizacao : [];
   const fmtQuando = (ts)=>{ try{ return new Date(ts).toLocaleString("pt-BR"); }catch(e){ return String(ts); } };
-  const reparos = log.filter(e=> e && e.reparo).slice(0, 25).map(e=>({
+  /* Antes da correção de 07/08 12:05, a autocura era gravada como falha. Esses
+     registros continuam no histórico e sujariam o placar por mais algumas
+     horas — reconhecê-los pelo próprio texto conserta o retrato de imediato. */
+  const ehReparo = (e)=> !!(e && (e.reparo || /reenvio agenda/i.test(e.motivo||"")));
+  const reparos = log.filter(ehReparo).slice(0, 25).map(e=>({
     nome: (e.caminho ? e.caminho + " › " : "") + (e.nome||""),
     motivo: "correção automática — " + (e.motivo||"reenvio agendado"),
     quando: fmtQuando(e.ts), quandoRot: "em" }));
-  const falhas = log.filter(e=> e && e.ok === false && !e.reparo).slice(0, 25).map(e=>({
+  const falhas = log.filter(e=> e && e.ok === false && !ehReparo(e)).slice(0, 25).map(e=>({
     nome: (e.caminho ? e.caminho + " › " : "") + (e.nome||""),
     motivo: (e.dir==="up" ? "falha ao ENVIAR" : "falha ao RECEBER") + (e.motivo? " — " + e.motivo : ""),
     quando: fmtQuando(e.ts), quandoRot: "tentativa em", tamanho: fmtBytes(e.bytes||0) }));
@@ -4384,9 +4401,9 @@ function onedriveDiagnosticoDados(){
     nome: (e.nome||""), quando: fmtQuando(e.ts),
     motivo: (e.dir==="up" ? "enviado" : "recebido") + (e.ok===false ? " — FALHOU" + (e.motivo? ": "+e.motivo : "") : " com sucesso"),
     quandoRot: "em", tamanho: fmtBytes(e.bytes||0) }));
-  const enviosOk = log.filter(e=> e && e.dir==="up" && e.ok !== false && !e.reparo).length;
-  const enviosFalha = log.filter(e=> e && e.dir==="up" && e.ok === false && !e.reparo).length;
-  return { enviar, receber, fila, quarentena, falhas, reparos, ultimos, enviosOk, enviosFalha,
+  const enviosOk = log.filter(e=> e && e.dir==="up" && e.ok !== false && !ehReparo(e)).length;
+  const enviosFalha = log.filter(e=> e && e.dir==="up" && e.ok === false && !ehReparo(e)).length;
+  return { enviar, receber, nuvem, fila, quarentena, falhas, reparos, ultimos, enviosOk, enviosFalha,
            mudancaEndereco, carimboRegrediu, duplicadas, totalDuplicadas: dups.length,
            eventosNoLog: log.length,
            ultimaSync: STATE.ultimaSincronizacaoOneDriveEm ? fmtQuando(STATE.ultimaSincronizacaoOneDriveEm) : "nunca",
@@ -4411,7 +4428,10 @@ function onedriveDiagnosticoTexto(){
   });
   if(d.enviar.length>60) l.push("  … e mais " + (d.enviar.length-60));
   l.push("");
-  l.push("PARA RECEBER (" + d.receber.length + ")");
+  l.push("ENCONTRADO NA NUVEM, AINDA NAO RECEBIDO: " + d.nuvem.itens + " item(ns) · " + d.nuvem.fotos + " foto(s)"
+         + (d.nuvem.verificadoEm ? " (verificado em " + d.nuvem.verificadoEm + ")" : " (nuvem ainda nao verificada)"));
+  l.push("");
+  l.push("PARA RECEBER — FILA LOCAL (" + d.receber.length + ")");
   d.receber.slice(0,60).forEach(x=> l.push("  · [" + x.tipo + "] " + x.nome + " — " + x.motivo + " — " + x.tamanho));
   if(d.receber.length>60) l.push("  … e mais " + (d.receber.length-60));
   l.push("");
@@ -4458,11 +4478,20 @@ function onedriveDiagnosticoInlineHtml(){
         </div>`).join("") +
         (arr.length>40? `<div style="font-size:11px;color:var(--ink-faint);margin:0 2px">… e mais ${arr.length-40}</div>`:"");
     };
-    const zero = !d.enviar.length && !d.receber.length && !d.fila.length && !d.quarentena.length;
+    /* Só é "nada pendente" quando as DUAS contas estão zeradas — a daqui e a
+       da última verificação da nuvem. Antes bastava a daqui, e o aviso verde
+       aparecia contradizendo a linha logo acima. */
+    const zero = !d.enviar.length && !d.receber.length && !d.fila.length && !d.quarentena.length
+                 && !d.nuvem.itens && !d.nuvem.fotos;
     corpo = `
       <div style="font-size:12px">OneDrive: <b>${d.conta?"conectado":"NÃO conectado"}</b> · internet: <b>${d.online?"sim":"NÃO"}</b> · Wi-Fi confirmado: <b>${d.wifiConfirmado?"sim":"não"}</b> · ${d.totalItens} item(ns) aqui</div>
       ${zero? `<div style="margin-top:8px;padding:8px 10px;background:#E3F4E4;border-radius:6px;font-size:12.5px;color:#2E7D32"><b>Nada pendente.</b> O selo "sincronizando" que aparece de vez em quando é só a verificação automática de 2 em 2 minutos — não há trabalho parado.</div>`:""}
       ${secao("Para enviar", d.enviar, "Nada esperando envio.")}
+      ${d.nuvem.temSnap && (d.nuvem.itens || d.nuvem.fotos) ? `<div style="font-size:12px;font-weight:800;margin:10px 2px 2px">Encontrado na nuvem, ainda não recebido</div>
+        <div style="font-size:11.5px;padding:5px 8px;background:var(--bg-soft);border-radius:6px;margin-bottom:4px">
+          <b>${d.nuvem.itens} item(ns)</b>${d.nuvem.fotos? ` · <b>${d.nuvem.fotos} foto(s)</b> (${(d.nuvem.bytesFotos/1024/1024).toFixed(1)} MB)`:""}
+          <br><span style="color:var(--ink-dim)">Conta da última verificação da nuvem, em ${escapeHtml(d.nuvem.verificadoEm)} — é o mesmo número da linha "para receber" acima. Chega sozinho; as fotos esperam Wi-Fi.</span>
+        </div>`:""}
       ${secao("Para receber", d.receber, "Nada esperando download.")}
       ${d.fila.length > 30 ? `<div style="margin:6px 2px;padding:8px 10px;background:#FFF3D6;border:1px solid #E9C46A;border-radius:6px;font-size:12.5px;color:#5C3D00">
         <b>${d.fila.length} arquivos anunciados pela nuvem esperando um projeto que não existe aqui.</b>

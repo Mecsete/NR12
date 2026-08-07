@@ -2637,9 +2637,12 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   t("o diagnóstico separa reparo de falha e não conta no placar", ()=>{
     const i = HTML.indexOf("function onedriveDiagnosticoDados(");
     const corpo = HTML.slice(i, HTML.indexOf("function onedriveDiagnosticoTexto(", i));
-    ok(corpo.indexOf("e.ok === false && !e.reparo") > 0, "as falhas ainda incluem reparo");
-    ok(corpo.indexOf("log.filter(e=> e && e.reparo)") > 0, "não separa os reparos");
-    ok(corpo.indexOf('e.ok !== false && !e.reparo') > 0, "o placar de sucesso conta reparo");
+    /* A separação passou a usar ehReparo(), que reconhece tanto o sinal novo
+       quanto os registros antigos pelo texto do motivo — é mais abrangente
+       que checar só o campo. */
+    ok(corpo.indexOf("e.ok === false && !ehReparo(e)") > 0, "as falhas ainda incluem reparo");
+    ok(corpo.indexOf("log.filter(ehReparo)") > 0, "não separa os reparos");
+    ok(corpo.indexOf('e.ok !== false && !ehReparo(e)') > 0, "o placar de sucesso conta reparo");
     ok(HTML.indexOf("Correções automáticas (não são erros)") > 0, "a tela não distingue");
   });
   t("limpar a fila da nuvem existe, confirma e não toca em dado", ()=>{
@@ -2665,6 +2668,43 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(corpo.indexOf("Não foi possível falar com ${preset.nome}") > 0, "não diz qual provedor falhou");
     ok(corpo.indexOf("a chave nem chegou a ser verificada") > 0, "não separa rede de chave");
     ok(corpo.indexOf("4G do celular") > 0, "não sugere como separar as duas causas");
+  });
+
+  console.log("\n=== t66 · o diagnóstico não se contradiz com a linha de cima ===");
+  t("lê também a foto da última verificação da nuvem", ()=>{
+    const i = HTML.indexOf("function onedriveDiagnosticoDados(");
+    const corpo = HTML.slice(i, HTML.indexOf("function onedriveDiagnosticoTexto(", i));
+    ok(corpo.indexOf("STATE.oneDriveStatusPendente") > 0, "ignora o que a nuvem tem a mais");
+    ok(corpo.indexOf("totalReceber") > 0 && corpo.indexOf("fotosReceber") > 0, "não lê os dois números");
+    ok(corpo.indexOf("verificadoEm") > 0, "não mostra quando a foto foi tirada");
+  });
+  t("'nada pendente' exige as DUAS contas zeradas", ()=>{
+    ok(HTML.indexOf("&& !d.nuvem.itens && !d.nuvem.fotos;") > 0,
+       "voltaria a dizer 'nada pendente' com itens esperando na nuvem");
+  });
+  t("mostra na tela o que a nuvem tem e ainda não chegou", ()=>{
+    ok(HTML.indexOf("Encontrado na nuvem, ainda não recebido") > 0, "sem a seção");
+    ok(HTML.indexOf("é o mesmo número da linha \"para receber\" acima") > 0,
+       "não liga o número ao que aparece acima, que era a origem da confusão");
+  });
+  t("o texto copiável traz as duas contas separadas", ()=>{
+    const i = HTML.indexOf("function onedriveDiagnosticoTexto(");
+    const corpo = HTML.slice(i, HTML.indexOf("function onedriveDiagnosticoInlineHtml(", i));
+    ok(corpo.indexOf("ENCONTRADO NA NUVEM, AINDA NAO RECEBIDO") > 0, "sem a conta da nuvem");
+    ok(corpo.indexOf("PARA RECEBER — FILA LOCAL") > 0, "não deixa claro que a outra é a fila local");
+  });
+  t("registro antigo de autocura deixa de contar como falha", ()=>{
+    const i = HTML.indexOf("function onedriveDiagnosticoDados(");
+    const corpo = HTML.slice(i, HTML.indexOf("function onedriveDiagnosticoTexto(", i));
+    ok(corpo.indexOf("const ehReparo = ") > 0, "sem o reconhecimento pelo texto");
+    ok(corpo.indexOf("/reenvio agenda/i.test(e.motivo") > 0, "não reconhece o registro antigo");
+    ok(corpo.indexOf("!ehReparo(e)") > 0, "as falhas e o placar não usam o reconhecimento");
+  });
+  t("continua sendo só leitura", ()=>{
+    const i = HTML.indexOf("function onedriveDiagnosticoDados(");
+    const corpo = HTML.slice(i, HTML.indexOf("function onedriveDiagnosticoTexto(", i));
+    ["marcarAlterado(", "dbSet(", "registrarEventoSync(", "onedriveEnviarBlob"].forEach(m=>
+      ok(corpo.indexOf(m) < 0, "o diagnóstico não pode alterar nada: " + m));
   });
 
   console.log("\n---------------------------------------");

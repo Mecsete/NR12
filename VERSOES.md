@@ -22,6 +22,30 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/08/2026 12:40
+
+**Correção:** o diagnóstico dizia "Nada pendente" enquanto a linha logo acima
+mostrava itens para receber.
+
+Os dois números vinham de fontes diferentes. A linha de cima usa a **última
+verificação da nuvem** — o que existe lá e ainda não veio para cá. O
+diagnóstico usava só a **fila local de download**, que guarda apenas itens
+grandes e pacotes de foto esperando Wi-Fi; item de texto pequeno é aplicado na
+hora e nunca passa por essa fila. Com a fila local vazia, o diagnóstico dava
+"tudo em dia" ignorando o que faltava receber.
+
+Agora o diagnóstico lê **as duas fontes**. Só diz "nada pendente" quando as
+duas estão zeradas, e mostra uma linha nova — **"Encontrado na nuvem, ainda
+não recebido"** — com a hora em que essa contagem foi feita, deixando claro
+que é uma foto de um momento e não um número recalculado a cada toque.
+
+Também: registros de correção automática gravados **antes** da versão anterior
+ficaram no histórico marcados como falha e continuavam sujando o placar. Agora
+são reconhecidos pelo próprio texto e classificados corretamente, sem esperar
+o histórico rodar.
+
+---
+
 ## 07/08/2026 12:05
 
 Três acertos vindos do diagnóstico em uso real.
