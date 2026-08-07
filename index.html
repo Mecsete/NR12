@@ -1696,7 +1696,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/08/2026 11:15";
+const APP_BUILD = "07/08/2026 12:05";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -2380,10 +2380,15 @@ function rotuloCaminhoNuvem(caminhoCompleto){
     return rotuloCaminhoSync(seg);
   }catch(e){ return ""; }
 }
-function registrarEventoSync(direcao, nome, tipo, bytes, ok, motivo, caminho){
-  if(direcao==="up" && ok===false) __falhasEnvioNaSync++;
+/* reparo=true marca uma AÇÃO CORRETIVA, não um erro: o app percebeu que um
+   arquivo que ele julgava enviado não está na nuvem e reagendou o envio. Isso
+   é o sistema funcionando. Registrado como falha, aparecia no diagnóstico como
+   problema e derrubava o veredito "os envios estão funcionando" — escondendo
+   justamente a informação que o diagnóstico existe para dar. */
+function registrarEventoSync(direcao, nome, tipo, bytes, ok, motivo, caminho, reparo){
+  if(direcao==="up" && ok===false && !reparo) __falhasEnvioNaSync++;
   if(!Array.isArray(STATE.logSincronizacao)) STATE.logSincronizacao = [];
-  STATE.logSincronizacao.unshift({ ts: Date.now(), dir: direcao, nome: String(nome||"").slice(0,80), caminho: String(caminho||"").slice(0,140) || undefined, tipo, bytes: bytes||0, ok: ok!==false, motivo: ok===false ? String(motivo||"").slice(0,40) : undefined });
+  STATE.logSincronizacao.unshift({ ts: Date.now(), dir: direcao, nome: String(nome||"").slice(0,80), caminho: String(caminho||"").slice(0,140) || undefined, tipo, bytes: bytes||0, ok: reparo ? true : (ok!==false), reparo: reparo || undefined, motivo: (ok===false || reparo) ? String(motivo||"").slice(0,60) : undefined });
   if(STATE.logSincronizacao.length > MAX_EVENTOS_LOG_SYNC) STATE.logSincronizacao.length = MAX_EVENTOS_LOG_SYNC;
 }
 function fmtBytes(b){
@@ -4367,7 +4372,11 @@ function onedriveDiagnosticoDados(){
     detalhe: g.ocorrencias.map(o=>o.caminho).join("   ·VS·   ") }));
   const log = Array.isArray(STATE.logSincronizacao) ? STATE.logSincronizacao : [];
   const fmtQuando = (ts)=>{ try{ return new Date(ts).toLocaleString("pt-BR"); }catch(e){ return String(ts); } };
-  const falhas = log.filter(e=> e && e.ok === false).slice(0, 25).map(e=>({
+  const reparos = log.filter(e=> e && e.reparo).slice(0, 25).map(e=>({
+    nome: (e.caminho ? e.caminho + " › " : "") + (e.nome||""),
+    motivo: "correção automática — " + (e.motivo||"reenvio agendado"),
+    quando: fmtQuando(e.ts), quandoRot: "em" }));
+  const falhas = log.filter(e=> e && e.ok === false && !e.reparo).slice(0, 25).map(e=>({
     nome: (e.caminho ? e.caminho + " › " : "") + (e.nome||""),
     motivo: (e.dir==="up" ? "falha ao ENVIAR" : "falha ao RECEBER") + (e.motivo? " — " + e.motivo : ""),
     quando: fmtQuando(e.ts), quandoRot: "tentativa em", tamanho: fmtBytes(e.bytes||0) }));
@@ -4375,9 +4384,9 @@ function onedriveDiagnosticoDados(){
     nome: (e.nome||""), quando: fmtQuando(e.ts),
     motivo: (e.dir==="up" ? "enviado" : "recebido") + (e.ok===false ? " — FALHOU" + (e.motivo? ": "+e.motivo : "") : " com sucesso"),
     quandoRot: "em", tamanho: fmtBytes(e.bytes||0) }));
-  const enviosOk = log.filter(e=> e && e.dir==="up" && e.ok !== false).length;
-  const enviosFalha = log.filter(e=> e && e.dir==="up" && e.ok === false).length;
-  return { enviar, receber, fila, quarentena, falhas, ultimos, enviosOk, enviosFalha,
+  const enviosOk = log.filter(e=> e && e.dir==="up" && e.ok !== false && !e.reparo).length;
+  const enviosFalha = log.filter(e=> e && e.dir==="up" && e.ok === false && !e.reparo).length;
+  return { enviar, receber, fila, quarentena, falhas, reparos, ultimos, enviosOk, enviosFalha,
            mudancaEndereco, carimboRegrediu, duplicadas, totalDuplicadas: dups.length,
            eventosNoLog: log.length,
            ultimaSync: STATE.ultimaSincronizacaoOneDriveEm ? fmtQuando(STATE.ultimaSincronizacaoOneDriveEm) : "nunca",
@@ -4421,6 +4430,9 @@ function onedriveDiagnosticoTexto(){
   l.push("FALHAS RECENTES (" + d.falhas.length + ")");
   d.falhas.forEach(x=> l.push("  · " + x.quando + " — " + x.nome + " — " + x.motivo + " — " + x.tamanho));
   l.push("");
+  l.push("CORRECOES AUTOMATICAS - NAO SAO ERROS (" + d.reparos.length + ")");
+  d.reparos.forEach(x=> l.push("  · " + x.quando + " — " + x.nome + " — " + x.motivo));
+  l.push("");
   l.push("ULTIMAS TENTATIVAS (" + d.ultimos.length + ")");
   d.ultimos.forEach(x=> l.push("  · " + x.quando + " — " + x.nome + " — " + x.motivo + " — " + x.tamanho));
   return l.join("\n");
@@ -4452,6 +4464,12 @@ function onedriveDiagnosticoInlineHtml(){
       ${zero? `<div style="margin-top:8px;padding:8px 10px;background:#E3F4E4;border-radius:6px;font-size:12.5px;color:#2E7D32"><b>Nada pendente.</b> O selo "sincronizando" que aparece de vez em quando é só a verificação automática de 2 em 2 minutos — não há trabalho parado.</div>`:""}
       ${secao("Para enviar", d.enviar, "Nada esperando envio.")}
       ${secao("Para receber", d.receber, "Nada esperando download.")}
+      ${d.fila.length > 30 ? `<div style="margin:6px 2px;padding:8px 10px;background:#FFF3D6;border:1px solid #E9C46A;border-radius:6px;font-size:12.5px;color:#5C3D00">
+        <b>${d.fila.length} arquivos anunciados pela nuvem esperando um projeto que não existe aqui.</b>
+        <div style="margin-top:4px">Acontece com projetos que você excluiu deste aparelho mas cujos arquivos continuam na nuvem: eles ficam esperando para sempre um "pai" que não vai chegar. Não atrapalham o envio, só ocupam a fila.</div>
+        <div style="margin-top:4px">Limpar é seguro — a verificação completa, que roda sozinha a cada 30 minutos, redescobre qualquer arquivo que ainda seja necessário.</div>
+        <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.limparFilaNuvem()">${ic('trash')} Limpar a fila da nuvem</button>
+      </div>`:""}
       ${secao("Fila da nuvem", d.fila, "Fila vazia.")}
       ${secao("Quarentena", d.quarentena, "Nenhum arquivo ilegível.")}
       <div style="font-size:12px;margin:12px 2px 2px">Última sincronização: <b>${escapeHtml(d.ultimaSync)}</b></div>
@@ -4472,6 +4490,7 @@ function onedriveDiagnosticoInlineHtml(){
       ${d.carimboRegrediu > 0 ? `<div style="margin:6px 2px;padding:8px 10px;background:#FFF3D6;border:1px solid #E9C46A;border-radius:6px;font-size:12.5px;color:#5C3D00">
         <b>${d.carimboRegrediu} item(ns) com registro de envio mais novo que o próprio item.</b> Sinal de relógio fora de hora ou de registro sobrescrito por outro aparelho.</div>`:""}
       ${secao("Falhas recentes de envio/recebimento", d.falhas, "Nenhuma falha registrada.")}
+      ${secao("Correções automáticas (não são erros)", d.reparos, "Nenhuma correção automática recente.")}
       ${secao("Últimas tentativas", d.ultimos, "Nenhuma tentativa registrada ainda.")}
       <button class="btn btn-secondary btn-block" style="margin-top:10px" onclick="App.copiarDiagnosticoSync()">${ic('copy')} Copiar como texto</button>`;
   }catch(e){
@@ -4691,7 +4710,7 @@ function onedriveReconciliarComArvore(arvore){
         mapa.delete(item.id);
         if(STATE[__assinaturasOneDriveSimples.chaveEstado]) delete STATE[__assinaturasOneDriveSimples.chaveEstado][item.id];
         reparos++;
-        registrarEventoSync("up", reg.arquivo, item.tipo, 0, false, "faltava na nuvem — reenvio agendado", rotuloCaminhoSync(reg.pasta));
+        registrarEventoSync("up", reg.arquivo, item.tipo, 0, true, "faltava na nuvem — reenvio agendado", rotuloCaminhoSync(reg.pasta), true);
         continue;
       }
       // Texto está lá; e as fotos? Se o item tem fotos e o arquivo "fotos_"
@@ -4702,7 +4721,7 @@ function onedriveReconciliarComArvore(arvore){
           reg.fotosPendentes = true;
           if(STATE[__assinaturasOneDriveSimples.chaveEstado] && STATE[__assinaturasOneDriveSimples.chaveEstado][item.id]) STATE[__assinaturasOneDriveSimples.chaveEstado][item.id].fotosPendentes = true;
           reparos++;
-          registrarEventoSync("up", "fotos_"+reg.arquivo, item.tipo+" (fotos)", 0, false, "fotos faltavam na nuvem — reenvio agendado", rotuloCaminhoSync(reg.pasta));
+          registrarEventoSync("up", "fotos_"+reg.arquivo, item.tipo+" (fotos)", 0, true, "fotos faltavam na nuvem — reenvio agendado", rotuloCaminhoSync(reg.pasta), true);
         }
       }
     }
@@ -9228,7 +9247,18 @@ async function testarConexaoIA(){
        quanto para bloqueio de CORS (por segurança, o navegador não deixa o
        JavaScript ver o motivo exato) — por isso avisamos as duas possibilidades
        em vez de arriscar um diagnóstico errado. */
-    return { ok:false, mensagem: "Falha de rede ou bloqueio de CORS (esse provedor pode não aceitar chamada direta do navegador). Detalhe técnico: " + (e && e.message || "erro desconhecido") };
+    /* Dizer só "falha de rede ou CORS" não ajuda ninguém a resolver: cada
+       provedor falha por um motivo diferente e tem uma saída diferente.
+       A mensagem passa a nomear o provedor testado e o que fazer com ELE. */
+    /* "Failed to fetch" significa que o navegador NÃO CONSEGUIU FALAR com o
+       endereço — a requisição nem chegou a receber resposta. Quando a chave
+       está errada, o provedor responde com um erro HTTP legível (401, 400), e
+       isso cai no ramo de cima, não aqui. Então este caso é sempre um dos
+       três: sem internet, endereço errado, ou a rede barrando a saída. */
+    const extra = (cfg.provedor === "personalizado")
+      ? " No modo Personalizado, confira o endereço da API — ele precisa ser o endereço-base (terminando em /v1, por exemplo) e aceitar chamadas do navegador."
+      : "";
+    return { ok:false, mensagem: `Não foi possível falar com ${preset.nome} (${endpointBase}). O navegador não conseguiu alcançar esse endereço — a chave nem chegou a ser verificada. As causas são: sem internet no momento, endereço da API errado, ou a rede/antivírus barrando a saída (comum em rede corporativa). Teste em outra rede, como o 4G do celular, para separar as duas coisas.${extra} Detalhe técnico: ` + (e && e.message || "erro desconhecido") };
   }
 }
 /* Gera uma cópia enriquecida das linhas de exportação (não mexe em STATE —
@@ -11653,7 +11683,7 @@ function screenSimplesConfigIA(){
   `}
   <button class="btn btn-secondary btn-block" onclick="App.testarIA()">${ic('check')} Testar conexão</button>
   ${__ultimoTesteIA ? `<div class="field-hint" style="margin-top:8px;color:${__ultimoTesteIA.ok?'var(--ok, #2e7d32)':'var(--danger, #c0392b)'}">${escapeHtml(__ultimoTesteIA.mensagem)}</div>` : ""}
-  ${cfg.provedor==="openai" ? `<div class="field-hint" style="margin-top:8px">Atenção: a OpenAI costuma bloquear chamadas feitas direto pelo navegador (sem servidor intermediário). Se o teste falhar com erro de rede/CORS, use Google Gemini ou Groq, que funcionam direto neste app.</div>` : ""}
+  ${cfg.provedor==="openai" ? `<div class="field-hint" style="margin-top:8px">Se o teste falhar dizendo que não conseguiu alcançar o endereço, o problema é de rede (internet, firewall ou antivírus), não da chave — chave errada devolve um erro com explicação. Google Gemini e Groq são alternativas gratuitas que funcionam igual neste app.</div>` : ""}
   <div class="section-title">Aprender com os laudos já aprovados</div>
   <div class="card card-pad">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
@@ -13505,6 +13535,18 @@ const App = {
   },
   fecharModal(){ const el=document.getElementById("overlayRoot"); if(el) el.remove(); },
   toggleDiagnosticoSync(){ STATE.ui.diagSyncAberto = !STATE.ui.diagSyncAberto; render(); },
+  limparFilaNuvem(){
+    const n = (STATE.oneDriveDeltaFila||[]).length;
+    if(n === 0){ toast("A fila já está vazia", false); return; }
+    /* Só a FILA é descartada — nenhum dado do app é tocado. A fila é um atalho
+       ("a nuvem avisou que estes arquivos mudaram"); a verificação completa de
+       30 em 30 minutos reconstrói o que for real. */
+    if(!confirm(`Limpar a fila de ${n} arquivo(s) anunciados pela nuvem?\n\nNenhum dado do app é apagado — só a lista de avisos. O que ainda for necessário volta sozinho na próxima verificação completa (no máximo 30 minutos).`)) return;
+    STATE.oneDriveDeltaFila = [];
+    marcarAlterado();
+    render();
+    toast(`Fila limpa (${n} avisos descartados)`);
+  },
   async juntarDuplicatasSync(){
     const dup = sincDuplicatasNaArvore();
     if(dup.length === 0){ toast("Nenhum item duplicado", false); return; }

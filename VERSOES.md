@@ -22,6 +22,37 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/08/2026 12:05
+
+Três acertos vindos do diagnóstico em uso real.
+
+**Correção automática deixou de aparecer como erro.** Quando o app percebe que
+um arquivo que ele julgava enviado não está na nuvem, ele reagenda o envio —
+isso é o sistema funcionando, não um defeito. Só que era registrado como
+falha: o diagnóstico mostrava "65 envios com sucesso, 15 falhas" e escondia o
+aviso de que estava tudo bem. Agora essas correções aparecem numa seção
+própria, **"Correções automáticas (não são erros)"**, e não entram no placar.
+
+**Fila da nuvem: botão para limpar.** Arquivos de projetos que você já excluiu
+deste aparelho continuam na nuvem e ficam esperando para sempre um "pai" que
+não vai chegar — chegaram a mais de 300. Não atrapalham o envio, mas poluem.
+Quando a fila passa de 30, aparece o botão **"Limpar a fila da nuvem"**.
+Limpar é seguro: só a lista de avisos é descartada, nenhum dado do app é
+tocado, e a verificação completa que roda a cada 30 minutos redescobre o que
+ainda for necessário.
+
+**Teste de conexão da IA: mensagem correta e útil.** A mensagem antiga dizia
+"falha de rede ou bloqueio de CORS" sem dizer qual provedor nem o que fazer. E
+havia um aviso, no app, de que a OpenAI bloquearia chamadas do navegador —
+**isso estava errado**: em teste, a OpenAI respondeu normalmente. A mensagem
+agora nomeia o provedor e o endereço testados e explica a diferença que
+importa: se a chave estivesse errada, o provedor responderia com um erro
+explicando; quando aparece essa mensagem, o navegador **não conseguiu sequer
+alcançar o endereço** — é internet, endereço da API errado, ou a rede/antivírus
+barrando a saída. Sugere testar no 4G do celular para separar as duas coisas.
+
+---
+
 ## 07/08/2026 11:15
 
 **A sincronização que não terminava: causa encontrada e conserto disponível.**

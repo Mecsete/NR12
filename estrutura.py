@@ -20,10 +20,13 @@ for marca in ["idbfoto:", "foto:", "CAMADA_FOTOS"]:
     chk("ocorrencias de '%s' inalteradas (%d)" % (marca, a), a == b, "orig=%d novo=%d" % (a, b))
 
 print("\n=== 4. MOTOR DE SINCRONIZACAO ===")
-# oneDriveDeltaFila ganhou +1 ocorrencia de proposito: o diagnostico da
-# sincronizacao LE a fila para mostrar o que esta esperando. E leitura pura —
-# a checagem seguinte prova que o diagnostico nao escreve nada.
-_extra = {"oneDriveDeltaFila": 1}
+# oneDriveDeltaFila ganhou +3 ocorrencias de proposito:
+#   +1 o diagnostico LE a fila para mostrar o que esta esperando (leitura pura);
+#   +2 o botao "limpar a fila da nuvem" (le o tamanho e zera a fila).
+# A fila e um atalho descartavel — a varredura completa de 30 em 30 min
+# reconstroi o que for real, entao limpa-la nao perde dado. A checagem da
+# secao 23 garante que limparFilaNuvem nao encosta em projetosSimples.
+_extra = {"oneDriveDeltaFila": 3}
 for marca in ["oneDriveDeltaFila", "lapide", "tombstone", "exclusoesConfirmadas", "__backupV2AplicarLinha"]:
     a, b = orig.count(marca) + _extra.get(marca, 0), novo.count(marca)
     chk("'%s' inalterado (%d)" % (marca, a), a == b, "orig+extra=%d novo=%d" % (a, b))
@@ -117,7 +120,7 @@ chk("AV = ID_Maquina", novo.count('xlsmCellTexto(`AV${rowNum}`') == 1)
 print("\n=== 9. SELO DE VERSAO ===")
 # APP_BUILD passou a ser UM texto fixo (antes eram 2: o valor e o fallback da
 # IIFE que lia document.lastModified). O numero na tela agora e exatamente este.
-chk("APP_BUILD atualizado", novo.count('"07/08/2026 11:15"') == 1, "achei %d" % novo.count('"07/08/2026 11:15"'))
+chk("APP_BUILD atualizado", novo.count('"07/08/2026 12:05"') == 1, "achei %d" % novo.count('"07/08/2026 12:05"'))
 chk("APP_BUILD e texto fixo, nao derivado da data do arquivo",
     novo.count('const APP_BUILD = "') == 1
     and len([l for l in novo.split(chr(10)) if "document.lastModified" in l and not l.strip().startswith("document.lastModified, ou seja")]) == 0)

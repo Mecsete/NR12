@@ -2623,6 +2623,50 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(HTML.indexOf("totalDuplicadas") > 0, "o contador não sai no diagnóstico");
   });
 
+  console.log("\n=== t65 · correção automática não é falha; fila e teste de IA ===");
+  t("a autocura é registrada como reparo, não como erro", ()=>{
+    const i = HTML.indexOf("function registrarEventoSync(");
+    const corpo = HTML.slice(i, i + 900);
+    ok(corpo.indexOf('direcao==="up" && ok===false && !reparo') > 0, "reparo ainda conta como falha");
+    ok(corpo.indexOf("reparo: reparo || undefined") > 0, "não marca o evento como reparo");
+    ok(HTML.indexOf('"faltava na nuvem — reenvio agendado", rotuloCaminhoSync(reg.pasta), true)') > 0,
+       "a reconciliação de texto não passa o sinal de reparo");
+    ok(HTML.indexOf('"fotos faltavam na nuvem — reenvio agendado", rotuloCaminhoSync(reg.pasta), true)') > 0,
+       "a reconciliação de fotos não passa o sinal de reparo");
+  });
+  t("o diagnóstico separa reparo de falha e não conta no placar", ()=>{
+    const i = HTML.indexOf("function onedriveDiagnosticoDados(");
+    const corpo = HTML.slice(i, HTML.indexOf("function onedriveDiagnosticoTexto(", i));
+    ok(corpo.indexOf("e.ok === false && !e.reparo") > 0, "as falhas ainda incluem reparo");
+    ok(corpo.indexOf("log.filter(e=> e && e.reparo)") > 0, "não separa os reparos");
+    ok(corpo.indexOf('e.ok !== false && !e.reparo') > 0, "o placar de sucesso conta reparo");
+    ok(HTML.indexOf("Correções automáticas (não são erros)") > 0, "a tela não distingue");
+  });
+  t("limpar a fila da nuvem existe, confirma e não toca em dado", ()=>{
+    const i = HTML.indexOf("limparFilaNuvem(){");
+    ok(i > 0, "o método não existe");
+    const corpo = HTML.slice(i, i + 900);
+    ok(corpo.indexOf("if(!confirm(") > 0, "limpa sem perguntar");
+    ok(corpo.indexOf("STATE.oneDriveDeltaFila = [];") > 0, "não limpa a fila");
+    ok(corpo.indexOf("Nenhum dado do app é apagado") > 0, "não explica que é seguro");
+    ["projetosSimples", "dbSet(", "onedriveApagarBlob"].forEach(m=>
+      ok(corpo.indexOf(m) < 0, "limpar a fila não pode mexer em " + m));
+    ok(HTML.indexOf("App.limparFilaNuvem()") > 0, "sem o botão na tela");
+  });
+  t("o teste de IA NÃO afirma que a OpenAI bloqueia o navegador", ()=>{
+    ok(HTML.indexOf("A OpenAI bloqueia chamadas feitas direto do navegador") < 0,
+       "afirmação falsa: no teste real a OpenAI respondeu 401, ou seja, o navegador alcançou o servidor");
+    ok(HTML.indexOf("a OpenAI costuma bloquear chamadas feitas direto pelo navegador") < 0,
+       "o aviso antigo com a mesma afirmação continua na tela");
+  });
+  t("o teste de IA nomeia o provedor e separa rede de chave errada", ()=>{
+    const i = HTML.indexOf("async function testarConexaoIA(");
+    const corpo = HTML.slice(i, HTML.indexOf("\n/* Gera uma cópia enriquecida", i));
+    ok(corpo.indexOf("Não foi possível falar com ${preset.nome}") > 0, "não diz qual provedor falhou");
+    ok(corpo.indexOf("a chave nem chegou a ser verificada") > 0, "não separa rede de chave");
+    ok(corpo.indexOf("4G do celular") > 0, "não sugere como separar as duas causas");
+  });
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);
