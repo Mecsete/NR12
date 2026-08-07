@@ -120,7 +120,7 @@ chk("AV = ID_Maquina", novo.count('xlsmCellTexto(`AV${rowNum}`') == 1)
 print("\n=== 9. SELO DE VERSAO ===")
 # APP_BUILD passou a ser UM texto fixo (antes eram 2: o valor e o fallback da
 # IIFE que lia document.lastModified). O numero na tela agora e exatamente este.
-chk("APP_BUILD atualizado", novo.count('"07/08/2026 13:20"') == 1, "achei %d" % novo.count('"07/08/2026 13:20"'))
+chk("APP_BUILD atualizado", novo.count('"07/08/2026 14:10"') == 1, "achei %d" % novo.count('"07/08/2026 14:10"'))
 chk("APP_BUILD e texto fixo, nao derivado da data do arquivo",
     novo.count('const APP_BUILD = "') == 1
     and len([l for l in novo.split(chr(10)) if "document.lastModified" in l and not l.strip().startswith("document.lastModified, ou seja")]) == 0)
@@ -423,6 +423,94 @@ chk("a versao inline tambem e so leitura",
 chk("o diagnostico e SO LEITURA (nao altera nem envia nada)",
     all(m not in _diag for m in ["marcarAlterado(", "dbSet(", "= agoraSync()",
                                  "onedriveEnviarBlob", "onedriveApagarBlob"]))
+
+print("\n=== 22. JUNTAR ITENS DUPLICADOS ===")
+for marca in ["function sincDuplicatasNaArvore(", "function sincJuntarDuplicata(",
+              "function sincJuntarTodasDuplicatas(", "async juntarDuplicatasSync(){",
+              "App.juntarDuplicatasSync()", "const SINC_FILHOS_DE"]:
+    chk("'%s' x1" % marca, novo.count(marca) == 1, "achei %d" % novo.count(marca))
+_r = novo.find("async juntarDuplicatasSync(){")
+_rep = novo[_r:_r+1100]
+chk("o reparo pede confirmacao ANTES de juntar",
+    "if(!confirm(" in _rep and _rep.find("if(!confirm(") < _rep.find("sincJuntarTodasDuplicatas()"))
+chk("cria ponto de restauracao antes de mexer",
+    'await salvarPontoDeRestauracao("antes de juntar duplicatas")' in _rep)
+_j = novo.find("function sincJuntarDuplicata(")
+_jun = novo[_j:novo.find("function sincJuntarTodasDuplicatas(", _j)]
+chk("fica a copia alterada por ultimo", "sort((a,b)=>" in _jun and "atualizadoEm" in _jun)
+chk("os filhos da copia removida sao trazidos junto (nao perde dado)",
+    "fica.obj[campo].push(f)" in _jun)
+chk("o sobrevivente e carimbado para assumir o endereco",
+    "fica.obj.atualizadoEm = agoraSync();" in _jun)
+chk("o diagnostico aponta a causa",
+    novo.count("esta é a causa da sincronização não terminar") == 1)
+chk("a correcao que impede NOVAS duplicatas continua no lugar",
+    all(novo.count('__moverItemEntrePais("%s"' % t) == 1 for t in ["area", "maquina", "tarefa", "risco"]))
+
+print("\n=== 23. REPARO x FALHA, FILA DA NUVEM E TESTE DE IA ===")
+chk("autocura e registrada como reparo, nao como erro",
+    'direcao==="up" && ok===false && !reparo' in novo
+    and novo.count('rotuloCaminhoSync(reg.pasta), true)') == 2)
+chk("o diagnostico separa reparo de falha",
+    "e.ok === false && !ehReparo(e)" in novo
+    and "log.filter(ehReparo)" in novo
+    and novo.count("Correções automáticas (não são erros)") == 1)
+_lf = novo.find("limparFilaNuvem(){")
+chk("limpar fila da nuvem existe, confirma e nao toca em dado",
+    novo.count("limparFilaNuvem(){") == 1
+    and novo.count("App.limparFilaNuvem()") == 1
+    and "if(!confirm(" in novo[_lf:_lf+900]
+    and "projetosSimples" not in novo[_lf:_lf+900])
+chk("NAO afirma que a OpenAI bloqueia o navegador (era falso)",
+    "A OpenAI bloqueia chamadas feitas direto do navegador" not in novo
+    and "a OpenAI costuma bloquear chamadas feitas direto pelo navegador" not in novo)
+chk("o teste de IA nomeia o provedor e separa rede de chave errada",
+    "Não foi possível falar com ${preset.nome}" in novo
+    and "a chave nem chegou a ser verificada" in novo)
+
+print("\n=== 24. DIAGNOSTICO COERENTE COM A LINHA DE CIMA ===")
+_dd = novo[novo.find("function onedriveDiagnosticoDados("):novo.find("function onedriveDiagnosticoTexto(")]
+chk("le tambem a foto da ultima verificacao da nuvem",
+    "STATE.oneDriveStatusPendente" in _dd and "totalReceber" in _dd and "fotosReceber" in _dd)
+chk("'nada pendente' exige as DUAS contas zeradas",
+    novo.count("&& !d.nuvem.itens && !d.nuvem.fotos;") == 1)
+chk("mostra o que a nuvem tem e ainda nao chegou",
+    novo.count("Encontrado na nuvem, ainda não recebido") == 1)
+chk("registro antigo de autocura nao conta mais como falha",
+    "const ehReparo = " in novo and "/reenvio agenda/i.test(e.motivo" in novo
+    and novo.count("!ehReparo(e)") == 3)
+chk("o texto copiavel separa as duas contas de recebimento",
+    novo.count("ENCONTRADO NA NUVEM, AINDA NAO RECEBIDO") == 1
+    and novo.count("PARA RECEBER — FILA LOCAL") == 1)
+
+print("\n=== 25. ENDERECO DA API SEMPRE DO PROVEDOR ===")
+chk("existe um unico calculo do endereco-base",
+    novo.count("function iaEndpointBase(") == 1
+    and novo.count("const endpointBase = iaEndpointBase(cfg, preset);") == 3)
+chk("o calculo antigo (que aceitava endereco errado) foi removido",
+    "const endpointBase = (cfg.endpoint || preset.endpoint" not in novo)
+_ie = novo.find("function iaEndpointBase(")
+chk("so o modo Personalizado usa endereco proprio",
+    'cfg.provedor === "personalizado"' in novo[_ie:_ie+420])
+chk("a configuracao se conserta sozinha ao ser lida",
+    'if(c.provedor !== "personalizado")' in novo
+    and "if(c.endpoint !== preset.endpoint) c.endpoint = preset.endpoint;" in novo)
+
+print("\n=== 26. NORMAS EM PDF CHEGAM DE FORMA UTIL ===")
+chk("orcamento repartido entre as normas ativas",
+    "NORMAS_IA_LIMITE_CARACTERES / normas.length" in novo
+    and "let orcamento = NORMAS_IA_LIMITE_CARACTERES;" not in novo)
+chk("a norma e dividida em pedacos e o relevante e escolhido",
+    novo.count("function normasPedacos(") == 1
+    and "refsSemelhanca(alvo, refsConjunto(p))" in novo)
+chk("o trecho e escolhido pelo texto que a IA vai reescrever",
+    novo.count("+ contextoNormasIA(textoUsuario);") == 1)
+# 2 = a definicao da funcao + o UNICO ponto que monta o prompt (chamarIA).
+# Um terceiro significaria alguem montando prompt por fora, sem as normas.
+chk("existe um unico ponto montando o prompt com as normas",
+    novo.count("contextoNormasIA(") == 2)
+chk("norma desativada continua fora",
+    "filter(n=>n.ativo!==false && n.texto)" in novo)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")

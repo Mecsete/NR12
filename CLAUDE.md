@@ -187,6 +187,24 @@ git show HEAD:index.html > original.html
 
 Refazer isso a cada nova sessão de trabalho.
 
+## Ao acrescentar checagens em `estrutura.py`
+
+Editar `estrutura.py` por script com `s.replace(...)` **sem conferir a
+contagem** falha em silêncio: se o trecho procurado não bater, o script
+grava o arquivo igualzinho e ainda imprime "atualizado". Foi assim que as
+seções 22 a 26 deixaram de existir durante cinco entregas seguidas, sem
+ninguém perceber — `estrutura.py` continuava dando "TODAS OK" porque as
+checagens novas simplesmente não estavam lá.
+
+Depois de acrescentar uma seção, **confirmar que ela roda**:
+
+```bash
+python3 estrutura.py original.html index.html | grep '=== '
+```
+
+O número de seções tem que ter crescido. Vale o mesmo princípio da função
+`rep()` dos patches: nenhuma substituição sem contagem verificada.
+
 ## Aviso sobre `estrutura.py`
 
 As checagens de `estrutura.py` foram escritas sob medida para as entregas

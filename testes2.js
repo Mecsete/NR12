@@ -2740,6 +2740,67 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
        "não corrige o endereço guardado");
   });
 
+  console.log("\n=== t68 · as normas em PDF chegam à IA de forma útil ===");
+  vm.runInContext((/\nconst NORMAS_IA_LIMITE_CARACTERES\s*=\s*\d+;/.exec(HTML)||[""])[0], ctx);
+  vm.runInContext((/\nconst NORMAS_IA_TAM_PEDACO\s*=\s*\d+;/.exec(HTML)||[""])[0], ctx);
+  [ "normasPedacos", "contextoNormasIA" ].forEach(n=> vm.runInContext(funcao(n), ctx));
+  const encher = (t, n)=> (t + " ").repeat(n);
+  function tresNormas(){
+    STATE.ui.normasIA = [
+      { id:"n1", nome:"NR-12", ativo:true, criadoEm:1, texto:
+          encher("Sumario e definicoes gerais preliminares deste documento", 300) +
+          " As protecoes fixas devem impedir o acesso a zona de perigo da correia transportadora e do tambor. " +
+          encher("Outro assunto sobre caldeiras e vasos de pressao", 300) },
+      { id:"n2", nome:"NBR ISO 12100", ativo:true, criadoEm:2, texto:
+          encher("Principios gerais de projeto e apreciacao de risco", 200) +
+          " O agarramento e o arrasto sao fenomenos perigosos de elementos moveis de transmissao. " },
+      { id:"n3", nome:"NBR 14153", ativo:true, criadoEm:3, texto:
+          encher("Categorias de seguranca de sistemas de comando", 200) +
+          " A distancia de seguranca considera o tempo de parada do equipamento. " }
+    ];
+  }
+  t("TODA norma ativa contribui (antes só a primeira entrava)", ()=>{
+    tresNormas();
+    const ctxN = vm.runInContext("contextoNormasIA('correia transportadora sem protecao no tambor')", ctx);
+    ["NR-12","NBR ISO 12100","NBR 14153"].forEach(n=>
+      ok(ctxN.indexOf("--- Norma: "+n+" ---") > 0, "a norma "+n+" ficou de fora"));
+  });
+  t("entra o trecho relacionado, não o começo do documento", ()=>{
+    tresNormas();
+    const ctxN = vm.runInContext("contextoNormasIA('correia transportadora sem protecao no tambor, agarramento')", ctx);
+    ok(ctxN.indexOf("impedir o acesso a zona de perigo da correia") > 0, "não trouxe o trecho da proteção fixa");
+    ok(ctxN.indexOf("agarramento e o arrasto sao fenomenos perigosos") > 0, "não trouxe o trecho do agarramento");
+  });
+  t("o orçamento é repartido, não tomado pela primeira", ()=>{
+    tresNormas();
+    const i = HTML.indexOf("function contextoNormasIA(");
+    const corpo = HTML.slice(i, i + 1400);
+    ok(corpo.indexOf("NORMAS_IA_LIMITE_CARACTERES / normas.length") > 0, "não reparte o orçamento");
+    ok(HTML.indexOf("let orcamento = NORMAS_IA_LIMITE_CARACTERES;") < 0, "sobrou o cálculo antigo");
+  });
+  t("norma desativada não entra", ()=>{
+    tresNormas();
+    STATE.ui.normasIA[1].ativo = false;
+    const ctxN = vm.runInContext("contextoNormasIA('agarramento')", ctx);
+    ok(ctxN.indexOf("--- Norma: NBR ISO 12100 ---") < 0, "norma desativada foi enviada");
+  });
+  t("sem normas ou sem texto de referência, não quebra", ()=>{
+    STATE.ui.normasIA = [];
+    eq(vm.runInContext("contextoNormasIA('x')", ctx), "");
+    tresNormas();
+    ok(vm.runInContext("contextoNormasIA('')", ctx).length > 0, "sem texto-alvo deveria mandar o começo");
+  });
+  t("o trecho é escolhido pelo texto que a IA vai reescrever", ()=>{
+    ok(HTML.indexOf("+ contextoNormasIA(textoUsuario);") > 0,
+       "o contexto não considera o texto do item — voltaria a mandar trecho aleatório");
+  });
+  t("todas as chamadas de IA passam pelo mesmo ponto", ()=>{
+    eq(HTML.split("contextoNormasIA(textoUsuario)").length - 1, 1, "mais de um lugar montando o prompt");
+    const i = HTML.indexOf("async function chamarIAResiliente(");
+    ok(HTML.slice(i, i + 500).indexOf("chamarIA(tipo, textoUsuario)") > 0,
+       "o caminho com retentativa deixou de usar chamarIA, e perderia as normas");
+  });
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

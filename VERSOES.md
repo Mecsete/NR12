@@ -22,6 +22,36 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/08/2026 14:10
+
+**As normas em PDF passam a servir de verdade para a IA.**
+
+Ao conferir se os PDFs eram usados em todas as sugestões, encontrei um limite
+que na prática os anulava. O orçamento de texto era gasto por ordem de lista:
+a primeira norma consumia tudo (a NR-12 sozinha é muito maior que o orçamento
+inteiro) e as demais não entravam. E dela iam os **primeiros** caracteres —
+capa, sumário, definições. Ou seja: as normas eram anexadas em todas as
+chamadas, mas o conteúdo enviado quase nunca tinha relação com o risco que
+estava sendo descrito.
+
+Agora cada norma é dividida em trechos, e entram os trechos **mais
+relacionados ao texto que está sendo escrito**. O orçamento é repartido entre
+as normas ativas, então toda norma cadastrada contribui — e foi aumentado de
+12 mil para 60 mil caracteres.
+
+Em teste com três normas e um risco de correia: antes só a NR-12 entrava, e só
+o sumário; agora entram as três, com os trechos sobre proteção fixa em zona de
+perigo e sobre agarramento em elementos móveis.
+
+**Correção nas checagens de validação.** As checagens estruturais das cinco
+entregas anteriores (juntar duplicatas, reparo x falha, coerência do
+diagnóstico, endereço da API e este item) não haviam sido gravadas de fato — o
+script que as adicionava falhava em silêncio. Os testes automatizados sempre
+foram reais; o que faltava eram essas checagens. Foram escritas e conferidas:
+o arquivo passou de 97 para 125 verificações, todas passando.
+
+---
+
 ## 07/08/2026 13:20
 
 **Correção: a IA voltou a funcionar.**

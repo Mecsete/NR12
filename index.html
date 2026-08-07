@@ -1696,7 +1696,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/08/2026 13:20";
+const APP_BUILD = "07/08/2026 14:10";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -9087,17 +9087,55 @@ function fmtTamanhoTexto(texto){
   const kb = (texto||"").length/1024;
   return kb<1024 ? `${kb.toFixed(0)} KB de texto` : `${(kb/1024).toFixed(1)} MB de texto`;
 }
-const NORMAS_IA_LIMITE_CARACTERES = 12000; // orçamento de contexto por chamada, somando todas as normas ativas
-function contextoNormasIA(){
+const NORMAS_IA_LIMITE_CARACTERES = 60000; // orçamento total por chamada, REPARTIDO entre as normas ativas (antes eram 12.000 e a primeira norma consumia tudo)
+/* TRECHOS DE NORMA QUE REALMENTE SERVEM PARA O TEXTO ATUAL
+
+   Antes, o orçamento de contexto era gasto na ordem da lista: a primeira
+   norma levava tudo (a NR-12 sozinha é muito maior que o orçamento inteiro) e
+   as demais não entravam. E o que ia dela eram os PRIMEIROS caracteres —
+   capa, sumário, definições. Ou seja: as normas eram anexadas em todas as
+   chamadas, mas o conteúdo enviado quase nunca tinha relação com o risco que
+   estava sendo descrito.
+
+   Agora cada norma é dividida em pedaços e entram os pedaços mais
+   relacionados ao texto que está sendo escrito, usando a mesma comparação de
+   palavras dos casos aprovados. O orçamento é repartido entre as normas
+   ativas, então toda norma cadastrada contribui. */
+const NORMAS_IA_TAM_PEDACO = 1200;   // ~um parágrafo técnico
+function normasPedacos(texto){
+  const t = String(texto||"");
+  const out = [];
+  for(let i=0; i<t.length; i+=NORMAS_IA_TAM_PEDACO) out.push(t.slice(i, i+NORMAS_IA_TAM_PEDACO));
+  return out;
+}
+function contextoNormasIA(textoAlvo){
   const normas = getNormasIA().filter(n=>n.ativo!==false && n.texto);
   if(normas.length===0) return "";
-  let orcamento = NORMAS_IA_LIMITE_CARACTERES;
+  const alvo = refsConjunto(textoAlvo || "");
+  const porNorma = Math.max(1500, Math.floor(NORMAS_IA_LIMITE_CARACTERES / normas.length));
   const blocos = [];
   for(const n of normas){
-    if(orcamento<=0) break;
-    const trecho = (n.texto||"").slice(0, orcamento);
-    blocos.push(`--- Norma: ${n.nome} ---\n${trecho}`);
-    orcamento -= trecho.length;
+    const pedacos = normasPedacos(n.texto);
+    let escolhidos;
+    if(alvo.size === 0){
+      escolhidos = pedacos;   // sem texto de referência, mantém a ordem original
+    }else{
+      escolhidos = pedacos
+        .map(p => ({ p, s: refsSemelhanca(alvo, refsConjunto(p)) }))
+        .sort((a,b) => b.s - a.s)
+        .filter(x => x.s > 0)
+        .map(x => x.p);
+      if(escolhidos.length === 0) escolhidos = pedacos; // nada parecido — usa o começo
+    }
+    let usado = 0;
+    const partes = [];
+    for(const p of escolhidos){
+      if(usado >= porNorma) break;
+      const fatia = p.slice(0, porNorma - usado);
+      partes.push(fatia);
+      usado += fatia.length;
+    }
+    if(partes.length) blocos.push(`--- Norma: ${n.nome} ---\n${partes.join("\n(...)\n")}`);
   }
   if(blocos.length===0) return "";
   return `\n\nUse os trechos de normas abaixo como referência técnica, quando forem relevantes ao que está sendo escrito. Não cite as normas literalmente nem mencione que está consultando um documento — apenas use o conteúdo para embasar o texto:\n${blocos.join("\n\n")}`;
@@ -9114,7 +9152,7 @@ async function chamarIA(tipo, textoUsuario){
   if(!apiKey) return null;
   const cfg = getIAConfig();
   const preset = IA_PROVEDORES[cfg.provedor] || IA_PROVEDORES[IA_PROVEDOR_PADRAO];
-  const prompt = ((cfg.prompts && cfg.prompts[tipo]) || IA_PROMPTS_PADRAO[tipo]) + contextoNormasIA();
+  const prompt = ((cfg.prompts && cfg.prompts[tipo]) || IA_PROMPTS_PADRAO[tipo]) + contextoNormasIA(textoUsuario);
   const endpointBase = iaEndpointBase(cfg, preset);
   const modelo = cfg.modelo || preset.modelo;
   if(!endpointBase || !modelo) return null;
