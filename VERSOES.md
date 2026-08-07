@@ -22,6 +22,40 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/08/2026 11:15
+
+**A sincronização que não terminava: causa encontrada e conserto disponível.**
+
+O diagnóstico apontou o problema com precisão. Os 80 itens presos na fila
+tinham **todos** a mesma marca: "trocando de endereço na nuvem a cada ciclo".
+E os endereços revelaram o que estava acontecendo — dois itens trocando de
+lugar **entre si**, ida e volta, sem parar.
+
+**A causa.** Existiam itens duplicados: o mesmo equipamento, tarefa ou risco
+gravado em dois lugares da árvore ao mesmo tempo. Isso sobrou de antes da
+correção de 03/08, quando mover um item de lugar fazia o outro aparelho criar
+uma segunda cópia em vez de movê-lo.
+
+O registro de envio é guardado por item. Com duas cópias do mesmo item, elas
+disputam o mesmo registro: o app envia a primeira e anota o endereço dela;
+depois processa a segunda, vê que o endereço anotado é outro, conclui que o
+item "mudou de lugar", **apaga a primeira da nuvem** e envia a segunda. No
+ciclo seguinte, o contrário. Para sempre — e sempre com sucesso, e é por isso
+que o histórico mostrava 80 envios bem-sucedidos e nenhuma falha, enquanto a
+fila não saía de 80.
+
+**O conserto.** Em Configurações → OneDrive → Diagnóstico da sincronização,
+quando houver duplicatas aparece um aviso vermelho com o botão **"Juntar as
+duplicatas"**. De cada par fica a versão alterada por último, e tudo que
+existir só na outra cópia (tarefas, riscos) é trazido junto — **nada é
+descartado**. Uma cópia de segurança é criada antes, então dá para voltar
+atrás. Depois de juntar, sincronize: a fila deve zerar.
+
+Novas duplicatas não acontecem mais desde 03/08. Este botão limpa o que
+ficou para trás.
+
+---
+
 ## 07/08/2026 10:25
 
 **Correção:** a versão mostrada no app agora é a mesma registrada aqui.

@@ -117,7 +117,7 @@ chk("AV = ID_Maquina", novo.count('xlsmCellTexto(`AV${rowNum}`') == 1)
 print("\n=== 9. SELO DE VERSAO ===")
 # APP_BUILD passou a ser UM texto fixo (antes eram 2: o valor e o fallback da
 # IIFE que lia document.lastModified). O numero na tela agora e exatamente este.
-chk("APP_BUILD atualizado", novo.count('"07/08/2026 10:25"') == 1, "achei %d" % novo.count('"07/08/2026 10:25"'))
+chk("APP_BUILD atualizado", novo.count('"07/08/2026 11:15"') == 1, "achei %d" % novo.count('"07/08/2026 11:15"'))
 chk("APP_BUILD e texto fixo, nao derivado da data do arquivo",
     novo.count('const APP_BUILD = "') == 1
     and len([l for l in novo.split(chr(10)) if "document.lastModified" in l and not l.strip().startswith("document.lastModified, ou seja")]) == 0)

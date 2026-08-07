@@ -1696,7 +1696,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/08/2026 10:25";
+const APP_BUILD = "07/08/2026 11:15";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -4219,6 +4219,101 @@ function onedriveEstimativaEnvioComMemo(){
      · "esperando o pai"    — item baixado cujo projeto/área ainda não chegou;
      · "em quarentena"      — arquivo ilegível na nuvem, ignorado de propósito.
    ========================================================================= */
+/* =========================================================================
+   ITENS DUPLICADOS NA ÁRVORE — a causa da sincronização que não termina
+
+   Antes da correção de 03/08/2026, mover uma máquina de área (ou uma tarefa
+   de máquina, ou um risco de tarefa) fazia o outro aparelho criar uma
+   SEGUNDA cópia do item em vez de movê-lo: o mesmo id passava a existir em
+   dois lugares da árvore ao mesmo tempo.
+
+   A correção impede que isso volte a acontecer, mas não desfaz o que já
+   tinha duplicado — e é o estrago antigo que trava a sincronização até hoje:
+
+   a assinatura de envio é guardada POR ID ("risco:abc123"). Com duas cópias
+   do mesmo id, elas disputam o mesmo registro. O app envia a cópia A, anota
+   o endereço A; depois processa a cópia B, vê que o endereço registrado é
+   outro, conclui "mudou de lugar", APAGA a cópia A da nuvem e envia B. No
+   ciclo seguinte, o mesmo ao contrário. Para sempre, e sempre "com sucesso"
+   — por isso o histórico mostra 100% de envios bem-sucedidos e a fila nunca
+   diminui.
+
+   Juntar as duplicatas encerra o ciclo. Fica a cópia com a alteração mais
+   recente; o que existir só dentro da outra (tarefas, riscos) é trazido
+   junto, para não perder nada.
+   ========================================================================= */
+const SINC_FILHOS_DE = { area:"maquinas", maquina:"tarefas", tarefa:"riscos", risco:null };
+function sincDuplicatasNaArvore(){
+  const grupos = new Map();
+  const add = (tipo, obj, lista, caminho)=>{
+    if(!obj || !obj.id) return;
+    const k = tipo + ":" + obj.id;
+    if(!grupos.has(k)) grupos.set(k, []);
+    grupos.get(k).push({ tipo, id:obj.id, obj, lista, caminho });
+  };
+  (STATE.projetosSimples||[]).forEach(p=>{
+    const cp = p.empresa || "Projeto";
+    (p.areas||[]).forEach(a=>{
+      const ca = cp + " › " + (a.nome||"Área");
+      add("area", a, p.areas, ca);
+      (a.maquinas||[]).forEach(m=>{
+        const cm = ca + " › " + (nomeMaquinaS(m)||"Equipamento");
+        add("maquina", m, a.maquinas, cm);
+        (m.tarefas||[]).forEach(t=>{
+          const ct = cm + " › " + (valOuOutro(t.tarefa, t.tarefaOutro)||"Tarefa");
+          add("tarefa", t, m.tarefas, ct);
+          (t.riscos||[]).forEach(r=>{
+            add("risco", r, t.riscos, ct + " › " + (laudoNomeDoRisco(r)||"Risco"));
+          });
+        });
+      });
+    });
+  });
+  const dup = [];
+  grupos.forEach((ocorr)=>{ if(ocorr.length > 1) dup.push({ tipo:ocorr[0].tipo, id:ocorr[0].id, ocorrencias:ocorr }); });
+  return dup;
+}
+/* Junta UM grupo de duplicatas. Fica a cópia alterada por último; o que
+   existir só nas outras é movido para ela antes de removê-las. */
+function sincJuntarDuplicata(grupo){
+  const ocorr = grupo.ocorrencias.slice().sort((a,b)=>
+    ((b.obj.atualizadoEm||b.obj.criadoEm||0) - (a.obj.atualizadoEm||a.obj.criadoEm||0)));
+  const fica = ocorr[0];
+  const campo = SINC_FILHOS_DE[grupo.tipo];
+  let removidas = 0;
+  ocorr.slice(1).forEach(o=>{
+    if(o.obj === fica.obj) return;
+    if(campo && Array.isArray(o.obj[campo])){
+      if(!Array.isArray(fica.obj[campo])) fica.obj[campo] = [];
+      o.obj[campo].forEach(f=>{
+        if(f && f.id && !fica.obj[campo].some(x=>x && x.id===f.id)) fica.obj[campo].push(f);
+      });
+    }
+    const i = o.lista.indexOf(o.obj);
+    if(i >= 0){ o.lista.splice(i, 1); removidas++; }
+  });
+  /* Carimba o sobrevivente: é ele que precisa subir e assumir o endereço
+     definitivo na nuvem, encerrando o vai e vem. */
+  if(removidas > 0) fica.obj.atualizadoEm = agoraSync();
+  return removidas;
+}
+/* Junta TODAS. Refaz a varredura entre as passadas porque remover uma área
+   ou máquina duplicada muda a árvore por baixo dos grupos já coletados. */
+function sincJuntarTodasDuplicatas(){
+  let total = 0;
+  for(let passada = 0; passada < 12; passada++){
+    const dup = sincDuplicatasNaArvore();
+    if(dup.length === 0) break;
+    // do nível mais alto para o mais baixo — juntar a área já resolve o que
+    // estiver duplicado dentro dela
+    const ordem = { area:0, maquina:1, tarefa:2, risco:3 };
+    dup.sort((a,b)=> ordem[a.tipo] - ordem[b.tipo]);
+    const antes = total;
+    total += sincJuntarDuplicata(dup[0]);
+    if(total === antes) break; // nada mudou — evita laço infinito
+  }
+  return total;
+}
 function onedriveDiagnosticoDados(){
   const itens = listarItensSincronizaveisSimples();
   const assinaturas = onedriveCarregarAssinaturas(__assinaturasOneDriveSimples);
@@ -4263,6 +4358,13 @@ function onedriveDiagnosticoDados(){
   /* O log guarda as últimas tentativas COM O MOTIVO da falha. É ele que
      distingue "fila grande, só demorando" de "envio batendo no mesmo erro
      desde sempre" — sem isso, os dois casos parecem idênticos na tela. */
+  /* Duplicatas: o mesmo id em dois lugares da árvore. É a causa direta do
+     "envia com sucesso e a fila não baixa". */
+  const dups = sincDuplicatasNaArvore();
+  const duplicadas = dups.slice(0, 40).map(g=>({
+    nome: "[" + g.tipo + "] " + (g.ocorrencias[0].caminho||""),
+    motivo: g.ocorrencias.length + " cópias do mesmo item disputando o envio",
+    detalhe: g.ocorrencias.map(o=>o.caminho).join("   ·VS·   ") }));
   const log = Array.isArray(STATE.logSincronizacao) ? STATE.logSincronizacao : [];
   const fmtQuando = (ts)=>{ try{ return new Date(ts).toLocaleString("pt-BR"); }catch(e){ return String(ts); } };
   const falhas = log.filter(e=> e && e.ok === false).slice(0, 25).map(e=>({
@@ -4276,7 +4378,7 @@ function onedriveDiagnosticoDados(){
   const enviosOk = log.filter(e=> e && e.dir==="up" && e.ok !== false).length;
   const enviosFalha = log.filter(e=> e && e.dir==="up" && e.ok === false).length;
   return { enviar, receber, fila, quarentena, falhas, ultimos, enviosOk, enviosFalha,
-           mudancaEndereco, carimboRegrediu,
+           mudancaEndereco, carimboRegrediu, duplicadas, totalDuplicadas: dups.length,
            eventosNoLog: log.length,
            ultimaSync: STATE.ultimaSincronizacaoOneDriveEm ? fmtQuando(STATE.ultimaSincronizacaoOneDriveEm) : "nunca",
            wifiConfirmado: !!STATE.wifiConfirmado,
@@ -4309,6 +4411,9 @@ function onedriveDiagnosticoTexto(){
   l.push("");
   l.push("QUARENTENA (" + d.quarentena.length + ")");
   d.quarentena.slice(0,30).forEach(x=> l.push("  · " + x.nome + " — " + x.motivo));
+  l.push("");
+  l.push("ITENS DUPLICADOS (" + d.totalDuplicadas + ")");
+  d.duplicadas.forEach(x=>{ l.push("  · " + x.nome + " — " + x.motivo); l.push("      " + x.detalhe); });
   l.push("");
   l.push("ULTIMA SINCRONIZACAO: " + d.ultimaSync);
   l.push("HISTORICO (" + d.eventosNoLog + " eventos guardados): " + d.enviosOk + " envio(s) com sucesso, " + d.enviosFalha + " falha(s)");
@@ -4355,6 +4460,13 @@ function onedriveDiagnosticoInlineHtml(){
         <b>Nenhum envio concluiu.</b> A fila não vai diminuir sozinha — o motivo está logo abaixo.</div>`:""}
       ${d.enviosOk > 0 && d.enviosFalha === 0 && d.enviar.length > 0 ? `<div style="margin:6px 2px;padding:8px 10px;background:#E3F4E4;border:1px solid #A5D6A7;border-radius:6px;font-size:12.5px;color:#2E7D32">
         <b>Os envios estão funcionando.</b> A fila é grande e vai diminuindo aos poucos — deixe o app aberto no Wi-Fi.</div>`:""}
+      ${d.totalDuplicadas > 0 ? `<div style="margin:8px 2px;padding:10px 12px;background:#FDE7E7;border:1px solid #E9A6A6;border-radius:6px;font-size:12.5px;color:#8A1F1F">
+        <b>${d.totalDuplicadas} item(ns) duplicado(s) — esta é a causa da sincronização não terminar.</b>
+        <div style="margin-top:4px">O mesmo item existe em dois lugares ao mesmo tempo. As duas cópias disputam o mesmo registro de envio: o app manda uma, apaga a outra, e no ciclo seguinte faz o contrário. Sempre "com sucesso", sempre sem baixar a fila.</div>
+        <div style="margin-top:4px">Sobrou de antes da correção de 03/08. Juntar as cópias encerra o ciclo — fica a versão alterada por último, e o que estiver só na outra vem junto.</div>
+        <button class="btn btn-primary btn-block" style="margin-top:8px" onclick="App.juntarDuplicatasSync()">${ic('check')} Juntar as ${d.totalDuplicadas} duplicata(s)</button>
+      </div>`:""}
+      ${secao("Itens duplicados", d.duplicadas, "Nenhum item duplicado.")}
       ${d.mudancaEndereco > 0 ? `<div style="margin:6px 2px;padding:8px 10px;background:#FFF3D6;border:1px solid #E9C46A;border-radius:6px;font-size:12.5px;color:#5C3D00">
         <b>${d.mudancaEndereco} item(ns) trocando de endereço na nuvem a cada ciclo.</b> O app apaga a cópia antiga e envia de novo toda vez — por isso o envio "dá certo" e a fila não baixa. Provável causa do travamento.</div>`:""}
       ${d.carimboRegrediu > 0 ? `<div style="margin:6px 2px;padding:8px 10px;background:#FFF3D6;border:1px solid #E9C46A;border-radius:6px;font-size:12.5px;color:#5C3D00">
@@ -13393,6 +13505,19 @@ const App = {
   },
   fecharModal(){ const el=document.getElementById("overlayRoot"); if(el) el.remove(); },
   toggleDiagnosticoSync(){ STATE.ui.diagSyncAberto = !STATE.ui.diagSyncAberto; render(); },
+  async juntarDuplicatasSync(){
+    const dup = sincDuplicatasNaArvore();
+    if(dup.length === 0){ toast("Nenhum item duplicado", false); return; }
+    if(!confirm(`Juntar ${dup.length} item(ns) duplicado(s)?\n\nDe cada par fica a versão alterada por último. O que existir só na outra cópia (tarefas, riscos) é trazido junto — nada é descartado.\n\nUma cópia de segurança é criada antes, então dá para voltar atrás.`)) return;
+    await salvarPontoDeRestauracao("antes de juntar duplicatas");
+    const n = sincJuntarTodasDuplicatas();
+    marcarAlterado();
+    render();
+    const resta = sincDuplicatasNaArvore().length;
+    toast(n>0
+      ? `${n} cópia(s) duplicada(s) removida(s)${resta? " · ainda restam "+resta : ""} — sincronize agora para concluir`
+      : "Nada a juntar", n>0);
+  },
   async copiarDiagnosticoSync(){
     const txt = onedriveDiagnosticoTexto();
     try{

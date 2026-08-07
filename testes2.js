@@ -2520,6 +2520,109 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(HTML.indexOf("Versão ${APP_BUILD}") > 0, "a tela não usa APP_BUILD");
   });
 
+  console.log("\n=== t64 · juntar itens duplicados (a causa da sync eterna) ===");
+  [ "sincDuplicatasNaArvore", "sincJuntarDuplicata", "sincJuntarTodasDuplicatas" ]
+    .forEach(n=> vm.runInContext(funcao(n), ctx));
+  vm.runInContext(constante("SINC_FILHOS_DE"), ctx);
+  const TD = 1750000000000;
+  function mkRiscoDup(id, desc, ts){
+    return { id, nome:"Prensamento", nomeOutro:"", descricao:desc, medidaImplementada:"Não", descMedida:"",
+             sugestaoMitigacao:"", fotosOutras:[], po:"", gpd:"", fe:"", np:"", criadoEm:TD, atualizadoEm:ts, laudoIA:{} };
+  }
+  function arvoreComDuplicatas(){
+    const rNovo = mkRiscoDup("rDUP", "versao nova", TD+1000);
+    const rVelho = mkRiscoDup("rDUP", "versao antiga", TD);
+    const rSo = mkRiscoDup("rSO", "so existe na copia velha", TD);
+    const t1 = { id:"t1", tarefa:"Operação normal", tarefaOutro:"", descricao:"", riscos:[rNovo], criadoEm:TD, atualizadoEm:TD, laudoIA:{} };
+    const t2 = { id:"t2", tarefa:"Limpeza", tarefaOutro:"", descricao:"", riscos:[rVelho, rSo], criadoEm:TD, atualizadoEm:TD, laudoIA:{} };
+    const maq = { id:"m1", nome:"Mesa B", descricao:"", fotoGeral:null, fotosOutras:[], tarefas:[t1,t2], criadoEm:TD, atualizadoEm:TD, laudoIA:{} };
+    const mA = { id:"mDUP", nome:"Esteira", descricao:"", fotoGeral:null, fotosOutras:[],
+                 tarefas:[{id:"tX", tarefa:"Op", tarefaOutro:"", descricao:"", riscos:[], criadoEm:TD, atualizadoEm:TD, laudoIA:{}}],
+                 criadoEm:TD, atualizadoEm:TD+500, laudoIA:{} };
+    const mB = { id:"mDUP", nome:"Esteira", descricao:"", fotoGeral:null, fotosOutras:[],
+                 tarefas:[{id:"tY", tarefa:"Limp", tarefaOutro:"", descricao:"", riscos:[], criadoEm:TD, atualizadoEm:TD, laudoIA:{}}],
+                 criadoEm:TD, atualizadoEm:TD, laudoIA:{} };
+    STATE.projetosSimples = [{ id:"p1", empresa:"Corteva", criadoEm:TD, atualizadoEm:TD, areas:[
+      { id:"a1", nome:"GCM 100", descricao:"", local:"", maquinas:[maq, mA], criadoEm:TD, atualizadoEm:TD },
+      { id:"a2", nome:"Seleção 100", descricao:"", local:"", maquinas:[mB], criadoEm:TD, atualizadoEm:TD } ]}];
+  }
+  const contarNaArvore = (tipo, id)=>{
+    let n = 0;
+    (STATE.projetosSimples||[]).forEach(p=>(p.areas||[]).forEach(a=>{
+      if(tipo==="area" && a.id===id) n++;
+      (a.maquinas||[]).forEach(m=>{
+        if(tipo==="maquina" && m.id===id) n++;
+        (m.tarefas||[]).forEach(t=>{
+          if(tipo==="tarefa" && t.id===id) n++;
+          (t.riscos||[]).forEach(r=>{ if(tipo==="risco" && r.id===id) n++; });
+        });
+      });
+    }));
+    return n;
+  };
+
+  t("encontra o mesmo id em dois lugares", ()=>{
+    arvoreComDuplicatas();
+    const dup = vm.runInContext("sincDuplicatasNaArvore()", ctx);
+    eq(dup.length, 2, "deveria achar o risco e a máquina duplicados");
+    ok(dup.some(g=>g.tipo==="risco" && g.id==="rDUP"), "não achou o risco");
+    ok(dup.some(g=>g.tipo==="maquina" && g.id==="mDUP"), "não achou a máquina");
+  });
+  t("fica a cópia alterada por último", ()=>{
+    arvoreComDuplicatas();
+    vm.runInContext("sincJuntarTodasDuplicatas()", ctx);
+    eq(contarNaArvore("risco","rDUP"), 1, "continua duplicado");
+    let desc = "";
+    STATE.projetosSimples[0].areas.forEach(a=>a.maquinas.forEach(m=>m.tarefas.forEach(t=>t.riscos.forEach(r=>{ if(r.id==="rDUP") desc = r.descricao; }))));
+    eq(desc, "versao nova", "ficou com a versão antiga");
+  });
+  t("NADA se perde: o que só existia na outra cópia sobrevive", ()=>{
+    arvoreComDuplicatas();
+    vm.runInContext("sincJuntarTodasDuplicatas()", ctx);
+    eq(contarNaArvore("risco","rSO"), 1, "o risco que só existia na cópia removida sumiu");
+  });
+  t("filhos das duas cópias são reunidos", ()=>{
+    arvoreComDuplicatas();
+    vm.runInContext("sincJuntarTodasDuplicatas()", ctx);
+    eq(contarNaArvore("maquina","mDUP"), 1, "máquina continua duplicada");
+    let tarefas = [];
+    STATE.projetosSimples[0].areas.forEach(a=>a.maquinas.forEach(m=>{ if(m.id==="mDUP") tarefas = m.tarefas.map(t=>t.id); }));
+    ok(tarefas.indexOf("tX") >= 0 && tarefas.indexOf("tY") >= 0, "perdeu tarefa ao juntar: " + tarefas.join(","));
+  });
+  t("depois de juntar não sobra duplicata nenhuma", ()=>{
+    arvoreComDuplicatas();
+    vm.runInContext("sincJuntarTodasDuplicatas()", ctx);
+    eq(vm.runInContext("sincDuplicatasNaArvore()", ctx).length, 0);
+  });
+  t("o sobrevivente é carimbado, para assumir o endereço na nuvem", ()=>{
+    arvoreComDuplicatas();
+    vm.runInContext("sincJuntarTodasDuplicatas()", ctx);
+    let ts = 0;
+    STATE.projetosSimples[0].areas.forEach(a=>a.maquinas.forEach(m=>m.tarefas.forEach(t=>t.riscos.forEach(r=>{ if(r.id==="rDUP") ts = r.atualizadoEm; }))));
+    ok(ts > TD+1000, "sem carimbo novo, o vai e vem continuaria");
+  });
+  t("árvore sem duplicata não é tocada", ()=>{
+    arvoreComDuplicatas();
+    vm.runInContext("sincJuntarTodasDuplicatas()", ctx);
+    const antes = JSON.stringify(STATE.projetosSimples);
+    eq(vm.runInContext("sincJuntarTodasDuplicatas()", ctx), 0, "mexeu numa árvore já limpa");
+    eq(JSON.stringify(STATE.projetosSimples), antes, "alterou a árvore sem necessidade");
+  });
+  t("o reparo pede confirmação e cria cópia de segurança antes", ()=>{
+    const i = HTML.indexOf("async juntarDuplicatasSync(){");
+    ok(i > 0, "o método não existe");
+    const corpo = HTML.slice(i, i + 1100);
+    ok(corpo.indexOf("if(!confirm(") > 0, "junta sem perguntar");
+    ok(corpo.indexOf('await salvarPontoDeRestauracao("antes de juntar duplicatas")') > 0, "sem cópia de segurança");
+    ok(corpo.indexOf("nada é descartado") > 0, "não tranquiliza sobre perda de dado");
+    ok(corpo.indexOf("if(!confirm(") < corpo.indexOf("sincJuntarTodasDuplicatas()"), "confirma depois de juntar");
+  });
+  t("o diagnóstico aponta a causa e oferece o conserto", ()=>{
+    ok(HTML.indexOf("esta é a causa da sincronização não terminar") > 0, "não aponta a causa");
+    ok(HTML.indexOf("App.juntarDuplicatasSync()") > 0, "sem o botão de conserto");
+    ok(HTML.indexOf("totalDuplicadas") > 0, "o contador não sai no diagnóstico");
+  });
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);
