@@ -22,6 +22,34 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/08/2026 15:45
+
+Ajustes no cadastro de risco em campo.
+
+**A tela não volta mais ao topo.** A cada escolha dentro do formulário de risco
+— um seletor, um botão de situação, marcar "há medidas" — o modal era
+redesenhado inteiro e a rolagem saltava para o começo. Era preciso procurar de
+novo onde você estava preenchendo, toda vez. Agora a posição é guardada e
+devolvida.
+
+**Os seletores couberam no modal.** Os seletores de medida existente e de
+solução ficavam mais largos que a janela, porque estavam fora dos campos
+normais e não pegavam a regra de largura — esticavam até o tamanho da opção
+mais longa. Também estavam sem estilo (sem borda e sem a setinha). Corrigido.
+
+**"Mitigação proposta" passou a se chamar "Solução"**, para ficar mais direto
+para quem preenche.
+
+**O nome do risco passa a incluir o componente.** Antes ficava só o evento
+("Agarramento"); agora fica "Agarramento na correia transportadora", que
+distingue de verdade numa lista com dezenas de riscos. Continua valendo a
+regra de sempre: o que você digitar por cima nunca é sobrescrito.
+
+Riscos **já cadastrados não são renomeados** — a composição vale para os
+próximos. Mudar nome de risco em laudo já feito seria alteração retroativa.
+
+---
+
 ## 07/08/2026 15:00
 
 **Dá para conferir, na tela, o que a IA recebe das normas.**

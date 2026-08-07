@@ -2842,6 +2842,62 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
        "o caminho com retentativa deixou de usar chamarIA, e perderia as normas");
   });
 
+  console.log("\n=== t69 · modal de criação de risco (bloco 1) ===");
+  vm.runInContext(funcao("montarNomeRisco"), ctx);
+  t("o nome do risco junta evento e componente", ()=>{
+    ctx.__r = { evento:"Agarramento", componente:"Correia transportadora" };
+    eq(vm.runInContext("montarNomeRisco(__r)", ctx), "Agarramento na correia transportadora");
+  });
+  t("sem componente, fica só o evento", ()=>{
+    ctx.__r = { evento:"Agarramento", componente:"" };
+    eq(vm.runInContext("montarNomeRisco(__r)", ctx), "Agarramento");
+  });
+  t("sem evento, não inventa nome", ()=>{
+    ctx.__r = { evento:"", componente:"Correia" };
+    eq(vm.runInContext("montarNomeRisco(__r)", ctx), "");
+  });
+  t("o nome se atualiza enquanto for a sugestão do app", ()=>{
+    ctx.__r = { evento:"Agarramento", componente:"", descricao:"", nome:"" };
+    vm.runInContext("aplicarSugestoesRisco(__r)", ctx);
+    eq(ctx.__r.nome, "Agarramento");
+    ctx.__r.componente = "Correia transportadora";
+    vm.runInContext("aplicarSugestoesRisco(__r)", ctx);
+    eq(ctx.__r.nome, "Agarramento na correia transportadora", "não acompanhou o componente escolhido depois");
+  });
+  t("nome digitado por você NUNCA é sobrescrito", ()=>{
+    ctx.__r = { evento:"Agarramento", componente:"Correia", descricao:"", nome:"" };
+    vm.runInContext("aplicarSugestoesRisco(__r)", ctx);
+    ctx.__r.nome = "Nome escrito à mão";
+    ctx.__r.componente = "Tambor de acionamento";
+    vm.runInContext("aplicarSugestoesRisco(__r)", ctx);
+    eq(ctx.__r.nome, "Nome escrito à mão");
+  });
+  t("risco antigo, sem marca de sugestão, não é renomeado", ()=>{
+    /* Quem já tem risco cadastrado não pode ver os nomes mudarem sozinhos ao
+       abrir o app — seria uma alteração retroativa em laudo assinado. */
+    ctx.__r = { evento:"Agarramento", componente:"Correia transportadora", descricao:"x", nome:"Agarramento" };
+    vm.runInContext("aplicarSugestoesRisco(__r)", ctx);
+    eq(ctx.__r.nome, "Agarramento", "renomeou um risco que já existia");
+  });
+  t("a rolagem do modal é guardada e devolvida", ()=>{
+    const i = HTML.indexOf("function renderModalEntidade(){");
+    const corpo = HTML.slice(i, i + 1400);
+    ok(corpo.indexOf('document.querySelector("#overlayRoot .modal-card")') > 0, "não lê o modal atual");
+    ok(corpo.indexOf("const rolagem = anterior ? anterior.scrollTop : 0;") > 0, "não guarda a posição");
+    ok(corpo.indexOf("novo.scrollTop = rolagem;") > 0, "não devolve a posição");
+    ok(corpo.indexOf("const rolagem") < corpo.indexOf("abrirOverlay(html)"), "guarda depois de redesenhar");
+  });
+  t("os selects das caixas de medida entram nas regras de largura", ()=>{
+    ok(HTML.indexOf(".field select,.medida-box select,.mitig-box select{width:100%;max-width:100%") > 0,
+       "os selects fora de .field voltariam a estourar a largura do modal");
+    ok(HTML.indexOf(".field select.sp-select-sm,.medida-box select.sp-select-sm,.mitig-box select.sp-select-sm") > 0,
+       "a variação pequena não pega nas caixas de medida");
+  });
+  t("o quadro passou a se chamar Solução", ()=>{
+    ok(HTML.indexOf("${ic('warn')} Solução</div>") > 0, "sem o novo rótulo");
+    ok(HTML.indexOf("${ic('warn')} Mitigação proposta</div>") < 0, "o rótulo antigo continua na tela");
+  });
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

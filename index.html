@@ -170,12 +170,16 @@ a{color:var(--accent-ink);}
 .field label{display:block;font-size:12.5px;font-weight:700;color:var(--ink-dim);margin-bottom:6px;}
 .field .req{color:var(--r-alto);background:transparent;}
 .field input[type=text],.field input[type=number],.field input[type=date],.field textarea{width:100%;background:var(--surface);border:1.5px solid var(--line-strong);border-radius:var(--radius-sm);padding:11px 12px;font-size:14.5px;color:var(--ink);appearance:none;}
-.field select{width:100%;background:var(--surface);border:1.5px solid var(--line-strong);border-radius:var(--radius-sm);padding:11px 12px;font-size:13px;color:var(--ink);appearance:none;}
-.field select option,.field select optgroup{font-size:13px;}
-.field select.sp-select-sm{font-size:11px;padding:9px 10px;}
-.field select.sp-select-sm option,.field select.sp-select-sm optgroup{font-size:11px;}
-.field select optgroup{font-weight:800;color:var(--ink-faint);font-style:normal;}
-.field select{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%234A4D6B'><path d='M5.5 7.5l4.5 4.5 4.5-4.5'/></svg>");background-repeat:no-repeat;background-position:right 10px center;padding-right:32px;}
+/* As caixas de medida (.medida-box e .mitig-box) têm selects que NÃO estão
+   dentro de um .field. Sem entrar nestas regras, eles ficavam sem estilo
+   nenhum e, principalmente, sem width:100% — esticavam até o tamanho da
+   opção mais longa e passavam da largura do modal. */
+.field select,.medida-box select,.mitig-box select{width:100%;max-width:100%;background:var(--surface);border:1.5px solid var(--line-strong);border-radius:var(--radius-sm);padding:11px 12px;font-size:13px;color:var(--ink);appearance:none;}
+.field select option,.field select optgroup,.medida-box select option,.medida-box select optgroup,.mitig-box select option,.mitig-box select optgroup{font-size:13px;}
+.field select.sp-select-sm,.medida-box select.sp-select-sm,.mitig-box select.sp-select-sm{font-size:11px;padding:9px 10px;}
+.field select.sp-select-sm option,.field select.sp-select-sm optgroup,.medida-box select.sp-select-sm option,.medida-box select.sp-select-sm optgroup,.mitig-box select.sp-select-sm option,.mitig-box select.sp-select-sm optgroup{font-size:11px;}
+.field select optgroup,.medida-box select optgroup,.mitig-box select optgroup{font-weight:800;color:var(--ink-faint);font-style:normal;}
+.field select,.medida-box select,.mitig-box select{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%234A4D6B'><path d='M5.5 7.5l4.5 4.5 4.5-4.5'/></svg>");background-repeat:no-repeat;background-position:right 10px center;padding-right:32px;}
 .field textarea{min-height:74px;resize:vertical;}
 .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
 .field-hint{font-size:11.5px;color:var(--ink-faint);margin-top:5px;}
@@ -1696,7 +1700,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/08/2026 15:00";
+const APP_BUILD = "07/08/2026 15:45";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -5862,6 +5866,15 @@ function abrirModalEntidade(tipo, draft, parent, onSaved){
   renderModalEntidade();
 }
 function renderModalEntidade(){
+  /* GUARDA A POSICAO DA ROLAGEM.
+     Cada escolha dentro do modal (um select, um botao de situacao, marcar
+     "há medidas") redesenha o modal INTEIRO — o elemento antigo é removido e
+     um novo entra no lugar. Sem guardar onde a pessoa estava, a tela saltava
+     para o topo a cada toque, e era preciso rolar de novo até o campo que
+     estava sendo preenchido. Em um formulário longo como o do risco, isso
+     torna o preenchimento em campo cansativo. */
+  const anterior = document.querySelector("#overlayRoot .modal-card");
+  const rolagem = anterior ? anterior.scrollTop : 0;
   let html = "";
   try{
     if(__draftTipo==="projetoS") html = formProjetoSHtml();
@@ -5875,6 +5888,10 @@ function renderModalEntidade(){
     return;
   }
   abrirOverlay(html);
+  if(rolagem > 0){
+    const novo = document.querySelector("#overlayRoot .modal-card");
+    if(novo) novo.scrollTop = rolagem;
+  }
 }
 function formProjetoSHtml(){
   const p = __draftEntity;
@@ -6179,6 +6196,15 @@ function montarDescricaoRisco(r){
   const texto = cabeca + emenda;
   return texto.charAt(0).toUpperCase() + texto.slice(1) + ".";
 }
+/* Nome curto do risco, para as listas e para o laudo: o evento mais o
+   componente onde ele acontece. Sem componente, fica só o evento. */
+function montarNomeRisco(r){
+  if(!r) return "";
+  const ev = String(r.evento||"").trim();
+  const comp = String(r.componente||"").trim();
+  if(!ev) return "";
+  return comp ? (ev + " " + riscoArtigoEm(comp)) : ev;
+}
 /* Grau do Dano sugerido: parte do evento e agrava quando a parte do corpo
    atingida é vital (ou quando são os olhos). */
 function sugerirGPDPorSelecao(r){
@@ -6211,7 +6237,18 @@ function aplicarSugestoesRisco(r){
     r.descricao = nova;
     r.descricaoAuto = nova;
   }
-  if(!String(r.nome||"").trim() && String(r.evento||"").trim()) r.nome = r.evento;
+  /* NOME DO RISCO = evento + componente.
+     Só "Agarramento" não distingue nada numa lista com dezenas de riscos;
+     "Agarramento na correia transportadora" já diz de qual se trata. Segue a
+     mesma regra da descrição: o app só reescreve enquanto o texto for o que
+     ele mesmo sugeriu. No instante em que você digita por cima, o nome passa
+     a ser seu e nunca mais é mexido. */
+  const nomeSugerido = montarNomeRisco(r);
+  const nomeAtual = String(r.nome||"").trim();
+  if(nomeSugerido && (!nomeAtual || nomeAtual === String(r.nomeAuto||"").trim())){
+    r.nome = nomeSugerido;
+    r.nomeAuto = nomeSugerido;
+  }
   if(!String(r.gpd||"").trim()){
     const g = sugerirGPDPorSelecao(r);
     if(g) r.gpd = g;
@@ -6240,7 +6277,7 @@ function selectRiscoCampoHtml(chave, valorAtual, proj){
    Dois usos, o mesmo catálogo:
    • "Medida existente"  -> o que o cliente JÁ tem, com o julgamento de
      conformidade (atende / atende parcialmente / não atende).
-   • "Mitigação proposta" -> o que precisa ser feito.
+   • "Solução" (antes chamada "Mitigação proposta") -> o que precisa ser feito.
    ========================================================================= */
 const MEDIDA_SITUACOES = [
   { k:"ok",      rot:"Atende",            frase:"Atende ao disposto",            cor:"#2E7D32", fundo:"#E3F4E4" },
@@ -6732,7 +6769,7 @@ function blocoMedidaPropostaHtml(r){
   const sugestao = tipo ? medidaTextoProposto(r, tipo) : "";
   const podeAplicar = sugestao && sugestao !== String(r.sugestaoMitigacao||"").trim();
   return `<div class="mitig-box">
-    <div class="mitig-head">${ic('warn')} Mitigação proposta</div>
+    <div class="mitig-head">${ic('warn')} Solução</div>
     ${selectMedidaHtml(tipo, "App.onDraftMedidaProposta(this.value)")}
     ${!tipo && mSug? `<button type="button" class="btn btn-secondary btn-sm btn-block" style="margin-top:8px" onclick="App.onDraftMedidaProposta('${sugerida}')">${ic('shield')} Sugestão do app: ${escapeHtml(mSug.rot)}</button>`:""}
     ${medidaRodapeHtml(m)}

@@ -120,7 +120,7 @@ chk("AV = ID_Maquina", novo.count('xlsmCellTexto(`AV${rowNum}`') == 1)
 print("\n=== 9. SELO DE VERSAO ===")
 # APP_BUILD passou a ser UM texto fixo (antes eram 2: o valor e o fallback da
 # IIFE que lia document.lastModified). O numero na tela agora e exatamente este.
-chk("APP_BUILD atualizado", novo.count('"07/08/2026 15:00"') == 1, "achei %d" % novo.count('"07/08/2026 15:00"'))
+chk("APP_BUILD atualizado", novo.count('"07/08/2026 15:45"') == 1, "achei %d" % novo.count('"07/08/2026 15:45"'))
 chk("APP_BUILD e texto fixo, nao derivado da data do arquivo",
     novo.count('const APP_BUILD = "') == 1
     and len([l for l in novo.split(chr(10)) if "document.lastModified" in l and not l.strip().startswith("document.lastModified, ou seja")]) == 0)
@@ -519,6 +519,27 @@ chk("existe um unico ponto montando o prompt com as normas",
     novo.count("contextoNormasIA(") == 2)
 chk("norma desativada continua fora",
     "filter(n=>n.ativo!==false && n.texto)" in novo)
+
+print("\n=== 27. MODAL DE CRIACAO DE RISCO (BLOCO 1) ===")
+_rm = novo.find("function renderModalEntidade(){")
+_rmc = novo[_rm:_rm+1400]
+chk("a rolagem do modal e guardada ANTES de redesenhar",
+    "const rolagem = anterior ? anterior.scrollTop : 0;" in _rmc
+    and _rmc.find("const rolagem") < _rmc.find("abrirOverlay(html)"))
+chk("e devolvida depois", "novo.scrollTop = rolagem;" in _rmc)
+chk("selects fora de .field entram nas regras de largura",
+    ".field select,.medida-box select,.mitig-box select{width:100%;max-width:100%" in novo
+    and ".field select.sp-select-sm,.medida-box select.sp-select-sm,.mitig-box select.sp-select-sm" in novo)
+chk("a regra antiga, que so pegava .field, nao ficou para tras",
+    novo.count(".field select{width:100%;background:var(--surface)") == 0)
+chk("o quadro se chama Solucao",
+    novo.count("${ic('warn')} Solução</div>") == 1
+    and novo.count("${ic('warn')} Mitigação proposta</div>") == 0)
+chk("o nome do risco junta evento e componente",
+    novo.count("function montarNomeRisco(") == 1
+    and "const nomeSugerido = montarNomeRisco(r);" in novo)
+chk("nome escrito a mao nunca e sobrescrito",
+    'nomeAtual === String(r.nomeAuto||"").trim()' in novo)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
