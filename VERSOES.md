@@ -13,6 +13,29 @@ antigo, feche e abra o app novamente.
 > GitHub, sem descrição do que mudou — por isso aparecem aqui apenas com a
 > data. As descrições passam a existir a partir de 31/07/2026.
 
+> **Atenção às versões entre 31/07/2026 e 07/08/2026 10:30.** Até essa data, o
+> número mostrado no app era calculado da hora em que o GitHub publicou o
+> arquivo, e **não** batia com o número registrado aqui — a diferença era de
+> alguns minutos e do fuso (o app mostrava o horário de Brasília da
+> publicação). A partir de **07/08/2026 10:25**, o número na tela é
+> exatamente o mesmo desta lista.
+
+---
+
+## 07/08/2026 10:25
+
+**Correção:** a versão mostrada no app agora é a mesma registrada aqui.
+
+O número que aparecia em Configurações era calculado da hora em que o GitHub
+publicou o arquivo — não do que estava escrito no código. Publicado às 13:11
+GMT, o aparelho mostrava 10:11, enquanto a entrega estava registrada como
+10:30. Na prática, não dava para responder "você está na versão X?", porque o
+X da tela nunca era o X do histórico.
+
+Agora a versão é um texto fixo: o mesmo no código, nesta lista e na tela do
+aparelho. Continua servindo para saber se o aparelho já atualizou — quando o
+arquivo é antigo, tudo nele é antigo, inclusive esse texto.
+
 ---
 
 ## 07/08/2026 10:30

@@ -115,9 +115,14 @@ chk("AU = ID_Risco", novo.count('xlsmCellTexto(`AU${rowNum}`') == 1)
 chk("AV = ID_Maquina", novo.count('xlsmCellTexto(`AV${rowNum}`') == 1)
 
 print("\n=== 9. SELO DE VERSAO ===")
-chk("APP_BUILD atualizado 2x", novo.count('"07/08/2026 10:30"') == 2, "achei %d" % novo.count('"07/08/2026 10:30"'))
+# APP_BUILD passou a ser UM texto fixo (antes eram 2: o valor e o fallback da
+# IIFE que lia document.lastModified). O numero na tela agora e exatamente este.
+chk("APP_BUILD atualizado", novo.count('"07/08/2026 10:25"') == 1, "achei %d" % novo.count('"07/08/2026 10:25"'))
+chk("APP_BUILD e texto fixo, nao derivado da data do arquivo",
+    novo.count('const APP_BUILD = "') == 1
+    and len([l for l in novo.split(chr(10)) if "document.lastModified" in l and not l.strip().startswith("document.lastModified, ou seja")]) == 0)
 chk("nenhum resquicio de build antigo",
-    all(novo.count('"%s"' % b) == 0 for b in ["29/07/2026 08:44","30/07/2026 16:20","30/07/2026 18:05","30/07/2026 19:40","30/07/2026 21:10","31/07/2026 09:30","31/07/2026 11:20","31/07/2026 15:40","31/07/2026 19:15","31/07/2026 22:30","31/07/2026 23:55","03/08/2026 17:20","03/08/2026 20:35","05/08/2026 17:30","05/08/2026 19:05","05/08/2026 21:40","05/08/2026 22:30","06/08/2026 19:30","06/08/2026 20:45","07/08/2026 09:40"]))
+    all(novo.count('"%s"' % b) == 0 for b in ["29/07/2026 08:44","30/07/2026 16:20","30/07/2026 18:05","30/07/2026 19:40","30/07/2026 21:10","31/07/2026 09:30","31/07/2026 11:20","31/07/2026 15:40","31/07/2026 19:15","31/07/2026 22:30","31/07/2026 23:55","03/08/2026 17:20","03/08/2026 20:35","05/08/2026 17:30","05/08/2026 19:05","05/08/2026 21:40","05/08/2026 22:30","06/08/2026 19:30","06/08/2026 20:45","07/08/2026 09:40","07/08/2026 10:30"]))
 
 print("\n=== 10. CRESCIMENTO DO ARQUIVO ===")
 # ATENCAO ao ler este numero: original.html e a versao publicada ANTES da

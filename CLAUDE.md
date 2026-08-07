@@ -83,9 +83,17 @@ quatro passos de validação.**
   silenciosamente.
 - Nunca usar spread em array grande (`Math.max(0, ...array)`) — estoura a
   pilha acima de ~130 mil itens. Usar `.reduce()`.
-- `APP_BUILD` (formato `"DD/MM/AAAA HH:MM"`, fuso America/Sao_Paulo)
-  aparece exatamente duas vezes perto da função IIFE no topo do arquivo.
-  Atualizar as duas em toda entrega.
+- `APP_BUILD` (formato `"DD/MM/AAAA HH:MM"`, fuso America/Sao_Paulo) é um
+  texto fixo, declarado **uma vez** no topo do arquivo. Atualizar em toda
+  entrega, com o mesmo valor usado no `VERSOES.md` e na mensagem do commit.
+
+  Até 07/08/2026 ele era calculado de `document.lastModified` (a hora em que
+  o GitHub publicou o arquivo), e a string no código era só um *fallback*.
+  Resultado: o número na tela nunca batia com o do código nem com o do
+  histórico — publicado às 13:11 GMT, o aparelho mostrava 10:11, enquanto a
+  entrega estava registrada como 10:30. Perguntar "você está na versão X?"
+  não tinha resposta. Agora **o que está no código é o que aparece na tela**.
+  Não voltar a derivá-lo da data do arquivo.
 
 ## Arquiteturas que não podem ser "corrigidas" por engano
 

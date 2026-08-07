@@ -1680,8 +1680,23 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
    confirmar se o navegador já pegou a versão mais recente publicada no
    GitHub (útil especialmente dado o atraso de alguns minutos do GitHub para
    propagar cada atualização, e para diferenciar aparelhos que ainda não
-   atualizaram dos que já atualizaram). */
-const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "07/08/2026 10:30"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "07/08/2026 10:30"; } })();
+   atualizaram dos que já atualizaram).
+
+   POR QUE UM TEXTO FIXO, E NÃO A DATA DO ARQUIVO. Antes isto era calculado de
+   document.lastModified, ou seja, da hora em que o GitHub publicou o arquivo.
+   O número na tela então NUNCA batia com o número escrito aqui, nem com o do
+   histórico de versões: publicado às 13:11 GMT, o aparelho mostrava 10:11,
+   enquanto a entrega estava registrada como 10:30. Perguntar "você está na
+   versão X?" ficava impossível de responder.
+
+   Agora o texto abaixo É a versão: o mesmo que aparece na tela, o mesmo que
+   está no VERSOES.md e na mensagem do commit. Se este texto for esquecido
+   numa entrega, a validação (estrutura.py) reprova antes de publicar — então
+   não há risco de ficar mostrando um número velho.
+
+   Continua servindo para saber se o aparelho atualizou: quando o arquivo é
+   antigo, TUDO nele é antigo, inclusive este texto. */
+const APP_BUILD = "07/08/2026 10:25";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;

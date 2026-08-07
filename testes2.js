@@ -2501,6 +2501,25 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(corpo.indexOf(m) < 0, "o diagnóstico não pode alterar nada: " + m));
   });
 
+  console.log("\n=== t63 · a versão na tela é a mesma escrita no código ===");
+  t("APP_BUILD é texto fixo, declarado uma vez só", ()=>{
+    const m = /const APP_BUILD = "(\d{2}\/\d{2}\/\d{4} \d{2}:\d{2})";/.exec(HTML);
+    ok(!!m, "APP_BUILD deixou de ser um texto fixo");
+    eq(HTML.split('const APP_BUILD').length - 1, 1, "declarado mais de uma vez");
+  });
+  t("não volta a ser calculado da data do arquivo", ()=>{
+    const linhas = HTML.split("\n").filter(l=> l.indexOf("document.lastModified") >= 0);
+    linhas.forEach(l=> ok(l.trim().indexOf("document.lastModified, ou seja") === 0,
+      "document.lastModified voltou a ser usado em código: " + l.trim().slice(0,80)));
+  });
+  t("o formato é o combinado (DD/MM/AAAA HH:MM)", ()=>{
+    const m = /const APP_BUILD = "([^"]+)";/.exec(HTML);
+    ok(/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/.test(m[1]), "formato fora do padrão: " + m[1]);
+  });
+  t("a tela mostra essa mesma versão", ()=>{
+    ok(HTML.indexOf("Versão ${APP_BUILD}") > 0, "a tela não usa APP_BUILD");
+  });
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);
