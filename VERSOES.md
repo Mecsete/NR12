@@ -15,6 +15,35 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/08/2026 10:30
+
+O diagnóstico passa a mostrar **os dois carimbos** de cada item pendente e a
+**troca de endereço na nuvem**.
+
+O diagnóstico anterior revelou uma situação que ninguém esperava: **todos os
+envios dão certo, zero falhas — e a fila continua no mesmo número**. Também
+apareceram, no histórico, envios de "0 byte", que só acontecem quando o app
+apaga a cópia antiga de um item que mudou de endereço na nuvem.
+
+Um item é considerado pendente quando o carimbo de alteração dele é diferente
+do carimbo registrado no último envio. Ver só um dos dois números não diz
+nada. Agora cada linha mostra **os dois**, e mais:
+
+- **"ENDEREÇO MUDOU"**, com o endereço antigo e o novo, quando o caminho
+  calculado agora não bate com o que ficou registrado. Se isso se repete a
+  cada ciclo, o app fica apagando e reenviando o mesmo item para sempre — o
+  envio "dá certo" e a fila nunca baixa.
+- **"REGISTRO MAIS NOVO QUE O ITEM"**, quando o registro do envio está à
+  frente do próprio item — sinal de relógio fora de hora ou de registro
+  sobrescrito por outro aparelho.
+
+Dois avisos em destaque contam quantos itens estão em cada situação.
+
+Isto ainda é instrumentação, não a correção: serve para identificar a causa
+com precisão antes de mexer no motor de sincronização.
+
+---
+
 ## 07/08/2026 09:40
 
 O diagnóstico passa a mostrar **por que** o envio não conclui.

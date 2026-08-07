@@ -2463,6 +2463,44 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(corpo.indexOf(m) < 0, "o diagnóstico não pode alterar nada: " + m));
   });
 
+  console.log("\n=== t62 · o diagnóstico mostra os dois carimbos e o endereço ===");
+  t("cada pendente mostra o carimbo do item E o do último envio", ()=>{
+    const i = HTML.indexOf("function onedriveDiagnosticoDados(");
+    const corpo = HTML.slice(i, HTML.indexOf("function onedriveDiagnosticoTexto(", i));
+    ok(corpo.indexOf('"carimbo do item: "') > 0, "não mostra o carimbo do item");
+    ok(corpo.indexOf('" · registrado no último envio: "') > 0, "não mostra o carimbo do envio");
+  });
+  t("acusa quando o endereço na nuvem muda a cada ciclo", ()=>{
+    const i = HTML.indexOf("function onedriveDiagnosticoDados(");
+    const corpo = HTML.slice(i, HTML.indexOf("function onedriveDiagnosticoTexto(", i));
+    ok(corpo.indexOf("ENDEREÇO MUDOU") > 0, "não acusa a troca de endereço");
+    ok(corpo.indexOf("mudancaEndereco++") > 0, "não conta as trocas");
+    ok(HTML.indexOf("trocando de endereço na nuvem a cada ciclo") > 0, "sem o veredito na tela");
+    ok(HTML.indexOf('o envio "dá certo" e a fila não baixa') > 0, "não liga a causa ao sintoma");
+  });
+  t("acusa registro de envio mais novo que o item", ()=>{
+    const i = HTML.indexOf("function onedriveDiagnosticoDados(");
+    const corpo = HTML.slice(i, HTML.indexOf("function onedriveDiagnosticoTexto(", i));
+    ok(corpo.indexOf("REGISTRO MAIS NOVO QUE O ITEM") > 0, "não acusa a regressão");
+    ok(corpo.indexOf("carimboRegrediu++") > 0, "não conta");
+    ok(HTML.indexOf("registro de envio mais novo que o próprio item") > 0, "sem o veredito na tela");
+  });
+  t("os dois contadores saem no pacote de dados", ()=>{
+    ok(HTML.indexOf("mudancaEndereco, carimboRegrediu,") > 0, "os contadores não são devolvidos");
+  });
+  t("o texto copiável leva o detalhe de cada pendente", ()=>{
+    const i = HTML.indexOf("function onedriveDiagnosticoTexto(");
+    const corpo = HTML.slice(i, HTML.indexOf("function onedriveDiagnosticoInlineHtml(", i));
+    ok(corpo.indexOf("mudando de endereco a cada ciclo") > 0, "sem o resumo");
+    ok(corpo.indexOf('if(x.detalhe) l.push("      " + x.detalhe);') > 0, "sem o detalhe por item");
+  });
+  t("continua sendo só leitura", ()=>{
+    const i = HTML.indexOf("function onedriveDiagnosticoDados(");
+    const corpo = HTML.slice(i, HTML.indexOf("function onedriveDiagnosticoTexto(", i));
+    ["marcarAlterado(", "dbSet(", "registrarEventoSync(", "onedriveEnviarBlob", "onedriveApagarBlob"].forEach(m=>
+      ok(corpo.indexOf(m) < 0, "o diagnóstico não pode alterar nada: " + m));
+  });
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

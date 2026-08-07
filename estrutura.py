@@ -115,9 +115,9 @@ chk("AU = ID_Risco", novo.count('xlsmCellTexto(`AU${rowNum}`') == 1)
 chk("AV = ID_Maquina", novo.count('xlsmCellTexto(`AV${rowNum}`') == 1)
 
 print("\n=== 9. SELO DE VERSAO ===")
-chk("APP_BUILD atualizado 2x", novo.count('"07/08/2026 09:40"') == 2, "achei %d" % novo.count('"07/08/2026 09:40"'))
+chk("APP_BUILD atualizado 2x", novo.count('"07/08/2026 10:30"') == 2, "achei %d" % novo.count('"07/08/2026 10:30"'))
 chk("nenhum resquicio de build antigo",
-    all(novo.count('"%s"' % b) == 0 for b in ["29/07/2026 08:44","30/07/2026 16:20","30/07/2026 18:05","30/07/2026 19:40","30/07/2026 21:10","31/07/2026 09:30","31/07/2026 11:20","31/07/2026 15:40","31/07/2026 19:15","31/07/2026 22:30","31/07/2026 23:55","03/08/2026 17:20","03/08/2026 20:35","05/08/2026 17:30","05/08/2026 19:05","05/08/2026 21:40","05/08/2026 22:30","06/08/2026 19:30","06/08/2026 20:45"]))
+    all(novo.count('"%s"' % b) == 0 for b in ["29/07/2026 08:44","30/07/2026 16:20","30/07/2026 18:05","30/07/2026 19:40","30/07/2026 21:10","31/07/2026 09:30","31/07/2026 11:20","31/07/2026 15:40","31/07/2026 19:15","31/07/2026 22:30","31/07/2026 23:55","03/08/2026 17:20","03/08/2026 20:35","05/08/2026 17:30","05/08/2026 19:05","05/08/2026 21:40","05/08/2026 22:30","06/08/2026 19:30","06/08/2026 20:45","07/08/2026 09:40"]))
 
 print("\n=== 10. CRESCIMENTO DO ARQUIVO ===")
 # ATENCAO ao ler este numero: original.html e a versao publicada ANTES da
@@ -398,6 +398,16 @@ chk("o diagnostico da o veredito travado x fila grande",
 chk("cada horario tem rotulo proprio (tentativa em x alterado em)",
     novo.count('quandoRot: "tentativa em"') == 1
     and novo.count('escapeHtml(x.quandoRot||"alterado em")') == 1)
+chk("cada pendente mostra os DOIS carimbos (item x ultimo envio)",
+    '"carimbo do item: "' in _diag2 and '" · registrado no último envio: "' in _diag2)
+chk("acusa troca de endereco na nuvem a cada ciclo",
+    "ENDEREÇO MUDOU" in _diag2 and "mudancaEndereco++" in _diag2
+    and novo.count("trocando de endereço na nuvem a cada ciclo") == 1)
+chk("acusa registro de envio mais novo que o item",
+    "REGISTRO MAIS NOVO QUE O ITEM" in _diag2 and "carimboRegrediu++" in _diag2
+    and novo.count("registro de envio mais novo que o próprio item") == 1)
+chk("os contadores saem no pacote de dados",
+    novo.count("mudancaEndereco, carimboRegrediu,") == 1)
 chk("o diagnostico nao ESCREVE no log que ele mesmo le",
     "registrarEventoSync(" not in _diag2)
 chk("a versao inline tambem e so leitura",

@@ -1681,7 +1681,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
    GitHub (útil especialmente dado o atraso de alguns minutos do GitHub para
    propagar cada atualização, e para diferenciar aparelhos que ainda não
    atualizaram dos que já atualizaram). */
-const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "07/08/2026 09:40"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "07/08/2026 09:40"; } })();
+const APP_BUILD = (function(){ try{ var d = new Date(document.lastModified); if(isNaN(d)) return "07/08/2026 10:30"; var f = new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d); return f.replace(",",""); }catch(e){ return "07/08/2026 10:30"; } })();
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -4208,6 +4208,8 @@ function onedriveDiagnosticoDados(){
   const itens = listarItensSincronizaveisSimples();
   const assinaturas = onedriveCarregarAssinaturas(__assinaturasOneDriveSimples);
   const enviar = [];
+  let mudancaEndereco = 0, carimboRegrediu = 0;
+  const dataCurta = (ts)=>{ try{ return ts ? new Date(ts).toLocaleString("pt-BR") : "—"; }catch(e){ return "—"; } };
   itens.forEach(it=>{
     const reg = assinaturas.get(it.id);
     let motivo = "";
@@ -4215,9 +4217,25 @@ function onedriveDiagnosticoDados(){
     else if(reg.atualizadoEm !== it.atualizadoEm) motivo = "editado aqui depois do último envio";
     else if(reg.fotosPendentes) motivo = "faltam as fotos (esperando Wi-Fi)";
     if(!motivo) return;
-    let quando = "";
-    try{ quando = it.atualizadoEm ? new Date(it.atualizadoEm).toLocaleString("pt-BR") : "—"; }catch(e){ quando = "—"; }
-    enviar.push({ tipo:it.tipo, nome:(it.pasta||[]).join(" / ") + " / " + it.arquivo, motivo, quando });
+    /* OS DOIS CARIMBOS lado a lado. É a comparação entre eles que decide se o
+       item está pendente — mostrar só um esconde justamente o caso em que o
+       registro do envio anterior está desatualizado ou andou para trás. */
+    let detalhe = "";
+    if(reg){
+      detalhe = "carimbo do item: " + dataCurta(it.atualizadoEm) + " · registrado no último envio: " + dataCurta(reg.atualizadoEm);
+      if((reg.atualizadoEm||0) > (it.atualizadoEm||0)){ detalhe += " · REGISTRO MAIS NOVO QUE O ITEM"; carimboRegrediu++; }
+      /* ENDEREÇO NA NUVEM — quando o caminho calculado agora difere do que
+         ficou registrado, o envio apaga a cópia antiga e sobe de novo. Se isso
+         se repete a cada ciclo, é aqui que a fila fica presa. */
+      const antes = Array.isArray(reg.pasta) ? reg.pasta.join("/") : "";
+      const agora = (it.pasta||[]).join("/");
+      if(antes && antes !== agora){
+        mudancaEndereco++;
+        detalhe += " · ENDEREÇO MUDOU — antes: " + antes + " · agora: " + agora;
+      }
+    }
+    enviar.push({ tipo:it.tipo, nome:(it.pasta||[]).join(" / ") + " / " + it.arquivo,
+                  motivo, quando:"", detalhe });
   });
   const receber = (STATE.oneDrivePendentes||[]).map(p=>({
     tipo: p.tipo || "item", nome: rotuloCaminhoNuvem(p.caminho||""),
@@ -4243,6 +4261,7 @@ function onedriveDiagnosticoDados(){
   const enviosOk = log.filter(e=> e && e.dir==="up" && e.ok !== false).length;
   const enviosFalha = log.filter(e=> e && e.dir==="up" && e.ok === false).length;
   return { enviar, receber, fila, quarentena, falhas, ultimos, enviosOk, enviosFalha,
+           mudancaEndereco, carimboRegrediu,
            eventosNoLog: log.length,
            ultimaSync: STATE.ultimaSincronizacaoOneDriveEm ? fmtQuando(STATE.ultimaSincronizacaoOneDriveEm) : "nunca",
            wifiConfirmado: !!STATE.wifiConfirmado,
@@ -4259,7 +4278,11 @@ function onedriveDiagnosticoTexto(){
   l.push("Itens no aparelho: " + d.totalItens);
   l.push("");
   l.push("PARA ENVIAR (" + d.enviar.length + ")");
-  d.enviar.slice(0,60).forEach(x=> l.push("  · [" + x.tipo + "] " + x.nome + " — " + x.motivo + " — alterado em " + x.quando));
+  l.push("  (mudando de endereco a cada ciclo: " + d.mudancaEndereco + " · registro mais novo que o item: " + d.carimboRegrediu + ")");
+  d.enviar.slice(0,60).forEach(x=>{
+    l.push("  · [" + x.tipo + "] " + x.nome + " — " + x.motivo);
+    if(x.detalhe) l.push("      " + x.detalhe);
+  });
   if(d.enviar.length>60) l.push("  … e mais " + (d.enviar.length-60));
   l.push("");
   l.push("PARA RECEBER (" + d.receber.length + ")");
@@ -4299,7 +4322,7 @@ function onedriveDiagnosticoInlineHtml(){
       if(!arr.length) return `<div style="font-size:12px;font-weight:800;margin:10px 2px 2px">${titulo} · 0</div><div style="font-size:12px;color:var(--ink-dim);margin:0 2px">${vazio}</div>`;
       return `<div style="font-size:12px;font-weight:800;margin:10px 2px 4px">${titulo} · ${arr.length}</div>` +
         arr.slice(0,40).map(x=>`<div style="font-size:11.5px;padding:5px 8px;background:var(--bg-soft);border-radius:6px;margin-bottom:4px;word-break:break-word">
-          <b>${escapeHtml(x.nome||"")}</b><br><span style="color:var(--ink-dim)">${escapeHtml(x.motivo||"")}${x.quando?" · "+escapeHtml(x.quandoRot||"alterado em")+" "+escapeHtml(x.quando):""}${x.tamanho?" · "+escapeHtml(x.tamanho):""}</span>
+          <b>${escapeHtml(x.nome||"")}</b><br><span style="color:var(--ink-dim)">${escapeHtml(x.motivo||"")}${x.quando?" · "+escapeHtml(x.quandoRot||"alterado em")+" "+escapeHtml(x.quando):""}${x.tamanho?" · "+escapeHtml(x.tamanho):""}</span>${x.detalhe? `<br><span style="color:var(--ink-faint);word-break:break-word">${escapeHtml(x.detalhe)}</span>`:""}
         </div>`).join("") +
         (arr.length>40? `<div style="font-size:11px;color:var(--ink-faint);margin:0 2px">… e mais ${arr.length-40}</div>`:"");
     };
@@ -4317,6 +4340,10 @@ function onedriveDiagnosticoInlineHtml(){
         <b>Nenhum envio concluiu.</b> A fila não vai diminuir sozinha — o motivo está logo abaixo.</div>`:""}
       ${d.enviosOk > 0 && d.enviosFalha === 0 && d.enviar.length > 0 ? `<div style="margin:6px 2px;padding:8px 10px;background:#E3F4E4;border:1px solid #A5D6A7;border-radius:6px;font-size:12.5px;color:#2E7D32">
         <b>Os envios estão funcionando.</b> A fila é grande e vai diminuindo aos poucos — deixe o app aberto no Wi-Fi.</div>`:""}
+      ${d.mudancaEndereco > 0 ? `<div style="margin:6px 2px;padding:8px 10px;background:#FFF3D6;border:1px solid #E9C46A;border-radius:6px;font-size:12.5px;color:#5C3D00">
+        <b>${d.mudancaEndereco} item(ns) trocando de endereço na nuvem a cada ciclo.</b> O app apaga a cópia antiga e envia de novo toda vez — por isso o envio "dá certo" e a fila não baixa. Provável causa do travamento.</div>`:""}
+      ${d.carimboRegrediu > 0 ? `<div style="margin:6px 2px;padding:8px 10px;background:#FFF3D6;border:1px solid #E9C46A;border-radius:6px;font-size:12.5px;color:#5C3D00">
+        <b>${d.carimboRegrediu} item(ns) com registro de envio mais novo que o próprio item.</b> Sinal de relógio fora de hora ou de registro sobrescrito por outro aparelho.</div>`:""}
       ${secao("Falhas recentes de envio/recebimento", d.falhas, "Nenhuma falha registrada.")}
       ${secao("Últimas tentativas", d.ultimos, "Nenhuma tentativa registrada ainda.")}
       <button class="btn btn-secondary btn-block" style="margin-top:10px" onclick="App.copiarDiagnosticoSync()">${ic('copy')} Copiar como texto</button>`;
