@@ -2707,6 +2707,39 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(corpo.indexOf(m) < 0, "o diagnóstico não pode alterar nada: " + m));
   });
 
+  console.log("\n=== t67 · endereço da API sempre o do provedor escolhido ===");
+  vm.runInContext(funcao("iaEndpointBase"), ctx);
+  t("provedor da lista ignora endereço guardado errado", ()=>{
+    const preset = vm.runInContext("IA_PROVEDORES['google-gemini']", ctx);
+    ctx.__cfg = { provedor:"google-gemini", endpoint:"https://generativelanguage.googleapis.com/v1beta/openai" };
+    ctx.__preset = preset;
+    eq(vm.runInContext("iaEndpointBase(__cfg, __preset)", ctx), preset.endpoint,
+       "o endereço errado continuaria valendo e a IA seguiria fora do ar");
+  });
+  t("modo Personalizado continua usando o endereço digitado", ()=>{
+    ctx.__cfg = { provedor:"personalizado", endpoint:"https://minha-api.exemplo/v1" };
+    ctx.__preset = vm.runInContext("IA_PROVEDORES['personalizado']", ctx);
+    eq(vm.runInContext("iaEndpointBase(__cfg, __preset)", ctx), "https://minha-api.exemplo/v1");
+  });
+  t("barra sobrando no fim é removida", ()=>{
+    ctx.__cfg = { provedor:"personalizado", endpoint:"https://x.exemplo/v1///" };
+    ctx.__preset = { endpoint:"" };
+    eq(vm.runInContext("iaEndpointBase(__cfg, __preset)", ctx), "https://x.exemplo/v1");
+  });
+  t("os três pontos de chamada usam o mesmo cálculo", ()=>{
+    eq(HTML.split("const endpointBase = iaEndpointBase(cfg, preset);").length - 1, 3,
+       "algum caminho ainda monta o endereço por conta própria");
+    ok(HTML.indexOf('const endpointBase = (cfg.endpoint || preset.endpoint') < 0,
+       "sobrou o cálculo antigo, que aceitava endereço errado");
+  });
+  t("a configuração se conserta sozinha ao ser lida", ()=>{
+    const i = HTML.indexOf("function getIAConfig(){");
+    const corpo = HTML.slice(i, i + 1400);
+    ok(corpo.indexOf('if(c.provedor !== "personalizado")') > 0, "não normaliza o endereço");
+    ok(corpo.indexOf("if(c.endpoint !== preset.endpoint) c.endpoint = preset.endpoint;") > 0,
+       "não corrige o endereço guardado");
+  });
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

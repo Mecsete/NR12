@@ -1696,7 +1696,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/08/2026 12:40";
+const APP_BUILD = "07/08/2026 13:20";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -8571,12 +8571,34 @@ function gravarInspetorNoProjeto(p){
 }
 function getIAApiKey(){ try{ return localStorage.getItem(IA_LOCALSTORAGE_KEY) || ""; }catch(e){ return ""; } }
 function setIAApiKey(v){ try{ if(v) localStorage.setItem(IA_LOCALSTORAGE_KEY, v); else localStorage.removeItem(IA_LOCALSTORAGE_KEY); }catch(e){} }
+/* O endereço-base que vai ser chamado. Provedor da lista usa SEMPRE o
+   endereço dele; só o modo Personalizado usa o que foi digitado. Assim um
+   endereço errado guardado não tem como derrubar a IA de novo. */
+function iaEndpointBase(cfg, preset){
+  const bruto = (cfg.provedor === "personalizado")
+    ? (cfg.endpoint || preset.endpoint || "")
+    : (preset.endpoint || cfg.endpoint || "");
+  return String(bruto).replace(/\/+$/, "");
+}
 function getIAConfig(){
   if(!STATE.ui.iaConfig) STATE.ui.iaConfig = {};
   const c = STATE.ui.iaConfig;
   if(c.provedor===undefined || !IA_PROVEDORES[c.provedor]) c.provedor = IA_PROVEDOR_PADRAO;
   const preset = IA_PROVEDORES[c.provedor];
-  if(c.endpoint===undefined) c.endpoint = preset.endpoint;
+  /* ENDEREÇO DA API SEMPRE DO PROVEDOR ESCOLHIDO.
+     Um endereço digitado à mão (ou herdado de quando o modo Personalizado
+     estava ativo) ficava guardado e continuava valendo depois de trocar para
+     um provedor da lista — e ainda viajava para os outros aparelhos pela
+     sincronização. Foi assim que o Gemini acabou apontando para
+     ".../v1beta/openai": o caminho não existe, o Google responde sem os
+     cabeçalhos que o navegador exige, e o erro chega como "Failed to fetch",
+     parecendo problema de rede. Só o modo Personalizado usa endereço próprio;
+     nos demais, vale o do provedor, sempre. */
+  if(c.provedor !== "personalizado"){
+    if(c.endpoint !== preset.endpoint) c.endpoint = preset.endpoint;
+  }else if(c.endpoint===undefined){
+    c.endpoint = preset.endpoint;
+  }
   if(c.modelo===undefined) c.modelo = preset.modelo;
   if(c.usarNaExportacaoExcel===undefined) c.usarNaExportacaoExcel = true;
   if(c.usarReferencias===undefined) c.usarReferencias = true;
@@ -9093,7 +9115,7 @@ async function chamarIA(tipo, textoUsuario){
   const cfg = getIAConfig();
   const preset = IA_PROVEDORES[cfg.provedor] || IA_PROVEDORES[IA_PROVEDOR_PADRAO];
   const prompt = ((cfg.prompts && cfg.prompts[tipo]) || IA_PROMPTS_PADRAO[tipo]) + contextoNormasIA();
-  const endpointBase = (cfg.endpoint || preset.endpoint || "").replace(/\/+$/,"");
+  const endpointBase = iaEndpointBase(cfg, preset);
   const modelo = cfg.modelo || preset.modelo;
   if(!endpointBase || !modelo) return null;
   try{
@@ -9186,7 +9208,7 @@ async function chamarIAImagem(prompt, imageDataUrl){
   const mimeType = partes[1], base64 = partes[2];
   const cfg = getIAConfig();
   const preset = IA_PROVEDORES[cfg.provedor] || IA_PROVEDORES[IA_PROVEDOR_PADRAO];
-  const endpointBase = (cfg.endpoint || preset.endpoint || "").replace(/\/+$/,"");
+  const endpointBase = iaEndpointBase(cfg, preset);
   const modelo = cfg.modelo || preset.modelo;
   if(!endpointBase || !modelo) return null;
   try{
@@ -9240,7 +9262,7 @@ async function testarConexaoIA(){
   if(!apiKey) return { ok:false, mensagem:"Cole uma chave de API primeiro" };
   const cfg = getIAConfig();
   const preset = IA_PROVEDORES[cfg.provedor] || IA_PROVEDORES[IA_PROVEDOR_PADRAO];
-  const endpointBase = (cfg.endpoint || preset.endpoint || "").replace(/\/+$/,"");
+  const endpointBase = iaEndpointBase(cfg, preset);
   const modelo = cfg.modelo || preset.modelo;
   if(!endpointBase || !modelo) return { ok:false, mensagem:"Preencha o endpoint e o modelo (modo Personalizado)" };
   try{

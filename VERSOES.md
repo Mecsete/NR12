@@ -22,6 +22,31 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/08/2026 13:20
+
+**Correção: a IA voltou a funcionar.**
+
+O teste de conexão falhava no computador e no celular, mesmo no 4G — o que já
+descartava problema de rede. A mensagem nova, publicada há pouco, mostrou a
+causa ao exibir o endereço que estava sendo usado:
+
+`https://generativelanguage.googleapis.com/v1beta/openai`
+
+O endereço correto do Gemini termina em `/v1beta`. O `/openai` sobrando fazia
+o app chamar um caminho que não existe; o Google responde a esse caminho sem
+os cabeçalhos que o navegador exige, e o erro chegava como "Failed to fetch" —
+com cara de falha de internet, quando na verdade era o endereço.
+
+Esse endereço errado ficou guardado (provavelmente de quando o modo
+Personalizado esteve ativo), continuou valendo depois da troca de provedor e
+ainda viajou para os outros aparelhos pela sincronização.
+
+Agora **provedor da lista usa sempre o endereço dele**; só o modo
+Personalizado usa endereço digitado. A configuração se conserta sozinha ao ser
+lida — não é preciso fazer nada além de atualizar o app e testar de novo.
+
+---
+
 ## 07/08/2026 12:40
 
 **Correção:** o diagnóstico dizia "Nada pendente" enquanto a linha logo acima
