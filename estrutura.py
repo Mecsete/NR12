@@ -115,9 +115,9 @@ chk("AU = ID_Risco", novo.count('xlsmCellTexto(`AU${rowNum}`') == 1)
 chk("AV = ID_Maquina", novo.count('xlsmCellTexto(`AV${rowNum}`') == 1)
 
 print("\n=== 9. SELO DE VERSAO ===")
-chk("APP_BUILD atualizado 2x", novo.count('"06/08/2026 20:45"') == 2, "achei %d" % novo.count('"06/08/2026 20:45"'))
+chk("APP_BUILD atualizado 2x", novo.count('"07/08/2026 09:40"') == 2, "achei %d" % novo.count('"07/08/2026 09:40"'))
 chk("nenhum resquicio de build antigo",
-    all(novo.count('"%s"' % b) == 0 for b in ["29/07/2026 08:44","30/07/2026 16:20","30/07/2026 18:05","30/07/2026 19:40","30/07/2026 21:10","31/07/2026 09:30","31/07/2026 11:20","31/07/2026 15:40","31/07/2026 19:15","31/07/2026 22:30","31/07/2026 23:55","03/08/2026 17:20","03/08/2026 20:35","05/08/2026 17:30","05/08/2026 19:05","05/08/2026 21:40","05/08/2026 22:30","06/08/2026 19:30"]))
+    all(novo.count('"%s"' % b) == 0 for b in ["29/07/2026 08:44","30/07/2026 16:20","30/07/2026 18:05","30/07/2026 19:40","30/07/2026 21:10","31/07/2026 09:30","31/07/2026 11:20","31/07/2026 15:40","31/07/2026 19:15","31/07/2026 22:30","31/07/2026 23:55","03/08/2026 17:20","03/08/2026 20:35","05/08/2026 17:30","05/08/2026 19:05","05/08/2026 21:40","05/08/2026 22:30","06/08/2026 19:30","06/08/2026 20:45"]))
 
 print("\n=== 10. CRESCIMENTO DO ARQUIVO ===")
 # ATENCAO ao ler este numero: original.html e a versao publicada ANTES da
@@ -379,6 +379,7 @@ chk("o diagnostico explica o motivo de cada pendencia",
                             "faltam as fotos (esperando Wi-Fi)", "arquivo ilegível na nuvem — ignorado"]))
 _j = novo.find("function onedriveDiagnosticoDados(")
 _diag = novo[_j:novo.find("function onedriveDiagnosticoTexto(", _j)]
+_diag2 = _diag
 chk("o diagnostico aparece na propria tela, sem janela sobreposta",
     novo.count("function onedriveDiagnosticoInlineHtml(") == 1
     and novo.count("${onedriveDiagnosticoInlineHtml()}") == 1
@@ -389,6 +390,16 @@ _k = novo.find("function onedriveDiagnosticoInlineHtml(")
 _inline = novo[_k:novo.find("function onedriveStatusPendenteHtml(", _k)]
 chk("erro ao montar o diagnostico e MOSTRADO, nao engolido",
     "}catch(e){" in _inline and "Não foi possível montar o diagnóstico." in _inline)
+chk("o diagnostico le o log e separa as falhas com o motivo",
+    all(m in _diag2 for m in ["STATE.logSincronizacao", "e.ok === false", "falha ao ENVIAR", "e.motivo"]))
+chk("o diagnostico da o veredito travado x fila grande",
+    novo.count("Nenhum envio concluiu.") == 1
+    and novo.count("Os envios estão funcionando.") == 1)
+chk("cada horario tem rotulo proprio (tentativa em x alterado em)",
+    novo.count('quandoRot: "tentativa em"') == 1
+    and novo.count('escapeHtml(x.quandoRot||"alterado em")') == 1)
+chk("o diagnostico nao ESCREVE no log que ele mesmo le",
+    "registrarEventoSync(" not in _diag2)
 chk("a versao inline tambem e so leitura",
     all(m not in _inline for m in ["marcarAlterado(", "dbSet(", "onedriveEnviarBlob", "onedriveApagarBlob"]))
 chk("o diagnostico e SO LEITURA (nao altera nem envia nada)",

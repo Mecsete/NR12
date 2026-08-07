@@ -15,6 +15,30 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/08/2026 09:40
+
+O diagnóstico passa a mostrar **por que** o envio não conclui.
+
+Ele dizia o que estava pendente, mas não por que a fila não andava — e sem
+isso não dá para distinguir "fila grande, só demorando" de "envio batendo
+sempre no mesmo erro". O app já registrava cada tentativa com o motivo da
+falha; faltava onde ver.
+
+Agora o diagnóstico mostra, além da lista de pendentes:
+
+- **Falhas recentes**, com o motivo registrado (sessão expirada, limite de
+  requisições, erro de rede, arquivo recusado etc.) e a hora da tentativa;
+- **Últimas tentativas**, com sucesso ou falha;
+- **Um placar**: quantos envios deram certo e quantos falharam no histórico
+  guardado;
+- **Um veredito em destaque**: se nenhum envio concluiu, avisa que a fila não
+  vai diminuir sozinha; se os envios estão funcionando, avisa que é só volume
+  e orienta a deixar o app aberto no Wi-Fi.
+
+Continua sendo só leitura — não envia, não apaga, não altera nada.
+
+---
+
 ## 06/08/2026 20:45
 
 O diagnóstico da sincronização passa a abrir **na própria tela**.

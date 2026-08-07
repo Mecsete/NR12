@@ -2426,6 +2426,43 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(corpo.indexOf("marcarAlterado") < 0, "abrir o diagnóstico não pode marcar alteração");
   });
 
+  console.log("\n=== t61 · o diagnóstico mostra POR QUE o envio não conclui ===");
+  t("lê o log de sincronização e separa as falhas", ()=>{
+    const i = HTML.indexOf("function onedriveDiagnosticoDados(");
+    const corpo = HTML.slice(i, HTML.indexOf("function onedriveDiagnosticoTexto(", i));
+    ok(corpo.indexOf("STATE.logSincronizacao") > 0, "não lê o log");
+    ok(corpo.indexOf("e.ok === false") > 0, "não separa as falhas");
+    ok(corpo.indexOf("falha ao ENVIAR") > 0 && corpo.indexOf("falha ao RECEBER") > 0, "não diz a direção");
+    ok(corpo.indexOf("e.motivo") > 0, "não mostra o motivo registrado");
+  });
+  t("conta envios que deram certo e que falharam", ()=>{
+    const i = HTML.indexOf("function onedriveDiagnosticoDados(");
+    const corpo = HTML.slice(i, HTML.indexOf("function onedriveDiagnosticoTexto(", i));
+    ok(corpo.indexOf("const enviosOk =") > 0 && corpo.indexOf("const enviosFalha =") > 0, "sem o placar");
+  });
+  t("dá o veredito: travado x fila grande", ()=>{
+    ok(HTML.indexOf("Nenhum envio concluiu.") > 0, "não avisa quando NADA sobe");
+    ok(HTML.indexOf("A fila não vai diminuir sozinha") > 0, "não diz que não adianta esperar");
+    ok(HTML.indexOf("Os envios estão funcionando.") > 0, "não tranquiliza quando é só volume");
+    ok(HTML.indexOf("vai diminuindo aos poucos") > 0, "não orienta a esperar");
+  });
+  t("o texto copiável leva falhas, tentativas e o placar", ()=>{
+    const i = HTML.indexOf("function onedriveDiagnosticoTexto(");
+    const corpo = HTML.slice(i, HTML.indexOf("function onedriveDiagnosticoInlineHtml(", i));
+    ["FALHAS RECENTES (", "ULTIMAS TENTATIVAS (", "HISTORICO (", "ULTIMA SINCRONIZACAO: "].forEach(m=>
+      ok(corpo.indexOf(m) > 0, "faltou no texto: " + m));
+  });
+  t("cada horário tem o rótulo certo", ()=>{
+    ok(HTML.indexOf('quandoRot: "tentativa em"') > 0, "falha sem rótulo próprio de horário");
+    ok(HTML.indexOf('escapeHtml(x.quandoRot||"alterado em")') > 0, "o rótulo não é por item");
+  });
+  t("continua sendo só leitura", ()=>{
+    const i = HTML.indexOf("function onedriveDiagnosticoDados(");
+    const corpo = HTML.slice(i, HTML.indexOf("function onedriveDiagnosticoTexto(", i));
+    ["marcarAlterado(", "dbSet(", "registrarEventoSync(", "onedriveEnviarBlob"].forEach(m=>
+      ok(corpo.indexOf(m) < 0, "o diagnóstico não pode alterar nada: " + m));
+  });
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);
