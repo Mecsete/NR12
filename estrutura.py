@@ -120,7 +120,14 @@ chk("AV = ID_Maquina", novo.count('xlsmCellTexto(`AV${rowNum}`') == 1)
 print("\n=== 9. SELO DE VERSAO ===")
 # APP_BUILD passou a ser UM texto fixo (antes eram 2: o valor e o fallback da
 # IIFE que lia document.lastModified). O numero na tela agora e exatamente este.
-chk("APP_BUILD atualizado", novo.count('"07/08/2026 17:20"') == 1, "achei %d" % novo.count('"07/08/2026 17:20"'))
+# O selo tem de MUDAR a cada entrega (senao o aparelho nao sabe que atualizou)
+# e tem de estar no formato combinado.
+_selo_o = re.search(r'const APP_BUILD = "([^"]*)"', orig)
+_selo_n = re.search(r'const APP_BUILD = "([^"]*)"', novo)
+chk("APP_BUILD atualizado",
+    bool(_selo_n) and re.fullmatch(r'\d{2}/\d{2}/\d{4} \d{2}:\d{2}', _selo_n.group(1))
+    and (not _selo_o or _selo_o.group(1) != _selo_n.group(1)),
+    "achei %s" % (_selo_n.group(1) if _selo_n else "nada"))
 chk("APP_BUILD e texto fixo, nao derivado da data do arquivo",
     novo.count('const APP_BUILD = "') == 1
     and len([l for l in novo.split(chr(10)) if "document.lastModified" in l and not l.strip().startswith("document.lastModified, ou seja")]) == 0)
@@ -186,8 +193,13 @@ chk("a aba Imprimir so existe dentro do bloco removivel",
     and novo.count('k:"imprimir"') == 1)
 chk("a aba de abertura continua sendo Revisao",
     novo.count('STATE.ui.laudoAba = "revisao";\n  return STATE.ui.laudoAba;') == 1)
+# Procura os rotulos DENTRO da declaracao de LAUDO_ABAS (mais o push da aba
+# Imprimir): fora dela ha outras listas com rotulos iguais, como as opcoes de
+# agrupamento do "aplicar em varios".
 chk("nenhuma aba foi perdida no caminho",
-    all(novo.count('rot:"%s"' % r) == 1 for r in ["Projeto", "Áreas", "IA", "Revisão", "Exportar", "Imprimir"]))
+    bool(m_abas) and all(
+        ('rot:"%s"' % r) in (m_abas.group(1) + 'rot:"Imprimir"')
+        for r in ["Projeto", "Áreas", "IA", "Revisão", "Exportar", "Imprimir"]))
 
 print("\n=== 13. CADASTRO RAPIDO DE INSPETOR ===")
 for marca, n in [('let __inspetorDraft = null;', 1),
@@ -512,7 +524,10 @@ chk("a tela de conferencia usa o MESMO calculo da geracao",
 chk("a conferencia explica a norma que ficou de fora",
     novo.count("Sem trecho relacionado desta vez") == 1)
 chk("o trecho e escolhido pelo texto que a IA vai reescrever",
-    novo.count("+ contextoNormasIA(textoUsuario);") == 1)
+    novo.count(': contextoNormasIA(textoUsuario));') == 1)
+chk("a revisao de portugues nao recebe trecho de norma",
+    novo.count('const IA_TIPOS_SEM_NORMAS = ["revisao_pt"];') == 1
+    and novo.count('IA_TIPOS_SEM_NORMAS.indexOf(tipo) >= 0 ? "" :') == 1)
 # 2 = a definicao da funcao + o UNICO ponto que monta o prompt (chamarIA).
 # Um terceiro significaria alguem montando prompt por fora, sem as normas.
 chk("existe um unico ponto montando o prompt com as normas",
@@ -577,6 +592,111 @@ chk("o icone de informacao dos eventos existe e abre o painel",
     novo.count("App.toggleInfoEventos()") == 1
     and novo.count("toggleInfoEventos(){") == 1
     and "let __infoEventosAberto = false;" in novo)
+
+print("\n=== 30. MITIGACAO EXISTENTE SEPARADA DA SOLUCAO (BLOCO 2b) ===")
+chk("a marcacao do que existe virou lista, com os dois campos novos",
+    novo.count("function medidasExistentesDe(") == 1
+    and novo.count("function outrosExistentesDe(") == 1
+    and "r.medidasExistentes = lista;" in novo
+    and "r.medidasExistentesOutros = lista;" in novo)
+chk("o formato antigo (uma medida so) continua sendo lido",
+    'const antiga = String(r.medidaExistenteTipo||"").trim();' in novo
+    and "return antiga ? [antiga] : [];" in novo)
+chk("o seletor unico e o botao do fluxo antigo sairam de cena",
+    "onDraftMedidaExistente('tipo'" not in novo
+    and "App.aplicarTextoMedidaExistente()" not in novo
+    and "aplicarTextoMedidaExistente(){" not in novo)
+chk("as tres acoes de marcar gravam o rascunho e reescrevem o texto",
+    novo.count("sincronizarDescMedidaExistente(r);\n    gravarDraftPersistente();") == 4)
+chk("o texto so e reescrito enquanto for automatico",
+    novo.count('atual === String(r.descMedidaAuto||"").trim()') == 1
+    and novo.count("function sincronizarDescMedidaExistente(") == 1)
+chk("o texto do conjunto junta frases e nao repete norma",
+    novo.count("function medidaTextoExistenteMulti(") == 1
+    and 'let corpo = partes.join("; ");' in novo
+    and "if(ref && refs.indexOf(ref) < 0) refs.push(ref);" in novo
+    and 'refs.join(" e na ")' in novo)
+chk("medidas que so existem como proposta ficam fora do que ja existe",
+    novo.count("function medidasParaExistente(") == 1
+    and novo.count("soProposta:true") == 8)
+chk("a IA da Solucao recebe a proposta e o que existe como contexto",
+    novo.count("function laudoEntradaSolucao(") == 1
+    and novo.count('chamarIAResiliente("mitigacao_xlsx", laudoEntradaSolucao(') == 2
+    and "COMPLEMENTAR ou CORRIGIR" in novo)
+chk("o gerador antigo continua gravando no campo que leu",
+    'chamarIA("mitigacao", medidaExistente ? item.risco.descMedida' in novo)
+_qe = novo.find("function laudoBlocoExistenteHtml(")
+chk("a revisao tem um quadro so de leitura do que ja existe",
+    _qe > 0
+    and "onclick" not in novo[_qe:novo.find("function blocoMontadorRiscoHtml(")]
+    and novo.count('${campo==="solucao" ? laudoBlocoExistenteHtml(item) : ""}') == 1)
+_bc = novo.find("function laudoBlocoCampo(")
+_bcc = novo[_bc:_bc+3000]
+chk("o quadro do que existe vem ANTES do texto de campo",
+    _bcc.find("laudoBlocoExistenteHtml(item)") < _bcc.find("O que você propôs em campo")
+    and _bcc.find("laudoBlocoExistenteHtml(item)") > 0)
+chk("sem proposta escrita, a revisao avisa em vez de esconder",
+    "const solucaoSemProposta = campo===\"solucao\"" in novo
+    and "Sem proposta, o laudo repete" in novo)
+chk("o texto do laudo (coluna AT) nao mudou de regra",
+    'return (item.risco.medidaImplementada==="Sim") ? (item.risco.descMedida||"") : (item.risco.sugestaoMitigacao||"");' in novo)
+
+print("\n=== 31. CAIXA DE TEXTO EXPANSIVEL, REVISAO E APLICAR EM VARIOS (BLOCO 3) ===")
+# O botao tem de nascer SO no JS. Se algum dia aparecer "ta-caixa"/"ta-botao"
+# escrito dentro de um template de tela, quer dizer que alguem comecou a
+# repetir isso a mao — e a proxima caixa nova vai sair sem botao.
+chk("nenhuma tela precisou ser alterada para ganhar o botao",
+    novo.count('document.querySelectorAll("textarea:not([data-ta])")') == 1
+    and novo.count('caixa.className = "ta-caixa";') == 1
+    and '<div class="ta-caixa"' not in novo
+    and 'class="ta-botao"' not in novo)
+_te = novo.find("function taExpandir(")
+_tec = novo[_te:novo.find("function prepararTextareas(")]
+chk("o espacador entra antes de a caixa virar fixa",
+    _tec.find("caixa.getBoundingClientRect().height") < _tec.find('caixa.classList.add("expandida")')
+    and _tec.find("caixa.getBoundingClientRect().height") > 0)
+chk("o fundo escuro nunca fica preso na tela",
+    "!document.body.contains(__taCaixaAberta)" in novo
+    and 'if(e.key === "Escape" && __taCaixaAberta) taRecolher();' in novo)
+chk("a caixa aberta fica na frente do modal",
+    ".ta-caixa.expandida{position:fixed;left:10px;right:10px;top:10px;bottom:10px;z-index:4001" in novo
+    and ".ta-fundo{position:fixed;inset:0;" in novo)
+chk("a rede de seguranca da revisao esta inteira",
+    all(novo.count("function %s(" % f) == 1 for f in
+        ["revisaoPtPalavras", "revisaoPtNumeros", "revisaoPtLimpar", "revisaoPtSemelhanca", "revisaoPtAceitavel"])
+    and novo.count("async function corrigirPortuguesIA(") == 1)
+chk("numero trocado e texto reescrito nao passam",
+    "if(revisaoPtNumeros(orig) !== revisaoPtNumeros(novo)) return false;" in novo
+    and "if(Math.abs(a.length - b.length) > 1) return false;" in novo
+    and 'revisaoPtSemelhanca(a.join(" "), b.join(" ")) >= 0.85' in novo)
+chk("sem IA ou com falha, vale o texto do engenheiro",
+    "if(!getIAApiKey()) return base;" in novo
+    and "catch(e){ return base; }" in novo
+    and "revisaoPtAceitavel(base, novo) ? novo : base" in novo)
+chk("aplicar (individual, sugestao ou linha inteira) dispara a revisao",
+    novo.count("async laudoAplicar(rid, campo){") == 1
+    and novo.count("async laudoValidar(rid, campo){") == 1
+    and novo.count("async laudoAprovarLinha(rid){") == 1
+    and novo.count("App.laudoRevisarPortugues(rid, campo)") == 2)
+chk("o titulo do risco e revisado uma vez so, junto do campo do risco",
+    novo.count("async function laudoRevisarTextoEtitulo(") == 1
+    and 'if(campo === "risco"){' in novo)
+chk("a trava de nivel do aplicar-em-varios existe e cobre os quatro campos",
+    'const LAUDO_NIVEL_CAMPO = { escopo:"maquina", tarefa:"tarefa", risco:"risco", solucao:"risco" };' in novo
+    and novo.count("function laudoAlvosReplicar(") == 1
+    and 'if(nivel==="maquina" && o.maquina.id === item.maquina.id) return;' in novo)
+chk("so ha agrupamento por um nivel acima do destino",
+    novo.count("const LAUDO_AGRUPAR_POR = {") == 1
+    and novo.count('{k:"tarefa",rot:"Tarefa"}') == 1)
+chk("a marcacao sobrevive a troca de agrupamento",
+    '__laudoReplicaSel.has(a.chave)?"checked":""' in novo
+    and "__laudoReplicaSel.add(el.value)" in novo)
+chk("abrir a lista comeca sem nada marcado",
+    "__laudoReplicaSel = new Set();\n    abrirOverlay(laudoSheetReplicarHtml(item, campo));" in novo)
+chk("substituir texto existente e avisado antes",
+    "Já tem texto — será substituído" in novo)
+chk("o botao de aplicar em varios so aparece com texto decidido",
+    '${(st==="ok"||st==="edit") && fin? `<button' in novo)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")

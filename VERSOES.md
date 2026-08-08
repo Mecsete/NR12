@@ -22,6 +22,109 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/08/2026 23:45
+
+Mitigação existente separada da Solução, caixas de texto que abrem em tela
+cheia, Aplicar item por item com revisão de português, e aplicar o mesmo
+texto em vários itens de uma vez.
+
+### Mitigação existente: marque tudo que a máquina já tem
+
+No cadastro do risco, o que existe na máquina deixou de ser **uma escolha só**
+numa lista suspensa. Agora é uma **lista de botões para marcar**, agrupada por
+família (proteção física, bloqueio de energia, acesso e altura, comando e
+parada). Pode marcar quantos quiser, e o que não estiver na lista você escreve
+e acrescenta.
+
+O texto da descrição é montado sozinho a partir de tudo que foi marcado, com a
+citação de norma de cada item, sem repetir a mesma norma duas vezes. Enquanto
+você não editar esse texto à mão, ele continua acompanhando as marcações; a
+partir do momento em que você escrever alguma coisa ali, o app nunca mais
+mexe.
+
+Medidas que só fazem sentido como proposta (adequar o vão da proteção,
+eliminar arestas, projeto habilitado, categoria de segurança, entre outras)
+foram tiradas dessa lista — elas continuam disponíveis no quadro **Solução**.
+Foi acrescentada **cerca de proteção**.
+
+### Na revisão de textos, dois quadros distintos
+
+No campo **Solução** da aba Revisão, aparece primeiro um quadro só de leitura
+com **o que já existe na máquina**: as proteções marcadas, o julgamento
+(atende / atende em parte / não atende), a ressalva e a base normativa. Abaixo
+dele vem a solução.
+
+Quando não há nada registrado, o quadro diz isso com todas as letras — “a
+máquina não tem proteção para este risco; a solução parte do zero”.
+
+**A IA passou a receber os dois.** Antes, havendo mitigação existente, a IA
+recebia só a descrição dela e acabava reescrevendo o que já existe em vez de
+propor o que fazer. Agora ela recebe a sua proposta como assunto principal e o
+que já existe como contexto, com a instrução de **complementar ou corrigir**,
+nunca repetir.
+
+O texto que sai no laudo (coluna AT do Excel) não mudou de regra nesta
+versão — o ajuste do layout do laudo para mostrar os dois quadros fica para a
+próxima.
+
+### Caixa de texto que abre em tela cheia
+
+Toda caixa de texto do app ganhou um **botão no canto superior direito**. Um
+toque e ela abre ocupando a tela inteira, na frente do formulário — dá para
+escrever um parágrafo longo sem enxergar três linhas por vez. Fecha tocando
+fora, no mesmo botão ou na tecla Esc.
+
+**O formulário fica exatamente onde estava.** Ao fechar, você volta para o
+mesmo ponto da rolagem, sem ter que procurar de novo onde estava digitando.
+
+### Aplicar item por item
+
+Cada um dos quatro textos da revisão agora tem seu próprio **Aplicar**:
+
+- **Aplicar sugestão** — quando há sugestão da IA aguardando decisão;
+- **Aplicar este texto** — quando o que vai para o laudo é o seu texto de
+  campo ou um texto que você editou.
+
+Aplicado, **a letra daquele item fica verde no cartão** — é o sinal de que
+aquele texto está validado. O botão Aprovar (os quatro de uma vez) continua
+existindo.
+
+### Revisão de português automática, com trava
+
+Sempre que um texto é aplicado, a IA revisa o português dele — e, no campo do
+risco, também o **título do risco**. É correção de grafia, acento,
+concordância e pontuação, não reescrita.
+
+Para garantir que seja só isso, a resposta da IA passa por uma conferência
+antes de valer:
+
+- **nenhum número pode mudar** — item de norma, medida, quantidade;
+- o texto não pode ganhar nem perder mais de uma palavra;
+- o texto tem de continuar quase o mesmo letra a letra.
+
+Reprovando em qualquer uma delas, a correção é descartada em silêncio e vale
+o seu texto, exatamente como você escreveu. Sem IA configurada ou sem
+internet, nada acontece — o texto aplicado é o seu.
+
+### Aplicar o mesmo texto em vários itens
+
+Depois de aplicar um texto, aparece o botão **Aplicar este texto em vários
+itens**. Abre uma lista com seleção múltipla de tudo que está no aparelho.
+
+- **Agrupar por projeto, área, máquina ou tarefa** — ou sem agrupar. Cada
+  grupo abre, fecha e tem “Marcar todos”. Trocar o agrupamento não perde o
+  que já estava marcado.
+- **Filtro por texto** para achar o item rápido.
+- **Trava de segurança:** texto de escopo só enxerga máquina, texto de tarefa
+  só enxerga tarefa, risco e solução só enxergam risco. Não existe caminho na
+  tela que leve um texto de tarefa para dentro de uma máquina.
+- Itens que **já têm texto** aparecem com aviso de que serão substituídos, e
+  mostrando o que será perdido.
+
+Os itens que receberem o texto já ficam com a letra verde.
+
+---
+
 ## 07/08/2026 17:20
 
 Montagem do risco: nome completo, na posição certa, e explicação de cada

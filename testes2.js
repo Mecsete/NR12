@@ -12,7 +12,7 @@ function trecho(ini, fim){
   return HTML.slice(i, f);
 }
 function funcao(nome){
-  const re = new RegExp("\\nfunction " + nome + "\\s*\\(");
+  const re = new RegExp("\\n(?:async )?function " + nome + "\\s*\\(");
   const m = re.exec(HTML);
   if(!m) throw new Error("funcao nao encontrada: " + nome);
   let i = m.index + 1;
@@ -1347,16 +1347,45 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   });
 
   console.log("\n=== t42 · telas das medidas ===");
-  t("bloco da medida existente traz seletor, situação e texto", ()=>{
-    const h = C.blocoMedidaExistenteHtml({ componente:"Correia", medidaExistenteTipo:"prot_fixa", medidaExistenteSituacao:"parcial", medidaExistenteRessalva:"sem dispositivo de intertravamento", descMedida:"" });
-    ok(h.indexOf("onDraftMedidaExistente('tipo'") > 0, "sem seletor");
+  t("bloco da medida existente traz marcação múltipla, situação e texto", ()=>{
+    const h = C.blocoMedidaExistenteHtml({ componente:"Correia", medidasExistentes:["prot_fixa"], medidaExistenteSituacao:"parcial", medidaExistenteRessalva:"sem dispositivo de intertravamento", descMedida:"" });
+    ok(h.indexOf("toggleMedidaExistente('prot_fixa')") > 0, "sem os botões de marcar");
     ok(h.indexOf("onDraftMedidaExistente('situacao','parcial')") > 0, "sem botões de situação");
     ok(h.indexOf("onDraftMedidaExistente('ressalva'") > 0, "sem lista de ressalvas");
-    ok(h.indexOf("Base normativa") > 0, "sem a base normativa");
     ok(h.indexOf("Atende parcialmente") > 0, "sem a frase montada");
+    ok(h.indexOf("acrescentarOutroExistente()") > 0, "sem o campo de escrever um novo");
+  });
+  t("o seletor único de medida existente saiu de cena", ()=>{
+    ok(HTML.indexOf("onDraftMedidaExistente('tipo'") < 0, "sobrou o seletor antigo na tela");
+    ok(HTML.indexOf("App.aplicarTextoMedidaExistente()") < 0, "sobrou o botão do fluxo antigo");
+  });
+  t("marcar mais de uma medida junta as duas frases e as duas normas", ()=>{
+    const txt = C.medidaTextoExistenteMulti({ componente:"Correia", medidasExistentes:["prot_fixa","loto"], medidaExistenteSituacao:"ok" });
+    ok(txt.indexOf(";") > 0, "as duas frases não foram juntadas: " + txt);
+    ok(txt.indexOf(" e na ") > 0, "as duas bases normativas não foram citadas: " + txt);
+  });
+  t("o que o usuário digita entra junto com o que ele marcou", ()=>{
+    const txt = C.medidaTextoExistenteMulti({ componente:"Correia", medidasExistentes:["prot_fixa"], medidasExistentesOutros:["corrimão em toda a extensão"], medidaExistenteSituacao:"ok" });
+    ok(txt.indexOf("Corrimão em toda a extensão") > 0, txt);
+    ok(txt.indexOf("Proteção fixa") >= 0, txt);
+  });
+  t("nada marcado, nada escrito", ()=>{
+    eq(C.medidaTextoExistenteMulti({ componente:"Correia" }), "");
+  });
+  t("quem tinha a medida antiga continua com ela marcada", ()=>{
+    const r = { componente:"Correia", medidaExistenteTipo:"prot_fixa" };
+    eq(C.medidasExistentesDe(r).join(","), "prot_fixa");
+    ok(C.blocoMedidaExistenteHtml(r).indexOf('medida-chip ativo') > 0, "a medida antiga não apareceu marcada");
+  });
+  t("medidas que só fazem sentido como proposta não entram no que já existe", ()=>{
+    const chaves = C.medidasParaExistente().map(m=>m.k);
+    ["adequar_vao","arestas","fixacao","partida","categoria","painel","condutores","projeto_hab"]
+      .forEach(k=> ok(chaves.indexOf(k) < 0, k + " não deveria estar na lista do que já existe"));
+    ok(chaves.indexOf("prot_fixa") >= 0, "faltou proteção fixa");
+    ok(chaves.indexOf("cerca") >= 0, "faltou cerca de proteção");
   });
   t("situação 'Atende' esconde a lista de ressalvas", ()=>{
-    const h = C.blocoMedidaExistenteHtml({ componente:"Correia", medidaExistenteTipo:"prot_fixa", medidaExistenteSituacao:"ok", descMedida:"" });
+    const h = C.blocoMedidaExistenteHtml({ componente:"Correia", medidasExistentes:["prot_fixa"], medidaExistenteSituacao:"ok", descMedida:"" });
     ok(h.indexOf("onDraftMedidaExistente('ressalva'") < 0);
   });
   t("bloco da mitigação oferece a sugestão do app", ()=>{
@@ -1387,7 +1416,8 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   });
   t("métodos existem e nada é sobrescrito sem permissão", ()=>{
     ["onDraftMedidaProposta(tipo)","aplicarTextoMitigacao()","onDraftMedidaExistente(campo, valor)",
-     "aplicarTextoMedidaExistente()","laudoSetMedida(rid, tipo)","laudoAplicarMedida(rid)"]
+     "aplicarTextoMedidaExistenteMulti()","toggleMedidaExistente(chave)","acrescentarOutroExistente()",
+     "removerOutroExistente(i)","laudoSetMedida(rid, tipo)","laudoAplicarMedida(rid)"]
       .forEach(m=> ok(HTML.indexOf(m) > 0, "faltou "+m));
     ok(HTML.indexOf('atual === String(r.sugestaoMitigacaoAuto||"").trim()') > 0, "mitigação poderia sobrescrever texto do usuário");
     ok(HTML.indexOf('atual === String(r.descMedidaAuto||"").trim()') > 0, "medida existente poderia sobrescrever texto do usuário");
@@ -2839,8 +2869,12 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(vm.runInContext("contextoNormasIA('')", ctx).length > 0, "sem texto-alvo deveria mandar o começo");
   });
   t("o trecho é escolhido pelo texto que a IA vai reescrever", ()=>{
-    ok(HTML.indexOf("+ contextoNormasIA(textoUsuario);") > 0,
+    ok(HTML.indexOf(": contextoNormasIA(textoUsuario));") > 0,
        "o contexto não considera o texto do item — voltaria a mandar trecho aleatório");
+  });
+  t("a revisão de português não recebe trecho de norma", ()=>{
+    ok(HTML.indexOf('const IA_TIPOS_SEM_NORMAS = ["revisao_pt"];') > 0, "a lista de exceção sumiu");
+    ok(HTML.indexOf("IA_TIPOS_SEM_NORMAS.indexOf(tipo) >= 0 ? \"\"") > 0, "a exceção não é aplicada no prompt");
   });
   t("todas as chamadas de IA passam pelo mesmo ponto", ()=>{
     eq(HTML.split("contextoNormasIA(textoUsuario)").length - 1, 1, "mais de um lugar montando o prompt");
@@ -2934,6 +2968,233 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   t("o quadro passou a se chamar Solução", ()=>{
     ok(HTML.indexOf("${ic('warn')} Solução</div>") > 0, "sem o novo rótulo");
     ok(HTML.indexOf("${ic('warn')} Mitigação proposta</div>") < 0, "o rótulo antigo continua na tela");
+  });
+
+  console.log("\n=== t70 · o que já existe e a solução são dois quadros (bloco 2b) ===");
+  const riscoComExistente = {
+    id:"rX", componente:"Correia", local:"Transmissão de potência",
+    medidaImplementada:"Sim", medidasExistentes:["prot_fixa"],
+    medidaExistenteSituacao:"parcial", medidaExistenteRessalva:"sem dispositivo de intertravamento",
+    descMedida:"Proteção fixa instalada na correia, porém sem intertravamento.",
+    sugestaoMitigacao:"Instalar chave de segurança na tampa"
+  };
+  t("a IA recebe a proposta como assunto e o que existe como contexto", ()=>{
+    const e = C.laudoEntradaSolucao({ risco: riscoComExistente });
+    ok(e.indexOf("O que precisa ser feito: Instalar chave de segurança") === 0, "a proposta não abre o texto: " + e);
+    ok(e.indexOf("Já existe na máquina: Proteção fixa") > 0, "não citou o que já existe: " + e);
+    ok(e.indexOf("Situação do que já existe: Atende em parte") > 0, "não citou o julgamento: " + e);
+    ok(e.indexOf("COMPLEMENTAR ou CORRIGIR") > 0, "não instruiu a complementar: " + e);
+  });
+  t("sem nada existente, a IA recebe só a proposta", ()=>{
+    const e = C.laudoEntradaSolucao({ risco:{ id:"rY", sugestaoMitigacao:"Instalar guarda-corpo" } });
+    eq(e, "O que precisa ser feito: Instalar guarda-corpo");
+  });
+  t("sem proposta escrita, a IA é avisada em vez de receber vazio", ()=>{
+    const e = C.laudoEntradaSolucao({ risco:{ id:"rZ", componente:"Correia", medidasExistentes:["prot_fixa"] } });
+    ok(e.indexOf("o inspetor não escreveu") > 0, e);
+  });
+  t("as duas passadas da geração do laudo mandam o mesmo contexto", ()=>{
+    eq((HTML.match(/chamarIAResiliente\("mitigacao_xlsx", laudoEntradaSolucao\(/g)||[]).length, 2);
+    eq((HTML.match(/chamarIAResiliente\("mitigacao_xlsx", *[a-z]/g)||[]).length, 2,
+       "alguma chamada da Solução ficou fora do contexto novo");
+    /* O gerador antigo de enriquecimento (chamarIA, sem "Resiliente") continua
+       escolhendo entre os dois campos de propósito: ele grava a resposta de
+       volta no MESMO campo que leu. Misturar contexto ali sobrescreveria a
+       descrição do que existe com um texto de proposta. */
+    ok(HTML.indexOf('chamarIA("mitigacao", medidaExistente ? item.risco.descMedida') > 0,
+       "o gerador antigo deixaria de gravar no campo certo");
+  });
+  t("a revisão mostra o quadro do que já existe antes da solução", ()=>{
+    const h = C.laudoBlocoExistenteHtml({ risco: riscoComExistente });
+    ok(h.indexOf("Mitigação existente na máquina") > 0, "sem o título");
+    ok(h.indexOf("Atende em parte") > 0, "sem o julgamento");
+    ok(h.indexOf("Proteção fixa") > 0, "sem a medida marcada");
+    ok(h.indexOf("Ressalva: sem dispositivo de intertravamento") > 0, "sem a ressalva");
+    ok(h.indexOf("NR-12") > 0, "sem a base normativa");
+    ok(h.indexOf("onclick") < 0, "o quadro é só de leitura — não deveria ter botão");
+  });
+  t("máquina sem proteção nenhuma diz isso com todas as letras", ()=>{
+    const h = C.laudoBlocoExistenteHtml({ risco:{ id:"rW", medidaImplementada:"Não" } });
+    ok(h.indexOf("Nada registrado") > 0, h);
+    ok(h.indexOf("parte do zero") > 0, h);
+  });
+  t("o quadro só aparece no campo Solução", ()=>{
+    STATE.ui.laudoFiltroArea = ""; STATE.ui.laudoFiltroMaq = ""; STATE.ui.laudoFiltroTar = "";
+    const it = C.linhasEscopoSimples()[0];
+    ok(C.laudoBlocoCampo(it, "solucao").indexOf("Mitigação existente na máquina") > 0, "faltou no campo Solução");
+    ["escopo","tarefa","risco"].forEach(c=>
+      ok(C.laudoBlocoCampo(it, c).indexOf("Mitigação existente na máquina") < 0, "apareceu no campo " + c));
+  });
+  t("sem proposta em campo, a revisão avisa que o laudo repetiria o que já existe", ()=>{
+    STATE.ui.laudoFiltroArea = ""; STATE.ui.laudoFiltroMaq = ""; STATE.ui.laudoFiltroTar = "";
+    const it = C.linhasEscopoSimples()[0];
+    it.risco.medidaImplementada = "Sim";
+    it.risco.descMedida = "Proteção fixa instalada.";
+    it.risco.sugestaoMitigacao = "";
+    ok(C.laudoBlocoCampo(it, "solucao").indexOf("Sem proposta, o laudo repete") > 0, "sem o aviso");
+    it.risco.sugestaoMitigacao = "Instalar chave de segurança";
+    ok(C.laudoBlocoCampo(it, "solucao").indexOf("Sem proposta, o laudo repete") < 0, "o aviso ficou depois de escrever a proposta");
+  });
+  t("o texto automático acompanha as marcações e para quando o usuário edita", ()=>{
+    const r = { componente:"Correia", medidasExistentes:["prot_fixa"], medidaExistenteSituacao:"ok" };
+    const t1 = C.sincronizarDescMedidaExistente(r);
+    eq(r.descMedida, t1);
+    r.medidasExistentes = ["prot_fixa","loto"];
+    const t2 = C.sincronizarDescMedidaExistente(r);
+    ok(t2 !== t1 && r.descMedida === t2, "o texto não acompanhou a segunda marcação");
+    r.descMedida = "texto que eu mesmo escrevi";
+    r.medidasExistentes = ["prot_fixa"];
+    C.sincronizarDescMedidaExistente(r);
+    eq(r.descMedida, "texto que eu mesmo escrevi");
+  });
+
+  console.log("\n=== t71 · caixa de texto que expande (bloco 3) ===");
+  t("toda textarea ganha o botão sem nenhuma tela ser alterada", ()=>{
+    ok(HTML.indexOf('document.querySelectorAll("textarea:not([data-ta])")') > 0, "não varre as caixas pendentes");
+    ok(HTML.indexOf('caixa.className = "ta-caixa";') > 0, "não cria a caixa em volta");
+    ok(HTML.indexOf('b.className = "ta-botao";') > 0, "não cria o botão");
+    ok(HTML.indexOf('ta.setAttribute("data-ta","1");') > 0, "sem a marca, o botão seria criado de novo a cada desenho");
+  });
+  t("o espaçador entra ANTES de a caixa virar fixa", ()=>{
+    const f = funcao("taExpandir");
+    ok(f.indexOf("caixa.getBoundingClientRect().height") < f.indexOf('caixa.classList.add("expandida")'),
+       "mediria zero e o modal saltaria de posição");
+    ok(f.indexOf("caixa.parentNode.insertBefore(esp, caixa)") > 0, "o espaçador não segura o lugar");
+  });
+  t("fecha por clique fora, pelo botão e pelo Esc", ()=>{
+    ok(funcao("taExpandir").indexOf('fundo.addEventListener("click", taRecolher)') > 0, "clique fora não fecha");
+    ok(funcao("taExpandir").indexOf("if(__taCaixaAberta === caixa){ taRecolher(); return; }") > 0, "o botão não alterna");
+    ok(HTML.indexOf('if(e.key === "Escape" && __taCaixaAberta) taRecolher();') > 0, "Esc não fecha");
+  });
+  t("ao recolher, some tudo que foi criado", ()=>{
+    const f = funcao("taRecolher");
+    ["__taEspacador", "__taFundo", "removeChild", 'classList.remove("expandida")', 'classList.remove("ta-aberta")']
+      .forEach(x=> ok(f.indexOf(x) > 0, "faltou limpar " + x));
+  });
+  t("tela redesenhada por baixo não deixa a tarja escura presa", ()=>{
+    ok(funcao("prepararTextareas").indexOf("!document.body.contains(__taCaixaAberta)") > 0,
+       "o fundo escuro ficaria na frente de tudo sem nada para fechar");
+  });
+  t("expandida, a caixa fica na frente do modal e maior que ele", ()=>{
+    ok(HTML.indexOf(".ta-caixa.expandida{position:fixed;left:10px;right:10px;top:10px;bottom:10px;z-index:4001") > 0);
+    ok(HTML.indexOf(".ta-fundo{position:fixed;inset:0;") > 0);
+    ok(HTML.indexOf("html.ta-aberta .bottomnav,html.ta-aberta .fab-wrap,html.ta-aberta .laudo-fab{display:none!important;}") > 0,
+       "a barra de baixo apareceria por cima da caixa aberta");
+  });
+
+  console.log("\n=== t72 · revisão de português ao aplicar (bloco 3) ===");
+  [ "revisaoPtPalavras", "revisaoPtNumeros", "revisaoPtLimpar", "revisaoPtSemelhanca", "revisaoPtAceitavel" ]
+    .forEach(n=> vm.runInContext(funcao(n), ctx));
+  t("correção de grafia e acento passa", ()=>{
+    ok(C.revisaoPtAceitavel("Protecao fixa instalada na coreia", "Proteção fixa instalada na correia."));
+    ok(C.revisaoPtAceitavel("risco de esmagamento de maos na correia", "Risco de esmagamento de mãos na correia."));
+    ok(C.revisaoPtAceitavel("Instalar proteção.", "Instalar proteção."), "texto igual deveria passar");
+  });
+  t("número diferente derruba a correção na hora", ()=>{
+    ok(!C.revisaoPtAceitavel("Atende ao item 12.5.11 da NR-12.", "Atende ao item 12.5.1 da NR-12."),
+       "um item de norma trocado passaria para um laudo assinado");
+    ok(!C.revisaoPtAceitavel("Guarda-corpo de 1,10 m.", "Guarda-corpo de 1,20 m."));
+  });
+  t("texto inventado ou reescrito é recusado", ()=>{
+    ok(!C.revisaoPtAceitavel("Instalar proteção.", "Instalar proteção fixa metálica com intertravamento."));
+    ok(!C.revisaoPtAceitavel("Risco de esmagamento de mãos", "Risco de amputação de dedos"));
+    ok(!C.revisaoPtAceitavel("Proteção fixa instalada na correia.", "Enclausuramento fixo montado no acionamento."));
+    ok(!C.revisaoPtAceitavel("Instalar proteção.", ""), "resposta vazia não pode virar o texto do laudo");
+  });
+  t("a resposta é limpa de aspas e rótulos antes de valer", ()=>{
+    eq(C.revisaoPtLimpar('Texto corrigido: "Instalar proteção."'), "Instalar proteção.");
+    eq(C.revisaoPtLimpar("Instalar proteção."), "Instalar proteção.");
+  });
+  t("sem IA configurada, o texto do engenheiro passa intacto", ()=>{
+    const f = funcao("corrigirPortuguesIA");
+    ok(f.indexOf("if(!getIAApiKey()) return base;") > 0, "chamaria a IA sem chave");
+    ok(f.indexOf("catch(e){ return base; }") > 0, "uma falha de rede apagaria o texto");
+    ok(f.indexOf("revisaoPtAceitavel(base, novo) ? novo : base") > 0, "aceitaria a devolução sem conferir");
+  });
+  t("aplicar de qualquer jeito dispara a revisão", ()=>{
+    ["async laudoAplicar(rid, campo){", "async laudoValidar(rid, campo){", "async laudoAprovarLinha(rid){"]
+      .forEach(m=> ok(HTML.indexOf(m) > 0, "faltou " + m));
+    eq((HTML.match(/App\.laudoRevisarPortugues\(rid, campo\)/g)||[]).length, 2);
+    ok(HTML.indexOf("laudoRevisarTextoEtitulo(item, c.k)") > 0, "aprovar a linha inteira não revisaria");
+  });
+  t("o título do risco só é revisado junto com o campo do risco", ()=>{
+    const f = funcao("laudoRevisarTextoEtitulo");
+    ok(f.indexOf('if(campo === "risco"){') > 0, "revisaria o título quatro vezes");
+    ok(!/r\.nomeAuto\s*=/.test(f), "mexer em nomeAuto faria o montador desfazer a revisão depois");
+    ok(f.indexOf("r.atualizadoEm = agoraSync();") > 0, "o título revisado não sincronizaria");
+  });
+
+  console.log("\n=== t73 · aplicar o mesmo texto em vários itens (bloco 3) ===");
+  const rep = (rid, campo)=> C.laudoAlvosReplicar(C.laudoItemPorId(rid), campo);
+  t("cada campo só enxerga o próprio nível", ()=>{
+    eq(C.laudoNivelDoCampo("escopo"), "maquina");
+    eq(C.laudoNivelDoCampo("tarefa"), "tarefa");
+    eq(C.laudoNivelDoCampo("risco"), "risco");
+    eq(C.laudoNivelDoCampo("solucao"), "risco");
+  });
+  t("o item de origem nunca aparece na lista de destinos", ()=>{
+    STATE.ui.laudoFiltroArea = ""; STATE.ui.laudoFiltroMaq = ""; STATE.ui.laudoFiltroTar = "";
+    const it = C.linhasEscopoSimples()[0];
+    ok(!rep(it.risco.id, "risco").some(a=> a.chave === it.risco.id), "copiaria em cima de si mesmo");
+    ok(!rep(it.risco.id, "escopo").some(a=> a.chave === it.maquina.id));
+    ok(!rep(it.risco.id, "tarefa").some(a=> a.chave === it.tarefa.id));
+  });
+  t("destino de escopo é máquina, de tarefa é tarefa, de risco é risco", ()=>{
+    const it = C.linhasEscopoSimples()[0];
+    const linhas = C.linhasEscopoSimples();
+    const idsMaq = new Set(linhas.map(o=>o.maquina.id));
+    const idsTar = new Set(linhas.map(o=>o.tarefa.id));
+    const idsRis = new Set(linhas.map(o=>o.risco.id));
+    rep(it.risco.id, "escopo").forEach(a=> ok(idsMaq.has(a.chave), "escopo apontou para algo que não é máquina"));
+    rep(it.risco.id, "tarefa").forEach(a=> ok(idsTar.has(a.chave), "tarefa apontou para algo que não é tarefa"));
+    rep(it.risco.id, "solucao").forEach(a=> ok(idsRis.has(a.chave), "solução apontou para algo que não é risco"));
+  });
+  t("cada destino aparece uma vez só", ()=>{
+    const it = C.linhasEscopoSimples()[0];
+    ["escopo","tarefa","risco"].forEach(c=>{
+      const ch = rep(it.risco.id, c).map(a=>a.chave);
+      eq(new Set(ch).size, ch.length, "destino repetido em " + c);
+    });
+  });
+  t("agrupar por área junta o que é da mesma área", ()=>{
+    const it = C.linhasEscopoSimples()[0];
+    const alvos = rep(it.risco.id, "risco");
+    const g = C.laudoAgruparAlvos(alvos, "area");
+    eq(g.reduce((n,x)=>n+x.itens.length,0), alvos.length, "algum item se perdeu no agrupamento");
+    g.forEach(x=> x.itens.forEach(a=> eq(a.area, x.nome)));
+    eq(C.laudoAgruparAlvos(alvos, "").length, 1, "sem agrupar deveria dar uma lista só");
+  });
+  t("só é oferecido agrupamento por um nível acima do destino", ()=>{
+    const chaves = (n)=> vm.runInContext(`LAUDO_AGRUPAR_POR.${n}.map(x=>x.k).join(",")`, ctx);
+    eq(chaves("maquina"), ",projeto,area");
+    eq(chaves("tarefa"),  ",projeto,area,maquina");
+    eq(chaves("risco"),   ",projeto,area,maquina,tarefa");
+  });
+  t("a tela avisa quando vai substituir um texto que já existe", ()=>{
+    const it = C.linhasEscopoSimples()[0];
+    C.laudoSet(it, "risco", { fin:"Texto de origem.", st:"ok" });
+    const outro = C.linhasEscopoSimples().find(o=> o.risco.id !== it.risco.id);
+    if(!outro) return;
+    C.laudoSet(outro, "risco", { fin:"Texto que já estava lá.", st:"edit" });
+    const h = C.laudoSheetReplicarHtml(it, "risco");
+    ok(h.indexOf("Já tem texto — será substituído") > 0, "substituiria sem avisar");
+    ok(h.indexOf("Texto que já estava lá.") > 0, "não mostra o que será perdido");
+  });
+  t("a marcação é por chave do item, não por posição na lista", ()=>{
+    ok(HTML.indexOf("__laudoReplicaSel.add(el.value)") > 0);
+    ok(funcao("laudoSheetReplicarHtml").indexOf('__laudoReplicaSel.has(a.chave)?"checked":""') > 0,
+       "trocar o agrupamento perderia o que já estava marcado");
+  });
+  t("abrir a lista começa com nada marcado", ()=>{
+    ok(HTML.indexOf("__laudoReplicaSel = new Set();\n    abrirOverlay(laudoSheetReplicarHtml(item, campo));") > 0,
+       "sobra de uma abertura anterior aplicaria texto onde ninguém pediu");
+  });
+  t("o botão de marcar o grupo não abre nem fecha o grupo", ()=>{
+    ok(HTML.indexOf("ev.preventDefault(); ev.stopPropagation();") > 0);
+  });
+  t("o botão de aplicar em vários só aparece depois de aplicar", ()=>{
+    const bloco = funcao("laudoBlocoCampo");
+    ok(bloco.indexOf('${(st==="ok"||st==="edit") && fin? `<button') > 0, "apareceria antes de haver texto decidido");
   });
 
   console.log("\n---------------------------------------");
