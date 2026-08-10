@@ -1772,7 +1772,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "10/08/2026 18:40";
+const APP_BUILD = "10/08/2026 19:15";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -6061,12 +6061,58 @@ function formAreaSHtml(){
     <button class="btn btn-primary" onclick="App.salvarDraftEntidade()">${ic('check')} Salvar</button></div>
   </div></div>`;
 }
+/* =========================================================================
+   TIPO DO EQUIPAMENTO — a coluna "Descrição" do inventário
+
+   O inventário é uma TABELA: cada coluna tem largura fixa e uma linha por
+   máquina. O que cabe ali é o tipo do equipamento em duas ou três palavras
+   ("Mesa de seleção manual", "Esteira transportadora"), não o parágrafo que
+   descreve a máquina — esse continua valendo, no corpo do laudo.
+
+   A lista abaixo cobre o beneficiamento de sementes/grãos, que é o que a
+   MecSete inspeciona. Não é fechada: "Outro (especificar)" aceita qualquer
+   coisa, e o que for digitado é gravado do mesmo jeito.
+   ========================================================================= */
+const TIPOS_EQUIPAMENTO = [
+  "Mesa de seleção manual", "Esteira transportadora", "Correia transportadora",
+  "Transportador de corrente", "Transportador helicoidal (rosca)", "Elevador de canecas",
+  "Despalhador", "Debulhador", "Classificador", "Mesa densimétrica", "Vision sorter",
+  "Peneira", "Secador", "Silo", "Moega", "Ventilador", "Exaustor", "Ciclone",
+  "Empacotadeira", "Balança", "Compressor", "Bomba", "Painel elétrico",
+  "Ponte rolante", "Talha", "Escada e plataforma", "Tanque", "Misturador",
+];
+/* Palpite para quem cadastrou a máquina antes deste campo existir: tira do
+   nome o identificador do fim ("Mesa de seleção manual B" → "Mesa de seleção
+   manual"). Vale como sugestão e como o que aparece no inventário enquanto o
+   campo não for preenchido — melhor que a coluna sair vazia. NÃO grava nada
+   sozinho: o que vale no laudo continua sendo o que o engenheiro escolheu. */
+function tipoSugeridoDaMaquina(m){
+  const nome = String(m && m.nome || "").trim();
+  if(!nome) return "";
+  /* Tira sufixo identificador: letra solta, número, ou "nº 3" / "01" no fim. */
+  const limpo = nome.replace(/\s+(n[ºo°.]?\s*)?\d+\s*$/i, "").replace(/\s+[A-Z]\s*$/,"").trim();
+  return limpo || nome;
+}
+function tipoEquipamento(m){
+  const t = String(m && m.tipoEquip || "").trim();
+  if(t && t !== OUTRO) return t;
+  if(t === OUTRO) return String(m.tipoEquipOutro || "").trim() || tipoSugeridoDaMaquina(m);
+  return tipoSugeridoDaMaquina(m);
+}
+
 function formMaquinaSHtml(){
   const m = __draftEntity;
   return `<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.cancelarDraftEntidade()"><div class="modal-card">
     <h3>Máquina/Ativo</h3>
     <div class="field"><label>Nome da Máquina/Ativo <span class="req">*</span></label><input type="text" placeholder="Ex.: Elevador de Canecas 01" value="${escapeHtml(m.nome)}" oninput="App.setDraftField('nome', this.value)"></div>
-    <div class="field"><label>Descrição (opcional)</label><textarea oninput="App.setDraftField('descricao', this.value)">${escapeHtml(m.descricao)}</textarea></div>
+    <div class="field">
+      <label>Tipo do equipamento</label>
+      <select onchange="App.onDraftSelectChange('tipoEquip', this.value)">${selectOptions(TIPOS_EQUIPAMENTO, m.tipoEquip, true, "Outro (especificar)")}</select>
+      ${m.tipoEquip===OUTRO? `<div class="outro-wrap"><input type="text" placeholder="Ex.: Transportador de canecas duplo" value="${escapeHtml(m.tipoEquipOutro||"")}" oninput="App.setDraftField('tipoEquipOutro', this.value)"></div>`:""}
+      <div class="field-hint">É o que vai na coluna <b>Descrição</b> do inventário — duas ou três palavras dizendo o que é a máquina.${!m.tipoEquip && tipoSugeridoDaMaquina(m)? ` Enquanto ficar vazio, o inventário usa <b>${escapeHtml(tipoSugeridoDaMaquina(m))}</b>, deduzido do nome.`:""}</div>
+    </div>
+    <div class="field"><label>Descrição (opcional)</label><textarea oninput="App.setDraftField('descricao', this.value)">${escapeHtml(m.descricao)}</textarea>
+      <div class="field-hint">Texto corrido que descreve a máquina. Vai para o corpo do laudo, não para a tabela do inventário.</div></div>
     <div class="field">
       <label>Manual de operação</label>
       <select onchange="App.onDraftSelectChange('manual', this.value)">${selectOptions(MANUAL_OPCOES, m.manual, true, "Outro (especificar)")}</select>
@@ -10766,7 +10812,10 @@ function xlsmLinhaInventario(rowNum, numLegenda, maquina, area){
   c.push(`<c r="A${rowNum}" s="${S.A}"/>`);
   c.push(xlsmCellNum(`B${rowNum}`,S.B,numLegenda));
   c.push(xlsmCellTexto(`C${rowNum}`,S.C, nomeMaquinaS(maquina)));
-  c.push(xlsmCellTexto(`D${rowNum}`,S.D, maquina.descricao));
+  /* Coluna Descrição do inventário = TIPO do equipamento, em duas ou três
+     palavras. O parágrafo de maquina.descricao não cabe numa célula de tabela
+     com altura fixa — saía cortado — e continua indo para o corpo do laudo. */
+  c.push(xlsmCellTexto(`D${rowNum}`,S.D, tipoEquipamento(maquina)));
   c.push(xlsmCellTexto(`E${rowNum}`,S.E, area.nome));
   c.push(xlsmCellTexto(`F${rowNum}`,S.F, area.local));
   c.push(xlsmCellTexto(`G${rowNum}`,S.G, maquina.modelo));
@@ -17278,11 +17327,15 @@ window.addEventListener("pageshow", (event) => {
 .lp-tab td.c{text-align:center}
 .lp-formula{border:2px solid #333;text-align:center;font-weight:800;font-size:13px;padding:8px;margin:10px auto;width:70%}
 /* --- inventário --- */
-.lp-inv{width:100%;border-collapse:collapse;font-size:8.5px}
-.lp-inv th,.lp-inv td{border:1px solid #8A8CA3;padding:3px;text-align:center;vertical-align:middle}
+/* table-layout:fixed é o que faz a largura do <colgroup> valer de verdade e
+   igual em todas as tabelas do inventário. Sem isto, cada linha recalcula as
+   colunas pelo próprio texto e a tabela sai desalinhada do cabeçalho. */
+.lp-inv{width:100%;table-layout:fixed;border-collapse:collapse;font-size:8.5px}
+.lp-inv th,.lp-inv td{border:1px solid #8A8CA3;padding:3px;text-align:center;vertical-align:middle;overflow-wrap:break-word;word-break:break-word}
 .lp-inv th{background:${NAVY};color:#fff;font-weight:800;font-size:8.5px}
-.lp-inv td.foto{padding:2px;width:96px}
-.lp-inv img{width:92px;height:62px;object-fit:cover;display:block}
+.lp-inv td.foto{padding:2px}
+.lp-inv td.nome{font-weight:700}
+.lp-inv img{width:100%;height:62px;object-fit:cover;display:block}
 /* --- contra capa --- */
 .lp-contra{border:1px solid #444;height:100%;box-sizing:border-box;padding:${Math.round(16*MM)}px;display:flex;flex-direction:column;align-items:center}
 .lp-contra .lp-logo{width:46%;margin:${Math.round(26*MM)}px 0 ${Math.round(24*MM)}px}
@@ -17480,21 +17533,33 @@ window.addEventListener("pageshow", (event) => {
         })() },
     ];
   }
+  /* O inventário sai em VÁRIAS tabelas: uma para o cabeçalho e uma por
+     máquina, porque cada bloco precisa poder cair sozinho numa página. Só que
+     tabela HTML calcula a largura das colunas pelo conteúdo DELA — então cada
+     linha decidia uma largura diferente e nada alinhava com o cabeçalho: a
+     coluna Descrição engolia a linha e espremia Modelo, Marca, Nº Série, Ano,
+     Capacidade e Tensão até virarem tiras.
+     A correção tem duas partes, e as duas são necessárias: `table-layout:fixed`
+     no CSS (faz a largura declarada valer, em vez de servir de sugestão) e
+     este mesmo <colgroup> repetido em TODAS as tabelas. As larguras somam
+     exatamente a área útil da página (794 − 2×53 = 688px). */
+  const INV_COLS = [88, 24, 104, 100, 58, 58, 50, 50, 54, 28, 40, 34];
+  const invColgroup = `<colgroup>${INV_COLS.map(w=>`<col style="width:${w}px">`).join("")}</colgroup>`;
   async function blocosInventario(itens, d){
     const maqs = [];
     const vistos = new Set();
     itens.forEach(it=>{ if(!vistos.has(it.maquina.id)){ vistos.add(it.maquina.id); maqs.push(it); } });
-    const cab = `<tr><th style="width:96px">Imagem</th><th style="width:34px">Nº</th><th>Nome</th><th>Descrição</th>
-      <th style="width:56px">Área</th><th style="width:56px">Local</th><th style="width:52px">Modelo</th><th style="width:52px">Marca</th>
-      <th style="width:52px">Nº Série</th><th style="width:34px">Ano</th><th style="width:52px">Capac.</th><th style="width:44px">Tensão</th></tr>`;
+    const cab = `<tr><th>Imagem</th><th>Nº</th><th>Nome</th><th>Descrição</th>
+      <th>Área</th><th>Local</th><th>Modelo</th><th>Marca</th>
+      <th>Nº Série</th><th>Ano</th><th>Capac.</th><th>Tensão</th></tr>`;
     const blocos = [{ quebrarAntes:true, html:`<div class="lp-faixa-c">INVENTÁRIO DE MÁQUINAS</div>
-      <table class="lp-inv">${cab}</table>` }];
+      <table class="lp-inv">${invColgroup}${cab}</table>` }];
     for(let i=0;i<maqs.length;i++){
       const it = maqs[i], m = it.maquina;
       const foto = await reduzirFoto(m.fotoGeral || m.fotoPlaqueta, 380);
-      blocos.push({ html:`<table class="lp-inv"><tr>
+      blocos.push({ html:`<table class="lp-inv">${invColgroup}<tr>
         <td class="foto">${foto? `<img src="${foto}">` : ""}</td>
-        <td>${i+1}</td><td>${esc(nomeMaquinaS(m))}</td><td>${esc(m.descricao||"")}</td>
+        <td>${i+1}</td><td class="nome">${esc(nomeMaquinaS(m))}</td><td>${esc(tipoEquipamento(m))}</td>
         <td>${esc(it.area.nome||"")}</td><td>${esc(m.local||it.area.nome||"")}</td>
         <td>${esc(m.modelo||"")}</td><td>${esc(m.marca||"")}</td><td>${esc(m.numeroSerie||"")}</td>
         <td>${esc(m.anoFabricacao||"")}</td><td>${esc(m.capacidade||"")}</td><td>${esc(m.tensao||"")}</td>

@@ -141,7 +141,12 @@ print("\n=== 10. CRESCIMENTO DO ARQUIVO ===")
 # laudos aprovados (~42 KB). O teto so existe para pegar acidente grosseiro
 # (arquivo duplicado, bloco colado duas vezes), nao para medir uma entrega.
 d = len(novo) - len(orig)
-chk("crescimento coerente com os novos modulos (%d bytes)" % d, 20000 < d < 320000, "delta=%d" % d)
+# Teto subido de 320 KB para 420 KB: entraram os blocos 2b e 3 (mitigacao
+# existente, caixa em tela cheia, revisao de portugues, aplicar em varios) e o
+# tipo do equipamento. O teto continua servindo so para pegar acidente
+# grosseiro — uma foto embutida no arquivo somaria MEGAbytes, nao centenas de
+# KB, e cairia aqui na hora.
+chk("crescimento coerente com os novos modulos (%d bytes)" % d, 20000 < d < 420000, "delta=%d" % d)
 chk("nada foi removido do original por engano",
     all(novo.count(m) >= 1 for m in ["exportarMasterXLSXFotos", "gerarBytesXlsmCorteva", "montarItensInventario", "gerarBytesDocxSimples"]))
 
@@ -740,6 +745,39 @@ chk("remover deixa vazio (a uniao com a nuvem traria de volta uma chave ausente)
 chk("trocar e remover carimbam para sincronizar e forcam remontar",
     len(re.findall(r"STATE\.ui\.mecseteEm = agoraSync\(\);\s*\n\s*marcarEquipeAlterada\(\);", novo)) == 2
     and novo.count('cacheFoto.clear(); __lpPaginas = []; __lpHtml = "";') == 2)
+
+print("\n=== 33. INVENTARIO DE MAQUINAS: COLUNAS FIXAS E TIPO DO EQUIPAMENTO ===")
+# O inventario sai em varias tabelas (uma por maquina, para poder paginar).
+# Tabela HTML calcula largura pelo proprio conteudo: sem table-layout:fixed +
+# o MESMO colgroup em todas, cada linha inventa a sua e nada alinha.
+chk("colunas fixas e iguais em todas as tabelas do inventario",
+    "const INV_COLS = [88, 24, 104, 100, 58, 58, 50, 50, 54, 28, 40, 34];" in novo
+    and novo.count("${invColgroup}") == 2
+    and ".lp-inv{width:100%;table-layout:fixed;" in novo)
+_m_cols = re.search(r"const INV_COLS = \[([^\]]+)\]", novo)
+chk("as larguras somam a area util da pagina A4 (794 - 2x53)",
+    bool(_m_cols) and sum(int(x.strip()) for x in _m_cols.group(1).split(",")) == 688)
+chk("nao sobrou largura em linha brigando com o colgroup",
+    '<th style="width:96px">Imagem</th>' not in novo
+    and ".lp-inv td.foto{padding:2px}" in novo)
+chk("a coluna Descricao passou a ser o TIPO nos dois lugares",
+    "<td>${esc(tipoEquipamento(m))}</td>" in novo
+    and "xlsmCellTexto(`D${rowNum}`,S.D, tipoEquipamento(maquina))" in novo
+    and "xlsmCellTexto(`D${rowNum}`,S.D, maquina.descricao)" not in novo)
+chk("o campo novo existe, tem lista e aceita Outro",
+    novo.count("const TIPOS_EQUIPAMENTO = [") == 1
+    and novo.count("function tipoEquipamento(") == 1
+    and novo.count("function tipoSugeridoDaMaquina(") == 1
+    and 'selectOptions(TIPOS_EQUIPAMENTO, m.tipoEquip, true, "Outro (especificar)")' in novo
+    and "App.setDraftField('tipoEquipOutro', this.value)" in novo)
+chk("a descricao longa continua existindo (vai para o corpo do laudo)",
+    "App.setDraftField('descricao', this.value)" in novo
+    and novo.count("m.descricao") >= 1)
+# A capa pinta o logotipo inteiro de branco por filtro. Com PNG transparente
+# isso da o resultado certo; o filtro NAO pode sumir.
+chk("o logotipo da capa continua saindo todo branco",
+    novo.count("filter:brightness(0) invert(1)") == 1
+    and ".lp-capa-lat .lp-logo{filter:brightness(0) invert(1)" in novo)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")

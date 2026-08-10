@@ -22,6 +22,54 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 10/08/2026 19:15
+
+Inventário de máquinas: colunas alinhadas e coluna Descrição enxuta.
+
+### Por que a tabela saía deformada
+
+Não era estética, era estrutura. O inventário é montado em **várias tabelas** —
+uma para o cabeçalho e uma por máquina — porque cada máquina precisa poder cair
+sozinha numa página. Só que tabela HTML calcula a largura das colunas pelo
+conteúdo **dela mesma**: cada linha decidia larguras diferentes, nenhuma
+batendo com o cabeçalho. Como a coluna Descrição recebia o parágrafo inteiro da
+máquina, ela engolia a linha e espremia Modelo, Marca, Nº Série, Ano,
+Capacidade e Tensão até virarem tiras.
+
+Agora as larguras são fixas e as mesmas em todas as tabelas, somando exatamente
+a área útil da página A4 (688 px = 210 mm menos as margens). Conferido: as 12
+colunas do cabeçalho e de todas as linhas ficam idênticas ao pixel.
+
+### Coluna Descrição = tipo do equipamento
+
+A coluna passa a trazer o **tipo** em duas ou três palavras — "Mesa de seleção
+manual", "Esteira transportadora", "Vision sorter" — que é o que cabe numa
+célula de tabela. O parágrafo descritivo continua existindo e continua indo
+para o corpo do laudo; ele só saiu da tabela.
+
+Para isso, o cadastro da máquina ganhou o campo **Tipo do equipamento**, com
+lista pronta de 28 tipos do beneficiamento de sementes e grãos (mesa de
+seleção, esteira, elevador de canecas, despalhador, debulhador, mesa
+densimétrica, vision sorter, secador, ciclone, painel elétrico e outros) e
+opção de escrever o que não estiver na lista.
+
+**Máquina cadastrada antes deste campo não fica com a coluna em branco:** o
+app deduz o tipo do próprio nome, tirando o identificador do fim ("Mesa de
+seleção manual B" → "Mesa de seleção manual"; "Elevador de Canecas 01" →
+"Elevador de Canecas"). É só uma sugestão de exibição — nada é gravado sozinho,
+e o que você escolher no campo sempre manda.
+
+Vale para os dois lados: o laudo em A4 e a aba Inventário do Excel.
+
+### Logotipo da capa
+
+Confirmado que continua saindo **todo branco** na capa, como você pediu. A capa
+aplica um filtro que pinta o logotipo inteiro de branco; com o PNG transparente
+da correção anterior, só o desenho fica branco e o fundo continua vazio. Nas
+demais posições o logotipo sai nas cores originais do arquivo enviado.
+
+---
+
 ## 10/08/2026 18:40
 
 Duas correções: o quadro verde do "Aplicar em vários" e o logotipo do laudo.

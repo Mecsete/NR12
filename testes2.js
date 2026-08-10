@@ -3263,6 +3263,56 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
        "a prévia continuaria mostrando o logotipo velho");
   });
 
+  console.log("\n=== t76 · inventário de máquinas: colunas e tipo do equipamento ===");
+  vm.runInContext(constante("TIPOS_EQUIPAMENTO"), ctx);
+  [ "tipoSugeridoDaMaquina", "tipoEquipamento" ].forEach(n=> vm.runInContext(funcao(n), ctx));
+  t("as colunas do inventário são iguais em todas as tabelas", ()=>{
+    ok(HTML.indexOf("const INV_COLS = [88, 24, 104, 100, 58, 58, 50, 50, 54, 28, 40, 34];") > 0, "sem larguras fixas");
+    eq((HTML.match(/\$\{invColgroup\}/g)||[]).length, 2, "o colgroup precisa ir no cabeçalho E em cada linha");
+    ok(HTML.indexOf(".lp-inv{width:100%;table-layout:fixed;") > 0,
+       "sem table-layout:fixed a largura declarada vira só sugestão e cada linha recalcula a sua");
+  });
+  t("as larguras somam a área útil da página A4", ()=>{
+    const m = /const INV_COLS = \[([^\]]+)\]/.exec(HTML);
+    const soma = m[1].split(",").reduce((a,b)=>a+Number(b.trim()),0);
+    eq(soma, 688, "794px de página menos 2 × 53px de margem");
+  });
+  t("não sobrou largura em linha brigando com o colgroup", ()=>{
+    ok(HTML.indexOf('<th style="width:96px">Imagem</th>') < 0, "os width antigos do cabeçalho continuariam mandando");
+    ok(HTML.indexOf(".lp-inv td.foto{padding:2px}") > 0);
+  });
+  t("a coluna Descrição passa a ser o tipo, não o parágrafo", ()=>{
+    ok(HTML.indexOf("<td>${esc(tipoEquipamento(m))}</td>") > 0, "o laudo impresso ainda usaria o parágrafo");
+    ok(HTML.indexOf("xlsmCellTexto(`D${rowNum}`,S.D, tipoEquipamento(maquina))") > 0, "o Excel ainda usaria o parágrafo");
+    ok(HTML.indexOf("xlsmCellTexto(`D${rowNum}`,S.D, maquina.descricao)") < 0, "sobrou a versão antiga");
+  });
+  t("o tipo escolhido vale acima de qualquer dedução", ()=>{
+    eq(C.tipoEquipamento({ nome:"Esteira pós mesa de seleção Manual B", tipoEquip:"Esteira transportadora" }), "Esteira transportadora");
+    eq(C.tipoEquipamento({ nome:"X", tipoEquip:OUTRO, tipoEquipOutro:"Transportador de canecas duplo" }), "Transportador de canecas duplo");
+  });
+  t("máquina cadastrada antes do campo não deixa a coluna vazia", ()=>{
+    eq(C.tipoEquipamento({ nome:"Mesa de seleção manual B" }), "Mesa de seleção manual");
+    eq(C.tipoSugeridoDaMaquina({ nome:"Elevador de Canecas 01" }), "Elevador de Canecas");
+    eq(C.tipoSugeridoDaMaquina({ nome:"Esteira nº 3" }), "Esteira");
+    eq(C.tipoSugeridoDaMaquina({ nome:"" }), "");
+  });
+  t("a dedução nunca devolve vazio quando há nome", ()=>{
+    eq(C.tipoSugeridoDaMaquina({ nome:"01" }), "01", "um nome só de número não pode virar coluna em branco");
+  });
+  t("a lista de tipos cobre o beneficiamento e aceita Outro", ()=>{
+    const lista = vm.runInContext("TIPOS_EQUIPAMENTO", ctx);
+    ok(lista.length >= 20, "lista curta demais");
+    ["Mesa de seleção manual","Esteira transportadora","Elevador de canecas","Vision sorter","Painel elétrico"]
+      .forEach(x=> ok(lista.indexOf(x) >= 0, "faltou " + x));
+    ok(HTML.indexOf("selectOptions(TIPOS_EQUIPAMENTO, m.tipoEquip, true, \"Outro (especificar)\")") > 0, "sem opção de escrever outro");
+    ok(HTML.indexOf("App.setDraftField('tipoEquipOutro', this.value)") > 0);
+  });
+  t("o logotipo da capa continua saindo todo branco", ()=>{
+    ok(HTML.indexOf(".lp-capa-lat .lp-logo{filter:brightness(0) invert(1)") > 0,
+       "sem o filtro, a capa deixaria de ter o logotipo em branco");
+    eq((HTML.match(/filter:brightness\(0\) invert\(1\)/g)||[]).length, 1, "só a capa deve inverter o logotipo");
+  });
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);
