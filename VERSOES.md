@@ -22,6 +22,49 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 10/08/2026 20:05
+
+Barra de progresso com tempo e botão de parar nas exportações.
+
+### O problema
+
+Ao exportar, o app mostrava um aviso ("Gerando Excel…") que dura 2,2 segundos e
+some. Como ele era reemitido a cada item, ficava aceso o tempo todo — parecendo
+travado sem estar. E não dizia quanto faltava, nem tinha como cancelar: quem
+tocasse no botão sem querer ficava esperando o fim.
+
+A demora é real e tem explicação: para cada risco sem texto, a IA é chamada até
+quatro vezes, e cada chamada que falha é repetida com espera crescente (2s, 5s,
+12s, 25s). Com muitos riscos, isso passa de meia hora.
+
+### O que mudou
+
+Agora aparece um painel com:
+
+- a etapa (Escrevendo textos da IA → Gerando Excel) e o item da vez;
+- barra de progresso e **porcentagem**;
+- contagem (**12 de 48**);
+- **tempo decorrido** e **estimativa do que falta**;
+- botão **Parar**.
+
+A estimativa só aparece depois do segundo item: o primeiro carrega o índice de
+casos aprovados e demoraria mais que os outros, dando um número irreal logo de
+cara.
+
+### Parar é seguro
+
+Cada texto gerado é gravado no item antes de o próximo começar. Parar não
+descarta nada: o que já ficou pronto continua valendo, e a próxima exportação
+recomeça de onde parou, porque ela só procura o que ainda não tem sugestão.
+
+A parada respeita a chamada em andamento — o app sai do laço antes de disparar
+a próxima, nunca no meio de uma, para não deixar texto pela metade. E
+exportação parada **não gera arquivo incompleto**: nada é baixado.
+
+Vale para o Excel e para o Word, que tinham o mesmo comportamento.
+
+---
+
 ## 10/08/2026 19:15
 
 Inventário de máquinas: colunas alinhadas e coluna Descrição enxuta.

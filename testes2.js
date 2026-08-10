@@ -117,7 +117,20 @@ function getAreasSelecionadasExport(){
 }
 
 const ouvintes = [], estiloRaiz = {};
+/* Painel de progresso: no app ele desenha na tela. Aqui vale como registro do
+   que foi pedido, para os testes conferirem etapas e parada sem DOM. */
+const painelTeste = { aberturas: [], atualizacoes: [], fechamentos: 0, cancelar: false, aberto: false };
+function progressoAbrir(titulo, total){
+  painelTeste.aberturas.push({ titulo, total });
+  const meu = !painelTeste.aberto;
+  painelTeste.aberto = true;
+  return meu;
+}
+function progressoAtualizar(feito, total, sub){ painelTeste.atualizacoes.push({ feito, total, sub }); }
+function progressoFechar(meu){ if(meu === false) return; painelTeste.fechamentos++; painelTeste.aberto = false; }
+function progressoCancelado(){ return painelTeste.cancelar; }
 const ctx = { OUTRO, STATE, linhasEscopoSimples, nomeMaquinaS, valOuOutro, escapeHtml, ic, toast, marcarAlterado,
+  progressoAbrir, progressoAtualizar, progressoFechar, progressoCancelado,
   render, go, esperar, uid, imgReg, abrirOverlay, getIAApiKey, setIAApiKey, getIAConfig, resetIAConfigTeste,
   chamarIAResiliente, parseRespostaJsonIA,
   getAreasSelecionadasExport, formatarDataHoraBR, screenSimplesConfigIA, getMecseteConfig, getCurrentProjetoSimples,
@@ -3311,6 +3324,75 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(HTML.indexOf(".lp-capa-lat .lp-logo{filter:brightness(0) invert(1)") > 0,
        "sem o filtro, a capa deixaria de ter o logotipo em branco");
     eq((HTML.match(/filter:brightness\(0\) invert\(1\)/g)||[]).length, 1, "só a capa deve inverter o logotipo");
+  });
+
+  console.log("\n=== t77 · painel de progresso com tempo e botão de parar ===");
+  vm.runInContext(funcao("progressoTempo"), ctx);
+  t("o tempo é mostrado em minutos quando passa de um", ()=>{
+    eq(C.progressoTempo(0), "0s");
+    eq(C.progressoTempo(45), "45s");
+    eq(C.progressoTempo(60), "1min 00s");
+    eq(C.progressoTempo(605), "10min 05s");
+    eq(C.progressoTempo(-5), "0s", "tempo negativo não pode aparecer na tela");
+  });
+  t("a estimativa só aparece depois de dois itens medidos", ()=>{
+    const f = funcao("progressoDesenhar");
+    ok(f.indexOf("p.feito >= 2 && p.total > p.feito") > 0,
+       "com um item só, o primeiro (que monta o índice de exemplos) daria um número absurdo");
+    ok(f.indexOf("decorrido/p.feito*(p.total-p.feito)") > 0, "não calcula o que falta");
+  });
+  t("parar não interrompe uma chamada no meio", ()=>{
+    ok(HTML.indexOf("__progresso.cancelado = true;") > 0);
+    ok(funcao("gerarLaudoIAItens").indexOf("if(progressoCancelado()) break;") > 0,
+       "o laço precisa sair ANTES de disparar a próxima chamada");
+  });
+  t("o painel some em qualquer desfecho das exportações", ()=>{
+    eq((HTML.match(/progressoFechar\(painelExport\)/g)||[]).length, 1);
+    eq((HTML.match(/progressoFechar\(painelWord\)/g)||[]).length, 1);
+    eq((HTML.match(/\}\s*finally\s*\{[^}]*progressoFechar/g)||[]).length, 3,
+       "Excel, Word e a geração de textos — sem finally, um erro deixaria o painel preso na frente do app");
+    ok(funcao("gerarLaudoIAItens").indexOf("finally{ progressoFechar(meuPainel); }") > 0);
+  });
+  t("quem não abriu o painel não fecha o dos outros", ()=>{
+    ok(funcao("progressoFechar").indexOf("if(meu === false) return;") > 0,
+       "a geração de textos fecharia o painel da exportação no meio");
+    ok(funcao("progressoAbrir").indexOf("if(__progresso){") > 0, "abriria dois painéis empilhados");
+  });
+  t("exportação parada não entrega arquivo pela metade", ()=>{
+    eq((HTML.match(/if\(progressoCancelado\(\)\)\{ toast\("Exportação parada/g)||[]).length, 3,
+       "os três caminhos (xlsm, xlsx e Word) precisam checar antes de montar o arquivo");
+  });
+  t("os avisos que se repetiam a cada item saíram do caminho", ()=>{
+    ok(HTML.indexOf("Escrevendo textos da IA… ${i}/${total}") < 0, "voltaria o aviso que se renova sozinho");
+    ok(HTML.indexOf("Gerando Excel… área ${i+1}") < 0);
+    ok(HTML.indexOf("Gerando Word… área ${i+1}") < 0);
+    eq((HTML.match(/gerarLaudoIAItens\(pendentesIA, null, \{ refazer:false \}\)/g)||[]).length, 3);
+    eq((HTML.match(/gerarLaudoIAItens\([a-zA-Z]+, null, \{ refazer:(true|false) \}\)/g)||[]).length, 5,
+       "toda geração em lote precisa passar pelo painel — inclusive as da aba IA");
+  });
+  t("a geração em lote de verdade abre, atualiza e fecha o painel", async ()=>{
+    painelTeste.aberturas = []; painelTeste.atualizacoes = []; painelTeste.fechamentos = 0;
+    painelTeste.aberto = false; painelTeste.cancelar = false;
+    STATE.ui.laudoFiltroArea = ""; STATE.ui.laudoFiltroMaq = ""; STATE.ui.laudoFiltroTar = "";
+    const itens = C.linhasEscopoSimples().slice(0, 3);
+    itens.forEach(it=>{ it.maquina.laudoIA = {}; it.tarefa.laudoIA = {}; it.risco.laudoIA = {}; });
+    setIAApiKey("chave-teste");
+    await C.gerarLaudoIAItens(itens, null, { refazer:true });
+    eq(painelTeste.aberturas.length, 1, "deveria abrir um painel só");
+    eq(painelTeste.aberturas[0].titulo, "Escrevendo textos da IA");
+    eq(painelTeste.aberturas[0].total, 3);
+    eq(painelTeste.fechamentos, 1, "o painel precisa fechar ao terminar");
+    ok(painelTeste.atualizacoes.length >= 3, "não reportou o avanço");
+  });
+  t("parar interrompe a leva e o que já foi feito continua gravado", async ()=>{
+    painelTeste.aberturas = []; painelTeste.atualizacoes = []; painelTeste.fechamentos = 0;
+    painelTeste.aberto = false; painelTeste.cancelar = true;   // parada pedida antes de começar
+    const itens = C.linhasEscopoSimples().slice(0, 3);
+    itens.forEach(it=>{ it.maquina.laudoIA = {}; it.tarefa.laudoIA = {}; it.risco.laudoIA = {}; });
+    const gravados = await C.gerarLaudoIAItens(itens, null, { refazer:true });
+    eq(gravados, 0, "não deveria ter gerado nada depois da parada");
+    eq(painelTeste.fechamentos, 1, "o painel precisa fechar mesmo tendo sido parado");
+    painelTeste.cancelar = false;
   });
 
   console.log("\n---------------------------------------");

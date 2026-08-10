@@ -431,6 +431,17 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 /* Numa folha em coluna, TUDO encolhe por padrão quando o conteúdo passa da
    altura máxima — inclusive o quadro do texto de origem, que ficava espremido
    em uma linha só. Aqui só a lista pode encolher; o resto mantém o tamanho. */
+/* PAINEL DE PROGRESSO — fica acima de tudo, inclusive dos modais (z 4001) e da
+   caixa de texto expandida, porque enquanto ele está na tela não há mais nada
+   para fazer no app a não ser acompanhar ou parar. */
+.prog-fundo{position:fixed;inset:0;z-index:5000;background:rgba(15,18,32,.55);display:flex;align-items:center;justify-content:center;padding:22px;}
+.prog-caixa{background:var(--surface);border-radius:14px;padding:18px 16px 14px;width:100%;max-width:340px;box-shadow:0 18px 50px rgba(0,0,0,.38);}
+.prog-tit{font-size:14.5px;font-weight:800;color:var(--ink);text-align:center;}
+.prog-sub{font-size:12px;color:var(--ink-faint);text-align:center;margin-top:3px;min-height:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.prog-trilho{height:9px;background:var(--bg-soft);border-radius:99px;overflow:hidden;margin:11px 0 7px;}
+.prog-barra{height:100%;width:0;background:var(--accent);border-radius:99px;transition:width .25s ease;}
+.prog-linha{display:flex;justify-content:space-between;font-size:12px;font-weight:800;color:var(--ink-dim);}
+.prog-linha.prog-tempo{font-weight:600;font-size:11.5px;color:var(--ink-faint);margin-top:3px;}
 .sheet-col{display:flex;flex-direction:column;}
 .sheet-col>*{flex-shrink:0;}
 /* A lista é a única coisa que encolhe: a base dela é a altura do conteúdo, que
@@ -1772,7 +1783,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "10/08/2026 19:15";
+const APP_BUILD = "10/08/2026 20:05";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -5820,6 +5831,81 @@ function toast(msg, ok){
   clearTimeout(el.__t);
   el.__t = setTimeout(()=>el.classList.remove("show"), 2200);
 }
+
+/* =========================================================================
+   PAINEL DE PROGRESSO
+
+   O toast dura 2,2s e some. Numa geração longa ele era reemitido a cada item,
+   então ficava "aceso" o tempo todo sem dizer quanto falta — e, principalmente,
+   sem oferecer saída para quem tocou no botão sem querer.
+
+   Este painel mostra a etapa, a porcentagem, quantos itens já foram, o tempo
+   decorrido, uma estimativa do que falta e um botão de PARAR. Parar é seguro:
+   cada texto gerado já foi gravado no item antes de o próximo começar, então
+   o que ficou pronto continua valendo e a próxima geração recomeça de onde
+   parou (ela só procura o que ainda não tem sugestão).
+   ========================================================================= */
+let __progresso = null;
+
+function progressoTempo(seg){
+  seg = Math.max(0, Math.round(seg));
+  if(seg < 60) return seg + "s";
+  const min = Math.floor(seg/60);
+  return min + "min " + String(seg%60).padStart(2,"0") + "s";
+}
+function progressoAbrir(titulo, total){
+  /* Já havendo um painel aberto (uma etapa chamando outra), a de dentro só
+     escreve na que já está na tela — senão uma fecharia a outra. */
+  if(__progresso){ __progresso.titulo = titulo; progressoDesenhar(); return false; }
+  __progresso = { titulo, feito:0, total:total||0, inicio:Date.now(), cancelado:false, sub:"" };
+  const div = document.createElement("div");
+  div.id = "progressoRoot";
+  div.className = "prog-fundo";
+  div.innerHTML = `<div class="prog-caixa">
+      <div class="prog-tit" id="progTit"></div>
+      <div class="prog-sub" id="progSub"></div>
+      <div class="prog-trilho"><div class="prog-barra" id="progBarra"></div></div>
+      <div class="prog-linha"><span id="progPct">0%</span><span id="progCont"></span></div>
+      <div class="prog-linha prog-tempo"><span id="progDecorrido"></span><span id="progRestante"></span></div>
+      <button class="btn btn-secondary btn-sm btn-block" style="margin-top:12px" onclick="App.progressoParar()">${ic('close')} Parar</button>
+      <div class="field-hint" style="text-align:center;margin-top:6px">O que já ficou pronto é guardado. Dá para continuar depois.</div>
+    </div>`;
+  document.body.appendChild(div);
+  progressoDesenhar();
+  return true;
+}
+function progressoDesenhar(){
+  const p = __progresso;
+  if(!p || !document.getElementById("progressoRoot")) return;
+  const pct = p.total > 0 ? Math.min(100, Math.round(p.feito*100/p.total)) : 0;
+  const decorrido = (Date.now() - p.inicio)/1000;
+  const el = (id)=> document.getElementById(id);
+  el("progTit").textContent = p.cancelado ? "Parando…" : p.titulo;
+  el("progSub").textContent = p.sub || "";
+  el("progBarra").style.width = pct + "%";
+  el("progPct").textContent = pct + "%";
+  el("progCont").textContent = p.total > 0 ? `${p.feito} de ${p.total}` : "";
+  el("progDecorrido").textContent = "decorrido " + progressoTempo(decorrido);
+  /* A estimativa só aparece com pelo menos 2 itens medidos: com um só, o
+     primeiro item (que carrega o índice de exemplos) daria um número
+     absurdo e a pessoa perderia a confiança no resto. */
+  el("progRestante").textContent = (p.feito >= 2 && p.total > p.feito)
+    ? "faltam ~" + progressoTempo(decorrido/p.feito*(p.total-p.feito)) : "";
+}
+function progressoAtualizar(feito, total, sub){
+  if(!__progresso) return;
+  if(typeof feito === "number") __progresso.feito = feito;
+  if(typeof total === "number" && total > 0) __progresso.total = total;
+  if(sub !== undefined) __progresso.sub = sub || "";
+  progressoDesenhar();
+}
+function progressoFechar(meu){
+  if(meu === false) return;      // quem não abriu o painel não fecha
+  const el = document.getElementById("progressoRoot");
+  if(el) el.remove();
+  __progresso = null;
+}
+function progressoCancelado(){ return !!(__progresso && __progresso.cancelado); }
 
 /* =========================================================================
    ROTEAMENTO / RENDER
@@ -10436,9 +10522,18 @@ async function gerarLaudoIAItens(itens, onProgress, opts){
     : { escopo:[], tarefa:[], risco:[], solucao:[] };
   const maquinasFeitas = new Set(), tarefasFeitas = new Set();
   let gravados = 0;
+  /* Se ninguém abriu painel antes (chamada direta da aba IA), esta função abre
+     o seu; se já havia um (exportação), ela só escreve no que está na tela.
+     "meuPainel" guarda quem tem o direito de fechar no fim. */
+  const meuPainel = progressoAbrir("Escrevendo textos da IA", itens.length);
+  try{
   for(let i=0;i<itens.length;i++){
     const item = itens[i];
     if(onProgress) onProgress(i+1, itens.length);
+    progressoAtualizar(i, itens.length, nomeMaquinaS(item.maquina) || "");
+    /* Parada pedida pelo usuário: sai ANTES de disparar a próxima chamada.
+       Tudo que já foi gerado até aqui está gravado nos itens. */
+    if(progressoCancelado()) break;
     // ---- Escopo + dúvida do equipamento (uma vez por MÁQUINA) ----
     const lm = getLaudoMaquina(item.maquina);
     if(laudoPrecisaGerar(item, "escopo", refazer) && !maquinasFeitas.has(item.maquina.id)){
@@ -10489,7 +10584,9 @@ async function gerarLaudoIAItens(itens, onProgress, opts){
       await esperar(250);
     }
     if(i % 5 === 4) marcarAlterado();
+    progressoAtualizar(i+1, itens.length);
   }
+  }finally{ progressoFechar(meuPainel); }
   // Herança: escopo é por máquina e tarefa é por tarefa — se uma linha
   // conseguiu o texto e outra da mesma máquina/tarefa não, o próprio
   // armazenamento já resolve (é o mesmo objeto), então aqui só contabilizamos.
@@ -11114,7 +11211,10 @@ async function _exportarSimplesXLSXFotosReal(){
   let linhasRaw = linhasEscopoSimples().filter(item=>idsSelecionados.includes(item.area.id));
   if(linhasRaw.length===0){ toast("Nada para exportar ainda", false); return; }
   const modeloXlsmB64 = await lerModeloExcelCorteva();
-  toast("Gerando Excel por área… aguarde");
+  /* Painel único para a exportação inteira: a geração de textos da IA (que é
+     a parte demorada) escreve dentro deste mesmo painel em vez de abrir outro,
+     e o botão Parar vale para as duas etapas. */
+  const painelExport = progressoAbrir("Preparando a exportação", 0);
   try {
     if(modeloXlsmB64){
       // ---- Modelo oficial da Corteva (.xlsm, com macros) ----
@@ -11126,7 +11226,7 @@ async function _exportarSimplesXLSXFotosReal(){
       if(getIAApiKey() && getIAConfig().usarNaExportacaoExcel){
         const pendentesIA = laudoLinhasComPendencia(linhasRaw);
         if(pendentesIA.length>0){
-          await gerarLaudoIAItens(pendentesIA, (i,total)=> toast(`Escrevendo textos da IA… ${i}/${total}`), { refazer:false });
+          await gerarLaudoIAItens(pendentesIA, null, { refazer:false });
           if(__iaCelulasVazias > 0){
             toast(`Atenção: ${__iaCelulasVazias} de ${__iaCelulasTotal} textos da IA não puderam ser gerados${__iaMotivoFalha? ` — ${__iaMotivoFalha}` : ""}. As demais células foram preenchidas normalmente; refazer a exportação mais tarde completa o que faltou.`, false);
           }
@@ -11134,15 +11234,18 @@ async function _exportarSimplesXLSXFotosReal(){
       }
       const linhasComIA = linhasRaw.map(item=>({...item, iaDuvidas: laudoDuvidasDoItem(item), iaTextos: laudoTextosDoItem(item)}));
       const grupos = agruparLinhasPorArea(linhasComIA);
+      progressoAbrir("Gerando Excel", grupos.length);
       const arquivos = [];
       for(let i=0;i<grupos.length;i++){
         const g = grupos[i];
-        toast(`Gerando Excel… área ${i+1}/${grupos.length}: ${g.area.nome||"—"}`);
+        if(progressoCancelado()) break;
+        progressoAtualizar(i, grupos.length, g.area.nome||"");
         const dadosInformacoes = montarDadosInformacoes(g.proj);
         const itensInventario = montarItensInventario(g.linhas);
         const bytes = await gerarBytesXlsmCorteva(modeloXlsmB64, g.linhas, itensInventario, dadosInformacoes);
         arquivos.push({ name: nomeArquivoArea(g.proj, g.area, "xlsm"), data: bytes });
       }
+      if(progressoCancelado()){ toast("Exportação parada. Os textos que a IA já escreveu ficaram guardados no app.", false); return; }
       if(arquivos.length===1){
         const blob = new Blob([arquivos[0].data], {type:"application/vnd.ms-excel.sheet.macroEnabled.12"});
         await compartilharOuBaixarBlob(blob, arquivos[0].name, blob.type, "Excel exportado (modelo Corteva, com macros)");
@@ -11156,17 +11259,20 @@ async function _exportarSimplesXLSXFotosReal(){
     // ---- Sem modelo enviado: formato simples de sempre (sem macros) ----
     if(getIAApiKey() && getIAConfig().usarNaExportacaoExcel){
       const pendentesIA = laudoLinhasComPendencia(linhasRaw);
-      if(pendentesIA.length>0) await gerarLaudoIAItens(pendentesIA, (i,total)=> toast(`Escrevendo textos da IA… ${i}/${total}`), { refazer:false });
+      if(pendentesIA.length>0) await gerarLaudoIAItens(pendentesIA, null, { refazer:false });
     }
     linhasRaw = aplicarLaudoAprovadoNasLinhas(linhasRaw);
     const grupos = agruparLinhasPorArea(linhasRaw);
+    progressoAbrir("Gerando Excel", grupos.length);
     const arquivos = [];
     for(let i=0;i<grupos.length;i++){
       const g = grupos[i];
-      toast(`Gerando Excel… área ${i+1}/${grupos.length}: ${g.area.nome||"—"}`);
+      if(progressoCancelado()) break;
+      progressoAtualizar(i, grupos.length, g.area.nome||"");
       const bytes = await gerarBytesXlsxSimples(g.linhas);
       arquivos.push({ name: nomeArquivoArea(g.proj, g.area, "xlsx"), data: bytes });
     }
+    if(progressoCancelado()){ toast("Exportação parada. Os textos que a IA já escreveu ficaram guardados no app.", false); return; }
     if(arquivos.length===1){
       const blob = new Blob([arquivos[0].data], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
       await compartilharOuBaixarBlob(blob, arquivos[0].name, blob.type, "Excel exportado");
@@ -11178,6 +11284,11 @@ async function _exportarSimplesXLSXFotosReal(){
   } catch(erroExport) {
     console.error("Erro ao gerar Excel com fotos (Módulo Simplificado):", erroExport);
     toast("Erro ao gerar o Excel: "+(erroExport && erroExport.message ? erroExport.message : String(erroExport)), false);
+  } finally {
+    /* Sai da tela em qualquer desfecho: sucesso, erro ou parada. Sem isto o
+       painel ficaria preso na frente do app — que é justamente o defeito do
+       aviso que nunca sumia. */
+    progressoFechar(painelExport);
   }
 }
 /* =========================================================================
@@ -14251,23 +14362,26 @@ async function _exportarSimplesDOCXReal(){
   if(idsSelecionados.length===0){ toast("Selecione ao menos uma área em Configurações", false); return; }
   let linhasRaw = linhasEscopoSimples().filter(item=>idsSelecionados.includes(item.area.id));
   if(linhasRaw.length===0){ toast("Nada para exportar ainda", false); return; }
-  toast("Gerando Word por área… aguarde");
+  const painelWord = progressoAbrir("Preparando a exportação", 0);
   // Mesma fonte de verdade do Excel: o Word usa os textos aprovados na área
   // "Laudo". O que ainda não tiver sugestão é gerado agora e fica gravado.
   if(getIAApiKey()){
     const pendentesIA = laudoLinhasComPendencia(linhasRaw);
-    if(pendentesIA.length>0) await gerarLaudoIAItens(pendentesIA, (i,total)=> toast(`Escrevendo textos da IA… ${i}/${total}`), { refazer:false });
+    if(pendentesIA.length>0) await gerarLaudoIAItens(pendentesIA, null, { refazer:false });
   }
   linhasRaw = aplicarLaudoAprovadoNasLinhas(linhasRaw);
   try {
     const grupos = agruparLinhasPorArea(linhasRaw);
+    progressoAbrir("Gerando Word", grupos.length);
     const arquivos = [];
     for(let i=0;i<grupos.length;i++){
       const g = grupos[i];
-      toast(`Gerando Word… área ${i+1}/${grupos.length}: ${g.area.nome||"—"}`);
+      if(progressoCancelado()) break;
+      progressoAtualizar(i, grupos.length, g.area.nome||"");
       const bytes = await gerarBytesDocxSimples(g.linhas);
       arquivos.push({ name: nomeArquivoArea(g.proj, g.area, "docx"), data: bytes });
     }
+    if(progressoCancelado()){ toast("Exportação parada. Os textos que a IA já escreveu ficaram guardados no app.", false); return; }
     if(arquivos.length===1){
       const blob = new Blob([arquivos[0].data], {type:"application/vnd.openxmlformats-officedocument.wordprocessingml.document"});
       await compartilharOuBaixarBlob(blob, arquivos[0].name, blob.type, "Word exportado");
@@ -14279,7 +14393,7 @@ async function _exportarSimplesDOCXReal(){
   } catch(erroExport) {
     console.error("Erro ao gerar Word por área (Módulo Simplificado):", erroExport);
     toast("Erro ao gerar o Word: "+(erroExport && erroExport.message ? erroExport.message : String(erroExport)), false);
-  }
+  } finally { progressoFechar(painelWord); }
 }
 
 /* =========================================================================
@@ -14767,6 +14881,13 @@ const App = {
       __lendoPlaquetaIA = false;
       renderModalEntidade();
     }
+  },
+  /* Não interrompe no meio de uma chamada já em voo: marca a parada, e o laço
+     sai antes de disparar a próxima. Assim nenhum texto fica pela metade. */
+  progressoParar(){
+    if(!__progresso) return;
+    __progresso.cancelado = true;
+    progressoDesenhar();
   },
   onDraftSelectChange(field, value){ __draftEntity[field]=value; renderModalEntidade(); },
   /* ---- Montador de risco em campo ---- */
@@ -16223,7 +16344,7 @@ const App = {
     const pend = laudoLinhasComPendencia(laudoItensDoEscopo());
     if(pend.length===0){ toast("Todos os textos já estão gerados"); return; }
     toast(`Gerando textos… ${pend.length} linha(s)`);
-    await gerarLaudoIAItens(pend, (i,total)=> toast(`Escrevendo textos da IA… ${i}/${total}`), { refazer:false });
+    await gerarLaudoIAItens(pend, null, { refazer:false });
     render();
     toast(__iaCelulasVazias>0 ? `${__iaCelulasVazias} campo(s) sem texto${__iaMotivoFalha? " — "+__iaMotivoFalha : ""}` : "Textos gerados — revise e aplique", __iaCelulasVazias===0);
   },
@@ -16232,7 +16353,7 @@ const App = {
     if(itens.length===0) return;
     if(!confirm("Reescrever as sugestões da IA de todas as linhas?\n\nO que você já aplicou, editou ou recusou é PRESERVADO — só as sugestões ainda não decididas são refeitas.")) return;
     toast("Refazendo as sugestões…");
-    await gerarLaudoIAItens(itens, (i,total)=> toast(`Escrevendo textos da IA… ${i}/${total}`), { refazer:true });
+    await gerarLaudoIAItens(itens, null, { refazer:true });
     render();
     toast("Sugestões atualizadas");
   },

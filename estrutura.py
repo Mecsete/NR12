@@ -779,6 +779,38 @@ chk("o logotipo da capa continua saindo todo branco",
     novo.count("filter:brightness(0) invert(1)") == 1
     and ".lp-capa-lat .lp-logo{filter:brightness(0) invert(1)" in novo)
 
+print("\n=== 34. PAINEL DE PROGRESSO COM PARADA ===")
+chk("o painel existe inteiro",
+    all(novo.count("function %s(" % f) == 1 for f in
+        ["progressoTempo", "progressoAbrir", "progressoDesenhar", "progressoAtualizar",
+         "progressoFechar", "progressoCancelado"])
+    and novo.count("progressoParar(){") == 1)
+chk("fica acima de modal e de caixa de texto expandida",
+    ".prog-fundo{position:fixed;inset:0;z-index:5000;" in novo)
+chk("dois painies nao se empilham nem se fecham entre si",
+    "if(__progresso){ __progresso.titulo = titulo; progressoDesenhar(); return false; }" in novo
+    and "if(meu === false) return;" in novo)
+chk("a estimativa so aparece com pelo menos dois itens medidos",
+    "p.feito >= 2 && p.total > p.feito" in novo
+    and "decorrido/p.feito*(p.total-p.feito)" in novo)
+chk("parar sai antes da proxima chamada, nao no meio de uma",
+    "__progresso.cancelado = true;" in novo
+    and novo.count("if(progressoCancelado()) break;") == 4)
+# Excel, Word e a geracao de textos. Sem finally o painel ficaria preso na
+# tela — exatamente o defeito do aviso que se renovava sozinho.
+chk("o painel fecha em qualquer desfecho",
+    len(re.findall(r"\}\s*finally\s*\{[^}]*progressoFechar", novo)) == 3
+    and novo.count("progressoFechar(painelExport)") == 1
+    and novo.count("progressoFechar(painelWord)") == 1
+    and novo.count("finally{ progressoFechar(meuPainel); }") == 1)
+chk("exportacao parada nao entrega arquivo pela metade",
+    novo.count('if(progressoCancelado()){ toast("Exportação parada') == 3)
+chk("os avisos repetidos por item sairam do caminho",
+    "Escrevendo textos da IA… ${i}/${total}" not in novo
+    and "Gerando Excel… área ${i+1}" not in novo
+    and "Gerando Word… área ${i+1}" not in novo
+    and len(re.findall(r"gerarLaudoIAItens\([a-zA-Z]+, null, \{ refazer:(?:true|false) \}\)", novo)) == 5)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
