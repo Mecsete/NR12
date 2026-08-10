@@ -12,7 +12,9 @@ function trecho(ini, fim){
   return HTML.slice(i, f);
 }
 function funcao(nome){
-  const re = new RegExp("\\n(?:async )?function " + nome + "\\s*\\(");
+  /* \s* no começo: funções dentro do módulo de impressão vivem indentadas
+     dentro da IIFE, não na coluna zero. */
+  const re = new RegExp("\\n\\s*(?:async )?function " + nome + "\\s*\\(");
   const m = re.exec(HTML);
   if(!m) throw new Error("funcao nao encontrada: " + nome);
   let i = m.index + 1;
@@ -3280,15 +3282,17 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   vm.runInContext(constante("TIPOS_EQUIPAMENTO"), ctx);
   [ "tipoSugeridoDaMaquina", "tipoEquipamento" ].forEach(n=> vm.runInContext(funcao(n), ctx));
   t("as colunas do inventário são iguais em todas as tabelas", ()=>{
-    ok(HTML.indexOf("const INV_COLS = [88, 24, 104, 100, 58, 58, 50, 50, 54, 28, 40, 34];") > 0, "sem larguras fixas");
+    ok(/const INV_COLS = \[\d+(, ?\d+){11}\];/.test(HTML), "sem larguras fixas para as 12 colunas");
     eq((HTML.match(/\$\{invColgroup\}/g)||[]).length, 2, "o colgroup precisa ir no cabeçalho E em cada linha");
     ok(HTML.indexOf(".lp-inv{width:100%;table-layout:fixed;") > 0,
        "sem table-layout:fixed a largura declarada vira só sugestão e cada linha recalcula a sua");
   });
-  t("as larguras somam a área útil da página A4", ()=>{
+  /* A soma tem de bater com a página em que a tabela é IMPRESSA. Desde que o
+     inventário passou a sair deitado, essa página é a A4 em paisagem. */
+  t("as larguras somam a área útil da página do inventário", ()=>{
     const m = /const INV_COLS = \[([^\]]+)\]/.exec(HTML);
     const soma = m[1].split(",").reduce((a,b)=>a+Number(b.trim()),0);
-    eq(soma, 688, "794px de página menos 2 × 53px de margem");
+    eq(soma, 1017, "297mm de página deitada menos 2 × 14mm de margem");
   });
   t("não sobrou largura em linha brigando com o colgroup", ()=>{
     ok(HTML.indexOf('<th style="width:96px">Imagem</th>') < 0, "os width antigos do cabeçalho continuariam mandando");
@@ -3393,6 +3397,53 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     eq(gravados, 0, "não deveria ter gerado nada depois da parada");
     eq(painelTeste.fechamentos, 1, "o painel precisa fechar mesmo tendo sido parado");
     painelTeste.cancelar = false;
+  });
+
+  console.log("\n=== t78 · inventário de máquinas em página deitada ===");
+  t("existe geometria própria para a página deitada", ()=>{
+    ok(HTML.indexOf("const UTIL_L_P = PAG_A - MARGEM * 2;") > 0, "sem largura da página deitada");
+    ok(HTML.indexOf("const UTIL_A_P = PAG_L - MARGEM * 2 - ROD_A;") > 0, "a altura também desconta o rodapé");
+    ok(HTML.indexOf("const MAX_A_P  = Math.floor(UTIL_A_P * 0.98);") > 0);
+  });
+  t("as larguras novas somam a área útil deitada", ()=>{
+    const m = /const INV_COLS = \[([^\]]+)\]/.exec(HTML);
+    const soma = m[1].split(",").reduce((a,b)=>a+Number(b.trim()),0);
+    eq(soma, 1017, "297mm de página menos 2 × 14mm de margem");
+  });
+  t("cada bloco é medido na largura em que vai ser impresso", ()=>{
+    const f = funcao("paginar");
+    ok(f.indexOf('med.style.width = (deitada ? UTIL_L_P : UTIL_L) + "px";') > 0,
+       "medir em pé o que sai deitado daria altura errada e a página estouraria");
+    ok(f.indexOf("const teto = deitada ? MAX_A_P : MAX_A;") > 0, "usaria o teto da página errada");
+  });
+  t("trocar de orientação obriga página nova", ()=>{
+    const f = funcao("paginar");
+    ok(f.indexOf("if(deitada !== orient){ fechar(); orient = deitada; }") > 0,
+       "não existe meia página deitada — sem isto, blocos das duas orientações cairiam juntos");
+    ok(f.indexOf("paginas.push({ blocos:atual, paisagem:orient })") > 0, "a página não guardaria a orientação");
+  });
+  t("só o inventário pede página deitada", ()=>{
+    eq((HTML.match(/paisagem:true/g)||[]).length, 2, "o cabeçalho e as linhas do inventário, e mais nada");
+    ok(funcao("blocosInventario").indexOf("quebrarAntes:true, paisagem:true") > 0);
+  });
+  t("a página deitada tem CSS e @page próprios", ()=>{
+    ok(HTML.indexOf(".lp-pagina.lp-paisagem{width:${PAG_A}px;height:${PAG_L}px}") > 0);
+    ok(HTML.indexOf(".lp-paisagem .lp-corpo{height:${UTIL_A_P}px}") > 0);
+    ok(HTML.indexOf("@page paisagem{size:A4 landscape;margin:0}") > 0, "sem @page nomeada não sai deitado no PDF");
+    ok(HTML.indexOf(".lp-pagina.lp-paisagem{page:paisagem}") > 0, "a página não é ligada à regra @page");
+    ok(HTML.indexOf('${p.paisagem?" lp-paisagem":""}') > 0, "a classe não chega ao HTML da página");
+  });
+  t("a prévia comporta a página deitada, que é mais larga", ()=>{
+    ok(HTML.indexOf('id="lpDoc" style="transform:scale(${zoom});width:${PAG_A}px;') > 0,
+       "com a largura antiga a página deitada vazaria para fora da prévia");
+  });
+  t("a instrução de impressão avisa para não forçar paisagem", ()=>{
+    ok(HTML.indexOf("Deixe a orientação em Retrato.") > 0);
+  });
+  t("a coluna Local não repete mais o nome da área", ()=>{
+    ok(HTML.indexOf('<td>${esc(m.local||it.area.local||"")}</td>') > 0);
+    ok(HTML.indexOf('${esc(m.local||it.area.nome||"")}') < 0,
+       "era o que fazia Área e Local saírem com o mesmo texto");
   });
 
   console.log("\n---------------------------------------");

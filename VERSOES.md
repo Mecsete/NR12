@@ -22,6 +22,47 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 10/08/2026 21:10
+
+Inventário de máquinas passa a sair em página deitada (paisagem), como no
+modelo em Excel.
+
+### O ganho
+
+| | Largura útil |
+|---|---|
+| Página em pé | 688 px |
+| Página deitada | 1017 px |
+
+São 48% mais largura. As colunas passaram de Modelo 50 px, Marca 50, Nº Série
+54, Ano 28, Capacidade 40 e Tensão 34 para 78, 78, 85, 40, 66 e 70 — e Nome foi
+a 150, Descrição a 140, Imagem a 120. Com dados reais, cada campo agora cabe em
+uma linha só ("SN-2021-10137", "Kepler Weber", "380V") em vez de quebrar em
+três.
+
+Conferido na prévia: as 12 colunas somam exatos 1017 px, ficam idênticas entre
+o cabeçalho e todas as linhas, e a tabela não passa da borda da página. Cabem
+até 14 máquinas por página deitada.
+
+### Como funciona
+
+Só a seção do inventário vira. O laudo continua em pé do começo ao fim, e a
+troca de orientação abre página nova automaticamente dos dois lados — não
+existe meia página deitada.
+
+Ao imprimir, **deixe a orientação em Retrato** na janela do navegador. O
+inventário já sai deitado sozinho; forçar Paisagem ali viraria o laudo inteiro.
+O próprio app passou a avisar isso no quadro de instruções.
+
+### Coluna Local corrigida
+
+Área e Local saíam com o mesmo texto. A tabela impressa estava lendo o **nome
+da área** na coluna Local, enquanto o Excel lia o campo Local da área — por
+isso o Excel mostrava "Despalha 100" e o laudo repetia "Seleção manual 100".
+Agora os dois leem o mesmo campo.
+
+---
+
 ## 10/08/2026 20:05
 
 Barra de progresso com tempo e botão de parar nas exportações.

@@ -1783,7 +1783,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "10/08/2026 20:05";
+const APP_BUILD = "10/08/2026 21:10";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -17383,6 +17383,14 @@ window.addEventListener("pageshow", (event) => {
   const UTIL_L  = PAG_L - MARGEM * 2;
   const UTIL_A  = PAG_A - MARGEM * 2 - ROD_A;
   const MAX_A   = Math.floor(UTIL_A * 0.98); // 2% de folga contra arredondamento
+  /* PAGINA DEITADA (paisagem), usada pelo inventario de maquinas — e assim que
+     a tabela esta no modelo em Excel do cliente. Trocam-se largura e altura:
+     sobra quase metade de largura (1017 contra 688) e a altura util cai de
+     1017 para 636 (a altura tambem desconta o rodape), entao cabem menos
+     maquinas por pagina, porem legiveis. */
+  const UTIL_L_P = PAG_A - MARGEM * 2;                 // 1017
+  const UTIL_A_P = PAG_L - MARGEM * 2 - ROD_A;         // 688
+  const MAX_A_P  = Math.floor(UTIL_A_P * 0.98);
 
   const NAVY = "#1E2148", LARANJA = "#E94E1B";
 
@@ -17402,7 +17410,9 @@ window.addEventListener("pageshow", (event) => {
   font-family:Arial,Helvetica,sans-serif;font-size:11.5px;line-height:1.42;color:#111;
   -webkit-print-color-adjust:exact;print-color-adjust:exact}
 .lp-pagina.lp-sem-margem{padding:0}
+.lp-pagina.lp-paisagem{width:${PAG_A}px;height:${PAG_L}px}
 .lp-corpo{height:${UTIL_A}px;overflow:hidden}
+.lp-paisagem .lp-corpo{height:${UTIL_A_P}px}
 .lp-rodape{position:absolute;left:${MARGEM}px;right:${MARGEM}px;bottom:${Math.round(6*MM)}px;height:${ROD_A}px;
   display:flex;align-items:flex-end;justify-content:space-between;font-size:8px;color:#777;line-height:1.5}
 .lp-rodape .lp-num{font-size:9px;color:#888}
@@ -17490,6 +17500,11 @@ window.addEventListener("pageshow", (event) => {
 .lp-assin .linha{border-top:1px solid #333;margin-bottom:5px;padding-top:5px}
 /* --- impressão --- */
 @page{size:A4 portrait;margin:0}
+/* Pagina nomeada: e o que permite UMA secao sair deitada no meio de um
+   documento em pe. Se o navegador nao suportar, a pagina sai em pe e a tabela
+   fica cortada na direita — por isso a tela avisa para conferir a previa. */
+@page paisagem{size:A4 landscape;margin:0}
+.lp-pagina.lp-paisagem{page:paisagem}
 @media print{
   body.lp-imprimindo > *{display:none !important}
   body.lp-imprimindo > #lpPrintRoot{display:block !important}
@@ -17664,7 +17679,7 @@ window.addEventListener("pageshow", (event) => {
      no CSS (faz a largura declarada valer, em vez de servir de sugestão) e
      este mesmo <colgroup> repetido em TODAS as tabelas. As larguras somam
      exatamente a área útil da página (794 − 2×53 = 688px). */
-  const INV_COLS = [88, 24, 104, 100, 58, 58, 50, 50, 54, 28, 40, 34];
+  const INV_COLS = [120, 30, 150, 140, 80, 80, 78, 78, 85, 40, 66, 70];
   const invColgroup = `<colgroup>${INV_COLS.map(w=>`<col style="width:${w}px">`).join("")}</colgroup>`;
   async function blocosInventario(itens, d){
     const maqs = [];
@@ -17673,15 +17688,15 @@ window.addEventListener("pageshow", (event) => {
     const cab = `<tr><th>Imagem</th><th>Nº</th><th>Nome</th><th>Descrição</th>
       <th>Área</th><th>Local</th><th>Modelo</th><th>Marca</th>
       <th>Nº Série</th><th>Ano</th><th>Capac.</th><th>Tensão</th></tr>`;
-    const blocos = [{ quebrarAntes:true, html:`<div class="lp-faixa-c">INVENTÁRIO DE MÁQUINAS</div>
+    const blocos = [{ quebrarAntes:true, paisagem:true, html:`<div class="lp-faixa-c">INVENTÁRIO DE MÁQUINAS</div>
       <table class="lp-inv">${invColgroup}${cab}</table>` }];
     for(let i=0;i<maqs.length;i++){
       const it = maqs[i], m = it.maquina;
       const foto = await reduzirFoto(m.fotoGeral || m.fotoPlaqueta, 380);
-      blocos.push({ html:`<table class="lp-inv">${invColgroup}<tr>
+      blocos.push({ paisagem:true, html:`<table class="lp-inv">${invColgroup}<tr>
         <td class="foto">${foto? `<img src="${foto}">` : ""}</td>
         <td>${i+1}</td><td class="nome">${esc(nomeMaquinaS(m))}</td><td>${esc(tipoEquipamento(m))}</td>
-        <td>${esc(it.area.nome||"")}</td><td>${esc(m.local||it.area.nome||"")}</td>
+        <td>${esc(it.area.nome||"")}</td><td>${esc(m.local||it.area.local||"")}</td>
         <td>${esc(m.modelo||"")}</td><td>${esc(m.marca||"")}</td><td>${esc(m.numeroSerie||"")}</td>
         <td>${esc(m.anoFabricacao||"")}</td><td>${esc(m.capacidade||"")}</td><td>${esc(m.tensao||"")}</td>
       </tr></table>` });
@@ -17777,28 +17792,37 @@ window.addEventListener("pageshow", (event) => {
   }
 
   /* ---------- paginador ---------- */
+  /* Mede e empacota os blocos em paginas. Cada bloco pode pedir a pagina
+     deitada (b.paisagem). Duas coisas mudam com isso, e as duas importam:
+     o bloco precisa ser MEDIDO na largura em que vai ser impresso (senao a
+     altura calculada nao corresponde a nada), e trocar de orientacao obriga a
+     comecar pagina nova — nao existe meia pagina deitada. */
   async function paginar(blocos){
     const med = document.createElement("div");
     med.className = "lp-medidor";
-    med.style.width = UTIL_L + "px";
     document.body.appendChild(med);
     try{ if(document.fonts && document.fonts.ready) await document.fonts.ready; }catch(e){}
     const paginas = [];
-    let atual = [], altura = 0;
+    let atual = [], altura = 0, orient = false;
+    const fechar = ()=>{ if(atual.length){ paginas.push({ blocos:atual, paisagem:orient }); atual = []; altura = 0; } };
     for(const b of blocos){
+      const deitada = !!b.paisagem;
       if(b.paginaInteira){
-        if(atual.length){ paginas.push({ blocos:atual }); atual = []; altura = 0; }
-        paginas.push({ blocos:[b], semRodape:!!b.semRodape, semMargem:!!b.semRodape });
+        fechar();
+        paginas.push({ blocos:[b], semRodape:!!b.semRodape, semMargem:!!b.semRodape, paisagem:deitada });
         continue;
       }
+      if(deitada !== orient){ fechar(); orient = deitada; }
+      med.style.width = (deitada ? UTIL_L_P : UTIL_L) + "px";
       med.innerHTML = b.html;
       await esperarImagens(med);
       const h = Math.ceil(med.getBoundingClientRect().height);
-      if(b.quebrarAntes && atual.length){ paginas.push({ blocos:atual }); atual = []; altura = 0; }
-      if(altura + h > MAX_A && atual.length){ paginas.push({ blocos:atual }); atual = []; altura = 0; }
+      const teto = deitada ? MAX_A_P : MAX_A;
+      if(b.quebrarAntes && atual.length){ fechar(); }
+      if(altura + h > teto && atual.length){ fechar(); }
       atual.push(b); altura += h;
     }
-    if(atual.length) paginas.push({ blocos:atual });
+    fechar();
     med.remove();
     return paginas;
   }
@@ -17810,7 +17834,7 @@ window.addEventListener("pageshow", (event) => {
     </div>`;
   }
   function montarDoc(paginas, d){
-    return paginas.map((p, i)=> `<div class="lp-pagina${p.semMargem?" lp-sem-margem":""}">
+    return paginas.map((p, i)=> `<div class="lp-pagina${p.semMargem?" lp-sem-margem":""}${p.paisagem?" lp-paisagem":""}">
       <div class="lp-corpo">${p.blocos.map(b=>b.html).join("")}</div>
       ${p.semRodape ? "" : rodapeHtml(d, i+1, paginas.length)}
     </div>`).join("");
@@ -17866,12 +17890,13 @@ window.addEventListener("pageshow", (event) => {
           </div>
         </div>`}
     ${__lpPaginas.length? `
-      <div class="lp-visor"><div class="lp-doc" id="lpDoc" style="transform:scale(${zoom});width:${PAG_L}px;margin-bottom:${Math.round(-PAG_A*(1-zoom))}px">${__lpHtml}</div></div>
+      <div class="lp-visor"><div class="lp-doc" id="lpDoc" style="transform:scale(${zoom});width:${PAG_A}px;margin-bottom:${Math.round(-PAG_A*(1-zoom))}px">${__lpHtml}</div></div>
       <div class="card card-pad" style="margin-top:10px;background:var(--bg-soft)">
         <div style="font-weight:800;font-size:13px;margin-bottom:5px">Ao abrir a janela de impressão</div>
         <div style="font-size:12.5px;color:var(--ink-dim);line-height:1.6">
           Destino: <b>Salvar como PDF</b> · Margens: <b>Nenhuma</b> · Escala: <b>100%</b><br>
-          Em "Mais definições", desmarque <b>Cabeçalhos e rodapés</b> e marque <b>Gráficos de segundo plano</b>.
+          Em "Mais definições", desmarque <b>Cabeçalhos e rodapés</b> e marque <b>Gráficos de segundo plano</b>.<br>
+          <b>Deixe a orientação em Retrato.</b> O inventário de máquinas já sai deitado sozinho — forçar Paisagem na janela de impressão viraria o laudo inteiro.
         </div>
       </div>` : `<div class="empty">${ic('print')}<h3>Laudo ainda não montado</h3><p>Toque em "Montar laudo" para gerar as páginas.</p></div>`}
     `;

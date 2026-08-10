@@ -751,12 +751,14 @@ print("\n=== 33. INVENTARIO DE MAQUINAS: COLUNAS FIXAS E TIPO DO EQUIPAMENTO ===
 # Tabela HTML calcula largura pelo proprio conteudo: sem table-layout:fixed +
 # o MESMO colgroup em todas, cada linha inventa a sua e nada alinha.
 chk("colunas fixas e iguais em todas as tabelas do inventario",
-    "const INV_COLS = [88, 24, 104, 100, 58, 58, 50, 50, 54, 28, 40, 34];" in novo
+    bool(re.search(r"const INV_COLS = \[\d+(?:, ?\d+){11}\];", novo))
     and novo.count("${invColgroup}") == 2
     and ".lp-inv{width:100%;table-layout:fixed;" in novo)
+# A soma tem de bater com a pagina em que a tabela e IMPRESSA. Desde que o
+# inventario passou a sair deitado, essa pagina e a A4 em paisagem (297mm).
 _m_cols = re.search(r"const INV_COLS = \[([^\]]+)\]", novo)
-chk("as larguras somam a area util da pagina A4 (794 - 2x53)",
-    bool(_m_cols) and sum(int(x.strip()) for x in _m_cols.group(1).split(",")) == 688)
+chk("as larguras somam a area util da pagina deitada (1123 - 2x53)",
+    bool(_m_cols) and sum(int(x.strip()) for x in _m_cols.group(1).split(",")) == 1017)
 chk("nao sobrou largura em linha brigando com o colgroup",
     '<th style="width:96px">Imagem</th>' not in novo
     and ".lp-inv td.foto{padding:2px}" in novo)
@@ -810,6 +812,37 @@ chk("os avisos repetidos por item sairam do caminho",
     and "Gerando Excel… área ${i+1}" not in novo
     and "Gerando Word… área ${i+1}" not in novo
     and len(re.findall(r"gerarLaudoIAItens\([a-zA-Z]+, null, \{ refazer:(?:true|false) \}\)", novo)) == 5)
+
+print("\n=== 35. INVENTARIO EM PAGINA DEITADA ===")
+chk("geometria propria da pagina deitada",
+    "const UTIL_L_P = PAG_A - MARGEM * 2;" in novo
+    and "const UTIL_A_P = PAG_L - MARGEM * 2 - ROD_A;" in novo
+    and "const MAX_A_P  = Math.floor(UTIL_A_P * 0.98);" in novo)
+# Medir em pe um bloco que sai deitado daria altura errada e a pagina
+# estouraria; e nao existe meia pagina deitada, entao trocar de orientacao
+# tem de fechar a pagina anterior.
+chk("cada bloco e medido na largura em que vai ser impresso",
+    'med.style.width = (deitada ? UTIL_L_P : UTIL_L) + "px";' in novo
+    and "const teto = deitada ? MAX_A_P : MAX_A;" in novo)
+chk("trocar de orientacao fecha a pagina",
+    "if(deitada !== orient){ fechar(); orient = deitada; }" in novo
+    and "paginas.push({ blocos:atual, paisagem:orient })" in novo)
+chk("so o inventario pede pagina deitada",
+    novo.count("paisagem:true") == 2
+    and "quebrarAntes:true, paisagem:true" in novo)
+chk("CSS e @page da pagina deitada",
+    ".lp-pagina.lp-paisagem{width:${PAG_A}px;height:${PAG_L}px}" in novo
+    and ".lp-paisagem .lp-corpo{height:${UTIL_A_P}px}" in novo
+    and "@page paisagem{size:A4 landscape;margin:0}" in novo
+    and ".lp-pagina.lp-paisagem{page:paisagem}" in novo
+    and '${p.paisagem?" lp-paisagem":""}' in novo)
+chk("a previa comporta a pagina deitada",
+    'id="lpDoc" style="transform:scale(${zoom});width:${PAG_A}px;' in novo)
+chk("a instrucao de impressao avisa para nao forcar paisagem",
+    "Deixe a orientação em Retrato." in novo)
+chk("a coluna Local nao repete mais o nome da area",
+    '<td>${esc(m.local||it.area.local||"")}</td>' in novo
+    and '${esc(m.local||it.area.nome||"")}' not in novo)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
