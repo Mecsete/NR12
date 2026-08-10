@@ -22,6 +22,57 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 10/08/2026 18:40
+
+Duas correções: o quadro verde do "Aplicar em vários" e o logotipo do laudo.
+
+### O texto de origem aparece inteiro no "Aplicar em vários"
+
+O quadro verde que mostra o texto que vai ser copiado estava sendo espremido
+a uma linha só. A folha é montada em coluna e, quando o conteúdo passava da
+altura da tela, **tudo** encolhia junto — inclusive o quadro.
+
+Agora só a lista encolhe (ela rola por dentro, que é o esperado de uma
+lista). O quadro mostra o texto inteiro, com teto de 30% da altura da tela
+para nunca engolir a lista; passando disso, rola por dentro do próprio
+quadro. Em tela baixa o teto cai para 22%.
+
+A mesma correção valeu para a folha **Copiar de outro**, que tinha a mesma
+estrutura e o mesmo defeito à espera.
+
+### Logotipo do laudo: fundo transparente de volta
+
+**O que acontecia.** Ao enviar o logotipo, o app convertia a imagem para
+JPEG. JPEG não tem canal de transparência: todo pixel transparente do PNG
+original virava **preto**. Daí o fundo preto no rodapé. Na capa era pior — lá
+o logotipo leva um filtro que inverte as cores, então o retângulo preto virava
+um retângulo branco por cima da capa azul.
+
+**A correção.** O logotipo passa a ser salvo em PNG, que guarda a
+transparência. Foto continua em JPEG, que é o certo para foto (arquivo bem
+menor) — mudou só o logotipo. Como PNG não tem controle de qualidade, o
+tamanho é contido reduzindo a imagem quando necessário; logotipo é desenho de
+poucas cores e costuma passar direto no tamanho cheio.
+
+**Dava para enviar, mas não para trocar.** O painel do logotipo só aparecia
+enquanto não houvesse logotipo nenhum. Depois do primeiro envio ele sumia — e
+com ele, qualquer forma de corrigir. Agora o painel fica sempre visível, com:
+
+- **prévia sobre fundo quadriculado**, que mostra a olho nu onde o logotipo é
+  transparente e onde tem fundo sólido;
+- **Trocar logotipo** e **Remover**;
+- **aviso automático** quando o logotipo guardado está no formato antigo (sem
+  transparência), explicando o que houve e pedindo o reenvio do PNG original.
+
+Trocar ou remover carimba a alteração para os outros aparelhos e limpa as
+páginas já montadas, para a prévia não continuar mostrando o logotipo velho.
+
+**O que fazer:** abra Laudo → Imprimir. Se aparecer o aviso amarelo, toque em
+**Trocar logotipo** e envie o PNG original de novo. Uma vez só — sincroniza
+para os outros aparelhos.
+
+---
+
 ## 07/08/2026 23:45
 
 Mitigação existente separada da Solução, caixas de texto que abrem em tela

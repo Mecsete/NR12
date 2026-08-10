@@ -428,6 +428,22 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .rep-item .rep-cam{font-size:11px;font-weight:700;color:var(--ink-faint);margin-top:1px;}
 .rep-item .rep-atual{font-size:11.5px;color:var(--ink-dim);margin-top:3px;line-height:1.35;}
 .rep-item .rep-aviso{font-size:11px;font-weight:800;color:#B26A00;margin-top:3px;}
+/* Numa folha em coluna, TUDO encolhe por padrão quando o conteúdo passa da
+   altura máxima — inclusive o quadro do texto de origem, que ficava espremido
+   em uma linha só. Aqui só a lista pode encolher; o resto mantém o tamanho. */
+.sheet-col{display:flex;flex-direction:column;}
+.sheet-col>*{flex-shrink:0;}
+/* A lista é a única coisa que encolhe: a base dela é a altura do conteúdo, que
+   é sempre maior que a folha, então é ela que absorve o aperto — e rola por
+   dentro, que é o comportamento esperado de uma lista. */
+.sheet-col>.sheet-rolagem{flex:1 1 auto;min-height:0;overflow:auto;}
+/* O quadro do texto de origem NÃO encolhe (era isso que o espremia em uma
+   linha só) e é limitado a 30% da altura da tela, para nunca engolir a lista.
+   Texto maior que isso rola por dentro do próprio quadro. */
+.rep-origem{flex:0 0 auto;font-size:12.5px;color:var(--ink);background:#E3F4E4;border:1px solid #A5D6A7;border-radius:8px;padding:9px 10px;white-space:pre-wrap;line-height:1.45;max-height:30vh;overflow:auto;margin-bottom:10px;}
+/* Tela baixa (aparelho antigo, ou navegador com muita barra à mostra): 30% já
+   seria demais e sobraria quase nada de lista. */
+@media (max-height:700px){ .rep-origem{max-height:22vh;} }
 .laudo-card-in{display:flex;gap:10px;align-items:flex-start;padding:10px;width:100%;text-align:left;background:none;border:none;color:var(--ink);}
 .laudo-card-in:active{background:var(--bg-soft);}
 .laudo-thumbs{display:flex;flex-direction:column;gap:4px;flex-shrink:0;}
@@ -1756,7 +1772,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/08/2026 23:45";
+const APP_BUILD = "10/08/2026 18:40";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -5312,6 +5328,49 @@ function fmtDate(d){
   const dt = new Date(d+"T00:00:00");
   if(isNaN(dt)) return d;
   return dt.toLocaleDateString("pt-BR");
+}
+/* LOGOTIPO: PNG, NUNCA JPEG.
+   comprimirImagem() abaixo exporta em JPEG — certo para foto, porque o arquivo
+   fica muito menor. Só que JPEG não tem canal de transparência: um PNG com
+   fundo transparente desenhado na tela e salvo como JPEG sai com os pixels
+   transparentes em PRETO. Era isso que enchia de preto o fundo do logotipo no
+   laudo, e o que estragava a capa (lá o logotipo leva um filtro que inverte as
+   cores — o retângulo preto virava um retângulo branco).
+
+   Aqui o resultado sai em PNG, que guarda a transparência. Como PNG não tem
+   controle de qualidade, o tamanho é contido reduzindo a imagem: tenta a
+   dimensão pedida e, se o resultado passar do limite, tenta menores. Logotipo
+   é desenho de poucas cores, então costuma resolver na primeira. */
+const LOGO_LIMITE_BYTES = 320000;
+function comprimirLogoPNG(file, maxDim){
+  return new Promise((resolve, reject)=>{
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      img.onload = ()=>{
+        const tentativas = [maxDim, Math.round(maxDim*0.7), Math.round(maxDim*0.5), Math.round(maxDim*0.35)];
+        let saida = "";
+        for(let i=0;i<tentativas.length;i++){
+          const lim = tentativas[i];
+          let w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+          if(w >= h && w > lim){ h = Math.max(1, Math.round(h*lim/w)); w = lim; }
+          else if(h > lim){ w = Math.max(1, Math.round(w*lim/h)); h = lim; }
+          const canvas = document.createElement("canvas");
+          canvas.width = w; canvas.height = h;
+          /* Sem preencher nada antes: o que era transparente continua
+             transparente, e o PNG guarda isso. */
+          canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+          saida = canvas.toDataURL("image/png");
+          if(saida.length <= LOGO_LIMITE_BYTES) break;
+        }
+        saida ? resolve(saida) : reject(new Error("não foi possível gerar o logotipo"));
+      };
+      img.onerror = reject;
+      img.src = reader.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 function comprimirImagem(file, maxDim, quality){
   return new Promise((resolve,reject)=>{
@@ -11942,18 +12001,18 @@ function laudoSheetReplicarHtml(item, campo){
       </details>`
     : `<div data-grupo="${i}">${g.itens.map(linha).join("")}</div>`).join("");
   return `<div class="sheet-overlay" id="overlayInner" onclick="if(event.target===this)App.fecharModal()">
-    <div class="sheet" style="max-height:88vh;display:flex;flex-direction:column">
+    <div class="sheet sheet-col" style="max-height:88vh">
       <div class="sheet-handle"></div>
       <h3>Aplicar em vários</h3>
       <div class="sheet-sub">Este texto de <b>${escapeHtml(def.rot.toLowerCase())}</b> vai para ${LAUDO_NIVEL_ROTULO[nivel]}s que você marcar. Só aparecem ${LAUDO_NIVEL_ROTULO[nivel]}s — não há como cair no lugar errado.</div>
-      <div style="font-size:12.5px;color:var(--ink);background:#E3F4E4;border:1px solid #A5D6A7;border-radius:8px;padding:9px 10px;white-space:pre-wrap;max-height:96px;overflow:auto;margin-bottom:10px">${escapeHtml(texto||"(vazio)")}</div>
+      <div class="rep-origem">${escapeHtml(texto||"(vazio)")}</div>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
         <div class="field" style="margin:0;flex:1;min-width:0"><input type="text" placeholder="Filtrar…" oninput="App.laudoFiltrarReplica(this.value)"></div>
         <select class="sp-select-sm" style="flex:1;min-width:0" onchange="App.laudoAgruparReplica('${item.risco.id}','${campo}',this.value)">
           ${opcoes.map(o=>`<option value="${o.k}" ${__laudoReplicaAgrupar===o.k?"selected":""}>Agrupar: ${escapeHtml(o.rot)}</option>`).join("")}
         </select>
       </div>
-      <div id="laudoReplicaLista" style="overflow:auto;flex:1;min-height:0">
+      <div id="laudoReplicaLista" class="sheet-rolagem">
         ${alvos.length? corpo : `<p style="font-size:13px;color:var(--ink-dim);padding:8px 2px">Não há outra ${LAUDO_NIVEL_ROTULO[nivel]} no aparelho para receber este texto.</p>`}
       </div>
       <button class="btn btn-primary btn-block" style="margin-top:10px" onclick="App.laudoAplicarReplica('${item.risco.id}','${campo}')">${ic('check')} Aplicar nos marcados (<span id="laudoReplicaN">${__laudoReplicaSel.size}</span>)</button>
@@ -11997,12 +12056,12 @@ function laudoSheetCopiarHtml(item, campo){
       <b>${escapeHtml(c.titulo)}</b><i>${escapeHtml(c.sub)}</i><span>${escapeHtml(c.texto.slice(0,160))}${c.texto.length>160?"…":""}</span>
     </button>`).join("");
   return `<div class="sheet-overlay" id="overlayInner" onclick="if(event.target===this)App.fecharModal()">
-    <div class="sheet" style="max-height:84vh;display:flex;flex-direction:column">
+    <div class="sheet sheet-col" style="max-height:84vh">
       <div class="sheet-handle"></div>
       <h3>Copiar ${escapeHtml(def.rot.toLowerCase())}</h3>
       <div class="sheet-sub">Escolha de onde copiar — o texto entra como seu (editado) e pode ser ajustado depois.</div>
       <div class="field" style="margin:6px 0 10px"><input type="text" placeholder="Filtrar…" oninput="App.laudoFiltrarCopia(this.value)"></div>
-      <div id="laudoCopiaLista" style="overflow:auto;flex:1;min-height:0">
+      <div id="laudoCopiaLista" class="sheet-rolagem">
         ${cands.length? linhas : `<p style="font-size:13px;color:var(--ink-dim);padding:8px 2px">Nenhum outro item com esse texto preenchido ainda.</p>`}
       </div>
       <button class="sheet-cancel" onclick="App.fecharModal()">Cancelar</button>
@@ -17163,6 +17222,10 @@ window.addEventListener("pageshow", (event) => {
 .lp-barra .btn{flex:0 0 auto}
 .lp-status{font-size:12px;color:var(--ink-dim);font-weight:700}
 .lp-visor{background:#5A5D70;border-radius:10px;padding:14px;overflow:auto;max-height:70vh}
+/* Quadriculado atrás da prévia: é o que deixa ver, a olho nu, se o logotipo
+   tem fundo transparente ou um retângulo sólido colado nele. */
+.lp-logo-previa{display:flex;align-items:center;justify-content:center;min-height:92px;padding:10px;border:1px solid var(--line-strong);border-radius:9px;background-color:#fff;background-image:linear-gradient(45deg,#D9DCE6 25%,transparent 25%),linear-gradient(-45deg,#D9DCE6 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#D9DCE6 75%),linear-gradient(-45deg,transparent 75%,#D9DCE6 75%);background-size:16px 16px;background-position:0 0,0 8px,8px -8px,-8px 0}
+.lp-logo-previa img{max-width:100%;max-height:120px;display:block}
 .lp-doc{margin:0 auto;transform-origin:top center}
 .lp-pagina{width:${PAG_L}px;height:${PAG_A}px;background:#fff;margin:0 auto 14px;box-shadow:0 2px 10px rgba(0,0,0,.35);
   position:relative;overflow:hidden;box-sizing:border-box;padding:${MARGEM}px;
@@ -17302,6 +17365,12 @@ window.addEventListener("pageshow", (event) => {
   function logo(){
     const c = getMecseteConfig();
     return c.logoLaudo && temFoto(c.logoLaudo) ? c.logoLaudo : "";
+  }
+  /* Logotipo guardado em JPEG é, por definição, um logotipo sem transparência:
+     o formato não tem canal alfa. Serve para avisar quem enviou antes desta
+     correção, em vez de deixar a pessoa procurando o que deu errado. */
+  function logoSemTransparencia(){
+    return /^data:image\/jpe?g/i.test(logo());
   }
   function marcaHtml(classe){
     const l = logo();
@@ -17593,11 +17662,23 @@ window.addEventListener("pageshow", (event) => {
       <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpZoom(-1)">−</button>
       <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpZoom(1)">+</button>
     </div>
-    ${!temLogo? `<div class="card card-pad" style="background:#FFF3D6;border-color:#E9C46A;margin-bottom:10px">
-      <div style="font-weight:800;font-size:13px;margin-bottom:3px">Logotipo não enviado</div>
-      <div style="font-size:12.5px;color:var(--ink-dim);margin-bottom:9px">Sem ele a capa e o rodapé usam uma marca em texto. Envie uma vez — fica guardado no aparelho e sincroniza.</div>
-      <button class="btn btn-secondary btn-sm" onclick="App.lpEnviarLogo()">${ic('upload')} Enviar logotipo (PNG)</button>
-    </div>`:""}
+    ${!temLogo
+      ? `<div class="card card-pad" style="background:#FFF3D6;border-color:#E9C46A;margin-bottom:10px">
+          <div style="font-weight:800;font-size:13px;margin-bottom:3px">Logotipo não enviado</div>
+          <div style="font-size:12.5px;color:var(--ink-dim);margin-bottom:9px">Sem ele a capa e o rodapé usam uma marca em texto. Envie uma vez — fica guardado no aparelho e sincroniza.</div>
+          <button class="btn btn-secondary btn-sm" onclick="App.lpEnviarLogo()">${ic('upload')} Enviar logotipo (PNG)</button>
+        </div>`
+      : `<div class="card card-pad" style="margin-bottom:10px">
+          <div style="font-weight:800;font-size:13px;margin-bottom:7px">Logotipo do laudo</div>
+          <div class="lp-logo-previa"><img src="${logo()}" alt="Logotipo"></div>
+          ${logoSemTransparencia()? `<div style="font-size:12.5px;color:#8A5B00;background:#FFF3D6;border:1px solid #E9C46A;border-radius:8px;padding:9px 10px;margin-top:9px">
+              <b>Este logotipo está sem transparência.</b> Ele foi salvo em um formato que não guarda fundo transparente, e por isso aparece com fundo preto no laudo e estraga a capa. Envie o PNG original de novo — agora o app guarda a transparência.
+            </div>`:`<div class="field-hint" style="margin-top:7px">O quadriculado atrás é só da pré-visualização: mostra onde o logotipo é transparente.</div>`}
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:9px">
+            <button class="btn ${logoSemTransparencia()?"btn-primary":"btn-secondary"} btn-sm" onclick="App.lpEnviarLogo()">${ic('upload')} Trocar logotipo (PNG)</button>
+            <button class="btn btn-secondary btn-sm" onclick="App.lpRemoverLogo()">${ic('trash')} Remover</button>
+          </div>
+        </div>`}
     ${__lpPaginas.length? `
       <div class="lp-visor"><div class="lp-doc" id="lpDoc" style="transform:scale(${zoom});width:${PAG_L}px;margin-bottom:${Math.round(-PAG_A*(1-zoom))}px">${__lpHtml}</div></div>
       <div class="card card-pad" style="margin-top:10px;background:var(--bg-soft)">
@@ -17679,14 +17760,32 @@ window.addEventListener("pageshow", (event) => {
       input.onchange = async ()=>{
         try{
           if(!input.files[0]) return;
-          const data = await comprimirImagem(input.files[0], 600, 0.92);
+          /* PNG, não JPEG: é o que preserva o fundo transparente. */
+          const data = await comprimirLogoPNG(input.files[0], 600);
           getMecseteConfig().logoLaudo = data;
-          marcarAlterado(); render();
-          toast("Logotipo salvo");
+          /* O carimbo é o que faz a troca chegar nos outros aparelhos; sem ele
+             o logotipo antigo voltaria na próxima sincronização. */
+          STATE.ui.mecseteEm = agoraSync();
+          marcarEquipeAlterada();
+          cacheFoto.clear(); __lpPaginas = []; __lpHtml = "";
+          render();
+          toast("Logotipo salvo — toque em Montar laudo para ver no documento");
         }catch(e){ toast("Não foi possível ler a imagem", false); }
         finally{ input.value = ""; }
       };
       input.click();
+    },
+    lpRemoverLogo(){
+      if(!confirm("Remover o logotipo? A capa e o rodapé voltam a usar a marca em texto.")) return;
+      /* Fica string vazia, e não apagado: a mesclagem com a nuvem é por união
+         de campos, então uma chave ausente deixaria o logotipo antigo voltar
+         do outro aparelho. Vazio sobrescreve. */
+      getMecseteConfig().logoLaudo = "";
+      STATE.ui.mecseteEm = agoraSync();
+      marcarEquipeAlterada();
+      cacheFoto.clear(); __lpPaginas = []; __lpHtml = "";
+      render();
+      toast("Logotipo removido");
     },
   });
 })();

@@ -698,6 +698,49 @@ chk("substituir texto existente e avisado antes",
 chk("o botao de aplicar em varios so aparece com texto decidido",
     '${(st==="ok"||st==="edit") && fin? `<button' in novo)
 
+print("\n=== 32. QUADRO DE ORIGEM E LOGOTIPO DO LAUDO ===")
+chk("numa folha em coluna so a lista encolhe",
+    ".sheet-col>*{flex-shrink:0;}" in novo
+    and ".sheet-col>.sheet-rolagem{flex:1 1 auto;min-height:0;overflow:auto;}" in novo
+    and novo.count('class="sheet sheet-col"') == 2
+    and novo.count('class="sheet-rolagem"') == 2)
+chk("o quadro do texto de origem nao encolhe e tem teto",
+    ".rep-origem{flex:0 0 auto;" in novo
+    and "max-height:30vh" in novo
+    and "@media (max-height:700px){ .rep-origem{max-height:22vh;} }" in novo)
+chk("nao sobrou o estilo em linha que espremia o quadro",
+    'id="laudoReplicaLista" style="overflow:auto;flex:1;min-height:0"' not in novo
+    and 'style="max-height:96px;overflow:auto' not in novo)
+# JPEG nao tem canal alfa: pixel transparente vira PRETO. Era a causa do
+# logotipo com fundo preto e da capa estragada.
+chk("o logotipo sai em PNG e a foto continua em JPEG",
+    novo.count("function comprimirLogoPNG(") == 1
+    and 'canvas.toDataURL("image/png")' in novo
+    and 'canvas.toDataURL("image/jpeg", quality||0.7)' in novo
+    and "comprimirLogoPNG(input.files[0], 600)" in novo
+    and "comprimirImagem(input.files[0], 600, 0.92)" not in novo)
+_cl = novo.find("function comprimirLogoPNG(")
+_clc = novo[_cl:novo.find("function comprimirImagem(", _cl)]
+chk("nada e pintado atras do logotipo antes de salvar",
+    "fillRect" not in _clc and "fillStyle" not in _clc and "image/jpeg" not in _clc)
+chk("PNG pesado e reduzido, nao convertido",
+    "const LOGO_LIMITE_BYTES = " in novo
+    and "saida.length <= LOGO_LIMITE_BYTES" in novo)
+chk("logotipo no formato antigo e reconhecido e avisado",
+    "function logoSemTransparencia(){" in novo
+    and "Este logotipo está sem transparência" in novo)
+chk("da para trocar e remover o logotipo depois de enviado",
+    novo.count("lpRemoverLogo(){") == 1
+    and novo.count("App.lpRemoverLogo()") == 1
+    and "Trocar logotipo (PNG)" in novo
+    and "lp-logo-previa" in novo)
+chk("remover deixa vazio (a uniao com a nuvem traria de volta uma chave ausente)",
+    'getMecseteConfig().logoLaudo = "";' in novo
+    and "delete getMecseteConfig().logoLaudo" not in novo)
+chk("trocar e remover carimbam para sincronizar e forcam remontar",
+    len(re.findall(r"STATE\.ui\.mecseteEm = agoraSync\(\);\s*\n\s*marcarEquipeAlterada\(\);", novo)) == 2
+    and novo.count('cacheFoto.clear(); __lpPaginas = []; __lpHtml = "";') == 2)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

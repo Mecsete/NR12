@@ -3197,6 +3197,72 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(bloco.indexOf('${(st==="ok"||st==="edit") && fin? `<button') > 0, "apareceria antes de haver texto decidido");
   });
 
+  console.log("\n=== t74 · quadro do texto de origem não é mais espremido ===");
+  t("numa folha em coluna, só a lista encolhe", ()=>{
+    ok(HTML.indexOf(".sheet-col>*{flex-shrink:0;}") > 0, "sem isto tudo encolhe junto");
+    ok(HTML.indexOf(".sheet-col>.sheet-rolagem{flex:1 1 auto;min-height:0;overflow:auto;}") > 0);
+  });
+  t("o quadro do texto de origem não encolhe e tem teto", ()=>{
+    ok(/\.rep-origem\{flex:0 0 auto;/.test(HTML), "voltaria a ser espremido em uma linha");
+    ok(HTML.indexOf("max-height:30vh") > 0, "sem teto, o quadro engoliria a lista");
+    ok(HTML.indexOf("@media (max-height:700px){ .rep-origem{max-height:22vh;} }") > 0, "tela baixa ficaria sem lista");
+  });
+  t("as duas folhas com lista usam a mesma regra", ()=>{
+    eq((HTML.match(/class="sheet sheet-col"/g)||[]).length, 2);
+    eq((HTML.match(/class="sheet-rolagem"/g)||[]).length, 2);
+    ok(HTML.indexOf('id="laudoReplicaLista" style="overflow:auto;flex:1;min-height:0"') < 0, "sobrou o estilo antigo em linha");
+  });
+
+  console.log("\n=== t75 · logotipo do laudo em PNG, com fundo transparente ===");
+  t("o logotipo é salvo em PNG, nunca em JPEG", ()=>{
+    const f = funcao("comprimirLogoPNG");
+    ok(f.indexOf('canvas.toDataURL("image/png")') > 0, "sem PNG o fundo transparente vira preto");
+    ok(f.indexOf("image/jpeg") < 0, "JPEG não tem canal de transparência");
+    ok(f.indexOf("fillRect") < 0 && f.indexOf("fillStyle") < 0, "pintar um fundo antes apagaria a transparência");
+  });
+  t("a foto continua em JPEG — quem mudou foi só o logotipo", ()=>{
+    ok(funcao("comprimirImagem").indexOf('canvas.toDataURL("image/jpeg", quality||0.7)') > 0,
+       "as fotos ficariam gigantes se virassem PNG");
+  });
+  t("o envio do logotipo usa a função certa", ()=>{
+    ok(HTML.indexOf("comprimirLogoPNG(input.files[0], 600)") > 0, "não usa o caminho que preserva transparência");
+    ok(HTML.indexOf("comprimirImagem(input.files[0], 600, 0.92)") < 0, "sobrou a chamada antiga que gerava fundo preto");
+  });
+  t("PNG grande demais é reduzido em vez de virar JPEG", ()=>{
+    const f = funcao("comprimirLogoPNG");
+    ok(f.indexOf("saida.length <= LOGO_LIMITE_BYTES") > 0, "sem teto, um logotipo pesado atrapalharia a sincronização");
+    ok(/const tentativas = \[maxDim,/.test(f), "não tenta dimensões menores");
+  });
+  t("logotipo salvo no formato antigo é reconhecido e avisado", ()=>{
+    ok(HTML.indexOf("function logoSemTransparencia(){") > 0);
+    ok(HTML.indexOf("/^data:image\\/jpe?g/i.test(logo())") > 0, "não detecta o formato sem transparência");
+    ok(HTML.indexOf("Este logotipo está sem transparência") > 0, "não avisa quem enviou antes da correção");
+  });
+  t("dá para trocar e remover o logotipo depois de enviado", ()=>{
+    ok(HTML.indexOf("App.lpRemoverLogo()") > 0, "sem remover, um logotipo errado ficaria para sempre");
+    ok(HTML.indexOf("lpRemoverLogo(){") > 0);
+    ok(HTML.indexOf("${!temLogo? `<div class=\"card card-pad\" style=\"background:#FFF3D6") < 0,
+       "o painel voltaria a sumir assim que houvesse logotipo");
+    ok(HTML.indexOf("Trocar logotipo (PNG)") > 0);
+  });
+  t("remover deixa vazio, não apaga a chave", ()=>{
+    ok(HTML.indexOf('getMecseteConfig().logoLaudo = "";') > 0,
+       "chave ausente deixaria o logotipo antigo voltar do outro aparelho na união");
+    ok(HTML.indexOf("delete getMecseteConfig().logoLaudo") < 0);
+  });
+  t("trocar e remover viajam para os outros aparelhos", ()=>{
+    eq((HTML.match(/STATE\.ui\.mecseteEm = agoraSync\(\);\s*\n\s*marcarEquipeAlterada\(\);/g)||[]).length, 2,
+       "sem carimbo novo, a nuvem devolveria o logotipo antigo");
+  });
+  t("a prévia mostra onde o logotipo é transparente", ()=>{
+    ok(HTML.indexOf(".lp-logo-previa{") > 0);
+    ok(HTML.indexOf("linear-gradient(45deg,#D9DCE6 25%,transparent 25%)") > 0, "sem quadriculado não dá para ver o fundo");
+  });
+  t("trocar o logotipo obriga a remontar o laudo", ()=>{
+    eq((HTML.match(/cacheFoto\.clear\(\); __lpPaginas = \[\]; __lpHtml = "";/g)||[]).length, 2,
+       "a prévia continuaria mostrando o logotipo velho");
+  });
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);
