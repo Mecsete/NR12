@@ -1514,8 +1514,12 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   t("as oito combinações estão mapeadas", ()=>{
     eq(Object.keys(vm.runInContext("PLR_GRAFICO", ctx)).length, 8);
   });
-  t("PLr sobe de a até e conforme o gráfico da ISO 13849-1", ()=>{
-    const esperado = [["S1","F1","P1","a","B"],["S1","F1","P2","b","1"],["S1","F2","P1","b","1"],["S1","F2","P2","c","2"],
+  /* Duas normas, dois graficos. O PLr vem da ISO 13849-1 (Anexo A), onde S1 se
+     divide em F e P. A Categoria vem da NBR 14153 (Figura B.1), que tem cinco
+     saidas: S1 vai direto para a Categoria 1, sem se dividir. Conferido na
+     figura em 11/08/2026. */
+  t("PLr segue a ISO 13849-1 e Categoria segue a NBR 14153", ()=>{
+    const esperado = [["S1","F1","P1","a","1"],["S1","F1","P2","b","1"],["S1","F2","P1","b","1"],["S1","F2","P2","c","1"],
                       ["S2","F1","P1","c","2"],["S2","F1","P2","d","3"],["S2","F2","P1","d","3"],["S2","F2","P2","e","4"]];
     esperado.forEach(([s,f,p,plr,cat])=>{
       const g = vm.runInContext("PLR_GRAFICO["+JSON.stringify(s+f+p)+"]", ctx);
@@ -1532,7 +1536,13 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   t("caso brando: corte, uma vez por turno, com chance de evitar", ()=>{
     const res = C.plrExigido({ medidaPropostaTipo:"emergencia", gpd:"Corte",
                                exposicao:"1x por turno", evitar:"Possível evitar" });
-    eq(res.plr,"a"); eq(res.cat,"B");
+    eq(res.plr,"a"); eq(res.cat,"1", "ferimento leve cai na Categoria 1 pela Figura B.1, nunca em B");
+  });
+  t("toda combinação que começa em S1 cai na Categoria 1", ()=>{
+    ["S1F1P1","S1F1P2","S1F2P1","S1F2P2"].forEach(k=>{
+      eq(vm.runInContext("PLR_GRAFICO["+JSON.stringify(k)+"].cat", ctx), "1",
+         k + " — na NBR 14153 o ramo S1 não se divide em F e P");
+    });
   });
   t("faltando um parâmetro, não classifica e diz o que falta", ()=>{
     const r = { medidaPropostaTipo:"cortina", gpd:"Fatalidade", exposicao:"" };
@@ -1576,9 +1586,13 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       exposicao:"1x por turno", evitar:"Possível evitar" }, "draft");
     ok(h.indexOf("fronteira entre S1 e S2") > 0);
   });
-  t("a tabela do gráfico está isolada e marcada para conferência", ()=>{
-    ok(HTML.indexOf("ATENÇÃO: TABELA A CONFERIR CONTRA AS NORMAS ANTES DE ASSINAR") > 0, "sem o aviso no código");
+  t("a tabela do gráfico está isolada e diz de onde cada coluna veio", ()=>{
     eq((HTML.match(/const PLR_GRAFICO = \{/g)||[]).length, 1, "o gráfico deve existir num único lugar");
+    ok(HTML.indexOf("ABNT NBR 14153:2022, Figura B.1") > 0, "a origem da coluna cat sumiu do código");
+    ok(HTML.indexOf("ISO 13849-1:2023, Anexo A") > 0, "a origem da coluna plr sumiu do código");
+    ok(HTML.indexOf("NÃO derive uma coluna da outra") > 0, "sem o aviso de que a correlação não é linear");
+    ok(HTML.indexOf("ATENÇÃO: TABELA A CONFERIR CONTRA AS NORMAS ANTES DE ASSINAR") < 0,
+       "o aviso antigo sai só quando a conferência for feita — e ela foi");
   });
   t("métodos existem", ()=>{
     ["onDraftPLr(campo, valor)","laudoSetPLr(rid, campo, valor)"].forEach(m=> ok(HTML.indexOf(m) > 0, "faltou "+m));
@@ -3463,6 +3477,45 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     eq(C.tipoSugeridoDaMaquina({ nome:"Vision Sorter A" }), "Vision Sorter");
     eq(C.tipoSugeridoDaMaquina({ nome:"Elevador de Canecas 01" }), "Elevador de Canecas");
     eq(C.tipoSugeridoDaMaquina({ nome:"01" }), "01", "nome só de número não pode virar coluna vazia");
+  });
+
+  console.log("\n=== t80 · cartão do risco no laudo (opção 3) ===");
+  t("a linha de tabela virou cartão", ()=>{
+    ok(HTML.indexOf('<div class="lp-rc">') > 0, "sem o cartão");
+    ok(HTML.indexOf('<th style="width:196px">HRN</th>') < 0, "sobrou o cabeçalho de colunas da tabela antiga");
+    ok(HTML.indexOf('.lp-rc-cab{display:flex;') > 0 && HTML.indexOf('.lp-rc-corpo{display:flex;') > 0);
+  });
+  t("o cartão traz tudo que já existia, mais a mitigação existente", ()=>{
+    ["Descrição do risco","Mitigação existente","Solução / Mitigação","Evidência do risco",
+     "Probabilidade (PO)","Frequência (FE)","Grau do Dano (GPD)","Nº de pessoas (NP)"]
+      .forEach(x=> ok(funcao("blocosEquipamentos").indexOf(x) > 0, "faltou " + x));
+  });
+  t("o PLr fica discreto à direita da tabela do HRN", ()=>{
+    const f = funcao("blocosEquipamentos");
+    ok(f.indexOf('<div class="lp-rc-hrn">') < f.indexOf('<div class="lp-rc-plr">'), "o PLr precisa vir depois do HRN");
+    ok(HTML.indexOf(".lp-rc-plr{flex:0 0 118px;border-left:1px solid #8A8CA3") > 0, "sem a coluna estreita do PLr");
+    ok(f.indexOf("PLr exigido") > 0 && f.indexOf("Categoria ${esc(plr.cat)}") > 0);
+  });
+  t("PLr só aparece quando há função de segurança a classificar", ()=>{
+    const f = funcao("blocosEquipamentos");
+    ok(f.indexOf("plr.aplicavel && plr.completo") > 0, "mostraria PL vazio");
+    ok(f.indexOf('plr.aplicavel? "A classificar" : "Não aplicável"') > 0,
+       "medida mecânica não tem PLr — precisa dizer isso, não ficar em branco");
+  });
+  t("duas fotos ganham legenda; uma foto sozinha não ganha", ()=>{
+    const f = funcao("blocosEquipamentos");
+    ok(f.indexOf("const duas = evsOk.length === 2;") > 0);
+    ok(f.indexOf("DETALHE DO RISCO") > 0 && f.indexOf("POSIÇÃO NA MÁQUINA") > 0, "sem os papéis das duas fotos");
+    const i1 = f.indexOf("? `<div><img src=\"${evsOk[0]}\"><div class=\"lp-rc-leg\">");
+    const i2 = f.indexOf(": `<div><img src=\"${evsOk[0]}\"></div>`");
+    ok(i1 > 0 && i2 > i1, "o caso de uma foto só precisa sair sem legenda, senão parece que falta a outra");
+  });
+  t("sem foto nenhuma, a coluna de evidência não é desenhada", ()=>{
+    ok(funcao("blocosEquipamentos").indexOf('${evsOk.length? `<div class="lp-rc-col ev">') > 0,
+       "uma coluna vazia denunciaria a falta");
+  });
+  t("busca no máximo duas fotos, não a galeria inteira", ()=>{
+    ok(funcao("blocosEquipamentos").indexOf("fotos.slice(0,2)") > 0, "reduzir foto é caro — não pode varrer todas");
   });
 
   console.log("\n---------------------------------------");

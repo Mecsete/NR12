@@ -857,6 +857,35 @@ chk("a deducao do tipo nao deixa conjuncao solta",
     "const par = /^(.*?)\\s+[A-Z]$/.exec(limpo);" in novo
     and "if(par && !/\\s(e|ou)$/i.test(par[1])) limpo = par[1].trim();" in novo)
 
+print("\n=== 37. GRAFICO DE RISCO CONFERIDO E CARTAO DO RISCO ===")
+# Sao DOIS graficos. Na NBR 14153 (Figura B.1) o ramo S1 nao se divide em F e
+# P: vai direto para a Categoria 1. Na ISO 13849-1 (Anexo A) S1 se divide e
+# gera PLr a/b/b/c. Conferido nas normas em 11/08/2026.
+chk("o ramo S1 inteiro cai na Categoria 1",
+    all(('"S1F%dP%d": { plr:"%s", cat:"1" }' % (f,p,x)) in novo
+        for f,p,x in [(1,1,"a"),(1,2,"b"),(2,1,"b"),(2,2,"c")]))
+chk("o ramo S2 segue a Figura B.1",
+    '"S2F1P1": { plr:"c", cat:"2" }' in novo
+    and '"S2F1P2": { plr:"d", cat:"3" }' in novo
+    and '"S2F2P1": { plr:"d", cat:"3" }' in novo
+    and '"S2F2P2": { plr:"e", cat:"4" }' in novo)
+chk("a tabela registra a procedencia de cada coluna e o aviso saiu",
+    novo.count("const PLR_GRAFICO = {") == 1
+    and "ABNT NBR 14153:2022, Figura B.1" in novo
+    and "ISO 13849-1:2023, Anexo A" in novo
+    and "NÃO derive uma coluna da outra" in novo
+    and "ATENÇÃO: TABELA A CONFERIR CONTRA AS NORMAS ANTES DE ASSINAR" not in novo)
+chk("o risco virou cartao e o cabecalho de colunas saiu",
+    '<div class="lp-rc">' in novo
+    and '<th style="width:196px">HRN</th>' not in novo)
+chk("o PLr fica a direita da tabela do HRN",
+    novo.find('<div class="lp-rc-hrn">') < novo.find('<div class="lp-rc-plr">')
+    and ".lp-rc-plr{flex:0 0 118px;border-left:1px solid #8A8CA3" in novo)
+chk("uma foto sozinha sai sem legenda",
+    "const duas = evsOk.length === 2;" in novo
+    and "fotos.slice(0,2)" in novo
+    and '${evsOk.length? `<div class="lp-rc-col ev">' in novo)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

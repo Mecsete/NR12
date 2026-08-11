@@ -161,15 +161,43 @@ Também não estão aqui — e **não devem** ser commitados:
   Para todo o resto (interface, sincronização, impressão, layout,
   exportação), os PDFs não fazem falta.
 
-## Pendência conhecida
+## `PLR_GRAFICO` — conferido em 11/08/2026
 
-`PLR_GRAFICO` (correspondência S/F/P → PLr e Categoria) está marcada no
-código com o aviso `ATENÇÃO: TABELA A CONFERIR CONTRA AS NORMAS ANTES DE
-ASSINAR`. A coluna PLr segue o Anexo A da ABNT NBR ISO 13849-1; a coluna
-Categoria segue a categoria preferencial da Figura B.1 da NBR 14153. Essa
-figura é imagem dentro do PDF e não pôde ser lida — é a única parte do
-código cuja correspondência não foi verificada item a item. Conferir uma
-vez com as normas em mãos e remover o aviso.
+A coluna **Categoria** foi conferida contra a **ABNT NBR 14153:2022, Figura
+B.1**, lida diretamente da imagem do PDF. Foram encontrados e corrigidos
+**dois valores errados**: `S1F1P1` trazia Categoria B e `S1F2P2` trazia
+Categoria 2.
+
+A causa do erro é conceitual e vale registrar, porque é fácil reintroduzi-la:
+são **dois gráficos de risco diferentes**.
+
+- **NBR 14153 (Figura B.1)** tem **cinco** saídas. O ramo `S1` vai direto
+  para a Categoria 1 — **não se divide em F e P**. Só `S2` se ramifica.
+- **ISO 13849-1 (Anexo A)** tem **oito** saídas, porque ali `S1` também se
+  divide em F e P, gerando PLr a/b/b/c.
+
+Aplicar o gráfico de oito saídas da 13849 à coluna de Categoria é o que
+produzia os valores errados. **Nunca derivar uma coluna da outra.** A própria
+NR-12 registra que "existe uma correlação, embora não linear, entre os
+conceitos de PL e categoria", e a 13849-1 confirma: um PL "c" pode ser
+atingido por categoria 1, 2 ou 3.
+
+Ainda **não** verificado item a item: seis das oito células da coluna `plr`.
+Duas foram confirmadas no texto da ISO 13849-1:2023 (exemplos trabalhados do
+Anexo I: `S2·F1·P1 → c` e `S2·F2·P1 → d`); as outras seis seguem a progressão
+do Anexo A, cuja Figura A.1 é imagem e não foi lida.
+
+### Como ler figura que é imagem dentro de PDF
+
+`pdftoppm` não está instalado neste ambiente, mas `pdftotext` sim (poppler em
+`/mingw64/bin`). Para figuras, extrair o XObject de imagem da página direto do
+PDF com Python (`/Subtype /Image`, `zlib.decompress`), montar um PNG à mão
+(cabeçalho IHDR + IDAT) e abrir com a ferramenta Read, que lê imagem. Recortar
+e ampliar a região com repetição de pixels resolve os casos em que os símbolos
+são pequenos. Foi assim que a Figura B.1 foi lida.
+
+Os PDFs das normas ficam em `C:\Users\luiza\OneDrive\Engenharia Mecânica\
+Materiais para Estudo\NR12\` — fora do repositório, que é público.
 
 ## Aviso sobre `original.html`
 

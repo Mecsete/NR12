@@ -1783,7 +1783,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "10/08/2026 22:05";
+const APP_BUILD = "11/08/2026 12:20";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -6959,17 +6959,41 @@ const PLR_P_OPCOES = [
    critério de mais de dois dias afastado da mesma tarefa. */
 const PLR_GPD_S1 = ["Arranhão", "Corte"];
 const PLR_GPD_FRONTEIRA = ["Fratura osso menor"];
-/* ---- ATENÇÃO: TABELA A CONFERIR CONTRA AS NORMAS ANTES DE ASSINAR ----
-   Gráfico de risco. A coluna plr segue a ABNT NBR ISO 13849-1 (Anexo A); a
-   coluna cat segue a categoria PREFERENCIAL da NBR 14153 (Figura B.1), que
-   também admite categorias vizinhas mediante justificativa (item B.1). Este
-   é o ÚNICO ponto do app onde essa correspondência existe: conferir aqui,
-   uma vez, resolve o app inteiro. */
+/* GRÁFICO DE RISCO — conferido contra as normas em 11/08/2026.
+
+   São DOIS gráficos diferentes, e é por isso que as duas colunas não andam
+   juntas:
+
+   - "cat" vem da ABNT NBR 14153:2022, Figura B.1 (Anexo B, informativo).
+     Esse gráfico tem apenas CINCO saídas, não oito: S1 vai direto para a
+     categoria, sem se dividir em F e P. Só S2 se ramifica em F1/F2 e depois
+     em P1/P2. Lido na figura, círculo a círculo (o cheio grande é a
+     categoria preferencial):
+         S1            → Categoria 1
+         S2 · F1 · P1  → Categoria 2
+         S2 · F1 · P2  → Categoria 3
+         S2 · F2 · P1  → Categoria 3
+         S2 · F2 · P2  → Categoria 4
+     Por isso as quatro combinações que começam em S1 têm todas cat "1".
+     Até 11/08/2026 elas traziam B, 1, 1 e 2 — herança de aplicar o gráfico
+     de oito saídas da 13849 à coluna de categoria, o que a 14153 não faz.
+
+   - "plr" vem da ISO 13849-1:2023, Anexo A, onde S1 SE divide em F e P,
+     gerando as oito combinações. Conferidos no próprio texto da norma, pelos
+     exemplos trabalhados do Anexo I: S2·F1·P1 → PLr "c" e S2·F2·P1 → PLr "d".
+     As outras seis seguem a progressão do Anexo A e ainda não puderam ser
+     lidas uma a uma na Figura A.1, que é imagem.
+
+   NÃO derive uma coluna da outra. A própria NR-12 registra que "existe uma
+   correlação, embora não linear, entre os conceitos de PL e categoria", e a
+   13849-1 confirma: um PL "c" pode ser atingido por categoria 1, 2 ou 3.
+   A 14153 (B.1) também admite categoria vizinha da preferencial, desde que
+   a razão do desvio seja exposta. */
 const PLR_GRAFICO = {
-  "S1F1P1": { plr:"a", cat:"B" },
+  "S1F1P1": { plr:"a", cat:"1" },
   "S1F1P2": { plr:"b", cat:"1" },
   "S1F2P1": { plr:"b", cat:"1" },
-  "S1F2P2": { plr:"c", cat:"2" },
+  "S1F2P2": { plr:"c", cat:"1" },
   "S2F1P1": { plr:"c", cat:"2" },
   "S2F1P2": { plr:"d", cat:"3" },
   "S2F2P1": { plr:"d", cat:"3" },
@@ -17500,6 +17524,35 @@ window.addEventListener("pageshow", (event) => {
 .lp-risco td.s{text-align:center}
 .lp-risco td.e{padding:1px;width:150px}
 .lp-risco td.e img{width:100%;height:100%;object-fit:cover;display:block;max-height:190px}
+/* CARTÃO DO RISCO. Substitui a linha de tabela por um bloco: cabeçalho com o
+   número, o nome e o selo do HRN; corpo em duas colunas (textos à esquerda,
+   evidência à direita); rodapé com a tabela do HRN na horizontal e, discreto
+   à direita dela, o PLr exigido e a Categoria. */
+.lp-rc{border:1px solid #8A8CA3;margin-top:6px}
+.lp-rc-cab{display:flex;align-items:center;gap:7px;background:#EEF0F6;border-bottom:1px solid #8A8CA3;padding:4px 7px}
+.lp-rc-num{background:#1E2148;color:#fff;font-weight:bold;font-size:9px;width:16px;height:16px;
+  display:flex;align-items:center;justify-content:center;border-radius:3px;flex-shrink:0}
+.lp-rc-nome{flex:1;font-size:9px;font-weight:bold;color:#111;line-height:1.3}
+.lp-rc-selo{font-weight:bold;font-size:8px;padding:2px 6px;border-radius:3px;flex-shrink:0;letter-spacing:.02em}
+.lp-rc-corpo{display:flex;align-items:stretch}
+.lp-rc-col{padding:6px 8px;font-size:8.5px;text-align:justify;flex:1;min-width:0}
+.lp-rc-col.ev{flex:0 0 190px;border-left:1px solid #8A8CA3;text-align:center}
+.lp-rc-rot{font-size:7px;font-weight:bold;letter-spacing:.08em;text-transform:uppercase;color:#5B5F7A;margin-bottom:2px}
+.lp-rc-bloco + .lp-rc-bloco{margin-top:6px;padding-top:6px;border-top:1px dotted #B9BCCB}
+.lp-rc-fotos{display:flex;flex-direction:column;gap:4px}
+.lp-rc-fotos img{width:100%;display:block;border:1px solid #8A8CA3}
+.lp-rc-leg{font-size:6.5px;color:#555;letter-spacing:.04em;margin-top:1px}
+.lp-rc-rodape{display:flex;align-items:stretch;border-top:1px solid #8A8CA3;background:#F6F7FB}
+.lp-rc-hrn{flex:1;min-width:0}
+.lp-rc-plr{flex:0 0 118px;border-left:1px solid #8A8CA3;padding:4px 7px;display:flex;
+  flex-direction:column;justify-content:center;gap:2px}
+.lp-rc-plr .r{font-size:6.5px;font-weight:bold;letter-spacing:.07em;text-transform:uppercase;color:#5B5F7A}
+.lp-rc-plr .v{font-size:8.5px;color:#111}
+.lp-rc-plr .v b{font-size:9.5px}
+table.lp-hrn-h{width:100%;table-layout:fixed;border-collapse:collapse;font-size:7px}
+table.lp-hrn-h td{border-right:1px solid #8A8CA3;padding:2px 3px;text-align:center}
+table.lp-hrn-h tr:first-child td{color:#5B5F7A;font-size:6.5px;letter-spacing:.03em}
+table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8px;border-top:1px solid #8A8CA3}
 .lp-hrn{width:100%;border-collapse:collapse;font-size:8.5px}
 .lp-hrn td{border:1px solid #8A8CA3;padding:3px 4px}
 .lp-hrn td.k{background:#F2F3F7;font-weight:800;width:52%}
@@ -17762,27 +17815,78 @@ window.addEventListener("pageshow", (event) => {
         blocos.push({ html:`<div class="lp-faixa-c" style="margin-top:8px">${esc(nomeT)}</div>
           <div class="lp-apr-txt" style="border:1px solid #8A8CA3;border-top:none">${esc(descT)}</div>
           <div class="lp-faixa-r" style="margin-top:6px">RISCOS REFERENTES À TAREFA ${esc(nomeT)}</div>
-          <table class="lp-risco"><tr><th style="width:22px">Nº</th><th>Risco</th><th style="width:196px">HRN</th><th>Solução / Mitigação</th><th style="width:150px">Evidência do Risco</th></tr></table>` });
+` });
 
         for(let i=0;i<t.itens.length;i++){
           const it = t.itens[i];
-          const h = hrnDoItem({ tarefa:it.tarefa, risco:it.risco });
+          const r = it.risco;
+          const h = hrnDoItem({ tarefa:it.tarefa, risco:r });
           const meta = NIVEL_HRN_META[h.nivel] || { cor:"#EEE", texto:"#111" };
-          const ev = await reduzirFoto(it.risco.foto || (it.risco.fotosOutras||[])[0], 460);
-          const linha = (k, v)=> `<tr><td class="k">${esc(k)}</td><td class="v">${esc(v)}</td></tr>`;
-          blocos.push({ html:`<table class="lp-risco"><tr>
-            <td class="n" style="width:22px">${i+1}</td>
-            <td class="r">${esc(laudoTextoFinal(it, "risco") || it.risco.descricao || "")}</td>
-            <td class="h" style="width:196px"><table class="lp-hrn">
-              ${linha("Probabilidade (PO)", labelHRN(HRN_PO_OPTS, h.po, HRN_PO_TABELA))}
-              ${linha("Frequência (FE)", labelHRN(HRN_FE_OPTS, h.fe, HRN_FE_TABELA))}
-              ${linha("Grau (GPD)", labelHRN(HRN_GPD_OPTS, h.gpd, HRN_GPD_TABELA))}
-              ${linha("Número (NP)", labelHRN(HRN_NP_OPTS, h.np, HRN_NP_TABELA))}
-              <tr><td class="k">HRN</td><td class="v" style="background:${meta.cor};color:${meta.texto}">${esc(h.nivel)}</td></tr>
-            </table></td>
-            <td class="s">${esc(laudoTextoFinal(it, "solucao") || "")}</td>
-            <td class="e" style="width:150px">${ev? `<img src="${ev}">` : ""}</td>
-          </tr></table>` });
+          /* DUAS EVIDENCIAS quando existirem duas. A primeira e a foto do
+             risco; a segunda, a primeira das "outras", que mostra onde aquilo
+             fica na maquina. Havendo uma so, ela ocupa a coluna inteira e
+             perde a legenda de papel — sem legenda, nada sugere que falta a
+             outra. */
+          const fotos = [r.foto, (r.fotosOutras||[])[0]].filter(Boolean);
+          const evs = [];
+          for(const f of fotos.slice(0,2)) evs.push(await reduzirFoto(f, 460));
+          const evsOk = evs.filter(Boolean);
+          const duas = evsOk.length === 2;
+          const nomeRisco = (r.nome === OUTRO ? r.nomeOutro : r.nome) || "Risco";
+          const existente = medidaTextoExistenteMulti(r) || String(r.descMedida||"").trim();
+          const sitDef = MEDIDA_SITUACOES.find(x=>x.k===(r.medidaExistenteSituacao||"ok")) || MEDIDA_SITUACOES[0];
+          const plr = plrExigido(r);
+          blocos.push({ html:`<div class="lp-rc">
+            <div class="lp-rc-cab">
+              <span class="lp-rc-num">${i+1}</span>
+              <span class="lp-rc-nome">${esc(nomeRisco)}</span>
+              <span class="lp-rc-selo" style="background:${meta.cor};color:${meta.texto}">HRN ${esc(h.nivel)}</span>
+            </div>
+            <div class="lp-rc-corpo">
+              <div class="lp-rc-col">
+                <div class="lp-rc-bloco">
+                  <div class="lp-rc-rot">Descrição do risco</div>
+                  ${esc(laudoTextoFinal(it, "risco") || r.descricao || "")}
+                </div>
+                ${existente? `<div class="lp-rc-bloco">
+                  <div class="lp-rc-rot">Mitigação existente — ${esc(sitDef.rot)}</div>
+                  ${esc(existente)}
+                </div>`:""}
+                <div class="lp-rc-bloco">
+                  <div class="lp-rc-rot">Solução / Mitigação</div>
+                  ${esc(laudoTextoFinal(it, "solucao") || "")}
+                </div>
+              </div>
+              ${evsOk.length? `<div class="lp-rc-col ev">
+                <div class="lp-rc-rot">Evidência do risco</div>
+                <div class="lp-rc-fotos">
+                  ${duas
+                    ? `<div><img src="${evsOk[0]}"><div class="lp-rc-leg">DETALHE DO RISCO</div></div>
+                       <div><img src="${evsOk[1]}"><div class="lp-rc-leg">POSIÇÃO NA MÁQUINA</div></div>`
+                    : `<div><img src="${evsOk[0]}"></div>`}
+                </div>
+              </div>`:""}
+            </div>
+            <div class="lp-rc-rodape">
+              <div class="lp-rc-hrn"><table class="lp-hrn-h">
+                <tr><td>Probabilidade (PO)</td><td>Frequência (FE)</td><td>Grau do Dano (GPD)</td><td>Nº de pessoas (NP)</td><td>HRN</td></tr>
+                <tr>
+                  <td>${esc(labelHRN(HRN_PO_OPTS, h.po, HRN_PO_TABELA))}</td>
+                  <td>${esc(labelHRN(HRN_FE_OPTS, h.fe, HRN_FE_TABELA))}</td>
+                  <td>${esc(labelHRN(HRN_GPD_OPTS, h.gpd, HRN_GPD_TABELA))}</td>
+                  <td>${esc(labelHRN(HRN_NP_OPTS, h.np, HRN_NP_TABELA))}</td>
+                  <td style="background:${meta.cor};color:${meta.texto}">${esc(h.nivel)}</td>
+                </tr>
+              </table></div>
+              <div class="lp-rc-plr">
+                ${plr.aplicavel && plr.completo
+                  ? `<div class="r">PLr exigido</div>
+                     <div class="v"><b>PL ${esc(plr.plr)}</b> · Categoria ${esc(plr.cat)}</div>`
+                  : `<div class="r">Função de segurança</div>
+                     <div class="v">${plr.aplicavel? "A classificar" : "Não aplicável"}</div>`}
+              </div>
+            </div>
+          </div>` });
         }
       }
     }
