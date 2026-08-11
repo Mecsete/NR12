@@ -22,6 +22,57 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 11/08/2026 15:05
+
+Aba Imprimir mais enxuta, controles dentro da visualização, e a página parou
+de subir sozinha.
+
+### A página que voltava ao topo enquanto você lia
+
+`render()` reconstrói a tela inteira, e isso zera a rolagem. Como a
+sincronização redesenha a tela de tempos em tempos por conta própria, a página
+pulava para o topo no meio da leitura, sem ninguém ter pedido.
+
+Agora a regra é: **continuando na mesma tela, a rolagem é devolvida**; tendo
+mudado de tela, começa do topo, que é o certo. A correção ficou dentro do
+próprio `render()`, então vale para os 132 pontos do app que redesenham.
+
+### Controles dentro da visualização
+
+**Imprimir**, **aumentar** e **diminuir zoom** saíram da barra do topo e viraram
+botões redondos flutuando sobre a pré-visualização, com ícone de lupa e o
+percentual do zoom ao lado. Antes era preciso rolar a página inteira de volta
+ao topo só para dar um zoom.
+
+### O logotipo virou uma linha
+
+A caixa grande do logotipo, que ocupava meia tela toda vez que se abria a aba,
+virou um **botão** que abre um modal. No lugar dela ficou uma linha discreta
+com a miniatura e a ficha do arquivo: **nome, tamanho e data** do que está
+anexado.
+
+### Texto do rodapé configurável
+
+Botão **Rodapé** novo na barra. Você escreve o que quiser no canto direito do
+rodapé antes de gerar o laudo — uma linha por linha escrita. Deixando em
+branco, o app usa os dados do responsável cadastrados em Configurações, como
+sempre fez.
+
+### Ajustes no laudo
+
+- A numeração agora diz **"Página X de Y"**.
+- **O selo do HRN saiu do cabeçalho do cartão** — ele já aparece na tabela do
+  rodapé do próprio cartão. No lugar dele, o rótulo **"Evidência do risco"**
+  subiu para a linha do nome, liberando altura para a foto.
+- O rótulo do PLr virou **"Função de segurança (PLr)"**.
+- **O texto do cartão ficou maior**: de 8,5 px para 10 px, que no papel é de
+  6,4 pt para 7,5 pt.
+- **A faixa vermelha da tarefa não fecha mais a página** com os riscos dela na
+  página seguinte. O paginador passou a medir o bloco seguinte junto antes de
+  decidir onde quebrar.
+
+---
+
 ## 11/08/2026 12:45
 
 Correção de uma Categoria errada no gráfico de risco, e a página do risco do
