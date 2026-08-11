@@ -3283,7 +3283,9 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   t("trocar e remover viajam para os outros aparelhos", ()=>{
     /* Três: enviar logotipo, remover logotipo e salvar o texto do rodapé —
        tudo que vive no mecseteConfig e precisa chegar nos outros aparelhos. */
-    eq((HTML.match(/STATE\.ui\.mecseteEm = agoraSync\(\);\s*\n\s*marcarEquipeAlterada\(\);/g)||[]).length, 3,
+    /* Cinco: logotipo (enviar/remover), figura do processo (enviar/remover) e
+       o texto do rodapé — tudo que vive no mecseteConfig e precisa sincronizar. */
+    eq((HTML.match(/STATE\.ui\.mecseteEm = agoraSync\(\);\s*\n\s*marcarEquipeAlterada\(\);/g)||[]).length, 5,
        "sem carimbo novo, a nuvem devolveria o valor antigo");
   });
   t("a prévia mostra onde o logotipo é transparente", ()=>{
@@ -3291,8 +3293,8 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(HTML.indexOf("linear-gradient(45deg,#D9DCE6 25%,transparent 25%)") > 0, "sem quadriculado não dá para ver o fundo");
   });
   t("trocar o logotipo obriga a remontar o laudo", ()=>{
-    eq((HTML.match(/cacheFoto\.clear\(\); __lpPaginas = \[\]; __lpHtml = "";/g)||[]).length, 2,
-       "a prévia continuaria mostrando o logotipo velho");
+    eq((HTML.match(/cacheFoto\.clear\(\); __lpPaginas = \[\]; __lpHtml = "";/g)||[]).length, 4,
+       "trocar logotipo ou figura precisa invalidar o laudo já montado");
   });
 
   console.log("\n=== t76 · inventário de máquinas: colunas e tipo do equipamento ===");
@@ -3496,7 +3498,8 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   t("o PLr fica discreto à direita da tabela do HRN", ()=>{
     const f = funcao("blocosEquipamentos");
     ok(f.indexOf('<div class="lp-rc-hrn">') < f.indexOf('<div class="lp-rc-plr">'), "o PLr precisa vir depois do HRN");
-    ok(HTML.indexOf(".lp-rc-plr{flex:0 0 118px;border-left:1px solid #8A8CA3") > 0, "sem a coluna estreita do PLr");
+    ok(HTML.indexOf(".lp-rc-plr{flex:0 0 156px;border-left:1px solid #8A8CA3") > 0, "sem a coluna do PLr");
+    ok(HTML.indexOf("color:#5B5F7A;white-space:nowrap}") > 0, "o rótulo do PLr voltaria a quebrar em duas linhas");
     ok(f.indexOf("Função de segurança (PLr)") > 0 && f.indexOf("Categoria ${esc(plr.cat)}") > 0,
        "o rótulo precisa trazer PLr entre parênteses");
   });
@@ -3571,6 +3574,49 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     const f = funcao("paginar");
     ok(f.indexOf("if(b.grudaNoProximo && blocos[idx+1]") > 0, "o paginador não olha o bloco seguinte");
     ok(f.indexOf("if(altura + h + hProx > teto) fechar();") > 0, "não mede os dois juntos");
+  });
+
+  console.log("\n=== t82 · metodologia completa, zoom e rolagem da prévia ===");
+  t("a rolagem da PRÉVIA é devolvida, não só a da janela", ()=>{
+    const f = funcao("render");
+    ok(f.indexOf('document.querySelector(".lp-visor")') > 0, "a prévia rola por dentro e voltava para a página 1");
+    ok(f.indexOf("v.scrollTop = visorY; v.scrollLeft = visorX;") > 0, "não devolve a rolagem da prévia");
+  });
+  t("o zoom vai até 200%", ()=>{
+    ok(HTML.indexOf("const passos = [0.3,0.4,0.5,0.65,0.8,1,1.25,1.5,2];") > 0);
+  });
+  t("o rótulo do PLr cabe numa linha e o HRN não quebra", ()=>{
+    ok(HTML.indexOf(".lp-rc-plr{flex:0 0 156px;") > 0);
+    ok(HTML.indexOf("text-transform:uppercase;\n  color:#5B5F7A;white-space:nowrap}") > 0
+       || HTML.indexOf("color:#5B5F7A;white-space:nowrap}") > 0, "o rótulo quebraria em duas linhas");
+    ok(HTML.indexOf("text-align:center;white-space:nowrap;\n  overflow:hidden;text-overflow:ellipsis}") > 0,
+       "as colunas do HRN precisam de uma linha só");
+  });
+  t("a metodologia ganhou a página dos itens da NR-12", ()=>{
+    const f = funcao("blocosMetodologia");
+    ["item 12.1.9 da NR-12", "item 12.1.1 da NR-12", "ABNT NBR ISO 12100:2013 foi publicada em 17 de dezembro de 2013"]
+      .forEach(x=> ok(f.indexOf(x) > 0, "faltou: " + x));
+    ok(f.indexOf('class="lp-lista lp-lista-solta"') > 0);
+  });
+  t("o parágrafo do risco residual entrou no método HRN", ()=>{
+    ok(funcao("blocosMetodologia").indexOf("Quando o risco residual permaneceu acima do nível considerado aceitável") > 0);
+  });
+  t("a figura do processo é enviada, não vem embutida no arquivo", ()=>{
+    const f = funcao("blocosMetodologia");
+    ok(f.indexOf("const fig = figuraProcesso();") > 0);
+    ok(f.indexOf("Figura 1: Representação esquemática do processo") > 0, "sem a legenda");
+    ok(f.indexOf("lp-fig-vazia") > 0, "sem a figura, a página tem de avisar em vez de sair em branco");
+    ok(HTML.indexOf("function figuraProcesso(){") > 0);
+    ok(HTML.indexOf("App.lpAbrirFigura()") > 0 && HTML.indexOf("lpEnviarFigura(){") > 0 && HTML.indexOf("lpRemoverFigura(){") > 0);
+    /* O repositório é público e a figura é adaptada de norma ABNT, que é paga:
+       não pode estar embutida como base64 dentro do index.html. */
+    ok(HTML.indexOf("figuraProcesso = \"data:image") < 0, "a figura não pode ir embutida no arquivo publicado");
+  });
+  t("a figura é reduzida com folga para o texto miúdo não embaralhar", ()=>{
+    ok(HTML.indexOf("comprimirLogoPNG(arq, 1400)") > 0, "1400px — fluxograma tem texto pequeno");
+  });
+  t("a classe da lista não atropela a lista de normas que já existia", ()=>{
+    eq((HTML.match(/^\.lp-lista\{/gm)||[]).length, 1, "duas definições de .lp-lista mudariam a outra lista do laudo");
   });
 
   console.log("\n---------------------------------------");

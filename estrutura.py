@@ -744,9 +744,10 @@ chk("remover deixa vazio (a uniao com a nuvem traria de volta uma chave ausente)
     'getMecseteConfig().logoLaudo = "";' in novo
     and "delete getMecseteConfig().logoLaudo" not in novo)
 chk("trocar e remover carimbam para sincronizar e forcam remontar",
-    # Tres: enviar logotipo, remover logotipo e salvar o texto do rodape.
-    len(re.findall(r"STATE\.ui\.mecseteEm = agoraSync\(\);\s*\n\s*marcarEquipeAlterada\(\);", novo)) == 3
-    and novo.count('cacheFoto.clear(); __lpPaginas = []; __lpHtml = "";') == 2)
+    # Cinco: logotipo (enviar/remover), figura do processo (enviar/remover) e o
+    # texto do rodape. Quatro deles tambem invalidam o laudo ja montado.
+    len(re.findall(r"STATE\.ui\.mecseteEm = agoraSync\(\);\s*\n\s*marcarEquipeAlterada\(\);", novo)) == 5
+    and novo.count('cacheFoto.clear(); __lpPaginas = []; __lpHtml = "";') == 4)
 
 print("\n=== 33. INVENTARIO DE MAQUINAS: COLUNAS FIXAS E TIPO DO EQUIPAMENTO ===")
 # O inventario sai em varias tabelas (uma por maquina, para poder paginar).
@@ -882,7 +883,7 @@ chk("o risco virou cartao e o cabecalho de colunas saiu",
     and '<th style="width:196px">HRN</th>' not in novo)
 chk("o PLr fica a direita da tabela do HRN",
     novo.find('<div class="lp-rc-hrn">') < novo.find('<div class="lp-rc-plr">')
-    and ".lp-rc-plr{flex:0 0 118px;border-left:1px solid #8A8CA3" in novo)
+    and ".lp-rc-plr{flex:0 0 156px;border-left:1px solid #8A8CA3" in novo)
 chk("as fotos saem sem legenda e sao no maximo duas",
     "const fotos = [r.foto, (r.fotosOutras||[])[0]].filter(Boolean);" in novo
     and "fotos.slice(0,2)" in novo
@@ -926,6 +927,38 @@ chk("a faixa da tarefa nao fecha a pagina sozinha",
     "grudaNoProximo:true" in novo
     and "if(b.grudaNoProximo && blocos[idx+1]" in novo
     and "if(altura + h + hProx > teto) fechar();" in novo)
+
+print("\n=== 39. METODOLOGIA COMPLETA, ZOOM E ROLAGEM DA PREVIA ===")
+# A previa (.lp-visor) rola por DENTRO. Trocar o innerHTML zera essa rolagem, e
+# era isso que jogava o documento de volta para a primeira pagina — separado da
+# rolagem da janela, que ja tinha sido corrigida.
+chk("a rolagem da previa e devolvida, nao so a da janela",
+    'const visorAntes = document.querySelector(".lp-visor");' in novo
+    and "v.scrollTop = visorY; v.scrollLeft = visorX;" in novo)
+chk("o zoom vai ate 200%",
+    "const passos = [0.3,0.4,0.5,0.65,0.8,1,1.25,1.5,2];" in novo)
+chk("o rotulo do PLr cabe numa linha e o HRN nao quebra",
+    ".lp-rc-plr{flex:0 0 156px;" in novo
+    and "color:#5B5F7A;white-space:nowrap}" in novo
+    and "text-align:center;white-space:nowrap;" in novo)
+chk("a metodologia tem a pagina dos itens da NR-12 e o paragrafo do residual",
+    "item 12.1.9 da NR-12" in novo
+    and "item 12.1.1 da NR-12" in novo
+    and "Quando o risco residual permaneceu acima do nível considerado aceitável" in novo
+    and 'class="lp-lista lp-lista-solta"' in novo)
+# O repositorio e PUBLICO e a figura e adaptada de norma ABNT, que e paga:
+# ela e enviada pelo engenheiro, nunca embutida no arquivo publicado.
+chk("a figura do processo e enviada, nao vem embutida",
+    novo.count("function figuraProcesso(){") == 1
+    and "App.lpAbrirFigura()" in novo
+    and "lpEnviarFigura(){" in novo and "lpRemoverFigura(){" in novo
+    and "lp-fig-vazia" in novo
+    and "Figura 1: Representação esquemática do processo" in novo
+    and 'figuraProcesso = "data:image' not in novo)
+chk("a figura e reduzida com folga para o texto miudo",
+    "comprimirLogoPNG(arq, 1400)" in novo)
+chk("a classe da lista nao foi redefinida por cima da que ja existia",
+    len(re.findall(r"^\.lp-lista\{", novo, re.M)) == 1)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")

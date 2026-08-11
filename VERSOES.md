@@ -22,6 +22,49 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 11/08/2026 18:30
+
+Metodologia completa, quadro do PLr numa linha, zoom até 200% e a prévia parou
+de voltar para a primeira página.
+
+### A prévia voltava para a página 1
+
+A correção anterior tratou a rolagem da **janela**. Só que a pré-visualização
+do laudo tem rolagem **própria** — ela rola por dentro do quadro cinza. Trocar
+o conteúdo da tela zerava essa segunda rolagem, e era isso que jogava o
+documento de volta para a primeira página. Agora as duas são devolvidas.
+
+### Zoom até 200%
+
+Os passos passaram a ser 30%, 40%, 50%, 65%, 80%, 100%, 125%, 150% e 200%.
+
+### Quadro do PLr numa linha só
+
+"Função de segurança (PLr)" estava quebrando em duas linhas. A coluna foi de
+118 px para 156 px, e o espaço saiu das cinco colunas do HRN, que ficaram com
+106 px cada — conferido que nenhuma delas corta ou quebra o texto.
+
+### Metodologia: duas páginas que faltavam
+
+- **Página com os itens da NR-12**: quando a ABNT NBR ISO 12100:2013 foi
+  publicada, o que é apreciação de riscos, e os itens 12.1.9 e 12.1.1 da NR-12.
+- **Página da figura do processo**, com a legenda "Figura 1: Representação
+  esquemática do processo de apreciação de riscos".
+- No método HRN entrou o parágrafo sobre o **risco residual** — nova estimativa
+  após as medidas, e medidas adicionais quando o residual continuar acima do
+  aceitável.
+
+**A figura você envia uma vez**, em Laudo → Imprimir → **Figura**. Ela fica
+guardada no aparelho e sincroniza, igual ao logotipo. Enquanto não for enviada,
+a página sai com um aviso no lugar dela em vez de sair em branco.
+
+O motivo de a figura não vir pronta dentro do app: o aplicativo é publicado num
+repositório **público**, e essa figura é adaptada de uma norma ABNT, que é
+paga. Deixá-la embutida no arquivo seria distribuí-la. É a mesma razão pela
+qual as normas em PDF também não ficam no repositório.
+
+---
+
 ## 11/08/2026 15:05
 
 Aba Imprimir mais enxuta, controles dentro da visualização, e a página parou
