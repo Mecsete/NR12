@@ -757,6 +757,8 @@ const ICON = {
   folder:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a1.5 1.5 0 011.5-1.5h4.4l1.6 2H19.5A1.5 1.5 0 0121 9v9a1.5 1.5 0 01-1.5 1.5h-15A1.5 1.5 0 013 18V7z"/></svg>',
   onedrive:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 18.5h10a3.5 3.5 0 000-7 4.8 4.8 0 00-9.2-1.6A4 4 0 007.5 18.5z"/></svg>',
   expandir:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4H4v5M15 20h5v-5M20 9V4h-5M4 15v5h5"/></svg>',
+  zoomMais:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21M10.5 7.5v6M7.5 10.5h6"/></svg>',
+  zoomMenos:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21M7.5 10.5h6"/></svg>',
   encolher:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h5V4M20 15h-5v5M15 4v5h5M9 20v-5H4"/></svg>',
 };
 function ic(name){return ICON[name]||'';}
@@ -1783,7 +1785,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "11/08/2026 12:45";
+const APP_BUILD = "11/08/2026 15:05";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -7478,14 +7480,32 @@ function hidratarImagens(){
     if(f) el.src = f;
   });
 }
+/* A ROLAGEM NÃO PODE VOLTAR AO TOPO SOZINHA.
+   render() troca o innerHTML inteiro, e isso zera o scroll. Como a
+   sincronização redesenha a tela sozinha de tempos em tempos, a página pulava
+   para o topo no meio da leitura, sem ninguém ter pedido.
+   A regra: se continua sendo a MESMA tela, a rolagem é devolvida; se o
+   usuário navegou para outro lugar, começa do topo, que é o certo. */
+let __telaDesenhada = "";
+function chaveDaTela(){
+  const u = STATE.ui || {};
+  return [STATE.modulo, u.screen, u.screenS, u.laudoAba, u.laudoRiscoId,
+          u.projetoSId, u.areaSId, u.maquinaSId, u.tarefaSId].join("|");
+}
 function render(){
   aplicarContraste();
   imgRegLimparSePossivel();
+  const chave = chaveDaTela();
+  const mesmaTela = (chave === __telaDesenhada);
+  const rolagem = mesmaTela ? (window.scrollY || window.pageYOffset || 0) : 0;
+  __telaDesenhada = chave;
+  const devolverRolagem = ()=>{ if(mesmaTela && rolagem) window.scrollTo(0, rolagem); };
   const app = document.getElementById("app");
-  if(!STATE.modulo){ app.innerHTML = screenModuloSelect(); setSaveChip(false); return; }
-  if(STATE.modulo==="simplificado"){ renderSimplificado(); hidratarImagens(); return; }
+  if(!STATE.modulo){ app.innerHTML = screenModuloSelect(); setSaveChip(false); devolverRolagem(); return; }
+  if(STATE.modulo==="simplificado"){ renderSimplificado(); hidratarImagens(); devolverRolagem(); return; }
   renderCompleto();
   hidratarImagens();
+  devolverRolagem();
 }
 function renderCompleto(){
   const app = document.getElementById("app");
@@ -17429,6 +17449,27 @@ window.addEventListener("pageshow", (event) => {
 .lp-barra .btn{flex:0 0 auto}
 .lp-status{font-size:12px;color:var(--ink-dim);font-weight:700}
 .lp-visor{background:#5A5D70;border-radius:10px;padding:14px;overflow:auto;max-height:70vh}
+/* Os controles ficam DENTRO da visualização, flutuando sobre ela. O invólucro
+   é o que não rola: assim os botões continuam no mesmo canto por mais que se
+   role o laudo por dentro, sem precisar voltar ao topo da página. */
+.lp-visor-wrap{position:relative}
+.lp-flut{position:absolute;right:14px;bottom:14px;z-index:6;display:flex;flex-direction:column;
+  align-items:center;gap:7px;background:rgba(20,22,45,.72);backdrop-filter:blur(4px);
+  border-radius:99px;padding:8px 7px}
+.lp-flut-btn{width:38px;height:38px;border-radius:50%;border:none;background:#fff;color:#1E2148;
+  display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.28)}
+.lp-flut-btn svg{width:19px;height:19px}
+.lp-flut-btn:active{background:#E7EAF4}
+.lp-flut-btn:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.lp-flut-pct{font-size:10.5px;font-weight:800;color:#fff;letter-spacing:.03em;
+  font-variant-numeric:tabular-nums;padding-bottom:1px}
+/* Ficha do logotipo: uma linha discreta, no lugar do cartão que ocupava meia
+   tela toda vez que se abria a aba. */
+.lp-logo-linha{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:-4px 0 10px;
+  font-size:11.5px;color:var(--ink-faint)}
+.lp-logo-mini{height:20px;width:auto;border-radius:3px;background:#fff;padding:1px 3px;flex-shrink:0}
+.lp-logo-vazio{font-style:italic}
+.lp-logo-alerta{color:#B26A00}
 /* Quadriculado atrás da prévia: é o que deixa ver, a olho nu, se o logotipo
    tem fundo transparente ou um retângulo sólido colado nele. */
 .lp-logo-previa{display:flex;align-items:center;justify-content:center;min-height:92px;padding:10px;border:1px solid var(--line-strong);border-radius:9px;background-color:#fff;background-image:linear-gradient(45deg,#D9DCE6 25%,transparent 25%),linear-gradient(-45deg,#D9DCE6 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#D9DCE6 75%),linear-gradient(-45deg,transparent 75%,#D9DCE6 75%);background-size:16px 16px;background-position:0 0,0 8px,8px -8px,-8px 0}
@@ -17532,12 +17573,16 @@ window.addEventListener("pageshow", (event) => {
 .lp-rc-cab{display:flex;align-items:center;gap:7px;background:#EEF0F6;border-bottom:1px solid #8A8CA3;padding:4px 7px}
 .lp-rc-num{background:#1E2148;color:#fff;font-weight:bold;font-size:9px;width:16px;height:16px;
   display:flex;align-items:center;justify-content:center;border-radius:3px;flex-shrink:0}
-.lp-rc-nome{flex:1;font-size:9px;font-weight:bold;color:#111;line-height:1.3}
-.lp-rc-selo{font-weight:bold;font-size:8px;padding:2px 6px;border-radius:3px;flex-shrink:0;letter-spacing:.02em}
+.lp-rc-nome{flex:1;font-size:10.5px;font-weight:bold;color:#111;line-height:1.3}
+/* O rotulo da evidencia subiu para a linha do nome (o selo do HRN saiu daqui,
+   porque o nivel ja aparece na tabela do rodape). Com ele fora da coluna, a
+   foto ganha a altura que a linha ocupava. */
+.lp-rc-evrot{flex:0 0 190px;font-size:7.5px;font-weight:bold;letter-spacing:.08em;
+  text-transform:uppercase;color:#5B5F7A;text-align:center}
 .lp-rc-corpo{display:flex;align-items:stretch}
-.lp-rc-col{padding:6px 8px;font-size:8.5px;text-align:justify;flex:1;min-width:0}
-.lp-rc-col.ev{flex:0 0 190px;border-left:1px solid #8A8CA3;text-align:center}
-.lp-rc-rot{font-size:7px;font-weight:bold;letter-spacing:.08em;text-transform:uppercase;color:#5B5F7A;margin-bottom:2px}
+.lp-rc-col{padding:7px 9px;font-size:10px;text-align:justify;flex:1;min-width:0;line-height:1.45}
+.lp-rc-col.ev{flex:0 0 190px;padding:6px;border-left:1px solid #8A8CA3;text-align:center}
+.lp-rc-rot{font-size:7.5px;font-weight:bold;letter-spacing:.08em;text-transform:uppercase;color:#5B5F7A;margin-bottom:2px}
 .lp-rc-bloco + .lp-rc-bloco{margin-top:6px;padding-top:6px;border-top:1px dotted #B9BCCB}
 .lp-rc-fotos{display:flex;flex-direction:column;gap:4px}
 .lp-rc-fotos img{width:100%;display:block;border:1px solid #8A8CA3}
@@ -17814,7 +17859,7 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
         blocos.push({ html:`<div class="lp-faixa-c" style="margin-top:8px">${esc(nomeT)}</div>
           <div class="lp-apr-txt" style="border:1px solid #8A8CA3;border-top:none">${esc(descT)}</div>
           <div class="lp-faixa-r" style="margin-top:6px">RISCOS REFERENTES À TAREFA ${esc(nomeT)}</div>
-` });
+`, grudaNoProximo:true });
 
         for(let i=0;i<t.itens.length;i++){
           const it = t.itens[i];
@@ -17837,7 +17882,7 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
             <div class="lp-rc-cab">
               <span class="lp-rc-num">${i+1}</span>
               <span class="lp-rc-nome">${esc(nomeRisco)}</span>
-              <span class="lp-rc-selo" style="background:${meta.cor};color:${meta.texto}">HRN ${esc(h.nivel)}</span>
+              ${evsOk.length? `<span class="lp-rc-evrot">Evidência do risco</span>`:""}
             </div>
             <div class="lp-rc-corpo">
               <div class="lp-rc-col">
@@ -17855,7 +17900,6 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
                 </div>
               </div>
               ${evsOk.length? `<div class="lp-rc-col ev">
-                <div class="lp-rc-rot">Evidência do risco</div>
                 <div class="lp-rc-fotos">
                   ${evsOk.map(f=>`<img src="${f}">`).join("")}
                 </div>
@@ -17873,11 +17917,10 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
                 </tr>
               </table></div>
               <div class="lp-rc-plr">
+                <div class="r">Função de segurança (PLr)</div>
                 ${plr.aplicavel && plr.completo
-                  ? `<div class="r">PLr exigido</div>
-                     <div class="v"><b>PL ${esc(plr.plr)}</b> · Categoria ${esc(plr.cat)}</div>`
-                  : `<div class="r">Função de segurança</div>
-                     <div class="v">${plr.aplicavel? "A classificar" : "Não aplicável"}</div>`}
+                  ? `<div class="v"><b>PL ${esc(plr.plr)}</b> · Categoria ${esc(plr.cat)}</div>`
+                  : `<div class="v">${plr.aplicavel? "A classificar" : "Não aplicável"}</div>`}
               </div>
             </div>
           </div>` });
@@ -17913,7 +17956,8 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
     const paginas = [];
     let atual = [], altura = 0, orient = false;
     const fechar = ()=>{ if(atual.length){ paginas.push({ blocos:atual, paisagem:orient }); atual = []; altura = 0; } };
-    for(const b of blocos){
+    for(let idx=0; idx<blocos.length; idx++){
+      const b = blocos[idx];
       const deitada = !!b.paisagem;
       if(b.paginaInteira){
         fechar();
@@ -17928,17 +17972,34 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
       const teto = deitada ? MAX_A_P : MAX_A;
       if(b.quebrarAntes && atual.length){ fechar(); }
       if(altura + h > teto && atual.length){ fechar(); }
+      /* GRUDA NO PRÓXIMO: a faixa "RISCOS REFERENTES À TAREFA X" não pode
+         fechar a página com os riscos dela na página seguinte. Aqui o bloco
+         mede TAMBÉM o que vem depois: se os dois não couberem juntos, começa
+         página nova agora e os dois descem juntos. */
+      if(b.grudaNoProximo && blocos[idx+1] && !blocos[idx+1].paginaInteira && atual.length){
+        med.innerHTML = blocos[idx+1].html;
+        await esperarImagens(med);
+        const hProx = Math.ceil(med.getBoundingClientRect().height);
+        if(altura + h + hProx > teto) fechar();
+      }
       atual.push(b); altura += h;
     }
     fechar();
     med.remove();
     return paginas;
   }
+  /* Texto da direita do rodapé. Vazio = o padrão montado com os dados do
+     responsável; preenchido = exatamente o que o engenheiro escreveu. */
+  function rodapeTexto(d){
+    const livre = String(getMecseteConfig().rodapeLaudo || "").trim();
+    if(livre) return livre;
+    return `${d.m.respFuncao||""} ${d.m.respNome||""}\n${d.m.email||""}\n${d.m.telefone||""}`;
+  }
   function rodapeHtml(d, n, total){
     return `<div class="lp-rodape">
-      <div class="lp-num">${n}</div>
+      <div class="lp-num">Página ${n} de ${total}</div>
       <div class="lp-marca">${marcaHtml("")}</div>
-      <div class="lp-eng">${esc(d.m.respFuncao||"")} ${esc(d.m.respNome||"")}\n${esc(d.m.email||"")}\n${esc(d.m.telefone||"")}</div>
+      <div class="lp-eng">${esc(rodapeTexto(d))}</div>
     </div>`;
   }
   function montarDoc(paginas, d){
@@ -17954,6 +18015,37 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
     const mapa = new Map();
     itens.forEach(it=>{ if(!mapa.has(it.area.id)) mapa.set(it.area.id, { area:it.area, proj:it.proj, itens:[] }); mapa.get(it.area.id).itens.push(it); });
     return Array.from(mapa.values()).sort((a,b)=> (a.area.nome||"").localeCompare(b.area.nome||"","pt-BR"));
+  }
+  function tamanhoLegivel(b){
+    if(!b) return "";
+    return b < 1024 ? b + " B"
+         : b < 1048576 ? (b/1024).toFixed(0) + " KB"
+         : (b/1048576).toFixed(1) + " MB";
+  }
+  /* Linha discreta embaixo da barra: o botão abre o modal, e aqui fica só a
+     ficha do arquivo — nome, tamanho e data. Antes isto era um cartão grande
+     com prévia, ocupando a tela toda vez que se entrava na aba. */
+  /* Só a ficha do arquivo, em texto puro — usada dentro do modal. */
+  function logoFichaTexto(){
+    const meta = getMecseteConfig().logoLaudoMeta || null;
+    const partes = [];
+    if(meta && meta.nome) partes.push(escapeHtml(meta.nome));
+    if(meta && meta.bytes) partes.push(tamanhoLegivel(meta.bytes));
+    if(meta && meta.quando) partes.push(formatarDataHoraBR(meta.quando));
+    return partes.length ? "Arquivo: " + partes.join(" · ")
+                         : "Enviado antes de o app passar a guardar a ficha do arquivo.";
+  }
+  function logoFicha(){
+    const meta = getMecseteConfig().logoLaudoMeta || null;
+    if(!logo()) return `<span class="lp-logo-vazio">Sem logotipo — a capa e o rodapé usam a marca em texto.</span>`;
+    const partes = [];
+    if(meta && meta.nome) partes.push(escapeHtml(meta.nome));
+    if(meta && meta.bytes) partes.push(tamanhoLegivel(meta.bytes));
+    if(meta && meta.quando) partes.push(formatarDataHoraBR(meta.quando));
+    const ficha = partes.length ? partes.join(" · ") : "logotipo enviado antes de o app guardar a ficha do arquivo";
+    return `<img class="lp-logo-mini" src="${logo()}" alt="">
+      <span>${ficha}</span>
+      ${logoSemTransparencia()? `<b class="lp-logo-alerta">sem transparência — reenvie o PNG</b>`:""}`;
   }
   function telaImprimir(){
     const areas = areasDoEscopo();
@@ -17975,30 +18067,22 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
         ${areas.map(a=>`<option value="${a.area.id}" ${STATE.ui.lpAreaId===a.area.id?'selected':''}>${escapeHtml(a.area.nome||"Área")} — ${a.itens.length} risco(s)</option>`).join("")}
       </select>`:""}
       <button class="btn btn-primary" onclick="App.lpGerar()">${ic('table')} ${__lpPaginas.length? "Atualizar" : "Montar laudo"}</button>
-      ${__lpPaginas.length? `<button class="btn btn-secondary" onclick="App.lpImprimir()">${ic('print')} Imprimir / Salvar PDF</button>`:""}
       ${__lpPaginas.length? `<span class="lp-status">${__lpPaginas.length} página(s)</span>`:""}
-      <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpZoom(-1)">−</button>
-      <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpZoom(1)">+</button>
+      <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirLogo()">${ic('gallery')} Logotipo</button>
+      <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirRodape()">${ic('edit')} Rodapé</button>
     </div>
-    ${!temLogo
-      ? `<div class="card card-pad" style="background:#FFF3D6;border-color:#E9C46A;margin-bottom:10px">
-          <div style="font-weight:800;font-size:13px;margin-bottom:3px">Logotipo não enviado</div>
-          <div style="font-size:12.5px;color:var(--ink-dim);margin-bottom:9px">Sem ele a capa e o rodapé usam uma marca em texto. Envie uma vez — fica guardado no aparelho e sincroniza.</div>
-          <button class="btn btn-secondary btn-sm" onclick="App.lpEnviarLogo()">${ic('upload')} Enviar logotipo (PNG)</button>
-        </div>`
-      : `<div class="card card-pad" style="margin-bottom:10px">
-          <div style="font-weight:800;font-size:13px;margin-bottom:7px">Logotipo do laudo</div>
-          <div class="lp-logo-previa"><img src="${logo()}" alt="Logotipo"></div>
-          ${logoSemTransparencia()? `<div style="font-size:12.5px;color:#8A5B00;background:#FFF3D6;border:1px solid #E9C46A;border-radius:8px;padding:9px 10px;margin-top:9px">
-              <b>Este logotipo está sem transparência.</b> Ele foi salvo em um formato que não guarda fundo transparente, e por isso aparece com fundo preto no laudo e estraga a capa. Envie o PNG original de novo — agora o app guarda a transparência.
-            </div>`:`<div class="field-hint" style="margin-top:7px">O quadriculado atrás é só da pré-visualização: mostra onde o logotipo é transparente.</div>`}
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:9px">
-            <button class="btn ${logoSemTransparencia()?"btn-primary":"btn-secondary"} btn-sm" onclick="App.lpEnviarLogo()">${ic('upload')} Trocar logotipo (PNG)</button>
-            <button class="btn btn-secondary btn-sm" onclick="App.lpRemoverLogo()">${ic('trash')} Remover</button>
-          </div>
-        </div>`}
+    <div class="lp-logo-linha">${logoFicha()}</div>
+    ${""}
     ${__lpPaginas.length? `
-      <div class="lp-visor"><div class="lp-doc" id="lpDoc" style="transform:scale(${zoom});width:${PAG_A}px;margin-bottom:${Math.round(-PAG_A*(1-zoom))}px">${__lpHtml}</div></div>
+      <div class="lp-visor-wrap">
+        <div class="lp-visor"><div class="lp-doc" id="lpDoc" style="transform:scale(${zoom});width:${PAG_A}px;margin-bottom:${Math.round(-PAG_A*(1-zoom))}px">${__lpHtml}</div></div>
+        <div class="lp-flut">
+          <button class="lp-flut-btn" title="Imprimir / Salvar PDF" aria-label="Imprimir ou salvar em PDF" onclick="App.lpImprimir()">${ic('print')}</button>
+          <button class="lp-flut-btn" title="Aumentar" aria-label="Aumentar o zoom" onclick="App.lpZoom(1)">${ic('zoomMais')}</button>
+          <button class="lp-flut-btn" title="Diminuir" aria-label="Diminuir o zoom" onclick="App.lpZoom(-1)">${ic('zoomMenos')}</button>
+          <span class="lp-flut-pct">${Math.round(zoom*100)}%</span>
+        </div>
+      </div>
       <div class="card card-pad" style="margin-top:10px;background:var(--bg-soft)">
         <div style="font-weight:800;font-size:13px;margin-bottom:5px">Ao abrir a janela de impressão</div>
         <div style="font-size:12.5px;color:var(--ink-dim);line-height:1.6">
@@ -18080,8 +18164,12 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
         try{
           if(!input.files[0]) return;
           /* PNG, não JPEG: é o que preserva o fundo transparente. */
-          const data = await comprimirLogoPNG(input.files[0], 600);
+          const arq = input.files[0];
+          const data = await comprimirLogoPNG(arq, 600);
           getMecseteConfig().logoLaudo = data;
+          /* Ficha do arquivo, para a tela dizer o que está anexado sem
+             precisar mostrar a imagem inteira. */
+          getMecseteConfig().logoLaudoMeta = { nome: arq.name || "", bytes: arq.size || 0, quando: Date.now() };
           /* O carimbo é o que faz a troca chegar nos outros aparelhos; sem ele
              o logotipo antigo voltaria na próxima sincronização. */
           STATE.ui.mecseteEm = agoraSync();
@@ -18094,12 +18182,61 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
       };
       input.click();
     },
+    lpAbrirRodape(){
+      const c = getMecseteConfig();
+      const padrao = `${c.respFuncao||""} ${c.respNome||""}\n${c.email||""}\n${c.telefone||""}`;
+      abrirOverlay(`<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card">
+        <h3>Texto do rodapé</h3>
+        <div class="sheet-sub">Sai no canto direito do rodapé, em todas as páginas do laudo. Uma linha por linha escrita.</div>
+        <div class="field">
+          <textarea id="lpRodapeTxt" placeholder="${escapeHtml(padrao)}">${escapeHtml(c.rodapeLaudo||"")}</textarea>
+          <div class="field-hint">Deixando em branco, o app usa os dados do responsável cadastrados em Configurações:<br><b>${escapeHtml(padrao.replace(/\n/g," · "))}</b></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button class="btn btn-primary btn-sm" style="flex:1" onclick="App.lpSalvarRodape()">${ic('check')} Salvar</button>
+          <button class="btn btn-secondary btn-sm" style="flex:1" onclick="App.fecharModal()">Cancelar</button>
+        </div>
+      </div></div>`);
+    },
+    lpSalvarRodape(){
+      const el = document.getElementById("lpRodapeTxt");
+      getMecseteConfig().rodapeLaudo = el ? String(el.value||"").trim() : "";
+      STATE.ui.mecseteEm = agoraSync();
+      marcarEquipeAlterada();
+      /* O rodapé está em todas as páginas: mudou o texto, o laudo montado
+         ficou velho. */
+      __lpPaginas = []; __lpHtml = "";
+      App.fecharModal();
+      render();
+      toast("Rodapé salvo — toque em Montar laudo para ver");
+    },
+    lpAbrirLogo(){
+      abrirOverlay(`<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card">
+        <h3>Logotipo do laudo</h3>
+        <div class="sheet-sub">Aparece na capa, na contracapa e no rodapé de todas as páginas. Fica guardado no aparelho e sincroniza com os outros.</div>
+        ${logo()
+          ? `<div class="lp-logo-previa"><img src="${logo()}" alt="Logotipo"></div>
+             ${logoSemTransparencia()
+               ? `<div style="font-size:12.5px;color:#8A5B00;background:#FFF3D6;border:1px solid #E9C46A;border-radius:8px;padding:9px 10px;margin-top:9px">
+                    <b>Este logotipo está sem transparência.</b> Foi salvo num formato que não guarda fundo transparente, e por isso aparece com fundo preto no laudo e estraga a capa. Envie o PNG original de novo.
+                  </div>`
+               : `<div class="field-hint" style="margin-top:7px">O quadriculado atrás é só da prévia: mostra onde o logotipo é transparente.</div>`}
+             <div class="field-hint" style="margin-top:6px">${logoFichaTexto()}</div>`
+          : `<div class="field-hint" style="margin:4px 0 0">Sem logotipo, a capa e o rodapé usam uma marca em texto.</div>`}
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+          <button class="btn ${logo() && logoSemTransparencia() ? "btn-primary" : logo() ? "btn-secondary" : "btn-primary"} btn-sm" onclick="App.lpEnviarLogo()">${ic('upload')} ${logo()? "Trocar" : "Enviar"} logotipo (PNG)</button>
+          ${logo()? `<button class="btn btn-secondary btn-sm" onclick="App.lpRemoverLogo()">${ic('trash')} Remover</button>`:""}
+        </div>
+        <button class="sheet-cancel" style="margin-top:12px" onclick="App.fecharModal()">Fechar</button>
+      </div></div>`);
+    },
     lpRemoverLogo(){
       if(!confirm("Remover o logotipo? A capa e o rodapé voltam a usar a marca em texto.")) return;
       /* Fica string vazia, e não apagado: a mesclagem com a nuvem é por união
          de campos, então uma chave ausente deixaria o logotipo antigo voltar
          do outro aparelho. Vazio sobrescreve. */
       getMecseteConfig().logoLaudo = "";
+      getMecseteConfig().logoLaudoMeta = null;
       STATE.ui.mecseteEm = agoraSync();
       marcarEquipeAlterada();
       cacheFoto.clear(); __lpPaginas = []; __lpHtml = "";

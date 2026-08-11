@@ -3254,7 +3254,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
        "as fotos ficariam gigantes se virassem PNG");
   });
   t("o envio do logotipo usa a função certa", ()=>{
-    ok(HTML.indexOf("comprimirLogoPNG(input.files[0], 600)") > 0, "não usa o caminho que preserva transparência");
+    ok(HTML.indexOf("comprimirLogoPNG(arq, 600)") > 0, "não usa o caminho que preserva transparência");
     ok(HTML.indexOf("comprimirImagem(input.files[0], 600, 0.92)") < 0, "sobrou a chamada antiga que gerava fundo preto");
   });
   t("PNG grande demais é reduzido em vez de virar JPEG", ()=>{
@@ -3272,7 +3272,8 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(HTML.indexOf("lpRemoverLogo(){") > 0);
     ok(HTML.indexOf("${!temLogo? `<div class=\"card card-pad\" style=\"background:#FFF3D6") < 0,
        "o painel voltaria a sumir assim que houvesse logotipo");
-    ok(HTML.indexOf("Trocar logotipo (PNG)") > 0);
+    ok(HTML.indexOf('${logo()? "Trocar" : "Enviar"} logotipo (PNG)') > 0, "o botão do modal sumiu");
+    ok(HTML.indexOf("App.lpAbrirLogo()") > 0, "sem o botão que abre o modal do logotipo");
   });
   t("remover deixa vazio, não apaga a chave", ()=>{
     ok(HTML.indexOf('getMecseteConfig().logoLaudo = "";') > 0,
@@ -3280,8 +3281,10 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(HTML.indexOf("delete getMecseteConfig().logoLaudo") < 0);
   });
   t("trocar e remover viajam para os outros aparelhos", ()=>{
-    eq((HTML.match(/STATE\.ui\.mecseteEm = agoraSync\(\);\s*\n\s*marcarEquipeAlterada\(\);/g)||[]).length, 2,
-       "sem carimbo novo, a nuvem devolveria o logotipo antigo");
+    /* Três: enviar logotipo, remover logotipo e salvar o texto do rodapé —
+       tudo que vive no mecseteConfig e precisa chegar nos outros aparelhos. */
+    eq((HTML.match(/STATE\.ui\.mecseteEm = agoraSync\(\);\s*\n\s*marcarEquipeAlterada\(\);/g)||[]).length, 3,
+       "sem carimbo novo, a nuvem devolveria o valor antigo");
   });
   t("a prévia mostra onde o logotipo é transparente", ()=>{
     ok(HTML.indexOf(".lp-logo-previa{") > 0);
@@ -3494,7 +3497,8 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     const f = funcao("blocosEquipamentos");
     ok(f.indexOf('<div class="lp-rc-hrn">') < f.indexOf('<div class="lp-rc-plr">'), "o PLr precisa vir depois do HRN");
     ok(HTML.indexOf(".lp-rc-plr{flex:0 0 118px;border-left:1px solid #8A8CA3") > 0, "sem a coluna estreita do PLr");
-    ok(f.indexOf("PLr exigido") > 0 && f.indexOf("Categoria ${esc(plr.cat)}") > 0);
+    ok(f.indexOf("Função de segurança (PLr)") > 0 && f.indexOf("Categoria ${esc(plr.cat)}") > 0,
+       "o rótulo precisa trazer PLr entre parênteses");
   });
   t("PLr só aparece quando há função de segurança a classificar", ()=>{
     const f = funcao("blocosEquipamentos");
@@ -3517,6 +3521,56 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   });
   t("busca no máximo duas fotos, não a galeria inteira", ()=>{
     ok(funcao("blocosEquipamentos").indexOf("fotos.slice(0,2)") > 0, "reduzir foto é caro — não pode varrer todas");
+  });
+
+  console.log("\n=== t81 · tela Imprimir e ajustes do cartão ===");
+  t("a rolagem não volta ao topo quando é a mesma tela", ()=>{
+    const f = funcao("render");
+    ok(f.indexOf("const mesmaTela = (chave === __telaDesenhada);") > 0, "sem a comparação de tela");
+    ok(f.indexOf("if(mesmaTela && rolagem) window.scrollTo(0, rolagem);") > 0, "não devolve a rolagem");
+    eq((f.match(/devolverRolagem\(\)/g)||[]).length, 3, "os três caminhos de render precisam devolver");
+    ok(funcao("chaveDaTela").indexOf("u.laudoAba") > 0, "trocar de aba tem de contar como outra tela");
+  });
+  t("os controles ficam dentro da visualização", ()=>{
+    ok(HTML.indexOf('<div class="lp-visor-wrap">') > 0);
+    ok(HTML.indexOf(".lp-flut{position:absolute;right:14px;bottom:14px") > 0, "a barra não flutua");
+    ["App.lpImprimir()","App.lpZoom(1)","App.lpZoom(-1)"].forEach(a=>
+      ok(HTML.indexOf(`class="lp-flut-btn" title="${a==="App.lpImprimir()"?"Imprimir / Salvar PDF":a==="App.lpZoom(1)"?"Aumentar":"Diminuir"}"`) > 0
+         || HTML.indexOf(a) > 0, "faltou " + a));
+    ok(HTML.indexOf("zoomMais:") > 0 && HTML.indexOf("zoomMenos:") > 0, "sem os ícones de lupa");
+  });
+  t("a caixa do logotipo virou botão mais ficha do arquivo", ()=>{
+    ok(HTML.indexOf("App.lpAbrirLogo()") > 0, "sem o botão que abre o modal");
+    ok(HTML.indexOf("function logoFicha(") > 0 && HTML.indexOf("function tamanhoLegivel(") > 0);
+    ok(HTML.indexOf("logoLaudoMeta = { nome: arq.name") > 0, "não guarda nome, tamanho e data do arquivo");
+    ok(HTML.indexOf('<div class="card card-pad" style="background:#FFF3D6;border-color:#E9C46A;margin-bottom:10px">') < 0,
+       "sobrou o cartão grande do logotipo na aba");
+  });
+  t("o texto do rodapé é configurável e cai no padrão quando vazio", ()=>{
+    ok(HTML.indexOf("App.lpAbrirRodape()") > 0 && HTML.indexOf("lpSalvarRodape(){") > 0);
+    const f = funcao("rodapeTexto");
+    ok(f.indexOf("getMecseteConfig().rodapeLaudo") > 0 && f.indexOf("if(livre) return livre;") > 0,
+       "sem texto escrito, tem de cair nos dados do responsável");
+    ok(HTML.indexOf('__lpPaginas = []; __lpHtml = "";\n      App.fecharModal();') > 0,
+       "mudar o rodapé precisa invalidar o laudo já montado");
+  });
+  t("numeração diz o total de páginas", ()=>{
+    ok(HTML.indexOf('<div class="lp-num">Página ${n} de ${total}</div>') > 0);
+  });
+  t("o selo do HRN saiu do cabeçalho e a evidência subiu para lá", ()=>{
+    const f = funcao("blocosEquipamentos");
+    ok(f.indexOf('class="lp-rc-selo"') < 0, "o HRN já aparece na tabela do rodapé do cartão");
+    ok(f.indexOf('<span class="lp-rc-evrot">Evidência do risco</span>') > 0, "o rótulo não subiu");
+    ok(f.indexOf('<div class="lp-rc-rot">Evidência do risco</div>') < 0, "sobrou o rótulo dentro da coluna");
+  });
+  t("o texto do cartão ficou maior", ()=>{
+    ok(HTML.indexOf(".lp-rc-col{padding:7px 9px;font-size:10px;") > 0, "8,5px dava 6,4pt no papel — pequeno demais");
+  });
+  t("a faixa da tarefa não fecha a página sozinha", ()=>{
+    ok(HTML.indexOf("grudaNoProximo:true") > 0, "a faixa não está marcada");
+    const f = funcao("paginar");
+    ok(f.indexOf("if(b.grudaNoProximo && blocos[idx+1]") > 0, "o paginador não olha o bloco seguinte");
+    ok(f.indexOf("if(altura + h + hProx > teto) fechar();") > 0, "não mede os dois juntos");
   });
 
   console.log("\n---------------------------------------");

@@ -722,7 +722,7 @@ chk("o logotipo sai em PNG e a foto continua em JPEG",
     novo.count("function comprimirLogoPNG(") == 1
     and 'canvas.toDataURL("image/png")' in novo
     and 'canvas.toDataURL("image/jpeg", quality||0.7)' in novo
-    and "comprimirLogoPNG(input.files[0], 600)" in novo
+    and "comprimirLogoPNG(arq, 600)" in novo
     and "comprimirImagem(input.files[0], 600, 0.92)" not in novo)
 _cl = novo.find("function comprimirLogoPNG(")
 _clc = novo[_cl:novo.find("function comprimirImagem(", _cl)]
@@ -737,13 +737,15 @@ chk("logotipo no formato antigo e reconhecido e avisado",
 chk("da para trocar e remover o logotipo depois de enviado",
     novo.count("lpRemoverLogo(){") == 1
     and novo.count("App.lpRemoverLogo()") == 1
-    and "Trocar logotipo (PNG)" in novo
+    and '${logo()? "Trocar" : "Enviar"} logotipo (PNG)' in novo
+    and "App.lpAbrirLogo()" in novo
     and "lp-logo-previa" in novo)
 chk("remover deixa vazio (a uniao com a nuvem traria de volta uma chave ausente)",
     'getMecseteConfig().logoLaudo = "";' in novo
     and "delete getMecseteConfig().logoLaudo" not in novo)
 chk("trocar e remover carimbam para sincronizar e forcam remontar",
-    len(re.findall(r"STATE\.ui\.mecseteEm = agoraSync\(\);\s*\n\s*marcarEquipeAlterada\(\);", novo)) == 2
+    # Tres: enviar logotipo, remover logotipo e salvar o texto do rodape.
+    len(re.findall(r"STATE\.ui\.mecseteEm = agoraSync\(\);\s*\n\s*marcarEquipeAlterada\(\);", novo)) == 3
     and novo.count('cacheFoto.clear(); __lpPaginas = []; __lpHtml = "";') == 2)
 
 print("\n=== 33. INVENTARIO DE MAQUINAS: COLUNAS FIXAS E TIPO DO EQUIPAMENTO ===")
@@ -887,6 +889,43 @@ chk("as fotos saem sem legenda e sao no maximo duas",
     and "DETALHE DO RISCO" not in novo
     and ".lp-rc-leg{" not in novo
     and '${evsOk.length? `<div class="lp-rc-col ev">' in novo)
+
+print("\n=== 38. TELA IMPRIMIR, ROLAGEM E AJUSTES DO CARTAO ===")
+# render() troca o innerHTML inteiro e isso zera o scroll. Como a sincronizacao
+# redesenha sozinha de tempos em tempos, a pagina pulava para o topo no meio da
+# leitura. Sao 132 chamadas de render() — a correcao tem de ficar dentro dele.
+chk("a rolagem e devolvida quando continua a mesma tela",
+    "const mesmaTela = (chave === __telaDesenhada);" in novo
+    and "if(mesmaTela && rolagem) window.scrollTo(0, rolagem);" in novo
+    and novo.count("devolverRolagem()") == 3   # os tres caminhos de saida de render()
+    and "function chaveDaTela(" in novo)
+chk("os controles ficam dentro da visualizacao",
+    '<div class="lp-visor-wrap">' in novo
+    and ".lp-flut{position:absolute;right:14px;bottom:14px" in novo
+    and novo.count('class="lp-flut-btn"') == 3
+    and "zoomMais:" in novo and "zoomMenos:" in novo)
+chk("a caixa do logotipo virou botao mais ficha do arquivo",
+    "App.lpAbrirLogo()" in novo
+    and novo.count("function logoFicha(") == 1
+    and novo.count("function tamanhoLegivel(") == 1
+    and "logoLaudoMeta = { nome: arq.name" in novo
+    and '<div class="card card-pad" style="background:#FFF3D6;border-color:#E9C46A;margin-bottom:10px">' not in novo)
+chk("o rodape e configuravel e cai no padrao quando vazio",
+    "App.lpAbrirRodape()" in novo and "lpSalvarRodape(){" in novo
+    and novo.count("function rodapeTexto(") == 1
+    and "getMecseteConfig().rodapeLaudo" in novo)
+chk("a numeracao diz o total de paginas",
+    '<div class="lp-num">Página ${n} de ${total}</div>' in novo)
+chk("o selo do HRN saiu do cabecalho e a evidencia subiu",
+    'class="lp-rc-selo"' not in novo
+    and '<span class="lp-rc-evrot">Evidência do risco</span>' in novo
+    and '<div class="lp-rc-rot">Evidência do risco</div>' not in novo)
+chk("o texto do cartao ficou maior",
+    ".lp-rc-col{padding:7px 9px;font-size:10px;" in novo)
+chk("a faixa da tarefa nao fecha a pagina sozinha",
+    "grudaNoProximo:true" in novo
+    and "if(b.grudaNoProximo && blocos[idx+1]" in novo
+    and "if(altura + h + hProx > teto) fechar();" in novo)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
