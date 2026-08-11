@@ -3446,6 +3446,25 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
        "era o que fazia Área e Local saírem com o mesmo texto");
   });
 
+  console.log("\n=== t79 · rodapé centralizado e dedução sem conjunção solta ===");
+  t("o logotipo do rodapé fica no centro da página", ()=>{
+    ok(HTML.indexOf(".lp-rodape .lp-num{flex:1 1 0;min-width:0;") > 0, "o lado esquerdo precisa da mesma base do direito");
+    ok(HTML.indexOf(".lp-rodape .lp-eng{flex:1 1 0;min-width:0;") > 0);
+    ok(HTML.indexOf(".lp-rodape .lp-marca{flex:0 0 auto;text-align:center}") > 0,
+       "com flex:1 no meio, o logotipo se centraliza no espaço que sobra, não na página");
+    ok(HTML.indexOf(".lp-rodape .lp-marca{text-align:center;flex:1}") < 0, "sobrou a regra antiga");
+  });
+  t("letra do fim que faz par com outra não é cortada", ()=>{
+    eq(C.tipoSugeridoDaMaquina({ nome:"Esteira do Descarte mesa A e B" }), "Esteira do Descarte mesa A e B");
+    eq(C.tipoSugeridoDaMaquina({ nome:"Bomba A ou B" }), "Bomba A ou B");
+  });
+  t("as demais deduções continuam funcionando", ()=>{
+    eq(C.tipoSugeridoDaMaquina({ nome:"Mesa de selecao manual B" }), "Mesa de selecao manual");
+    eq(C.tipoSugeridoDaMaquina({ nome:"Vision Sorter A" }), "Vision Sorter");
+    eq(C.tipoSugeridoDaMaquina({ nome:"Elevador de Canecas 01" }), "Elevador de Canecas");
+    eq(C.tipoSugeridoDaMaquina({ nome:"01" }), "01", "nome só de número não pode virar coluna vazia");
+  });
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

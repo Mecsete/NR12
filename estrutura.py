@@ -844,6 +844,19 @@ chk("a coluna Local nao repete mais o nome da area",
     '<td>${esc(m.local||it.area.local||"")}</td>' in novo
     and '${esc(m.local||it.area.nome||"")}' not in novo)
 
+print("\n=== 36. RODAPE CENTRALIZADO E DEDUCAO DO TIPO ===")
+# Com flex:1 so no meio, o logotipo se centralizava no espaco que sobrava
+# entre o numero da pagina (5px) e os dados do engenheiro (158px) — 76px a
+# esquerda do centro real. Bases iguais nos dois lados resolvem.
+chk("logotipo do rodape no centro da pagina",
+    ".lp-rodape .lp-num{flex:1 1 0;min-width:0;" in novo
+    and ".lp-rodape .lp-eng{flex:1 1 0;min-width:0;" in novo
+    and ".lp-rodape .lp-marca{flex:0 0 auto;text-align:center}" in novo
+    and ".lp-rodape .lp-marca{text-align:center;flex:1}" not in novo)
+chk("a deducao do tipo nao deixa conjuncao solta",
+    "const par = /^(.*?)\\s+[A-Z]$/.exec(limpo);" in novo
+    and "if(par && !/\\s(e|ou)$/i.test(par[1])) limpo = par[1].trim();" in novo)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

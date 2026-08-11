@@ -1783,7 +1783,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "10/08/2026 21:10";
+const APP_BUILD = "10/08/2026 22:05";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -6175,8 +6175,13 @@ const TIPOS_EQUIPAMENTO = [
 function tipoSugeridoDaMaquina(m){
   const nome = String(m && m.nome || "").trim();
   if(!nome) return "";
-  /* Tira sufixo identificador: letra solta, número, ou "nº 3" / "01" no fim. */
-  const limpo = nome.replace(/\s+(n[ºo°.]?\s*)?\d+\s*$/i, "").replace(/\s+[A-Z]\s*$/,"").trim();
+  /* Tira o sufixo numérico do fim: "01", "nº 3". */
+  let limpo = nome.replace(/\s+(n[ºo°.]?\s*)?\d+\s*$/i, "").trim();
+  /* Depois a letra solta do fim ("… manual B"). Com uma ressalva: em "Esteira
+     do Descarte mesa A e B" a letra faz par com outra, e tirá-la deixaria um
+     "e" solto no ar. Nesse caso o nome inteiro diz mais que o pedaço. */
+  const par = /^(.*?)\s+[A-Z]$/.exec(limpo);
+  if(par && !/\s(e|ou)$/i.test(par[1])) limpo = par[1].trim();
   return limpo || nome;
 }
 function tipoEquipamento(m){
@@ -17415,10 +17420,15 @@ window.addEventListener("pageshow", (event) => {
 .lp-paisagem .lp-corpo{height:${UTIL_A_P}px}
 .lp-rodape{position:absolute;left:${MARGEM}px;right:${MARGEM}px;bottom:${Math.round(6*MM)}px;height:${ROD_A}px;
   display:flex;align-items:flex-end;justify-content:space-between;font-size:8px;color:#777;line-height:1.5}
-.lp-rodape .lp-num{font-size:9px;color:#888}
-.lp-rodape .lp-marca{text-align:center;flex:1}
+/* O logotipo do rodapé tem de ficar no centro da PÁGINA. Com o bloco do meio
+   em flex:1, ele se centralizava no espaço que sobrava entre o número da
+   página (5px) e os dados do engenheiro (158px) — ou seja, 76px à esquerda do
+   centro real. Dando a mesma base flexível aos dois lados, eles ficam com
+   larguras iguais e o meio cai exatamente no centro. */
+.lp-rodape .lp-num{flex:1 1 0;min-width:0;font-size:9px;color:#888}
+.lp-rodape .lp-marca{flex:0 0 auto;text-align:center}
 .lp-rodape .lp-marca img{height:26px;display:block;margin:0 auto}
-.lp-rodape .lp-eng{text-align:right;white-space:pre-line}
+.lp-rodape .lp-eng{flex:1 1 0;min-width:0;text-align:right;white-space:pre-line}
 .lp-medidor{position:absolute;left:-99999px;top:0;visibility:hidden;background:#fff;box-sizing:border-box;
   font-family:Arial,Helvetica,sans-serif;font-size:11.5px;line-height:1.42;color:#111}
 /* --- capa --- */
