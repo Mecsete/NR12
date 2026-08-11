@@ -881,9 +881,11 @@ chk("o risco virou cartao e o cabecalho de colunas saiu",
 chk("o PLr fica a direita da tabela do HRN",
     novo.find('<div class="lp-rc-hrn">') < novo.find('<div class="lp-rc-plr">')
     and ".lp-rc-plr{flex:0 0 118px;border-left:1px solid #8A8CA3" in novo)
-chk("uma foto sozinha sai sem legenda",
-    "const duas = evsOk.length === 2;" in novo
+chk("as fotos saem sem legenda e sao no maximo duas",
+    "const fotos = [r.foto, (r.fotosOutras||[])[0]].filter(Boolean);" in novo
     and "fotos.slice(0,2)" in novo
+    and "DETALHE DO RISCO" not in novo
+    and ".lp-rc-leg{" not in novo
     and '${evsOk.length? `<div class="lp-rc-col ev">' in novo)
 
 print("\n---------------------------------------")

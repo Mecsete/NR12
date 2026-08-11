@@ -3502,13 +3502,14 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(f.indexOf('plr.aplicavel? "A classificar" : "Não aplicável"') > 0,
        "medida mecânica não tem PLr — precisa dizer isso, não ficar em branco");
   });
-  t("duas fotos ganham legenda; uma foto sozinha não ganha", ()=>{
+  t("as fotos saem sem legenda, uma ou duas", ()=>{
     const f = funcao("blocosEquipamentos");
-    ok(f.indexOf("const duas = evsOk.length === 2;") > 0);
-    ok(f.indexOf("DETALHE DO RISCO") > 0 && f.indexOf("POSIÇÃO NA MÁQUINA") > 0, "sem os papéis das duas fotos");
-    const i1 = f.indexOf("? `<div><img src=\"${evsOk[0]}\"><div class=\"lp-rc-leg\">");
-    const i2 = f.indexOf(": `<div><img src=\"${evsOk[0]}\"></div>`");
-    ok(i1 > 0 && i2 > i1, "o caso de uma foto só precisa sair sem legenda, senão parece que falta a outra");
+    ok(f.indexOf('${evsOk.map(f=>`<img src="${f}">`).join("")}') > 0, "o desenho das fotos mudou de forma");
+    ok(f.indexOf("DETALHE DO RISCO") < 0 && f.indexOf("POSIÇÃO NA MÁQUINA") < 0, "sobrou legenda de foto");
+    ok(HTML.indexOf(".lp-rc-leg{") < 0, "sobrou o estilo da legenda");
+  });
+  t("as duas fotos são a principal do risco e a primeira extra", ()=>{
+    ok(funcao("blocosEquipamentos").indexOf("const fotos = [r.foto, (r.fotosOutras||[])[0]].filter(Boolean);") > 0);
   });
   t("sem foto nenhuma, a coluna de evidência não é desenhada", ()=>{
     ok(funcao("blocosEquipamentos").indexOf('${evsOk.length? `<div class="lp-rc-col ev">') > 0,

@@ -1783,7 +1783,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "11/08/2026 12:20";
+const APP_BUILD = "11/08/2026 12:45";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -17541,7 +17541,6 @@ window.addEventListener("pageshow", (event) => {
 .lp-rc-bloco + .lp-rc-bloco{margin-top:6px;padding-top:6px;border-top:1px dotted #B9BCCB}
 .lp-rc-fotos{display:flex;flex-direction:column;gap:4px}
 .lp-rc-fotos img{width:100%;display:block;border:1px solid #8A8CA3}
-.lp-rc-leg{font-size:6.5px;color:#555;letter-spacing:.04em;margin-top:1px}
 .lp-rc-rodape{display:flex;align-items:stretch;border-top:1px solid #8A8CA3;background:#F6F7FB}
 .lp-rc-hrn{flex:1;min-width:0}
 .lp-rc-plr{flex:0 0 118px;border-left:1px solid #8A8CA3;padding:4px 7px;display:flex;
@@ -17822,16 +17821,14 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
           const r = it.risco;
           const h = hrnDoItem({ tarefa:it.tarefa, risco:r });
           const meta = NIVEL_HRN_META[h.nivel] || { cor:"#EEE", texto:"#111" };
-          /* DUAS EVIDENCIAS quando existirem duas. A primeira e a foto do
-             risco; a segunda, a primeira das "outras", que mostra onde aquilo
-             fica na maquina. Havendo uma so, ela ocupa a coluna inteira e
-             perde a legenda de papel — sem legenda, nada sugere que falta a
-             outra. */
+          /* DUAS EVIDENCIAS quando existirem duas: a foto principal do risco e
+             a primeira das fotos extras. Sem legenda em nenhuma das duas —
+             assim o caso de uma foto so e visualmente igual ao de duas, so com
+             menos uma, e nada sugere que esteja faltando alguma coisa. */
           const fotos = [r.foto, (r.fotosOutras||[])[0]].filter(Boolean);
           const evs = [];
           for(const f of fotos.slice(0,2)) evs.push(await reduzirFoto(f, 460));
           const evsOk = evs.filter(Boolean);
-          const duas = evsOk.length === 2;
           const nomeRisco = (r.nome === OUTRO ? r.nomeOutro : r.nome) || "Risco";
           const existente = medidaTextoExistenteMulti(r) || String(r.descMedida||"").trim();
           const sitDef = MEDIDA_SITUACOES.find(x=>x.k===(r.medidaExistenteSituacao||"ok")) || MEDIDA_SITUACOES[0];
@@ -17860,10 +17857,7 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
               ${evsOk.length? `<div class="lp-rc-col ev">
                 <div class="lp-rc-rot">Evidência do risco</div>
                 <div class="lp-rc-fotos">
-                  ${duas
-                    ? `<div><img src="${evsOk[0]}"><div class="lp-rc-leg">DETALHE DO RISCO</div></div>
-                       <div><img src="${evsOk[1]}"><div class="lp-rc-leg">POSIÇÃO NA MÁQUINA</div></div>`
-                    : `<div><img src="${evsOk[0]}"></div>`}
+                  ${evsOk.map(f=>`<img src="${f}">`).join("")}
                 </div>
               </div>`:""}
             </div>

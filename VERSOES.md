@@ -22,6 +22,92 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 11/08/2026 12:45
+
+Correção de uma Categoria errada no gráfico de risco, e a página do risco do
+laudo passa a ser um cartão.
+
+### Categoria de segurança: dois valores estavam errados
+
+A tabela que converte Severidade, Frequência e Possibilidade de evitar em PLr
+e Categoria trazia **Categoria B** para o caso *S1·F1·P1* e **Categoria 2**
+para *S1·F2·P2*. Os dois estavam errados. O certo é **Categoria 1** nos dois.
+
+A Figura B.1 da ABNT NBR 14153:2022 foi lida direto da imagem do PDF e tem
+**cinco saídas, não oito**: o ramo S1 (ferimento leve) vai direto para a
+Categoria 1, sem se dividir em Frequência e Possibilidade de evitar. Só o
+ramo S2 se ramifica.
+
+| Caminho | Categoria preferencial |
+|---|---|
+| S1 | 1 |
+| S2 · F1 · P1 | 2 |
+| S2 · F1 · P2 | 3 |
+| S2 · F2 · P1 | 3 |
+| S2 · F2 · P2 | 4 |
+
+A origem do erro: o gráfico da ISO 13849-1, que gera o PLr, tem oito saídas
+porque nele o S1 *se divide*. Esse gráfico acabou aplicado também à coluna de
+Categoria, que segue outra norma. **As duas colunas não podem ser derivadas
+uma da outra** — a própria NR-12 registra que a correlação entre PL e
+Categoria "não é linear", e a ISO 13849-1 confirma que um PL "c" pode ser
+atingido por Categoria 1, 2 ou 3.
+
+O aviso "TABELA A CONFERIR ANTES DE ASSINAR" que estava no código saiu: a
+conferência foi feita, e no lugar dele ficou registrado de qual norma e de
+qual figura vem cada coluna.
+
+**Laudos já emitidos podem ter saído com a Categoria errada** nos riscos de
+ferimento leve. Vale reconferir os que classificaram algum risco como
+Categoria B.
+
+### A página do risco virou um cartão
+
+No lugar da linha de tabela, cada risco agora é um bloco:
+
+- **Cabeçalho** com o número, o nome do risco e o selo do HRN.
+- **Corpo em duas colunas**: descrição, mitigação existente e solução à
+  esquerda; evidência à direita.
+- **Rodapé** com a tabela do HRN na horizontal (PO, FE, GPD, NP e o nível).
+
+**A mitigação existente passou a aparecer no laudo**, com o julgamento
+(atende / atende em parte / não atende). Antes ela ficava só no app.
+
+**O PLr exigido e a Categoria** ficam num bloco estreito à direita da tabela
+do HRN, de forma discreta. Quando a medida é mecânica e não depende do
+sistema de comando, ele diz "Não aplicável" em vez de ficar em branco.
+
+### Duas fotos por risco
+
+Havendo duas, entram a **foto principal do risco** e a **primeira foto
+extra**, uma sobre a outra. Havendo uma só, ela ocupa a coluna inteira. Sem
+foto nenhuma, a coluna nem é desenhada. Nenhuma das fotos leva legenda, então
+o caso de uma foto é visualmente igual ao de duas — nada sugere que esteja
+faltando alguma coisa.
+
+As fotos ficaram maiores: 173 px cada, contra 150 px para as duas juntas no
+formato anterior.
+
+---
+
+## 10/08/2026 22:05
+
+Logotipo do rodapé centralizado e dedução do tipo do equipamento corrigida.
+
+**O logotipo do rodapé estava 76 px à esquerda do centro.** O rodapé é uma
+linha com três blocos — número da página (5 px), logotipo e dados do
+engenheiro (158 px) — e o bloco do meio se centralizava no espaço que sobrava,
+não na página. A diferença era exatamente (158 − 5) ÷ 2. Agora os dois lados
+têm a mesma largura e o logotipo cai no centro real, tanto na página em pé
+quanto na deitada.
+
+**A dedução do tipo do equipamento cortava letra que faz par.** "Esteira do
+Descarte mesa A e B" virava "Esteira do Descarte mesa A e", com a conjunção
+solta. Agora a letra do fim só é cortada quando não faz par com outra — "A e
+B" e "A ou B" ficam inteiros. As demais deduções seguem iguais.
+
+---
+
 ## 10/08/2026 21:10
 
 Inventário de máquinas passa a sair em página deitada (paisagem), como no
