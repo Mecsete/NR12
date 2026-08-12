@@ -3619,6 +3619,37 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     eq((HTML.match(/^\.lp-lista\{/gm)||[]).length, 1, "duas definições de .lp-lista mudariam a outra lista do laudo");
   });
 
+  console.log("\n=== t83 · o texto sugerido não aparece duas vezes ===");
+  t("escolher a medida preenche o campo e NÃO mostra o texto duas vezes", ()=>{
+    const r = { id:"r1", componente:"Cilindro", medidaPropostaTipo:"prot_movel_int" };
+    r.sugestaoMitigacao = C.medidaTextoProposto(r, "prot_movel_int");
+    r.sugestaoMitigacaoAuto = r.sugestaoMitigacao;
+    const h = C.blocoMedidaPropostaHtml(r);
+    eq((h.match(/medida-frase/g)||[]).length, 0, "o quadro de leitura repetia o que já está no campo editável");
+    eq((h.match(/<textarea/g)||[]).length, 1, "o campo editável tem de continuar existindo");
+    ok(h.indexOf("aplicarTextoMitigacao()") < 0, "não há o que aplicar: os dois já são iguais");
+  });
+  t("editando à mão, o texto sugerido volta — com rótulo e botão", ()=>{
+    const r = { id:"r1", componente:"Cilindro", medidaPropostaTipo:"prot_movel_int",
+                sugestaoMitigacao:"Instalar proteção conforme meu critério." };
+    const h = C.blocoMedidaPropostaHtml(r);
+    eq((h.match(/medida-frase/g)||[]).length, 1, "sem ele não dá para voltar ao texto da biblioteca");
+    ok(h.indexOf("Texto sugerido pela medida escolhida") > 0, "sem rótulo, o quadro fica sem explicação");
+    ok(h.indexOf("aplicarTextoMitigacao()") > 0, "faltou o botão de voltar ao sugerido");
+  });
+  t("a mitigação existente segue a mesma regra", ()=>{
+    const r = { id:"r2", componente:"Correia", medidasExistentes:["prot_fixa"], medidaExistenteSituacao:"ok" };
+    C.sincronizarDescMedidaExistente(r);
+    eq((C.blocoMedidaExistenteHtml(r).match(/medida-frase/g)||[]).length, 0, "repetia o texto do campo");
+    r.descMedida = "Texto que eu escrevi.";
+    eq((C.blocoMedidaExistenteHtml(r).match(/medida-frase/g)||[]).length, 1, "editado à mão, o sugerido tem de voltar");
+  });
+  t("na revisão o quadro some quando é igual ao que vai para o laudo", ()=>{
+    ok(funcao("laudoBlocoMedidaHtml").indexOf('const difereDoLaudo = texto && texto !== String(laudoTextoFinal(item, "solucao")||"").trim();') > 0,
+       "mostraria o mesmo texto que já está no quadro Vai para o laudo");
+    ok(funcao("laudoBlocoMedidaHtml").indexOf("${difereDoLaudo? `") > 0);
+  });
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

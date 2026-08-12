@@ -960,6 +960,24 @@ chk("a figura e reduzida com folga para o texto miudo",
 chk("a classe da lista nao foi redefinida por cima da que ja existia",
     len(re.findall(r"^\.lp-lista\{", novo, re.M)) == 1)
 
+print("\n=== 40. TEXTO SUGERIDO NAO APARECE DUAS VEZES ===")
+# Escolher a medida ja preenche o campo editavel sozinho (onDraftMedidaProposta
+# e sincronizarDescMedidaExistente). O quadro de leitura ao lado mostrava a
+# mesma frase — so faz sentido quando DIFERE do campo, que e quando o texto foi
+# editado a mao e da para voltar ao sugerido.
+chk("os tres quadros so aparecem quando ha diferenca",
+    "${podeAplicar? `<div class=\"medida-rot\">Texto sugerido pela medida escolhida</div>" in novo
+    and "${podeAplicar? `<div class=\"medida-rot\">Texto sugerido pelo que foi marcado</div>" in novo
+    and "${difereDoLaudo? `<div class=\"medida-rot\">" in novo)
+chk("nenhum quadro ficou preso ao antigo 'se existe texto'",
+    '${sugestao? `<div class="medida-frase">' not in novo
+    and '${texto? `<div class="medida-frase">' not in novo)
+chk("a revisao compara com o que ja vai para o laudo",
+    'const difereDoLaudo = texto && texto !== String(laudoTextoFinal(item, "solucao")||"").trim();' in novo)
+chk("o quadro ganhou rotulo proprio",
+    ".medida-rot{margin-top:10px;" in novo
+    and ".medida-rot + .medida-frase{margin-top:4px;}" in novo)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

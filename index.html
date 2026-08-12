@@ -534,6 +534,14 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .medida-box .medida-head svg{width:16px;height:16px;flex-shrink:0;}
 .medida-sit{display:flex;gap:6px;margin-top:8px;}
 .medida-sit button{flex:1;background:var(--surface);border:1.5px solid var(--line-strong);color:var(--ink-dim);border-radius:8px;padding:7px 4px;font-size:11.5px;font-weight:800;}
+/* O quadro do texto sugerido so aparece quando ele DIFERE do que ja esta no
+   campo editavel. Escolher a medida ja preenche o campo sozinho, entao mostrar
+   os dois lado a lado era a mesma frase duas vezes. Ele volta a aparecer
+   quando o texto foi editado a mao — que e quando serve para alguma coisa:
+   ver o sugerido e poder voltar para ele. */
+.medida-rot{margin-top:10px;font-size:10.5px;font-weight:800;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink-faint);}
+.medida-rot + .medida-frase{margin-top:4px;}
 .medida-frase{margin-top:10px;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;padding:10px;font-size:12.5px;line-height:1.45;color:var(--ink);}
 .risco-montador{background:var(--surface-2);border:1px solid var(--line-strong);border-radius:12px;padding:11px 12px;margin-bottom:14px;}
 .risco-montador-head{display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:800;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.05em;margin-bottom:9px;}
@@ -1785,7 +1793,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "11/08/2026 18:30";
+const APP_BUILD = "11/08/2026 19:40";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -7167,7 +7175,8 @@ function blocoMedidaExistenteHtml(r){
           ${MEDIDA_RESSALVAS.map(x=>`<option value="${escapeHtml(x)}" ${r.medidaExistenteRessalva===x?'selected':''}>${escapeHtml(x)}</option>`).join("")}
         </select>
       </div>`:""}
-      ${sugestao? `<div class="medida-frase" style="background:${sitDef.fundo};border-color:${sitDef.cor}33">${escapeHtml(sugestao)}</div>`:""}
+      ${podeAplicar? `<div class="medida-rot">Texto sugerido pelo que foi marcado</div>
+        <div class="medida-frase" style="background:${sitDef.fundo};border-color:${sitDef.cor}33">${escapeHtml(sugestao)}</div>`:""}
       ${podeAplicar? `<button type="button" class="btn btn-secondary btn-sm btn-block" style="margin-top:8px" onclick="App.aplicarTextoMedidaExistenteMulti()">${ic('copy')} Usar este texto</button>`:""}
     ` : `<div class="field-hint" style="margin-top:8px">Marque o que existe e o app escreve o texto com a citação da norma.</div>`}
     <div class="field" style="margin:10px 0 0">
@@ -7192,7 +7201,8 @@ function blocoMedidaPropostaHtml(r){
     ${selectMedidaHtml(tipo, "App.onDraftMedidaProposta(this.value)")}
     ${!tipo && mSug? `<button type="button" class="btn btn-secondary btn-sm btn-block" style="margin-top:8px" onclick="App.onDraftMedidaProposta('${sugerida}')">${ic('shield')} Sugestão do app: ${escapeHtml(mSug.rot)}</button>`:""}
     ${medidaRodapeHtml(m)}
-    ${sugestao? `<div class="medida-frase">${escapeHtml(sugestao)}</div>`:""}
+    ${podeAplicar? `<div class="medida-rot">Texto sugerido pela medida escolhida</div>
+      <div class="medida-frase">${escapeHtml(sugestao)}</div>`:""}
     ${podeAplicar? `<button type="button" class="btn btn-secondary btn-sm btn-block" style="margin-top:8px" onclick="App.aplicarTextoMitigacao()">${ic('copy')} Usar este texto</button>`:""}
     <div class="field" style="margin:10px 0 0">
       <label>Sugestão para reduzir ou eliminar o risco <span style="font-weight:400;color:var(--ink-faint)">(editável)</span></label>
@@ -7208,12 +7218,16 @@ function laudoBlocoMedidaHtml(item){
   const sugerida = sugerirMedidaPorRisco(r);
   const mSug = sugerida ? medidaPorChave(sugerida) : null;
   const texto = tipo ? medidaTextoProposto(r, tipo) : "";
+  /* Aqui o alvo e o quadro "Vai para o laudo", logo acima. Se o texto da
+     medida ja for exatamente o que esta la, mostra-lo de novo e repeticao. */
+  const difereDoLaudo = texto && texto !== String(laudoTextoFinal(item, "solucao")||"").trim();
   return `<div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px">
     <div style="font-size:11px;font-weight:800;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Montar a partir da biblioteca de medidas</div>
     ${selectMedidaHtml(tipo, `App.laudoSetMedida('${r.id}', this.value)`)}
     ${!tipo && mSug? `<button class="btn btn-ghost btn-sm btn-block" style="margin-top:6px;border:1px solid var(--line)" onclick="App.laudoSetMedida('${r.id}','${sugerida}')">${ic('shield')} Sugestão do app: ${escapeHtml(mSug.rot)}</button>`:""}
     ${m? `<div class="field-hint" style="margin-top:6px">Base normativa: <b>${escapeHtml(medidaReferencia(m))}</b></div>`:""}
-    ${texto? `<div class="medida-frase">${escapeHtml(texto)}</div>
+    ${difereDoLaudo? `<div class="medida-rot">Texto sugerido pela medida escolhida</div>
+      <div class="medida-frase">${escapeHtml(texto)}</div>
       <button class="btn btn-secondary btn-sm btn-block" style="margin-top:8px" onclick="App.laudoAplicarMedida('${r.id}')">${ic('check')} Usar este texto no laudo</button>`:""}
   </div>`;
 }

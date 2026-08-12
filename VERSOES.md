@@ -22,6 +22,27 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 11/08/2026 19:40
+
+O texto sugerido não aparece mais duas vezes.
+
+Nos quadros **Solução** e **Mitigação existente**, o mesmo texto era mostrado
+em dois lugares: num quadro de leitura e no campo editável logo abaixo.
+
+A duplicação era real. Ao escolher a medida na lista, o app **já preenche o
+campo editável sozinho** — então o quadro de cima passava a exibir exatamente a
+mesma frase, sem nem oferecer botão.
+
+Agora o quadro do texto sugerido só aparece **quando ele difere do que está no
+campo**, que é justamente quando serve para alguma coisa: você editou o texto à
+mão e quer ver o sugerido, ou voltar para ele. Nessa situação ele vem com
+rótulo — "Texto sugerido pela medida escolhida" — e com o botão de aplicar.
+
+Na tela de revisão do laudo vale a mesma regra: o quadro some quando o texto da
+medida já é igual ao que está em "Vai para o laudo".
+
+---
+
 ## 11/08/2026 18:30
 
 Metodologia completa, quadro do PLr numa linha, zoom até 200% e a prévia parou
