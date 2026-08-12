@@ -3650,6 +3650,57 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(funcao("laudoBlocoMedidaHtml").indexOf("${difereDoLaudo? `") > 0);
   });
 
+  console.log("\n=== t84 · frequência da tarefa alimenta a exposição do PLr ===");
+  vm.runInContext(funcao("exposicaoPelaFrequencia"), ctx);
+  t("as duas opções por turno entraram na frequência da tarefa", ()=>{
+    const lista = JSON.parse(/const FREQUENCIA_TAREFA = (\[[^\]]+\]);/.exec(HTML)[1]);
+    eq(lista[0], "1x por turno");
+    eq(lista[1], "Mais de 2x por turno");
+    ["1 Turno","2 Turnos","Diário","Semanal","Quinzenal","Mensal","Esporádico"]
+      .forEach(x=> ok(lista.indexOf(x) >= 0, "sumiu a opção antiga " + x + " — quebraria cadastro existente"));
+  });
+  t("só as frequências por turno viram exposição", ()=>{
+    eq(C.exposicaoPelaFrequencia("1x por turno"), "1x por turno");
+    eq(C.exposicaoPelaFrequencia("Mais de 2x por turno"), "Mais de 2x por turno");
+    eq(C.exposicaoPelaFrequencia("Semanal"), "", "de periodicidade não dá para deduzir entradas por turno");
+    eq(C.exposicaoPelaFrequencia("Diário"), "");
+    eq(C.exposicaoPelaFrequencia(""), "");
+  });
+  t("a herança leva ao F certo do gráfico", ()=>{
+    const r = { id:"r1", medidaPropostaTipo:"prot_movel_int", gpd:"Fatalidade", evitar:"Praticamente impossível", exposicao:"" };
+    eq(C.plrExigido(r, { frequencia:"1x por turno" }).f, "F1");
+    eq(C.plrExigido(r, { frequencia:"Mais de 2x por turno" }).f, "F2");
+    eq(C.plrExigido(r, { frequencia:"Mais de 2x por turno" }).cat, "4");
+    eq(C.plrExigido(r, { frequencia:"1x por turno" }).cat, "3");
+  });
+  t("escolher no risco vence a herança da tarefa", ()=>{
+    const r = { id:"r1", medidaPropostaTipo:"prot_movel_int", gpd:"Fatalidade",
+                evitar:"Praticamente impossível", exposicao:"Menos de 1x por turno" };
+    eq(C.plrExigido(r, { frequencia:"Mais de 2x por turno" }).f, "F1", "a escolha do risco tem de mandar");
+  });
+  t("sem tarefa e sem frequência que sirva, continua cobrando o campo", ()=>{
+    const r = { id:"r1", medidaPropostaTipo:"prot_movel_int", gpd:"Fatalidade", evitar:"Praticamente impossível", exposicao:"" };
+    eq(C.plrExigido(r).f, "", "sem tarefa não pode inventar exposição");
+    eq(C.plrExigido(r, { frequencia:"Semanal" }).completo, false);
+    ok(C.plrFaltando(r, { frequencia:"Semanal" }).indexOf("Exposição") >= 0);
+  });
+  t("o HRN também conhece as frequências novas", ()=>{
+    eq(C.sugerirFE("1x por turno"), 2.5);
+    eq(C.sugerirFE("Mais de 2x por turno"), 4);
+    eq(C.sugerirFE("Semanal"), 1.5, "as antigas não podem mudar de valor");
+  });
+  t("a tela mostra de onde veio a exposição", ()=>{
+    const f = funcao("blocoPLrHtml");
+    ok(f.indexOf('const herdado = r.exposicao ? "" : exposicaoPelaFrequencia(') > 0);
+    ok(f.indexOf('herdado? ("Da tarefa: " + herdado) : "Selecionar…"') > 0, "o campo pareceria vazio");
+    ok(f.indexOf("A exposição veio da <b>frequência da tarefa</b>") > 0, "sem explicação de onde saiu o valor");
+  });
+  t("a tarefa é passada em todos os pontos que calculam PLr", ()=>{
+    ok(HTML.indexOf('blocoPLrHtml(r, "draft", tarefaCtx)') > 0, "modal do risco");
+    ok(HTML.indexOf('blocoPLrHtml(item.risco, "laudo", item.tarefa)') > 0, "revisão do laudo");
+    ok(HTML.indexOf("plrExigido(r, it.tarefa)") > 0, "laudo impresso");
+  });
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

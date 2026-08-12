@@ -187,6 +187,22 @@ Duas foram confirmadas no texto da ISO 13849-1:2023 (exemplos trabalhados do
 Anexo I: `S2·F1·P1 → c` e `S2·F2·P1 → d`); as outras seis seguem a progressão
 do Anexo A, cuja Figura A.1 é imagem e não foi lida.
 
+### Decisão sobre o PLr (11/08/2026)
+
+**Um valor só, o exigido. Não existe "PLr antes e depois" no app.** Decidido
+pelo Luiz depois da conferência nas normas. As razões, para não voltar atrás
+por engano:
+
+- PLr é o nível **requerido** pela função de segurança, derivado do risco
+  encontrado. Não é resultado de medida, é requisito.
+- Reivindicar o PL **alcançado** exige MTTFd, DC e CCF dos componentes reais
+  (a NR-12 fala em "análise quantitativa"), dado que só existe depois da
+  solução comprada — laudo de campo não tem como afirmar.
+- O que tem antes e depois é o **risco** (HRN), não o PLr.
+
+Se um dia entrar um "depois", o campo certo é **Categoria requerida da
+solução**, que é o que o item 12.39 "a" da NR-12 pede.
+
 ### Como ler figura que é imagem dentro de PDF
 
 `pdftoppm` não está instalado neste ambiente, mas `pdftotext` sim (poppler em

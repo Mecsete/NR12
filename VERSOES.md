@@ -22,6 +22,49 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 11/08/2026 21:15
+
+A frequência da tarefa passa a responder pela exposição do PLr.
+
+### Duas opções novas na frequência da tarefa
+
+Entraram **"1x por turno"** e **"Mais de 2x por turno"**, no topo da lista.
+Diferente das outras, elas contam repetições **dentro do turno**, e não
+periodicidade — e é justamente isso que o gráfico de risco da NBR 14153 quer
+saber.
+
+As opções antigas (1 Turno, 2 Turnos, Diário, Semanal, Quinzenal, Mensal,
+Esporádico) continuam ali; nada que você já cadastrou mudou.
+
+### A exposição do PLr vem sozinha
+
+Escolhendo uma das duas na tarefa, o campo **Exposição à zona de perigo (F)**
+do PLr já vem respondido em todos os riscos daquela tarefa — não precisa
+preencher de novo, risco por risco.
+
+| Frequência da tarefa | Exposição | Parâmetro |
+|---|---|---|
+| 1x por turno | 1x por turno | F1 |
+| Mais de 2x por turno | Mais de 2x por turno | F2 |
+
+O campo mostra "Da tarefa: …" e explica de onde o valor saiu. **Escolher algo
+ali continua valendo**, e vale só para aquele risco — a escolha manual sempre
+vence a herança.
+
+Com as frequências de periodicidade (Semanal, Mensal, Diário…) nada é
+deduzido, e o campo continua sendo pedido: de "Semanal" não dá para saber
+quantas vezes por turno a pessoa entra na zona de perigo.
+
+### PLr: um valor só
+
+Fica decidido que o app mostra **apenas o PLr exigido**, sem "antes e depois".
+O PLr é o nível que a função de segurança precisa atingir, derivado do risco
+encontrado — não é resultado de medida. Afirmar o PL alcançado exigiria MTTFd,
+DC e CCF dos componentes instalados, que é dado de projeto, não de inspeção.
+O que tem antes e depois é o risco, pelo HRN.
+
+---
+
 ## 11/08/2026 19:40
 
 O texto sugerido não aparece mais duas vezes.

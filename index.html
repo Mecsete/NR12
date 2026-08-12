@@ -892,7 +892,11 @@ const FONTES_ENERGIA = ["Elétrica","Pneumática","Hidráulica","Combustão Inte
 /* Módulo Simplificado */
 const MANUAL_OPCOES = ["Inexistente","Português","Inglês","Espanhol","Alemão","Chinês"];
 const NUM_PESSOAS = ["1","2","3","4","5","6","7","8","9","10"];
-const FREQUENCIA_TAREFA = ["1 Turno","2 Turnos","Diário","Semanal","Quinzenal","Mensal","Esporádico"];
+/* As duas primeiras contam REPETICOES POR TURNO, e nao periodicidade. Sao
+   elas que alimentam sozinhas a Exposicao a zona de perigo do PLr: 1x por
+   turno cai em F1 e mais de 2x por turno cai em F2, que e exatamente o corte
+   da NBR 14153. As demais continuam existindo para quem ja cadastrou assim. */
+const FREQUENCIA_TAREFA = ["1x por turno","Mais de 2x por turno","1 Turno","2 Turnos","Diário","Semanal","Quinzenal","Mensal","Esporádico"];
 
 /* Sugestões de Nome do Risco — riscos mecânicos típicos (ISO 12100 Anexo B),
    cada um com uma descrição padrão que é copiada ao selecionar a sugestão. */
@@ -933,7 +937,8 @@ const GPD_POR_RISCO = {
 };
 function sugerirGPD(nomeRisco){ return GPD_POR_RISCO[nomeRisco] || 4; }
 function sugerirFE(frequencia){
-  const m={"Anual":0.5,"Mensal":1,"Quinzenal":1,"Semanal":1.5,"Diário":2.5,"1 Turno":4,"2 Turnos":4,"Esporádico":0.5};
+  const m={"Anual":0.5,"Mensal":1,"Quinzenal":1,"Semanal":1.5,"Diário":2.5,"1 Turno":4,"2 Turnos":4,"Esporádico":0.5,
+           "1x por turno":2.5, "Mais de 2x por turno":4};
   return m[frequencia]||1.5;
 }
 function sugerirNP(numPessoas){
@@ -1793,7 +1798,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "11/08/2026 19:40";
+const APP_BUILD = "11/08/2026 21:15";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -7022,8 +7027,19 @@ function plrSeveridade(r){
 function plrSeveridadeFronteira(r){
   return PLR_GPD_FRONTEIRA.indexOf(String(r && r.gpd || "").trim()) >= 0;
 }
-function plrFrequencia(r){
-  const o = PLR_F_OPCOES.find(x=> x.v === String(r && r.exposicao || "").trim());
+/* Ponte entre a tarefa e o PLr: quando a frequencia da tarefa ja diz quantas
+   vezes por turno, a Exposicao a zona de perigo sai dela e nao precisa ser
+   preenchida de novo. Devolve "" para as frequencias que falam de
+   periodicidade (Semanal, Mensal...), porque delas nao da para deduzir
+   quantas vezes por turno a pessoa entra na zona de perigo. */
+function exposicaoPelaFrequencia(freq){
+  const f = String(freq||"").trim();
+  return PLR_F_OPCOES.some(x=> x.v === f) ? f : "";
+}
+function plrFrequencia(r, tarefa){
+  const escolhido = String(r && r.exposicao || "").trim();
+  const valor = escolhido || exposicaoPelaFrequencia(tarefa && valOuOutro(tarefa.frequencia, tarefa.frequenciaOutro));
+  const o = PLR_F_OPCOES.find(x=> x.v === valor);
   return o ? o.f : "";
 }
 function plrEvitar(r){
@@ -7038,17 +7054,17 @@ function plrMedidaDoRisco(r){
   if(ex && ex.pl) return ex;
   return null;
 }
-function plrExigido(r){
+function plrExigido(r, tarefa){
   const m = plrMedidaDoRisco(r);
-  const s = plrSeveridade(r), f = plrFrequencia(r), p = plrEvitar(r);
+  const s = plrSeveridade(r), f = plrFrequencia(r, tarefa), p = plrEvitar(r);
   const res = { s, f, p, medida:m, aplicavel:!!m, completo:!!(m && s && f && p), plr:"", cat:"", fronteira:plrSeveridadeFronteira(r) };
   if(!res.completo) return res;
   const g = PLR_GRAFICO[s + f + p];
   if(g){ res.plr = g.plr; res.cat = g.cat; }
   return res;
 }
-function plrFaltando(r){
-  const res = plrExigido(r);
+function plrFaltando(r, tarefa){
+  const res = plrExigido(r, tarefa);
   const falta = [];
   if(!res.aplicavel) return falta;
   if(!res.s) falta.push("Grau do Dano");
@@ -7094,8 +7110,8 @@ function plrFaltandoTexto(res){
   if(!res.p) f.push("Possibilidade de evitar");
   return f.join(", ");
 }
-function blocoPLrHtml(r, prefixo){
-  const res = plrExigido(r);
+function blocoPLrHtml(r, prefixo, tarefa){
+  const res = plrExigido(r, tarefa);
   const acaoF = prefixo === "draft" ? "App.onDraftPLr('exposicao', this.value)" : `App.laudoSetPLr('${r.id}','exposicao', this.value)`;
   const acaoP = prefixo === "draft" ? "App.onDraftPLr('evitar', this.value)" : `App.laudoSetPLr('${r.id}','evitar', this.value)`;
   if(!res.aplicavel){
@@ -7105,13 +7121,17 @@ function blocoPLrHtml(r, prefixo){
     </div>`;
   }
   const frase = plrFraseFuncao(r);
+  /* Quando a frequencia da tarefa ja responde a exposicao, o campo mostra o
+     valor herdado como opcao inicial em vez de "Selecionar...", e diz de onde
+     veio. Escolher algo aqui sobrepoe a heranca, e so para aquele risco. */
+  const herdado = r.exposicao ? "" : exposicaoPelaFrequencia(tarefa && valOuOutro(tarefa.frequencia, tarefa.frequenciaOutro));
   return `<div class="plr-box">
     <div class="plr-head">${ic('cog')} Função de segurança</div>
     ${frase? `<div class="plr-frase">${escapeHtml(frase)}</div>`:""}
     <div class="plr-grid">
       <div class="field" style="margin-bottom:0">
         <label>Exposição à zona de perigo (F)</label>
-        ${plrSelectHtml(PLR_F_OPCOES, "f", r.exposicao||"", acaoF, "Selecionar…")}
+        ${plrSelectHtml(PLR_F_OPCOES, "f", r.exposicao||"", acaoF, herdado? ("Da tarefa: " + herdado) : "Selecionar…")}
       </div>
       <div class="field" style="margin-bottom:0">
         <label>Possibilidade de evitar (P)</label>
@@ -7119,6 +7139,7 @@ function blocoPLrHtml(r, prefixo){
       </div>
     </div>
     <div class="field-hint" style="margin-top:6px">Severidade (S) vem do Grau do Dano: <b>${escapeHtml(res.s || "não preenchido")}</b>${res.s? " — " + escapeHtml(String(r.gpd||"")) : ""}. ${escapeHtml((PLR_P_OPCOES.find(o=>o.v===r.evitar)||{}).desc || "P1 só vale quando há chance real de escapar.")}</div>
+    ${herdado? `<div class="field-hint" style="margin-top:6px">A exposição veio da <b>frequência da tarefa</b> (${escapeHtml(herdado)}). Escolher acima vale só para este risco.</div>`:""}
     ${plrResultadoHtml(res)}
   </div>`;
 }
@@ -7339,7 +7360,7 @@ function formRiscoSHtml(){
     <div class="field"><label>Há medidas de mitigação?</label><select onchange="App.onDraftMedidaChange(this.value)">${selectOptions(SIM_NAO, r.medidaImplementada, false)}</select></div>
     ${r.medidaImplementada==="Sim"? blocoMedidaExistenteHtml(r) : ""}
     ${blocoMedidaPropostaHtml(r)}
-    ${blocoPLrHtml(r, "draft")}
+    ${blocoPLrHtml(r, "draft", tarefaCtx)}
     <div class="modal-actions" style="margin-top:14px">
       ${__draftIsExisting()? `<button class="btn btn-danger" onclick="App.removerDraftRisco()">${ic('trash')}</button>`:""}
       <button class="btn btn-secondary" onclick="App.cancelarDraftEntidade()">Cancelar</button>
@@ -12081,7 +12102,7 @@ function screenSimplesLaudoItem(){
     ${laudoBlocoHRN(item)}
     <div class="card card-pad laudo-bloco">
       <div style="font-weight:800;font-size:14.5px;margin-bottom:4px">Nível de desempenho requerido</div>
-      ${blocoPLrHtml(item.risco, "laudo")}
+      ${blocoPLrHtml(item.risco, "laudo", item.tarefa)}
     </div>
   </div>
   <div class="card card-pad" style="background:var(--bg-soft)">
@@ -17943,7 +17964,7 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
           const nomeRisco = (r.nome === OUTRO ? r.nomeOutro : r.nome) || "Risco";
           const existente = medidaTextoExistenteMulti(r) || String(r.descMedida||"").trim();
           const sitDef = MEDIDA_SITUACOES.find(x=>x.k===(r.medidaExistenteSituacao||"ok")) || MEDIDA_SITUACOES[0];
-          const plr = plrExigido(r);
+          const plr = plrExigido(r, it.tarefa);
           blocos.push({ html:`<div class="lp-rc">
             <div class="lp-rc-cab">
               <span class="lp-rc-num">${i+1}</span>

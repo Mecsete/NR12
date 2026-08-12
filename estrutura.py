@@ -91,8 +91,8 @@ for marca, n in [('body = screenSimplesLaudo();', 1),
                  ('const PLR_GRAFICO', 1),
                  ('function plrExigido(', 1),
                  ('function blocoPLrHtml(', 1),
-                 ('blocoPLrHtml(r, "draft")', 1),
-                 ('blocoPLrHtml(item.risco, "laudo")', 1),
+                 ('blocoPLrHtml(r, "draft", tarefaCtx)', 1),
+                 ('blocoPLrHtml(item.risco, "laudo", item.tarefa)', 1),
                  ('${blocoMontadorRiscoHtml(r)}', 1),
                  ('screen-laudo', 10),
                  ('<span>Laudo</span>', 1),
@@ -977,6 +977,33 @@ chk("a revisao compara com o que ja vai para o laudo",
 chk("o quadro ganhou rotulo proprio",
     ".medida-rot{margin-top:10px;" in novo
     and ".medida-rot + .medida-frase{margin-top:4px;}" in novo)
+
+print("\n=== 41. FREQUENCIA DA TAREFA ALIMENTA A EXPOSICAO DO PLr ===")
+chk("as duas opcoes por turno entraram sem tirar as antigas",
+    '"1x por turno","Mais de 2x por turno","1 Turno","2 Turnos"' in novo
+    and all(('"%s"' % x) in novo for x in ["Diário", "Semanal", "Quinzenal", "Mensal", "Esporádico"]))
+chk("existe a ponte e ela so vale para frequencia por turno",
+    novo.count("function exposicaoPelaFrequencia(") == 1
+    and 'return PLR_F_OPCOES.some(x=> x.v === f) ? f : "";' in novo)
+chk("a tarefa e passada em todos os pontos que calculam PLr",
+    "function plrExigido(r, tarefa){" in novo
+    and "function plrFrequencia(r, tarefa){" in novo
+    and 'blocoPLrHtml(r, "draft", tarefaCtx)' in novo
+    and 'blocoPLrHtml(item.risco, "laudo", item.tarefa)' in novo
+    and "plrExigido(r, it.tarefa)" in novo)
+chk("a escolha no risco vence a heranca",
+    'const escolhido = String(r && r.exposicao || "").trim();' in novo
+    and "const valor = escolhido || exposicaoPelaFrequencia(" in novo)
+# "herdado" so existe dentro de blocoPLrHtml. O aviso chegou a cair em
+# plrResultadoHtml, onde daria ReferenceError em tempo de execucao — o
+# check.py nao pega isso, entao a posicao fica travada aqui.
+_bp = novo.find("function blocoPLrHtml(")
+_fim = novo.find("\nfunction ", _bp + 10)
+chk("o aviso da heranca vive dentro de blocoPLrHtml",
+    novo.count("A exposição veio da <b>frequência da tarefa</b>") == 1
+    and "A exposição veio da <b>frequência da tarefa</b>" in novo[_bp:_fim])
+chk("o HRN conhece as frequencias novas",
+    '"1x por turno":2.5, "Mais de 2x por turno":4' in novo)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
