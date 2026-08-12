@@ -1798,7 +1798,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "11/08/2026 21:15";
+const APP_BUILD = "11/08/2026 22:10";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -7027,14 +7027,27 @@ function plrSeveridade(r){
 function plrSeveridadeFronteira(r){
   return PLR_GPD_FRONTEIRA.indexOf(String(r && r.gpd || "").trim()) >= 0;
 }
-/* Ponte entre a tarefa e o PLr: quando a frequencia da tarefa ja diz quantas
-   vezes por turno, a Exposicao a zona de perigo sai dela e nao precisa ser
-   preenchida de novo. Devolve "" para as frequencias que falam de
-   periodicidade (Semanal, Mensal...), porque delas nao da para deduzir
-   quantas vezes por turno a pessoa entra na zona de perigo. */
+/* Ponte entre a frequencia da tarefa e a Exposicao a zona de perigo (F).
+
+   As frequencias de periodicidade caem em "Menos de 1x por turno" (F1): uma
+   tarefa semanal, mensal ou esporadica e, por definicao, menos de uma entrada
+   por turno. A NBR 14153, B.2.2, respalda: "se o acesso somente for necessario
+   de tempo em tempo, pode-se selecionar F1".
+
+   RESSALVA: F tambem depende do TEMPO de exposicao, nao so da contagem — a
+   norma diz "frequente a continuo E/OU tempo de exposicao longo". Uma tarefa
+   semanal que mantenha a pessoa horas dentro da zona de perigo e F2. Por isso
+   a heranca e so um ponto de partida, sempre visivel e sempre substituivel no
+   proprio risco.
+
+   "1 Turno" e "2 Turnos" NAO sao deduzidos de proposito: dizem que a tarefa
+   ocupa o turno, e nao quantas vezes se entra na zona de perigo. Deduzir F1 ali
+   subestimaria o risco e deduzir F2 o exageraria — quem decide e o engenheiro. */
+const FREQ_MENOS_DE_1X = ["Diário", "Semanal", "Quinzenal", "Mensal", "Esporádico"];
 function exposicaoPelaFrequencia(freq){
   const f = String(freq||"").trim();
-  return PLR_F_OPCOES.some(x=> x.v === f) ? f : "";
+  if(PLR_F_OPCOES.some(x=> x.v === f)) return f;
+  return FREQ_MENOS_DE_1X.indexOf(f) >= 0 ? "Menos de 1x por turno" : "";
 }
 function plrFrequencia(r, tarefa){
   const escolhido = String(r && r.exposicao || "").trim();
@@ -7139,7 +7152,7 @@ function blocoPLrHtml(r, prefixo, tarefa){
       </div>
     </div>
     <div class="field-hint" style="margin-top:6px">Severidade (S) vem do Grau do Dano: <b>${escapeHtml(res.s || "não preenchido")}</b>${res.s? " — " + escapeHtml(String(r.gpd||"")) : ""}. ${escapeHtml((PLR_P_OPCOES.find(o=>o.v===r.evitar)||{}).desc || "P1 só vale quando há chance real de escapar.")}</div>
-    ${herdado? `<div class="field-hint" style="margin-top:6px">A exposição veio da <b>frequência da tarefa</b> (${escapeHtml(herdado)}). Escolher acima vale só para este risco.</div>`:""}
+    ${herdado? `<div class="field-hint" style="margin-top:6px">A exposição veio da <b>frequência da tarefa</b>: ${escapeHtml(herdado)}. Se a pessoa fica <b>muito tempo</b> dentro da zona de perigo, troque acima — o F também depende da duração, não só de quantas vezes.</div>`:""}
     ${plrResultadoHtml(res)}
   </div>`;
 }

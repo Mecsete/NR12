@@ -982,9 +982,17 @@ print("\n=== 41. FREQUENCIA DA TAREFA ALIMENTA A EXPOSICAO DO PLr ===")
 chk("as duas opcoes por turno entraram sem tirar as antigas",
     '"1x por turno","Mais de 2x por turno","1 Turno","2 Turnos"' in novo
     and all(('"%s"' % x) in novo for x in ["Diário", "Semanal", "Quinzenal", "Mensal", "Esporádico"]))
-chk("existe a ponte e ela so vale para frequencia por turno",
+# NBR 14153 B.2.2: "se o acesso somente for necessario de tempo em tempo,
+# pode-se selecionar F1". Semanal/mensal/esporadico sao isso por definicao.
+# "1 Turno"/"2 Turnos" ficam de fora de proposito: dizem que a tarefa ocupa o
+# turno, nao quantas vezes se entra na zona de perigo.
+chk("a ponte cobre contagem por turno E periodicidade",
     novo.count("function exposicaoPelaFrequencia(") == 1
-    and 'return PLR_F_OPCOES.some(x=> x.v === f) ? f : "";' in novo)
+    and 'const FREQ_MENOS_DE_1X = ["Diário", "Semanal", "Quinzenal", "Mensal", "Esporádico"];' in novo
+    and 'return FREQ_MENOS_DE_1X.indexOf(f) >= 0 ? "Menos de 1x por turno" : "";' in novo
+    and '"1 Turno"' not in novo[novo.find("const FREQ_MENOS_DE_1X"):novo.find("const FREQ_MENOS_DE_1X")+200])
+chk("o aviso lembra que F depende tambem da duracao",
+    "o F também depende da duração" in novo)
 chk("a tarefa e passada em todos os pontos que calculam PLr",
     "function plrExigido(r, tarefa){" in novo
     and "function plrFrequencia(r, tarefa){" in novo

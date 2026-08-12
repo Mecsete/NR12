@@ -3659,11 +3659,23 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ["1 Turno","2 Turnos","Diário","Semanal","Quinzenal","Mensal","Esporádico"]
       .forEach(x=> ok(lista.indexOf(x) >= 0, "sumiu a opção antiga " + x + " — quebraria cadastro existente"));
   });
-  t("só as frequências por turno viram exposição", ()=>{
+  t("contagem por turno vira exposição direta", ()=>{
     eq(C.exposicaoPelaFrequencia("1x por turno"), "1x por turno");
     eq(C.exposicaoPelaFrequencia("Mais de 2x por turno"), "Mais de 2x por turno");
-    eq(C.exposicaoPelaFrequencia("Semanal"), "", "de periodicidade não dá para deduzir entradas por turno");
-    eq(C.exposicaoPelaFrequencia("Diário"), "");
+  });
+  /* NBR 14153, B.2.2: "se o acesso somente for necessário de tempo em tempo,
+     pode-se selecionar F1". Semanal, mensal e afins são isso por definição. */
+  t("periodicidade cai em 'Menos de 1x por turno', que é F1", ()=>{
+    ["Diário","Semanal","Quinzenal","Mensal","Esporádico"].forEach(f=>
+      eq(C.exposicaoPelaFrequencia(f), "Menos de 1x por turno", f));
+    const r = { id:"r1", medidaPropostaTipo:"prot_movel_int", gpd:"Fatalidade",
+                evitar:"Praticamente impossível", exposicao:"" };
+    eq(C.plrExigido(r, { frequencia:"Semanal" }).f, "F1");
+    eq(C.plrExigido(r, { frequencia:"Semanal" }).completo, true, "não pode mais ficar cobrando o campo");
+  });
+  t("'1 Turno' e '2 Turnos' continuam sem dedução, de propósito", ()=>{
+    eq(C.exposicaoPelaFrequencia("1 Turno"), "", "ocupar o turno não diz quantas entradas na zona de perigo");
+    eq(C.exposicaoPelaFrequencia("2 Turnos"), "");
     eq(C.exposicaoPelaFrequencia(""), "");
   });
   t("a herança leva ao F certo do gráfico", ()=>{
@@ -3678,11 +3690,15 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
                 evitar:"Praticamente impossível", exposicao:"Menos de 1x por turno" };
     eq(C.plrExigido(r, { frequencia:"Mais de 2x por turno" }).f, "F1", "a escolha do risco tem de mandar");
   });
-  t("sem tarefa e sem frequência que sirva, continua cobrando o campo", ()=>{
+  t("sem tarefa, ou com frequência ambígua, continua cobrando o campo", ()=>{
     const r = { id:"r1", medidaPropostaTipo:"prot_movel_int", gpd:"Fatalidade", evitar:"Praticamente impossível", exposicao:"" };
     eq(C.plrExigido(r).f, "", "sem tarefa não pode inventar exposição");
-    eq(C.plrExigido(r, { frequencia:"Semanal" }).completo, false);
-    ok(C.plrFaltando(r, { frequencia:"Semanal" }).indexOf("Exposição") >= 0);
+    eq(C.plrExigido(r, { frequencia:"1 Turno" }).completo, false);
+    ok(C.plrFaltando(r, { frequencia:"1 Turno" }).indexOf("Exposição") >= 0);
+  });
+  t("o aviso lembra que F também depende da duração", ()=>{
+    ok(funcao("blocoPLrHtml").indexOf("o F também depende da duração") > 0,
+       "uma tarefa semanal de horas dentro da zona de perigo é F2, não F1");
   });
   t("o HRN também conhece as frequências novas", ()=>{
     eq(C.sugerirFE("1x por turno"), 2.5);

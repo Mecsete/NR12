@@ -22,6 +22,31 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 11/08/2026 22:10
+
+Frequência semanal, mensal e afins passam a responder a exposição também.
+
+Na versão anterior, só "1x por turno" e "Mais de 2x por turno" alimentavam o
+campo Exposição à zona de perigo. As demais continuavam sendo pedidas.
+
+Agora **Diário, Semanal, Quinzenal, Mensal e Esporádico** caem em "Menos de 1x
+por turno", que é **F1** no gráfico. Uma tarefa semanal é, por definição, menos
+de uma entrada por turno. A NBR 14153, item B.2.2, respalda: *"se o acesso
+somente for necessário de tempo em tempo, pode-se selecionar F1"*.
+
+**Uma ressalva que o app agora lembra na tela.** O parâmetro F depende de duas
+coisas, não uma: a norma fala em "frequente a contínuo **e/ou** tempo de
+exposição longo". Uma tarefa semanal que mantenha a pessoa horas dentro da zona
+de perigo é F2, não F1. Por isso a herança é ponto de partida, não veredito — o
+aviso no campo passou a dizer isso, e trocar ali continua valendo.
+
+**"1 Turno" e "2 Turnos" continuam sem dedução, de propósito.** Elas dizem que
+a tarefa ocupa o turno, não quantas vezes se entra na zona de perigo. Deduzir
+F1 subestimaria o risco e F2 o exageraria — nesse caso o campo continua sendo
+pedido.
+
+---
+
 ## 11/08/2026 21:15
 
 A frequência da tarefa passa a responder pela exposição do PLr.
