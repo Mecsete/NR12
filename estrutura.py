@@ -146,7 +146,10 @@ d = len(novo) - len(orig)
 # tipo do equipamento. O teto continua servindo so para pegar acidente
 # grosseiro — uma foto embutida no arquivo somaria MEGAbytes, nao centenas de
 # KB, e cairia aqui na hora.
-chk("crescimento coerente com os novos modulos (%d bytes)" % d, 20000 < d < 420000, "delta=%d" % d)
+# Teto de 420 para 700 KB: entrou a figura do processo embutida em base64
+# (~228 KB). O teto continua pegando acidente grosseiro — foto embutida por
+# engano somaria MEGAbytes, nao centenas de KB.
+chk("crescimento coerente com os novos modulos (%d bytes)" % d, 20000 < d < 700000, "delta=%d" % d)
 chk("nada foi removido do original por engano",
     all(novo.count(m) >= 1 for m in ["exportarMasterXLSXFotos", "gerarBytesXlsmCorteva", "montarItensInventario", "gerarBytesDocxSimples"]))
 
@@ -161,7 +164,11 @@ if i > 0 and f > i:
     ini = novo.rfind("/*", 0, i)
     fim = novo.find("*/", f) + 2
     sem = novo[:ini] + novo[fim:]
-    chk("o bloco tem tamanho coerente (%d bytes)" % (fim - ini), 20000 < (fim - ini) < 90000)
+    # Teto de 90 para 400 KB: a figura do processo (~228 KB em base64) vive
+    # DENTRO do bloco de impressao, que e justamente onde ela tem de estar —
+    # sai junto se o bloco for removido. O teto segue servindo para pegar
+    # acidente grosseiro, como o bloco colado duas vezes.
+    chk("o bloco tem tamanho coerente (%d bytes)" % (fim - ini), 20000 < (fim - ini) < 400000)
     import re as _re2
     blocos = _re2.findall(r'<script\b([^>]*)>([\s\S]*?)</script>', sem, _re2.I)
     erros = 0
@@ -948,13 +955,13 @@ chk("a metodologia tem a pagina dos itens da NR-12 e o paragrafo do residual",
     and 'class="lp-lista lp-lista-solta"' in novo)
 # O repositorio e PUBLICO e a figura e adaptada de norma ABNT, que e paga:
 # ela e enviada pelo engenheiro, nunca embutida no arquivo publicado.
-chk("a figura do processo e enviada, nao vem embutida",
+chk("a figura do processo vem embutida e ainda pode ser trocada",
     novo.count("function figuraProcesso(){") == 1
+    and novo.count('const FIGURA_PROCESSO_PADRAO = "data:image/jpeg;base64,') == 1
+    and "? c.figuraProcesso : FIGURA_PROCESSO_PADRAO;" in novo
     and "App.lpAbrirFigura()" in novo
     and "lpEnviarFigura(){" in novo and "lpRemoverFigura(){" in novo
-    and "lp-fig-vazia" in novo
-    and "Figura 1: Representação esquemática do processo" in novo
-    and 'figuraProcesso = "data:image' not in novo)
+    and "Figura 1: Representação esquemática do processo" in novo)
 chk("a figura e reduzida com folga para o texto miudo",
     "comprimirLogoPNG(arq, 1400)" in novo)
 chk("a classe da lista nao foi redefinida por cima da que ja existia",

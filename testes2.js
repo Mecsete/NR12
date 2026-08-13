@@ -3717,6 +3717,27 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(HTML.indexOf("plrExigido(r, it.tarefa)") > 0, "laudo impresso");
   });
 
+  console.log("\n=== t85 · corpo do laudo em 10pt e quebra natural ===");
+  t("a prosa do laudo saiu de 8,6pt para 10pt", ()=>{
+    ok(HTML.indexOf(".lp-par{margin:0 0 10px;text-align:justify;font-size:13.3px;line-height:1.5}") > 0,
+       "13,3px = 10pt no papel");
+    ok(HTML.indexOf(".lp-sub{font-weight:800;margin:14px 0 7px;font-size:15px}") > 0);
+    eq((HTML.match(/^\.lp-lista\{/gm)||[]).length, 1, "duas definições mudariam a outra lista do laudo");
+  });
+  t("cada parágrafo vira um bloco, para o texto escorrer entre páginas", ()=>{
+    const f = funcao("fatiarMetodologia");
+    ok(f.indexOf('split(/(?=<div class="lp-sub">)|(?=<p class="lp-par">)/)') > 0, "sem o fatiamento");
+    ok(f.indexOf('novo.grudaNoProximo = true;') > 0, "o título ficaria sozinho no pé da página");
+    ok(f.indexOf("if(i === 0 && b.quebrarAntes) novo.quebrarAntes = true;") > 0,
+       "a quebra forçada vale só para a primeira fatia");
+    ok(HTML.indexOf("fatiarMetodologia(blocosMetodologia()).forEach") > 0, "o fatiador não está sendo usado");
+  });
+  t("sobrou quebra forçada só onde ela significa alguma coisa", ()=>{
+    const f = funcao("blocosMetodologia");
+    eq((f.match(/quebrarAntes:true/g)||[]).length, 2,
+       "início da metodologia e a página da figura — o resto flui");
+  });
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

@@ -22,6 +22,47 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 13/08/2026 15:20
+
+Figura do processo já vem no app, texto do laudo maior e metodologia mais
+compacta.
+
+### A figura do processo não precisa mais ser enviada
+
+O fluxograma da apreciação de riscos passou a vir **dentro do app**. Nada a
+fazer: ele aparece na metodologia de todo laudo. Quem quiser trocar continua
+podendo, em Laudo → Imprimir → Figura, e o botão **Remover** volta para a
+figura padrão em vez de deixar a página vazia.
+
+### O texto do laudo ficou maior
+
+A prosa do laudo estava em **8,6 pt** — apertada para leitura impressa e mais
+fina que o seu documento de referência. Passou para **10 pt**. Vale para os
+parágrafos, títulos e listas; tabelas e cartões de risco têm tamanho próprio e
+não mudaram.
+
+### Quebra de página natural na metodologia
+
+Cada seção era um bloco indivisível: não cabendo no que restava da página, ela
+descia inteira e deixava meia folha em branco. Agora **cada parágrafo é uma
+unidade**, então o texto escorre de uma página para a outra.
+
+O título nunca fica sozinho no pé da página — ele acompanha o primeiro
+parágrafo. Tabelas e a figura continuam inteiras.
+
+Resultado medido: o aproveitamento das páginas da metodologia subiu de
+66/46/55% para 75/64/79%, e o laudo **manteve o mesmo número de páginas mesmo
+com a fonte 16% maior**.
+
+### Coluna PLr conferida
+
+As oito células da coluna PLr foram conferidas na Figura A.1 da ISO
+13849-1:2023, uma a uma, e todas conferem. Com isso a tabela do gráfico de
+risco está **inteira verificada** — a coluna Categoria já tinha sido conferida
+na NBR 14153 em 11/08 (quando foram achados os dois erros).
+
+---
+
 ## 11/08/2026 22:10
 
 Frequência semanal, mensal e afins passam a responder a exposição também.

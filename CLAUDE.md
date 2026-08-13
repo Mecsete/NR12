@@ -182,10 +182,10 @@ NR-12 registra que "existe uma correlação, embora não linear, entre os
 conceitos de PL e categoria", e a 13849-1 confirma: um PL "c" pode ser
 atingido por categoria 1, 2 ou 3.
 
-Ainda **não** verificado item a item: seis das oito células da coluna `plr`.
-Duas foram confirmadas no texto da ISO 13849-1:2023 (exemplos trabalhados do
-Anexo I: `S2·F1·P1 → c` e `S2·F2·P1 → d`); as outras seis seguem a progressão
-do Anexo A, cuja Figura A.1 é imagem e não foi lida.
+A coluna **PLr** foi conferida na **Figura A.1 da ISO 13849-1:2023** em
+13/08/2026, uma a uma: S1F1P1→a, S1F1P2→b, S1F2P1→b, S1F2P2→c, S2F1P1→c,
+S2F1P2→d, S2F2P1→d, S2F2P2→e. Bate com as duas células que já haviam sido
+confirmadas no texto (exemplos do Anexo I). **As duas colunas estão fechadas.**
 
 ### Decisão sobre o PLr (11/08/2026)
 
