@@ -1798,7 +1798,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "13/08/2026 15:20";
+const APP_BUILD = "13/08/2026 16:10";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -17826,22 +17826,31 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
      a secao e fatiada em paragrafos, cada um um bloco — assim o texto escorre
      de uma pagina para a outra e o laudo encolhe.
      O titulo gruda no primeiro paragrafo (grudaNoProximo), para nunca terminar
-     a pagina sozinho. Tabelas e figura continuam inteiras: fatia-se antes de
-     <p class="lp-par">, entao o que vem depois do ultimo paragrafo (tabela,
-     formula) segue colado a ele. */
+     a pagina sozinho.
+     Tabelas e a formula do HRN tambem sao fatiadas para fora do texto: ficando
+     coladas no ultimo paragrafo, os dois desciam juntos e deixavam meia pagina
+     em branco. O corte e sempre entre elementos de primeiro nivel, entao
+     nenhuma tabela e partida ao meio. */
   function fatiarMetodologia(blocos){
     const out = [];
+    const cx = document.createElement("div");
     blocos.forEach(b=>{
-      const partes = String(b.html).split(/(?=<div class="lp-sub">)|(?=<p class="lp-par">)/).filter(x=> x.trim());
-      if(partes.length < 2){ out.push(b); return; }
-      partes.forEach((html, i)=>{
-        const novo = { html };
+      /* Fatia pela ESTRUTURA, nao por texto. Cortar a string em <table> pegava
+         tambem as tabelas de dentro do grid de criterios do HRN, partindo o
+         HTML no meio e estourando a pagina. Pegando os filhos de primeiro
+         nivel, cada tabela aninhada continua dentro do pai dela. */
+      cx.innerHTML = String(b.html);
+      const filhos = Array.prototype.slice.call(cx.children);
+      if(filhos.length < 2){ out.push(b); return; }
+      filhos.forEach((el, i)=>{
+        const novo = { html: el.outerHTML };
         if(i === 0 && b.quebrarAntes) novo.quebrarAntes = true;
         if(i === 0 && b.paisagem) novo.paisagem = true;
-        if(/^\s*<div class="lp-sub">/.test(html)) novo.grudaNoProximo = true;
+        if(el.classList && el.classList.contains("lp-sub")) novo.grudaNoProximo = true;
         out.push(novo);
       });
     });
+    cx.innerHTML = "";
     return out;
   }
   function blocosMetodologia(){
@@ -17909,9 +17918,12 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
           if(!fig) return `<div class="lp-sub">Representação esquemática do processo</div>
             <div class="lp-fig-vazia">A figura do processo de apreciação de riscos ainda não foi enviada.<br>
               Envie uma vez em <b>Laudo → Imprimir → Figura</b> e ela passa a sair em todos os laudos.</div>`;
+          /* SEM legenda em HTML aqui: a figura ja traz a dela desenhada
+             dentro da imagem. Acrescentar outra repetia a mesma frase duas
+             vezes na pagina. Figura trocada pelo usuario deve vir com a
+             propria legenda — o modal avisa isso. */
           return `<div class="lp-sub">Representação esquemática do processo</div>
-            <div class="lp-fig"><img src="${fig}" alt="Processo de apreciação de riscos"></div>
-            <div class="lp-fig-leg">Figura 1: Representação esquemática do processo de apreciação de riscos — Fonte: ABNT NBR ISO 12100:2013 (adaptado)</div>`;
+            <div class="lp-fig"><img src="${fig}" alt="Figura 1: representação esquemática do processo de apreciação de riscos, conforme ABNT NBR ISO 12100:2013"></div>`;
         })() },
     ];
   }
@@ -18328,7 +18340,7 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
       const ficha = meta ? [meta.nome, tamanhoLegivel(meta.bytes), formatarDataHoraBR(meta.quando)].filter(Boolean).join(" · ") : "";
       abrirOverlay(`<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card">
         <h3>Figura do processo de apreciação de riscos</h3>
-        <div class="sheet-sub">Sai numa página inteira da metodologia, com a legenda "Figura 1". Fica guardada no aparelho e sincroniza.</div>
+        <div class="sheet-sub">Sai numa página inteira da metodologia. <b>A legenda tem de estar dentro da própria imagem</b> — o app não acrescenta nenhuma por fora. Fica guardada no aparelho e sincroniza.</div>
         ${fig
           ? `<div class="lp-logo-previa" style="min-height:150px"><img src="${fig}" alt="Figura" style="max-height:220px"></div>
              ${ficha? `<div class="field-hint" style="margin-top:6px">Arquivo: ${escapeHtml(ficha)}</div>`:""}`

@@ -22,6 +22,27 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 13/08/2026 16:10
+
+Dois defeitos da versão anterior.
+
+### A legenda da figura aparecia duas vezes
+
+A imagem do fluxograma **já traz a legenda desenhada dentro dela**, e o app
+acrescentava outra por baixo. Tirei a do app. Quem trocar a figura precisa
+mandar uma que já tenha a própria legenda — o modal passou a avisar isso.
+
+### Meia página em branco antes da tabela de ações
+
+A tabela "AÇÕES EM FUNÇÃO DO RISCO" ficava grudada no parágrafo anterior, e os
+dois desciam juntos quando não cabiam — deixando o resto da página vazio.
+Agora tabelas e fórmulas são unidades próprias e se movem sozinhas.
+
+O aproveitamento das páginas da metodologia foi de 77/75/70% para 77/75/70/73%,
+sem nenhuma tabela partida ao meio.
+
+---
+
 ## 13/08/2026 15:20
 
 Figura do processo já vem no app, texto do laudo maior e metodologia mais

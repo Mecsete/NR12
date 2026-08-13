@@ -3604,7 +3604,11 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   t("a figura do processo é enviada, não vem embutida no arquivo", ()=>{
     const f = funcao("blocosMetodologia");
     ok(f.indexOf("const fig = figuraProcesso();") > 0);
-    ok(f.indexOf("Figura 1: Representação esquemática do processo") > 0, "sem a legenda");
+    /* A legenda mora DENTRO da imagem. Acrescentar uma em HTML repetia a
+       mesma frase duas vezes na página. */
+    ok(f.indexOf('<div class="lp-fig-leg">') < 0, "a legenda em HTML duplicava a que já está na imagem");
+    ok(HTML.indexOf("A legenda tem de estar dentro da própria imagem") > 0,
+       "quem trocar a figura precisa saber que o app não põe legenda por fora");
     ok(f.indexOf("lp-fig-vazia") > 0, "sem a figura, a página tem de avisar em vez de sair em branco");
     ok(HTML.indexOf("function figuraProcesso(){") > 0);
     ok(HTML.indexOf("App.lpAbrirFigura()") > 0 && HTML.indexOf("lpEnviarFigura(){") > 0 && HTML.indexOf("lpRemoverFigura(){") > 0);
@@ -3726,7 +3730,11 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   });
   t("cada parágrafo vira um bloco, para o texto escorrer entre páginas", ()=>{
     const f = funcao("fatiarMetodologia");
-    ok(f.indexOf('split(/(?=<div class="lp-sub">)|(?=<p class="lp-par">)/)') > 0, "sem o fatiamento");
+    /* Fatiar por texto cortava dentro do grid de tabelas dos critérios do HRN
+       e estourava a página. Agora corta pelos filhos de primeiro nível. */
+    ok(f.indexOf("cx.innerHTML = String(b.html);") > 0, "sem o fatiamento por estrutura");
+    ok(f.indexOf("Array.prototype.slice.call(cx.children)") > 0, "precisa cortar por elemento, não por string");
+    ok(f.indexOf("split(") < 0, "cortar a string parte tabela aninhada ao meio");
     ok(f.indexOf('novo.grudaNoProximo = true;') > 0, "o título ficaria sozinho no pé da página");
     ok(f.indexOf("if(i === 0 && b.quebrarAntes) novo.quebrarAntes = true;") > 0,
        "a quebra forçada vale só para a primeira fatia");

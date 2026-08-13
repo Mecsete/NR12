@@ -961,7 +961,12 @@ chk("a figura do processo vem embutida e ainda pode ser trocada",
     and "? c.figuraProcesso : FIGURA_PROCESSO_PADRAO;" in novo
     and "App.lpAbrirFigura()" in novo
     and "lpEnviarFigura(){" in novo and "lpRemoverFigura(){" in novo
-    and "Figura 1: Representação esquemática do processo" in novo)
+    # A legenda vive DENTRO da imagem; acrescentar uma em HTML duplicava a frase.
+    and '<div class="lp-fig-leg">' not in novo
+    and "A legenda tem de estar dentro da própria imagem" in novo)
+chk("o fatiador corta por estrutura, nao por texto",
+    "cx.innerHTML = String(b.html);" in novo
+    and "Array.prototype.slice.call(cx.children)" in novo)
 chk("a figura e reduzida com folga para o texto miudo",
     "comprimirLogoPNG(arq, 1400)" in novo)
 chk("a classe da lista nao foi redefinida por cima da que ja existia",
