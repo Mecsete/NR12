@@ -714,8 +714,9 @@ print("\n=== 32. QUADRO DE ORIGEM E LOGOTIPO DO LAUDO ===")
 chk("numa folha em coluna so a lista encolhe",
     ".sheet-col>*{flex-shrink:0;}" in novo
     and ".sheet-col>.sheet-rolagem{flex:1 1 auto;min-height:0;overflow:auto;}" in novo
-    and novo.count('class="sheet sheet-col"') == 2
-    and novo.count('class="sheet-rolagem"') == 2)
+    # Tres: aplicar em varios, copiar de outro e o modal de exportacao.
+    and novo.count('class="sheet sheet-col"') == 3
+    and novo.count('class="sheet-rolagem"') == 3)
 chk("o quadro do texto de origem nao encolhe e tem teto",
     ".rep-origem{flex:0 0 auto;" in novo
     and "max-height:30vh" in novo
@@ -1024,6 +1025,45 @@ chk("o aviso da heranca vive dentro de blocoPLrHtml",
     and "A exposição veio da <b>frequência da tarefa</b>" in novo[_bp:_fim])
 chk("o HRN conhece as frequencias novas",
     '"1x por turno":2.5, "Mais de 2x por turno":4' in novo)
+
+print("\n=== 42. MODAL DE EXPORTACAO DO EXCEL ===")
+chk("as quatro opcoes de conteudo e o modal existem",
+    novo.count("const EXPORT_CONTEUDOS = [") == 1
+    and all(('k:"%s"' % k) in novo for k in ["todos", "laudo", "base", "resumo"])
+    and novo.count("function sheetExportarHtml(") == 1
+    and "abrirOverlay(sheetExportarHtml())" in novo
+    and novo.count("exportConfirmar(){") == 1)
+chk("a confirmacao de campos faltando continua no caminho",
+    "confirmarGeracaoComCamposFaltando(_exportarSimplesXLSXFotosReal)" in novo)
+# localSheetId e o INDICE da aba na lista, nao o sheetId. Tirando uma aba da
+# frente, o indice das seguintes muda — sem recalcular, o Excel aponta o filtro
+# para a aba errada e pede reparo ao abrir.
+chk("o indice do filtro e recalculado, nao copiado",
+    "const idxAba = (nome)=> sheetDefs.findIndex(x=> x.name === nome);" in novo
+    and 'localSheetId:idxAba("Base Completa")' in novo
+    and 'localSheetId:idxAba("Resumo")' in novo)
+chk("a aba oculta _MatrizHRN nunca sai",
+    '{name:"_MatrizHRN",sheetId:3,rId:"rId5",hidden:true},' in novo
+    and '{name:"xl/worksheets/sheet3.xml", data:strToBytes(sheet3Xml)},' in novo)
+# Peca declarada no [Content_Types] ou apontada por rel sem o arquivo
+# correspondente faz o Excel recusar o arquivo.
+chk("as pecas da aba removida saem de todos os lugares",
+    all(x in novo for x in [
+      'querBase? `<Override PartName="/xl/worksheets/sheet1.xml"',
+      'querResumo? `<Override PartName="/xl/worksheets/sheet2.xml"',
+      'querBase? `<Override PartName="/xl/drawings/drawing1.xml"',
+      'querResumo? `<Override PartName="/xl/drawings/drawing2.xml"',
+      'querBase? `<Relationship Id="rId1"',
+      'querResumo? `<Relationship Id="rId2"']))
+chk("aba unica sai em .xlsx limpo, sem tocar no modelo do cliente",
+    "if(modeloXlsmB64 && exportEscolha().conteudo.macro){" in novo)
+chk("o .xlsm nao perde aba — o Resumo so deixa de ser preenchido",
+    "if(!(opts && opts.pularResumo)){" in novo
+    and "{ pularResumo: !!exportEscolha().conteudo.pularResumo }" in novo)
+chk("juntar todas as areas ou uma por arquivo",
+    novo.count("function agruparParaExportar(") == 1
+    and "if(!exportEscolha().juntar) return agruparLinhasPorArea(linhasRaw);" in novo
+    and novo.count("agruparParaExportar(") == 3)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")

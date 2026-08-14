@@ -3236,9 +3236,10 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(HTML.indexOf("max-height:30vh") > 0, "sem teto, o quadro engoliria a lista");
     ok(HTML.indexOf("@media (max-height:700px){ .rep-origem{max-height:22vh;} }") > 0, "tela baixa ficaria sem lista");
   });
-  t("as duas folhas com lista usam a mesma regra", ()=>{
-    eq((HTML.match(/class="sheet sheet-col"/g)||[]).length, 2);
-    eq((HTML.match(/class="sheet-rolagem"/g)||[]).length, 2);
+  /* Três: aplicar em vários, copiar de outro e o modal de exportação. */
+  t("as folhas com lista usam a mesma regra", ()=>{
+    eq((HTML.match(/class="sheet sheet-col"/g)||[]).length, 3);
+    eq((HTML.match(/class="sheet-rolagem"/g)||[]).length, 3);
     ok(HTML.indexOf('id="laudoReplicaLista" style="overflow:auto;flex:1;min-height:0"') < 0, "sobrou o estilo antigo em linha");
   });
 
@@ -3744,6 +3745,68 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     const f = funcao("blocosMetodologia");
     eq((f.match(/quebrarAntes:true/g)||[]).length, 2,
        "início da metodologia e a página da figura — o resto flui");
+  });
+
+  console.log("\n=== t86 · modal de exportação do Excel ===");
+  t("as quatro opções de conteúdo existem, com o formato certo", ()=>{
+    vm.runInContext(constante("EXPORT_CONTEUDOS"), ctx);
+    const c = vm.runInContext("EXPORT_CONTEUDOS", ctx);
+    eq(c.map(x=>x.k).join(","), "todos,laudo,base,resumo");
+    ok(c[0].macro && c[1].macro, "Todos e Laudo saem no .xlsm oficial");
+    ok(!c[2].macro && !c[3].macro, "as de aba única saem em .xlsx limpo, sem macro");
+    eq(c[1].pularResumo, true, "Laudo é tudo menos o Resumo");
+    eq(c[2].abas.join(","), "Base Completa");
+    eq(c[3].abas.join(","), "Resumo");
+  });
+  t("o botão Exportar abre o modal em vez de gerar direto", ()=>{
+    ok(funcao("exportarSimplesXLSXFotos").indexOf("abrirOverlay(sheetExportarHtml())") > 0);
+    ok(HTML.indexOf("App.exportConfirmar()") > 0 && HTML.indexOf("exportConfirmar(){") > 0);
+    ok(HTML.indexOf("confirmarGeracaoComCamposFaltando(_exportarSimplesXLSXFotosReal)") > 0,
+       "a confirmação de campos faltando não pode ter sumido");
+  });
+  /* localSheetId é o ÍNDICE da aba na lista, não o sheetId: tirando uma aba da
+     frente, o índice das seguintes muda. Sem recalcular, o Excel apontaria o
+     filtro para a aba errada e pediria reparo ao abrir. */
+  t("o índice do filtro é recalculado, não copiado", ()=>{
+    const f = funcao("buildXlsxPackageSimples");
+    ok(f.indexOf('const idxAba = (nome)=> sheetDefs.findIndex(x=> x.name === nome);') > 0,
+       "sem recalcular o índice, o arquivo de aba única abriria pedindo reparo");
+    ok(f.indexOf('localSheetId:idxAba("Base Completa")') > 0 && f.indexOf('localSheetId:idxAba("Resumo")') > 0);
+    ok(f.indexOf("localSheetId:0,") < 0 && f.indexOf("localSheetId:1,") < 0, "sobrou índice fixo");
+  });
+  t("a aba oculta do HRN nunca sai", ()=>{
+    const f = funcao("buildXlsxPackageSimples");
+    const i = f.indexOf('{name:"_MatrizHRN"');
+    ok(i > 0 && f.slice(i-40, i).indexOf("querBase") < 0 && f.slice(i-40, i).indexOf("querResumo") < 0,
+       "ela alimenta as fórmulas de HRN das outras abas");
+    ok(f.indexOf('{name:"xl/worksheets/sheet3.xml", data:strToBytes(sheet3Xml)},') > 0);
+  });
+  t("as peças da aba removida saem de todos os lugares", ()=>{
+    const f = funcao("buildXlsxPackageSimples");
+    ["querBase? `<Override PartName=\"/xl/worksheets/sheet1.xml\"",
+     "querResumo? `<Override PartName=\"/xl/worksheets/sheet2.xml\"",
+     "querBase? `<Override PartName=\"/xl/drawings/drawing1.xml\"",
+     "querResumo? `<Override PartName=\"/xl/drawings/drawing2.xml\"",
+     "querBase? `<Relationship Id=\"rId1\"",
+     "querResumo? `<Relationship Id=\"rId2\""].forEach(x=>
+      ok(f.indexOf(x) > 0, "peça declarada sem arquivo quebra o Excel: " + x.slice(0,40)));
+  });
+  t("aba única nunca usa o modelo com macro", ()=>{
+    ok(HTML.indexOf("if(modeloXlsmB64 && exportEscolha().conteudo.macro){") > 0,
+       "usar o .xlsm para uma aba só significaria mexer no modelo do cliente");
+  });
+  t("o .xlsm não perde aba: o Resumo só deixa de ser preenchido", ()=>{
+    ok(HTML.indexOf("if(!(opts && opts.pularResumo)){") > 0);
+    ok(HTML.indexOf("{ pularResumo: !!exportEscolha().conteudo.pularResumo }") > 0);
+    ok(funcao("gerarBytesXlsmCorteva").indexOf('zip.remove(') < 0,
+       "remover aba de arquivo com macro pode quebrar VBA que a referencie");
+  });
+  t("juntar tudo num arquivo só, ou um por área", ()=>{
+    const f = funcao("agruparParaExportar");
+    ok(f.indexOf("if(!exportEscolha().juntar) return agruparLinhasPorArea(linhasRaw);") > 0);
+    ok(f.indexOf('nome:"Todas as áreas"') > 0, "o arquivo precisa de um nome quando junta");
+    ok(f.indexOf("if(linhasRaw.length === 0) return [];") > 0, "sem linhas não pode estourar");
+    eq((HTML.match(/agruparParaExportar\(/g)||[]).length, 3, "os dois caminhos de export mais a definição");
   });
 
   console.log("\n---------------------------------------");

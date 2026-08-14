@@ -428,6 +428,16 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .rep-item .rep-cam{font-size:11px;font-weight:700;color:var(--ink-faint);margin-top:1px;}
 .rep-item .rep-atual{font-size:11.5px;color:var(--ink-dim);margin-top:3px;line-height:1.35;}
 .rep-item .rep-aviso{font-size:11px;font-weight:800;color:#B26A00;margin-top:3px;}
+/* Escolhas do modal de exportação */
+.exp-rot{font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:7px;}
+.exp-op{display:flex;align-items:flex-start;gap:10px;padding:10px 11px;border:1.5px solid var(--line-strong);
+  border-radius:9px;margin-bottom:7px;background:var(--surface);}
+.exp-op.on{border-color:var(--accent);background:var(--accent-soft);}
+.exp-op input{width:18px;height:18px;flex-shrink:0;margin-top:1px;accent-color:var(--accent);}
+.exp-op span{flex:1;min-width:0;display:block;}
+.exp-op b{display:block;font-size:13.5px;color:var(--ink);}
+.exp-op i{display:block;font-style:normal;font-size:12px;color:var(--ink-dim);margin-top:2px;line-height:1.4;}
+.exp-op em{display:block;font-style:normal;font-size:11px;font-weight:700;color:var(--ink-faint);margin-top:3px;}
 /* Numa folha em coluna, TUDO encolhe por padrão quando o conteúdo passa da
    altura máxima — inclusive o quadro do texto de origem, que ficava espremido
    em uma linha só. Aqui só a lista pode encolher; o resto mantém o tamanho. */
@@ -1798,7 +1808,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "13/08/2026 16:10";
+const APP_BUILD = "13/08/2026 18:00";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -10216,6 +10226,15 @@ function getAreasSelecionadasExport(){
   STATE.ui.areasSelecionadasExport = STATE.ui.areasSelecionadasExport.filter(id=>idsValidos.has(id));
   return STATE.ui.areasSelecionadasExport;
 }
+/* Um arquivo por area (o de sempre) ou um so com todas juntas. Juntando, o
+   grupo herda o projeto e a area da primeira linha — e o que da nome ao
+   arquivo; o conteudo leva todas as areas na ordem em que aparecem. */
+function agruparParaExportar(linhasRaw){
+  if(!exportEscolha().juntar) return agruparLinhasPorArea(linhasRaw);
+  if(linhasRaw.length === 0) return [];
+  const p = linhasRaw[0];
+  return [{ proj:p.proj, area:{ ...p.area, nome:"Todas as áreas" }, linhas:linhasRaw }];
+}
 function agruparLinhasPorArea(linhasRaw){
   const porArea = new Map();
   linhasRaw.forEach(item=>{
@@ -10816,7 +10835,7 @@ function linhaSimplesComFotos(item, maxExtrasMaquina, maxExtrasRisco){
   // ordem final: [Foto Geral, Foto Plaqueta] + dados (já com Foto do Risco embutida) + extras máquina + extras risco
   return ["", "", ...comFotoRisco, ...extrasMaquinaPlaceholder, ...extrasRiscoPlaceholder];
 }
-async function gerarBytesXlsxSimples(linhasRaw){
+async function gerarBytesXlsxSimples(linhasRaw, abas){
   const maxExtrasMaquina = linhasRaw.reduce((m,item)=>Math.max(m,(item.maquina.fotosOutras||[]).length), 0);
   const maxExtrasRisco = linhasRaw.reduce((m,item)=>Math.max(m,(item.risco.fotosOutras||[]).length), 0);
   const grupos = buildGruposSimplesFotos(maxExtrasMaquina, maxExtrasRisco);
@@ -10859,7 +10878,7 @@ async function gerarBytesXlsxSimples(linhasRaw){
     return row;
   });
   const colunasFoto = [colFotoGeral, colFotoPlaqueta, ...colsFotoExtraMaquina, colFotoRisco, ...colsFotoExtraRisco];
-  return buildXlsxPackageSimples({grupos, headers, dataRows, anchors, imgMap, colunasFoto, resumoLinhasRaw:linhasRaw});
+  return buildXlsxPackageSimples({grupos, headers, dataRows, anchors, imgMap, colunasFoto, resumoLinhasRaw:linhasRaw, abas});
 }
 /* =========================================================================
    EXPORTAÇÃO EM EXCEL — MODELO OFICIAL DA CORTEVA (.xlsm, com macros)
@@ -11050,7 +11069,11 @@ function xlsmBuildDrawingRels(rels){
    e dos itens já com iaDuvidas/iaTextos calculados (ver calcularIATextosPorItem).
    itensInventario: lista de {numLegenda, maquina, area}, uma entrada por
    máquina (não por item). Devolve um Uint8Array pronto para baixar/compartilhar. */
-async function gerarBytesXlsmCorteva(modeloB64, linhasComIA, itensInventario, dadosInformacoes){
+/* opts.pularResumo deixa a aba Resumo do modelo INTACTA, do jeito que veio.
+   No .xlsm ela nao e removida de proposito: o arquivo tem macros VBA e uma
+   tabela vinculada, e apagar aba de la pode quebrar macro que a referencie —
+   risco que nao da para testar sem o modelo original em maos. */
+async function gerarBytesXlsmCorteva(modeloB64, linhasComIA, itensInventario, dadosInformacoes, opts){
   const zip = new window.PizZip(modeloB64, { base64: true });
 
   // ---------- fotos: um único mapa de imagens compartilhado entre as 3 abas ----------
@@ -11107,6 +11130,7 @@ async function gerarBytesXlsmCorteva(modeloB64, linhasComIA, itensInventario, da
   zip.file("xl/drawings/_rels/drawing1.xml.rels", xlsmBuildDrawingRels(relsD1));
 
   // ---------- Resumo (sheet2) ----------
+  if(!(opts && opts.pularResumo)){
   const linhasResumo = linhasComIA.map((item,i)=> xlsmLinhaResumo(2+i, item));
   const lastRowResumo = 1 + linhasComIA.length;
   let s2 = zip.file("xl/worksheets/sheet2.xml").asText();
@@ -11125,6 +11149,7 @@ async function gerarBytesXlsmCorteva(modeloB64, linhasComIA, itensInventario, da
   });
   zip.file("xl/drawings/drawing2.xml", xlsmBuildDrawingXml(anchorsD2));
   zip.file("xl/drawings/_rels/drawing2.xml.rels", xlsmBuildDrawingRels(relsD2));
+  }
 
   // ---------- Informações (sheet4) — só os campos que o app já conhece ----------
   let s4 = zip.file("xl/worksheets/sheet4.xml").asText();
@@ -11315,8 +11340,62 @@ function confirmarGeracaoComCamposFaltando(gerarFn){
   __acaoGerarPendente = gerarFn;
 }
 let __acaoGerarPendente = null;
+/* O QUE VAI NO ARQUIVO.
+   "macro" diz se a saida e o .xlsm oficial da Corteva (macros preservadas) ou
+   um .xlsx limpo. As duas opcoes de aba unica saem em .xlsx justamente porque
+   nao precisam de macro — e assim nao ha risco de mexer no modelo do cliente. */
+const EXPORT_CONTEUDOS = [
+  { k:"todos",  rot:"Todos",           macro:true,  abas:null,
+    desc:"Arquivo oficial completo: Base Completa, Resumo, Informações e Inventário." },
+  { k:"laudo",  rot:"Laudo",           macro:true,  abas:null, pularResumo:true,
+    desc:"O oficial, com tudo menos o Resumo preenchido. As macros continuam funcionando." },
+  { k:"base",   rot:"Só Base Completa", macro:false, abas:["Base Completa"],
+    desc:"Planilha limpa, só com a Base Completa. Sem macro." },
+  { k:"resumo", rot:"Só Resumo",       macro:false, abas:["Resumo"],
+    desc:"Planilha limpa, só com a tabela resumo dos riscos. Sem macro." },
+];
+function exportEscolha(){
+  const u = STATE.ui;
+  if(!u.exportConteudo || !EXPORT_CONTEUDOS.some(c=>c.k===u.exportConteudo)) u.exportConteudo = "todos";
+  if(u.exportJuntar === undefined) u.exportJuntar = false;
+  return { conteudo: EXPORT_CONTEUDOS.find(c=>c.k===u.exportConteudo), juntar: !!u.exportJuntar };
+}
+function sheetExportarHtml(){
+  const esc = exportEscolha();
+  const areas = getAreasSelecionadasExport().length;
+  return `<div class="sheet-overlay" id="overlayInner" onclick="if(event.target===this)App.fecharModal()">
+    <div class="sheet sheet-col" style="max-height:88vh">
+      <div class="sheet-handle"></div>
+      <h3>Exportar Excel</h3>
+      <div class="sheet-sub">${areas} área(s) marcada(s) na aba Áreas.</div>
+      <div class="sheet-rolagem">
+        <div class="exp-rot">O que vai no arquivo</div>
+        ${EXPORT_CONTEUDOS.map(c=>`<label class="exp-op ${esc.conteudo.k===c.k?"on":""}">
+          <input type="radio" name="expConteudo" ${esc.conteudo.k===c.k?"checked":""} onchange="App.exportSetConteudo('${c.k}')">
+          <span>
+            <b>${escapeHtml(c.rot)}</b>
+            <i>${escapeHtml(c.desc)}</i>
+            <em>${c.macro? "Arquivo .xlsm — macros preservadas" : "Arquivo .xlsx — sem macro"}</em>
+          </span>
+        </label>`).join("")}
+        <div class="exp-rot" style="margin-top:14px">Como separar</div>
+        <label class="exp-op ${!esc.juntar?"on":""}">
+          <input type="radio" name="expJuntar" ${!esc.juntar?"checked":""} onchange="App.exportSetJuntar(false)">
+          <span><b>Um arquivo por área</b><i>Havendo mais de uma área, vêm todas num .zip.</i></span>
+        </label>
+        <label class="exp-op ${esc.juntar?"on":""}">
+          <input type="radio" name="expJuntar" ${esc.juntar?"checked":""} onchange="App.exportSetJuntar(true)">
+          <span><b>Um arquivo só, com todas as áreas juntas</b><i>Tudo numa planilha, na ordem das áreas.</i></span>
+        </label>
+      </div>
+      <button class="btn btn-primary btn-block" style="margin-top:12px" onclick="App.exportConfirmar()">${ic('download')} Exportar</button>
+      <button class="sheet-cancel" onclick="App.fecharModal()">Cancelar</button>
+    </div>
+  </div>`;
+}
 async function exportarSimplesXLSXFotos(){
-  confirmarGeracaoComCamposFaltando(_exportarSimplesXLSXFotosReal);
+  if(getAreasSelecionadasExport().length === 0){ toast("Selecione ao menos uma área na aba Áreas", false); return; }
+  abrirOverlay(sheetExportarHtml());
 }
 async function _exportarSimplesXLSXFotosReal(){
   const idsSelecionados = getAreasSelecionadasExport();
@@ -11329,7 +11408,9 @@ async function _exportarSimplesXLSXFotosReal(){
      e o botão Parar vale para as duas etapas. */
   const painelExport = progressoAbrir("Preparando a exportação", 0);
   try {
-    if(modeloXlsmB64){
+    /* Aba unica sai sempre em .xlsx limpo, mesmo com o modelo da Corteva
+       enviado: e o que o "sem macro" quer dizer, e evita mexer no modelo. */
+    if(modeloXlsmB64 && exportEscolha().conteudo.macro){
       // ---- Modelo oficial da Corteva (.xlsm, com macros) ----
       // O Excel deixou de gerar texto por conta própria: ele agora COPIA o que
       // está aprovado na área "Laudo" do app (é o que garante que editar no app
@@ -11346,7 +11427,7 @@ async function _exportarSimplesXLSXFotosReal(){
         }
       }
       const linhasComIA = linhasRaw.map(item=>({...item, iaDuvidas: laudoDuvidasDoItem(item), iaTextos: laudoTextosDoItem(item)}));
-      const grupos = agruparLinhasPorArea(linhasComIA);
+      const grupos = agruparParaExportar(linhasComIA);
       progressoAbrir("Gerando Excel", grupos.length);
       const arquivos = [];
       for(let i=0;i<grupos.length;i++){
@@ -11355,7 +11436,8 @@ async function _exportarSimplesXLSXFotosReal(){
         progressoAtualizar(i, grupos.length, g.area.nome||"");
         const dadosInformacoes = montarDadosInformacoes(g.proj);
         const itensInventario = montarItensInventario(g.linhas);
-        const bytes = await gerarBytesXlsmCorteva(modeloXlsmB64, g.linhas, itensInventario, dadosInformacoes);
+        const bytes = await gerarBytesXlsmCorteva(modeloXlsmB64, g.linhas, itensInventario, dadosInformacoes,
+          { pularResumo: !!exportEscolha().conteudo.pularResumo });
         arquivos.push({ name: nomeArquivoArea(g.proj, g.area, "xlsm"), data: bytes });
       }
       if(progressoCancelado()){ toast("Exportação parada. Os textos que a IA já escreveu ficaram guardados no app.", false); return; }
@@ -11375,14 +11457,14 @@ async function _exportarSimplesXLSXFotosReal(){
       if(pendentesIA.length>0) await gerarLaudoIAItens(pendentesIA, null, { refazer:false });
     }
     linhasRaw = aplicarLaudoAprovadoNasLinhas(linhasRaw);
-    const grupos = agruparLinhasPorArea(linhasRaw);
+    const grupos = agruparParaExportar(linhasRaw);
     progressoAbrir("Gerando Excel", grupos.length);
     const arquivos = [];
     for(let i=0;i<grupos.length;i++){
       const g = grupos[i];
       if(progressoCancelado()) break;
       progressoAtualizar(i, grupos.length, g.area.nome||"");
-      const bytes = await gerarBytesXlsxSimples(g.linhas);
+      const bytes = await gerarBytesXlsxSimples(g.linhas, exportEscolha().conteudo.abas);
       arquivos.push({ name: nomeArquivoArea(g.proj, g.area, "xlsx"), data: bytes });
     }
     if(progressoCancelado()){ toast("Exportação parada. Os textos que a IA já escreveu ficaram guardados no app.", false); return; }
@@ -13670,7 +13752,21 @@ function buildHrnSheetXml({sst, headers, rows, fotoColsSet, hrnColPO, hrnColFE, 
 }
 
 /* ── Builder completo do XLSX — fotos como objeto real + HRN em fórmula ──── */
-function buildXlsxPackageSimples({grupos, headers, dataRows, anchors, imgMap, colunasFoto, resumoLinhasRaw}){
+/* ABAS PEDIDAS (parametro "abas", opcional).
+   Em vez de escrever um gerador novo de planilha de uma aba so, o pacote e
+   montado como sempre e o que nao foi pedido e tirado ANTES de zipar. Duas
+   coisas precisam ser RECALCULADAS, e nao apenas removidas — por isso o corte
+   acontece aqui dentro, e nao no arquivo pronto:
+
+   - localSheetId de um definedName e o INDICE da aba na lista <sheets>, nao o
+     sheetId. Tirando a aba da frente, o indice das seguintes muda: deixar como
+     estava faria o Excel apontar o filtro para a aba errada, ou para nenhuma,
+     e pedir reparo ao abrir.
+   - "_MatrizHRN" e oculta e alimenta as formulas de HRN das outras duas abas.
+     Ela nunca sai, mesmo sem ninguem pedir. */
+function buildXlsxPackageSimples({grupos, headers, dataRows, anchors, imgMap, colunasFoto, resumoLinhasRaw, abas}){
+  const querBase   = !abas || abas.indexOf("Base Completa") >= 0;
+  const querResumo = !abas || abas.indexOf("Resumo") >= 0;
   // imgMap: Map<dataUrl, {relId, mediaName, w, h, bytes, ext}>
   const imgList=[...imgMap.values()];
   const dataUrlToMediaName=new Map([...imgMap.entries()].map(([url,info])=>[url,info.mediaName]));
@@ -13802,20 +13898,23 @@ function buildXlsxPackageSimples({grupos, headers, dataRows, anchors, imgMap, co
   // ── Shared strings, workbook, rels ───────────────────────────────────────
   const nResumo=(resumoLinhasRaw||[]).length;
   const sheetDefs=[
-    {name:"Base Completa",sheetId:1,rId:"rId1"},
-    {name:"Resumo",sheetId:2,rId:"rId2"},
+    ...(querBase?   [{name:"Base Completa",sheetId:1,rId:"rId1"}] : []),
+    ...(querResumo? [{name:"Resumo",sheetId:2,rId:"rId2"}] : []),
     {name:"_MatrizHRN",sheetId:3,rId:"rId5",hidden:true},
   ];
+  /* O indice e lido da lista ja filtrada — e o que mantem o filtro apontando
+     para a aba certa quando a outra sai. */
+  const idxAba = (nome)=> sheetDefs.findIndex(x=> x.name === nome);
   const definedNames=[
-    ...(dataRows.length>0?[{localSheetId:0,ref:`'Base Completa'!$A$2:$${colLetter(totalCols)}$${totalRows}`}]:[]),
-    ...(nResumo>0?[{localSheetId:1,ref:`Resumo!$A$1:$${colLetter(RESUMO_HEADERS_HRN.length)}$${nResumo+1}`}]:[]),
+    ...((querBase && dataRows.length>0)?[{localSheetId:idxAba("Base Completa"),ref:`'Base Completa'!$A$2:$${colLetter(totalCols)}$${totalRows}`}]:[]),
+    ...((querResumo && nResumo>0)?[{localSheetId:idxAba("Resumo"),ref:`Resumo!$A$1:$${colLetter(RESUMO_HEADERS_HRN.length)}$${nResumo+1}`}]:[]),
   ];
   const workbookXml=buildWorkbookXml(sheetDefs,definedNames);
 
   const wbRels=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`+
     `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">`+
-    `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>`+
-    `<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>`+
+    (querBase? `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>`:``)+
+    (querResumo? `<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>`:``)+
     `<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`+
     `<Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>`+
     `<Relationship Id="rId5" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet3.xml"/>`+
@@ -13833,13 +13932,13 @@ function buildXlsxPackageSimples({grupos, headers, dataRows, anchors, imgMap, co
     `<Default Extension="jpeg" ContentType="image/jpeg"/>`+
     `<Default Extension="png" ContentType="image/png"/>`+
     `<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>`+
-    `<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`+
-    `<Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`+
+    (querBase? `<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`:``)+
+    (querResumo? `<Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`:``)+
     `<Override PartName="/xl/worksheets/sheet3.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`+
     `<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>`+
     `<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>`+
-    `<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>`+
-    `<Override PartName="/xl/drawings/drawing2.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>`+
+    (querBase? `<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>`:``)+
+    (querResumo? `<Override PartName="/xl/drawings/drawing2.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>`:``)+
     `<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>`+
     `<Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>`+
     `</Types>`;
@@ -13902,15 +14001,19 @@ function buildXlsxPackageSimples({grupos, headers, dataRows, anchors, imgMap, co
     {name:"xl/_rels/workbook.xml.rels", data:strToBytes(wbRels)},
     {name:"xl/styles.xml", data:strToBytes(buildResumoStylesXml())},
     {name:"xl/sharedStrings.xml", data:strToBytes(buildSstXml(sst.getStrings()))},
-    {name:"xl/worksheets/sheet1.xml", data:strToBytes(sheet1Xml)},
-    {name:"xl/worksheets/_rels/sheet1.xml.rels", data:strToBytes(shRels(1))},
-    {name:"xl/worksheets/sheet2.xml", data:strToBytes(sheet2Xml)},
-    {name:"xl/worksheets/_rels/sheet2.xml.rels", data:strToBytes(shRels(2))},
+    ...(querBase? [
+      {name:"xl/worksheets/sheet1.xml", data:strToBytes(sheet1Xml)},
+      {name:"xl/worksheets/_rels/sheet1.xml.rels", data:strToBytes(shRels(1))},
+      {name:"xl/drawings/drawing1.xml", data:strToBytes(buildDrawingXmlForAnchors(baseDrawingAnchors))},
+      {name:"xl/drawings/_rels/drawing1.xml.rels", data:strToBytes(buildDrawingRelsForImgs(baseDrawingAnchors))},
+    ] : []),
+    ...(querResumo? [
+      {name:"xl/worksheets/sheet2.xml", data:strToBytes(sheet2Xml)},
+      {name:"xl/worksheets/_rels/sheet2.xml.rels", data:strToBytes(shRels(2))},
+      {name:"xl/drawings/drawing2.xml", data:strToBytes(buildDrawingXmlForAnchors(resumoDrawingAnchors))},
+      {name:"xl/drawings/_rels/drawing2.xml.rels", data:strToBytes(buildDrawingRelsForImgs(resumoDrawingAnchors))},
+    ] : []),
     {name:"xl/worksheets/sheet3.xml", data:strToBytes(sheet3Xml)},
-    {name:"xl/drawings/drawing1.xml", data:strToBytes(buildDrawingXmlForAnchors(baseDrawingAnchors))},
-    {name:"xl/drawings/_rels/drawing1.xml.rels", data:strToBytes(buildDrawingRelsForImgs(baseDrawingAnchors))},
-    {name:"xl/drawings/drawing2.xml", data:strToBytes(buildDrawingXmlForAnchors(resumoDrawingAnchors))},
-    {name:"xl/drawings/_rels/drawing2.xml.rels", data:strToBytes(buildDrawingRelsForImgs(resumoDrawingAnchors))},
   ];
   imgMap.forEach(info=>files.push({name:`xl/media/${info.mediaName}`,data:info.bytes}));
   return buildZip(files);
@@ -14997,6 +15100,12 @@ const App = {
   },
   /* Não interrompe no meio de uma chamada já em voo: marca a parada, e o laço
      sai antes de disparar a próxima. Assim nenhum texto fica pela metade. */
+  exportSetConteudo(k){ STATE.ui.exportConteudo = k; abrirOverlay(sheetExportarHtml()); },
+  exportSetJuntar(v){ STATE.ui.exportJuntar = !!v; abrirOverlay(sheetExportarHtml()); },
+  exportConfirmar(){
+    App.fecharModal();
+    confirmarGeracaoComCamposFaltando(_exportarSimplesXLSXFotosReal);
+  },
   progressoParar(){
     if(!__progresso) return;
     __progresso.cancelado = true;

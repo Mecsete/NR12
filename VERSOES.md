@@ -22,6 +22,46 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 13/08/2026 18:00
+
+Exportar Excel agora pergunta o que você quer.
+
+O botão **Exportar Excel** deixou de gerar direto. Ele abre um modal com duas
+escolhas.
+
+### O que vai no arquivo
+
+| Opção | Arquivo | Macro |
+|---|---|---|
+| **Todos** | .xlsm oficial completo | funciona |
+| **Laudo** | .xlsm oficial, com tudo menos o Resumo preenchido | funciona |
+| **Só Base Completa** | .xlsx limpo, uma aba | sem macro |
+| **Só Resumo** | .xlsx limpo, só a tabela dos riscos | sem macro |
+
+As duas de aba única saem sempre em `.xlsx`, **mesmo com o modelo da Corteva
+enviado**. É de propósito: para uma aba só não há motivo para mexer no arquivo
+do cliente, e assim nenhuma macro corre risco.
+
+No **Laudo**, a aba Resumo continua existindo no arquivo — ela só não é
+preenchida. Apagar aba de planilha com macro pode quebrar VBA que a
+referencie, e isso não teria como ser testado sem o modelo original em mãos.
+
+### Como separar
+
+- **Um arquivo por área** — o de sempre; havendo mais de uma, vêm num `.zip`.
+- **Um arquivo só, com todas as áreas juntas**.
+
+### Sobre o tamanho
+
+Marcando uma aba só, o arquivo cai de 37 KB para 26–28 KB no teste — e abre
+sem nenhum aviso de reparo, o que era o ponto delicado: a planilha guarda o
+filtro de cada aba pelo **índice** dela na lista, não pelo nome. Tirando a
+Base Completa da frente, o Resumo passa a ser a primeira, e esse índice
+precisa ser recalculado. A aba oculta que alimenta as fórmulas de HRN nunca
+sai, em nenhuma das opções.
+
+---
+
 ## 13/08/2026 16:10
 
 Dois defeitos da versão anterior.
