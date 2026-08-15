@@ -1808,7 +1808,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "13/08/2026 18:00";
+const APP_BUILD = "15/08/2026 16:20";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -2500,7 +2500,7 @@ function rotuloCaminhoNuvem(caminhoCompleto){
 function registrarEventoSync(direcao, nome, tipo, bytes, ok, motivo, caminho, reparo){
   if(direcao==="up" && ok===false && !reparo) __falhasEnvioNaSync++;
   if(!Array.isArray(STATE.logSincronizacao)) STATE.logSincronizacao = [];
-  STATE.logSincronizacao.unshift({ ts: Date.now(), dir: direcao, nome: String(nome||"").slice(0,80), caminho: String(caminho||"").slice(0,140) || undefined, tipo, bytes: bytes||0, ok: reparo ? true : (ok!==false), reparo: reparo || undefined, motivo: (ok===false || reparo) ? String(motivo||"").slice(0,60) : undefined });
+  STATE.logSincronizacao.unshift({ ts: Date.now(), dir: direcao, nome: String(nome||"").slice(0,80), caminho: String(caminho||"").slice(0,140) || undefined, tipo, bytes: bytes||0, ok: reparo ? true : (ok!==false), reparo: reparo || undefined, motivo: (ok===false || reparo || direcao==="del") ? String(motivo||"").slice(0,60) : undefined });
   if(STATE.logSincronizacao.length > MAX_EVENTOS_LOG_SYNC) STATE.logSincronizacao.length = MAX_EVENTOS_LOG_SYNC;
 }
 function fmtBytes(b){
@@ -2696,6 +2696,16 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
       // O irmão de fotos também sai — 404 (nunca existiu) é tratado como sucesso.
       const okFotos = await onedriveApagarBlob(subpasta, "fotos_"+registro.arquivo);
       if(ok && okFotos) assinaturas.delete(id);
+      /* APAGAR TAMBÉM ENTRA NO HISTÓRICO.
+         Até aqui, enviar e receber ficavam registrados e apagar não — então,
+         quando arquivos sumiam da nuvem, não havia no app nenhuma forma de
+         saber o que tinha sido apagado, quando, nem por qual motivo. O
+         registro diz qual dos dois caminhos foi: a pessoa confirmou no momento
+         de excluir ("exclusão confirmada") ou o item sumiu do aparelho e a
+         sincronização manual perguntou ("sumiu do aparelho"). */
+      registrarEventoSync("del", registro.arquivo, "exclusão", 0, ok && okFotos,
+        exclusaoConfirmadaPeloUsuario(id) ? "exclusão confirmada no aparelho" : "sumiu do aparelho, confirmado na sincronização",
+        subpasta);
     });
   }
 
@@ -4507,11 +4517,11 @@ function onedriveDiagnosticoDados(){
     quando: fmtQuando(e.ts), quandoRot: "em" }));
   const falhas = log.filter(e=> e && e.ok === false && !ehReparo(e)).slice(0, 25).map(e=>({
     nome: (e.caminho ? e.caminho + " › " : "") + (e.nome||""),
-    motivo: (e.dir==="up" ? "falha ao ENVIAR" : "falha ao RECEBER") + (e.motivo? " — " + e.motivo : ""),
+    motivo: (e.dir==="del" ? "falha ao APAGAR" : e.dir==="up" ? "falha ao ENVIAR" : "falha ao RECEBER") + (e.motivo? " — " + e.motivo : ""),
     quando: fmtQuando(e.ts), quandoRot: "tentativa em", tamanho: fmtBytes(e.bytes||0) }));
   const ultimos = log.slice(0, 12).map(e=>({
     nome: (e.nome||""), quando: fmtQuando(e.ts),
-    motivo: (e.dir==="up" ? "enviado" : "recebido") + (e.ok===false ? " — FALHOU" + (e.motivo? ": "+e.motivo : "") : " com sucesso"),
+    motivo: (e.dir==="del" ? "APAGADO da nuvem" : e.dir==="up" ? "enviado" : "recebido") + (e.ok===false ? " — FALHOU" + (e.motivo? ": "+e.motivo : "") : (e.dir==="del" ? (e.motivo? " — " + e.motivo : "") : " com sucesso")),
     quandoRot: "em", tamanho: fmtBytes(e.bytes||0) }));
   const enviosOk = log.filter(e=> e && e.dir==="up" && e.ok !== false && !ehReparo(e)).length;
   const enviosFalha = log.filter(e=> e && e.dir==="up" && e.ok === false && !ehReparo(e)).length;
@@ -12622,7 +12632,7 @@ function screenSimplesConfigBackup(){
   <div class="card" style="margin-top:8px;max-height:280px;overflow-y:auto">
     ${(STATE.logSincronizacao||[]).map(ev=>`
     <div style="display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid rgba(0,0,0,.05)">
-      <span style="font-weight:900;font-size:15px;color:${ev.dir==='up' ? 'var(--accent)' : '#2E9E5B'};flex-shrink:0">${ev.dir==='up'?'\u2191':'\u2193'}</span>
+      <span style="font-weight:900;font-size:15px;color:${ev.dir==='del' ? '#B3261E' : ev.dir==='up' ? 'var(--accent)' : '#2E9E5B'};flex-shrink:0">${ev.dir==='del'?'\u2715':ev.dir==='up'?'\u2191':'\u2193'}</span>
       <div style="flex:1;min-width:0">
         <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(ev.caminho || ev.nome)}</div>
         <div style="font-size:10.5px;color:var(--ink-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${new Date(ev.ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}${ev.tipo? ' · '+escapeHtml(ev.tipo):''}${ev.caminho? ' · '+escapeHtml(ev.nome):''}</div>

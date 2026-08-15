@@ -22,6 +22,32 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 15/08/2026 16:20
+
+Apagar da nuvem passa a aparecer no histórico de sincronização.
+
+Enviar e receber já ficavam registrados. **Apagar não.** Quando arquivos sumiam
+do OneDrive, não havia dentro do app nenhuma forma de saber o que tinha sido
+apagado, quando, nem por quê.
+
+Agora cada exclusão entra no histórico com marca própria (**✕**, em vermelho),
+o caminho do arquivo e **o motivo**, que diz qual dos dois caminhos foi:
+
+- *exclusão confirmada no aparelho* — alguém excluiu o item no app, e a
+  sincronização levou a exclusão para a nuvem;
+- *sumiu do aparelho, confirmado na sincronização* — o item desapareceu do
+  aparelho sem registro de exclusão, e alguém confirmou na pergunta que a
+  sincronização manual faz.
+
+O diagnóstico também passou a nomear a exclusão corretamente, em vez de
+chamá-la de "falha ao receber".
+
+**Nada mudou na regra de segurança**, que continua a mesma: a sincronização
+automática **nunca** apaga em massa sozinha — ela só avisa. Apagar vários itens
+de uma vez exige sincronização manual e confirmação na tela.
+
+---
+
 ## 13/08/2026 18:00
 
 Exportar Excel agora pergunta o que você quer.

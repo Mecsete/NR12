@@ -3809,6 +3809,37 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     eq((HTML.match(/agruparParaExportar\(/g)||[]).length, 3, "os dois caminhos de export mais a definição");
   });
 
+  console.log("\n=== t87 · apagar da nuvem entra no histórico ===");
+  t("a exclusão é registrada, com o caminho e o motivo", ()=>{
+    const f = funcao("onedriveSincronizarModulo");
+    ok(f.indexOf('registrarEventoSync("del", registro.arquivo, "exclusão"') > 0,
+       "apagar ficava sem rastro nenhum no app");
+    ok(f.indexOf('exclusaoConfirmadaPeloUsuario(id) ? "exclusão confirmada no aparelho" : "sumiu do aparelho, confirmado na sincronização"') > 0,
+       "sem distinguir os dois caminhos, o registro não responde POR QUE apagou");
+  });
+  /* O motivo só era guardado em falha ou reparo — numa exclusão bem-sucedida
+     ele se perderia, que é justamente o dado que se quer depois. */
+  t("o motivo sobrevive quando a exclusão dá certo", ()=>{
+    ok(HTML.indexOf('motivo: (ok===false || reparo || direcao==="del")') > 0,
+       "o motivo da exclusão seria descartado por ter dado certo");
+  });
+  t("a exclusão tem marca própria na tela e no diagnóstico", ()=>{
+    /* O arquivo escreve os símbolos como escape Unicode, igual às setas. */
+    ok(/ev\.dir==='del'\?'(✕|\\u2715)'/.test(HTML), "sem marca própria, parece um recebimento");
+    ok(HTML.indexOf('e.dir==="del" ? "falha ao APAGAR"') > 0);
+    ok(HTML.indexOf('e.dir==="del" ? "APAGADO da nuvem"') > 0);
+  });
+  t("exclusão não entra no placar de envios", ()=>{
+    ok(HTML.indexOf('log.filter(e=> e && e.dir==="up" && e.ok !== false && !ehReparo(e)).length') > 0,
+       "o placar filtra por dir==='up', então o del não o contamina");
+  });
+  t("o freio de exclusão em massa continua de pé", ()=>{
+    const f = funcao("onedriveSincronizarModulo");
+    ok(f.indexOf("if(!onProgresso){") > 0 && f.indexOf("podeApagar = false;") > 0,
+       "o ciclo automático NUNCA pode propagar exclusão em massa sozinho");
+    ok(f.indexOf("avisarExclusaoMassaBloqueada(idsExcluidos.length)") > 0);
+  });
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);
