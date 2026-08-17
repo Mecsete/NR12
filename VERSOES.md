@@ -22,6 +22,21 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 17/08/2026 19:20
+
+Cartão "Nível de desempenho requerido" passou a ficar sempre logo abaixo
+da "Avaliação HRN", em vez de cair perto de um cartão qualquer.
+
+A tela organiza os cartões da revisão numa grade (2 ou 3 colunas,
+conforme a largura da tela). Como HRN e Nível de desempenho eram dois
+cartões soltos na mesma grade dos textos maiores, a posição de cada um
+dependia de quantos cartões vinham antes — às vezes ficavam lado a lado,
+às vezes o Nível de desempenho caía sozinho numa linha, longe do HRN.
+Agora os dois viajam grudados: contam como uma única posição na grade, um
+embaixo do outro, sempre juntos.
+
+---
+
 ## 17/08/2026 18:50
 
 Mitigação Existente ganha as mesmas ferramentas de IA da Solução, e o

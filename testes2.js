@@ -4096,6 +4096,23 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(html.indexOf("a letra") < 0, "existente nao tem sigla no carrossel de cartoes — a frase da Solucao nao se aplica aqui");
   });
 
+  console.log("\n=== t93 · HRN e Nível de desempenho na mesma célula do grid ===");
+  t("os dois cartões ficam dentro do mesmo wrapper, um embaixo do outro", ()=>{
+    STATE.ui.laudoRiscoId = C.linhasEscopoSimples()[0].risco.id;
+    const h = C.screenSimplesLaudoItem();
+    const iWrapper = h.indexOf('<div style="display:flex;flex-direction:column;gap:12px">');
+    const iHRN = h.indexOf("Avaliação HRN");
+    const iNivel = h.indexOf("Nível de desempenho requerido");
+    ok(iWrapper > 0 && iWrapper < iHRN && iHRN < iNivel,
+       "o wrapper precisa vir antes de HRN, que precisa vir antes do Nível");
+    // nenhum outro cartao do grid entra ENTRE os dois — so a abertura do
+    // PROPRIO card do Nivel (a de HRN fica ANTES de "Avaliação HRN", fora
+    // desta fatia).
+    const entre = h.slice(iHRN, iNivel);
+    eq((entre.match(/class="card card-pad laudo-bloco"/g)||[]).length, 1,
+       "algum outro cartao do grid ficou entre HRN e o Nivel de desempenho");
+  });
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

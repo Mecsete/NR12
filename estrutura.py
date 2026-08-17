@@ -1221,6 +1221,14 @@ chk("o checklist do cadastro em campo (blocoMedidaExistenteHtml) nao foi tocado"
     'onclick="App.toggleMedidaExistente(\'${m.k}\')"' in novo
     and 'onclick="App.acrescentarOutroExistente()"' in novo)
 
+print("\n=== 48. HRN E NIVEL DE DESEMPENHO EMPILHADOS NA MESMA CELULA DO GRID ===")
+# .laudo-grid e um CSS grid comum (nao masonry): com 7 celulas soltas, HRN e
+# "Nivel de desempenho requerido" caiam em colunas DIFERENTES (2 ou 3
+# colunas conforme a largura) e nunca ficavam um embaixo do outro de
+# verdade -- o usuario pediu para otimizar o espaco juntando os dois.
+chk("HRN e o Nivel de desempenho viram UMA celula so do grid (par, nao impar)",
+    'grid">\n    ${LAUDO_CAMPOS.map(c=> (c.k==="solucao"? laudoBlocoCampo(item,"existente") : "") + laudoBlocoCampo(item, c.k)).join("")}\n    <div style="display:flex;flex-direction:column;gap:12px">\n      ${laudoBlocoHRN(item)}' in novo)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
