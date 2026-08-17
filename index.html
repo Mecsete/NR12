@@ -1808,7 +1808,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "15/08/2026 16:20";
+const APP_BUILD = "15/08/2026 17:05";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -10664,6 +10664,31 @@ async function gerarLaudoIAItens(itens, onProgress, opts){
     : { escopo:[], tarefa:[], risco:[], solucao:[] };
   const maquinasFeitas = new Set(), tarefasFeitas = new Set();
   let gravados = 0;
+  /* CONTAGEM POR CAMPO, NAO POR ITEM.
+     Contando itens, um unico risco mostrava "0 de 1" do comeco ao fim e so
+     virava "1 de 1" no ultimo instante — parecia travado, embora estivesse
+     escrevendo quatro textos, um por vez, com pausa entre eles.
+     O total e levantado ANTES, com as mesmas regras do laco: escopo sai uma
+     vez por maquina, tarefa uma vez por tarefa, risco e solucao por linha, e
+     nada que ja esteja pronto entra na conta. Assim o numero da direita e o
+     que de fato vai ser escrito, e o da esquerda anda a cada campo. */
+  const totalCampos = (function(){
+    const mq = new Set(), tf = new Set();
+    let n = 0;
+    itens.forEach(it=>{
+      if(laudoPrecisaGerar(it, "escopo", refazer) && !mq.has(it.maquina.id)){ mq.add(it.maquina.id); n++; }
+      if(laudoPrecisaGerar(it, "tarefa", refazer) && !tf.has(it.tarefa.id)){ tf.add(it.tarefa.id); n++; }
+      if(laudoPrecisaGerar(it, "risco", refazer)) n++;
+      if(laudoPrecisaGerar(it, "solucao", refazer)) n++;
+    });
+    return n;
+  })();
+  let camposFeitos = 0;
+  const CAMPO_ROTULO = { escopo:"escopo do equipamento", tarefa:"descrição da tarefa", risco:"descrição do risco", solucao:"solução" };
+  /* Avisa ANTES de escrever: a pessoa ve o que esta sendo feito enquanto a IA
+     responde, e nao so depois de pronto. */
+  const anunciar = (item, campo)=> progressoAtualizar(camposFeitos, totalCampos,
+    (nomeMaquinaS(item.maquina) || "") + " — " + (CAMPO_ROTULO[campo] || campo));
   /* Se ninguém abriu painel antes (chamada direta da aba IA), esta função abre
      o seu; se já havia um (exportação), ela só escreve no que está na tela.
      "meuPainel" guarda quem tem o direito de fechar no fim. */
@@ -10672,7 +10697,7 @@ async function gerarLaudoIAItens(itens, onProgress, opts){
   for(let i=0;i<itens.length;i++){
     const item = itens[i];
     if(onProgress) onProgress(i+1, itens.length);
-    progressoAtualizar(i, itens.length, nomeMaquinaS(item.maquina) || "");
+    progressoAtualizar(camposFeitos, totalCampos, nomeMaquinaS(item.maquina) || "");
     /* Parada pedida pelo usuário: sai ANTES de disparar a próxima chamada.
        Tudo que já foi gerado até aqui está gravado nos itens. */
     if(progressoCancelado()) break;
@@ -10680,6 +10705,7 @@ async function gerarLaudoIAItens(itens, onProgress, opts){
     const lm = getLaudoMaquina(item.maquina);
     if(laudoPrecisaGerar(item, "escopo", refazer) && !maquinasFeitas.has(item.maquina.id)){
       maquinasFeitas.add(item.maquina.id);
+      anunciar(item, "escopo");
       const entradaEscopo = laudoEntradaComReferencias(item, "escopo",
         `Nome: ${nomeMaquinaS(item.maquina)}\nDescrição: ${item.maquina.descricao||"(não informada)"}`, exemplos.escopo);
       const [respEquip, respEscopo] = await Promise.all([
@@ -10693,27 +10719,31 @@ async function gerarLaudoIAItens(itens, onProgress, opts){
         laudoSet(item, "escopo", { sug:jEscopo.texto, duv:jEscopo.duvida||"", st:"pend", fin:"", refs:entradaEscopo.refs });
         gravados++;
       }
+      camposFeitos++;
       await esperar(200);
     }
     // ---- Descrição da tarefa (uma vez por TAREFA) ----
     if(laudoPrecisaGerar(item, "tarefa", refazer) && !tarefasFeitas.has(item.tarefa.id)){
       tarefasFeitas.add(item.tarefa.id);
+      anunciar(item, "tarefa");
       const nomeTarefa = valOuOutro(item.tarefa.tarefa, item.tarefa.tarefaOutro);
       const entradaTarefa = laudoEntradaComReferencias(item, "tarefa",
         `Tarefa: ${nomeTarefa}\nMáquina/Ativo: ${nomeMaquinaS(item.maquina)}\nNota do inspetor: ${item.tarefa.descricao||"(não informada)"}`, exemplos.tarefa);
       const j = parseRespostaJsonIA(await chamarIAResiliente("tarefa_xlsx", entradaTarefa.texto)) || {};
       if(j.texto){ laudoSet(item, "tarefa", { sug:j.texto, duv:j.duvida||"", st:"pend", fin:"", refs:entradaTarefa.refs }); gravados++; }
+      camposFeitos++;
       await esperar(200);
     }
     // ---- Risco e Solução (por LINHA, com reuso de casos idênticos) ----
     for(const campo of ["risco","solucao"]){
       if(!laudoPrecisaGerar(item, campo, refazer)) continue;
+      anunciar(item, campo);
       const orig = laudoTextoOriginal(item, campo);
       const ch = laudoChaveReuso(campo, orig);
       if(orig.trim() && reuso.has(ch)){
         const r = reuso.get(ch);
         laudoSet(item, campo, { sug:r.texto, duv:r.duv, st:"pend", fin:"", refs:r.refs||[] });
-        gravados++;
+        gravados++; camposFeitos++;
         continue;
       }
       const entradaCampo = laudoEntradaComReferencias(item, campo, orig, exemplos[campo]);
@@ -10723,10 +10753,10 @@ async function gerarLaudoIAItens(itens, onProgress, opts){
         if(orig.trim()) reuso.set(ch, { texto:j.texto, duv:j.duvida||"", refs:entradaCampo.refs });
         gravados++;
       }
+      camposFeitos++;
       await esperar(250);
     }
     if(i % 5 === 4) marcarAlterado();
-    progressoAtualizar(i+1, itens.length);
   }
   }finally{ progressoFechar(meuPainel); }
   // Herança: escopo é por máquina e tarefa é por tarefa — se uma linha

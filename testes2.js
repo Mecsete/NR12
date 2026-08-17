@@ -3840,6 +3840,33 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(f.indexOf("avisarExclusaoMassaBloqueada(idsExcluidos.length)") > 0);
   });
 
+  console.log("\n=== t88 · progresso conta campos, não itens ===");
+  t("o total é levantado antes, com as mesmas regras do laço", ()=>{
+    const f = funcao("gerarLaudoIAItens");
+    ok(f.indexOf("const totalCampos = (function(){") > 0, "sem total por campo, um risco só mostra 0 de 1");
+    ok(f.indexOf('if(laudoPrecisaGerar(it, "escopo", refazer) && !mq.has(it.maquina.id)){ mq.add(it.maquina.id); n++; }') > 0,
+       "escopo é uma vez por máquina, não por linha");
+    ok(f.indexOf('if(laudoPrecisaGerar(it, "tarefa", refazer) && !tf.has(it.tarefa.id)){ tf.add(it.tarefa.id); n++; }') > 0,
+       "tarefa é uma vez por tarefa");
+    ok(f.indexOf("progressoAtualizar(i, itens.length") < 0, "sobrou a contagem por item");
+  });
+  t("o contador anda em cada um dos quatro campos", ()=>{
+    const f = funcao("gerarLaudoIAItens");
+    eq((f.match(/camposFeitos\+\+/g)||[]).length, 4, "escopo, tarefa, risco/solução e o reuso");
+    ok(f.indexOf('anunciar(item, "escopo")') > 0 && f.indexOf('anunciar(item, "tarefa")') > 0
+       && f.indexOf("anunciar(item, campo)") > 0, "sem anunciar, a tela não diz o que está sendo escrito");
+  });
+  t("o aviso sai ANTES de escrever, não depois", ()=>{
+    const f = funcao("gerarLaudoIAItens");
+    ok(f.indexOf('anunciar(item, "escopo");') < f.indexOf("const entradaEscopo ="),
+       "anunciar depois da chamada deixaria a tela parada enquanto a IA responde");
+  });
+  t("a tela nomeia a máquina e o campo", ()=>{
+    const f = funcao("gerarLaudoIAItens");
+    ok(f.indexOf('const CAMPO_ROTULO = { escopo:"escopo do equipamento", tarefa:"descrição da tarefa", risco:"descrição do risco", solucao:"solução" };') > 0);
+    ok(f.indexOf('(nomeMaquinaS(item.maquina) || "") + " — " + (CAMPO_ROTULO[campo] || campo)') > 0);
+  });
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

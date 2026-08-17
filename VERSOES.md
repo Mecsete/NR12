@@ -22,6 +22,29 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 15/08/2026 17:05
+
+A barra de progresso da IA passa a contar campos, não itens.
+
+Gerando os textos de **um** equipamento com **um** risco, a tela mostrava
+"0 de 1" do começo ao fim, virando "1 de 1" só no último instante. Parecia
+travado — mas estava escrevendo quatro textos, um por vez, com pausa entre
+eles.
+
+Agora a conta é por campo. O mesmo caso mostra **de 4**, andando a cada texto
+pronto, e a linha de cima diz o que está sendo escrito naquele momento:
+*"Debulhador — descrição do risco"*.
+
+O total é levantado antes de começar, com as mesmas regras da geração: o
+escopo sai uma vez por equipamento, a descrição da tarefa uma vez por tarefa,
+e risco e solução por linha. Nada que já esteja pronto entra na conta.
+
+Exemplo com dois equipamentos de dois riscos cada: **12 campos** — dois
+escopos, duas tarefas e oito textos de risco e solução. Antes mostraria
+"de 4", contando só as linhas.
+
+---
+
 ## 15/08/2026 16:20
 
 Apagar da nuvem passa a aparecer no histórico de sincronização.
