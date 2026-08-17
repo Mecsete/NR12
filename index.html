@@ -1808,7 +1808,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "17/08/2026 16:35";
+const APP_BUILD = "17/08/2026 18:50";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -7319,13 +7319,64 @@ function laudoBlocoExistenteHtml(item){
     ${obs && sit.k!=="ok" ? `<div style="font-size:12.5px;color:var(--ink-dim);margin-top:6px">Ressalva: ${escapeHtml(obs)}</div>`:""}
     ${desc? `<div style="font-size:13px;color:var(--ink);background:var(--bg-soft);border-radius:8px;padding:9px 10px;white-space:pre-wrap;margin-top:6px">${escapeHtml(desc)}</div>`:""}
     ${refs.length? `<div class="field-hint" style="margin-top:6px">Base normativa do que existe: <b>${escapeHtml(refs.join(" · "))}</b></div>`:""}
-    <div class="field-hint" style="margin-top:6px">Para alterar, edite o risco. A solução abaixo deve complementar ou corrigir isto.</div>
+    <div class="field-hint" style="margin-top:6px">Ajuste o que está marcado logo abaixo. A solução do cartão seguinte deve complementar ou corrigir isto.</div>
   </div>`;
 }
-/* Cartão próprio, separado do cartão de Solução — antes os dois viviam
-   juntos dentro do mesmo card e pareciam uma coisa só na tela. */
-function laudoCardMitigacaoExistente(item){
-  return `<div class="card card-pad laudo-bloco">${laudoBlocoExistenteHtml(item)}</div>`;
+/* Checklist da Mitigação Existente, editável direto na revisão do laudo —
+   o mesmo resumo de leitura de laudoBlocoExistenteHtml, seguido dos MESMOS
+   controles do cadastro em campo (blocoMedidaExistenteHtml), só que com os
+   handlers laudo* (por rid) em vez dos handlers de __draftEntity. Sem isto,
+   a única forma de mudar o que existe era abrir o risco em outro lugar. */
+function laudoBlocoMedidaExistenteEditavelHtml(item){
+  const r = item.risco, rid = r.id;
+  const marcadas = medidasExistentesDe(r);
+  const outros = outrosExistentesDe(r);
+  const sit = r.medidaExistenteSituacao || "ok";
+  const sitDef = MEDIDA_SITUACOES.find(s=>s.k===sit) || MEDIDA_SITUACOES[0];
+  const sugestao = medidaTextoExistenteMulti(r);
+  const podeAplicar = sugestao && sugestao !== String(r.descMedida||"").trim();
+  const temAlgo = marcadas.length > 0 || outros.length > 0;
+  const idNovo = "laudo-novo-existente-" + rid;
+  return laudoBlocoExistenteHtml(item) + `<div class="medida-box">
+    <div class="medida-head">${ic('check')} Marque o que existe na máquina</div>
+    <div class="field-hint" style="margin:-4px 0 8px">Pode marcar mais de um.</div>
+    ${medidasPorGrupoFiltrado(medidasParaExistente()).map(g=>`
+      <div style="font-size:11px;font-weight:800;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.04em;margin:8px 0 4px">${escapeHtml(g.g)}</div>
+      <div class="medida-chips">
+        ${g.itens.map(m=>`<button type="button" class="medida-chip ${marcadas.indexOf(m.k)>=0?'ativo':''}" onclick="App.laudoToggleMedidaExistente('${rid}','${m.k}')">${marcadas.indexOf(m.k)>=0? ic('check') : ""}${escapeHtml(m.rot)}</button>`).join("")}
+      </div>`).join("")}
+    ${outros.length? `<div style="font-size:11px;font-weight:800;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.04em;margin:8px 0 4px">Acrescentados por você</div>
+      <div class="medida-chips">
+        ${outros.map((o,i)=>`<button type="button" class="medida-chip ativo" onclick="App.laudoRemoverOutroExistente('${rid}',${i})" title="Remover">${ic('close')}${escapeHtml(o)}</button>`).join("")}
+      </div>`:""}
+    <div class="field" style="margin:10px 0 0">
+      <label>Não está na lista? Escreva e toque em acrescentar</label>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input type="text" id="${idNovo}" placeholder="Ex.: corrimão em toda a extensão" style="flex:1;min-width:0">
+        <button type="button" class="btn btn-secondary" style="flex-shrink:0;padding:9px 12px" onclick="App.laudoAcrescentarOutroExistente('${rid}')">${ic('plus')}</button>
+      </div>
+    </div>
+    ${temAlgo? `
+      <div class="field-hint" style="margin-top:10px">O que existe atende ao exigido pela norma?</div>
+      <div class="medida-sit">
+        ${MEDIDA_SITUACOES.map(s=>`<button type="button" class="${sit===s.k?'ativo':''}" style="${sit===s.k?`background:${s.fundo};color:${s.cor};border-color:${s.cor}`:''}" onclick="App.laudoSetMedidaExistenteCampo('${rid}','situacao','${s.k}')">${escapeHtml(s.rot)}</button>`).join("")}
+      </div>
+      ${sit!=="ok"? `<div class="field" style="margin:8px 0 0">
+        <label>O que falta</label>
+        <select class="sp-select-sm" onchange="App.laudoSetMedidaExistenteCampo('${rid}','ressalva', this.value)">
+          <option value="">Selecionar…</option>
+          ${MEDIDA_RESSALVAS.map(x=>`<option value="${escapeHtml(x)}" ${r.medidaExistenteRessalva===x?'selected':''}>${escapeHtml(x)}</option>`).join("")}
+        </select>
+      </div>`:""}
+      ${podeAplicar? `<div class="medida-rot">Texto sugerido pelo que foi marcado</div>
+        <div class="medida-frase" style="background:${sitDef.fundo};border-color:${sitDef.cor}33">${escapeHtml(sugestao)}</div>`:""}
+      ${podeAplicar? `<button type="button" class="btn btn-secondary btn-sm btn-block" style="margin-top:8px" onclick="App.laudoAplicarTextoMedidaExistenteMulti('${rid}')">${ic('copy')} Usar este texto</button>`:""}
+    ` : `<div class="field-hint" style="margin-top:8px">Marque o que existe e o app escreve o texto com a citação da norma.</div>`}
+    <div class="field" style="margin:10px 0 0">
+      <label>Descrição da mitigação existente <span style="font-weight:400;color:var(--ink-faint)">(editável)</span></label>
+      <textarea oninput="App.laudoSetMedidaExistenteCampo('${rid}','desc', this.value)">${escapeHtml(r.descMedida||"")}</textarea>
+    </div>
+  </div>`;
 }
 
 function blocoMontadorRiscoHtml(r){
@@ -10308,10 +10359,21 @@ const LAUDO_CAMPOS = [
   { k:"risco",   rot:"Descrição do risco",    col:"AS", nivel:"risco",   sigla:"R" },
   { k:"solucao", rot:"Solução",               col:"AT", nivel:"risco",   sigla:"S" },
 ];
+/* Mitigação Existente ganhou o mesmo motor de IA da Solução (sugestão,
+   aplicar, editar, copiar de outro, aplicar em vários) mas de propósito
+   NÃO entrou em LAUDO_CAMPOS: essa lista também comanda o "X de 4 campos"
+   do painel, o dashboard de pendências e as colunas AQ-AT do Excel — e
+   "o que já existe" não é um campo obrigatório do laudo (muita máquina
+   legitimamente não tem nada registrado). O texto final dela vai para
+   risco.descMedida, que já tem coluna própria (T) desde sempre. */
+function laudoCampoDef(campo){
+  if(campo==="existente") return { k:"existente", rot:"Mitigação existente", sigla:"M" };
+  return LAUDO_CAMPOS.find(c=>c.k===campo);
+}
 const LAUDO_ST_ROTULO = { "":"Não gerado", pend:"Aguardando sua decisão", ok:"Aplicado", edit:"Editado por você", no:"Recusado — vale o seu texto" };
 const LAUDO_ST_COR    = { "":"#8A8CA3", pend:"#B26A00", ok:"#2E7D32", edit:"#1565C0", no:"#4A4D6B" };
 const LAUDO_ST_FUNDO  = { "":"#E8EAF0", pend:"#FFF3D6", ok:"#E3F4E4", edit:"#E1EEFB", no:"#E8EAF0" };
-const LAUDO_TIPO_PROMPT = { escopo:"escopo_xlsx", tarefa:"tarefa_xlsx", risco:"risco_xlsx", solucao:"mitigacao_xlsx" };
+const LAUDO_TIPO_PROMPT = { escopo:"escopo_xlsx", tarefa:"tarefa_xlsx", risco:"risco_xlsx", existente:"mitigacao_xlsx", solucao:"mitigacao_xlsx" };
 
 function getLaudoMaquina(m){
   if(!m.laudoIA) m.laudoIA = {};
@@ -10330,8 +10392,9 @@ function getLaudoTarefa(t){
 function getLaudoRisco(r){
   if(!r.laudoIA) r.laudoIA = {};
   const l = r.laudoIA;
-  ["riscoSug","riscoFin","riscoSt","duvRisco","solucaoSug","solucaoFin","solucaoSt","duvSolucao","em"].forEach(k=>{ if(l[k]===undefined) l[k] = ""; });
+  ["riscoSug","riscoFin","riscoSt","duvRisco","existenteSug","existenteFin","existenteSt","duvExistente","solucaoSug","solucaoFin","solucaoSt","duvSolucao","em"].forEach(k=>{ if(l[k]===undefined) l[k] = ""; });
   if(!Array.isArray(l.riscoRefs)) l.riscoRefs = [];
+  if(!Array.isArray(l.existenteRefs)) l.existenteRefs = [];
   if(!Array.isArray(l.solucaoRefs)) l.solucaoRefs = [];
   return l;
 }
@@ -10491,6 +10554,7 @@ function laudoGet(item, campo){
   if(campo==="escopo"){ const l = getLaudoMaquina(item.maquina); return { sug:l.escopoSug, fin:l.escopoFin, st:l.escopoSt, duv:l.duvEscopo, refs:l.escopoRefs||[] }; }
   if(campo==="tarefa"){ const l = getLaudoTarefa(item.tarefa);   return { sug:l.tarefaSug, fin:l.tarefaFin, st:l.tarefaSt, duv:l.duvTarefa, refs:l.tarefaRefs||[] }; }
   if(campo==="risco"){  const l = getLaudoRisco(item.risco);     return { sug:l.riscoSug, fin:l.riscoFin, st:l.riscoSt, duv:l.duvRisco, refs:l.riscoRefs||[] }; }
+  if(campo==="existente"){ const l = getLaudoRisco(item.risco);  return { sug:l.existenteSug, fin:l.existenteFin, st:l.existenteSt, duv:l.duvExistente, refs:l.existenteRefs||[] }; }
   const l = getLaudoRisco(item.risco);                           return { sug:l.solucaoSug, fin:l.solucaoFin, st:l.solucaoSt, duv:l.duvSolucao, refs:l.solucaoRefs||[] };
 }
 /* CARIMBO DE SINCRONIZAÇÃO — sem isto, a revisão do laudo era um trabalho
@@ -10537,6 +10601,12 @@ function laudoSet(item, campo, patch){
     if(patch.st !==undefined) l.riscoSt  = patch.st;
     if(patch.duv!==undefined) l.duvRisco = patch.duv;
     if(patch.refs!==undefined) l.riscoRefs = patch.refs;
+  }else if(campo==="existente"){
+    if(patch.sug!==undefined) l.existenteSug = patch.sug;
+    if(patch.fin!==undefined) l.existenteFin = patch.fin;
+    if(patch.st !==undefined) l.existenteSt  = patch.st;
+    if(patch.duv!==undefined) l.duvExistente = patch.duv;
+    if(patch.refs!==undefined) l.existenteRefs = patch.refs;
   }else{
     if(patch.sug!==undefined) l.solucaoSug = patch.sug;
     if(patch.fin!==undefined) l.solucaoFin = patch.fin;
@@ -10571,10 +10641,35 @@ function laudoEntradaSolucao(item){
   }
   return partes.join("\n");
 }
+/* Mesmo teste "temAlgo" de laudoBlocoExistenteHtml — se nada foi marcado nem
+   escrito, não há o que descrever, e pedir um texto da IA aqui produziria
+   uma resposta genérica sobre "nada". */
+function laudoTemMitigacaoExistente(r){
+  return medidasExistentesDe(r).length>0 || outrosExistentesDe(r).length>0 || !!String(r.descMedida||"").trim();
+}
+/* Entrada para a IA da Mitigação Existente: descrever objetivamente o que
+   já está na máquina — o oposto de laudoEntradaSolucao, que propõe uma
+   ação nova. Aqui a IA não deve sugerir nada, só documentar. */
+function laudoEntradaExistente(item){
+  const r = item.risco;
+  const marcadas = medidasExistentesDe(r).map(k=>{ const m = medidaPorChave(k); return m ? m.rot : ""; })
+    .filter(Boolean).concat(outrosExistentesDe(r));
+  const desc = String(r.descMedida||"").trim();
+  const sit = MEDIDA_SITUACOES.find(x=>x.k===(r.medidaExistenteSituacao||"ok")) || MEDIDA_SITUACOES[0];
+  const obs = String(r.medidaExistenteRessalva||"").trim();
+  const partes = [];
+  partes.push("O que já está instalado na máquina: " + (marcadas.length? marcadas.join("; ") : "(nada marcado na lista)"));
+  if(desc) partes.push("Descrição de campo: " + desc);
+  partes.push("Situação em relação à norma: " + sit.rot);
+  if(obs && sit.k!=="ok") partes.push("O que falta para atender: " + obs);
+  partes.push("Escreva uma descrição técnica e objetiva do que JÁ EXISTE, como um registro do estado atual — não proponha nenhuma ação nova nem repita isto como se fosse uma solução a ser feita.");
+  return partes.join("\n");
+}
 function laudoTextoOriginal(item, campo){
   if(campo==="escopo")  return item.maquina.descricao || "";
   if(campo==="tarefa")  return item.tarefa.descricao || "";
   if(campo==="risco")   return item.risco.descricao || "";
+  if(campo==="existente") return item.risco.descMedida || "";
   /* Solucao e SEMPRE a proposta do inspetor (sugestaoMitigacao) — nunca a
      descricao do que ja existe (descMedida), mesmo com mitigacao marcada
      na maquina. So cai para descMedida quando nada foi proposto, como
@@ -10593,7 +10688,8 @@ function laudoTextoFinal(item, campo){
   return laudoTextoOriginal(item, campo);
 }
 function laudoTextosDoItem(item){
-  return { escopo:laudoTextoFinal(item,"escopo"), tarefa:laudoTextoFinal(item,"tarefa"), risco:laudoTextoFinal(item,"risco"), solucao:laudoTextoFinal(item,"solucao") };
+  return { escopo:laudoTextoFinal(item,"escopo"), tarefa:laudoTextoFinal(item,"tarefa"), risco:laudoTextoFinal(item,"risco"),
+    existente:laudoTextoFinal(item,"existente"), solucao:laudoTextoFinal(item,"solucao") };
 }
 function laudoDuvidasDoItem(item){
   const lm = getLaudoMaquina(item.maquina);
@@ -10680,8 +10776,8 @@ async function gerarLaudoIAItens(itens, onProgress, opts){
      ainda não foi aprovado por ninguém e não pode servir de exemplo. */
   const exemplos = laudoUsaReferencias()
     ? { escopo:laudoExemplosAprovados("escopo"), tarefa:laudoExemplosAprovados("tarefa"),
-        risco:laudoExemplosAprovados("risco"),  solucao:laudoExemplosAprovados("solucao") }
-    : { escopo:[], tarefa:[], risco:[], solucao:[] };
+        risco:laudoExemplosAprovados("risco"),  existente:laudoExemplosAprovados("existente"), solucao:laudoExemplosAprovados("solucao") }
+    : { escopo:[], tarefa:[], risco:[], existente:[], solucao:[] };
   const maquinasFeitas = new Set(), tarefasFeitas = new Set();
   let gravados = 0;
   /* CONTAGEM POR CAMPO, NAO POR ITEM.
@@ -10699,12 +10795,13 @@ async function gerarLaudoIAItens(itens, onProgress, opts){
       if(laudoPrecisaGerar(it, "escopo", refazer) && !mq.has(it.maquina.id)){ mq.add(it.maquina.id); n++; }
       if(laudoPrecisaGerar(it, "tarefa", refazer) && !tf.has(it.tarefa.id)){ tf.add(it.tarefa.id); n++; }
       if(laudoPrecisaGerar(it, "risco", refazer)) n++;
+      if(laudoTemMitigacaoExistente(it.risco) && laudoPrecisaGerar(it, "existente", refazer)) n++;
       if(laudoPrecisaGerar(it, "solucao", refazer)) n++;
     });
     return n;
   })();
   let camposFeitos = 0;
-  const CAMPO_ROTULO = { escopo:"escopo do equipamento", tarefa:"descrição da tarefa", risco:"descrição do risco", solucao:"solução" };
+  const CAMPO_ROTULO = { escopo:"escopo do equipamento", tarefa:"descrição da tarefa", risco:"descrição do risco", existente:"mitigação existente", solucao:"solução" };
   /* Avisa ANTES de escrever: a pessoa ve o que esta sendo feito enquanto a IA
      responde, e nao so depois de pronto. */
   const anunciar = (item, campo)=> progressoAtualizar(camposFeitos, totalCampos,
@@ -10754,11 +10851,12 @@ async function gerarLaudoIAItens(itens, onProgress, opts){
       camposFeitos++;
       await esperar(200);
     }
-    // ---- Risco e Solução (por LINHA, com reuso de casos idênticos) ----
-    for(const campo of ["risco","solucao"]){
+    // ---- Risco, Mitigação Existente e Solução (por LINHA, com reuso de casos idênticos) ----
+    for(const campo of ["risco","existente","solucao"]){
+      if(campo==="existente" && !laudoTemMitigacaoExistente(item.risco)) continue;
       if(!laudoPrecisaGerar(item, campo, refazer)) continue;
       anunciar(item, campo);
-      const orig = laudoTextoOriginal(item, campo);
+      const orig = campo==="existente" ? laudoEntradaExistente(item) : laudoTextoOriginal(item, campo);
       const ch = laudoChaveReuso(campo, orig);
       if(orig.trim() && reuso.has(ch)){
         const r = reuso.get(ch);
@@ -10792,7 +10890,7 @@ async function gerarLaudoIAItens(itens, onProgress, opts){
 async function refazerSugestaoLaudo(item, campo, instrucao){
   if(!getIAApiKey()){ toast("Configure a chave da IA em Configurações → Inteligência Artificial", false); return false; }
   const g = laudoGet(item, campo);
-  const base = laudoTextoOriginal(item, campo);
+  const base = campo==="existente" ? laudoEntradaExistente(item) : laudoTextoOriginal(item, campo);
   const entrada = instrucao ? laudoTextoUsuarioRefino(base, g.fin || g.sug, instrucao) : base;
   const comRefs = laudoEntradaComReferencias(item, campo, entrada,
     laudoUsaReferencias() ? laudoExemplosAprovados(campo) : []);
@@ -10806,11 +10904,15 @@ async function refazerSugestaoLaudo(item, campo, instrucao){
    usado pela exportação em Word e Excel. Nada em STATE é alterado.
    A solução final sempre vai para sugestaoMitigacao — nunca para
    descMedida, que é a descrição da mitigação EXISTENTE e não pode ser
-   sobrescrita pelo texto da solução. */
+   sobrescrita pelo texto da solução (são campos e assuntos diferentes).
+   O texto aprovado da PRÓPRIA mitigação existente, esse sim, vai para
+   descMedida — é a coluna que já existia (T) para esse assunto. */
 function aplicarLaudoAprovadoNasLinhas(itens){
   return itens.map(item=>{
     const t = laudoTextosDoItem(item);
-    const risco = { ...item.risco, descricao: t.risco || item.risco.descricao, sugestaoMitigacao: t.solucao || item.risco.sugestaoMitigacao };
+    const risco = { ...item.risco, descricao: t.risco || item.risco.descricao,
+      descMedida: t.existente || item.risco.descMedida,
+      sugestaoMitigacao: t.solucao || item.risco.sugestaoMitigacao };
     return {
       ...item,
       maquina: { ...item.maquina, escopo: t.escopo || item.maquina.escopo || "" },
@@ -12091,7 +12193,7 @@ function laudoBlocoPlaqueta(item){
   </div>`;
 }
 function laudoBlocoCampo(item, campo){
-  const def = LAUDO_CAMPOS.find(c=>c.k===campo);
+  const def = laudoCampoDef(campo);
   const g = laudoGet(item, campo);
   const orig = laudoTextoOriginal(item, campo);
   const fin = laudoTextoFinal(item, campo);
@@ -12115,9 +12217,11 @@ function laudoBlocoCampo(item, campo){
       ${laudoBadge(st)}
     </div>
 
-    <div style="font-size:11px;font-weight:800;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">${campo==="solucao" ? "O que você propôs em campo" : "Seu texto de campo"}</div>
+    ${campo==="existente"
+      ? laudoBlocoMedidaExistenteEditavelHtml(item)
+      : `<div style="font-size:11px;font-weight:800;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">${campo==="solucao" ? "O que você propôs em campo" : "Seu texto de campo"}</div>
     <div style="font-size:13px;color:var(--ink-dim);background:var(--bg-soft);border-radius:8px;padding:9px 10px;white-space:pre-wrap">${escapeHtml(orig || "(nada escrito em campo)")}</div>
-    ${solucaoSemProposta? `<div class="field-hint" style="margin-top:5px">Você ainda não escreveu o que precisa ser feito. Sem proposta, o laudo repete a descrição do que já existe — gere a sugestão da IA ou escreva a solução no risco.</div>`:""}
+    ${solucaoSemProposta? `<div class="field-hint" style="margin-top:5px">Você ainda não escreveu o que precisa ser feito. Sem proposta, o laudo repete a descrição do que já existe — gere a sugestão da IA ou escreva a solução no risco.</div>`:""}`}
 
     <div style="font-size:11px;font-weight:800;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.06em;margin:12px 0 4px">Sugestão da IA</div>
     ${g.sug
@@ -12150,7 +12254,7 @@ function laudoBlocoCampo(item, campo){
            <button class="btn btn-secondary btn-sm" onclick="App.laudoAbrirCopiar('${rid}','${campo}')">${ic('copy')} Copiar de outro</button>
          </div>
          ${(st==="ok"||st==="edit") && fin? `<button class="btn btn-secondary btn-block btn-sm" style="margin-top:8px" onclick="App.laudoAbrirReplicar('${rid}','${campo}')">${ic('layers')} Aplicar este texto em vários itens</button>`:""}
-         ${st==="ok"? `<div class="field-hint" style="margin-top:6px">Item validado — a letra <b>${escapeHtml(def.sigla)}</b> fica verde no cartão. Ao aplicar, a IA revisa o português sem mudar o que você escreveu.</div>`:""}`}
+         ${st==="ok"? `<div class="field-hint" style="margin-top:6px">${campo==="existente" ? "Item validado." : `Item validado — a letra <b>${escapeHtml(def.sigla)}</b> fica verde no cartão.`} Ao aplicar, a IA revisa o português sem mudar o que você escreveu.</div>`:""}`}
 
     ${campo==="solucao" ? laudoBlocoMedidaHtml(item) : ""}
     <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px">
@@ -12280,7 +12384,7 @@ function screenSimplesLaudoItem(){
     </div>`:""}
   ${laudoBlocoPlaqueta(item)}
   <div class="laudo-grid">
-    ${LAUDO_CAMPOS.map(c=> (c.k==="solucao"? laudoCardMitigacaoExistente(item) : "") + laudoBlocoCampo(item, c.k)).join("")}
+    ${LAUDO_CAMPOS.map(c=> (c.k==="solucao"? laudoBlocoCampo(item,"existente") : "") + laudoBlocoCampo(item, c.k)).join("")}
     ${laudoBlocoHRN(item)}
     <div class="card card-pad laudo-bloco">
       <div style="font-weight:800;font-size:14.5px;margin-bottom:4px">Nível de desempenho requerido</div>
@@ -12343,7 +12447,7 @@ function laudoCandidatosCopia(item, campo){
     if(vistos.has(chave)) return;
     if(campo==="escopo" && o.maquina.id===item.maquina.id) return;
     if(campo==="tarefa" && o.tarefa.id===item.tarefa.id) return;
-    if((campo==="risco"||campo==="solucao") && o.risco.id===item.risco.id) return;
+    if((campo==="risco"||campo==="existente"||campo==="solucao") && o.risco.id===item.risco.id) return;
     const texto = laudoTextoFinal(o, campo);
     if(!texto || !String(texto).trim()) return;
     vistos.add(chave);
@@ -12411,7 +12515,7 @@ function laudoAgruparAlvos(alvos, por){
     .sort((x,y)=> x.nome.localeCompare(y.nome,"pt-BR"));
 }
 function laudoSheetReplicarHtml(item, campo){
-  const def = LAUDO_CAMPOS.find(c=>c.k===campo);
+  const def = laudoCampoDef(campo);
   const nivel = laudoNivelDoCampo(campo);
   const opcoes = LAUDO_AGRUPAR_POR[nivel];
   if(!opcoes.some(o=>o.k === __laudoReplicaAgrupar)) __laudoReplicaAgrupar = opcoes[opcoes.length-1].k;
@@ -12487,7 +12591,7 @@ async function laudoRevisarTextoEtitulo(item, campo){
   return mudou;
 }
 function laudoSheetCopiarHtml(item, campo){
-  const def = LAUDO_CAMPOS.find(c=>c.k===campo);
+  const def = laudoCampoDef(campo);
   const cands = laudoCandidatosCopia(item, campo);
   const linhas = cands.map(c=>`<button class="laudo-copia-item" data-busca="${escapeHtml((c.titulo+" "+c.sub+" "+c.texto).toLowerCase())}"
       onclick="App.laudoAplicarCopia('${item.risco.id}','${campo}','${c.id}')">
@@ -16800,6 +16904,73 @@ const App = {
     marcarAlterado(); render();
     toast("Texto da medida aplicado ao laudo");
   },
+  /* ---- Checklist da Mitigação Existente, editável direto na revisão do
+     laudo — mesmos 5 gestos do cadastro em campo (toggleMedidaExistente,
+     acrescentarOutroExistente, removerOutroExistente, onDraftMedidaExistente,
+     aplicarTextoMedidaExistenteMulti), só que por rid em vez de __draftEntity,
+     porque aqui não há rascunho de criação, é o risco já salvo. */
+  laudoToggleMedidaExistente(rid, chave){
+    const item = laudoItemPorId(rid); if(!item) return;
+    const r = item.risco;
+    const lista = medidasExistentesDe(r).slice();
+    const i = lista.indexOf(chave);
+    if(i >= 0) lista.splice(i, 1); else lista.push(chave);
+    r.medidasExistentes = lista;
+    if(lista.length || outrosExistentesDe(r).length) r.medidaImplementada = "Sim";
+    sincronizarDescMedidaExistente(r);
+    r.atualizadoEm = agoraSync();
+    marcarAlterado(); render();
+  },
+  laudoAcrescentarOutroExistente(rid){
+    const item = laudoItemPorId(rid); if(!item) return;
+    const el = document.getElementById("laudo-novo-existente-" + rid);
+    const v = el ? String(el.value||"").trim() : "";
+    if(!v){ toast("Escreva o que existe antes de acrescentar", false); return; }
+    const r = item.risco;
+    const lista = outrosExistentesDe(r).slice();
+    if(lista.some(x=>x.toLowerCase()===v.toLowerCase())){ toast("Esse item já está na lista", false); return; }
+    lista.push(v);
+    r.medidasExistentesOutros = lista;
+    r.medidaImplementada = "Sim";
+    sincronizarDescMedidaExistente(r);
+    r.atualizadoEm = agoraSync();
+    marcarAlterado(); render();
+  },
+  laudoRemoverOutroExistente(rid, i){
+    const item = laudoItemPorId(rid); if(!item) return;
+    const r = item.risco;
+    const lista = outrosExistentesDe(r).slice();
+    if(i < 0 || i >= lista.length) return;
+    lista.splice(i, 1);
+    r.medidasExistentesOutros = lista;
+    sincronizarDescMedidaExistente(r);
+    r.atualizadoEm = agoraSync();
+    marcarAlterado(); render();
+  },
+  laudoSetMedidaExistenteCampo(rid, campo, valor){
+    const item = laudoItemPorId(rid); if(!item) return;
+    const r = item.risco;
+    if(campo === "situacao"){
+      r.medidaExistenteSituacao = valor;
+      if(valor === "ok") r.medidaExistenteRessalva = "";
+    }
+    else if(campo === "ressalva") r.medidaExistenteRessalva = valor || "";
+    else if(campo === "desc") r.descMedida = valor;
+    if(campo !== "desc") sincronizarDescMedidaExistente(r);
+    r.atualizadoEm = agoraSync();
+    marcarAlterado(); render();
+  },
+  laudoAplicarTextoMedidaExistenteMulti(rid){
+    const item = laudoItemPorId(rid); if(!item) return;
+    const r = item.risco;
+    const t = medidaTextoExistenteMulti(r);
+    if(!t){ toast("Marque o que existe na máquina", false); return; }
+    r.descMedida = t;
+    r.descMedidaAuto = t;
+    r.atualizadoEm = agoraSync();
+    marcarAlterado(); render();
+    toast("Texto da mitigação existente preenchido");
+  },
   laudoAbrirCopiar(rid, campo){
     const item = laudoItemPorId(rid); if(!item) return;
     abrirOverlay(laudoSheetCopiarHtml(item, campo));
@@ -18221,7 +18392,11 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
           for(const f of fotos.slice(0,2)) evs.push(await reduzirFoto(f, 460));
           const evsOk = evs.filter(Boolean);
           const nomeRisco = (r.nome === OUTRO ? r.nomeOutro : r.nome) || "Risco";
-          const existente = medidaTextoExistenteMulti(r) || String(r.descMedida||"").trim();
+          /* Antes recalculava sempre do checklist, ignorando qualquer texto
+             que a IA tivesse escrito e o engenheiro aprovado no laudo. Agora
+             segue a MESMA regra de risco/tarefa/escopo: aprovado > sugestão >
+             o que está registrado. */
+          const existente = laudoTextoFinal(it, "existente");
           const sitDef = MEDIDA_SITUACOES.find(x=>x.k===(r.medidaExistenteSituacao||"ok")) || MEDIDA_SITUACOES[0];
           const plr = plrExigido(r, it.tarefa);
           blocos.push({ html:`<div class="lp-rc">

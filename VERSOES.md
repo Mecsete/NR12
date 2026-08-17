@@ -22,6 +22,38 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 17/08/2026 18:50
+
+Mitigação Existente ganha as mesmas ferramentas de IA da Solução, e o
+checklist agora é editável direto na revisão do laudo.
+
+Antes, para mudar o que está marcado como existente na máquina (que
+proteção tem, se atende à norma, o que falta), era preciso sair do laudo e
+editar o risco em outro lugar. E não havia nenhuma ajuda da IA nesse
+cartão — só em Solução.
+
+Agora o cartão de Mitigação Existente tem:
+
+- O mesmo checklist de sempre (marcar proteções, acrescentar outras,
+  dizer se atende à norma, o que falta) — só que editável ali mesmo, sem
+  precisar sair da tela;
+- Sugestão da IA, com o mesmo texto final, aprovar, editar, copiar de
+  outro item e aplicar em vários — os mesmos botões da Solução;
+- "Pedir um ajuste à IA", igual à Solução.
+
+A IA aqui tem uma instrução diferente da Solução: ela descreve o que já
+existe, sem propor nada novo — é sempre a Solução que propõe a ação. E só
+escreve quando há algo marcado; máquina sem nenhuma proteção registrada
+não gera texto à toa.
+
+O texto final, uma vez aprovado, vai para o mesmo lugar de sempre no
+laudo, no Word e no Excel — nada de coluna nova. E o botão **"Aplicar N"**
+no topo do cartão de risco continua contando só os 4 campos de sempre;
+para aplicar a sugestão da Mitigação Existente, use o botão dentro do
+próprio cartão dela (ou gere tudo de uma vez pela aba IA).
+
+---
+
 ## 17/08/2026 16:35
 
 Mitigação existente e Solução agora são dois cartões separados na revisão.

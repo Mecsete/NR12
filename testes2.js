@@ -3091,12 +3091,13 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(h.indexOf("parte do zero") > 0, h);
   });
   t("o quadro é um cartão próprio, separado do cartão de Solução", ()=>{
-    /* Antes o quadro vivia DENTRO do card de Solução; separado em cartões
-       próprios, laudoBlocoCampo (nenhum campo, nem "solucao") não deve mais
-       trazer esse título — só laudoCardMitigacaoExistente. */
+    /* Antes o quadro vivia DENTRO do card de Solução; agora "existente" é
+       um campo de verdade (laudoBlocoCampo(item,"existente")), com cartão
+       próprio — o mesmo motor genérico dos outros 4 campos, não uma
+       função à parte. Só ELE deve trazer esse título. */
     STATE.ui.laudoFiltroArea = ""; STATE.ui.laudoFiltroMaq = ""; STATE.ui.laudoFiltroTar = "";
     const it = C.linhasEscopoSimples()[0];
-    ok(C.laudoCardMitigacaoExistente(it).indexOf("Mitigação existente na máquina") > 0, "faltou no cartão próprio");
+    ok(C.laudoBlocoCampo(it, "existente").indexOf("Mitigação existente na máquina") > 0, "faltou no cartão próprio");
     ["escopo","tarefa","risco","solucao"].forEach(c=>
       ok(C.laudoBlocoCampo(it, c).indexOf("Mitigação existente na máquina") < 0, "vazou para o campo " + c));
   });
@@ -3128,9 +3129,14 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
      "Solução / Mitigação" e disse "estão juntos ainda". Antes disto, o quadro
      de mitigação existente vivia DENTRO do cartão de Solução — dois assuntos
      em uma caixa só. Agora cada um tem seu próprio cartão branco na tela. */
-  t("laudoCardMitigacaoExistente existe e embrulha o quadro num cartão próprio", ()=>{
-    ok(HTML.indexOf('function laudoCardMitigacaoExistente(item){') > 0);
-    ok(HTML.indexOf('return `<div class="card card-pad laudo-bloco">${laudoBlocoExistenteHtml(item)}</div>`;') > 0);
+  t("existente é um campo de verdade, com cartão próprio no render loop", ()=>{
+    /* Virou o 5º campo (laudoBlocoCampo(item,"existente")) em vez de um
+       wrapper à parte — mesmo motor genérico dos outros 4, mas FORA de
+       LAUDO_CAMPOS (não conta no "X de 4 campos" nem ganha coluna no
+       Excel — ver laudoCampoDef). */
+    ok(HTML.indexOf('function laudoBlocoMedidaExistenteEditavelHtml(item){') > 0);
+    ok(HTML.indexOf('c.k==="solucao"? laudoBlocoCampo(item,"existente") : ""') > 0,
+       "o loop da tela não insere mais o cartão de existente antes da solução");
   });
   t("na tela do item, o cartão de mitigação existente vem ANTES do cartão de Solução", ()=>{
     /* linhasEscopoSimples()[0] não é necessariamente "r1" aqui — outros
@@ -3940,7 +3946,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   });
   t("a tela nomeia a máquina e o campo", ()=>{
     const f = funcao("gerarLaudoIAItens");
-    ok(f.indexOf('const CAMPO_ROTULO = { escopo:"escopo do equipamento", tarefa:"descrição da tarefa", risco:"descrição do risco", solucao:"solução" };') > 0);
+    ok(f.indexOf('const CAMPO_ROTULO = { escopo:"escopo do equipamento", tarefa:"descrição da tarefa", risco:"descrição do risco", existente:"mitigação existente", solucao:"solução" };') > 0);
     ok(f.indexOf('(nomeMaquinaS(item.maquina) || "") + " — " + (CAMPO_ROTULO[campo] || campo)') > 0);
   });
 
@@ -3988,6 +3994,106 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   t("Word já lia sugestaoMitigacao direto — confirma que não regrediu", ()=>{
     const f = funcao("montarDadosMaquinaDocx");
     ok(f.indexOf('const mitigacao = corrigirTextoMecanico(risco.sugestaoMitigacao) || "Não informado.";') > 0);
+  });
+
+  console.log("\n=== t92 · Mitigação Existente ganha as opções de IA e o checklist editável ===");
+  /* Usuário pediu: "as opções de IA como na Solução" + "as mesmas
+     possibilidades de seleção... assim como a seção de mitigações
+     existentes da criação dos Riscos". "existente" virou um campo de
+     verdade (sug/fin/st/duv), fora de LAUDO_CAMPOS de propósito — não é
+     obrigatório (muita máquina não tem nada) e o texto final vai para
+     descMedida, que já tinha coluna própria (T) no Excel. */
+  t("getLaudoRisco inicializa o estado de existente, igual aos outros 3 campos do risco", ()=>{
+    const r = { id:"rNovoExistente" };
+    const l = C.getLaudoRisco(r);
+    ["existenteSug","existenteFin","existenteSt","duvExistente"].forEach(k=> eq(l[k], "", "faltou "+k));
+    ok(Array.isArray(l.existenteRefs));
+  });
+  t("laudoGet/laudoSet fazem o roteiro completo para existente", ()=>{
+    const item = { risco:{ id:"rGS1" }, maquina:{}, tarefa:{} };
+    C.laudoSet(item, "existente", { sug:"sugestão", fin:"final", st:"ok", duv:"dúvida", refs:[{id:"x"}] });
+    const g = C.laudoGet(item, "existente");
+    eq(g.sug, "sugestão"); eq(g.fin, "final"); eq(g.st, "ok"); eq(g.duv, "dúvida"); eq(g.refs.length, 1);
+    // e nao vaza pro campo solucao do MESMO risco
+    const gSol = C.laudoGet(item, "solucao");
+    eq(gSol.sug, "", "existente vazou para dentro de solucao");
+  });
+  t("laudoTextoOriginal(existente) é a descMedida atual", ()=>{
+    const item = { risco:{ id:"rTO1", descMedida:"Guarda-corpo instalado" } };
+    eq(C.laudoTextoOriginal(item, "existente"), "Guarda-corpo instalado");
+  });
+  t("laudoTemMitigacaoExistente só é true quando há algo marcado, escrito ou como outro", ()=>{
+    ok(!C.laudoTemMitigacaoExistente({}));
+    ok(C.laudoTemMitigacaoExistente({ descMedida:"algo escrito" }));
+    ok(C.laudoTemMitigacaoExistente({ medidasExistentes:["prot_fixa"] }));
+    ok(C.laudoTemMitigacaoExistente({ medidasExistentesOutros:["corrimão"] }));
+  });
+  t("laudoEntradaExistente descreve o que existe e proíbe propor algo novo", ()=>{
+    const item = { risco:{ id:"rEE1", medidasExistentes:["prot_fixa"], descMedida:"Proteção fixa ao redor",
+      medidaExistenteSituacao:"nao", medidaExistenteRessalva:"sem dispositivo de intertravamento" } };
+    const e = C.laudoEntradaExistente(item);
+    ok(e.indexOf("Proteção fixa") > 0, "não citou a medida marcada: " + e);
+    ok(e.indexOf("Situação em relação à norma: Não atende") > 0, "não citou a situação: " + e);
+    ok(e.indexOf("sem dispositivo de intertravamento") > 0, "não citou a ressalva: " + e);
+    ok(e.indexOf("não proponha nenhuma ação nova") > 0, "não instruiu a só descrever: " + e);
+  });
+  t("laudoCampoDef cobre existente fora de LAUDO_CAMPOS, sem mexer nos outros 4", ()=>{
+    eq(C.laudoCampoDef("existente").rot, "Mitigação existente");
+    eq(C.laudoCampoDef("existente").sigla, "M");
+    ok(!C.LAUDO_CAMPOS ? true : C.LAUDO_CAMPOS.every(c=>c.k!=="existente"), "existente vazou para LAUDO_CAMPOS");
+    eq(C.laudoCampoDef("solucao").rot, "Solução");
+  });
+  t("Copiar de outro não se oferece a si mesmo em existente", ()=>{
+    const f = funcao("laudoCandidatosCopia");
+    ok(f.indexOf('(campo==="risco"||campo==="existente"||campo==="solucao") && o.risco.id===item.risco.id') > 0,
+       "existente ficaria na propria lista de candidatos a copiar de si mesmo");
+  });
+  t("a geração em lote também cobre existente, mas só quando há algo a descrever", ()=>{
+    const f = funcao("gerarLaudoIAItens");
+    ok(f.indexOf('if(laudoTemMitigacaoExistente(it.risco) && laudoPrecisaGerar(it, "existente", refazer)) n++;') > 0,
+       "sem essa checagem, a barra de progresso nao contaria os campos de existente");
+    ok(f.indexOf('for(const campo of ["risco","existente","solucao"]){') > 0);
+    ok(f.indexOf('if(campo==="existente" && !laudoTemMitigacaoExistente(item.risco)) continue;') > 0,
+       "sem isto, geraria um texto da IA para maquina sem NADA existente marcado");
+    ok(f.indexOf('const orig = campo==="existente" ? laudoEntradaExistente(item) : laudoTextoOriginal(item, campo);') > 0);
+  });
+  t("Refazer/Pedir ajuste também usa a entrada rica de existente, não o texto cru", ()=>{
+    const f = funcao("refazerSugestaoLaudo");
+    ok(f.indexOf('const base = campo==="existente" ? laudoEntradaExistente(item) : laudoTextoOriginal(item, campo);') > 0);
+  });
+  t("o texto aprovado de existente vai para descMedida ao exportar", ()=>{
+    const item = { risco:{ id:"rApl1", descMedida:"raw sincronizado", sugestaoMitigacao:"proposta crua" },
+      maquina:{ descricao:"m" }, tarefa:{ descricao:"t" } };
+    C.laudoSet(item, "existente", { fin:"Texto revisado da mitigação existente", st:"ok" });
+    const copia = C.aplicarLaudoAprovadoNasLinhas([item])[0];
+    eq(copia.risco.descMedida, "Texto revisado da mitigação existente",
+       "o texto aprovado da mitigacao existente nao chegou no Excel/Word");
+    eq(copia.risco.sugestaoMitigacao, "proposta crua",
+       "aprovar existente nao pode mexer na solucao — sao campos diferentes");
+  });
+  t("o laudo impresso (A4) usa o texto aprovado de existente, não recalcula do zero", ()=>{
+    const f = funcao("blocosEquipamentos");
+    ok(f.indexOf("const existente = laudoTextoFinal(it, \"existente\");") > 0,
+       "ainda recalculava medidaTextoExistenteMulti(r) toda vez, ignorando o texto aprovado no laudo");
+  });
+  t("o cartão de existente traz o checklist editável, igual ao cadastro em campo", ()=>{
+    const item = { risco:{ id:"rChk1", medidasExistentes:["prot_fixa"], medidaExistenteSituacao:"ok" },
+      maquina:{}, tarefa:{ frequencia:"Diário", numPessoas:"2" } };
+    const html = C.laudoBlocoCampo(item, "existente");
+    ok(html.indexOf("App.laudoToggleMedidaExistente('rChk1','prot_fixa')") > 0, "faltou o toggle da medida marcada");
+    ok(html.indexOf("App.laudoAcrescentarOutroExistente('rChk1')") > 0, "faltou o botão de acrescentar outro");
+    ok(html.indexOf("App.laudoSetMedidaExistenteCampo('rChk1','situacao'") > 0, "faltou a escolha de situação");
+    ok(html.indexOf("Sugestão da IA") > 0, "faltou o bloco de IA — o pedido era ter as MESMAS opções da Solução");
+    ok(html.indexOf("Pedir um ajuste à IA") > 0);
+    ok(html.indexOf("MONTAR A PARTIR DA BIBLIOTECA DE MEDIDAS") < 0,
+       "a biblioteca de medidas é da Solução (propor algo novo), não faz sentido em existente");
+  });
+  t("quando validado, o aviso não inventa uma letra de sigla que não existe", ()=>{
+    const item = { risco:{ id:"rSig1" }, maquina:{}, tarefa:{} };
+    C.laudoSet(item, "existente", { fin:"texto", st:"ok" });
+    const html = C.laudoBlocoCampo(item, "existente");
+    ok(html.indexOf("Item validado.") > 0, "sem essa frase, o texto ficou preso na versão da Solução");
+    ok(html.indexOf("a letra") < 0, "existente nao tem sigla no carrossel de cartoes — a frase da Solucao nao se aplica aqui");
   });
 
   console.log("\n---------------------------------------");
