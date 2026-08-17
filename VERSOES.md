@@ -22,6 +22,21 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 17/08/2026 12:40
+
+A caixa "Editar" do laudo não perde mais o que você está digitando.
+
+Ao editar um texto na revisão e a sincronização com o OneDrive chegar em
+segundo plano (o app confere a nuvem a cada 2 minutos), a tela era
+redesenhada e a caixa voltava para o último texto salvo — o que tinha sido
+digitado e ainda não salvo sumia.
+
+Agora o que está sendo digitado fica guardado enquanto a caixa está aberta e
+sobrevive a esse redesenho. Só some de fato ao **Salvar**, **Cancelar**, ou
+trocar de campo ou de item.
+
+---
+
 ## 15/08/2026 17:05
 
 A barra de progresso da IA passa a contar campos, não itens.

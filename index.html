@@ -1808,7 +1808,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "15/08/2026 17:05";
+const APP_BUILD = "17/08/2026 12:40";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -10217,6 +10217,12 @@ async function calcularIATextosPorItem(linhasRaw, onProgress){
   return resultado;
 }
 let __iaCelulasVazias = 0, __iaCelulasTotal = 0;
+/* Rascunho da caixa "Editar" (Vai para o laudo). Sem isto, um render() vindo
+   de fora enquanto a pessoa digita — sincronização com o OneDrive chegando,
+   por exemplo — reconstrói a caixa a partir do último texto SALVO e o que
+   estava sendo digitado, ainda não salvo, some. Guarda { campo, texto } só
+   em memória; nunca é gravado no STATE. */
+let __laudoRascunho = null;
 function getAreasSelecionadasExport(){
   const todasAreaIds = [];
   STATE.projetosSimples.forEach(p=>p.areas.forEach(a=>todasAreaIds.push(a.id)));
@@ -12118,7 +12124,7 @@ function laudoBlocoCampo(item, campo){
 
     <div style="font-size:11px;font-weight:800;color:#2E7D32;text-transform:uppercase;letter-spacing:.06em;margin:12px 0 4px">Vai para o laudo</div>
     ${editando
-      ? `<div class="field" style="margin-bottom:8px"><textarea id="${idEdit}" style="min-height:120px">${escapeHtml(fin)}</textarea></div>
+      ? `<div class="field" style="margin-bottom:8px"><textarea id="${idEdit}" style="min-height:120px" oninput="App.laudoRascunho('${campo}', this.value)">${escapeHtml((__laudoRascunho && __laudoRascunho.campo===campo) ? __laudoRascunho.texto : fin)}</textarea></div>
          <div style="display:flex;gap:8px">
            <button class="btn btn-primary btn-sm" style="flex:1" onclick="App.laudoSalvarEdicao('${rid}','${campo}')">${ic('check')} Salvar meu texto</button>
            <button class="btn btn-secondary btn-sm" style="flex:1" onclick="App.laudoCancelarEdicao()">Cancelar</button>
@@ -16466,22 +16472,23 @@ const App = {
     toast(d.uid? "Inspetor atualizado" : "Inspetor cadastrado");
   },
   laudoMostrarMais(){ STATE.ui.laudoLimite = (STATE.ui.laudoLimite||60) + 60; render(); },
-  laudoAbrirItem(id){ STATE.ui.laudoRiscoId = id; STATE.ui.laudoEditandoCampo = null; STATE.ui.screen = "simples-laudo-item"; render(); window.scrollTo(0,0); },
+  laudoAbrirItem(id){ STATE.ui.laudoRiscoId = id; STATE.ui.laudoEditandoCampo = null; __laudoRascunho = null; STATE.ui.screen = "simples-laudo-item"; render(); window.scrollTo(0,0); },
   laudoIrPara(pos){
     const lista = laudoListaAtual();
     const alvo = lista[pos];
     if(!alvo) return;
-    STATE.ui.laudoRiscoId = alvo.risco.id; STATE.ui.laudoEditandoCampo = null;
+    STATE.ui.laudoRiscoId = alvo.risco.id; STATE.ui.laudoEditandoCampo = null; __laudoRascunho = null;
     render(); window.scrollTo(0,0);
   },
-  laudoEditar(campo){ STATE.ui.laudoEditandoCampo = campo; render(); },
-  laudoCancelarEdicao(){ STATE.ui.laudoEditandoCampo = null; render(); },
+  laudoEditar(campo){ STATE.ui.laudoEditandoCampo = campo; __laudoRascunho = null; render(); },
+  laudoCancelarEdicao(){ STATE.ui.laudoEditandoCampo = null; __laudoRascunho = null; render(); },
+  laudoRascunho(campo, texto){ __laudoRascunho = { campo, texto }; },
   laudoSalvarEdicao(rid, campo){
     const el = document.getElementById("laudoEdit_"+campo);
     const item = laudoItemPorId(rid);
     if(!el || !item) return;
     laudoSet(item, campo, { fin: el.value.trim(), st:"edit" });
-    STATE.ui.laudoEditandoCampo = null;
+    STATE.ui.laudoEditandoCampo = null; __laudoRascunho = null;
     marcarAlterado(); render(); toast("Texto salvo no app");
   },
   async laudoAplicar(rid, campo){

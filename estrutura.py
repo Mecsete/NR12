@@ -1065,6 +1065,32 @@ chk("juntar todas as areas ou uma por arquivo",
     and "if(!exportEscolha().juntar) return agruparLinhasPorArea(linhasRaw);" in novo
     and novo.count("agruparParaExportar(") == 3)
 
+print("\n=== 43. RASCUNHO DA EDICAO NAO SE PERDE COM RENDER DE FORA ===")
+# A caixa "Editar" (Vai para o laudo) nao tinha oninput: nada guardava o que
+# estava sendo digitado fora do proprio no do DOM. Um render() vindo de fora
+# (sincronizacao com o OneDrive chegando em segundo plano, por exemplo)
+# reconstroi a tela inteira a partir do ultimo texto SALVO, e o que estava
+# sendo digitado, ainda nao salvo, sumia. __laudoRascunho guarda o rascunho
+# em memoria (nunca no STATE) para sobreviver a esse redesenho.
+chk("'let __laudoRascunho = null;' existe uma unica vez",
+    novo.count("let __laudoRascunho = null;") == 1)
+chk("a caixa de edicao le o rascunho e grava a cada tecla",
+    'oninput="App.laudoRascunho(\'${campo}\', this.value)"' in novo
+    and "(__laudoRascunho && __laudoRascunho.campo===campo) ? __laudoRascunho.texto : fin" in novo)
+chk("'laudoRascunho(campo, texto){' existe uma unica vez",
+    novo.count("laudoRascunho(campo, texto){") == 1)
+# Sem limpar o rascunho ao trocar de campo/item, o texto de UM campo vazaria
+# para a caixa de edicao de outro campo com o mesmo nome, num item diferente.
+_pontos_limpeza = [
+  "laudoAbrirItem(id){ STATE.ui.laudoRiscoId = id; STATE.ui.laudoEditandoCampo = null; __laudoRascunho = null;",
+  "STATE.ui.laudoRiscoId = alvo.risco.id; STATE.ui.laudoEditandoCampo = null; __laudoRascunho = null;",
+  "laudoEditar(campo){ STATE.ui.laudoEditandoCampo = campo; __laudoRascunho = null; render(); },",
+  "laudoCancelarEdicao(){ STATE.ui.laudoEditandoCampo = null; __laudoRascunho = null; render(); },",
+  "STATE.ui.laudoEditandoCampo = null; __laudoRascunho = null;\n    marcarAlterado(); render(); toast(\"Texto salvo no app\");",
+]
+chk("o rascunho e limpo em todo ponto de saida da edicao (abrir item, ir para, editar, cancelar, salvar)",
+    all(p in novo for p in _pontos_limpeza))
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
