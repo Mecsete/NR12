@@ -1808,7 +1808,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "17/08/2026 12:40";
+const APP_BUILD = "17/08/2026 14:10";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -10566,7 +10566,12 @@ function laudoTextoOriginal(item, campo){
   if(campo==="escopo")  return item.maquina.descricao || "";
   if(campo==="tarefa")  return item.tarefa.descricao || "";
   if(campo==="risco")   return item.risco.descricao || "";
-  return (item.risco.medidaImplementada==="Sim") ? (item.risco.descMedida||"") : (item.risco.sugestaoMitigacao||"");
+  /* Solucao e SEMPRE a proposta do inspetor (sugestaoMitigacao) — nunca a
+     descricao do que ja existe (descMedida), mesmo com mitigacao marcada
+     na maquina. So cai para descMedida quando nada foi proposto, como
+     ultimo recurso (a tela avisa esse caso em vez de esconder, ver
+     solucaoSemProposta em laudoBlocoCampo). */
+  return item.risco.sugestaoMitigacao || item.risco.descMedida || "";
 }
 /* Regra única de qual texto vai para o laudo (colunas AQ-AT e Word):
    recusado -> texto do inspetor | editado/aplicado -> texto final |
@@ -10789,14 +10794,14 @@ async function refazerSugestaoLaudo(item, campo, instrucao){
   return true;
 }
 /* Devolve CÓPIAS das linhas com os textos aprovados no lugar dos originais —
-   usado pela exportação em Word. Nada em STATE é alterado. */
+   usado pela exportação em Word e Excel. Nada em STATE é alterado.
+   A solução final sempre vai para sugestaoMitigacao — nunca para
+   descMedida, que é a descrição da mitigação EXISTENTE e não pode ser
+   sobrescrita pelo texto da solução. */
 function aplicarLaudoAprovadoNasLinhas(itens){
   return itens.map(item=>{
     const t = laudoTextosDoItem(item);
-    const medidaExistente = item.risco.medidaImplementada === "Sim";
-    const risco = { ...item.risco, descricao: t.risco || item.risco.descricao };
-    if(medidaExistente) risco.descMedida = t.solucao || item.risco.descMedida;
-    else risco.sugestaoMitigacao = t.solucao || item.risco.sugestaoMitigacao;
+    const risco = { ...item.risco, descricao: t.risco || item.risco.descricao, sugestaoMitigacao: t.solucao || item.risco.sugestaoMitigacao };
     return {
       ...item,
       maquina: { ...item.maquina, escopo: t.escopo || item.maquina.escopo || "" },
@@ -11066,7 +11071,7 @@ function xlsmLinhaResumo(rowNum, item){
   c.push(xlsmCellTexto(`D${rowNum}`,S.D,valOuOutro(tarefa.tarefa,tarefa.tarefaOutro)));
   c.push(xlsmCellTexto(`E${rowNum}`,S.E, risco.nome===OUTRO?risco.nomeOutro:risco.nome));
   c.push(xlsmCellTexto(`F${rowNum}`,S.F, t.risco || risco.descricao));
-  const mitigOriginal = risco.medidaImplementada==="Sim" ? risco.descMedida : (risco.sugestaoMitigacao||"");
+  const mitigOriginal = risco.sugestaoMitigacao || risco.descMedida || "";
   c.push(xlsmCellTexto(`G${rowNum}`,S.G, t.solucao || mitigOriginal));
   c.push(xlsmCellTexto(`H${rowNum}`,S.H, labelHRN(HRN_PO_OPTS,hrn.po,HRN_PO_TABELA)));
   c.push(xlsmCellTexto(`I${rowNum}`,S.I, labelHRN(HRN_FE_OPTS,hrn.fe,HRN_FE_TABELA)));
@@ -13824,7 +13829,7 @@ function buildXlsxPackageSimples({grupos, headers, dataRows, anchors, imgMap, co
   const resumoDrawingAnchors=[];
   const resumoRows=(resumoLinhasRaw||[]).map(item=>{
     const {po,fe,gpd,np}=hrnDoItem(item);
-    const mitig=item.risco.medidaImplementada==="Sim"?item.risco.descMedida:(item.risco.sugestaoMitigacao||"Não informado.");
+    const mitig=item.risco.sugestaoMitigacao||item.risco.descMedida||"Não informado.";
     const nomeRisco=item.risco.nome===OUTRO?item.risco.nomeOutro:item.risco.nome;
     return [
       item.risco.foto||'Sem foto',

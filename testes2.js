@@ -495,7 +495,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     C.laudoSet(l, "risco", { st:"no" });
     eq(C.laudoTextoFinal(l, "risco"), "Ponta de eixo exposta com risco de agarramento");
   });
-  t("solucao usa descMedida quando ha medida implementada", ()=>{
+  t("solucao cai em descMedida so quando nao ha proposta escrita", ()=>{
     eq(C.laudoTextoOriginal(C.linhasEscopoSimples()[0], "solucao"), "Existe protecao mas ainda ha risco");
   });
   t("solucao usa sugestaoMitigacao quando nao ha medida", ()=>{
@@ -542,7 +542,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     eq(STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos[1].descricao, "Corte dos dedos na porta da grade");
     eq(copias[1].risco.descricao, "MEU TEXTO REVISADO");
   });
-  t("solucao cai em descMedida ou sugestaoMitigacao conforme o caso", ()=>{
+  t("solucao vai sempre para sugestaoMitigacao, nunca para descMedida", ()=>{
     const copias = C.aplicarLaudoAprovadoNasLinhas(C.linhasEscopoSimples());
     ok(copias[0].risco.descMedida.length > 0);
     ok(copias[1].risco.sugestaoMitigacao.length > 0);
@@ -3865,6 +3865,52 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     const f = funcao("gerarLaudoIAItens");
     ok(f.indexOf('const CAMPO_ROTULO = { escopo:"escopo do equipamento", tarefa:"descrição da tarefa", risco:"descrição do risco", solucao:"solução" };') > 0);
     ok(f.indexOf('(nomeMaquinaS(item.maquina) || "") + " — " + (CAMPO_ROTULO[campo] || campo)') > 0);
+  });
+
+  console.log("\n=== t89 · solução nunca é substituída pela mitigação existente ===");
+  /* O bug real: laudoTextoOriginal trocava a proposta do inspetor pela
+     descrição do que já existe sempre que ALGUMA mitigação estava marcada
+     (medidaImplementada==="Sim") — mesmo que o inspetor tivesse escrito uma
+     solução de verdade. A condição certa é "não há proposta escrita", não
+     "há mitigação marcada". */
+  t("com proposta escrita, a solução usa a proposta mesmo com mitigação marcada", ()=>{
+    const item = { risco:{ id:"rSolBug1", medidaImplementada:"Sim",
+      descMedida:"Existe corrimão ao redor", sugestaoMitigacao:"Instalar grade de proteção fixa" } };
+    eq(C.laudoTextoOriginal(item, "solucao"), "Instalar grade de proteção fixa");
+  });
+  t("sem proposta nenhuma, cai para a descrição do que já existe", ()=>{
+    const item = { risco:{ id:"rSolBug2", medidaImplementada:"Sim",
+      descMedida:"Existe corrimão ao redor", sugestaoMitigacao:"" } };
+    eq(C.laudoTextoOriginal(item, "solucao"), "Existe corrimão ao redor");
+  });
+  t("sem proposta e sem mitigação, fica vazio", ()=>{
+    const item = { risco:{ id:"rSolBug3", medidaImplementada:"", descMedida:"", sugestaoMitigacao:"" } };
+    eq(C.laudoTextoOriginal(item, "solucao"), "");
+  });
+  t("aplicarLaudoAprovadoNasLinhas nunca sobrescreve a mitigação existente", ()=>{
+    const item = { risco:{ id:"rSolBug4", medidaImplementada:"Sim",
+        descMedida:"Existe corrimão ao redor", sugestaoMitigacao:"Instalar grade de proteção fixa" },
+      maquina:{ descricao:"m" }, tarefa:{ descricao:"t" } };
+    C.laudoSet(item, "solucao", { fin:"Instalar grade certificada conforme NR-12", st:"ok" });
+    const copia = C.aplicarLaudoAprovadoNasLinhas([item])[0];
+    eq(copia.risco.descMedida, "Existe corrimão ao redor",
+       "a mitigação existente não pode virar o texto da solução aprovada");
+    eq(copia.risco.sugestaoMitigacao, "Instalar grade certificada conforme NR-12",
+       "o texto aprovado precisa ir para sugestaoMitigacao, não ficar preso no rascunho antigo");
+  });
+  t("Excel (.xlsm modelo Corteva) segue a mesma regra no fallback do Resumo", ()=>{
+    const f = funcao("xlsmLinhaResumo");
+    ok(f.indexOf('const mitigOriginal = risco.sugestaoMitigacao || risco.descMedida || "";') > 0,
+       "o fallback da coluna G ainda podia trocar a proposta pela mitigação existente");
+  });
+  t("Excel (aba única .xlsx) segue a mesma regra no Resumo", ()=>{
+    const f = funcao("buildXlsxPackageSimples");
+    ok(f.indexOf('const mitig=item.risco.sugestaoMitigacao||item.risco.descMedida||"Não informado.";') > 0,
+       "o Resumo da aba única ainda podia trocar a proposta pela mitigação existente");
+  });
+  t("Word já lia sugestaoMitigacao direto — confirma que não regrediu", ()=>{
+    const f = funcao("montarDadosMaquinaDocx");
+    ok(f.indexOf('const mitigacao = corrigirTextoMecanico(risco.sugestaoMitigacao) || "Não informado.";') > 0);
   });
 
   console.log("\n---------------------------------------");

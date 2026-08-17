@@ -22,6 +22,35 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 17/08/2026 14:10
+
+Corrigido: com mitigação existente marcada, a Solução podia sair errada no
+laudo, no Excel e no Word.
+
+Ao investigar por que "Mitigação existente" e "O que você propôs em campo"
+apareciam com o mesmo texto na revisão, achei a causa: sempre que qualquer
+mitigação era marcada como existente na máquina, o app trocava — em
+silêncio — o texto da sua proposta de solução pela descrição do que já
+existe. Mesmo que você tivesse escrito uma solução de verdade.
+
+Isso não era só uma confusão na tela. Se ninguém clicasse em Gerar ou
+Aplicar naquele item, o texto trocado ia para o laudo, para o Excel e —
+neste último caso, de um jeito ainda pior — **o Word já sofria mesmo depois
+de aprovado**: ele lê o campo certo, mas o app estava GRAVANDO a solução
+aprovada no campo errado, então o Word saía com a proposta antiga, sem a
+revisão da IA nem a sua edição.
+
+Agora a Solução é sempre a sua proposta (com ou sem edição/IA), em todos os
+lugares. A descrição da mitigação existente só entra como texto da Solução
+no caso em que não sobra outra opção: quando nada foi proposto — e nesse
+caso a tela já avisa, não esconde.
+
+Nenhuma máquina que já foi exportada precisa ser reaberta por causa disto —
+mas se algum laudo já assinado tinha mitigação existente marcada, vale
+conferir se o texto da Solução saiu correto.
+
+---
+
 ## 17/08/2026 12:40
 
 A caixa "Editar" do laudo não perde mais o que você está digitando.

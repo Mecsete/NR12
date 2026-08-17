@@ -650,8 +650,14 @@ chk("o quadro do que existe vem ANTES do texto de campo",
 chk("sem proposta escrita, a revisao avisa em vez de esconder",
     "const solucaoSemProposta = campo===\"solucao\"" in novo
     and "Sem proposta, o laudo repete" in novo)
-chk("o texto do laudo (coluna AT) nao mudou de regra",
-    'return (item.risco.medidaImplementada==="Sim") ? (item.risco.descMedida||"") : (item.risco.sugestaoMitigacao||"");' in novo)
+# Esta checagem travava a regra ANTIGA (medidaImplementada decidindo qual
+# campo usar) como se fosse a correta. Era o proprio bug corrigido na secao
+# 44: com mitigacao marcada, a coluna AT trocava a proposta do inspetor pela
+# descricao do que ja existe mesmo com uma proposta de verdade escrita. A
+# checagem da regra atual (proposta sempre, descMedida so como ultimo
+# recurso) mora na secao 44 — nao reaproveitar o texto antigo aqui.
+chk("o texto do laudo (coluna AT) usa a regra atual, nao a antiga travada aqui por engano",
+    'return (item.risco.medidaImplementada==="Sim") ? (item.risco.descMedida||"") : (item.risco.sugestaoMitigacao||"");' not in novo)
 
 print("\n=== 31. CAIXA DE TEXTO EXPANSIVEL, REVISAO E APLICAR EM VARIOS (BLOCO 3) ===")
 # O botao tem de nascer SO no JS. Se algum dia aparecer "ta-caixa"/"ta-botao"
@@ -1090,6 +1096,44 @@ _pontos_limpeza = [
 ]
 chk("o rascunho e limpo em todo ponto de saida da edicao (abrir item, ir para, editar, cancelar, salvar)",
     all(p in novo for p in _pontos_limpeza))
+
+print("\n=== 44. SOLUCAO NUNCA E SUBSTITUIDA PELA MITIGACAO EXISTENTE ===")
+# laudoTextoOriginal trocava a proposta do inspetor (sugestaoMitigacao) pela
+# descricao do que ja existe (descMedida) sempre que ALGUMA mitigacao estava
+# marcada (medidaImplementada==="Sim") — mesmo com uma proposta de verdade
+# escrita. A regra certa: proposta sempre que existir; descMedida so como
+# ultimo recurso, quando nao ha proposta nenhuma.
+chk("laudoTextoOriginal usa a proposta sempre, descMedida so como ultimo recurso",
+    "return item.risco.sugestaoMitigacao || item.risco.descMedida || \"\";" in novo
+    and 'return (item.risco.medidaImplementada==="Sim")' not in novo)
+# O escritor tem que seguir a mesma regra: a solucao aprovada vai sempre para
+# sugestaoMitigacao. Se voltasse a gravar em descMedida, apagaria a descricao
+# da mitigacao EXISTENTE por cima, com o texto da SOLUCAO.
+chk("aplicarLaudoAprovadoNasLinhas grava a solucao so em sugestaoMitigacao",
+    "sugestaoMitigacao: t.solucao || item.risco.sugestaoMitigacao };" in novo
+    and "if(medidaExistente) risco.descMedida = t.solucao" not in novo)
+# As duas rotas de Excel que recalculavam o mesmo fallback (uma delas,
+# xlsmLinhaResumo, na pratica nunca era usada — iaTextos.solucao ja vem
+# pronto — mas precisa estar certa se algum dia for o caminho tomado).
+chk("o fallback do Resumo no .xlsm modelo Corteva segue a mesma regra",
+    'const mitigOriginal = risco.sugestaoMitigacao || risco.descMedida || "";' in novo)
+chk("o fallback do Resumo na aba unica .xlsx segue a mesma regra",
+    'const mitig=item.risco.sugestaoMitigacao||item.risco.descMedida||"Não informado.";' in novo)
+# O Word (montarDadosMaquinaDocx) ja lia sugestaoMitigacao direto, sem o
+# ternario — e por isso, ANTES desta entrega, exportava o texto ERRADO
+# sempre que medidaImplementada era "Sim" (o escritor grava em descMedida,
+# nao em sugestaoMitigacao, e o Word so le sugestaoMitigacao). Trava aqui
+# para o Word nunca ganhar de volta esse mesmo ternario.
+chk("o Word continua lendo sugestaoMitigacao direto, sem ternario novo",
+    'const mitigacao = corrigirTextoMecanico(risco.sugestaoMitigacao) || "Não informado.";' in novo
+    and 'risco.medidaImplementada==="Sim"?risco.sugestaoMitigacao' not in novo)
+# Zona congelada do Modulo Completo: linhaResumo/buildResumoSheetXml/
+# buildXlsxPackage alimentam exportarMasterXLSXFotos (identificador
+# congelado) e NAO fazem parte desta correcao — o modelo de risco antigo
+# pode ter uma regra propria, intencional, que nao e desta entrega para
+# mexer. Ver frozen.py.
+chk("linhaResumo do Modulo Completo (frozen-adjacente) nao foi tocada",
+    'const mitig = risco.medidaImplementada==="Sim" ? risco.descMedida : (risco.sugestaoMitigacao||"Sem medida de mitigação registrada");' in novo)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
