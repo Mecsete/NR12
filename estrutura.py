@@ -1135,6 +1135,29 @@ chk("o Word continua lendo sugestaoMitigacao direto, sem ternario novo",
 chk("linhaResumo do Modulo Completo (frozen-adjacente) nao foi tocada",
     'const mitig = risco.medidaImplementada==="Sim" ? risco.descMedida : (risco.sugestaoMitigacao||"Sem medida de mitigação registrada");' in novo)
 
+print("\n=== 45. ICONE DE INFORMACAO NOS 4 CAMPOS DO HRN NA REVISAO DO LAUDO ===")
+# Mesmo padrao do cadastro em campo (toggleInfoHrnPO), so que aqui os quatro
+# campos (PO/FE/GPD/NP) sao editaveis na tela de revisao, entao os quatro
+# ganham o icone -- no cadastro em campo so PO tinha.
+chk("laudoInfoBtnHrn e laudoInfoBoxHrn existem uma unica vez cada",
+    novo.count("function laudoInfoBtnHrn(campo){") == 1
+    and novo.count("function laudoInfoBoxHrn(campo, tabela){") == 1)
+chk("os 4 campos do bloco HRN usam o botao e a caixa",
+    all(('laudoInfoBtnHrn("%s")' % k) in novo and ('laudoInfoBoxHrn("%s", HRN_%s_TABELA)' % (k, k.upper())) in novo
+        for k in ["po","fe","gpd","np"]))
+# As 3 tabelas que nao tinham desc (GPD vazio, FE e NP sem o campo) ganharam
+# texto em toda linha -- sem isso o icone abriria uma caixa com espacos em
+# branco, que e pior que nao ter icone.
+chk("as tabelas de FE, GPD e NP ganharam desc em toda linha (antes so PO tinha)",
+    novo.count('desc:""') == 0
+    and re.search(r'const HRN_FE_TABELA=\[[^\]]*desc:', novo, re.S)
+    and re.search(r'const HRN_NP_TABELA=\[[^\]]*desc:', novo, re.S))
+chk("__laudoInfoHrn nasce fechado e some ao trocar de item",
+    novo.count("let __laudoInfoHrn = { po:false, fe:false, gpd:false, np:false };") == 1
+    and novo.count("__laudoInfoHrn = { po:false, fe:false, gpd:false, np:false };") == 3)
+chk("laudoToggleInfoHrn existe e redesenha a tela",
+    "laudoToggleInfoHrn(campo){ __laudoInfoHrn[campo] = !__laudoInfoHrn[campo]; render(); }," in novo)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

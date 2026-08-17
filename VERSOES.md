@@ -22,6 +22,26 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 17/08/2026 15:20
+
+Ícone de informação nos quatro campos do HRN, na revisão do laudo.
+
+O cadastro do risco em campo já tinha um ícone (i) ao lado de "Probabilidade",
+que abre uma caixa explicando o que significa cada opção. Na tela de revisão
+do laudo — onde os quatro campos (Probabilidade, Frequência, Grau do dano e
+Nº de pessoas) podem ser ajustados — não havia nada parecido.
+
+Agora os quatro têm o mesmo ícone. Tocando nele, abre uma caixa com cada
+opção e uma frase curta explicando o que ela quer dizer — por exemplo, em
+Grau do dano, "Fratura osso maior" ganha a nota "Fratura em braço, perna ou
+costela, por exemplo". Frequência e Nº de pessoas, que antes não tinham
+nenhum texto de apoio, também passaram a ter.
+
+Esse texto é só ajuda de tela — não entra no laudo impresso nem em nenhuma
+exportação.
+
+---
+
 ## 17/08/2026 14:10
 
 Corrigido: com mitigação existente marcada, a Solução podia sair errada no

@@ -974,9 +974,9 @@ const NIVEL_HRN_META={
   "ALTO":       {cor:"#FF0000",texto:"#FFFFFF",textoClaro:"#D32F2F"},
   "INACEITÁVEL":{cor:"#7030A0",texto:"#FFFFFF",textoClaro:"#5A1880"},
 };
-// Tabelas oficiais da metodologia HRN — Classificação/Valor/Descrição.
-// Descrição só existe para Probabilidade (fornecida pelo usuário); Grau de Possíveis
-// Danos ainda não tem texto de descrição — ver HRN_GPD_TABELA abaixo.
+// Tabelas oficiais da metodologia HRN — Classificação/Valor/Descrição. A
+// descrição é só texto de ajuda na tela (ícone de informação); não entra no
+// laudo impresso nem em citação de norma.
 const HRN_PO_TABELA=[
   {classificacao:"Quase Impossível",    valor:0.033, desc:"Precisa deitar ou subir em algo para alcançar"},
   {classificacao:"Altamente Improvável",valor:1,     desc:"Precisa esticar o braço ou perna para alcançar"},
@@ -988,13 +988,13 @@ const HRN_PO_TABELA=[
   {classificacao:"Certo",               valor:15,    desc:"Sempre que chegar naquele ponto vai ocorrer o acidente"},
 ];
 const HRN_GPD_TABELA=[
-  {classificacao:"Arranhão",                          valor:0.1, desc:""},
-  {classificacao:"Corte",                             valor:0.5, desc:""},
-  {classificacao:"Fratura osso menor",                valor:2,   desc:""},
-  {classificacao:"Fratura osso maior",                valor:4,   desc:""},
-  {classificacao:"Perda de membro, visão ou audição",  valor:6,   desc:""},
-  {classificacao:"Perda de Vários membros",           valor:10,  desc:""},
-  {classificacao:"Fatalidade",                        valor:15,  desc:""},
+  {classificacao:"Arranhão",                          valor:0.1, desc:"Lesão superficial na pele, sem afastamento"},
+  {classificacao:"Corte",                             valor:0.5, desc:"Ferimento com corte, pode precisar de sutura"},
+  {classificacao:"Fratura osso menor",                valor:2,   desc:"Fratura em dedo, mão ou pé, por exemplo"},
+  {classificacao:"Fratura osso maior",                valor:4,   desc:"Fratura em braço, perna ou costela, por exemplo"},
+  {classificacao:"Perda de membro, visão ou audição",  valor:6,   desc:"Amputação ou perda permanente de função"},
+  {classificacao:"Perda de Vários membros",           valor:10,  desc:"Amputação múltipla ou invalidez permanente grave"},
+  {classificacao:"Fatalidade",                        valor:15,  desc:"Óbito do trabalhador"},
 ];
 function valorPorClassificacaoHRN(tabela, classificacao){
   const item = tabela.find(x=>x.classificacao===classificacao);
@@ -1007,19 +1007,19 @@ const HRN_PO_OPTS = HRN_PO_TABELA.map(x=>x.classificacao);
 const HRN_GPD_OPTS = HRN_GPD_TABELA.map(x=>x.classificacao);
 // Frequência e Nº de pessoas continuam vindo só da Tarefa (não são escolhidos no Risco).
 const HRN_FE_TABELA=[
-  {classificacao:"Anual",    valor:0.5},
-  {classificacao:"Mensal",   valor:1},
-  {classificacao:"Semanal",  valor:1.5},
-  {classificacao:"Diária",   valor:2.5},
-  {classificacao:"Horária",  valor:4},
-  {classificacao:"Constante",valor:5},
+  {classificacao:"Anual",    valor:0.5, desc:"Acesso raro à zona de perigo, poucas vezes por ano"},
+  {classificacao:"Mensal",   valor:1,   desc:"Acesso à zona de perigo cerca de uma vez por mês"},
+  {classificacao:"Semanal",  valor:1.5, desc:"Acesso à zona de perigo uma ou poucas vezes por semana"},
+  {classificacao:"Diária",   valor:2.5, desc:"Acesso à zona de perigo cerca de uma vez por turno"},
+  {classificacao:"Horária",  valor:4,   desc:"Acesso à zona de perigo várias vezes por turno"},
+  {classificacao:"Constante",valor:5,   desc:"Exposição contínua à zona de perigo durante o turno"},
 ];
 const HRN_NP_TABELA=[
-  {classificacao:"1-2 pessoas",   valor:1},
-  {classificacao:"3-7 pessoas",   valor:2},
-  {classificacao:"8-15 pessoas",  valor:4},
-  {classificacao:"16-50 pessoas", valor:8},
-  {classificacao:"50+ pessoas",   valor:12},
+  {classificacao:"1-2 pessoas",   valor:1,  desc:"Uma pessoa, ou uma dupla, na zona de perigo"},
+  {classificacao:"3-7 pessoas",   valor:2,  desc:"Uma pequena equipe na zona de perigo"},
+  {classificacao:"8-15 pessoas",  valor:4,  desc:"Uma equipe média na zona de perigo"},
+  {classificacao:"16-50 pessoas", valor:8,  desc:"Um grupo grande na zona de perigo"},
+  {classificacao:"50+ pessoas",   valor:12, desc:"Área de grande circulação de pessoas"},
 ];
 const HRN_FE_OPTS = HRN_FE_TABELA.map(x=>x.classificacao);
 const HRN_NP_OPTS = HRN_NP_TABELA.map(x=>x.classificacao);
@@ -1808,7 +1808,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "17/08/2026 14:10";
+const APP_BUILD = "17/08/2026 15:20";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -10223,6 +10223,10 @@ let __iaCelulasVazias = 0, __iaCelulasTotal = 0;
    estava sendo digitado, ainda não salvo, some. Guarda { campo, texto } só
    em memória; nunca é gravado no STATE. */
 let __laudoRascunho = null;
+/* Quais caixas de informação do HRN (PO/FE/GPD/NP) estão abertas na tela de
+   revisão — mesmo ícone e mesma caixa do cadastro em campo (toggleInfoHrnPO),
+   só que aqui os quatro campos são editáveis, não só PO/GPD. */
+let __laudoInfoHrn = { po:false, fe:false, gpd:false, np:false };
 function getAreasSelecionadasExport(){
   const todasAreaIds = [];
   STATE.projetosSimples.forEach(p=>p.areas.forEach(a=>todasAreaIds.push(a.id)));
@@ -12162,6 +12166,15 @@ function laudoSelectHRN(rid, chave, tabela, valorAtual, rotuloAuto, origem){
   return `<select class="sp-select-sm" onchange="App.laudoSetHRN('${rid}','${chave}',this.value)">
     <option value="" ${!valorAtual?'selected':''}>${escapeHtml(origem)}: ${escapeHtml(rotuloAuto)}</option>${opcoes}</select>`;
 }
+/* Mesmo padrão do ícone de informação do cadastro em campo (toggleInfoHrnPO),
+   repetido para os quatro campos do HRN — aqui todos são editáveis. */
+function laudoInfoBtnHrn(campo){
+  return `<button type="button" class="info-btn" onclick="App.laudoToggleInfoHrn('${campo}')" title="O que significa cada opção?">${ic('info')}</button>`;
+}
+function laudoInfoBoxHrn(campo, tabela){
+  if(!__laudoInfoHrn[campo]) return "";
+  return `<div class="info-box">${tabela.map(x=>`<div class="info-row"><b>${escapeHtml(x.classificacao)} (${x.valor})</b><span>${escapeHtml(x.desc||"")}</span></div>`).join("")}</div>`;
+}
 function laudoBlocoHRN(item){
   const r = item.risco, rid = r.id;
   const h = hrnDoItem({tarefa:item.tarefa, risco:r});
@@ -12181,10 +12194,26 @@ function laudoBlocoHRN(item){
       </div>
     </div>
     <div class="laudo-hrn-grid">
-      <div class="field" style="margin-bottom:0"><label>Probabilidade (PO)</label>${laudoSelectHRN(rid,"po",HRN_PO_TABELA,r.po||"",autoPO,"Estimado")}</div>
-      <div class="field" style="margin-bottom:0"><label>Frequência (FE)</label>${laudoSelectHRN(rid,"fe",HRN_FE_TABELA,r.fe||"",autoFE,freqTarefa? "Da tarefa ("+freqTarefa+")" : "Sem frequência na tarefa")}</div>
-      <div class="field" style="margin-bottom:0"><label>Grau do dano (GPD)</label>${laudoSelectHRN(rid,"gpd",HRN_GPD_TABELA,r.gpd||"",autoGPD,"Estimado")}</div>
-      <div class="field" style="margin-bottom:0"><label>Nº de pessoas (NP)</label>${laudoSelectHRN(rid,"np",HRN_NP_TABELA,r.np||"",autoNP,npTarefa? "Da tarefa ("+npTarefa+")" : "Sem nº na tarefa")}</div>
+      <div class="field" style="margin-bottom:0">
+        <label style="display:flex;align-items:center;gap:4px">Probabilidade (PO) ${laudoInfoBtnHrn("po")}</label>
+        ${laudoSelectHRN(rid,"po",HRN_PO_TABELA,r.po||"",autoPO,"Estimado")}
+        ${laudoInfoBoxHrn("po", HRN_PO_TABELA)}
+      </div>
+      <div class="field" style="margin-bottom:0">
+        <label style="display:flex;align-items:center;gap:4px">Frequência (FE) ${laudoInfoBtnHrn("fe")}</label>
+        ${laudoSelectHRN(rid,"fe",HRN_FE_TABELA,r.fe||"",autoFE,freqTarefa? "Da tarefa ("+freqTarefa+")" : "Sem frequência na tarefa")}
+        ${laudoInfoBoxHrn("fe", HRN_FE_TABELA)}
+      </div>
+      <div class="field" style="margin-bottom:0">
+        <label style="display:flex;align-items:center;gap:4px">Grau do dano (GPD) ${laudoInfoBtnHrn("gpd")}</label>
+        ${laudoSelectHRN(rid,"gpd",HRN_GPD_TABELA,r.gpd||"",autoGPD,"Estimado")}
+        ${laudoInfoBoxHrn("gpd", HRN_GPD_TABELA)}
+      </div>
+      <div class="field" style="margin-bottom:0">
+        <label style="display:flex;align-items:center;gap:4px">Nº de pessoas (NP) ${laudoInfoBtnHrn("np")}</label>
+        ${laudoSelectHRN(rid,"np",HRN_NP_TABELA,r.np||"",autoNP,npTarefa? "Da tarefa ("+npTarefa+")" : "Sem nº na tarefa")}
+        ${laudoInfoBoxHrn("np", HRN_NP_TABELA)}
+      </div>
     </div>
     <div class="field-hint" style="margin-top:10px">HRN = PO × FE × GPD × NP. <b>Frequência</b> e <b>Nº de pessoas</b> já vêm do que você escolheu ao cadastrar a tarefa; <b>Probabilidade</b> e <b>Grau do dano</b> são estimados pelo app. Escolher um valor aqui vale só para este risco e não altera a tarefa.</div>
     <div style="font-size:12px;color:var(--ink-dim);margin-top:8px">${escapeHtml(acaoHRN(h.nivel))}</div>
@@ -16477,14 +16506,16 @@ const App = {
     toast(d.uid? "Inspetor atualizado" : "Inspetor cadastrado");
   },
   laudoMostrarMais(){ STATE.ui.laudoLimite = (STATE.ui.laudoLimite||60) + 60; render(); },
-  laudoAbrirItem(id){ STATE.ui.laudoRiscoId = id; STATE.ui.laudoEditandoCampo = null; __laudoRascunho = null; STATE.ui.screen = "simples-laudo-item"; render(); window.scrollTo(0,0); },
+  laudoAbrirItem(id){ STATE.ui.laudoRiscoId = id; STATE.ui.laudoEditandoCampo = null; __laudoRascunho = null; __laudoInfoHrn = { po:false, fe:false, gpd:false, np:false }; STATE.ui.screen = "simples-laudo-item"; render(); window.scrollTo(0,0); },
   laudoIrPara(pos){
     const lista = laudoListaAtual();
     const alvo = lista[pos];
     if(!alvo) return;
     STATE.ui.laudoRiscoId = alvo.risco.id; STATE.ui.laudoEditandoCampo = null; __laudoRascunho = null;
+    __laudoInfoHrn = { po:false, fe:false, gpd:false, np:false };
     render(); window.scrollTo(0,0);
   },
+  laudoToggleInfoHrn(campo){ __laudoInfoHrn[campo] = !__laudoInfoHrn[campo]; render(); },
   laudoEditar(campo){ STATE.ui.laudoEditandoCampo = campo; __laudoRascunho = null; render(); },
   laudoCancelarEdicao(){ STATE.ui.laudoEditandoCampo = null; __laudoRascunho = null; render(); },
   laudoRascunho(campo, texto){ __laudoRascunho = { campo, texto }; },

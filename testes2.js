@@ -183,6 +183,12 @@ vm.runInContext((/\nconst IA_PROVEDOR_PADRAO\s*=\s*"[^"]*";/.exec(HTML)||[""])[0
 /* blocos novos, extraidos do arquivo entregue */
 const BLOCO_A = trecho("/* =========================================================================\n   GESTÃO DO LAUDO — os textos da IA passam a morar DENTRO do app", "\nfunction hrnDoItem({tarefa,risco}){");
 const BLOCO_B = trecho("/* =========================================================================\n   GESTÃO DO LAUDO — TELAS", "\nfunction screenSimplesConfig(){");
+/* Declarados fora dos dois blocos acima (perto do topo da secao do laudo),
+   entao precisam existir aqui antes: rascunho da edicao (App.laudoRascunho)
+   e caixas de informacao do HRN (App.laudoToggleInfoHrn), ambos lidos sem
+   condicao nenhuma dentro do render — sem isto, qualquer teste que desenhe
+   laudoBlocoCampo ou laudoBlocoHRN quebra com ReferenceError. */
+vm.runInContext("let __laudoRascunho = null; let __laudoInfoHrn = { po:false, fe:false, gpd:false, np:false };", ctx);
 vm.runInContext(BLOCO_A, ctx);
 vm.runInContext(BLOCO_B, ctx);
 const BLOCO_R = trecho("/* =========================================================================\n   MONTADOR DE RISCO EM CAMPO", "\nfunction formRiscoSHtml(){");
@@ -296,6 +302,43 @@ t("tarefa sem frequencia avisa em vez de dizer automatico", ()=>{
   it.tarefa.frequencia = "";
   ok(C.laudoBlocoHRN(it).indexOf("Sem frequência na tarefa") > 0);
   it.tarefa.frequencia = bak;
+});
+
+console.log("\n=== t90 · icone de informação nos 4 campos do HRN (revisão do laudo) ===");
+t("as 4 tabelas do HRN tem descrição em toda linha, para o icone ter o que mostrar", ()=>{
+  ["HRN_PO_TABELA","HRN_FE_TABELA","HRN_GPD_TABELA","HRN_NP_TABELA"].forEach(tab=>{
+    const vazias = vm.runInContext(tab+".filter(x=>!x.desc||!x.desc.trim()).length", ctx);
+    eq(vazias, 0, tab+" tem linha sem descrição");
+  });
+});
+t("os 4 campos ganham o botão de informação, igual ao cadastro em campo", ()=>{
+  const html = C.laudoBlocoHRN(C.linhasEscopoSimples()[0]);
+  ["po","fe","gpd","np"].forEach(k=>
+    ok(html.indexOf("App.laudoToggleInfoHrn('"+k+"')") > 0, "faltou o botão de "+k));
+});
+t("caixa de um campo só abre quando o campo está marcado", ()=>{
+  /* __laudoInfoHrn é "let" dentro do contexto do vm — só é visível de fora
+     rodando como script, não como propriedade direta de C. */
+  vm.runInContext("__laudoInfoHrn.gpd = true;", ctx);
+  const html = C.laudoBlocoHRN(C.linhasEscopoSimples()[0]);
+  vm.runInContext("__laudoInfoHrn.gpd = false;", ctx);
+  ok(html.indexOf("Amputação ou perda permanente de função") > 0, "caixa do GPD não abriu");
+  /* "Anual (0.5)" sozinho não serve de prova: aparece sempre, como opção do
+     próprio <select> de FE. O texto da descrição só existe dentro da caixa. */
+  ok(html.indexOf("Acesso raro à zona de perigo, poucas vezes por ano") < 0, "caixa da FE abriu sem estar marcada");
+});
+t("fechada por padrão, nenhuma caixa aparece", ()=>{
+  const html = C.laudoBlocoHRN(C.linhasEscopoSimples()[0]);
+  ok(html.indexOf("info-box") < 0, "alguma caixa nasceu aberta");
+});
+t("App.laudoToggleInfoHrn existe e redesenha a tela", ()=>{
+  ok(HTML.indexOf("laudoToggleInfoHrn(campo){ __laudoInfoHrn[campo] = !__laudoInfoHrn[campo]; render(); }") > 0);
+});
+t("trocar de item fecha as caixas de informação do HRN (senão vaza pro próximo risco)", ()=>{
+  /* 3 ocorrências = a declaração original + o reset em laudoAbrirItem +
+     o reset em laudoIrPara. */
+  eq((HTML.match(/__laudoInfoHrn = \{ po:false, fe:false, gpd:false, np:false \};/g)||[]).length, 3,
+     "precisa existir a declaração e zerar em laudoAbrirItem E em laudoIrPara");
 });
 
 console.log("\n=== t14 · areas: novas entram sozinhas e saem em ordem ===");
