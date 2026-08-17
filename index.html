@@ -1808,7 +1808,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "17/08/2026 15:20";
+const APP_BUILD = "17/08/2026 16:35";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -7322,6 +7322,11 @@ function laudoBlocoExistenteHtml(item){
     <div class="field-hint" style="margin-top:6px">Para alterar, edite o risco. A solução abaixo deve complementar ou corrigir isto.</div>
   </div>`;
 }
+/* Cartão próprio, separado do cartão de Solução — antes os dois viviam
+   juntos dentro do mesmo card e pareciam uma coisa só na tela. */
+function laudoCardMitigacaoExistente(item){
+  return `<div class="card card-pad laudo-bloco">${laudoBlocoExistenteHtml(item)}</div>`;
+}
 
 function blocoMontadorRiscoHtml(r){
   const proj = getCurrentProjetoSimples();
@@ -10301,7 +10306,7 @@ const LAUDO_CAMPOS = [
   { k:"escopo",  rot:"Escopo do equipamento", col:"AQ", nivel:"maquina", sigla:"E" },
   { k:"tarefa",  rot:"Descrição da tarefa",   col:"AR", nivel:"tarefa",  sigla:"T" },
   { k:"risco",   rot:"Descrição do risco",    col:"AS", nivel:"risco",   sigla:"R" },
-  { k:"solucao", rot:"Solução / Mitigação",   col:"AT", nivel:"risco",   sigla:"S" },
+  { k:"solucao", rot:"Solução",               col:"AT", nivel:"risco",   sigla:"S" },
 ];
 const LAUDO_ST_ROTULO = { "":"Não gerado", pend:"Aguardando sua decisão", ok:"Aplicado", edit:"Editado por você", no:"Recusado — vale o seu texto" };
 const LAUDO_ST_COR    = { "":"#8A8CA3", pend:"#B26A00", ok:"#2E7D32", edit:"#1565C0", no:"#4A4D6B" };
@@ -12110,8 +12115,6 @@ function laudoBlocoCampo(item, campo){
       ${laudoBadge(st)}
     </div>
 
-    ${campo==="solucao" ? laudoBlocoExistenteHtml(item) : ""}
-
     <div style="font-size:11px;font-weight:800;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">${campo==="solucao" ? "O que você propôs em campo" : "Seu texto de campo"}</div>
     <div style="font-size:13px;color:var(--ink-dim);background:var(--bg-soft);border-radius:8px;padding:9px 10px;white-space:pre-wrap">${escapeHtml(orig || "(nada escrito em campo)")}</div>
     ${solucaoSemProposta? `<div class="field-hint" style="margin-top:5px">Você ainda não escreveu o que precisa ser feito. Sem proposta, o laudo repete a descrição do que já existe — gere a sugestão da IA ou escreva a solução no risco.</div>`:""}
@@ -12277,7 +12280,7 @@ function screenSimplesLaudoItem(){
     </div>`:""}
   ${laudoBlocoPlaqueta(item)}
   <div class="laudo-grid">
-    ${LAUDO_CAMPOS.map(c=>laudoBlocoCampo(item, c.k)).join("")}
+    ${LAUDO_CAMPOS.map(c=> (c.k==="solucao"? laudoCardMitigacaoExistente(item) : "") + laudoBlocoCampo(item, c.k)).join("")}
     ${laudoBlocoHRN(item)}
     <div class="card card-pad laudo-bloco">
       <div style="font-weight:800;font-size:14.5px;margin-bottom:4px">Nível de desempenho requerido</div>
@@ -18238,7 +18241,7 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
                   ${esc(existente)}
                 </div>`:""}
                 <div class="lp-rc-bloco">
-                  <div class="lp-rc-rot">Solução / Mitigação</div>
+                  <div class="lp-rc-rot">Solução</div>
                   ${esc(laudoTextoFinal(it, "solucao") || "")}
                 </div>
               </div>

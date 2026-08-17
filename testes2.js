@@ -790,7 +790,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   });
   t("o resto da tela continua completo", ()=>{
     const h = C.screenSimplesLaudoItem();
-    ["Plaqueta do equipamento","Avaliação HRN","Escopo do equipamento","Solução / Mitigação"]
+    ["Plaqueta do equipamento","Avaliação HRN","Escopo do equipamento","Solução"]
       .forEach(x=> ok(h.indexOf(x) > 0, "faltou "+x));
   });
 
@@ -3090,12 +3090,15 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(h.indexOf("Nada registrado") > 0, h);
     ok(h.indexOf("parte do zero") > 0, h);
   });
-  t("o quadro só aparece no campo Solução", ()=>{
+  t("o quadro é um cartão próprio, separado do cartão de Solução", ()=>{
+    /* Antes o quadro vivia DENTRO do card de Solução; separado em cartões
+       próprios, laudoBlocoCampo (nenhum campo, nem "solucao") não deve mais
+       trazer esse título — só laudoCardMitigacaoExistente. */
     STATE.ui.laudoFiltroArea = ""; STATE.ui.laudoFiltroMaq = ""; STATE.ui.laudoFiltroTar = "";
     const it = C.linhasEscopoSimples()[0];
-    ok(C.laudoBlocoCampo(it, "solucao").indexOf("Mitigação existente na máquina") > 0, "faltou no campo Solução");
-    ["escopo","tarefa","risco"].forEach(c=>
-      ok(C.laudoBlocoCampo(it, c).indexOf("Mitigação existente na máquina") < 0, "apareceu no campo " + c));
+    ok(C.laudoCardMitigacaoExistente(it).indexOf("Mitigação existente na máquina") > 0, "faltou no cartão próprio");
+    ["escopo","tarefa","risco","solucao"].forEach(c=>
+      ok(C.laudoBlocoCampo(it, c).indexOf("Mitigação existente na máquina") < 0, "vazou para o campo " + c));
   });
   t("sem proposta em campo, a revisão avisa que o laudo repetiria o que já existe", ()=>{
     STATE.ui.laudoFiltroArea = ""; STATE.ui.laudoFiltroMaq = ""; STATE.ui.laudoFiltroTar = "";
@@ -3118,6 +3121,37 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     r.medidasExistentes = ["prot_fixa"];
     C.sincronizarDescMedidaExistente(r);
     eq(r.descMedida, "texto que eu mesmo escrevi");
+  });
+
+  console.log("\n=== t91 · Mitigação Existente e Solução em cartões separados ===");
+  /* O usuário mandou print mostrando os dois ainda dentro do mesmo cartão
+     "Solução / Mitigação" e disse "estão juntos ainda". Antes disto, o quadro
+     de mitigação existente vivia DENTRO do cartão de Solução — dois assuntos
+     em uma caixa só. Agora cada um tem seu próprio cartão branco na tela. */
+  t("laudoCardMitigacaoExistente existe e embrulha o quadro num cartão próprio", ()=>{
+    ok(HTML.indexOf('function laudoCardMitigacaoExistente(item){') > 0);
+    ok(HTML.indexOf('return `<div class="card card-pad laudo-bloco">${laudoBlocoExistenteHtml(item)}</div>`;') > 0);
+  });
+  t("na tela do item, o cartão de mitigação existente vem ANTES do cartão de Solução", ()=>{
+    /* linhasEscopoSimples()[0] não é necessariamente "r1" aqui — outros
+       testes já rodaram e podem ter alterado a árvore. Usa o id de quem
+       está lá de fato. */
+    STATE.ui.laudoRiscoId = C.linhasEscopoSimples()[0].risco.id;
+    const h = C.screenSimplesLaudoItem();
+    const iExistente = h.indexOf("Mitigação existente na máquina");
+    const iSolucao = h.indexOf("O que você propôs em campo");
+    ok(iExistente > 0 && iSolucao > 0 && iExistente < iSolucao,
+       "a ordem na tela ficou errada — mitigação existente precisa vir primeiro");
+  });
+  t("o rótulo do campo Solução não carrega mais a Mitigação junto", ()=>{
+    /* def.rot alimenta o título do cartão E os dois modais (aplicar em
+       vários / copiar de outro) — os três precisam refletir o mesmo nome. */
+    eq(HTML.indexOf('rot:"Solução / Mitigação"'), -1, "sobrou o rótulo antigo em LAUDO_CAMPOS");
+    ok(HTML.indexOf('{ k:"solucao", rot:"Solução",') > 0, "faltou o rótulo novo em LAUDO_CAMPOS");
+  });
+  t("o rótulo no laudo impresso (A4) também não fala mais em Mitigação junto", ()=>{
+    ok(HTML.indexOf('<div class="lp-rc-rot">Solução</div>') > 0, "o rótulo do laudo impresso não acompanhou a renomeação");
+    eq(HTML.indexOf('<div class="lp-rc-rot">Solução / Mitigação</div>'), -1, "sobrou o rótulo antigo no laudo impresso");
   });
 
   console.log("\n=== t71 · caixa de texto que expande (bloco 3) ===");
@@ -3535,7 +3569,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(HTML.indexOf('.lp-rc-cab{display:flex;') > 0 && HTML.indexOf('.lp-rc-corpo{display:flex;') > 0);
   });
   t("o cartão traz tudo que já existia, mais a mitigação existente", ()=>{
-    ["Descrição do risco","Mitigação existente","Solução / Mitigação","Evidência do risco",
+    ["Descrição do risco","Mitigação existente","Solução","Evidência do risco",
      "Probabilidade (PO)","Frequência (FE)","Grau do Dano (GPD)","Nº de pessoas (NP)"]
       .forEach(x=> ok(funcao("blocosEquipamentos").indexOf(x) > 0, "faltou " + x));
   });

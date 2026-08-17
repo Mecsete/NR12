@@ -22,6 +22,30 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 17/08/2026 16:35
+
+Mitigação existente e Solução agora são dois cartões separados na revisão.
+
+Os dois viviam dentro do mesmo cartão "Solução / Mitigação" — o quadro
+cinza do que já existe na máquina, seguido logo abaixo do que você propôs,
+da sugestão da IA e do texto final. Na tela pequena do celular, sem uma
+separação forte entre os dois, dava a impressão de ser uma coisa só.
+
+Agora são dois cartões brancos distintos, um depois do outro: primeiro
+**Mitigação existente na máquina** (só leitura — para alterar, ainda é no
+cadastro do risco), depois **Solução**, com tudo que já existia ali: o que
+você escreveu em campo, a sugestão da IA, o texto que vai para o laudo, a
+biblioteca de medidas e o pedido de ajuste à IA.
+
+O nome do campo também mudou de "Solução / Mitigação" para só **Solução**
+— no cartão, nos dois atalhos (Aplicar em vários / Copiar de outro) e no
+laudo impresso. Faz mais sentido agora que a Mitigação tem endereço
+próprio.
+
+Nada de conteúdo mudou — só a organização visual.
+
+---
+
 ## 17/08/2026 15:20
 
 Ícone de informação nos quatro campos do HRN, na revisão do laudo.

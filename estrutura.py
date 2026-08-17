@@ -640,13 +640,13 @@ chk("o gerador antigo continua gravando no campo que leu",
 _qe = novo.find("function laudoBlocoExistenteHtml(")
 chk("a revisao tem um quadro so de leitura do que ja existe",
     _qe > 0
-    and "onclick" not in novo[_qe:novo.find("function blocoMontadorRiscoHtml(")]
-    and novo.count('${campo==="solucao" ? laudoBlocoExistenteHtml(item) : ""}') == 1)
-_bc = novo.find("function laudoBlocoCampo(")
-_bcc = novo[_bc:_bc+3000]
-chk("o quadro do que existe vem ANTES do texto de campo",
-    _bcc.find("laudoBlocoExistenteHtml(item)") < _bcc.find("O que você propôs em campo")
-    and _bcc.find("laudoBlocoExistenteHtml(item)") > 0)
+    and "onclick" not in novo[_qe:novo.find("function laudoCardMitigacaoExistente(")])
+# As duas checagens que existiam aqui ("chamada dentro de laudoBlocoCampo" e
+# "vem antes do texto de campo, DENTRO do mesmo cartao") travavam a
+# arquitetura ANTIGA -- os dois quadros num cartao so. Isso mudou na secao
+# 46: cada um ganhou cartao proprio, e a ordem passou a ser garantida no
+# LOOP da tela, nao mais dentro de laudoBlocoCampo. As checagens novas dessa
+# mudanca moram na secao 46 -- nao reaproveitar as antigas aqui.
 chk("sem proposta escrita, a revisao avisa em vez de esconder",
     "const solucaoSemProposta = campo===\"solucao\"" in novo
     and "Sem proposta, o laudo repete" in novo)
@@ -1157,6 +1157,22 @@ chk("__laudoInfoHrn nasce fechado e some ao trocar de item",
     and novo.count("__laudoInfoHrn = { po:false, fe:false, gpd:false, np:false };") == 3)
 chk("laudoToggleInfoHrn existe e redesenha a tela",
     "laudoToggleInfoHrn(campo){ __laudoInfoHrn[campo] = !__laudoInfoHrn[campo]; render(); }," in novo)
+
+print("\n=== 46. MITIGACAO EXISTENTE E SOLUCAO EM CARTOES SEPARADOS ===")
+# O usuario mandou print mostrando os dois ainda dentro do MESMO cartao
+# "Solucao / Mitigacao" e disse "estao juntos ainda" -- o quadro de
+# mitigacao existente vivia DENTRO do cartao de Solucao. Agora cada um tem
+# seu proprio cartao branco (laudoCardMitigacaoExistente), na ordem certa.
+chk("laudoCardMitigacaoExistente existe uma unica vez",
+    novo.count("function laudoCardMitigacaoExistente(item){") == 1)
+chk("laudoBlocoCampo nao chama mais laudoBlocoExistenteHtml por dentro",
+    'campo==="solucao" ? laudoBlocoExistenteHtml(item) : ""' not in novo)
+chk("o loop da tela insere o cartao novo IMEDIATAMENTE ANTES do cartao de Solucao",
+    'c.k==="solucao"? laudoCardMitigacaoExistente(item) : "") + laudoBlocoCampo(item, c.k)' in novo)
+chk("o rotulo do campo Solucao nao carrega mais a Mitigacao no nome (afeta cartao + os 2 modais)",
+    '{ k:"solucao", rot:"Solução",' in novo and 'rot:"Solução / Mitigação"' not in novo)
+chk("o laudo impresso (A4) segue o mesmo rotulo novo",
+    '<div class="lp-rc-rot">Solução</div>' in novo and '<div class="lp-rc-rot">Solução / Mitigação</div>' not in novo)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
