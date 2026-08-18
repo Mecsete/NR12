@@ -28,6 +28,25 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 18/08/2026 14:30
+
+Cabeçalho do risco, na tela ampla (computador/tablet deitado): fotos
+maiores e os 4 selos de campo aplicado.
+
+Nas telas largas (a partir de 900px, o mesmo ponto em que o laudo já
+passa a usar duas colunas), as miniaturas de foto do equipamento e do
+risco, no topo da revisão de cada risco, ficam com o dobro do tamanho
+anterior — mais fáceis de reconhecer sem precisar abrir a galeria. Ao
+lado do nome do risco também passam a aparecer 4 selinhos **E T R S**
+(Escopo, Tarefa, Risco, Solução) — os mesmos que já apareciam nos
+cartões da lista, agora também aqui dentro: verde quando aquele texto
+já foi aplicado ao laudo, e nas outras cores de sempre quando ainda
+falta gerar, está aguardando decisão ou foi editado. No celular nada
+muda — os selos ficam escondidos e as fotos continuam do tamanho de
+sempre, para não apertar a tela pequena.
+
+---
+
 ## 18/08/2026 12:10
 
 Menu de opções (três pontinhos) nos riscos do laudo: Visualizar, Copiar e

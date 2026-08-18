@@ -63,7 +63,7 @@ for marca, n in [('body = screenSimplesLaudo();', 1),
                  ('function laudoMiniatura(', 1),
                  ('function laudoBlocoPlaqueta(', 1),
                  ('function laudoFotoValida(', 1),
-                 ('laudo-th', 13),
+                 ('laudo-th', 14),
                  ('function ajustarTopoLaudo(', 1),
                  ('class="laudo-topo"', 1),
                  ('function laudoListaAtual(', 1),
@@ -1406,6 +1406,23 @@ chk("as 3 opcoes (visualizar/copiar/excluir) estao no menu, excluir marcado como
 chk("cartao ganhou espaco reservado para o botao, sem sobrepor o selo do HRN",
     ".laudo-card{margin-bottom:8px;position:relative;}" in novo
     and ".laudo-card-in{display:flex;gap:10px;align-items:flex-start;padding:10px 40px 10px 10px;" in novo)
+
+print("\n=== 57. CABECALHO DO RISCO NO PC: FOTOS MAIORES + SIGLAS E-T-R-S ===")
+# Usuario pediu, so para a versao PC (o mesmo ponto de corte de 900px que ja
+# separa layout mobile/desktop no resto da tela do laudo): as miniaturas de
+# equipamento/risco no dobro do tamanho (56x44 -> 112x88) e os 4 selos
+# E-T-R-S (mesmo componente laudoSiglaChip ja usado na lista de cartoes,
+# reaproveitado -- nao duplicado) mostrando quais campos ja tem texto
+# aplicado. No celular nada muda: selos ficam escondidos e a miniatura
+# continua do tamanho de sempre.
+chk("miniaturas dobram de tamanho so a partir de 900px (o dobro do que ja era o tamanho de PC)",
+    ".laudo-topo-thumbs .laudo-th{width:112px;height:88px;}" in novo
+    and ".laudo-topo-thumbs .laudo-th{width:44px;height:36px;border-radius:7px;}" in novo)
+chk("selos E-T-R-S comecam escondidos (mobile) e so aparecem a partir de 900px",
+    ".laudo-topo-siglas{display:none;flex-shrink:0;gap:4px;}" in novo
+    and ".laudo-topo-siglas{display:flex;}" in novo)
+chk("cabecalho do risco desenha os 4 selos reaproveitando laudoSiglaChip (mesma logica de cor da lista)",
+    '<div class="laudo-topo-siglas">${LAUDO_CAMPOS.map(c=>laudoSiglaChip(item, c.k, c.sigla)).join("")}</div>' in novo)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")

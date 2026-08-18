@@ -4382,6 +4382,29 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
          "sem position:relative no cartão, o botão absoluto ancora errado (ou na página inteira)");
     });
 
+  console.log("\n=== t100 · cabeçalho do risco no PC: fotos maiores + selos E-T-R-S ===");
+  /* Usuário pediu, só na versão PC (900px+, o mesmo corte que já separa o
+     layout mobile/desktop no resto da tela do laudo): as miniaturas de
+     equipamento/risco no dobro do tamanho, e os 4 selos E-T-R-S (mesmo
+     componente laudoSiglaChip já usado na lista de cartões) mostrando
+     quais dos 4 campos já têm texto aplicado. */
+  t("miniaturas do cabeçalho dobram de 56x44 para 112x88 a partir de 900px",
+    ()=>{
+      ok(HTML.indexOf(".laudo-topo-thumbs .laudo-th{width:112px;height:88px;}") > 0,
+         "sem isso o pedido de 'dobro do tamanho' não foi atendido");
+      ok(HTML.indexOf(".laudo-topo-thumbs .laudo-th{width:44px;height:36px;border-radius:7px;}") > 0,
+         "tamanho do celular não pode mudar");
+    });
+  t("selos E-T-R-S do cabeçalho ficam escondidos no celular e aparecem só no PC",
+    ()=>{
+      ok(HTML.indexOf(".laudo-topo-siglas{display:none;flex-shrink:0;gap:4px;}") > 0);
+      ok(HTML.indexOf(".laudo-topo-siglas{display:flex;}") > 0);
+    });
+  t("cabeçalho do risco reaproveita laudoSiglaChip para os 4 selos (mesma cor que a lista de cartões usa)",
+    ()=>{
+      ok(HTML.indexOf('<div class="laudo-topo-siglas">${LAUDO_CAMPOS.map(c=>laudoSiglaChip(item, c.k, c.sigla)).join("")}</div>') > 0);
+    });
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);
