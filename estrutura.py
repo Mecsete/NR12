@@ -1346,6 +1346,31 @@ chk("vermelho (borda + fundo + texto) só quando a tarefa não tem o dado, sem b
     and "A tarefa não tem frequência informada — edite a tarefa para preencher." in novo
     and "A tarefa não tem nº de pessoas informado — edite a tarefa para preencher." in novo)
 
+print("\n=== 55. REDESENHO DE FUNDO NAO DERRUBA MAIS O FOCO DE QUEM DIGITA ===")
+# Usuario reportou de novo, depois do fix anterior (laudoSetMedidaExistenteCampo
+# parar de chamar render() por tecla): "a pagina subir para o top ainda
+# aparece mas com uma frequencia bem menor". Causa restante: a varredura
+# periodica de fundo (a cada 2 minutos -- sincronizacao incremental,
+# estimativa de pendente, estatistica de armazenamento) chama render()
+# quase sempre, mesmo sem nada relevante ter mudado -- raro coincidir com
+# alguem digitando, mas acontece. renderAdiavelSeDigitando() adia esses
+# render() de fundo para quando o foco sair do campo de texto, em vez de
+# reconstruir o proprio campo em que a pessoa esta no meio de uma tecla.
+chk("renderAdiavelSeDigitando existe e so adia quando input/textarea tem foco",
+    novo.count("function renderAdiavelSeDigitando(){") == 1
+    and 'ae.tagName==="INPUT" || ae.tagName==="TEXTAREA"' in novo
+    and "__renderAdiadoPendente = true;" in novo)
+chk("o listener de focusout dispara o redesenho adiado quando o foco sai de vez",
+    'document.addEventListener("focusout", ()=>{' in novo
+    and "if(!__renderAdiadoPendente) return;" in novo)
+chk("os 4 gatilhos de fundo identificados usam a versao adiavel, nao render() direto",
+    "if((cfgIA && cfgIA.recebeu) || (equipe && equipe.recebeu)) renderAdiavelSeDigitando();" in novo
+    and 'journalLimpar(); // STATE gravado com os itens dentro — o diário deles virou redundância\n    renderAdiavelSeDigitando();' in novo
+    and "onedriveSalvarStatusPendente(upload, download); renderAdiavelSeDigitando();" in novo
+    and "__statusArmazenamentoCache = { espaco, persistente };\n  renderAdiavelSeDigitando();" in novo)
+chk("nenhuma acao DIRETA do usuario foi trocada por engano -- render() comum continua sendo a maioria",
+    novo.count("render();") > 50)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

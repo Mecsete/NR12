@@ -28,6 +28,29 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 18/08/2026 11:40
+
+Corrigido o resto do problema da página pulando para o topo ao digitar.
+
+A entrega anterior parou o redesenho que acontecia a CADA TECLA digitada
+na descrição da mitigação existente — mas o problema continuava
+aparecendo, bem mais raro. A causa que sobrava era diferente: uma
+varredura de fundo que roda a cada 2 minutos (sincronização automática,
+estimativa de pendente para baixar, estatística de espaço ocupado)
+redesenha a tela sozinha quase toda vez que roda, mesmo sem nada
+relevante ter mudado. Rodando a cada 2 minutos, é raro coincidir
+exatamente com alguém digitando — mas, coincidindo, o campo em que a
+pessoa está escrevendo é reconstruído do mesmo jeito, derrubando o
+cursor.
+
+Agora, sempre que esse redesenho de fundo aconteceria com o cursor dentro
+de uma caixa de texto, ele é adiado — o dado já foi gravado, só a tela
+espera até a pessoa sair do campo para se atualizar. Nenhuma ação que
+você mesmo faz (aplicar, gerar, salvar) foi afetada — essas continuam
+redesenhando na hora, como sempre.
+
+---
+
 ## 18/08/2026 10:55
 
 Três mudanças na revisão do laudo, todas sobre os dados preenchidos em
