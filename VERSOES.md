@@ -20,9 +20,30 @@ antigo, feche e abra o app novamente.
 > publicação). A partir de **07/08/2026 10:25**, o número na tela é
 > exatamente o mesmo desta lista.
 
+> **Atenção à versão de 17/08/2026 21:55.** Ela foi escrita com a data
+> errada — publicada de manhã em 18/08/2026, mas com o carimbo ainda de
+> 17/08. O registro abaixo já está com a data corrigida (18/08/2026
+> 09:57). Se o rodapé de Configurações de algum aparelho ainda mostrar
+> "17/08/2026 21:55", é a mesma versão — só o número que estava errado.
+
 ---
 
-## 17/08/2026 21:55
+## 18/08/2026 10:10
+
+Corrigida a própria data do número de versão, que tinha ficado errada na
+entrega anterior.
+
+O número que aparece no rodapé de Configurações (e nesta lista) é escrito
+à mão a cada entrega, com o horário de Brasília. Na virada da meia-noite
+de 17 para 18/08, a entrega seguinte foi escrita ainda com a data de
+17/08 — publicada de manhã em 18/08, mas com o carimbo do dia anterior.
+
+Sem efeito em nenhuma funcionalidade — só o número mostrado estava errado.
+O registro da entrega anterior, logo abaixo, já está com a data corrigida.
+
+---
+
+## 18/08/2026 09:57
 
 Corrigido: digitar na descrição da mitigação existente rolava a página
 sozinha.
