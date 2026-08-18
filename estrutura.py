@@ -1271,6 +1271,23 @@ chk("laudoGerarTudoDeNovo (Refazer sugestoes) continua cobrindo tudo de proposit
     "Reescrever as sugestões da IA de todas as linhas?" in novo
     and "const itens = laudoItensDoEscopo();" in novo)
 
+print("\n=== 51. CHECKLIST DA MITIGACAO EXISTENTE EM GRUPOS RECOLHIVEIS ===")
+# Com os 5 grupos (Protecao fisica, Dispositivos de seguranca, Eletrica e
+# energia, Acesso e altura, Organizacional) sempre abertos, a tela ficava
+# enorme so pra revisar 1 risco. Usuario pediu: fechado por padrao,
+# mostrando so o que ja foi marcado em campo, com opcao de abrir.
+chk("__laudoGrupoExistenteAberto existe e comeca vazio",
+    novo.count("let __laudoGrupoExistenteAberto = {};") >= 1)
+chk("fechado, so mostra os itens JA marcados do grupo (nao a lista toda)",
+    "const marcadosDoGrupo = g.itens.filter(m=>marcadas.indexOf(m.k)>=0);" in novo
+    and "const itensMostrados = aberto ? g.itens : marcadosDoGrupo;" in novo)
+chk("grupo vazio (fechado, nada marcado) nao desenha a caixa de chips a toa",
+    "${itensMostrados.length? `<div class=\"medida-chips\">" in novo)
+chk("laudoToggleGrupoExistente existe e redesenha a tela",
+    "laudoToggleGrupoExistente(nomeGrupo){ __laudoGrupoExistenteAberto[nomeGrupo] = !__laudoGrupoExistenteAberto[nomeGrupo]; render(); }," in novo)
+chk("trocar de risco fecha os grupos de novo (senao o que abriu vaza pro proximo risco)",
+    novo.count("__laudoGrupoExistenteAberto = {};") == 3)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

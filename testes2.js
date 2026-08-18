@@ -188,7 +188,7 @@ const BLOCO_B = trecho("/* =====================================================
    e caixas de informacao do HRN (App.laudoToggleInfoHrn), ambos lidos sem
    condicao nenhuma dentro do render — sem isto, qualquer teste que desenhe
    laudoBlocoCampo ou laudoBlocoHRN quebra com ReferenceError. */
-vm.runInContext("let __laudoRascunho = null; let __laudoInfoHrn = { po:false, fe:false, gpd:false, np:false }; let __laudoRefazendo = null;", ctx);
+vm.runInContext("let __laudoRascunho = null; let __laudoInfoHrn = { po:false, fe:false, gpd:false, np:false }; let __laudoRefazendo = null; let __laudoGrupoExistenteAberto = {};", ctx);
 vm.runInContext(BLOCO_A, ctx);
 vm.runInContext(BLOCO_B, ctx);
 const BLOCO_R = trecho("/* =========================================================================\n   MONTADOR DE RISCO EM CAMPO", "\nfunction formRiscoSHtml(){");
@@ -4195,6 +4195,45 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(HTML.indexOf("const base = laudoItensFiltradosPorEscolha(todos);") > 0);
       ok(HTML.indexOf("const faltando = laudoLinhasComPendencia(base).length;") > 0);
     });
+
+  console.log("\n=== t96 · checklist da Mitigação Existente em grupos recolhíveis ===");
+  /* Com os 5 grupos inteiros abertos (Proteção física, Dispositivos de
+     segurança, Elétrica e energia, Acesso e altura, Organizacional), a
+     tela ficava enorme para revisar um risco só. Usuário pediu: grupo
+     fechado por padrão, mostrando só o que já foi marcado em campo, com a
+     opção de abrir para marcar mais. */
+  t("grupo sem nada marcado fica fechado e sem nenhum chip visível", ()=>{
+    const item = { risco:{ id:"rAcc1", medidasExistentes:["prot_fixa"] } };
+    const html = C.laudoBlocoMedidaExistenteEditavelHtml(item);
+    ok(html.indexOf("Proteção fixa") > 0, "faltou o item marcado, que devia aparecer mesmo fechado");
+    ok(html.indexOf("Cerca de proteção perimetral") < 0,
+       "um item NÃO marcado do grupo Proteção física vazou mesmo fechado");
+    ok(html.indexOf("Comando bimanual") < 0,
+       "Dispositivos de segurança (grupo sem nada marcado) apareceu aberto");
+  });
+  t("abrir o grupo revela todas as opções, marcadas e não marcadas", ()=>{
+    const item = { risco:{ id:"rAcc2", medidasExistentes:["prot_fixa"] } };
+    vm.runInContext('__laudoGrupoExistenteAberto["Proteção física"] = true;', ctx);
+    const html = C.laudoBlocoMedidaExistenteEditavelHtml(item);
+    vm.runInContext('__laudoGrupoExistenteAberto = {};', ctx);
+    ok(html.indexOf("Proteção fixa") > 0);
+    ok(html.indexOf("Cerca de proteção perimetral") > 0, "abrir o grupo devia revelar as opções não marcadas também");
+  });
+  t("abrir um grupo não abre os outros", ()=>{
+    const item = { risco:{ id:"rAcc3" } };
+    vm.runInContext('__laudoGrupoExistenteAberto["Proteção física"] = true;', ctx);
+    const html = C.laudoBlocoMedidaExistenteEditavelHtml(item);
+    vm.runInContext('__laudoGrupoExistenteAberto = {};', ctx);
+    ok(html.indexOf("Cerca de proteção perimetral") > 0, "grupo aberto não apareceu");
+    ok(html.indexOf("Comando bimanual") < 0, "abrir um grupo vazou para os outros");
+  });
+  t("App.laudoToggleGrupoExistente existe e redesenha a tela", ()=>{
+    ok(HTML.indexOf("laudoToggleGrupoExistente(nomeGrupo){ __laudoGrupoExistenteAberto[nomeGrupo] = !__laudoGrupoExistenteAberto[nomeGrupo]; render(); }") > 0);
+  });
+  t("trocar de item fecha os grupos de novo (senão o que abriu num risco vaza pro próximo)", ()=>{
+    eq((HTML.match(/__laudoGrupoExistenteAberto = \{\};/g)||[]).length, 3,
+       "precisa existir a declaração e zerar em laudoAbrirItem E em laudoIrPara");
+  });
 
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");

@@ -22,6 +22,23 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 17/08/2026 21:25
+
+O checklist de Mitigação Existente agora abre em grupos recolhidos, em vez
+de mostrar os cinco grupos inteiros de uma vez.
+
+Proteção física, Dispositivos de segurança, Elétrica e energia, Acesso e
+altura e Organizacional — cada um trazia todas as suas opções abertas na
+tela o tempo todo, o que deixava a revisão de um risco só bem extensa,
+principalmente quando pouca coisa daquele grupo se aplicava.
+
+Agora cada grupo começa fechado, com uma seta. Fechado, mostra só o que já
+foi marcado em campo — se nada do grupo foi marcado, ele fica praticamente
+invisível, só o nome. Tocar no grupo abre a lista inteira, para marcar mais
+opções ou tirar alguma marcada.
+
+---
+
 ## 17/08/2026 20:45
 
 "Gerar o que falta" passa a respeitar os filtros de área, equipamento e
