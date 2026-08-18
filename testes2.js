@@ -4163,6 +4163,39 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     eq(trecho.indexOf('toast("Pedindo à IA'), -1, "o toast fantasma voltou — o botão já avisa, não precisa dos dois");
   });
 
+  console.log("\n=== t95 · 'Gerar o que falta' respeita o filtro de área/equipamento/tarefa ===");
+  /* Usuário clicou com o filtro em uma máquina (6 linhas na tela), o botão
+     dizia "Gerar o que falta (6)", mas o painel de progresso mostrou "de
+     250" e processou uma máquina de OUTRA área — o número no botão e o que
+     ele fazia de verdade não batiam. laudoGerarFaltantes ignorava os três
+     seletores e sempre cobria o laudo inteiro (todas as áreas exportáveis).
+     laudoGerarTudoDeNovo ("Refazer sugestões") não muda — o próprio
+     confirm() dela já avisa "de todas as linhas", então não é enganosa. */
+  t("laudoGerarFaltantes usa a mesma base filtrada que o número do botão",
+    ()=>{
+      const iMetodo = HTML.indexOf("async laudoGerarFaltantes(){");
+      const iFimMetodo = HTML.indexOf("\n  async laudoGerarTudoDeNovo(){", iMetodo);
+      const trecho = HTML.slice(iMetodo, iFimMetodo);
+      ok(trecho.indexOf("const base = laudoItensFiltradosPorEscolha(laudoItensDoEscopo());") > 0,
+         "voltou a ignorar area/equipamento/tarefa e cobrir o laudo inteiro");
+      ok(trecho.indexOf("const pend = laudoLinhasComPendencia(base);") > 0);
+      eq(trecho.indexOf("laudoLinhasComPendencia(laudoItensDoEscopo())"), -1,
+         "sobrou o caminho antigo, sem filtro nenhum");
+    });
+  t("o mesmo trecho que calcula o número do botão usa a base filtrada — prova que os dois batem",
+    ()=>{
+      /* Não dá pra chamar App.laudoGerarFaltantes() aqui (App não é
+         extraído no contexto de teste — é um objeto grande, entrelaçado
+         com DOM). Em vez disso, prova que a EXPRESSÃO que o método usa é
+         literalmente a mesma que já calcula o "(N)" mostrado no botão
+         (linha "const faltando = laudoLinhasComPendencia(base).length;",
+         onde "base" vem de laudoItensFiltradosPorEscolha). Verificado
+         manualmente no navegador com duas áreas e filtro de equipamento
+         ativo: só a área filtrada foi gerada. */
+      ok(HTML.indexOf("const base = laudoItensFiltradosPorEscolha(todos);") > 0);
+      ok(HTML.indexOf("const faltando = laudoLinhasComPendencia(base).length;") > 0);
+    });
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

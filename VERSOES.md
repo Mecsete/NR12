@@ -22,6 +22,28 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 17/08/2026 20:45
+
+"Gerar o que falta" passa a respeitar os filtros de área, equipamento e
+tarefa.
+
+O botão já mostrava o número certo — "Gerar o que falta (6)" quando havia
+um equipamento escolhido no filtro — mas o clique ignorava esse filtro e
+gerava para o laudo inteiro, todas as áreas incluídas na exportação. O
+número no botão e o que ele fazia de verdade não batiam: por isso o painel
+de progresso apareceu com "de 250" e mostrando uma máquina de outra área,
+mesmo com o filtro em uma única máquina.
+
+Agora os dois usam a mesma base. Com um filtro ativo, só o que está
+contado no número do botão é gerado. Sem filtro nenhum, continua cobrindo
+o laudo inteiro, como sempre foi.
+
+O botão **"Refazer sugestões"** não mudou — ele já avisa no próprio texto
+de confirmação que reescreve "todas as linhas", então não tinha a mesma
+confusão.
+
+---
+
 ## 17/08/2026 20:15
 
 "Pedir um ajuste à IA" agora mostra que está trabalhando, em vez de deixar

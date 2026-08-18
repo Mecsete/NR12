@@ -1810,7 +1810,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "17/08/2026 20:15";
+const APP_BUILD = "17/08/2026 20:45";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -16786,7 +16786,14 @@ const App = {
     toast(__iaCelulasVazias>0 ? "Alguns campos não puderam ser gerados" : "Textos gerados", __iaCelulasVazias===0);
   },
   async laudoGerarFaltantes(){
-    const pend = laudoLinhasComPendencia(laudoItensDoEscopo());
+    /* O número no próprio botão ("Gerar o que falta (N)") já vem de
+       laudoItensFiltradosPorEscolha — respeita área/equipamento/tarefa
+       escolhidos nos três seletores. Antes o clique ignorava esses
+       filtros e gerava para o laudo inteiro (podendo ser centenas de
+       linhas em outras áreas) — o número no botão e o que ele fazia de
+       verdade não batiam. */
+    const base = laudoItensFiltradosPorEscolha(laudoItensDoEscopo());
+    const pend = laudoLinhasComPendencia(base);
     if(pend.length===0){ toast("Todos os textos já estão gerados"); return; }
     toast(`Gerando textos… ${pend.length} linha(s)`);
     await gerarLaudoIAItens(pend, null, { refazer:false });

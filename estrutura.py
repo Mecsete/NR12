@@ -1254,6 +1254,23 @@ chk("o toast fantasma que sumia rapido foi removido, nao duplicado",
 chk("CSS do spinner existe uma unica vez",
     novo.count(".btn-spinner{") == 1 and novo.count("@keyframes girar{") == 1)
 
+print("\n=== 50. 'GERAR O QUE FALTA' RESPEITA O FILTRO DE AREA/EQUIPAMENTO/TAREFA ===")
+# O botao mostrava "Gerar o que falta (6)" com um filtro de equipamento
+# ativo, mas o clique ignorava os 3 seletores e cobria o laudo INTEIRO
+# (todas as areas exportaveis) -- o numero no botao e o que ele fazia de
+# verdade nao batiam. O usuario pediu para o clique respeitar o filtro,
+# igual ao numero que ja aparece no botao.
+_lgf = novo.find("async laudoGerarFaltantes(){")
+_fimLgf = novo.find("\n  async laudoGerarTudoDeNovo(){", _lgf)
+_trechoLgf = novo[_lgf:_fimLgf]
+chk("laudoGerarFaltantes usa laudoItensFiltradosPorEscolha, nao o laudo inteiro",
+    _lgf > 0 and "const base = laudoItensFiltradosPorEscolha(laudoItensDoEscopo());" in _trechoLgf
+    and "const pend = laudoLinhasComPendencia(base);" in _trechoLgf
+    and "laudoLinhasComPendencia(laudoItensDoEscopo())" not in _trechoLgf)
+chk("laudoGerarTudoDeNovo (Refazer sugestoes) continua cobrindo tudo de proposito -- o confirm() ja avisa isso",
+    "Reescrever as sugestões da IA de todas as linhas?" in novo
+    and "const itens = laudoItensDoEscopo();" in novo)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
