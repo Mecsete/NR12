@@ -28,6 +28,31 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 18/08/2026 14:50
+
+Geração de textos pela IA: quando a chave bate no limite de uso (ou a IA
+para de responder por qualquer outro motivo), o app agora para sozinho e
+avisa na hora, em vez de continuar tentando os campos um por um até o
+fim.
+
+Um usuário relatou que a IA tinha estourado o limite de uso pouco antes
+de clicar em "Gerar o que falta", e não tinha certeza se estava
+funcionando ou não. O que estava acontecendo: cada campo já tentava até
+5 vezes antes de desistir, e o app seguia assim, campo após campo, sem
+dar nenhum sinal de que estava tudo falhando — só no final, minutos
+depois, é que aparecia o aviso do motivo.
+
+Agora, quando duas tentativas seguidas falham (cada uma já passou pelas
+5 tentativas internas de sempre), o app entende que não é um problema
+passageiro e para o lote sozinho — o painel de progresso já mostra o
+motivo (por exemplo, "limite de uso da IA atingido") enquanto ainda está
+rodando, não só depois de tudo terminar. O que já tinha sido gerado até
+ali continua salvo normalmente. Uma falha isolada (um soluço de rede,
+por exemplo) não aciona essa parada — o app segue tentando os campos
+seguintes normalmente.
+
+---
+
 ## 18/08/2026 14:30
 
 Cabeçalho do risco, na tela ampla (computador/tablet deitado): fotos

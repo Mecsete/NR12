@@ -454,6 +454,7 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .prog-barra{height:100%;width:0;background:var(--accent);border-radius:99px;transition:width .25s ease;}
 .prog-linha{display:flex;justify-content:space-between;font-size:12px;font-weight:800;color:var(--ink-dim);}
 .prog-linha.prog-tempo{font-weight:600;font-size:11.5px;color:var(--ink-faint);margin-top:3px;}
+.prog-aviso{font-size:11.5px;font-weight:700;color:#8A5B00;background:#FFF3D6;border-radius:8px;padding:6px 8px;margin-top:8px;text-align:center;}
 .sheet-col{display:flex;flex-direction:column;}
 .sheet-col>*{flex-shrink:0;}
 /* A lista é a única coisa que encolhe: a base dela é a altura do conteúdo, que
@@ -1813,7 +1814,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "18/08/2026 14:30";
+const APP_BUILD = "18/08/2026 14:50";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -5897,7 +5898,7 @@ function progressoAbrir(titulo, total){
   /* Já havendo um painel aberto (uma etapa chamando outra), a de dentro só
      escreve na que já está na tela — senão uma fecharia a outra. */
   if(__progresso){ __progresso.titulo = titulo; progressoDesenhar(); return false; }
-  __progresso = { titulo, feito:0, total:total||0, inicio:Date.now(), cancelado:false, sub:"" };
+  __progresso = { titulo, feito:0, total:total||0, inicio:Date.now(), cancelado:false, sub:"", aviso:"" };
   const div = document.createElement("div");
   div.id = "progressoRoot";
   div.className = "prog-fundo";
@@ -5907,6 +5908,7 @@ function progressoAbrir(titulo, total){
       <div class="prog-trilho"><div class="prog-barra" id="progBarra"></div></div>
       <div class="prog-linha"><span id="progPct">0%</span><span id="progCont"></span></div>
       <div class="prog-linha prog-tempo"><span id="progDecorrido"></span><span id="progRestante"></span></div>
+      <div class="prog-aviso" id="progAviso" style="display:none"></div>
       <button class="btn btn-secondary btn-sm btn-block" style="margin-top:12px" onclick="App.progressoParar()">${ic('close')} Parar</button>
       <div class="field-hint" style="text-align:center;margin-top:6px">O que já ficou pronto é guardado. Dá para continuar depois.</div>
     </div>`;
@@ -5931,12 +5933,24 @@ function progressoDesenhar(){
      absurdo e a pessoa perderia a confiança no resto. */
   el("progRestante").textContent = (p.feito >= 2 && p.total > p.feito)
     ? "faltam ~" + progressoTempo(decorrido/p.feito*(p.total-p.feito)) : "";
+  const elAviso = el("progAviso");
+  if(elAviso){
+    elAviso.textContent = p.aviso || "";
+    elAviso.style.display = p.aviso ? "" : "none";
+  }
 }
-function progressoAtualizar(feito, total, sub){
+/* aviso (4º parâmetro, opcional): recado visível no próprio painel enquanto
+   ele ainda está rodando — por exemplo, o motivo de uma chamada de IA ter
+   falhado. Sem isso, quem está esperando só descobre o motivo no toast do
+   final, depois de já ter esperado o tempo todo. Passar "" limpa o aviso
+   (chamada de sucesso depois de uma falha); omitir o parâmetro mantém o que
+   já estava escrito. */
+function progressoAtualizar(feito, total, sub, aviso){
   if(!__progresso) return;
   if(typeof feito === "number") __progresso.feito = feito;
   if(typeof total === "number" && total > 0) __progresso.total = total;
   if(sub !== undefined) __progresso.sub = sub || "";
+  if(aviso !== undefined) __progresso.aviso = aviso || "";
   progressoDesenhar();
 }
 function progressoFechar(meu){
@@ -10857,6 +10871,27 @@ async function gerarLaudoIAItens(itens, onProgress, opts){
     return n;
   })();
   let camposFeitos = 0;
+  /* Cada campo já tenta sozinho até 5 vezes (chamarIAResiliente) antes de
+     desistir — então UM campo falhando já é forte indício de problema, não
+     ruído. Mas parar no primeiro reagiria demais a um blip isolado de rede.
+     Duas falhas SEGUIDAS (cada uma já passou pelas 5 tentativas internas)
+     é o suficiente pra distinguir "instabilidade passageira" de "a chave
+     estourou o limite" — e nesse caso não faz sentido continuar batendo a
+     cabeça nos campos que restam: o usuário pediu para o app parar e
+     avisar o motivo, em vez de deixá-lo esperando o tempo inteiro só para
+     descobrir no fim que nada foi gerado. */
+  let falhasSeguidas = 0, paradoPorFalhas = false;
+  const LIMITE_FALHAS_SEGUIDAS = 2;
+  const registrarResultadoCampo = (ok)=>{
+    if(ok){
+      if(falhasSeguidas>0) progressoAtualizar(undefined, undefined, undefined, "");
+      falhasSeguidas = 0;
+      return;
+    }
+    falhasSeguidas++;
+    progressoAtualizar(undefined, undefined, undefined, "Sem resposta da IA — " + (__iaMotivoFalha || "motivo desconhecido"));
+    if(falhasSeguidas >= LIMITE_FALHAS_SEGUIDAS) paradoPorFalhas = true;
+  };
   const CAMPO_ROTULO = { escopo:"escopo do equipamento", tarefa:"descrição da tarefa", risco:"descrição do risco", existente:"mitigação existente", solucao:"solução" };
   /* Avisa ANTES de escrever: a pessoa ve o que esta sendo feito enquanto a IA
      responde, e nao so depois de pronto. */
@@ -10892,7 +10927,9 @@ async function gerarLaudoIAItens(itens, onProgress, opts){
         laudoSet(item, "escopo", { sug:jEscopo.texto, duv:jEscopo.duvida||"", st:"pend", fin:"", refs:entradaEscopo.refs });
         gravados++;
       }
+      registrarResultadoCampo(!!jEscopo.texto);
       camposFeitos++;
+      if(paradoPorFalhas) break;
       await esperar(200);
     }
     // ---- Descrição da tarefa (uma vez por TAREFA) ----
@@ -10904,7 +10941,9 @@ async function gerarLaudoIAItens(itens, onProgress, opts){
         `Tarefa: ${nomeTarefa}\nMáquina/Ativo: ${nomeMaquinaS(item.maquina)}\nNota do inspetor: ${item.tarefa.descricao||"(não informada)"}`, exemplos.tarefa);
       const j = parseRespostaJsonIA(await chamarIAResiliente("tarefa_xlsx", entradaTarefa.texto)) || {};
       if(j.texto){ laudoSet(item, "tarefa", { sug:j.texto, duv:j.duvida||"", st:"pend", fin:"", refs:entradaTarefa.refs }); gravados++; }
+      registrarResultadoCampo(!!j.texto);
       camposFeitos++;
+      if(paradoPorFalhas) break;
       await esperar(200);
     }
     // ---- Risco, Mitigação Existente e Solução (por LINHA, com reuso de casos idênticos) ----
@@ -10927,9 +10966,12 @@ async function gerarLaudoIAItens(itens, onProgress, opts){
         if(orig.trim()) reuso.set(ch, { texto:j.texto, duv:j.duvida||"", refs:entradaCampo.refs });
         gravados++;
       }
+      registrarResultadoCampo(!!j.texto);
       camposFeitos++;
+      if(paradoPorFalhas) break;
       await esperar(250);
     }
+    if(paradoPorFalhas) break;
     if(i % 5 === 4) marcarAlterado();
   }
   }finally{ progressoFechar(meuPainel); }
@@ -16906,7 +16948,7 @@ const App = {
     toast("Gerando textos desta linha…");
     await gerarLaudoIAItens([item], null, { refazer:false });
     render();
-    toast(__iaCelulasVazias>0 ? "Alguns campos não puderam ser gerados" : "Textos gerados", __iaCelulasVazias===0);
+    toast(__iaCelulasVazias>0 ? `Alguns campos não puderam ser gerados${__iaMotivoFalha? ` — ${__iaMotivoFalha}` : ""}` : "Textos gerados", __iaCelulasVazias===0);
   },
   async laudoGerarFaltantes(){
     /* O número no próprio botão ("Gerar o que falta (N)") já vem de

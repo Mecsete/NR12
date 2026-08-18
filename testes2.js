@@ -128,7 +128,7 @@ function progressoAbrir(titulo, total){
   painelTeste.aberto = true;
   return meu;
 }
-function progressoAtualizar(feito, total, sub){ painelTeste.atualizacoes.push({ feito, total, sub }); }
+function progressoAtualizar(feito, total, sub, aviso){ painelTeste.atualizacoes.push({ feito, total, sub, aviso }); }
 function progressoFechar(meu){ if(meu === false) return; painelTeste.fechamentos++; painelTeste.aberto = false; }
 function progressoCancelado(){ return painelTeste.cancelar; }
 const ctx = { OUTRO, STATE, linhasEscopoSimples, nomeMaquinaS, valOuOutro, escapeHtml, ic, toast, marcarAlterado,
@@ -3496,30 +3496,43 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     eq((HTML.match(/gerarLaudoIAItens\([a-zA-Z]+, null, \{ refazer:(true|false) \}\)/g)||[]).length, 5,
        "toda geração em lote precisa passar pelo painel — inclusive as da aba IA");
   });
-  t("a geração em lote de verdade abre, atualiza e fecha o painel", async ()=>{
-    painelTeste.aberturas = []; painelTeste.atualizacoes = []; painelTeste.fechamentos = 0;
-    painelTeste.aberto = false; painelTeste.cancelar = false;
-    STATE.ui.laudoFiltroArea = ""; STATE.ui.laudoFiltroMaq = ""; STATE.ui.laudoFiltroTar = "";
-    const itens = C.linhasEscopoSimples().slice(0, 3);
-    itens.forEach(it=>{ it.maquina.laudoIA = {}; it.tarefa.laudoIA = {}; it.risco.laudoIA = {}; });
-    setIAApiKey("chave-teste");
-    await C.gerarLaudoIAItens(itens, null, { refazer:true });
+  /* As duas checagens abaixo precisam de verdade rodar await C.gerarLaudoIAItens
+     ANTES de conferir o resultado — passar uma função async direto para t()
+     não funciona (t() não espera a promise: "ok" sairia na hora, sem checar
+     nada de verdade, e o await de dentro ficaria correndo solto, podendo
+     ainda emitir progressoAtualizar() e sujar o painelTeste de um teste
+     futuro qualquer que também use IA). Por isso o await mora aqui fora,
+     como em t17, e só as conferências síncronas vão dentro do t(). */
+  painelTeste.aberturas = []; painelTeste.atualizacoes = []; painelTeste.fechamentos = 0;
+  painelTeste.aberto = false; painelTeste.cancelar = false;
+  STATE.ui.laudoFiltroArea = ""; STATE.ui.laudoFiltroMaq = ""; STATE.ui.laudoFiltroTar = "";
+  const itensT77a = C.linhasEscopoSimples().slice(0, 3);
+  itensT77a.forEach(it=>{ it.maquina.laudoIA = {}; it.tarefa.laudoIA = {}; it.risco.laudoIA = {}; });
+  setIAApiKey("chave-teste");
+  await C.gerarLaudoIAItens(itensT77a, null, { refazer:true });
+  t("a geração em lote de verdade abre, atualiza e fecha o painel", ()=>{
     eq(painelTeste.aberturas.length, 1, "deveria abrir um painel só");
     eq(painelTeste.aberturas[0].titulo, "Escrevendo textos da IA");
-    eq(painelTeste.aberturas[0].total, 3);
+    /* itensT77a.length e não um número fixo: quantos riscos existem em
+       STATE.projetosSimples neste ponto do arquivo depende de fixtures de
+       testes anteriores (ex.: t64 deixa a árvore com duplicatas mescladas)
+       — o que este teste precisa garantir é que o painel abre com o mesmo
+       total que foi passado pra geração, não um número mágico. */
+    eq(painelTeste.aberturas[0].total, itensT77a.length);
     eq(painelTeste.fechamentos, 1, "o painel precisa fechar ao terminar");
-    ok(painelTeste.atualizacoes.length >= 3, "não reportou o avanço");
+    ok(painelTeste.atualizacoes.length >= itensT77a.length, "não reportou o avanço");
   });
-  t("parar interrompe a leva e o que já foi feito continua gravado", async ()=>{
-    painelTeste.aberturas = []; painelTeste.atualizacoes = []; painelTeste.fechamentos = 0;
-    painelTeste.aberto = false; painelTeste.cancelar = true;   // parada pedida antes de começar
-    const itens = C.linhasEscopoSimples().slice(0, 3);
-    itens.forEach(it=>{ it.maquina.laudoIA = {}; it.tarefa.laudoIA = {}; it.risco.laudoIA = {}; });
-    const gravados = await C.gerarLaudoIAItens(itens, null, { refazer:true });
-    eq(gravados, 0, "não deveria ter gerado nada depois da parada");
+
+  painelTeste.aberturas = []; painelTeste.atualizacoes = []; painelTeste.fechamentos = 0;
+  painelTeste.aberto = false; painelTeste.cancelar = true;   // parada pedida antes de começar
+  const itensT77b = C.linhasEscopoSimples().slice(0, 3);
+  itensT77b.forEach(it=>{ it.maquina.laudoIA = {}; it.tarefa.laudoIA = {}; it.risco.laudoIA = {}; });
+  const gravadosT77b = await C.gerarLaudoIAItens(itensT77b, null, { refazer:true });
+  t("parar interrompe a leva e o que já foi feito continua gravado", ()=>{
+    eq(gravadosT77b, 0, "não deveria ter gerado nada depois da parada");
     eq(painelTeste.fechamentos, 1, "o painel precisa fechar mesmo tendo sido parado");
-    painelTeste.cancelar = false;
   });
+  painelTeste.cancelar = false;
 
   console.log("\n=== t78 · inventário de máquinas em página deitada ===");
   t("existe geometria própria para a página deitada", ()=>{
@@ -4404,6 +4417,75 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ()=>{
       ok(HTML.indexOf('<div class="laudo-topo-siglas">${LAUDO_CAMPOS.map(c=>laudoSiglaChip(item, c.k, c.sigla)).join("")}</div>') > 0);
     });
+
+  console.log("\n=== t101 · geração em lote da IA para cedo e avisa o motivo na hora ===");
+  /* Usuário relatou a chave de IA batendo no limite de uso durante uma
+     geração em lote: o app continuava tentando os campos um por um, cada
+     um com as 5 tentativas internas de sempre, sem dar nenhum sinal de
+     que estava tudo falhando — só no fim, minutos depois, é que aparecia
+     o motivo. Aqui simula-se chamarIAResiliente sempre falhando (como um
+     429 real faria) e confere que o lote PARA sozinho depois de 2 falhas
+     seguidas, sem esgotar todos os campos pendentes, e que o painel de
+     progresso recebe o aviso a cada falha (não só no final). Depois,
+     confirma que uma falha ISOLADA (que se recupera sozinha) não afeta
+     o lote inteiro. */
+  function riscoFrescoT101(id){
+    return { id, nome:"Risco "+id, nomeOutro:"", descRisco:"", descMedida:"", sugestaoMitigacao:"",
+      laudoIA:{}, foto:null, fotosOutras:[] };
+  }
+  function itensFrescosT101(prefixo){
+    const tarefas = [1,2,3].map(n=>({ id:prefixo+"t"+n, tarefa:"Tarefa "+prefixo+n, tarefaOutro:"", frequencia:"Diária", numPessoas:"1", riscos:[riscoFrescoT101(prefixo+"r"+n)] }));
+    const maquina = { id:prefixo+"m1", nome:"Máquina "+prefixo, descricao:"", fotoGeral:null, fotoPlaqueta:null, fotosOutras:[], tarefas, laudoIA:{} };
+    const area = { id:prefixo+"a1", nome:"Área "+prefixo, maquinas:[maquina] };
+    const proj = { id:prefixo+"p1", nome:"Projeto "+prefixo, areas:[area] };
+    return tarefas.map(tf=>({ proj, area, maquina, tarefa:tf, risco:tf.riscos[0] }));
+  }
+  const chamarOriginalT101 = C.chamarIAResiliente;
+  /* Alguns testes anteriores passam uma função async direto para t() (que
+     não aguarda a promise — roda "solta"). Isso pode deixar CHAVE/painelTeste
+     num estado incerto por um instante caso ainda não tenham terminado.
+     Blindagem explícita das precondições, igual ao que t77 já fazia. */
+  C.setIAApiKey("chave-teste-101");
+  painelTeste.aberturas = []; painelTeste.fechamentos = 0; painelTeste.aberto = false; painelTeste.cancelar = false;
+
+  // ---- Cenário A: IA sempre falha (limite de uso atingido) ----
+  C.chamarIAResiliente = async ()=>{
+    C.__iaMotivoFalha = "limite de uso da IA atingido (erro 429) — o provedor pediu para esperar";
+    C.__iaChamadasFalhas = (C.__iaChamadasFalhas||0) + 1;
+    return null;
+  };
+  painelTeste.atualizacoes = [];
+  const itensA = itensFrescosT101("A");
+  const gravadosA = await C.gerarLaudoIAItens(itensA, null, { refazer:false });
+  const avisosA = painelTeste.atualizacoes.filter(a=>a.aviso);
+  const anunciosA = painelTeste.atualizacoes.filter(a=>a.sub);
+  t("nada é gravado quando a IA nunca responde", ()=> eq(gravadosA, 0));
+  t("para exatamente nas 2 falhas seguidas configuradas (não fica repetindo à toa)",
+    ()=> eq(avisosA.length, 2, "avisos registrados: " + avisosA.length));
+  t("o aviso mostrado é o motivo real da falha, visível enquanto ainda está rodando",
+    ()=> ok(avisosA.every(a=>a.aviso.indexOf("limite de uso da IA atingido") > 0), "aviso não bate com __iaMotivoFalha"));
+  t("parou bem antes de esgotar os 10 campos pendentes desta leva (não grudou tentando tudo)",
+    ()=> ok(anunciosA.length < 10, "anunciou " + anunciosA.length + " campos — deveria ter parado cedo"));
+
+  // ---- Cenário B: uma falha isolada não derruba o lote inteiro ----
+  let chamadasB = 0;
+  C.chamarIAResiliente = async ()=>{
+    chamadasB++;
+    if(chamadasB === 2) return null; // um blip isolado, não repete
+    return JSON.stringify({ texto: "Texto gerado #" + chamadasB, duvida:"" });
+  };
+  C.setIAApiKey("chave-teste-101");
+  painelTeste.aberturas = []; painelTeste.fechamentos = 0; painelTeste.aberto = false; painelTeste.cancelar = false;
+  painelTeste.atualizacoes = [];
+  const itensB = itensFrescosT101("B");
+  const gravadosB = await C.gerarLaudoIAItens(itensB, null, { refazer:false });
+  const avisosB = painelTeste.atualizacoes.filter(a=>a.aviso);
+  t("uma falha isolada se recupera sozinha — o lote continua até o fim",
+    ()=> ok(gravadosB >= 8, "só " + gravadosB + " campos gravados; esperava quase todos os 10"));
+  t("só registrou 1 aviso (a falha isolada), sem acionar a parada antecipada",
+    ()=> eq(avisosB.length, 1, "avisos registrados: " + avisosB.length));
+
+  C.chamarIAResiliente = chamarOriginalT101;
 
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");

@@ -1424,6 +1424,31 @@ chk("selos E-T-R-S comecam escondidos (mobile) e so aparecem a partir de 900px",
 chk("cabecalho do risco desenha os 4 selos reaproveitando laudoSiglaChip (mesma logica de cor da lista)",
     '<div class="laudo-topo-siglas">${LAUDO_CAMPOS.map(c=>laudoSiglaChip(item, c.k, c.sigla)).join("")}</div>' in novo)
 
+print("\n=== 58. GERACAO EM LOTE DA IA PARA CEDO E AVISA O MOTIVO NA HORA ===")
+# Usuario relatou: a IA tinha estourado o limite de uso, mas a geracao em
+# lote ("Gerar o que falta") continuava tentando os 30 campos, um por um,
+# cada um com ate 5 tentativas internas (chamarIAResiliente ja tinha isso),
+# sem dar nenhum sinal de que estava tudo falhando -- so no final, depois
+# de ~12 minutos, o toast dizia o motivo. Pedido do usuario: o app parar e
+# mostrar o motivo, sem deixar a pessoa esperando a toa. Duas falhas
+# SEGUIDAS (cada uma ja passou pelas 5 tentativas internas) e o gatilho --
+# uma falha isolada (blip de rede) nao para nada, so a repeticao para.
+chk("registrarResultadoCampo existe: limpa o aviso e zera a contagem no sucesso, acumula e avisa na falha",
+    "let falhasSeguidas = 0, paradoPorFalhas = false;" in novo
+    and "const LIMITE_FALHAS_SEGUIDAS = 2;" in novo
+    and 'progressoAtualizar(undefined, undefined, undefined, "Sem resposta da IA — " + (__iaMotivoFalha || "motivo desconhecido"));' in novo
+    and "if(falhasSeguidas >= LIMITE_FALHAS_SEGUIDAS) paradoPorFalhas = true;" in novo)
+chk("os 3 pontos que chamam a IA (escopo, tarefa, risco/existente/solucao) registram o resultado e podem parar o lote",
+    novo.count("registrarResultadoCampo(!!jEscopo.texto);") == 1
+    and novo.count("registrarResultadoCampo(!!j.texto);") == 2
+    and novo.count("if(paradoPorFalhas) break;") == 4)
+chk("painel de progresso ganhou uma linha de aviso visivel (nao só um toast escondido até o fim)",
+    ".prog-aviso{font-size:11.5px;font-weight:700;color:#8A5B00;background:#FFF3D6;" in novo
+    and '<div class="prog-aviso" id="progAviso" style="display:none"></div>' in novo
+    and "function progressoAtualizar(feito, total, sub, aviso){" in novo)
+chk("laudoGerarLinha (gerar 1 linha) tambem mostra o motivo da falha, igual laudoGerarFaltantes ja mostrava",
+    'toast(__iaCelulasVazias>0 ? `Alguns campos não puderam ser gerados${__iaMotivoFalha? ` — ${__iaMotivoFalha}` : ""}` : "Textos gerados", __iaCelulasVazias===0);' in novo)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
