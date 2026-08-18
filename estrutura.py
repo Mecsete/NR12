@@ -1305,6 +1305,47 @@ chk("'desc' (digitacao livre) nao chama render() a cada tecla",
 chk("'situacao'/'ressalva' (clique/selecao) continuam sincronizando e redesenhando",
     'if(campo !== "desc") sincronizarDescMedidaExistente(r);' in _trechoIsm)
 
+print("\n=== 53. TIPO DE EQUIPAMENTO E MANUAL ENTRAM NA REVISAO DO LAUDO ===")
+# Preenchidos no cadastro da maquina, mas nao apareciam em NENHUM lugar da
+# revisao do laudo -- so no inventario (Excel/impressao). Usuario pediu
+# para todo campo preenchido em campo aparecer para avaliacao final.
+chk("os dois campos entram no cartao da Plaqueta, com o select certo de cada um",
+    'onchange="App.laudoSetPlaqueta(\'${rid}\',\'tipoEquip\', this.value)">${selectOptions(TIPOS_EQUIPAMENTO,' in novo
+    and 'onchange="App.laudoSetPlaqueta(\'${rid}\',\'manual\', this.value)">${selectOptions(MANUAL_OPCOES,' in novo)
+chk("o contador do cartao passou de 6 para 8 campos, contando os dois novos",
+    "const totalCamposPlaqueta = LAUDO_PLAQUETA_CAMPOS.length + 2;" in novo
+    and '${preenchidos}/${totalCamposPlaqueta} campos' in novo)
+chk("sem selo de confirmacao nos dois -- decisao explicita do usuario, so mostrar",
+    "tipoEquipOk?1:0" in novo and "manualOk?1:0" in novo)
+
+print("\n=== 54. FE/NP SEMPRE DA TAREFA (SEM EXCECAO POR RISCO) + ALERTA VERMELHO ===")
+# Historico desta secao, dentro da MESMA entrega: primeiro veio o pedido de
+# destacar em vermelho Frequencia/No de pessoas sem preenchimento na
+# tarefa (FE/NP ainda eram <select> por risco, com prioridade sobre a
+# tarefa). Na sequencia o usuario testou e viu dois riscos da MESMA tarefa
+# com No de pessoas diferente -- e decidiu que FE/NP devem ser SEMPRE da
+# tarefa, sem excecao nenhuma (o que continua ajustavel por risco e o
+# Nivel de desempenho requerido/PLr, outro cartao). As checagens abaixo
+# sao do estado FINAL, nao da etapa intermediaria.
+chk("hrnDoItem nao le mais risco.fe/risco.np -- fe/np vem so da tarefa",
+    "const fe  = sugerirFE(valOuOutro(tarefa.frequencia, tarefa.frequenciaOutro));" in novo
+    and "const np  = sugerirNP(valOuOutro(tarefa.numPessoas, tarefa.numPessoasOutro));" in novo
+    and "risco.fe ? valorPorClassificacaoHRN(HRN_FE_TABELA, risco.fe)" not in novo
+    and "risco.np ? valorPorClassificacaoHRN(HRN_NP_TABELA, risco.np)" not in novo)
+chk("PO e GPD continuam <select> por risco, sem parametro de alerta (nunca ficam vermelhos)",
+    novo.count('function laudoSelectHRN(rid, chave, tabela, valorAtual, rotuloAuto, origem){') == 1
+    and novo.count('laudoSelectHRN(rid,"po",HRN_PO_TABELA,r.po||"",autoPO,"Estimado")') == 1
+    and novo.count('laudoSelectHRN(rid,"gpd",HRN_GPD_TABELA,r.gpd||"",autoGPD,"Estimado")') == 1)
+chk("FE e NP viraram exibicao so-leitura (laudoValorTarefaHrn), nao <select>",
+    novo.count("function laudoValorTarefaHrn(rotulo, alerta){") == 1
+    and 'laudoSelectHRN(rid,"fe"' not in novo and 'laudoSelectHRN(rid,"np"' not in novo
+    and novo.count('${laudoValorTarefaHrn(freqTarefa? "Da tarefa ("+freqTarefa+"): "+autoFE : "Sem frequência na tarefa", !freqTarefa)}') == 1
+    and novo.count('${laudoValorTarefaHrn(npTarefa? "Da tarefa ("+npTarefa+"): "+autoNP : "Sem nº na tarefa", !npTarefa)}') == 1)
+chk("vermelho (borda + fundo + texto) só quando a tarefa não tem o dado, sem botão de confirmar",
+    'border:1.5px solid #B3261E;background:#FDE7E5;color:#8C1D18;border-radius:' in novo
+    and "A tarefa não tem frequência informada — edite a tarefa para preencher." in novo
+    and "A tarefa não tem nº de pessoas informado — edite a tarefa para preencher." in novo)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

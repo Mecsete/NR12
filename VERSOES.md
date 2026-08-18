@@ -28,6 +28,36 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 18/08/2026 10:55
+
+Três mudanças na revisão do laudo, todas sobre os dados preenchidos em
+campo aparecerem por completo para a avaliação final do engenheiro.
+
+**Tipo de equipamento e Manual de operação agora aparecem no laudo.**
+Esses dois campos são preenchidos no cadastro da máquina, mas não
+apareciam em nenhum lugar da revisão — só no inventário (Excel e
+impressão). Agora entram no cartão "Plaqueta do equipamento", junto com
+Modelo, Marca, Nº de série, Ano, Capacidade e Tensão — o contador passou
+de "X/6" para "X/8 campos".
+
+**Frequência e Nº de pessoas sem preenchimento na tarefa ficam em
+vermelho.** Existia uma estimativa silenciosa (o app calculava um valor
+mesmo sem a tarefa ter frequência ou número de pessoas informado). Agora,
+quando falta esse dado, o campo aparece com borda e fundo vermelhos na
+Avaliação HRN, com uma frase dizendo o que fazer — sem precisar de nenhum
+botão, o vermelho já é o aviso.
+
+**Frequência e Nº de pessoas passam a ser sempre da tarefa, sem exceção.**
+Existia uma opção de escolher um valor diferente para UM risco específico,
+sobrepondo o da tarefa. Um teste revelou dois riscos da mesma tarefa com
+número de pessoas diferente — o app estava se comportando como projetado,
+mas não era o que fazia sentido: se dois riscos são da mesma tarefa, o
+número de pessoas exposto é o mesmo para os dois. Essa opção foi removida.
+O que continua ajustável risco a risco é o **Nível de desempenho
+requerido** (PLr/Categoria) — assunto e tabela diferentes.
+
+---
+
 ## 18/08/2026 10:10
 
 Corrigida a própria data do número de versão, que tinha ficado errada na

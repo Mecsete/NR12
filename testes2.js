@@ -191,6 +191,12 @@ const BLOCO_B = trecho("/* =====================================================
 vm.runInContext("let __laudoRascunho = null; let __laudoInfoHrn = { po:false, fe:false, gpd:false, np:false }; let __laudoRefazendo = null; let __laudoGrupoExistenteAberto = {};", ctx);
 vm.runInContext(BLOCO_A, ctx);
 vm.runInContext(BLOCO_B, ctx);
+/* laudoBlocoPlaqueta (dentro de BLOCO_B) passou a usar selectOptions/opt
+   para Tipo de equipamento e Manual — precisam existir antes de qualquer
+   teste que desenhe essa tela. */
+vm.runInContext(constante("TIPOS_EQUIPAMENTO"), ctx);
+vm.runInContext(constante("MANUAL_OPCOES"), ctx);
+[ "opt", "selectOptions" ].forEach(n=> vm.runInContext(funcao(n), ctx));
 const BLOCO_R = trecho("/* =========================================================================\n   MONTADOR DE RISCO EM CAMPO", "\nfunction formRiscoSHtml(){");
 /* Sinalizadores de painel aberto que o bloco do montador consulta. Ficam
    declarados fora dele no app, então precisam existir aqui antes. */
@@ -229,24 +235,33 @@ t("sem escolha, HRN usa a estimativa automatica", ()=>{
   eq(h.fe, 2.5, "FE da tarefa Diário");
   eq(h.np, 1, "NP de 2 pessoas");
 });
-t("escolher FE no risco tem prioridade sobre a tarefa", ()=>{
+t("escolher FE no risco NÃO tem mais efeito — FE sempre vem da tarefa", ()=>{
+  /* Existia uma excecao por risco, removida de proposito: usuario testou
+     e viu dois riscos da MESMA tarefa com numero de pessoas diferente, e
+     decidiu que Frequencia/No de pessoas devem ser sempre da tarefa, sem
+     excecao — o que pode variar por risco e o Nivel de desempenho
+     requerido (PLr/Categoria), assunto separado. */
   const it = C.linhasEscopoSimples()[0];
   it.risco.fe = "Constante";
   const h = C.hrnDoItem({tarefa:it.tarefa, risco:it.risco});
-  eq(h.fe, 5);
+  eq(h.fe, 2.5, "fe do risco nao pode mais vencer o da tarefa (Diário)");
+  it.risco.fe = "";
 });
-t("escolher NP no risco tem prioridade sobre a tarefa", ()=>{
+t("escolher NP no risco NÃO tem mais efeito — NP sempre vem da tarefa", ()=>{
   const it = C.linhasEscopoSimples()[0];
   it.risco.np = "16-50 pessoas";
   const h = C.hrnDoItem({tarefa:it.tarefa, risco:it.risco});
-  eq(h.np, 8);
+  eq(h.np, 1, "np do risco nao pode mais vencer o da tarefa (2 pessoas)");
+  it.risco.np = "";
 });
-t("PO e GPD escolhidos entram no calculo", ()=>{
+t("PO e GPD continuam por risco; FE/NP do cálculo vêm só da tarefa", ()=>{
   const it = C.linhasEscopoSimples()[0];
   it.risco.po = "Certo"; it.risco.gpd = "Fatalidade";
   const h = C.hrnDoItem({tarefa:it.tarefa, risco:it.risco});
   eq(h.po, 15); eq(h.gpd, 15);
-  eq(h.hrn, C.calcHRN(15,5,15,8));
+  eq(h.fe, 2.5, "fe precisa continuar vindo da tarefa mesmo com po/gpd escolhidos no risco");
+  eq(h.np, 1, "np precisa continuar vindo da tarefa mesmo com po/gpd escolhidos no risco");
+  eq(h.hrn, C.calcHRN(15,2.5,15,1));
   eq(h.nivel, "INACEITÁVEL");
 });
 t("as 4 tabelas do HRN batem com a metodologia enviada", ()=>{
@@ -275,9 +290,10 @@ t("voltar para automatico limpa a escolha", ()=>{
   const h = C.hrnDoItem({tarefa:it.tarefa, risco:it.risco});
   eq(h.fe, 2.5);
 });
-t("bloco HRN renderiza os 4 seletores", ()=>{
+t("bloco HRN: PO e GPD continuam seletores; FE e NP viraram só leitura", ()=>{
   const html = C.laudoBlocoHRN(C.linhasEscopoSimples()[0]);
-  ["'po'","'fe'","'gpd'","'np'"].forEach(k=> ok(html.indexOf("laudoSetHRN('r1',"+k) > 0, "faltou "+k));
+  ["'po'","'gpd'"].forEach(k=> ok(html.indexOf("laudoSetHRN('r1',"+k) > 0, "faltou "+k));
+  ["'fe'","'np'"].forEach(k=> eq(html.indexOf("laudoSetHRN('r1',"+k), -1, "fe/np nao podem mais ser escolhidos por risco: "+k));
   ok(html.indexOf("Colunas V a AA") < 0, "referencia de coluna deveria ter saido");
 });
 t("HRN diz que Frequencia e Nº de pessoas vem da tarefa", ()=>{
@@ -662,15 +678,18 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
         ok(h.indexOf(rot) > 0, "faltou rótulo "+rot);
       });
   });
-  t("contador de campos preenchidos começa em 0/6", ()=>{
-    ok(C.laudoBlocoPlaqueta(C.linhasEscopoSimples()[0]).indexOf("0/6 campos") > 0);
+  t("contador de campos preenchidos começa em 0/8 (6 da plaqueta + Tipo de equipamento + Manual)", ()=>{
+    ok(C.laudoBlocoPlaqueta(C.linhasEscopoSimples()[0]).indexOf("0/8 campos") > 0);
   });
-  t("contador acompanha o preenchimento", ()=>{
+  t("contador acompanha o preenchimento, incluindo Tipo de equipamento e Manual", ()=>{
     const it = C.linhasEscopoSimples()[0];
     it.maquina.modelo = "XYZ-200"; it.maquina.marca = "ACME";
-    const h = C.laudoBlocoPlaqueta(it);
-    ok(h.indexOf("2/6 campos") > 0, "contador errado");
-    ok(h.indexOf('value="XYZ-200"') > 0, "valor não apareceu no campo");
+    const h1 = C.laudoBlocoPlaqueta(it);
+    ok(h1.indexOf("2/8 campos") > 0, "contador errado só com modelo/marca");
+    ok(h1.indexOf('value="XYZ-200"') > 0, "valor não apareceu no campo");
+    it.maquina.tipoEquip = "Elevador de Canecas"; it.maquina.manual = "Português";
+    const h2 = C.laudoBlocoPlaqueta(it);
+    ok(h2.indexOf("4/8 campos") > 0, "tipo de equipamento e manual não entraram na contagem");
   });
   t("com foto e IA, oferece a leitura automática", ()=>{
     const h = C.laudoBlocoPlaqueta(C.linhasEscopoSimples()[0]);
@@ -3382,7 +3401,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   });
 
   console.log("\n=== t76 · inventário de máquinas: colunas e tipo do equipamento ===");
-  vm.runInContext(constante("TIPOS_EQUIPAMENTO"), ctx);
+  // TIPOS_EQUIPAMENTO já foi extraído lá no início (laudoBlocoPlaqueta também usa).
   [ "tipoSugeridoDaMaquina", "tipoEquipamento" ].forEach(n=> vm.runInContext(funcao(n), ctx));
   t("as colunas do inventário são iguais em todas as tabelas", ()=>{
     ok(/const INV_COLS = \[\d+(, ?\d+){11}\];/.test(HTML), "sem larguras fixas para as 12 colunas");
@@ -4259,6 +4278,42 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
        "sobrou o render incondicional de antes, disparando em toda tecla");
     ok(trecho.indexOf('if(campo !== "desc") sincronizarDescMedidaExistente(r);') > 0,
        "situacao/ressalva precisam continuar atualizando o texto automático");
+  });
+
+  console.log("\n=== t98 · HRN destaca em vermelho Frequência/Nº de pessoas sem preenchimento ===");
+  /* Usuário pediu: sem botão de confirmar — se o campo (vindo da TAREFA)
+     estiver sem preenchimento, destacar em vermelho para o usuário
+     validar. PO e GPD nunca ficam vermelhos: sempre têm estimativa
+     própria do risco, não vêm de um campo da tarefa que possa faltar. */
+  t("sem frequência/nº de pessoas na tarefa, os dois campos ficam vermelhos", ()=>{
+    const item = { risco:{ id:"rAlert1" }, tarefa:{ frequencia:"", numPessoas:"" } };
+    const html = C.laudoBlocoHRN(item);
+    ok(html.indexOf("border:1.5px solid #B3261E;background:#FDE7E5;color:#8C1D18") >= 0);
+    eq((html.match(/border:1\.5px solid #B3261E;background:#FDE7E5;color:#8C1D18/g)||[]).length, 2,
+       "precisa vermelho em FE E em NP, não só um dos dois");
+    ok(html.indexOf("A tarefa não tem frequência informada") > 0);
+    ok(html.indexOf("A tarefa não tem nº de pessoas informado") > 0);
+  });
+  t("com frequência/nº de pessoas preenchidos, nada fica vermelho", ()=>{
+    const item = { risco:{ id:"rAlert2" }, tarefa:{ frequencia:"Diário", numPessoas:"2" } };
+    const html = C.laudoBlocoHRN(item);
+    eq(html.indexOf("border:1.5px solid #B3261E"), -1, "ficou vermelho com os dois campos preenchidos");
+  });
+  t("PO e GPD nunca ficam vermelhos, mesmo sem nada escolhido no risco", ()=>{
+    const item = { risco:{ id:"rAlert3" }, tarefa:{ frequencia:"Diário", numPessoas:"2" } };
+    const html = C.laudoBlocoHRN(item);
+    // só os 2 do FE/NP — nenhum extra por causa de PO/GPD.
+    eq((html.match(/border:1\.5px solid #B3261E/g)||[]).length, 0);
+  });
+  t("marcar fe/np no risco NÃO tira mais o vermelho — a exceção por risco foi removida", ()=>{
+    /* Ao contrário do comportamento antigo: usuário decidiu que
+       Frequência/Nº de pessoas são sempre da tarefa, sem exceção — então
+       um valor solto em risco.fe/risco.np (dado antigo, de antes desta
+       decisão, por exemplo) não deve mais aparecer nem tirar o alerta. */
+    const item = { risco:{ id:"rAlert4", fe:"Diária", np:"1-2 pessoas" }, tarefa:{ frequencia:"", numPessoas:"" } };
+    const html = C.laudoBlocoHRN(item);
+    eq((html.match(/border:1\.5px solid #B3261E/g)||[]).length, 2,
+       "um fe/np solto no risco nao pode mais calar o alerta da tarefa vazia");
   });
 
   console.log("\n---------------------------------------");
