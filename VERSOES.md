@@ -22,6 +22,27 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 17/08/2026 21:55
+
+Corrigido: digitar na descrição da mitigação existente rolava a página
+sozinha.
+
+A caixa "Descrição da mitigação existente (editável)", que virou editável
+nesta mesma sessão junto com o checklist, redesenhava a tela inteira a
+cada letra digitada. Isso destruía e recriava a própria caixa de texto em
+que a pessoa estava escrevendo — derrubando o foco e o cursor, e é isso
+que aparecia como a página pulando para baixo sozinha.
+
+Os outros campos de texto do laudo (nome da empresa, cidade, dados da
+plaqueta) nunca tiveram esse problema, porque nunca precisaram redesenhar
+a tela a cada tecla — só a caixa nova tinha esse comportamento, e só
+nela.
+
+O texto continua sendo gravado a cada letra digitada, normalmente — só
+não força mais um redesenho da tela inteira para isso.
+
+---
+
 ## 17/08/2026 21:25
 
 O checklist de Mitigação Existente agora abre em grupos recolhidos, em vez

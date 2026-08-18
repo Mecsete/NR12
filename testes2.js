@@ -4235,6 +4235,32 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
        "precisa existir a declaração e zerar em laudoAbrirItem E em laudoIrPara");
   });
 
+  console.log("\n=== t97 · digitar na descrição da mitigação existente não rola a página ===");
+  /* Usuário reportou: "ao digitar textos em alguns dos campos de laudo a
+     pagina de repente rola para baixo". A textarea "Descrição da
+     mitigação existente (editável)" (adicionada nesta mesma sessão, junto
+     com o checklist editável) chamava render() a cada tecla — isso
+     destrói e recria o próprio textarea em que a pessoa está digitando,
+     derrubando o foco e o cursor, e é isso que rolava a página. Os campos
+     de texto mais antigos (empresa/cidade do projeto, plaqueta) nunca
+     tiveram esse problema porque nunca chamaram render() a cada tecla —
+     só em cliques/seleções discretas. */
+  t("o campo 'desc' (a textarea, digitação livre) NÃO chama render() a cada tecla", ()=>{
+    /* laudoSetMedidaExistenteCampo é método de App (sem a palavra
+       "function" na frente) — funcao() não acha isso, por isso a fatia é
+       tirada direto de HTML, do próprio nome até o próximo método. */
+    const iMetodo = HTML.indexOf("laudoSetMedidaExistenteCampo(rid, campo, valor){");
+    const iFim = HTML.indexOf("laudoAplicarTextoMedidaExistenteMulti(rid){", iMetodo);
+    const trecho = HTML.slice(iMetodo, iFim);
+    ok(iMetodo > 0, "método não encontrado");
+    ok(trecho.indexOf('if(campo !== "desc") render();') > 0,
+       "voltou a redesenhar a tela em toda tecla digitada na descrição");
+    eq(trecho.indexOf("marcarAlterado(); render();"), -1,
+       "sobrou o render incondicional de antes, disparando em toda tecla");
+    ok(trecho.indexOf('if(campo !== "desc") sincronizarDescMedidaExistente(r);') > 0,
+       "situacao/ressalva precisam continuar atualizando o texto automático");
+  });
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

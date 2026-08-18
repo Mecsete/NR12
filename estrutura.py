@@ -1288,6 +1288,23 @@ chk("laudoToggleGrupoExistente existe e redesenha a tela",
 chk("trocar de risco fecha os grupos de novo (senao o que abriu vaza pro proximo risco)",
     novo.count("__laudoGrupoExistenteAberto = {};") == 3)
 
+print("\n=== 52. DIGITAR NA DESCRICAO DA MITIGACAO EXISTENTE NAO ROLA A PAGINA ===")
+# Usuario reportou a pagina rolando sozinha ao digitar em campos do laudo.
+# A textarea "Descricao da mitigacao existente (editavel)" (adicionada na
+# MESMA sessao que o checklist editavel) chamava render() a cada tecla --
+# isso destroi e recria o proprio textarea onde a pessoa esta digitando,
+# derrubando foco e cursor. Campos de texto mais antigos (empresa/cidade
+# do projeto, plaqueta) nunca tiveram isso porque nunca chamam render()
+# por tecla, so em cliques/selecoes discretas.
+_ism = novo.find("laudoSetMedidaExistenteCampo(rid, campo, valor){")
+_fimIsm = novo.find("laudoAplicarTextoMedidaExistenteMulti(rid){", _ism)
+_trechoIsm = novo[_ism:_fimIsm] if _ism > 0 else ""
+chk("'desc' (digitacao livre) nao chama render() a cada tecla",
+    _ism > 0 and 'if(campo !== "desc") render();' in _trechoIsm
+    and "marcarAlterado(); render();" not in _trechoIsm)
+chk("'situacao'/'ressalva' (clique/selecao) continuam sincronizando e redesenhando",
+    'if(campo !== "desc") sincronizarDescMedidaExistente(r);' in _trechoIsm)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
