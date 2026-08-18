@@ -1438,16 +1438,40 @@ chk("registrarResultadoCampo existe: limpa o aviso e zera a contagem no sucesso,
     and "const LIMITE_FALHAS_SEGUIDAS = 2;" in novo
     and 'progressoAtualizar(undefined, undefined, undefined, "Sem resposta da IA — " + (__iaMotivoFalha || "motivo desconhecido"));' in novo
     and "if(falhasSeguidas >= LIMITE_FALHAS_SEGUIDAS) paradoPorFalhas = true;" in novo)
-chk("os 3 pontos que chamam a IA (escopo, tarefa, risco/existente/solucao) registram o resultado e podem parar o lote",
+chk("os 3 pontos que chamam a IA (escopo, tarefa, risco/existente/solucao em paralelo) registram o resultado e podem parar o lote",
     novo.count("registrarResultadoCampo(!!jEscopo.texto);") == 1
     and novo.count("registrarResultadoCampo(!!j.texto);") == 2
-    and novo.count("if(paradoPorFalhas) break;") == 4)
+    and novo.count("if(paradoPorFalhas) break;") == 3)
 chk("painel de progresso ganhou uma linha de aviso visivel (nao só um toast escondido até o fim)",
     ".prog-aviso{font-size:11.5px;font-weight:700;color:#8A5B00;background:#FFF3D6;" in novo
     and '<div class="prog-aviso" id="progAviso" style="display:none"></div>' in novo
     and "function progressoAtualizar(feito, total, sub, aviso){" in novo)
 chk("laudoGerarLinha (gerar 1 linha) tambem mostra o motivo da falha, igual laudoGerarFaltantes ja mostrava",
     'toast(__iaCelulasVazias>0 ? `Alguns campos não puderam ser gerados${__iaMotivoFalha? ` — ${__iaMotivoFalha}` : ""}` : "Textos gerados", __iaCelulasVazias===0);' in novo)
+
+print("\n=== 59. RISCO + MITIGACAO EXISTENTE + SOLUCAO PEDIDOS EM PARALELO ===")
+# Usuario reportou a IA demorando muito para escrever os textos. Os 3 campos
+# de um mesmo risco eram pedidos um de cada vez -- ate 3 idas e voltas
+# sequenciais por risco, esperando a resposta de um para so entao pedir o
+# proximo. Nenhum dos 3 depende do texto que os outros vao gerar (cada um
+# parte so do que o inspetor preencheu em campo), entao agora sao
+# disparados juntos via Promise.all -- igual ja era feito para o escopo do
+# equipamento (equipamento+escopo, mais acima na mesma funcao).
+_irp = novo.find("const camposPendentes = [];")
+_fimIrp = novo.find("if(i % 5 === 4) marcarAlterado();", _irp)
+_trechoIrp = novo[_irp:_fimIrp] if _irp > 0 else ""
+chk("cache de reuso continua resolvido na hora, sem virar chamada paralela",
+    _irp > 0 and "gravados++; camposFeitos++;\n        continue;" in _trechoIrp
+    and "camposPendentes.push({ campo, orig, ch, entradaCampo: laudoEntradaComReferencias(item, campo, orig, exemplos[campo]) });" in _trechoIrp)
+chk("as chamadas pendentes disparam TODAS juntas (Promise.all), nao uma esperando a outra",
+    "const respostas = await Promise.all(camposPendentes.map(p=> chamarIAResiliente(LAUDO_TIPO_PROMPT[p.campo], p.entradaCampo.texto)));" in _trechoIrp)
+chk("cada resposta ainda passa por registrarResultadoCampo e pelo reuso, na mesma ordem em que foi pedida",
+    "registrarResultadoCampo(!!j.texto);" in _trechoIrp
+    and 'if(orig.trim()) reuso.set(ch, { texto:j.texto, duv:j.duvida||"", refs:entradaCampo.refs });' in _trechoIrp)
+chk("so existe UMA pausa de 250ms por risco agora (depois do lote), nao mais uma por campo",
+    novo.count("await esperar(250);") == 1)
+chk("o aviso na tela junta os campos pedidos numa frase so, em vez de trocar um por vez",
+    'camposPendentes.map(p=>CAMPO_ROTULO[p.campo]||p.campo).join(" + ")' in novo)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")

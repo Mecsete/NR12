@@ -28,6 +28,28 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 18/08/2026 15:00
+
+Geração de textos pela IA mais rápida: descrição do risco, mitigação
+existente e solução agora são pedidas ao mesmo tempo, não uma atrás da
+outra.
+
+Até agora, para cada risco, o app pedia a descrição do risco, depois
+esperava a resposta pra pedir a mitigação existente, e só depois disso
+pedia a solução — três idas e voltas sequenciais. Como nenhum desses
+textos depende do que os outros vão gerar (cada um parte só do que foi
+preenchido em campo), os 3 passam a ser pedidos juntos, do mesmo jeito
+que o app já fazia para o nome e o escopo do equipamento. Na prática,
+esperar as 3 respostas ao mesmo tempo é bem mais rápido do que esperar
+uma de cada vez — o ganho é maior quanto mais riscos o laudo tiver.
+
+O restante continua igual: o que já tinha sido aprovado antes é
+reaproveitado na hora, sem gastar uma chamada nova, e a parada automática
+depois de falhas seguidas (da entrega anterior) continua funcionando do
+mesmo jeito.
+
+---
+
 ## 18/08/2026 14:50
 
 Geração de textos pela IA: quando a chave bate no limite de uso (ou a IA

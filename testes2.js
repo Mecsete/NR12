@@ -3967,9 +3967,10 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   });
   t("o contador anda em cada um dos quatro campos", ()=>{
     const f = funcao("gerarLaudoIAItens");
-    eq((f.match(/camposFeitos\+\+/g)||[]).length, 4, "escopo, tarefa, risco/solução e o reuso");
+    eq((f.match(/camposFeitos\+\+/g)||[]).length, 4, "escopo, tarefa, risco/existente/solução (reuso) e risco/existente/solução (IA)");
     ok(f.indexOf('anunciar(item, "escopo")') > 0 && f.indexOf('anunciar(item, "tarefa")') > 0
-       && f.indexOf("anunciar(item, campo)") > 0, "sem anunciar, a tela não diz o que está sendo escrito");
+       && f.indexOf('camposPendentes.map(p=>CAMPO_ROTULO[p.campo]||p.campo).join(" + ")') > 0,
+       "sem avisar antes de pedir, a tela não diz o que está sendo escrito");
   });
   t("o aviso sai ANTES de escrever, não depois", ()=>{
     const f = funcao("gerarLaudoIAItens");
@@ -4486,6 +4487,54 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ()=> eq(avisosB.length, 1, "avisos registrados: " + avisosB.length));
 
   C.chamarIAResiliente = chamarOriginalT101;
+
+  console.log("\n=== t102 · risco, mitigação existente e solução são pedidos em PARALELO ===");
+  /* Usuário reportou a IA demorando muito para escrever os textos. Uma causa
+     real: para cada risco, os 3 campos (descrição do risco, mitigação
+     existente, solução) eram pedidos um de cada vez, esperando a resposta
+     de um pra só então pedir o próximo — 3 idas e voltas sequenciais por
+     risco. Como nenhum depende do texto que os outros vão gerar, agora são
+     disparados juntos (Promise.all), igual ao escopo do equipamento já
+     fazia. Este teste prova o disparo PARALELO de verdade: o mock nunca
+     resolve sozinho — só resolve quando mandado — então se as 3 chamadas
+     não aparecerem TODAS antes de qualquer resposta voltar, é sinal de que
+     voltou a ser sequencial (uma esperando a outra terminar). */
+  {
+    function itemFrescoParalelo(){
+      const risco = { id:"parR1", nome:"Risco Paralelo", nomeOutro:"", descRisco:"desc do risco", descMedida:"já existe uma proteção X instalada", sugestaoMitigacao:"", laudoIA:{}, foto:null, fotosOutras:[] };
+      const tarefa = { id:"parT1", tarefa:"Tarefa Paralela", tarefaOutro:"", frequencia:"Diária", numPessoas:"1", riscos:[risco], laudoIA:{ tarefaSt:"ok", tarefaFin:"já decidido", tarefaSug:"" } };
+      const maquina = { id:"parM1", nome:"Máquina Paralela", descricao:"", fotoGeral:null, fotoPlaqueta:null, fotosOutras:[], tarefas:[tarefa], laudoIA:{ escopoSt:"ok", escopoFin:"já decidido", escopoSug:"" } };
+      const area = { id:"parA1", nome:"Área Paralela", maquinas:[maquina] };
+      const proj = { id:"parP1", nome:"Projeto Paralelo", areas:[area] };
+      return [{ proj, area, maquina, tarefa, risco }];
+    }
+    const chamarOriginalT102 = C.chamarIAResiliente;
+    let disparos = [];
+    const resolvedores = [];
+    C.chamarIAResiliente = (tipo)=>{
+      disparos.push(tipo);
+      return new Promise(resolve=> resolvedores.push(()=> resolve(JSON.stringify({ texto:"texto de "+tipo, duvida:"" }))));
+    };
+    C.setIAApiKey("chave-teste-102");
+    painelTeste.atualizacoes = [];
+
+    const itensParalelo = itemFrescoParalelo();
+    const promessaGeracao = C.gerarLaudoIAItens(itensParalelo, null, { refazer:false });
+    // Deixa a fila de microtasks correr sem resolver nenhuma chamada — se
+    // for mesmo Promise.all, as 3 já terão sido disparadas neste ponto.
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    t("as 3 chamadas (risco, mitigação existente e solução) são disparadas ANTES de qualquer resposta voltar",
+      ()=> eq(disparos.length, 3, "disparadas: " + disparos.join(", ")));
+    resolvedores.forEach(r=>r());
+    const gravadosParalelo = await promessaGeracao;
+    t("depois de resolvidas, os 3 textos são gravados normalmente",
+      ()=> eq(gravadosParalelo, 3));
+    t("uma única mensagem de progresso anuncia os 3 campos juntos, não um de cada vez",
+      ()=> ok(painelTeste.atualizacoes.some(a=> a.sub && a.sub.indexOf("+") > 0),
+              "esperava algo como 'descrição do risco + mitigação existente + solução'"));
+
+    C.chamarIAResiliente = chamarOriginalT102;
+  }
 
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");

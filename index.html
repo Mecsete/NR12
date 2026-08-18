@@ -1814,7 +1814,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "18/08/2026 14:50";
+const APP_BUILD = "18/08/2026 15:00";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -10946,11 +10946,19 @@ async function gerarLaudoIAItens(itens, onProgress, opts){
       if(paradoPorFalhas) break;
       await esperar(200);
     }
-    // ---- Risco, Mitigação Existente e Solução (por LINHA, com reuso de casos idênticos) ----
+    // ---- Risco, Mitigação Existente e Solução (por LINHA, pedidas em PARALELO) ----
+    /* Antes, os 3 campos eram pedidos um de cada vez, esperando a resposta de
+       um para só então pedir o próximo — até 3 idas e voltas sequenciais por
+       risco. Como nenhum dos 3 depende do texto que os outros vão gerar (cada
+       um parte só dos dados que o inspetor preencheu em campo), dá para pedir
+       os 3 ao mesmo tempo, igual ao que já era feito para o escopo do
+       equipamento (equipamento+escopo em Promise.all, algumas linhas acima).
+       O que já vem do cache de reuso continua resolvido na hora, sem chamada
+       nenhuma — só o que sobra depois disso é que vira pedido paralelo. */
+    const camposPendentes = [];
     for(const campo of ["risco","existente","solucao"]){
       if(campo==="existente" && !laudoTemMitigacaoExistente(item.risco)) continue;
       if(!laudoPrecisaGerar(item, campo, refazer)) continue;
-      anunciar(item, campo);
       const orig = campo==="existente" ? laudoEntradaExistente(item) : laudoTextoOriginal(item, campo);
       const ch = laudoChaveReuso(campo, orig);
       if(orig.trim() && reuso.has(ch)){
@@ -10959,19 +10967,26 @@ async function gerarLaudoIAItens(itens, onProgress, opts){
         gravados++; camposFeitos++;
         continue;
       }
-      const entradaCampo = laudoEntradaComReferencias(item, campo, orig, exemplos[campo]);
-      const j = parseRespostaJsonIA(await chamarIAResiliente(LAUDO_TIPO_PROMPT[campo], entradaCampo.texto)) || {};
-      if(j.texto){
-        laudoSet(item, campo, { sug:j.texto, duv:j.duvida||"", st:"pend", fin:"", refs:entradaCampo.refs });
-        if(orig.trim()) reuso.set(ch, { texto:j.texto, duv:j.duvida||"", refs:entradaCampo.refs });
-        gravados++;
+      camposPendentes.push({ campo, orig, ch, entradaCampo: laudoEntradaComReferencias(item, campo, orig, exemplos[campo]) });
+    }
+    if(camposPendentes.length){
+      progressoAtualizar(camposFeitos, totalCampos,
+        (nomeMaquinaS(item.maquina) || "") + " — " + camposPendentes.map(p=>CAMPO_ROTULO[p.campo]||p.campo).join(" + "));
+      const respostas = await Promise.all(camposPendentes.map(p=> chamarIAResiliente(LAUDO_TIPO_PROMPT[p.campo], p.entradaCampo.texto)));
+      for(let k=0;k<camposPendentes.length;k++){
+        const { campo, orig, ch, entradaCampo } = camposPendentes[k];
+        const j = parseRespostaJsonIA(respostas[k]) || {};
+        if(j.texto){
+          laudoSet(item, campo, { sug:j.texto, duv:j.duvida||"", st:"pend", fin:"", refs:entradaCampo.refs });
+          if(orig.trim()) reuso.set(ch, { texto:j.texto, duv:j.duvida||"", refs:entradaCampo.refs });
+          gravados++;
+        }
+        registrarResultadoCampo(!!j.texto);
+        camposFeitos++;
       }
-      registrarResultadoCampo(!!j.texto);
-      camposFeitos++;
       if(paradoPorFalhas) break;
       await esperar(250);
     }
-    if(paradoPorFalhas) break;
     if(i % 5 === 4) marcarAlterado();
   }
   }finally{ progressoFechar(meuPainel); }
