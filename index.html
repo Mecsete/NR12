@@ -165,6 +165,8 @@ html.teclado-aberto .laudo-fab{display:none!important;}
 .btn-dark:active{background:var(--bar-2);}
 .btn-sm{padding:7px 12px;font-size:12.5px;border-radius:9px;}
 .btn[disabled]{opacity:.45;pointer-events:none;}
+@keyframes girar{to{transform:rotate(360deg);}}
+.btn-spinner{display:inline-block;width:13px;height:13px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:girar .7s linear infinite;vertical-align:-2px;margin-right:2px;}
 .fab-wrap{position:fixed;left:0;right:0;bottom:calc(58px + env(safe-area-inset-bottom) + 14px);display:flex;justify-content:flex-end;max-width:760px;margin:0 auto;padding-right:14px;pointer-events:none;z-index:19;}
 .fab{pointer-events:auto;background:var(--accent);color:#fff;border:none;border-radius:999px;width:56px;height:56px;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 22px rgba(233,78,27,.45);}
 .fab svg{width:25px;height:25px;}
@@ -1808,7 +1810,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "17/08/2026 19:20";
+const APP_BUILD = "17/08/2026 20:15";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -10283,6 +10285,13 @@ let __laudoRascunho = null;
    revisão — mesmo ícone e mesma caixa do cadastro em campo (toggleInfoHrnPO),
    só que aqui os quatro campos são editáveis, não só PO/GPD. */
 let __laudoInfoHrn = { po:false, fe:false, gpd:false, np:false };
+/* Qual campo está com um "Pedir um ajuste à IA" em andamento — sem isto o
+   botão "Refazer esta sugestão" ficava mudo enquanto a IA respondia (só um
+   toast que passa rápido), e quem clicou não sabia se tinha dado certo.
+   Guardado aqui (não só como estado local do clique) porque um render()
+   vindo de fora — sincronização chegando, por exemplo — reconstruiria o
+   botão do zero e apagaria o "Pensando…" no meio da espera. */
+let __laudoRefazendo = null; // { rid, campo, inicio } ou null
 function getAreasSelecionadasExport(){
   const todasAreaIds = [];
   STATE.projetosSimples.forEach(p=>p.areas.forEach(a=>todasAreaIds.push(a.id)));
@@ -12202,6 +12211,8 @@ function laudoBlocoCampo(item, campo){
   const idInstr = "laudoInstr_" + campo;
   const idEdit = "laudoEdit_" + campo;
   const rid = item.risco.id;
+  const idBtnRefazer = "laudoRefazerBtn_" + rid + "_" + campo;
+  const refazendo = !!(__laudoRefazendo && __laudoRefazendo.rid===rid && __laudoRefazendo.campo===campo);
   const dicas = ["Deixe mais curto (até 140 caracteres)","Cite o item específico da NR-12","Escreva em linguagem mais técnica","Descreva a proteção a ser instalada"];
   /* Sem proposta escrita, laudoTextoOriginal devolve a descricao do que ja
      existe — e ela apareceria duas vezes na tela, uma no quadro de cima e
@@ -12263,7 +12274,9 @@ function laudoBlocoCampo(item, campo){
       <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:9px">
         ${dicas.map(d=>`<button class="btn btn-ghost btn-sm" style="border:1px solid var(--line);font-size:11.5px;padding:5px 9px" onclick="document.getElementById('${idInstr}').value=${JSON.stringify(d).replace(/"/g,"&quot;")}">${escapeHtml(d)}</button>`).join("")}
       </div>
-      <button class="btn btn-secondary btn-block btn-sm" onclick="App.laudoRefazer('${rid}','${campo}')">${ic('copy')} Refazer esta sugestão</button>
+      ${refazendo
+        ? `<button class="btn btn-secondary btn-block btn-sm" id="${idBtnRefazer}" disabled><span class="btn-spinner"></span> Pensando…</button>`
+        : `<button class="btn btn-secondary btn-block btn-sm" id="${idBtnRefazer}" onclick="App.laudoRefazer('${rid}','${campo}')">${ic('copy')} Refazer esta sugestão</button>`}
     </div>
   </div>`;
 }
@@ -16742,10 +16755,28 @@ const App = {
     const item = laudoItemPorId(rid); if(!item) return;
     const el = document.getElementById("laudoInstr_"+campo);
     const instrucao = el ? el.value.trim() : "";
-    toast("Pedindo à IA… aguarde");
-    const ok = await refazerSugestaoLaudo(item, campo, instrucao);
+    /* O botão vira "Pensando… Ns" (id fixo laudoRefazerBtn_<rid>_<campo>) em
+       vez de um toast que passa rápido — a pessoa via a mensagem sumir e
+       ficava sem saber se ainda estava rodando. __laudoRefazendo sobrevive
+       a um render() vindo de fora (sincronização, por exemplo) porque
+       laudoBlocoCampo lê esse estado ao desenhar o botão de novo. */
+    __laudoRefazendo = { rid, campo, inicio: Date.now() };
     render();
-    toast(ok ? "Nova sugestão pronta" : ("Não foi possível gerar" + (__iaMotivoFalha? " — "+__iaMotivoFalha : "")), ok);
+    const idBtn = "laudoRefazerBtn_" + rid + "_" + campo;
+    const tique = setInterval(()=>{
+      const btn = document.getElementById(idBtn);
+      if(!btn || !__laudoRefazendo) return;
+      const s = Math.round((Date.now() - __laudoRefazendo.inicio) / 1000);
+      btn.innerHTML = `<span class="btn-spinner"></span> Pensando… ${s}s`;
+    }, 1000);
+    try{
+      const ok = await refazerSugestaoLaudo(item, campo, instrucao);
+      toast(ok ? "Nova sugestão pronta" : ("Não foi possível gerar" + (__iaMotivoFalha? " — "+__iaMotivoFalha : "")), ok);
+    } finally {
+      clearInterval(tique);
+      __laudoRefazendo = null;
+      render();
+    }
   },
   async laudoGerarLinha(rid){
     const item = laudoItemPorId(rid); if(!item) return;

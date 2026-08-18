@@ -22,6 +22,28 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 17/08/2026 20:15
+
+"Pedir um ajuste à IA" agora mostra que está trabalhando, em vez de deixar
+você sem saber se funcionou.
+
+O botão "Refazer esta sugestão" só mostrava um aviso rápido ("Pedindo à
+IA… aguarde") que passa e some sozinho. Se a resposta demorasse mais que
+esse aviso — o que acontece — não sobrava nenhum sinal na tela: parecia
+que não tinha acontecido nada.
+
+Agora o próprio botão muda enquanto espera: fica desabilitado, ganha um
+ícone girando e conta os segundos — "Pensando… 4s", "Pensando… 5s" — até a
+resposta chegar. Funciona nos cinco campos que têm esse recurso (Escopo,
+Tarefa, Descrição do risco, Mitigação Existente e Solução).
+
+Não coloquei uma barra de porcentagem: cada pedido desses é uma única
+pergunta à IA, não várias etapas — uma porcentagem aqui seria só decoração,
+sem nada de real por trás. O contador de segundos é a informação verdadeira
+que existe: quanto tempo já se passou.
+
+---
+
 ## 17/08/2026 19:20
 
 Cartão "Nível de desempenho requerido" passou a ficar sempre logo abaixo

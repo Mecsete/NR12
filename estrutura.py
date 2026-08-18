@@ -1229,6 +1229,31 @@ print("\n=== 48. HRN E NIVEL DE DESEMPENHO EMPILHADOS NA MESMA CELULA DO GRID ==
 chk("HRN e o Nivel de desempenho viram UMA celula so do grid (par, nao impar)",
     'grid">\n    ${LAUDO_CAMPOS.map(c=> (c.k==="solucao"? laudoBlocoCampo(item,"existente") : "") + laudoBlocoCampo(item, c.k)).join("")}\n    <div style="display:flex;flex-direction:column;gap:12px">\n      ${laudoBlocoHRN(item)}' in novo)
 
+print("\n=== 49. 'PEDIR UM AJUSTE A IA' MOSTRA QUE ESTA TRABALHANDO ===")
+# Antes so um toast ("Pedindo a IA... aguarde") que passa rapido -- se a
+# resposta demorasse mais que o toast, quem clicou ficava sem nenhum sinal
+# de que ainda estava rodando. Vale para os 5 campos com este recurso
+# (escopo/tarefa/risco/existente/solucao), porque o motor e o mesmo
+# laudoBlocoCampo/laudoRefazer generico, nao uma copia por campo.
+chk("__laudoRefazendo existe e comeca nulo",
+    novo.count("let __laudoRefazendo = null;") == 1)
+chk("laudoBlocoCampo calcula 'refazendo' comparando rid E campo (nao vaza entre campos do mesmo risco)",
+    'const refazendo = !!(__laudoRefazendo && __laudoRefazendo.rid===rid && __laudoRefazendo.campo===campo);' in novo)
+chk("o botao tem 2 estados exclusivos: Pensando (desabilitado, com spinner) ou clicavel",
+    'id="${idBtnRefazer}" disabled><span class="btn-spinner"></span> Pensando' in novo
+    and 'id="${idBtnRefazer}" onclick="App.laudoRefazer' in novo)
+chk("App.laudoRefazer marca o estado ANTES do await, nao depois (senao a tela fica muda ate a resposta)",
+    novo.find("__laudoRefazendo = { rid, campo, inicio: Date.now() };") <
+    novo.find("await refazerSugestaoLaudo(item, campo, instrucao);"))
+chk("o contador de segundos busca o botao de novo a cada tick (sobrevive a um render() vindo de fora)",
+    "const btn = document.getElementById(idBtn);\n      if(!btn || !__laudoRefazendo) return;" in novo)
+chk("finally sempre limpa o intervalo e zera o estado, mesmo se a IA falhar",
+    "} finally {\n      clearInterval(tique);\n      __laudoRefazendo = null;\n      render();\n    }" in novo)
+chk("o toast fantasma que sumia rapido foi removido, nao duplicado",
+    novo.count('toast("Pedindo à IA') == 0)
+chk("CSS do spinner existe uma unica vez",
+    novo.count(".btn-spinner{") == 1 and novo.count("@keyframes girar{") == 1)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

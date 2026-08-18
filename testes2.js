@@ -188,7 +188,7 @@ const BLOCO_B = trecho("/* =====================================================
    e caixas de informacao do HRN (App.laudoToggleInfoHrn), ambos lidos sem
    condicao nenhuma dentro do render — sem isto, qualquer teste que desenhe
    laudoBlocoCampo ou laudoBlocoHRN quebra com ReferenceError. */
-vm.runInContext("let __laudoRascunho = null; let __laudoInfoHrn = { po:false, fe:false, gpd:false, np:false };", ctx);
+vm.runInContext("let __laudoRascunho = null; let __laudoInfoHrn = { po:false, fe:false, gpd:false, np:false }; let __laudoRefazendo = null;", ctx);
 vm.runInContext(BLOCO_A, ctx);
 vm.runInContext(BLOCO_B, ctx);
 const BLOCO_R = trecho("/* =========================================================================\n   MONTADOR DE RISCO EM CAMPO", "\nfunction formRiscoSHtml(){");
@@ -4111,6 +4111,56 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     const entre = h.slice(iHRN, iNivel);
     eq((entre.match(/class="card card-pad laudo-bloco"/g)||[]).length, 1,
        "algum outro cartao do grid ficou entre HRN e o Nivel de desempenho");
+  });
+
+  console.log("\n=== t94 · 'Pedir um ajuste à IA' mostra que está trabalhando ===");
+  /* Antes só um toast ("Pedindo à IA… aguarde") que passa rápido — se a
+     resposta demorasse mais que o toast, a pessoa ficava sem nenhum sinal
+     de que ainda estava rodando. Vale para os 5 campos (o motor é o mesmo
+     laudoBlocoCampo/laudoRefazer de sempre, genérico por campo). */
+  t("o botão muda para o estado 'Pensando' quando __laudoRefazendo aponta para este campo", ()=>{
+    const item = { risco:{ id:"rPen1" }, maquina:{}, tarefa:{} };
+    vm.runInContext('__laudoRefazendo = { rid:"rPen1", campo:"solucao", inicio: Date.now() };', ctx);
+    const html = C.laudoBlocoCampo(item, "solucao");
+    vm.runInContext('__laudoRefazendo = null;', ctx);
+    ok(html.indexOf('id="laudoRefazerBtn_rPen1_solucao" disabled') > 0, "o botão não travou nem ficou desabilitado");
+    ok(html.indexOf('class="btn-spinner"') > 0, "sem o spinner, some qualquer sinal de atividade");
+    ok(html.indexOf("Pensando…") > 0);
+    ok(html.indexOf("Refazer esta sugestão") < 0, "o texto clicável não pode aparecer junto do estado carregando");
+  });
+  t("__laudoRefazendo de OUTRO campo não trava o botão deste aqui", ()=>{
+    const item = { risco:{ id:"rPen2" }, maquina:{}, tarefa:{} };
+    vm.runInContext('__laudoRefazendo = { rid:"rPen2", campo:"risco", inicio: Date.now() };', ctx);
+    const html = C.laudoBlocoCampo(item, "solucao");
+    vm.runInContext('__laudoRefazendo = null;', ctx);
+    ok(html.indexOf("Refazer esta sugestão") > 0, "vazou o travamento de risco para dentro de solucao");
+    ok(html.indexOf('id="laudoRefazerBtn_rPen2_solucao" disabled') < 0);
+  });
+  t("App.laudoRefazer marca __laudoRefazendo ANTES do await, não depois", ()=>{
+    /* laudoRefazer é método de App (não "function laudoRefazer(" solto),
+       então não dá pra extrair com funcao() — vale como trecho do HTML. */
+    const iInicioMetodo = HTML.indexOf("async laudoRefazer(rid, campo){");
+    const iMarca = HTML.indexOf("__laudoRefazendo = { rid, campo, inicio: Date.now() };", iInicioMetodo);
+    const iRenderInicio = HTML.indexOf("render();", iMarca);
+    const iAwait = HTML.indexOf("await refazerSugestaoLaudo(item, campo, instrucao);", iRenderInicio);
+    ok(iInicioMetodo > 0 && iMarca > iInicioMetodo && iMarca < iRenderInicio && iRenderInicio < iAwait,
+       "se marcar depois do await, a tela fica sem feedback ate a resposta chegar");
+  });
+  t("o intervalo é sempre limpo e o estado sempre é zerado, mesmo se a IA falhar (finally)", ()=>{
+    const iInicioMetodo = HTML.indexOf("async laudoRefazer(rid, campo){");
+    const iTry = HTML.indexOf("try{", iInicioMetodo);
+    const iFinally = HTML.indexOf("} finally {", iTry);
+    ok(iInicioMetodo > 0 && iTry > iInicioMetodo && iFinally > iTry,
+       "sem o finally, um erro deixaria o botao preso em 'Pensando' para sempre");
+    const bloco = HTML.slice(iFinally, iFinally + 200);
+    ok(bloco.indexOf("clearInterval(tique);") > 0);
+    ok(bloco.indexOf("__laudoRefazendo = null;") > 0);
+  });
+  t("o toast inicial que sumia rápido foi trocado pelo botão persistente", ()=>{
+    const iInicioMetodo = HTML.indexOf("async laudoRefazer(rid, campo){");
+    const iFimMetodo = HTML.indexOf("\n  async laudoGerarLinha(rid){", iInicioMetodo);
+    const trecho = HTML.slice(iInicioMetodo, iFimMetodo);
+    eq(trecho.indexOf('toast("Pedindo à IA'), -1, "o toast fantasma voltou — o botão já avisa, não precisa dos dois");
   });
 
   console.log("\n---------------------------------------");
