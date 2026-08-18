@@ -1371,6 +1371,42 @@ chk("os 4 gatilhos de fundo identificados usam a versao adiavel, nao render() di
 chk("nenhuma acao DIRETA do usuario foi trocada por engano -- render() comum continua sendo a maioria",
     novo.count("render();") > 50)
 
+print("\n=== 56. MENU '...' (VISUALIZAR/COPIAR/EXCLUIR) NO CARTAO E NO ITEM DO LAUDO ===")
+# Usuario pediu os mesmos 3 atalhos que ja existiam na lista de riscos do
+# cadastro em campo (menuRiscoS), tanto no cartao da lista do laudo quanto
+# dentro da tela do proprio risco. abrirModalRiscoS e removerRiscoS sao
+# REAPROVEITADOS -- mas os dois so acham a tarefa DENTRO do projeto
+# "atual" (STATE.ui.projetoSId), que a aba Laudo nunca seta (so seta
+# laudoRiscoId). Bug real encontrado testando no navegador antes de
+# publicar: sem sincronizar o "atual" a partir do risco antes de abrir o
+# menu, as 3 acoes abririam normalmente mas falhariam caladas.
+_imlc = novo.find("menuLaudoCard(rid, tarefaId){")
+_fimImlc = novo.find("laudoCopiarRisco(rid){", _imlc)
+_trechoImlc = novo[_imlc:_fimImlc] if _imlc > 0 else ""
+chk("menuLaudoCard resolve o item via laudoItemPorId (nao depende do 'atual')",
+    _imlc > 0 and "const item = laudoItemPorId(rid);" in _trechoImlc)
+chk("menuLaudoCard sincroniza projeto/area/maquina/tarefa 'atuais' antes de abrir o menu",
+    "STATE.ui.projetoSId = item.proj.id; STATE.ui.areaSId = item.area.id;" in _trechoImlc
+    and "STATE.ui.maquinaSId = item.maquina.id; STATE.ui.tarefaSId = item.tarefa.id;" in _trechoImlc)
+_fimLcr = novo.find("laudoAbrirItem(id){", _imlc)
+_trechoLcr = novo[novo.find("laudoCopiarRisco(rid){", _imlc):_fimLcr]
+chk("laudoCopiarRisco tambem usa laudoItemPorId -- nao volta a depender de buscarTarefaSimplesPorId",
+    "const item = laudoItemPorId(rid);" in _trechoLcr
+    and "item.tarefa.riscos.push(novo);" in _trechoLcr
+    and "buscarTarefaSimplesPorId" not in _trechoLcr)
+chk("copiar abre a copia na revisao do laudo, nao deixa a tela no risco antigo",
+    "App.laudoAbrirItem(novo.id);" in _trechoLcr)
+chk("botao '...' existe no cartao da lista e dentro da tela do item, os dois chamando menuLaudoCard",
+    "onclick=\"event.stopPropagation();App.menuLaudoCard('${it.risco.id}','${it.tarefa.id}')\"" in novo
+    and "onclick=\"App.menuLaudoCard('${item.risco.id}','${item.tarefa.id}')\"" in novo)
+chk("as 3 opcoes (visualizar/copiar/excluir) estao no menu, excluir marcado como perigoso",
+    "label:\"Visualizar / editar o risco\", icon:\"edit\", onclick:`App.abrirModalRiscoS('${rid}','${tarefaId}')`" in _trechoImlc
+    and "label:\"Copiar risco\", icon:\"copy\", onclick:`App.laudoCopiarRisco('${rid}')`" in _trechoImlc
+    and "label:\"Excluir risco\", icon:\"trash\", onclick:`App.removerRiscoS('${rid}','${tarefaId}')`, danger:true" in _trechoImlc)
+chk("cartao ganhou espaco reservado para o botao, sem sobrepor o selo do HRN",
+    ".laudo-card{margin-bottom:8px;position:relative;}" in novo
+    and ".laudo-card-in{display:flex;gap:10px;align-items:flex-start;padding:10px 40px 10px 10px;" in novo)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

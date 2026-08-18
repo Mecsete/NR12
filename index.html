@@ -405,7 +405,7 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .laudo-acoes{display:flex;gap:8px;flex-wrap:wrap;}
 .laudo-acoes .btn{flex:1;min-width:150px;}
 .laudo-lista{display:block;}
-.laudo-card{margin-bottom:8px;}
+.laudo-card{margin-bottom:8px;position:relative;}
 .laudo-hrn-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
 .laudo-copia-item{display:block;width:100%;text-align:left;background:none;border:none;border-bottom:1px solid var(--bg-soft);padding:10px 6px;color:var(--ink);}
 .laudo-copia-item:active{background:var(--bg-soft);}
@@ -467,7 +467,7 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 /* Tela baixa (aparelho antigo, ou navegador com muita barra à mostra): 30% já
    seria demais e sobraria quase nada de lista. */
 @media (max-height:700px){ .rep-origem{max-height:22vh;} }
-.laudo-card-in{display:flex;gap:10px;align-items:flex-start;padding:10px;width:100%;text-align:left;background:none;border:none;color:var(--ink);}
+.laudo-card-in{display:flex;gap:10px;align-items:flex-start;padding:10px 40px 10px 10px;width:100%;text-align:left;background:none;border:none;color:var(--ink);}
 .laudo-card-in:active{background:var(--bg-soft);}
 .laudo-thumbs{display:flex;flex-direction:column;gap:4px;flex-shrink:0;}
 .laudo-th{position:relative;width:54px;height:42px;border-radius:8px;overflow:hidden;border:1px solid var(--line-strong);background:var(--bg-soft);padding:0;display:flex;align-items:center;justify-content:center;color:var(--ink-faint);}
@@ -1810,7 +1810,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "18/08/2026 11:40";
+const APP_BUILD = "18/08/2026 12:10";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -11921,6 +11921,7 @@ function laudoAbaRevisao(){
     const meta = NIVEL_HRN_META[hrn.nivel] || {cor:"#E8EAF0", texto:"#1E2148"};
     const trilha = [it.area.nome||"—", nomeMaquinaS(it.maquina)||"—", valOuOutro(it.tarefa.tarefa, it.tarefa.tarefaOutro)||"—"].join(" · ");
     return `<div class="card laudo-card" style="border-left:4px solid ${pronto?'#2E7D32':(r.gerados===0?'#C5C9D6':'#E9A23B')}">
+      <button class="card-menu-btn" onclick="event.stopPropagation();App.menuLaudoCard('${it.risco.id}','${it.tarefa.id}')" title="Mais opções">${ic('dots')}</button>
       <button class="laudo-card-in" onclick="App.laudoAbrirItem('${it.risco.id}')">
         <div class="laudo-thumbs">
           ${laudoMiniatura(it, "equipamento")}
@@ -12464,6 +12465,7 @@ function screenSimplesLaudoItem(){
       <button class="btn btn-primary" onclick="App.laudoAprovarLinha('${item.risco.id}')" title="Aplicar as ${r.total} sugestões desta linha">${ic('check')} Aplicar ${r.total}</button>
       <button class="btn btn-secondary" onclick="App.laudoGerarLinha('${item.risco.id}')" title="Gerar ou atualizar os textos com a IA">${ic('shield')} Gerar</button>
       ${fotos.length? `<button class="btn btn-secondary" onclick="App.laudoAbrirGaleria('${item.risco.id}')" title="Ver as ${fotos.length} fotos desta linha">${ic('gallery')} ${fotos.length}</button>`:""}
+      <button class="btn btn-secondary" onclick="App.menuLaudoCard('${item.risco.id}','${item.tarefa.id}')" title="Mais opções">${ic('dots')}</button>
       ${pos>=0 && lista.length>1? `<div class="laudo-topo-nav">
         <button ${pos<=0?'disabled':''} onclick="App.laudoIrPara(${pos-1})" title="Linha anterior" aria-label="Linha anterior">${ic('back')}</button>
         <span>${pos+1}/${lista.length}</span>
@@ -16708,6 +16710,41 @@ const App = {
     toast(d.uid? "Inspetor atualizado" : "Inspetor cadastrado");
   },
   laudoMostrarMais(){ STATE.ui.laudoLimite = (STATE.ui.laudoLimite||60) + 60; render(); },
+  /* ---- Menu "..." do risco, no cartão da lista e dentro do próprio item —
+     mesmas 3 ações (visualizar/copiar/excluir) que já existiam para a
+     lista de riscos do cadastro em campo (menuRiscoS). Reaproveita
+     abrirModalRiscoS e removerRiscoS, mas os dois dependem de
+     buscarTarefaSimplesPorId, que só acha a tarefa DENTRO do projeto
+     "atual" (STATE.ui.projetoSId) — e navegar pela aba Laudo nunca seta
+     esse "atual", só STATE.ui.laudoRiscoId. Sem sincronizar aqui, o menu
+     abre normalmente mas as 3 ações falham caladas (abrirModalRiscoS só
+     mostra um toast confuso; removerRiscoS pode nem achar a tarefa certa).
+     laudoItemPorId já resolve isso do jeito que a tela de Laudo usa desde
+     sempre — sincroniza o "atual" a partir dele antes de abrir o menu. */
+  menuLaudoCard(rid, tarefaId){
+    const item = laudoItemPorId(rid);
+    if(!item) return;
+    STATE.ui.projetoSId = item.proj.id; STATE.ui.areaSId = item.area.id;
+    STATE.ui.maquinaSId = item.maquina.id; STATE.ui.tarefaSId = item.tarefa.id;
+    const nomeRisco = item.risco.nome===OUTRO ? item.risco.nomeOutro : item.risco.nome;
+    abrirMenuAcoes(nomeRisco||"Risco", "", [
+      {label:"Visualizar / editar o risco", icon:"edit", onclick:`App.abrirModalRiscoS('${rid}','${tarefaId}')`},
+      {label:"Copiar risco", icon:"copy", onclick:`App.laudoCopiarRisco('${rid}')`},
+      {label:"Excluir risco", icon:"trash", onclick:`App.removerRiscoS('${rid}','${tarefaId}')`, danger:true},
+    ]);
+  },
+  laudoCopiarRisco(rid){
+    // Não depende do "atual" — resolve tudo a partir do próprio risco,
+    // igual ao resto da tela de Laudo.
+    const item = laudoItemPorId(rid);
+    if(!item) return;
+    const novo = JSON.parse(JSON.stringify(item.risco));
+    novo.id = uid(); novo.criadoEm = Date.now();
+    item.tarefa.riscos.push(novo);
+    marcarAlterado();
+    App.laudoAbrirItem(novo.id);
+    toast("Risco copiado");
+  },
   laudoAbrirItem(id){ STATE.ui.laudoRiscoId = id; STATE.ui.laudoEditandoCampo = null; __laudoRascunho = null; __laudoInfoHrn = { po:false, fe:false, gpd:false, np:false }; __laudoGrupoExistenteAberto = {}; STATE.ui.screen = "simples-laudo-item"; render(); window.scrollTo(0,0); },
   laudoIrPara(pos){
     const lista = laudoListaAtual();

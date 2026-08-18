@@ -28,6 +28,34 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 18/08/2026 12:10
+
+Menu de opções (três pontinhos) nos riscos do laudo: Visualizar, Copiar e
+Excluir.
+
+Cada cartão de risco, na lista de revisão do laudo, ganhou um botão de
+três pontinhos no canto superior direito. Ele abre um menu com três
+opções: **Visualizar / editar o risco** (abre o cadastro do risco, com
+botão para voltar sem alterar nada), **Copiar risco** (duplica o risco
+dentro da mesma tarefa e já abre a cópia na revisão do laudo, pronta para
+editar) e **Excluir risco** (pede confirmação antes de apagar). O mesmo
+botão e o mesmo menu também foram colocados dentro da tela de revisão de
+cada risco, ao lado dos botões "Gerar" e da galeria de fotos.
+
+Ao testar antes de publicar, as três ações apareciam mas falhavam
+silenciosamente quando a pessoa entrava na aba Laudo sem antes passar por
+Área → Máquina → Tarefa no cadastro em campo (o caminho normal de quem só
+está revisando o laudo, sem editar nada em campo naquela sessão). A causa:
+essas ações foram reaproveitadas do menu que já existia no cadastro em
+campo, e esse menu original depende de qual projeto/área/máquina/tarefa
+está "em aberto" na tela — algo que a aba Laudo nunca precisou marcar até
+agora. Corrigido: ao abrir o menu de um risco pela aba Laudo, o app agora
+identifica e marca sozinho o projeto/área/máquina/tarefa daquele risco
+antes de abrir as opções, então elas funcionam normalmente não importa por
+onde a pessoa entrou.
+
+---
+
 ## 18/08/2026 11:40
 
 Corrigido o resto do problema da página pulando para o topo ao digitar.

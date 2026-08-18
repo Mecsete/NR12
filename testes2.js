@@ -4316,6 +4316,72 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
        "um fe/np solto no risco nao pode mais calar o alerta da tarefa vazia");
   });
 
+  console.log("\n=== t99 · menu '...' (visualizar/copiar/excluir) no cartão e no item do laudo ===");
+  /* Usuário pediu os mesmos 3 atalhos que já existiam na lista de riscos do
+     cadastro em campo (menuRiscoS), tanto no cartão da lista do laudo
+     quanto dentro da tela do próprio risco. abrirModalRiscoS e
+     removerRiscoS são REAPROVEITADOS (não duplicados) — mas os dois só
+     acham a tarefa DENTRO do projeto "atual" (STATE.ui.projetoSId), que a
+     aba Laudo nunca seta (só seta laudoRiscoId). Sem sincronizar o
+     "atual" antes de abrir o menu, as 3 ações abririam mas falhariam
+     caladas — bug real, encontrado testando no navegador antes de
+     publicar, não só uma checagem de string. */
+  t("menuLaudoCard sincroniza projeto/área/máquina/tarefa 'atuais' a partir do risco",
+    ()=>{
+      const f_ini = HTML.indexOf("menuLaudoCard(rid, tarefaId){");
+      const f_fim = HTML.indexOf("laudoCopiarRisco(rid){", f_ini);
+      const trecho = HTML.slice(f_ini, f_fim);
+      ok(f_ini > 0, "método não encontrado");
+      ok(trecho.indexOf("const item = laudoItemPorId(rid);") > 0,
+         "precisa resolver o item sem depender do 'atual' — é o próprio bug que isto corrige");
+      ok(trecho.indexOf("STATE.ui.projetoSId = item.proj.id;") > 0);
+      ok(trecho.indexOf("STATE.ui.tarefaSId = item.tarefa.id;") > 0);
+    });
+  t("laudoCopiarRisco usa laudoItemPorId, não buscarTarefaSimplesPorId (não depende do 'atual')",
+    ()=>{
+      const f_ini = HTML.indexOf("laudoCopiarRisco(rid){");
+      const f_fim = HTML.indexOf("laudoAbrirItem(id){", f_ini);
+      const trecho = HTML.slice(f_ini, f_fim);
+      ok(f_ini > 0);
+      ok(trecho.indexOf("const item = laudoItemPorId(rid);") > 0);
+      ok(trecho.indexOf("item.tarefa.riscos.push(novo);") > 0);
+      eq(trecho.indexOf("buscarTarefaSimplesPorId"), -1,
+         "voltou a depender do 'atual' — mesmo bug que já foi corrigido");
+      ok(trecho.indexOf("App.laudoAbrirItem(novo.id);") > 0,
+         "depois de copiar, precisa abrir a CÓPIA na revisão do laudo, não no cadastro");
+    });
+  t("o cartão da lista e a tela do item têm os dois o botão '...' ligado ao mesmo menu",
+    ()=>{
+      ok(HTML.indexOf(`onclick="event.stopPropagation();App.menuLaudoCard('\${it.risco.id}','\${it.tarefa.id}')"`) > 0,
+         "faltou o botão no cartão da lista");
+      ok(HTML.indexOf(`onclick="App.menuLaudoCard('\${item.risco.id}','\${item.tarefa.id}')"`) > 0,
+         "faltou o botão dentro do item");
+    });
+  t("as 3 opções do menu são as que o usuário pediu, na ordem certa", ()=>{
+    const f_ini = HTML.indexOf("menuLaudoCard(rid, tarefaId){");
+    const f_fim = HTML.indexOf("laudoCopiarRisco(rid){", f_ini);
+    const trecho = HTML.slice(f_ini, f_fim);
+    const iVer = trecho.indexOf("Visualizar / editar o risco");
+    const iCopiar = trecho.indexOf("Copiar risco");
+    const iExcluir = trecho.indexOf("Excluir risco");
+    ok(iVer > 0 && iCopiar > iVer && iExcluir > iCopiar, "ordem errada ou opção faltando");
+    ok(trecho.indexOf("danger:true") > 0, "excluir precisa continuar marcado como ação perigosa (fica vermelho)");
+  });
+  t("excluir continua pedindo confirmação — reaproveita removerRiscoS sem duplicar a lógica",
+    ()=>{
+      const f_ini = HTML.indexOf("removerRiscoS(id, tarefaId){");
+      ok(f_ini > 0, "método não encontrado");
+      const trecho = HTML.slice(f_ini, f_ini + 300);
+      ok(trecho.indexOf('if(!confirm("Excluir este risco?")) return;') > 0);
+    });
+  t("o botão '...' do cartão não fica em cima do selo do HRN — ganhou espaço reservado",
+    ()=>{
+      ok(HTML.indexOf(".laudo-card-in{display:flex;gap:10px;align-items:flex-start;padding:10px 40px 10px 10px;") > 0,
+         "sem o padding-right reservado, o botão sobrepõe o número do HRN");
+      ok(HTML.indexOf(".laudo-card{margin-bottom:8px;position:relative;}") > 0,
+         "sem position:relative no cartão, o botão absoluto ancora errado (ou na página inteira)");
+    });
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);
