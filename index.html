@@ -1814,7 +1814,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "19/08/2026 07:51";
+const APP_BUILD = "19/08/2026 08:09";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -2503,8 +2503,16 @@ function rotuloCaminhoNuvem(caminhoCompleto){
    é o sistema funcionando. Registrado como falha, aparecia no diagnóstico como
    problema e derrubava o veredito "os envios estão funcionando" — escondendo
    justamente a informação que o diagnóstico existe para dar. */
+/* VELOCIDADE MEDIDA — soma dos bytes que realmente trafegaram na rodada atual.
+   Serve para a tela dizer "faltam ~3 min" em vez de só "faltam 12 MB": sem uma
+   velocidade medida NESTE aparelho, nesta rede, qualquer estimativa de tempo
+   seria chute (a diferença entre o Wi-Fi do escritório e o 4G da fazenda é de
+   uma ordem de grandeza). Acumula aqui porque este é o único ponto por onde
+   passa todo byte enviado ou recebido, nos dois sentidos. */
+let __syncBytesRodada = 0;
 function registrarEventoSync(direcao, nome, tipo, bytes, ok, motivo, caminho, reparo){
   if(direcao==="up" && ok===false && !reparo) __falhasEnvioNaSync++;
+  if(ok !== false && bytes > 0) __syncBytesRodada += bytes;
   if(!Array.isArray(STATE.logSincronizacao)) STATE.logSincronizacao = [];
   STATE.logSincronizacao.unshift({ ts: Date.now(), dir: direcao, nome: String(nome||"").slice(0,80), caminho: String(caminho||"").slice(0,140) || undefined, tipo, bytes: bytes||0, ok: reparo ? true : (ok!==false), reparo: reparo || undefined, motivo: (ok===false || reparo || direcao==="del") ? String(motivo||"").slice(0,60) : undefined });
   if(STATE.logSincronizacao.length > MAX_EVENTOS_LOG_SYNC) STATE.logSincronizacao.length = MAX_EVENTOS_LOG_SYNC;
@@ -2514,6 +2522,40 @@ function fmtBytes(b){
   if(b < 1024) return b + " B";
   if(b < 1024*1024) return (b/1024).toFixed(0) + " KB";
   return (b/1024/1024).toFixed(1) + " MB";
+}
+/* Fecha a medição da rodada e guarda a velocidade no aparelho. Só grava se a
+   amostra for grande o bastante para significar alguma coisa: uma rodada que
+   moveu 3 KB em 8 segundos (quase toda ela espera de rede) daria uma
+   velocidade ridícula e estragaria todas as estimativas seguintes. */
+function syncFecharMedicaoVelocidade(iniciadoEm){
+  const seg = (Date.now() - (iniciadoEm||0)) / 1000;
+  if(__syncBytesRodada >= 200*1024 && seg >= 2){
+    const bps = __syncBytesRodada / seg;
+    const anterior = STATE.oneDriveBytesPorSegundo;
+    /* Média com a medição anterior (peso 50/50): uma única rodada num momento
+       ruim de sinal não joga a estimativa toda para o lixo. */
+    STATE.oneDriveBytesPorSegundo = (typeof anterior === "number" && anterior > 0)
+      ? Math.round((anterior + bps) / 2) : Math.round(bps);
+  }
+  __syncBytesRodada = 0;
+}
+/* "~2 min", "~35s" — ou vazio quando o aparelho ainda não mediu velocidade
+   nenhuma. Preferimos não mostrar tempo a mostrar um número inventado. */
+function syncTempoEstimado(bytes){
+  const bps = STATE.oneDriveBytesPorSegundo;
+  if(!bytes || bytes<=0) return "";
+  if(typeof bps !== "number" || bps <= 0) return "";
+  const seg = bytes / bps;
+  if(seg < 10) return "~alguns segundos";
+  return "~" + progressoTempo(seg);
+}
+/* A falha mais recente do histórico, para a tela poder dizer O QUE deu errado
+   sem a pessoa precisar abrir o diagnóstico. Ignora o que já foi corrigido
+   sozinho (reparo) — isso não é erro. */
+function syncUltimaFalha(){
+  const log = STATE.logSincronizacao || [];
+  for(const ev of log){ if(ev && ev.ok === false && !ev.reparo) return ev; }
+  return null;
 }
 /* =========================================================================
    SINCRONIZAÇÃO EM DUAS CAMADAS (texto agora, fotos no Wi-Fi) — cada item
@@ -4428,9 +4470,10 @@ function onedriveLinhasPorGrupo(porTipo, rotuloSingular, rotuloPlural){
   if(!porTipo) return [];
   return ONEDRIVE_ORDEM_TIPOS.filter(t=>porTipo[t] && porTipo[t].qtd>0).map(t=>{
     const g = porTipo[t];
-    const mb = (g.bytes/1024/1024).toFixed(1);
+    /* fmtBytes em vez de MB fixo: um grupo de tarefas pesa dezenas de KB e
+       aparecia como "0.0 MB" — número que parece defeito da tela. */
     const fecho = (g.qtd===1 ? rotuloSingular : (rotuloPlural || rotuloSingular));
-    return `${g.qtd} ${onedriveRotuloTipo(t,g.qtd)} ${fecho} (${mb} MB)`;
+    return `${g.qtd} ${onedriveRotuloTipo(t,g.qtd)} ${fecho} (${fmtBytes(g.bytes)})`;
   });
 }
 /* A tela de Backup é redesenhada várias vezes seguidas (progresso, toasts,
@@ -5096,6 +5139,106 @@ function onedriveMontarGruposIniciais(upload, download){
    com "Ok" assim que todos os itens daquele tipo terminam — fica visível a
    sincronização inteira, não só durante a fase correspondente, pra dar uma
    visão completa de etapas concluídas e faltantes o tempo todo. */
+/* PAINEL ÚNICO DE SINCRONIZAÇÃO.
+   Antes, esta parte da tela era a soma de quatro geradores empilhados
+   (syncProgressoHtml + syncGruposHtml + onedriveStatusPendenteHtml +
+   onedriveDiagnosticoInlineHtml), cada um criado numa investigação diferente
+   e nenhum removido depois — a pessoa via quatro blocos com informação
+   parecida e nenhum respondia direto "falta muito?". Aqui os três primeiros
+   viram UM cartão, com três respostas na ordem em que se pergunta:
+     1. está fazendo alguma coisa agora?
+     2. quanto falta — em itens, em MB e em TEMPO?
+     3. deu erro? qual?
+   O diagnóstico detalhado continua existindo, recolhido, logo abaixo. */
+function syncPainelHtml(){
+  const emAndamento = !!__syncProgresso;
+  const falha = syncUltimaFalha();
+
+  // --- 1. o que está acontecendo agora ---
+  let topo, nadaPendente = false;
+  if(emAndamento){
+    const p = __syncProgresso;
+    const rotulos = { enviando:"Enviando alterações", recebendo:"Recebendo alterações", fotos:"Baixando fotos" };
+    const rotulo = rotulos[p.fase] || "Sincronizando";
+    const temTotal = p.totalItens != null && p.totalItens > 0;
+    const pct = temTotal ? Math.min(100, Math.round((p.itemAtual/p.totalItens)*100)) : null;
+    const restanteBytes = (p.bytesTotal||0) - (p.bytesFeitos||0);
+    const tempo = temTotal ? syncTempoEstimado(restanteBytes) : "";
+    topo = `<div style="font-weight:800;font-size:14px;display:flex;align-items:center;gap:7px">
+        <span class="btn-spinner" style="border-top-color:var(--accent)"></span>${rotulo}${pct!=null? " · "+pct+"%" : "…"}
+      </div>
+      <div class="sync-progresso-trilha" style="margin:8px 0 6px"><div class="sync-progresso-barra" style="width:${pct!=null?pct:100}%"></div></div>
+      <div style="font-size:12px;color:var(--ink-dim)">${
+        temTotal ? `${Math.min(p.itemAtual,p.totalItens)} de ${p.totalItens} · ${fmtBytes(p.bytesFeitos)} de ${fmtBytes(p.bytesTotal)}${tempo? ` · falta ${tempo}`:""}`
+                 : `${p.itemAtual} ite${p.itemAtual===1?'m':'ns'} · ${fmtBytes(p.bytesFeitos)}`
+      }</div>`;
+  }else{
+    const up = onedriveEstimativaEnvioComMemo();
+    const fotosUp = __memoEnvio.fotos || {totalItens:0, totalBytes:0};
+    const s = STATE.oneDriveStatusPendente || {};
+    /* Os bytes a receber saem dos grupos por tipo — e NÃO somando
+       "fotosReceber" por fora: os pacotes de foto já estão contados dentro
+       desses grupos, então somar de novo dobraria os MB na tela. */
+    const somarGrupo = (g) => Object.keys(g||{}).reduce((t,k)=> t + ((g[k] && g[k].bytes) || 0), 0);
+    const bytesReceber = somarGrupo(s.receberPorTipo) + somarGrupo(s.atualizarPorTipo);
+    const itens = up.totalItens + fotosUp.totalItens + (s.totalReceber||0);
+    const bytes = up.totalBytes + fotosUp.totalBytes + bytesReceber;
+    if(itens===0){
+      nadaPendente = true;
+      const quando = s.verificadoEm ? new Date(s.verificadoEm).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : null;
+      topo = `<div style="font-weight:800;font-size:14px;color:#2E7D32;display:flex;align-items:center;gap:7px">${ic('check')} Tudo sincronizado</div>
+        <div style="font-size:12px;color:var(--ink-dim);margin-top:3px">Nada esperando envio nem download${quando? ` · nuvem verificada ${quando}`:""}.</div>`;
+    }else{
+      const tempo = syncTempoEstimado(bytes);
+      topo = `<div style="font-weight:800;font-size:14px">${itens} ite${itens===1?'m':'ns'} para sincronizar</div>
+        <div style="font-size:12px;color:var(--ink-dim);margin-top:3px">${fmtBytes(bytes)}${tempo? ` · ${tempo} nesta conexão`:""}</div>`;
+    }
+  }
+
+  /* --- 2. o detalhamento: enviar / receber, com tamanho ---
+     Com nada pendente o detalhamento é pulado: ele repetiria "Tudo
+     sincronizado" logo abaixo da linha que acabou de dizer isso. */
+  const detalhe = emAndamento ? syncGruposHtml() : (nadaPendente ? "" : onedriveStatusPendenteHtml());
+
+  // --- 3. o erro, se houver ---
+  const erro = falha ? `<div style="margin-top:10px;padding:9px 10px;background:#FDE7E7;border:1px solid #E9A6A6;border-radius:8px">
+      <div style="font-size:12.5px;font-weight:800;color:#8A1F1F">${falha.dir==='up'?'Falhou ao enviar':'Falhou ao receber'}: ${escapeHtml(falha.motivo || "motivo não registrado")}</div>
+      <div style="font-size:11.5px;color:#8A1F1F;margin-top:2px;word-break:break-word">${escapeHtml(falha.caminho || falha.nome || "")} · ${new Date(falha.ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div>
+      <div style="font-size:11.5px;color:var(--ink-dim);margin-top:4px">O item continua na fila e é tentado de novo sozinho — nada foi perdido.</div>
+    </div>` : "";
+
+  return `<div class="card card-pad" style="margin-top:8px">${topo}${detalhe}${erro}</div>`;
+}
+/* Histórico de transferências — antes ficava sempre aberto, no meio das
+   seções de Backup, ocupando uma caixa rolável de 280px que quase nunca era
+   o que a pessoa tinha ido buscar ali. Agora é um bloco recolhido, ao lado
+   do diagnóstico: some da frente no uso normal e continua a um toque de
+   distância quando é preciso conferir item por item. */
+function syncHistoricoHtml(){
+  const log = STATE.logSincronizacao || [];
+  if(!STATE.ui.histSyncAberto){
+    return `<button class="btn btn-ghost btn-block" style="margin-top:8px" onclick="App.toggleHistoricoSync()">${ic('sort')} Histórico de transferências${log.length? ` (${log.length})`:""}</button>`;
+  }
+  const linhas = log.map(ev=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid rgba(0,0,0,.05)">
+      <span style="font-weight:900;font-size:15px;color:${ev.dir==='del' ? '#B3261E' : ev.dir==='up' ? 'var(--accent)' : '#2E9E5B'};flex-shrink:0">${ev.dir==='del'?'✕':ev.dir==='up'?'↑':'↓'}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(ev.caminho || ev.nome)}</div>
+        <div style="font-size:10.5px;color:var(--ink-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${new Date(ev.ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}${ev.tipo? ' · '+escapeHtml(ev.tipo):''}${ev.caminho? ' · '+escapeHtml(ev.nome):''}</div>
+      </div>
+      <span style="font-size:11px;color:var(--ink-dim);flex-shrink:0">${fmtBytes(ev.bytes)}</span>
+      ${!ev.ok ? `<span style="font-size:10.5px;color:#FF6B5E;font-weight:800;flex-shrink:0">falhou${ev.motivo? ' ('+escapeHtml(ev.motivo)+')':''}</span>` : ''}
+    </div>`).join("");
+  return `<div class="card card-pad" style="margin-top:8px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <b style="font-size:13px">Histórico de transferências</b>
+      <button class="btn btn-ghost btn-sm" onclick="App.toggleHistoricoSync()">Fechar</button>
+    </div>
+    <p style="font-size:11.5px;color:var(--ink-dim);margin:4px 0 0">Tudo que subiu (↑) ou desceu (↓), com tamanho e horário — inclusive o que aconteceu sozinho em segundo plano. Últimos ${MAX_EVENTOS_LOG_SYNC} eventos.</p>
+    ${log.length===0 ? `<p style="font-size:12.5px;color:var(--ink-dim);margin-top:8px">Nenhum evento registrado ainda nesta versão.</p>`
+      : `<div style="margin:8px -14px -12px;max-height:300px;overflow-y:auto">${linhas}</div>`}
+  </div>`;
+}
 function syncGruposHtml(){
   if(!__syncGrupos) return "";
   const linhas = [];
@@ -5125,6 +5268,7 @@ async function onedriveSincronizarAgora(){
   if(!getOneDriveConta()){ toast("Conecte o OneDrive primeiro"); return; }
   __sincronizandoAgora = true;
   __falhasEnvioNaSync = 0;
+  __syncBytesRodada = 0; // zera a medição de velocidade desta rodada
   __syncIniciadoEm = Date.now();
   marcarProgressoSync();
   manterTelaAcesa();
@@ -5277,6 +5421,7 @@ async function onedriveSincronizarAgora(){
     // Recalcula o status verdadeiro AGORA, no fim — antes, o texto sob o botão
     // continuava exibindo a contagem de ANTES da sincronização (parecia que
     // "sempre sobrava coisa para baixar" mesmo com tudo em dia).
+    syncFecharMedicaoVelocidade(__syncIniciadoEm); // aprende a velocidade desta rede para estimar tempo depois
     try{
       const uploadFinal = onedriveEstimarPendentesUpload();
       const downloadFinal = await onedriveEstimarPendentesDownload();
@@ -12892,6 +13037,14 @@ function screenSimplesConfig(){
   <button class="btn btn-secondary btn-block" style="display:flex;align-items:center;gap:10px;justify-content:flex-start;padding:14px 16px;margin-top:10px" onclick="App.trocarModulo()">
     ${ic('layers')}<span style="flex:1;text-align:left"><b>Trocar de módulo</b><br><span style="font-size:12px;color:var(--ink-dim);font-weight:400">Voltar para o Módulo Completo</span></span>${ic('chevR')}
   </button>
+  <div class="section-title">Aparência</div>
+  <div class="card card-pad" style="display:flex;align-items:center;gap:12px">
+    <div style="flex:1">
+      <div style="font-weight:800;font-size:14px">Alto contraste</div>
+      <div style="font-size:12px;color:var(--ink-dim)">Facilita a leitura sob luz forte / sol direto.</div>
+    </div>
+    <label class="switch"><input type="checkbox" ${STATE.contrasteAlto?'checked':''} onchange="App.toggleContraste()"><span class="switch-track"></span></label>
+  </div>
   <p style="text-align:center;font-size:11px;color:var(--ink-faint);margin-top:22px">Versão ${APP_BUILD}</p>
   `;
 }
@@ -12977,19 +13130,7 @@ function screenSimplesConfigBackup(){
   const linhas = linhasEscopoSimples();
   const idsAreasSelecionadas = new Set(getAreasSelecionadasExport());
   return `
-  <div class="card card-pad">
-    <div style="font-weight:800;font-size:14.5px;margin-bottom:4px">Seus dados ficam só neste aparelho</div>
-    <p style="font-size:13px;color:var(--ink-dim)">Tudo é salvo automaticamente no navegador. Exporte um backup regularmente para não perder nada.</p>
-  </div>
-  <div class="section-title">Aparência</div>
-  <div class="card card-pad" style="display:flex;align-items:center;gap:12px">
-    <div style="flex:1">
-      <div style="font-weight:800;font-size:14px">Alto contraste</div>
-      <div style="font-size:12px;color:var(--ink-dim)">Facilita a leitura sob luz forte / sol direto.</div>
-    </div>
-    <label class="switch"><input type="checkbox" ${STATE.contrasteAlto?'checked':''} onchange="App.toggleContraste()"><span class="switch-track"></span></label>
-  </div>
-  <div class="section-title">Sincronização · Conta OneDrive</div>
+  <div class="section-title">Sincronização</div>
   ${getOneDriveConta() && __onedriveSessaoExpirada ? `
   <div class="card card-pad" style="border:1.5px solid var(--danger)">
     <div class="pasta-nome" style="font-weight:800;font-size:14px;color:var(--danger)">${ic('warn')} Sessão do OneDrive expirou</div>
@@ -12998,39 +13139,24 @@ function screenSimplesConfigBackup(){
   <button class="btn btn-onedrive btn-block" style="margin-top:8px" onclick="App.onedriveConectar()">${ic('onedrive')} Conectar de novo</button>
   <button class="btn btn-danger btn-block" style="margin-top:8px" onclick="App.onedriveDesconectar()">${ic('trash')} Desconectar OneDrive deste aparelho</button>
   ` : getOneDriveConta() ? `
-  <div class="card card-pad">
-    <div class="pasta-nome" style="font-weight:800;font-size:14px">${ic('onedrive')} Conectado</div>
-    <p style="font-size:12.5px;color:var(--ink-dim);margin-top:4px">Conta: <b>${getOneDriveConta().email}</b><br>Toda alteração e todo backup sobem automaticamente para a pasta <b>${ONEDRIVE_PASTA_APP}</b> no seu OneDrive, sem precisar de mais nada.</p>
-  </div>
-  ${((STATE.projetosSimples||[]).length===0 && (STATE.projetos||[]).length===0) ? `
-  <button class="btn btn-onedrive btn-block" style="margin-top:8px" onclick="App.onedriveVerificarBootstrapNovoDispositivo(true)">${ic('onedrive')} Trazer dados já existentes no OneDrive</button>
+  ${syncPainelHtml()}
+  <button class="btn btn-onedrive btn-block${__sincronizandoAgora?' btn-sincronizando':''}" style="margin-top:8px" ${__sincronizandoAgora?'disabled':''} onclick="App.onedriveSincronizarAgora()">${ic('onedrive')} ${__sincronizandoAgora?'Sincronizando…':'Sincronizar agora'}</button>
+  ${(STATE.oneDrivePendentes||[]).length>0 ? `
+  <button class="btn btn-secondary btn-block${__sincronizandoAgora?' btn-sincronizando':''}" style="margin-top:8px" ${__sincronizandoAgora?'disabled':''} onclick="App.onedriveBaixarPendentesConfirmar()">${ic('gallery')} ${(__sincronizandoAgora && __syncProgresso && __syncProgresso.fase==='fotos') ? 'Baixando…' : `Baixar ${STATE.oneDrivePendentes.length} ${STATE.oneDrivePendentes.length===1?'item':'itens'} com fotos (${(STATE.oneDrivePendentes.reduce((s,p)=>s+(p.tamanho||0),0)/1024/1024).toFixed(1)} MB)`}</button>
   ` : ''}
-  <button class="btn btn-danger btn-block" style="margin-top:8px" onclick="App.onedriveDesconectar()">${ic('trash')} Desconectar OneDrive deste aparelho</button>
-  <div class="section-title">Sincronização · Entre aparelhos</div>
-  <button class="btn btn-onedrive btn-block${__sincronizandoAgora?' btn-sincronizando':''}" ${__sincronizandoAgora?'disabled':''} onclick="App.onedriveSincronizarAgora()">${ic('onedrive')} ${__sincronizandoAgora?'Sincronizando…':'Sincronizar agora'}</button>
-  ${syncProgressoHtml()}
-  ${syncGruposHtml()}
-  ${!__sincronizandoAgora ? onedriveStatusPendenteHtml() : ''}
-  <p style="font-size:11.5px;color:var(--ink-dim);margin:4px 2px 0">Envia suas alterações e recebe as de outros aparelhos, nessa ordem.</p>
+  ${((STATE.projetosSimples||[]).length===0 && (STATE.projetos||[]).length===0) ? `
+  <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.onedriveVerificarBootstrapNovoDispositivo(true)">${ic('onedrive')} Trazer dados já existentes no OneDrive</button>
+  ` : ''}
+  ${syncHistoricoHtml()}
   ${onedriveDiagnosticoInlineHtml()}
-  ` : `
-  <div class="card card-pad">
-    <p style="font-size:13px;color:var(--ink-dim)">Conecte sua conta Microsoft uma vez para os backups subirem automaticamente para o OneDrive, direto pelo app — sem depender de sincronização de pasta.</p>
-  </div>
-  <button class="btn btn-onedrive btn-block" style="margin-top:8px" onclick="App.onedriveConectar()">${ic('onedrive')} Conectar OneDrive</button>
-  `}
-  ${(getOneDriveConta() && !__onedriveSessaoExpirada) ? `
   <div class="section-title">Sincronização · Fotos e consumo de dados</div>
-  <p style="font-size:11.5px;color:var(--ink-dim);margin:0 2px 6px">O texto dos itens sincroniza sempre, em qualquer conexão. Só as fotos aguardam Wi-Fi — os controles abaixo valem para elas.</p>
-  <div class="card card-pad" style="display:flex;align-items:center;gap:12px;margin-top:8px">
+  <p style="font-size:11.5px;color:var(--ink-dim);margin:0 2px 6px">O texto sincroniza sempre, em qualquer conexão. Só as fotos aguardam Wi-Fi — os controles abaixo valem para elas.</p>
+  <div class="card card-pad" style="display:flex;align-items:center;gap:12px">
     <div style="flex:1">
       <div style="font-weight:800;font-size:14px">Estou no Wi-Fi agora</div>
       <div style="font-size:12px;color:var(--ink-dim)">O navegador não sabe informar isso de forma confiável — marque aqui quando tiver certeza, e o app para de perguntar sobre consumo de dados.</div>
     </div>
     <label class="switch"><input type="checkbox" ${STATE.wifiConfirmado?'checked':''} onchange="App.onedriveToggleWifiConfirmado()"><span class="switch-track"></span></label>
-  </div>
-  <div class="card card-pad" style="margin-top:8px">
-    <p style="font-size:12.5px;color:var(--ink-dim)">Áreas, máquinas, tarefas e riscos novos criados em outro aparelho (mesma conta OneDrive) aparecem aqui automaticamente. O texto vem sozinho, em qualquer conexão. Fotos ficam pendentes até você confirmar o download, para não gastar dados do seu plano sem avisar.</p>
   </div>
   <div class="card card-pad" style="display:flex;align-items:center;gap:12px;margin-top:8px">
     <div style="flex:1">
@@ -13039,10 +13165,17 @@ function screenSimplesConfigBackup(){
     </div>
     <label class="switch"><input type="checkbox" ${STATE.baixarFotosAutoWifi?'checked':''} onchange="App.onedriveToggleAutoWifi()"><span class="switch-track"></span></label>
   </div>
-  ${(STATE.oneDrivePendentes||[]).length>0 ? `
-  <button class="btn btn-onedrive btn-block${__sincronizandoAgora?' btn-sincronizando':''}" style="margin-top:8px" ${__sincronizandoAgora?'disabled':''} onclick="App.onedriveBaixarPendentesConfirmar()">${ic('onedrive')} ${(__sincronizandoAgora && __syncProgresso && __syncProgresso.fase==='fotos') ? 'Baixando…' : `Baixar ${STATE.oneDrivePendentes.length} ${STATE.oneDrivePendentes.length===1?'item':'itens'} com fotos (~${(STATE.oneDrivePendentes.reduce((s,p)=>s+(p.tamanho||0),0)/1024/1024).toFixed(1)} MB)`}</button>
-  ` : ''}
-  ` : ''}
+  <div class="section-title">Sincronização · Conta</div>
+  <div class="card card-pad">
+    <div style="font-size:12.5px;color:var(--ink-dim)">${ic('onedrive')} Conectado como <b>${escapeHtml(getOneDriveConta().email)}</b><br>Tudo sobe sozinho para a pasta <b>${ONEDRIVE_PASTA_APP}</b> no OneDrive.</div>
+  </div>
+  <button class="btn btn-danger btn-block" style="margin-top:8px" onclick="App.onedriveDesconectar()">${ic('trash')} Desconectar OneDrive deste aparelho</button>
+  ` : `
+  <div class="card card-pad">
+    <p style="font-size:13px;color:var(--ink-dim)">Conecte sua conta Microsoft uma vez para os backups subirem automaticamente para o OneDrive, direto pelo app — sem depender de sincronização de pasta.</p>
+  </div>
+  <button class="btn btn-onedrive btn-block" style="margin-top:8px" onclick="App.onedriveConectar()">${ic('onedrive')} Conectar OneDrive</button>
+  `}
   <div class="section-title">Backup · Pasta local do aparelho</div>
   ${!suportaPastaLocal() ? `
   <div class="card card-pad">
@@ -13065,23 +13198,6 @@ function screenSimplesConfigBackup(){
   <button class="btn btn-primary btn-block" onclick="App.exportarBackup()">${ic('download')} Exportar backup (.json) — ${STATE.projetosSimples.length} projeto(s) / ${linhas.length} risco(s)</button>
   <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="document.getElementById('fileImport').click()">${ic('upload')} Importar backup (.json)</button>
   <p style="text-align:center;font-size:11px;color:var(--ink-faint);margin-top:16px">Versão ${APP_BUILD}</p>
-  <div class="section-title">Sincronização · Histórico</div>
-  <div class="card card-pad">
-    <p style="font-size:12.5px;color:var(--ink-dim)">Tudo que subiu (${'\u2191'}) ou desceu (${'\u2193'}) do OneDrive, com tamanho e horário — inclusive o que aconteceu sozinho em segundo plano. Últimos ${MAX_EVENTOS_LOG_SYNC} eventos.</p>
-  </div>
-  ${(STATE.logSincronizacao||[]).length===0 ? `<p style="font-size:12.5px;color:var(--ink-dim);margin-top:8px">Nenhum evento registrado ainda nesta versão.</p>` : `
-  <div class="card" style="margin-top:8px;max-height:280px;overflow-y:auto">
-    ${(STATE.logSincronizacao||[]).map(ev=>`
-    <div style="display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid rgba(0,0,0,.05)">
-      <span style="font-weight:900;font-size:15px;color:${ev.dir==='del' ? '#B3261E' : ev.dir==='up' ? 'var(--accent)' : '#2E9E5B'};flex-shrink:0">${ev.dir==='del'?'\u2715':ev.dir==='up'?'\u2191':'\u2193'}</span>
-      <div style="flex:1;min-width:0">
-        <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(ev.caminho || ev.nome)}</div>
-        <div style="font-size:10.5px;color:var(--ink-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${new Date(ev.ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}${ev.tipo? ' · '+escapeHtml(ev.tipo):''}${ev.caminho? ' · '+escapeHtml(ev.nome):''}</div>
-      </div>
-      <span style="font-size:11px;color:var(--ink-dim);flex-shrink:0">${fmtBytes(ev.bytes)}</span>
-      ${!ev.ok ? `<span style="font-size:10.5px;color:#FF6B5E;font-weight:800;flex-shrink:0">falhou${ev.motivo? ' ('+escapeHtml(ev.motivo)+')':''}</span>` : ''}
-    </div>`).join("")}
-  </div>`}
   <div class="section-title">Backup · Pontos de restauração (neste aparelho)</div>
   ${__statusArmazenamentoCache && __statusArmazenamentoCache.espaco ? `<div class="card card-pad" style="margin-bottom:8px">
     <div style="font-size:12.5px;color:var(--ink-dim)">Espaço livre estimado no aparelho: <b>${(__statusArmazenamentoCache.espaco.livre/1024/1024/1024).toFixed(1)} GB</b>${__statusArmazenamentoCache.espaco.livre < FOLGA_MINIMA_DESEJADA_BYTES ? ' <span style="color:#FF6B5E;font-weight:700">— abaixo da folga recomendada de 2 GB</span>' : ''}${__statusArmazenamentoCache.persistente ? ' · dados protegidos contra limpeza automática do navegador' : ''}</div>
@@ -15107,6 +15223,7 @@ const App = {
   },
   fecharModal(){ const el=document.getElementById("overlayRoot"); if(el) el.remove(); },
   toggleDiagnosticoSync(){ STATE.ui.diagSyncAberto = !STATE.ui.diagSyncAberto; render(); },
+  toggleHistoricoSync(){ STATE.ui.histSyncAberto = !STATE.ui.histSyncAberto; render(); },
   limparFilaNuvem(){
     const n = (STATE.oneDriveDeltaFila||[]).length;
     if(n === 0){ toast("A fila já está vazia", false); return; }

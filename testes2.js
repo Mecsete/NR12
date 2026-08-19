@@ -4714,6 +4714,103 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  console.log("\n=== t104 · página de backup: painel único com tempo, tamanho e erro ===");
+  /* A página tinha 9 seções alternando assunto e QUATRO painéis empilhados
+     com informação parecida, nenhum respondendo direto "falta muito?".
+     Usuário pediu: ver o que está sincronizando, o que falta em TEMPO e
+     TAMANHO, e qual foi o erro. */
+  {
+    const ctxP = {
+      console, JSON, Math, Date, Object, Array, String, Number,
+      STATE: { ui:{}, logSincronizacao:[] },
+      escapeHtml, ic,
+      __syncProgresso: null,
+      __memoEnvio: { fotos:{ totalItens:0, totalBytes:0 } },
+      onedriveEstimativaEnvioComMemo: ()=>({ totalItens:0, totalBytes:0, porTipo:{}, porTipoAlterado:{} }),
+      onedriveStatusPendenteHtml: ()=>"<!--detalhe-->",
+      syncGruposHtml: ()=>"<!--grupos-->",
+    };
+    vm.createContext(ctxP);
+    ["fmtBytes","progressoTempo","syncTempoEstimado","syncUltimaFalha","syncPainelHtml","syncFecharMedicaoVelocidade"]
+      .forEach(n=> vm.runInContext(funcao(n), ctxP));
+    vm.runInContext("var __syncBytesRodada = 0;", ctxP);
+    const painel = ()=> vm.runInContext("syncPainelHtml()", ctxP);
+    const semTags = h => h.replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim();
+
+    t("sem velocidade medida, o app não inventa tempo", ()=>{
+      ctxP.STATE.oneDriveBytesPorSegundo = undefined;
+      eq(vm.runInContext("syncTempoEstimado(10*1024*1024)", ctxP), "",
+         "mostrar tempo sem ter medido nada seria chute");
+    });
+    t("com velocidade medida, o tempo aparece em minutos/segundos", ()=>{
+      ctxP.STATE.oneDriveBytesPorSegundo = 1024*1024; // 1 MB/s
+      eq(vm.runInContext("syncTempoEstimado(120*1024*1024)", ctxP), "~2min 00s");
+      eq(vm.runInContext("syncTempoEstimado(3*1024)", ctxP), "~alguns segundos");
+    });
+    t("uma amostra pequena demais não vira velocidade medida", ()=>{
+      ctxP.STATE.oneDriveBytesPorSegundo = undefined;
+      vm.runInContext("__syncBytesRodada = 3*1024; syncFecharMedicaoVelocidade(Date.now()-8000);", ctxP);
+      eq(ctxP.STATE.oneDriveBytesPorSegundo, undefined,
+         "3 KB em 8s é quase só espera de rede — viraria uma estimativa absurda");
+    });
+    t("uma amostra grande vira velocidade e é suavizada com a anterior", ()=>{
+      ctxP.STATE.oneDriveBytesPorSegundo = undefined;
+      vm.runInContext("__syncBytesRodada = 10*1024*1024; syncFecharMedicaoVelocidade(Date.now()-10000);", ctxP);
+      const primeira = ctxP.STATE.oneDriveBytesPorSegundo;
+      ok(primeira > 900*1024 && primeira < 1100*1024, "10 MB em 10s ≈ 1 MB/s, obtido " + primeira);
+      vm.runInContext("__syncBytesRodada = 30*1024*1024; syncFecharMedicaoVelocidade(Date.now()-10000);", ctxP);
+      const segunda = ctxP.STATE.oneDriveBytesPorSegundo;
+      ok(segunda > primeira && segunda < 3*1024*1024,
+         "a segunda medição precisa puxar a média, não substituí-la: " + segunda);
+    });
+    t("nada pendente: diz 'Tudo sincronizado' UMA vez, sem repetir o detalhamento", ()=>{
+      ctxP.STATE.oneDriveStatusPendente = { totalReceber:0, receberPorTipo:{}, atualizarPorTipo:{}, verificadoEm: Date.now() };
+      ctxP.STATE.logSincronizacao = [];
+      const h = painel();
+      ok(semTags(h).indexOf("Tudo sincronizado") >= 0);
+      eq(h.indexOf("<!--detalhe-->"), -1, "o detalhamento repetiria 'Tudo sincronizado' logo abaixo");
+    });
+    t("com pendência: mostra quantidade, tamanho e tempo, e chama o detalhamento", ()=>{
+      ctxP.STATE.oneDriveBytesPorSegundo = 1024*1024;
+      ctxP.STATE.oneDriveStatusPendente = { totalReceber:7,
+        receberPorTipo:{ risco:{qtd:5,bytes:9*1024*1024}, tarefa:{qtd:2,bytes:40*1024} },
+        atualizarPorTipo:{}, verificadoEm: Date.now() };
+      const txt = semTags(painel());
+      ok(txt.indexOf("7 itens para sincronizar") >= 0, txt);
+      ok(txt.indexOf("MB") >= 0 && txt.indexOf("~") >= 0, "faltou tamanho ou tempo: " + txt);
+      ok(painel().indexOf("<!--detalhe-->") > 0, "o detalhamento por tipo precisa aparecer");
+    });
+    t("as fotos a receber não são contadas duas vezes no total", ()=>{
+      /* fotosReceber já está dentro de receberPorTipo — somar por fora
+         dobraria os MB mostrados na tela. */
+      ctxP.STATE.oneDriveStatusPendente = { totalReceber:5,
+        receberPorTipo:{ risco:{qtd:5,bytes:10*1024*1024} }, atualizarPorTipo:{},
+        fotosReceber:{qtd:5,bytes:10*1024*1024}, verificadoEm: Date.now() };
+      const txt = semTags(painel());
+      ok(txt.indexOf("10.0 MB") >= 0 && txt.indexOf("20.0 MB") < 0, "contou as fotos em dobro: " + txt);
+    });
+    t("sincronizando agora: mostra fase, %, itens, bytes e quanto falta", ()=>{
+      ctxP.__syncProgresso = { fase:'enviando', itemAtual:3, totalItens:12, bytesFeitos:2*1024*1024, bytesTotal:11*1024*1024 };
+      const txt = semTags(painel());
+      ok(txt.indexOf("Enviando alterações") >= 0 && txt.indexOf("25%") >= 0, txt);
+      ok(txt.indexOf("3 de 12") >= 0 && txt.indexOf("2.0 MB de 11.0 MB") >= 0, txt);
+      ok(txt.indexOf("falta ~") >= 0, "faltou a estimativa de tempo restante: " + txt);
+      ctxP.__syncProgresso = null;
+    });
+    t("o erro mais recente aparece com o motivo, sem abrir o diagnóstico", ()=>{
+      ctxP.STATE.logSincronizacao = [
+        { ts:Date.now(), dir:"up", nome:"risco_a.json", caminho:"Corteva/Debulha", bytes:0, ok:false, motivo:"tempo esgotado na rede" } ];
+      const txt = semTags(painel());
+      ok(txt.indexOf("Falhou ao enviar") >= 0 && txt.indexOf("tempo esgotado na rede") >= 0, txt);
+      ok(txt.indexOf("nada foi perdido") >= 0, "precisa tranquilizar: o item continua na fila");
+    });
+    t("correção automática (reparo) não é mostrada como erro", ()=>{
+      ctxP.STATE.logSincronizacao = [
+        { ts:Date.now(), dir:"up", nome:"x.json", bytes:10, ok:false, reparo:true, motivo:"autocura" } ];
+      eq(semTags(painel()).indexOf("Falhou ao"), -1, "reparo não é falha");
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

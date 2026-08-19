@@ -1517,6 +1517,61 @@ chk("nada do filtro de pendentes do envio foi alterado -- a correcao e toda do l
     "    if(!registro) return true;                              // nunca subiu" in novo
     and "    if(registro.atualizadoEm !== it.atualizadoEm) return true; // mudou desde a última subida" in novo)
 
+print("\n=== 61. PAGINA DE BACKUP LIMPA: UM PAINEL SO, SECOES AGRUPADAS ===")
+# A pagina tinha 9 secoes alternando assunto (Sincronizacao / Backup /
+# Sincronizacao / Backup...), "Aparencia" no meio sem pertencer a nenhum dos
+# dois, e QUATRO geradores de painel empilhados dentro de "Entre aparelhos"
+# (syncProgressoHtml + syncGruposHtml + onedriveStatusPendenteHtml +
+# onedriveDiagnosticoInlineHtml), cada um criado numa investigacao diferente
+# e nenhum removido depois. Usuario pediu: ver o que esta sincronizando, o
+# que falta em TEMPO e TAMANHO, e qual foi o erro.
+chk("existe um painel unico que junta andamento + o que falta + erro",
+    novo.count("function syncPainelHtml(){") == 1
+    and "${syncPainelHtml()}" in novo)
+chk("os tres paineis antigos nao sao mais empilhados soltos na tela",
+    "${syncProgressoHtml()}\n  ${syncGruposHtml()}" not in novo
+    and "${!__sincronizandoAgora ? onedriveStatusPendenteHtml() : ''}" not in novo)
+chk("syncGruposHtml e onedriveStatusPendenteHtml continuam existindo, agora usados DENTRO do painel",
+    "const detalhe = emAndamento ? syncGruposHtml() : (nadaPendente ? \"\" : onedriveStatusPendenteHtml());" in novo)
+chk("estimativa de TEMPO existe e so aparece com velocidade realmente medida",
+    novo.count("function syncTempoEstimado(bytes){") == 1
+    and 'if(typeof bps !== "number" || bps <= 0) return "";' in novo
+    and novo.count("function syncFecharMedicaoVelocidade(iniciadoEm){") == 1)
+chk("a velocidade e medida no unico ponto por onde passa todo byte transferido",
+    "if(ok !== false && bytes > 0) __syncBytesRodada += bytes;" in novo
+    and "syncFecharMedicaoVelocidade(__syncIniciadoEm);" in novo)
+chk("amostra pequena demais nao vira velocidade (estragaria toda estimativa seguinte)",
+    "if(__syncBytesRodada >= 200*1024 && seg >= 2){" in novo)
+chk("o ERRO mais recente aparece no painel, com motivo, sem precisar abrir o diagnostico",
+    novo.count("function syncUltimaFalha(){") == 1
+    and "if(ev && ev.ok === false && !ev.reparo) return ev;" in novo
+    and "Falhou ao enviar" in novo and "Falhou ao receber" in novo)
+chk("historico virou bloco recolhivel, com o mesmo padrao do diagnostico",
+    novo.count("function syncHistoricoHtml(){") == 1
+    and "toggleHistoricoSync(){ STATE.ui.histSyncAberto = !STATE.ui.histSyncAberto; render(); }," in novo
+    and "if(!STATE.ui.histSyncAberto){" in novo)
+chk("'Aparencia' saiu da pagina de backup e foi para Configuracoes",
+    novo.count('<div class="section-title">Aparência</div>') == 1
+    and novo.find('<div class="section-title">Aparência</div>') < novo.find("function screenSimplesConfigBackup"))
+# A funcao seguinte no arquivo e screenSimplesConfigEmpresa (nao a de
+# Exportacoes, que vem ANTES) -- o recorte precisa terminar nela.
+_ini61 = novo.find("function screenSimplesConfigBackup")
+_fim61 = novo.find("\nfunction screenSimplesConfigEmpresa", _ini61)
+chk("as secoes nao alternam mais de assunto: Sincronizacao, depois Backup, depois Dados",
+    _ini61 > 0 and _fim61 > _ini61 and
+    re.findall(r'<div class="section-title">([^<]+)</div>', novo[_ini61:_fim61])
+    == ["Sincronização", "Sincronização · Fotos e consumo de dados", "Sincronização · Conta",
+        "Backup · Pasta local do aparelho", "Backup · Arquivo completo (.json)",
+        "Backup · Pontos de restauração (neste aparelho)", "Dados"])
+chk("tamanho pequeno nao aparece mais como '0.0 MB'",
+    "return `${g.qtd} ${onedriveRotuloTipo(t,g.qtd)} ${fecho} (${fmtBytes(g.bytes)})`;" in novo)
+chk("nenhum recurso foi removido -- diagnostico, historico e os dois controles de foto continuam",
+    novo.count("onedriveDiagnosticoInlineHtml()") >= 1
+    and "App.onedriveToggleWifiConfirmado()" in novo
+    and "App.onedriveToggleAutoWifi()" in novo
+    and "App.onedriveBaixarPendentesConfirmar()" in novo
+    and "App.onedriveVerificarBootstrapNovoDispositivo(true)" in novo)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

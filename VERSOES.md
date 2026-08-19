@@ -28,6 +28,47 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 19/08/2026 08:09
+
+Página de Backup reorganizada: um painel só, com o que falta em tamanho e
+em tempo, e o erro à vista quando houver.
+
+**O problema.** A página tinha nove seções que ficavam alternando de
+assunto — Sincronização, Backup, Sincronização, Backup — com "Aparência"
+no meio, sem pertencer a nenhum dos dois. E, dentro da parte de
+sincronização, havia **quatro** blocos de informação empilhados, cada um
+criado numa investigação diferente e nenhum removido depois. Sobrava
+informação e faltava resposta: nenhum deles dizia direto "falta muito?".
+
+**O que mudou.** Os blocos viraram **um cartão só**, no topo, respondendo
+na ordem em que a pergunta aparece:
+
+1. está fazendo alguma coisa agora? (com barra e porcentagem)
+2. quanto falta — em itens, em MB e em **tempo**
+3. deu erro? qual foi, em qual arquivo e quando
+
+A estimativa de tempo é nova. Ela usa a velocidade **medida neste
+aparelho, nesta rede** — a diferença entre o Wi-Fi do escritório e o 4G da
+fazenda é grande demais para chutar. Enquanto o app ainda não tiver medido
+nada, ele mostra só o tamanho e não inventa um tempo.
+
+O erro também é novo ali: antes era preciso abrir o diagnóstico para
+descobrir o motivo de uma falha. Agora ele aparece no próprio cartão, com
+a frase que explica que o item continua na fila e nada foi perdido.
+
+**Reorganização.** As seções agora vêm agrupadas por assunto: primeiro
+tudo de **Sincronização** (situação, botão, fotos e dados, conta), depois
+tudo de **Backup** (pasta, arquivo .json, pontos de restauração), e por
+último **Dados**. "Alto contraste" foi para a tela de Configurações.
+
+**Nada foi removido.** O histórico de transferências e o diagnóstico
+detalhado continuam iguais — só passaram a ficar recolhidos, a um toque de
+distância, em vez de ocupar a tela o tempo todo. Também foi corrigido um
+detalhe antigo: tamanhos pequenos apareciam como "0.0 MB" e agora aparecem
+em KB.
+
+---
+
 ## 19/08/2026 07:51
 
 Correção de um detalhe da entrega anterior, encontrado ao investigar o
