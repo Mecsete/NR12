@@ -28,6 +28,40 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 19/08/2026 09:39
+
+Corrigido um segundo cronômetro de segurança — o que fazia a sincronização
+falhar **mesmo com a página aberta**.
+
+Existiam dois. O primeiro (corrigido às 08:41) mede tempo sem avanço. O
+segundo, que eu não tinha visto, media o **tempo total** desde o início e
+encerrava qualquer sincronização com mais de 50 segundos assim que a aba
+voltasse para a frente. Num projeto de mais de mil itens e dezenas de MB,
+passar de 50 segundos é o normal — então bastava alternar de aba um instante
+e voltar para matar uma sincronização perfeitamente saudável.
+
+Pior: a correção anterior tornou isso mais frequente. Como a sincronização
+deixou de ser morta em segundo plano, ela passou a durar mais — e a cair
+nesta segunda trava com mais frequência. Foi por isso que a impressão foi de
+piora.
+
+Agora este cronômetro também mede **tempo sem avanço**. O que ele existe para
+resolver (o congelamento do aparelho, em que a execução para de verdade)
+continua sendo detectado, porque nesse caso o avanço também para. Uma
+sincronização longa e saudável não é mais interrompida.
+
+A mensagem também mudou: ela afirmava "o aparelho ficou em segundo plano",
+o que era informação errada para quem estava com a página aberta o tempo
+todo. Agora diz apenas que a sincronização parou de responder.
+
+**Sobre a correção anterior (09:17).** Ela funcionou. No diagnóstico seguinte,
+as falhas por limite de requisições foram a zero, a fila da nuvem esvaziou, e
+as 22 correções automáticas registradas foram todas no mesmo instante — o
+acúmulo antigo se resolvendo de uma vez. A sincronização seguinte, cinco
+minutos depois, não gerou nenhuma correção nova.
+
+---
+
 ## 19/08/2026 09:17
 
 Encontrada e corrigida a causa da sincronização que nunca terminava.

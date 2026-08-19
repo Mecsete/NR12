@@ -4936,6 +4936,39 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  console.log("\n=== t107 · a trava de 50 s mede tempo PARADO, não duração total ===");
+  /* Usuário: "as tentativas de sincronização falham mesmo com a página
+     aberta". Existiam DOIS vigias. O primeiro (comVigilanciaDeProgresso) já
+     media tempo sem avanço; o segundo, no visibilitychange, media o tempo
+     TOTAL desde o início e abortava qualquer sincronização com mais de 50 s
+     ao voltar para a aba. Com 1170 itens e dezenas de MB, passar de 50 s é o
+     normal — bastava alternar de aba um instante e voltar para matar uma
+     sincronização saudável. E piorou depois que o primeiro vigia parou de
+     matar em segundo plano: a sincronização passou a durar mais e a cair
+     nesta segunda trava com mais frequência. */
+  t("a trava do visibilitychange olha __syncUltimoProgressoEm, não o início", ()=>{
+    const i = HTML.indexOf("const paradoHa = __syncUltimoProgressoEm");
+    ok(i > 0, "voltou a medir duração total — mata sincronização longa e saudável");
+    ok(HTML.indexOf("if(__sincronizandoAgora && paradoHa > 50000){") > 0);
+    eq(HTML.indexOf("__sincronizandoAgora && __syncIniciadoEm && (Date.now() - __syncIniciadoEm > 50000)"), -1,
+       "a condição antiga (duração total) não pode voltar");
+  });
+  t("sem nenhum carimbo de progresso, ainda cai no início como antes (não trava para sempre)", ()=>{
+    const i = HTML.indexOf("const paradoHa = __syncUltimoProgressoEm");
+    const trecho = HTML.slice(i, i + 220);
+    ok(trecho.indexOf("(__syncIniciadoEm ? (Date.now() - __syncIniciadoEm) : 0)") > 0,
+       "sem essa alternativa, uma sincronização que nunca marcou progresso ficaria girando");
+  });
+  t("a mensagem deixou de afirmar 'segundo plano' para quem estava com a página aberta", ()=>{
+    ok(HTML.indexOf("A sincronização parou de responder e foi encerrada.") > 0);
+    eq(HTML.indexOf("interrompida porque o aparelho ficou em segundo plano"), -1,
+       "afirmar o motivo errado confunde o diagnóstico de quem está em campo");
+  });
+  t("o outro vigia continua existindo e continua ignorando a aba escondida", ()=>{
+    const f = funcao("comVigilanciaDeProgresso");
+    ok(f.indexOf('if(document.visibilityState === "hidden"){ marcarProgressoSync(); return; }') > 0);
+  });
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

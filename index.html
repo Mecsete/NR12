@@ -1814,7 +1814,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "19/08/2026 09:17";
+const APP_BUILD = "19/08/2026 09:39";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -18302,7 +18302,23 @@ document.addEventListener("visibilitychange", ()=>{
     // ícone ficaria girando pra sempre até a pessoa fechar e abrir o app de
     // novo. Ao voltar pra tela, se ainda estiver "girando" depois de tempo
     // suficiente, destrava sozinho e avisa.
-    if(__sincronizandoAgora && __syncIniciadoEm && (Date.now() - __syncIniciadoEm > 50000)){
+    /* MEDE PARADO, NÃO DURAÇÃO.
+       Esta trava media o tempo TOTAL desde o início: qualquer sincronização
+       com mais de 50 s era abortada ao voltar para a aba. Num projeto de mais
+       de mil itens e dezenas de MB, passar de 50 s é o normal — então bastava
+       alternar de aba um instante e voltar para MATAR uma sincronização
+       perfeitamente saudável, com a página aberta. Era essa a impressão de
+       "as tentativas falham mesmo com a página aberta", e piorou depois que o
+       outro vigia (comVigilanciaDeProgresso) parou de matar em segundo plano:
+       a sincronização passou a durar mais e a cair aqui com mais frequência.
+       O que esta proteção quer pegar é o congelamento do iOS, em que a
+       execução para de verdade — e aí o carimbo de progresso também para.
+       Medindo o tempo SEM AVANÇO, o congelamento continua sendo destravado e
+       a sincronização longa e saudável segue viva. */
+    const paradoHa = __syncUltimoProgressoEm
+      ? (Date.now() - __syncUltimoProgressoEm)
+      : (__syncIniciadoEm ? (Date.now() - __syncIniciadoEm) : 0);
+    if(__sincronizandoAgora && paradoHa > 50000){
       const jaSalvos = __syncProgresso ? __syncProgresso.itemAtual : 0;
       __sincronizandoAgora = false;
       __syncIniciadoEm = null;
@@ -18312,7 +18328,11 @@ document.addEventListener("visibilitychange", ()=>{
       // foram gravados no aparelho um por um — nada disso se perde. Avisar o
       // número junto evita a impressão errada de "perdi tudo de novo".
       const detalheSalvos = jaSalvos>0 ? ` ${jaSalvos} ite${jaSalvos===1?'m':'ns'} já ${jaSalvos===1?'foi':'foram'} salvo${jaSalvos===1?'':'s'} antes de parar — nada disso se perdeu.` : '';
-      toast(`A sincronização foi interrompida porque o aparelho ficou em segundo plano.${detalheSalvos} Toque em "Sincronizar agora" para continuar de onde parou — evite trocar de aplicativo ou apagar a tela enquanto sincroniza.`, false);
+      /* A frase não afirma mais o motivo: agora só se chega aqui quando a
+         sincronização ficou 50 s SEM AVANÇAR, e isso pode ser congelamento do
+         aparelho ou queda de rede. Dizer "ficou em segundo plano" para quem
+         estava com a página aberta o tempo todo é informação errada. */
+      toast(`A sincronização parou de responder e foi encerrada.${detalheSalvos} Toque em "Sincronizar agora" para continuar de onde parou.`, false);
       render();
     }
     sincronizarIncrementalNaPasta(); sincronizarIncrementalOneDrive(); sincronizarDownloadOneDrive();

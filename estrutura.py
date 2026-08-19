@@ -1622,6 +1622,25 @@ chk("a autocura legitima continua existindo -- so passou a exigir foto completa"
     'registrarEventoSync("up", reg.arquivo, item.tipo, 0, true, "faltava na nuvem — reenvio agendado"' in novo
     and "mapa.delete(item.id);" in novo)
 
+print("\n=== 64. A TRAVA DE 50 S MEDE TEMPO PARADO, NAO DURACAO TOTAL ===")
+# Usuario: "as tentativas de sincronizacao falham mesmo com a pagina aberta".
+# Existiam DOIS vigias. comVigilanciaDeProgresso ja media tempo sem avanco; o
+# segundo, no visibilitychange, media o tempo TOTAL desde o inicio e abortava
+# qualquer sincronizacao com mais de 50 s ao voltar para a aba. Com 1170 itens
+# e dezenas de MB, passar de 50 s e o normal -- bastava alternar de aba um
+# instante e voltar para matar uma sincronizacao saudavel. Piorou depois que o
+# primeiro vigia parou de matar em segundo plano: a sincronizacao passou a
+# durar mais e a cair nesta segunda trava com mais frequencia.
+chk("a trava do visibilitychange mede tempo SEM AVANCO, nao duracao total",
+    "const paradoHa = __syncUltimoProgressoEm" in novo
+    and "if(__sincronizandoAgora && paradoHa > 50000){" in novo
+    and "__sincronizandoAgora && __syncIniciadoEm && (Date.now() - __syncIniciadoEm > 50000)" not in novo)
+chk("sem carimbo de progresso ainda ha alternativa -- nao fica girando para sempre",
+    "(__syncIniciadoEm ? (Date.now() - __syncIniciadoEm) : 0)" in novo)
+chk("a mensagem nao afirma mais 'segundo plano' para quem estava com a pagina aberta",
+    "A sincronização parou de responder e foi encerrada." in novo
+    and "interrompida porque o aparelho ficou em segundo plano" not in novo)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
