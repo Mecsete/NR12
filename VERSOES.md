@@ -28,6 +28,35 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 19/08/2026 12:43
+
+Montador de risco alinhado aos nomes novos do Grau do Dano.
+
+Na entrega anterior, dois graus passaram a ter nome mais descritivo. Isso
+deixou uma incoerência à vista no montador de risco: as palavras
+"Laceração" e "Contusão" passaram a aparecer no nome dos graus **mais
+leves**, mas os eventos com esses mesmos nomes continuavam sugerindo
+"Fratura osso menor". Quem escolhesse o evento "Laceração" recebia como
+sugestão um grau que nem menciona laceração, enquanto outro menciona.
+
+Corrigido:
+
+| Evento escolhido | Grau sugerido antes | Grau sugerido agora |
+|---|---|---|
+| Laceração | Fratura osso menor (2) | Corte / Laceração (0,5) |
+| Contusão | Fratura osso menor (2) | Arranhão / Escoriação / Contusão (0,1) |
+
+**Isso muda a pontuação sugerida, e só vale para risco novo.** Risco já
+preenchido continua exatamente com o grau que você avaliou — o app só
+preenche esse campo quando ele está em branco, então nada foi
+reclassificado para trás.
+
+Os agravamentos por parte do corpo continuam funcionando igual: laceração
+ou contusão nos olhos continuam puxando para "Perda de membro, visão ou
+audição", como antes.
+
+---
+
 ## 19/08/2026 10:29
 
 Grau do Dano com descrição mais completa, sem mexer em nenhum risco já

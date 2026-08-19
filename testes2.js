@@ -5030,6 +5030,34 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     eq(C.valorPorClassificacaoHRN(K("HRN_GPD_TABELA"), "Corte / Laceração"), 0.5,
        "a sugestão do montador tem de continuar valendo 0,5");
   });
+  /* Decisão do engenheiro responsável (19/08): alinhar os eventos ao grau que
+     agora leva o nome deles. Antes, "Laceração" e "Contusão" sugeriam
+     "Fratura osso menor" (2) — um grau cujo nome não os menciona, enquanto
+     outro passou a mencionar. Isto MUDA a pontuação sugerida (2 -> 0,5 e
+     2 -> 0,1) e vale só para risco NOVO: risco já preenchido mantém o que
+     foi gravado, porque aplicarSugestoesRisco só preenche gpd vazio. */
+  t("evento 'Laceração' sugere o grau que leva o nome dele", ()=>{
+    eq(C.sugerirGPDPorSelecao({ evento:"Laceração" }), "Corte / Laceração");
+    eq(C.valorPorClassificacaoHRN(K("HRN_GPD_TABELA"), "Corte / Laceração"), 0.5);
+  });
+  t("evento 'Contusão' sugere o grau que leva o nome dele", ()=>{
+    eq(C.sugerirGPDPorSelecao({ evento:"Contusão" }), "Arranhão / Escoriação / Contusão");
+    eq(C.valorPorClassificacaoHRN(K("HRN_GPD_TABELA"), "Arranhão / Escoriação / Contusão"), 0.1);
+  });
+  t("o agravamento por parte do corpo continua valendo com a pontuação menor", ()=>{
+    /* Olhos puxam para "Perda de membro, visão ou audição" enquanto o grau
+       base for menor que 6 — a regra não pode ter deixado de disparar só
+       porque a base caiu de 2 para 0,5/0,1. */
+    eq(C.sugerirGPDPorSelecao({ evento:"Laceração", parteCorpo:"Olhos" }), "Perda de membro, visão ou audição");
+    eq(C.sugerirGPDPorSelecao({ evento:"Contusão", parteCorpo:"Olhos" }), "Perda de membro, visão ou audição");
+  });
+  t("risco JÁ preenchido não é mexido pela nova sugestão", ()=>{
+    /* aplicarSugestoesRisco só escreve gpd quando está vazio — a mudança
+       vale para risco novo, nunca reclassifica o que já foi avaliado. */
+    const f = funcao("aplicarSugestoesRisco");
+    ok(f.indexOf('if(!String(r.gpd||"").trim()){') > 0,
+       "sem essa guarda, a mudança reclassificaria riscos já avaliados");
+  });
   t("todo evento do montador aponta para um grau que existe na tabela", ()=>{
     K("RISCO_EVENTOS").forEach(e=>{
       ok(C.valorPorClassificacaoHRN(K("HRN_GPD_TABELA"), e.gpd) !== null,

@@ -1668,11 +1668,26 @@ chk("os pontos que LEEM risco.gpd convertem antes de usar",
     and "const gpd = gpdCanonico(r && r.gpd);" in novo
     and "PLR_GPD_FRONTEIRA.indexOf(gpdCanonico(r && r.gpd)) >= 0" in novo
     and "${gpdCanonico(r.gpd)===gpdSug?" in novo)
+# 3 eventos apontam para "Corte / Laceração": Corte, Projeção de particulas e
+# — depois do alinhamento decidido em 19/08 — a propria Laceração.
 chk("montador de risco e tabela do PLr passaram a citar os nomes novos",
-    novo.count('gpd:"Corte / Laceração"') == 2
+    novo.count('gpd:"Corte / Laceração"') == 3
+    and novo.count('gpd:"Arranhão / Escoriação / Contusão"') == 1
     and 'const PLR_GPD_S1 = ["Arranhão / Escoriação / Contusão", "Corte / Laceração"];' in novo)
 chk("nenhum dado do usuario e reescrito -- nao ha migracao carimbando risco.gpd",
     "r.gpd = gpdCanonico(" not in novo and "risco.gpd = gpdCanonico(" not in novo)
+# Decisao do engenheiro responsavel (19/08): alinhar os eventos ao grau que
+# passou a levar o nome deles. Antes "Laceracao" e "Contusao" sugeriam
+# "Fratura osso menor" (2) -- grau cujo nome nao os cita, enquanto outro
+# passou a citar. Isto MUDA a pontuacao sugerida (2 -> 0,5 e 2 -> 0,1) e vale
+# so para risco NOVO: aplicarSugestoesRisco so preenche gpd vazio.
+chk("eventos 'Laceracao' e 'Contusao' apontam para o grau que leva o nome deles",
+    '{ v:"Laceração",              gpd:"Corte / Laceração",' in novo
+    and '{ v:"Contusão",               gpd:"Arranhão / Escoriação / Contusão",' in novo
+    and '{ v:"Laceração",              gpd:"Fratura osso menor",' not in novo
+    and '{ v:"Contusão",               gpd:"Fratura osso menor",' not in novo)
+chk("risco ja preenchido continua intocado -- a sugestao so entra em gpd vazio",
+    'if(!String(r.gpd||"").trim()){' in novo)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
