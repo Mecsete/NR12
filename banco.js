@@ -82,6 +82,7 @@ function novoAparelho(nome, nuvem){
     onedriveEstimarFotosParaEnviar:()=>({totalItens:0,totalBytes:0}),
     marcarArquivoCorrompido:()=>{},
     rotuloCaminhoNuvem:c=>c,
+    onedriveBaixarTexto: async (c)=>nuvem.get(c),
     onedrivePrecisaBaixarFotosOriginal:null,
     __ultimoMotivoFalhaEnvio: undefined,
     __falhasEnvioNaSync: 0,
@@ -108,7 +109,7 @@ function novoAparelho(nome, nuvem){
     "onedriveJaExisteNaNuvem","onedriveFotosJaExistemNaNuvem","onedriveReconciliarComArvore",
     "onedriveClassificarNovosSimples","onedriveMarcarJaExistente","arquivoJaExistente",
     "arquivoEstaEmQuarentena","executarComConcorrencia","exclusaoEmMassaSuspeita",
-    "rotuloCaminhoSync","onedriveSincronizarModulo","marcarSubarvoreMaquinaAlterada",
+    "rotuloCaminhoSync","onedriveSincronizarModulo","marcarSubarvoreMaquinaAlterada","onedriveBaixarPendentes",
   ].forEach(n=>vm.runInContext(funcao(n),ctx));
 
   // Rede de mentira: envia/apaga/baixa direto na nuvem em memória.
@@ -155,15 +156,24 @@ async function ciclo(ap){
   ap.ctx.__arv = arvore;
   vm.runInContext("onedriveReconciliarComArvore(__arv)", ap.ctx);
   const cls = vm.runInContext("onedriveClassificarNovosSimples(__arv)", ap.ctx);
-  const aBaixar = [...cls.pequenos, ...cls.grandes];
-  for(const d of aBaixar){
+  /* Fiel ao app: o que é PEQUENO baixa na hora; o que é GRANDE (pacote de
+     fotos) NÃO baixa aqui — vai para STATE.oneDrivePendentes e depois passa
+     por onedriveBaixarPendentes, que é o caminho de verdade das fotos (e
+     onde mora o sintoma "N fotos para receber" que não sai do lugar). */
+  for(const d of cls.pequenos){
     const texto = nuvem.get(d.caminho);
     if(!texto) continue;
     ap.ctx.__d = d; ap.ctx.__dados = JSON.parse(texto);
     const ok = vm.runInContext("onedriveMesclarItemNovo(__d,__dados)", ap.ctx);
     if(!ok) vm.runInContext("onedriveMarcarJaExistente(__d)", ap.ctx);
   }
-  return { transferencias: nuvem.transferencias, baixou: aBaixar.length };
+  const pend = ap.ctx.STATE.oneDrivePendentes || [];
+  for(const g of cls.grandes){ if(!pend.some(p=>p.caminho===g.caminho)) pend.push(g); }
+  ap.ctx.STATE.oneDrivePendentes = pend;
+  await vm.runInContext("onedriveBaixarPendentes(null)", ap.ctx);
+  return { transferencias: nuvem.transferencias,
+           baixou: cls.pequenos.length,
+           pendentes: (ap.ctx.STATE.oneDrivePendentes||[]).length };
 }
 
 /* ---------------- ÁRVORE DE EXEMPLO ---------------- */
@@ -542,6 +552,51 @@ async function rodarAteParar(ap, maxCiclos, rotulo){
     checar("nenhum item se perdeu nem duplicou", nA===nB && nA===vm.runInContext("listarItensSincronizaveisSimples().length", A.ctx),
       "A="+nA+" B="+nB);
     checar("A e B terminam idênticos", nA===nB, "A="+nA+" B="+nB);
+  }
+
+  console.log("\n" + L + "\nENSAIO 15 — ESCALA REAL: projeto do tamanho do usado em campo\n" + L);
+  {
+    const nuvem = novaNuvem();
+    const A = novoAparelho("A", nuvem);
+    // ~1170 itens, a ordem de grandeza medida no aparelho do engenheiro
+    A.ctx.STATE.projetosSimples = [arvoreExemplo(10,5,4,4,false)];
+    const total = vm.runInContext("listarItensSincronizaveisSimples().length", A.ctx);
+    console.log("  (árvore com " + total + " itens)");
+    checar("a árvore de ensaio tem porte de campo", total > 900, total+" itens");
+    const rA = await rodarAteParar(A, 10);
+    checar("A silencia mesmo com a árvore grande", rA.parou, "A: "+rA.hist.join(", "));
+    const antes = new Map(nuvem.arquivos);
+    const B = novoAparelho("B", nuvem);
+    const rB = await rodarAteParar(B, 15);
+    checar("B (só recebe) silencia na escala real", rB.parou, "B: "+rB.hist.join(", "));
+    let reescreveu = 0;
+    for(const [c,a] of nuvem.arquivos){ const o = antes.get(c); if(!o || o.texto !== a.texto) reescreveu++; }
+    checar("B não escreveu nada na nuvem, mesmo com 1000+ itens", reescreveu===0, reescreveu+" arquivos");
+    checar("B recebeu a árvore inteira",
+      vm.runInContext("listarItensSincronizaveisSimples().length", B.ctx) === total,
+      "B="+vm.runInContext("listarItensSincronizaveisSimples().length", B.ctx)+" de "+total);
+  }
+
+  console.log("\n" + L + "\nENSAIO 16 — a fila de FOTOS PARA RECEBER chega a ZERO\n" + L);
+  {
+    /* O sintoma que ficou aberto em campo: "N fotos para receber" que não sai
+       do lugar. Aqui a fila é acompanhada ciclo a ciclo e tem de esvaziar. */
+    const nuvem = novaNuvem();
+    const A = novoAparelho("A", nuvem);
+    A.ctx.STATE.projetosSimples = [arvoreExemplo(2,2,2,3,true)];
+    await rodarAteParar(A, 10);
+    const B = novoAparelho("B", nuvem);
+    const fila = [];
+    for(let i=0;i<12;i++){
+      const r = await ciclo(B);
+      fila.push(r.pendentes);
+      if(r.transferencias===0 && r.pendentes===0) break;
+    }
+    checar("a fila de fotos pendentes zera", fila[fila.length-1]===0, "fila por ciclo: "+fila.join(", "));
+    checar("a fila nunca cresce depois de começar a baixar",
+      fila.every((v,i)=> i===0 || v<=fila[i-1]), "fila por ciclo: "+fila.join(", "));
+    const semFoto = vm.runInContext(`(function(){ let n=0; STATE.projetosSimples.forEach(p=>p.areas.forEach(a=>a.maquinas.forEach(m=>m.tarefas.forEach(t=>t.riscos.forEach(r=>{ if(!r.foto) n++; }))))); return n; })()`, B.ctx);
+    checar("todos os riscos de B ficaram com a foto", semFoto===0, semFoto+" riscos sem foto");
   }
 
   console.log("\n" + L);
