@@ -994,16 +994,42 @@ const HRN_PO_TABELA=[
   {classificacao:"Certo",               valor:15,    desc:"Sempre que chegar naquele ponto vai ocorrer o acidente"},
 ];
 const HRN_GPD_TABELA=[
-  {classificacao:"Arranhão",                          valor:0.1, desc:"Lesão superficial na pele, sem afastamento"},
-  {classificacao:"Corte",                             valor:0.5, desc:"Ferimento com corte, pode precisar de sutura"},
+  {classificacao:"Arranhão / Escoriação / Contusão",  valor:0.1, desc:"Lesão superficial — arranhão, escoriação ou contusão, sem afastamento"},
+  {classificacao:"Corte / Laceração",                 valor:0.5, desc:"Ferimento aberto — corte limpo ou rasgo de tecido, pode precisar de sutura"},
   {classificacao:"Fratura osso menor",                valor:2,   desc:"Fratura em dedo, mão ou pé, por exemplo"},
   {classificacao:"Fratura osso maior",                valor:4,   desc:"Fratura em braço, perna ou costela, por exemplo"},
   {classificacao:"Perda de membro, visão ou audição",  valor:6,   desc:"Amputação ou perda permanente de função"},
   {classificacao:"Perda de Vários membros",           valor:10,  desc:"Amputação múltipla ou invalidez permanente grave"},
   {classificacao:"Fatalidade",                        valor:15,  desc:"Óbito do trabalhador"},
 ];
+/* GRAU DO DANO — TEXTO NOVO, PONTUAÇÃO E DADOS INTACTOS.
+   O texto da classificação NÃO é só rótulo: é a CHAVE gravada dentro de cada
+   risco (risco.gpd) e a chave de busca da pontuação. Trocar "Arranhão" por
+   "Arranhão / Escoriação / Contusão" na tabela deixaria todo risco já
+   preenchido apontando para uma classificação que não existe mais — o HRN
+   deles cairia para "não preenchido" e o seletor apareceria em branco.
+   Reescrever risco.gpd em cada item resolveria, mas carimbaria os 1.100+
+   riscos como alterados e jogaria a árvore inteira de volta na fila de
+   sincronização — caro e arriscado, para uma mudança que é só de redação.
+   Em vez disso, o nome antigo continua sendo aceito e convertido NA LEITURA.
+   Nada é gravado: o dado no aparelho e na nuvem continua exatamente como
+   está, e some sozinho quando a pessoa reescolher o grau naquele risco. */
+const GPD_RENOMEADOS = {
+  "Arranhão": "Arranhão / Escoriação / Contusão",
+  "Corte":    "Corte / Laceração",
+};
+function gpdCanonico(valor){
+  const v = String(valor||"").trim();
+  return GPD_RENOMEADOS[v] || v;
+}
 function valorPorClassificacaoHRN(tabela, classificacao){
-  const item = tabela.find(x=>x.classificacao===classificacao);
+  let item = tabela.find(x=>x.classificacao===classificacao);
+  /* Só cai aqui quando a busca direta falhou — então a conversão nunca
+     atrapalha PO, FE e NP, que não têm nome antigo nenhum. */
+  if(!item){
+    const c = gpdCanonico(classificacao);
+    if(c !== classificacao) item = tabela.find(x=>x.classificacao===c);
+  }
   return item? item.valor : null;
 }
 // Usadas nos dropdowns/formatação condicional do Excel exportado. Mostram apenas
@@ -1814,7 +1840,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "19/08/2026 09:39";
+const APP_BUILD = "19/08/2026 10:29";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -6691,7 +6717,7 @@ const RISCO_EVENTOS = [
     desc:"A parte do corpo é prensada entre duas superfícies que se aproximam, ou entre uma móvel e uma fixa." },
   { v:"Amputação",              gpd:"Perda de membro, visão ou audição",
     desc:"Separação completa de um membro ou parte dele, típica de elementos cortantes ou de zonas de prensagem." },
-  { v:"Corte",                  gpd:"Corte",
+  { v:"Corte",                  gpd:"Corte / Laceração",
     desc:"Lesão por aresta ou elemento afiado, sem separação do membro." },
   { v:"Laceração",              gpd:"Fratura osso menor",
     desc:"Rasgo do tecido por superfície irregular ou rebarba — a borda da ferida fica irregular, não limpa como no corte." },
@@ -6721,7 +6747,7 @@ const RISCO_EVENTOS = [
     desc:"Exposição a produto químico, vapor ou gás, por respiração ou contato." },
   { v:"Asfixia",                gpd:"Fatalidade",
     desc:"Falta de oxigênio ou soterramento, típico de espaço confinado, silo e moega." },
-  { v:"Projeção de partículas", gpd:"Corte",
+  { v:"Projeção de partículas", gpd:"Corte / Laceração",
     desc:"Material, estilhaço ou fluido lançado pela máquina em direção ao operador." },
   { v:"Queda de material",      gpd:"Fratura osso maior",
     desc:"Peça, carga ou produto cai de altura sobre a pessoa." },
@@ -7329,7 +7355,7 @@ const PLR_P_OPCOES = [
    contusões e lacerações sem complicação = S1; amputação ou morte = S2. O
    Manual da NR-12 (ISO/TR 14121-2) põe "membros fraturados" em S2 e usa o
    critério de mais de dois dias afastado da mesma tarefa. */
-const PLR_GPD_S1 = ["Arranhão", "Corte"];
+const PLR_GPD_S1 = ["Arranhão / Escoriação / Contusão", "Corte / Laceração"];
 const PLR_GPD_FRONTEIRA = ["Fratura osso menor"];
 /* GRÁFICO DE RISCO — conferido contra as normas em 11/08/2026.
 
@@ -7381,12 +7407,12 @@ const PLR_CORES = {
   e:{ cor:"#7B1FA2", fundo:"#F3E5F5" },
 };
 function plrSeveridade(r){
-  const gpd = String(r && r.gpd || "").trim();
+  const gpd = gpdCanonico(r && r.gpd);
   if(!gpd) return "";
   return PLR_GPD_S1.indexOf(gpd) >= 0 ? "S1" : "S2";
 }
 function plrSeveridadeFronteira(r){
-  return PLR_GPD_FRONTEIRA.indexOf(String(r && r.gpd || "").trim()) >= 0;
+  return PLR_GPD_FRONTEIRA.indexOf(gpdCanonico(r && r.gpd)) >= 0;
 }
 /* Ponte entre a frequencia da tarefa e a Exposicao a zona de perigo (F).
 
@@ -7512,7 +7538,7 @@ function blocoPLrHtml(r, prefixo, tarefa){
         ${plrSelectHtml(PLR_P_OPCOES, "p", r.evitar||"", acaoP, "Selecionar…")}
       </div>
     </div>
-    <div class="field-hint" style="margin-top:6px">Severidade (S) vem do Grau do Dano: <b>${escapeHtml(res.s || "não preenchido")}</b>${res.s? " — " + escapeHtml(String(r.gpd||"")) : ""}. ${escapeHtml((PLR_P_OPCOES.find(o=>o.v===r.evitar)||{}).desc || "P1 só vale quando há chance real de escapar.")}</div>
+    <div class="field-hint" style="margin-top:6px">Severidade (S) vem do Grau do Dano: <b>${escapeHtml(res.s || "não preenchido")}</b>${res.s? " — " + escapeHtml(gpdCanonico(r.gpd)) : ""}. ${escapeHtml((PLR_P_OPCOES.find(o=>o.v===r.evitar)||{}).desc || "P1 só vale quando há chance real de escapar.")}</div>
     ${herdado? `<div class="field-hint" style="margin-top:6px">A exposição veio da <b>frequência da tarefa</b>: ${escapeHtml(herdado)}. Se a pessoa fica <b>muito tempo</b> dentro da zona de perigo, troque acima — o F também depende da duração, não só de quantas vezes.</div>`:""}
     ${plrResultadoHtml(res)}
   </div>`;
@@ -7745,7 +7771,7 @@ function blocoMontadorRiscoHtml(r){
     ${__infoEventosAberto? `<div class="info-box" style="margin-top:8px">${RISCO_EVENTOS.filter(e=>e.desc).map(e=>`<div class="info-row"><b>${escapeHtml(e.v)}</b><span>${escapeHtml(e.desc)}</span></div>`).join("")}</div>` : ""}
     ${sugestao? `<div class="risco-montador-frase">${escapeHtml(sugestao)}</div>` : `<div class="field-hint" style="margin-top:8px">Escolha as opções acima e a descrição é escrita sozinha — nada aqui é obrigatório.</div>`}
     ${podeAplicar? `<button type="button" class="btn btn-secondary btn-sm btn-block" style="margin-top:8px" onclick="App.aplicarDescricaoSugerida()">${ic('copy')} Usar esta descrição</button>` : ""}
-    ${gpdSug? `<div class="field-hint" style="margin-top:8px">Grau do Dano sugerido: <b>${escapeHtml(gpdSug)}</b> ${escapeHtml(motivoGPDSugerido(r))}${r.gpd===gpdSug? " — já aplicado." : `. <button type="button" class="clear-text-btn" onclick="App.aplicarGPDSugerido()">Aplicar</button>`}</div>` : ""}
+    ${gpdSug? `<div class="field-hint" style="margin-top:8px">Grau do Dano sugerido: <b>${escapeHtml(gpdSug)}</b> ${escapeHtml(motivoGPDSugerido(r))}${gpdCanonico(r.gpd)===gpdSug? " — já aplicado." : `. <button type="button" class="clear-text-btn" onclick="App.aplicarGPDSugerido()">Aplicar</button>`}</div>` : ""}
   </div>`;
 }
 
@@ -7782,7 +7808,7 @@ function formRiscoSHtml(){
         </div>
         <div class="field" style="margin-bottom:0">
           <label>Grau do Dano</label>
-          <select onchange="App.onDraftSelectChange('gpd', this.value)">${selectOptions(opcoesGPD, r.gpd, false)}</select>
+          <select onchange="App.onDraftSelectChange('gpd', this.value)">${selectOptions(opcoesGPD, gpdCanonico(r.gpd), false)}</select>
         </div>
       </div>
       ${__infoHrnPOAberto? `<div class="info-box">${HRN_PO_TABELA.map(x=>`<div class="info-row"><b>${escapeHtml(x.classificacao)} (${x.valor})</b><span>${escapeHtml(x.desc)}</span></div>`).join("")}</div>` : ""}
@@ -12784,7 +12810,7 @@ function laudoBlocoHRN(item){
       </div>
       <div class="field" style="margin-bottom:0">
         <label style="display:flex;align-items:center;gap:4px">Grau do dano (GPD) ${laudoInfoBtnHrn("gpd")}</label>
-        ${laudoSelectHRN(rid,"gpd",HRN_GPD_TABELA,r.gpd||"",autoGPD,"Estimado")}
+        ${laudoSelectHRN(rid,"gpd",HRN_GPD_TABELA,gpdCanonico(r.gpd),autoGPD,"Estimado")}
         ${laudoInfoBoxHrn("gpd", HRN_GPD_TABELA)}
       </div>
       <div class="field" style="margin-bottom:0">

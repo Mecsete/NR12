@@ -1335,7 +1335,7 @@ chk("hrnDoItem nao le mais risco.fe/risco.np -- fe/np vem so da tarefa",
 chk("PO e GPD continuam <select> por risco, sem parametro de alerta (nunca ficam vermelhos)",
     novo.count('function laudoSelectHRN(rid, chave, tabela, valorAtual, rotuloAuto, origem){') == 1
     and novo.count('laudoSelectHRN(rid,"po",HRN_PO_TABELA,r.po||"",autoPO,"Estimado")') == 1
-    and novo.count('laudoSelectHRN(rid,"gpd",HRN_GPD_TABELA,r.gpd||"",autoGPD,"Estimado")') == 1)
+    and novo.count('laudoSelectHRN(rid,"gpd",HRN_GPD_TABELA,gpdCanonico(r.gpd),autoGPD,"Estimado")') == 1)
 chk("FE e NP viraram exibicao so-leitura (laudoValorTarefaHrn), nao <select>",
     novo.count("function laudoValorTarefaHrn(rotulo, alerta){") == 1
     and 'laudoSelectHRN(rid,"fe"' not in novo and 'laudoSelectHRN(rid,"np"' not in novo
@@ -1640,6 +1640,39 @@ chk("sem carimbo de progresso ainda ha alternativa -- nao fica girando para semp
 chk("a mensagem nao afirma mais 'segundo plano' para quem estava com a pagina aberta",
     "A sincronização parou de responder e foi encerrada." in novo
     and "interrompida porque o aparelho ficou em segundo plano" not in novo)
+
+print("\n=== 65. GRAU DO DANO COM TEXTO NOVO, SEM MEXER NO QUE JA FOI GRAVADO ===")
+# Pedido: "Arranhao" vira "Arranhao / Escoriacao / Contusao" e "Corte" vira
+# "Corte / Laceracao", mantendo a pontuacao e valendo em TODO ponto onde ja
+# houver um grau escolhido. O texto da classificacao nao e so rotulo: e a
+# CHAVE gravada em risco.gpd e a chave de busca da pontuacao. Reescrever os
+# riscos carimbaria os 1.100+ como alterados e devolveria a arvore inteira a
+# fila de sincronizacao -- caro e arriscado para uma mudanca de redacao. Por
+# isso o nome antigo e aceito e convertido NA LEITURA, sem gravar nada.
+chk("a tabela usa os nomes novos com a pontuacao intacta",
+    'classificacao:"Arranhão / Escoriação / Contusão"' in novo
+    and 'classificacao:"Corte / Laceração"' in novo
+    and 'valor:0.1' in novo and 'valor:0.5' in novo)
+chk("existe a camada de compatibilidade com o nome antigo",
+    novo.count("const GPD_RENOMEADOS = {") == 1
+    and novo.count("function gpdCanonico(valor){") == 1
+    and '"Arranhão": "Arranhão / Escoriação / Contusão",' in novo
+    and '"Corte":    "Corte / Laceração",' in novo)
+chk("a conversao so entra quando a busca direta falha (nao contamina PO/FE/NP)",
+    "let item = tabela.find(x=>x.classificacao===classificacao);" in novo
+    and "const c = gpdCanonico(classificacao);" in novo
+    and "if(c !== classificacao) item = tabela.find(x=>x.classificacao===c);" in novo)
+chk("os pontos que LEEM risco.gpd convertem antes de usar",
+    "${selectOptions(opcoesGPD, gpdCanonico(r.gpd), false)}" in novo
+    and 'laudoSelectHRN(rid,"gpd",HRN_GPD_TABELA,gpdCanonico(r.gpd),autoGPD,"Estimado")' in novo
+    and "const gpd = gpdCanonico(r && r.gpd);" in novo
+    and "PLR_GPD_FRONTEIRA.indexOf(gpdCanonico(r && r.gpd)) >= 0" in novo
+    and "${gpdCanonico(r.gpd)===gpdSug?" in novo)
+chk("montador de risco e tabela do PLr passaram a citar os nomes novos",
+    novo.count('gpd:"Corte / Laceração"') == 2
+    and 'const PLR_GPD_S1 = ["Arranhão / Escoriação / Contusão", "Corte / Laceração"];' in novo)
+chk("nenhum dado do usuario e reescrito -- nao ha migracao carimbando risco.gpd",
+    "r.gpd = gpdCanonico(" not in novo and "risco.gpd = gpdCanonico(" not in novo)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")

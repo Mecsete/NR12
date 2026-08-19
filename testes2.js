@@ -150,7 +150,8 @@ vm.createContext(ctx);
 [ "GPD_POR_RISCO", "HRN_PO_TABELA", "HRN_GPD_TABELA", "HRN_FE_TABELA", "HRN_NP_TABELA", "NIVEL_HRN_META" ]
   .forEach(n=> vm.runInContext(constante(n), ctx));
 vm.runInContext("const HRN_PO_OPTS=HRN_PO_TABELA.map(x=>x.classificacao);const HRN_GPD_OPTS=HRN_GPD_TABELA.map(x=>x.classificacao);const HRN_FE_OPTS=HRN_FE_TABELA.map(x=>x.classificacao);const HRN_NP_OPTS=HRN_NP_TABELA.map(x=>x.classificacao);", ctx);
-[ "sugerirGPD","sugerirFE","sugerirNP","sugerirPO","calcHRN","nivelHRN","acaoHRN","valorPorClassificacaoHRN","labelHRN","hrnDoItem" ]
+vm.runInContext(constante("GPD_RENOMEADOS"), ctx);
+[ "sugerirGPD","sugerirFE","sugerirNP","sugerirPO","calcHRN","nivelHRN","acaoHRN","gpdCanonico","valorPorClassificacaoHRN","labelHRN","hrnDoItem" ]
   .forEach(n=> vm.runInContext(funcao(n), ctx));
 vm.runInContext(constante("CAMPOS_ADMIN_PROJETO"), ctx);
 [ "camposFaltandoProjeto", "projetosComCamposFaltando" ].forEach(n=> vm.runInContext(funcao(n), ctx));
@@ -272,6 +273,7 @@ t("as 4 tabelas do HRN batem com a metodologia enviada", ()=>{
     ["HRN_FE_TABELA","Anual",0.5],["HRN_FE_TABELA","Mensal",1],["HRN_FE_TABELA","Semanal",1.5],
     ["HRN_FE_TABELA","Diária",2.5],["HRN_FE_TABELA","Horária",4],["HRN_FE_TABELA","Constante",5],
     ["HRN_GPD_TABELA","Arranhão",0.1],["HRN_GPD_TABELA","Corte",0.5],["HRN_GPD_TABELA","Fratura osso menor",2],
+    ["HRN_GPD_TABELA","Arranhão / Escoriação / Contusão",0.1],["HRN_GPD_TABELA","Corte / Laceração",0.5],
     ["HRN_GPD_TABELA","Fratura osso maior",4],["HRN_GPD_TABELA","Perda de membro, visão ou audição",6],
     ["HRN_GPD_TABELA","Perda de Vários membros",10],["HRN_GPD_TABELA","Fatalidade",15],
     ["HRN_NP_TABELA","1-2 pessoas",1],["HRN_NP_TABELA","3-7 pessoas",2],["HRN_NP_TABELA","8-15 pessoas",4],
@@ -1236,7 +1238,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
        "algum item ficaria com artigo adivinhado");
   });
   t("sugestões batem com a gravidade esperada", ()=>{
-    eq(C.sugerirGPDPorSelecao({ evento:"Corte" }), "Corte");
+    eq(C.sugerirGPDPorSelecao({ evento:"Corte" }), "Corte / Laceração");
     eq(C.sugerirGPDPorSelecao({ evento:"Amputação" }), "Perda de membro, visão ou audição");
     eq(C.sugerirGPDPorSelecao({ evento:"Esmagamento" }), "Perda de Vários membros");
     eq(C.sugerirGPDPorSelecao({ evento:"Choque elétrico" }), "Fatalidade");
@@ -1246,7 +1248,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     eq(C.sugerirGPDPorSelecao({ evento:"Queda de material", parteCorpo:"Tronco" }), "Fatalidade");
   });
   t("parte vital NÃO agrava evento leve", ()=>{
-    eq(C.sugerirGPDPorSelecao({ evento:"Corte", parteCorpo:"Face" }), "Corte");
+    eq(C.sugerirGPDPorSelecao({ evento:"Corte", parteCorpo:"Face" }), "Corte / Laceração");
   });
   t("olho eleva projeção de partículas para perda de visão", ()=>{
     eq(C.sugerirGPDPorSelecao({ evento:"Projeção de partículas", parteCorpo:"Olhos" }), "Perda de membro, visão ou audição");
@@ -4967,6 +4969,80 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   t("o outro vigia continua existindo e continua ignorando a aba escondida", ()=>{
     const f = funcao("comVigilanciaDeProgresso");
     ok(f.indexOf('if(document.visibilityState === "hidden"){ marcarProgressoSync(); return; }') > 0);
+  });
+
+  console.log("\n=== t108 · Grau do Dano com texto novo, sem mexer no que já foi gravado ===");
+  /* Pedido: "Arranhão" passa a ser "Arranhão / Escoriação / Contusão" e
+     "Corte" passa a ser "Corte / Laceração", mantendo a pontuação e valendo
+     em TODO ponto onde já houver um grau escolhido.
+     O detalhe que faz ou quebra isto: o texto da classificação não é só
+     rótulo — é a CHAVE gravada em risco.gpd e a chave de busca da pontuação.
+     Reescrever os riscos carimbaria todos como alterados e devolveria a
+     árvore inteira à fila de sincronização; por isso o nome antigo é aceito
+     e convertido NA LEITURA, sem gravar nada. */
+  /* const dentro do vm não vira propriedade do contexto — as tabelas só saem por avaliação. */
+  const K = (expr)=> vm.runInContext(expr, ctx);
+  t("a tabela publicada usa os nomes novos, com a mesma pontuação", ()=>{
+    const t = K("HRN_GPD_TABELA");
+    eq(t[0].classificacao, "Arranhão / Escoriação / Contusão");
+    eq(t[0].valor, 0.1);
+    eq(t[1].classificacao, "Corte / Laceração");
+    eq(t[1].valor, 0.5);
+    eq(t.length, 7, "nenhum grau foi criado nem removido");
+    eq(t.map(x=>x.valor).join(","), "0.1,0.5,2,4,6,10,15", "a escala de pontuação não pode mudar");
+  });
+  t("risco JÁ GRAVADO com o nome antigo continua com a mesma pontuação", ()=>{
+    eq(C.valorPorClassificacaoHRN(K("HRN_GPD_TABELA"), "Arranhão"), 0.1);
+    eq(C.valorPorClassificacaoHRN(K("HRN_GPD_TABELA"), "Corte"), 0.5);
+  });
+  t("o nome antigo é MOSTRADO como o novo, sem precisar reescolher", ()=>{
+    eq(C.gpdCanonico("Arranhão"), "Arranhão / Escoriação / Contusão");
+    eq(C.gpdCanonico("Corte"), "Corte / Laceração");
+  });
+  t("graus que não mudaram passam intactos pela conversão", ()=>{
+    ["Fratura osso menor","Fratura osso maior","Perda de membro, visão ou audição",
+     "Perda de Vários membros","Fatalidade"].forEach(g=> eq(C.gpdCanonico(g), g));
+    eq(C.gpdCanonico(""), "");
+    eq(C.gpdCanonico(undefined), "");
+  });
+  t("a conversão NÃO contamina Probabilidade, Frequência e Nº de pessoas", ()=>{
+    /* gpdCanonico só entra em ação quando a busca direta falha — as outras
+       três tabelas não têm nome antigo nenhum e não podem ser afetadas. */
+    ok(C.valorPorClassificacaoHRN(K("HRN_PO_TABELA"), "Corte") === null,
+       "um nome de grau do dano não pode virar valor de probabilidade");
+    ok(C.valorPorClassificacaoHRN(K("HRN_FE_TABELA"), "Arranhão") === null);
+  });
+  t("o HRN de um risco antigo continua dando o mesmo número", ()=>{
+    const tarefa = { frequencia:"Diário", numPessoas:"2" };
+    const antigo = C.hrnDoItem({ tarefa, risco:{ gpd:"Corte", po:"" } });
+    const novo   = C.hrnDoItem({ tarefa, risco:{ gpd:"Corte / Laceração", po:"" } });
+    eq(antigo.hrn, novo.hrn, "o mesmo risco mudaria de HRN só por causa do texto");
+  });
+  t("PLr: os dois graus leves continuam sendo S1, pelo nome antigo e pelo novo", ()=>{
+    eq(C.plrSeveridade({ gpd:"Arranhão" }), "S1");
+    eq(C.plrSeveridade({ gpd:"Corte" }), "S1");
+    eq(C.plrSeveridade({ gpd:"Arranhão / Escoriação / Contusão" }), "S1");
+    eq(C.plrSeveridade({ gpd:"Corte / Laceração" }), "S1");
+  });
+  t("o montador de risco sugere o nome novo, apontando para a MESMA pontuação", ()=>{
+    eq(C.sugerirGPDPorSelecao({ evento:"Corte" }), "Corte / Laceração");
+    eq(C.sugerirGPDPorSelecao({ evento:"Projeção de partículas" }), "Corte / Laceração");
+    eq(C.valorPorClassificacaoHRN(K("HRN_GPD_TABELA"), "Corte / Laceração"), 0.5,
+       "a sugestão do montador tem de continuar valendo 0,5");
+  });
+  t("todo evento do montador aponta para um grau que existe na tabela", ()=>{
+    K("RISCO_EVENTOS").forEach(e=>{
+      ok(C.valorPorClassificacaoHRN(K("HRN_GPD_TABELA"), e.gpd) !== null,
+         "evento '" + e.v + "' aponta para grau inexistente: " + e.gpd);
+    });
+  });
+  t("nenhum ponto da tela ficou lendo risco.gpd sem converter", ()=>{
+    /* Se um destes voltar a ler o valor cru, o risco antigo aparece com o
+       seletor em branco ou com o aviso errado de "já aplicado". */
+    ok(HTML.indexOf("${selectOptions(opcoesGPD, gpdCanonico(r.gpd), false)}") > 0, "seletor do cadastro em campo");
+    ok(HTML.indexOf('laudoSelectHRN(rid,"gpd",HRN_GPD_TABELA,gpdCanonico(r.gpd),autoGPD,"Estimado")') > 0, "seletor da revisão do laudo");
+    ok(HTML.indexOf("const gpd = gpdCanonico(r && r.gpd);") > 0, "severidade do PLr");
+    ok(HTML.indexOf("${gpdCanonico(r.gpd)===gpdSug?") > 0, "aviso de 'já aplicado'");
   });
 
   console.log("\n---------------------------------------");

@@ -28,6 +28,46 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 19/08/2026 10:29
+
+Grau do Dano com descrição mais completa, sem mexer em nenhum risco já
+preenchido.
+
+Dois graus passaram a ter o nome mais descritivo:
+
+| Antes | Agora | Pontuação |
+|---|---|---|
+| Arranhão | Arranhão / Escoriação / Contusão | 0,1 (a mesma) |
+| Corte | Corte / Laceração | 0,5 (a mesma) |
+
+Os outros cinco continuam iguais, e a escala de pontuação não mudou em
+nada: 0,1 · 0,5 · 2 · 4 · 6 · 10 · 15.
+
+**Por que isso exigia cuidado.** O texto do grau não é só um rótulo na
+tela: é ele que fica gravado dentro de cada risco e é por ele que o app
+acha a pontuação. Trocar o texto na tabela faria todo risco já preenchido
+apontar para um grau que não existe mais — o HRN cairia para "não
+preenchido" e o seletor apareceria em branco em mais de mil riscos.
+
+Reescrever o campo em cada risco resolveria, mas marcaria todos como
+alterados e jogaria a árvore inteira de volta na fila de sincronização —
+caro e arriscado, ainda mais agora. Então o app passou a **aceitar o nome
+antigo e mostrar o novo**, convertendo no momento da leitura. Nada é
+gravado: o dado no aparelho e na nuvem continua exatamente como está, e o
+nome antigo some sozinho na próxima vez que você escolher o grau naquele
+risco.
+
+**Onde o texto novo já aparece:** no seletor do cadastro em campo, no
+seletor da revisão do laudo, na Avaliação HRN, na sugestão automática do
+montador de risco, na severidade do Nível de desempenho requerido (PLr) e
+nas exportações de Excel e impressão.
+
+**Montador de risco.** Os eventos "Corte" e "Projeção de partículas"
+passaram a sugerir "Corte / Laceração" — a mesma pontuação de antes (0,5),
+só com o nome atualizado.
+
+---
+
 ## 19/08/2026 09:39
 
 Corrigido um segundo cronômetro de segurança — o que fazia a sincronização
