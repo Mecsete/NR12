@@ -28,6 +28,24 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 19/08/2026 07:51
+
+Correção de um detalhe da entrega anterior, encontrado ao investigar o
+conflito de posição.
+
+Quando o mesmo item é movido para lugares diferentes em dois aparelhos, a
+nuvem fica com duas cópias dele, em endereços diferentes. A anotação nova
+criada ontem procurava o item pela árvore inteira — então, ao ler o arquivo
+da cópia abandonada, ela encontrava o item (no endereço certo) e anotava o
+endereço **errado**. Agora a busca desce pelo caminho que o próprio arquivo
+informa: a cópia abandonada simplesmente não é reconhecida, que é o
+comportamento correto.
+
+Sem efeito visível no uso normal — é uma correção de precisão em quem só
+tem duas cópias do mesmo item na nuvem.
+
+---
+
 ## 18/08/2026 22:10
 
 Corrigido o defeito de fundo da sincronização: aparelho que não criou nada

@@ -1814,7 +1814,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "18/08/2026 22:10";
+const APP_BUILD = "19/08/2026 07:51";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -3274,30 +3274,45 @@ function onedriveRegistrarAssinaturaDeDownload(descritor, dados){
     STATE[ref.chaveEstado][chave] = registro;
   }catch(e){ /* falha aqui só significa um reenvio a mais — nunca perde dado */ }
 }
-/* Localiza um item local por tipo + id, sem depender de saber onde ele mora.
-   Reaproveita __listasIrmasDe, que já enumera todas as listas de cada nível
-   da árvore — é a mesma varredura usada para descobrir item movido de pai. */
-function onedriveItemLocalPorTipoId(tipo, id){
-  if(!tipo || !id) return null;
-  if(tipo==="projeto") return (STATE.projetosSimples||[]).find(p=>p.id===id) || null;
-  for(const lista of __listasIrmasDe(tipo)){
-    const achado = lista.find(x=>x && x.id===id);
-    if(achado) return achado;
-  }
+/* Localiza o item local EXATAMENTE no lugar que o descritor diz — descendo
+   pelos ids de pai que vieram junto com o arquivo, não procurando pela
+   árvore inteira.
+   A diferença importa: quando o mesmo item foi movido para pais diferentes
+   em dois aparelhos, a nuvem fica com DUAS cópias, em endereços diferentes.
+   Uma busca solta acharia o item (no endereço vencedor) mesmo estando lendo
+   o arquivo da cópia órfã — e a assinatura seria gravada apontando para a
+   pasta errada. Exigindo que ele esteja no lugar do descritor, a órfã
+   simplesmente não é reconhecida, que é o comportamento certo. */
+function onedriveItemLocalNoLugarDoDescritor(descritor, id){
+  if(!descritor || !id) return null;
+  const projs = STATE.projetosSimples || [];
+  if(descritor.tipo==="projeto") return projs.find(p=>p.id===id) || null;
+  const proj = projs.find(p=>p.id===descritor.projId);
+  if(!proj) return null;
+  if(descritor.tipo==="area") return (proj.areas||[]).find(a=>a.id===id) || null;
+  const area = (proj.areas||[]).find(a=>a.id===descritor.areaId);
+  if(!area) return null;
+  if(descritor.tipo==="maquina") return (area.maquinas||[]).find(m=>m.id===id) || null;
+  const maq = (area.maquinas||[]).find(m=>m.id===descritor.maquinaId);
+  if(!maq) return null;
+  if(descritor.tipo==="tarefa") return (maq.tarefas||[]).find(t=>t.id===id) || null;
+  const tar = (maq.tarefas||[]).find(t=>t.id===descritor.tarefaId);
+  if(!tar) return null;
+  if(descritor.tipo==="risco") return (tar.riscos||[]).find(r=>r.id===id) || null;
   return null;
 }
 /* O arquivo que acabou de ser lido da nuvem é EXATAMENTE a versão que já
-   existe aqui? Só nesse caso (carimbos iguais) é seguro gravar a assinatura
+   existe aqui, no mesmo endereço? Só nesse caso é seguro gravar a assinatura
    sem ter inserido nada: significa que este aparelho e a nuvem estão no mesmo
    ponto, então "já está enviado" é verdade.
    Carimbo remoto MAIOR não chega aqui (a mesclagem aplica e devolve true).
    Carimbo remoto MENOR devolve false de propósito: a versão daqui é mais
    nova e PRECISA subir — gravar assinatura aí esconderia uma edição de campo
    para sempre. Como agoraSync() nunca repete um valor no mesmo aparelho,
-   carimbos iguais são a mesma versão, não uma coincidência. */
+   carimbos iguais NO MESMO ENDEREÇO são a mesma versão, não coincidência. */
 function onedriveItemJaConvergido(descritor, dados){
   if(!descritor || !dados || !dados.id) return false;
-  const local = onedriveItemLocalPorTipoId(descritor.tipo, dados.id);
+  const local = onedriveItemLocalNoLugarDoDescritor(descritor, dados.id);
   if(!local) return false;
   return (dados.atualizadoEm || dados.criadoEm || 0) === (local.atualizadoEm || local.criadoEm || 0);
 }

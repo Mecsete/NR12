@@ -1492,11 +1492,20 @@ chk("os dois atalhos do cache de convergencia so valem com assinatura ja existen
 chk("item convergido tambem assina -- e o que reconstroi o mapa sem enviar nada",
     "if(descritor.tipo !== \"fotos\" && (inseriu || onedriveItemJaConvergido(descritor, dados)))" in novo
     and novo.count("function onedriveItemJaConvergido(descritor, dados){") == 1
-    and novo.count("function onedriveItemLocalPorTipoId(tipo, id){") == 1)
+    and novo.count("function onedriveItemLocalNoLugarDoDescritor(descritor, id){") == 1)
 chk("so assina quando os carimbos sao IGUAIS -- versao local mais nova continua subindo",
     "return (dados.atualizadoEm || dados.criadoEm || 0) === (local.atualizadoEm || local.criadoEm || 0);" in novo)
-chk("onedriveItemLocalPorTipoId reaproveita __listasIrmasDe, sem duplicar varredura de arvore",
-    "for(const lista of __listasIrmasDe(tipo)){\n    const achado = lista.find(x=>x && x.id===id);" in novo)
+# Conflito de POSICAO: o mesmo item movido para pais diferentes em dois
+# aparelhos deixa DUAS copias na nuvem, em enderecos diferentes. Uma busca
+# solta pela arvore acharia o item (no endereco vencedor) mesmo estando
+# lendo o arquivo da copia orfa -- e a assinatura sairia apontando para a
+# pasta errada. Descendo pelos ids de pai do proprio descritor, a orfa
+# simplesmente nao e reconhecida.
+chk("a busca desce pelos ids do descritor -- copia orfa noutro endereco nao e reconhecida",
+    "const local = onedriveItemLocalNoLugarDoDescritor(descritor, dados.id);" in novo
+    and "const proj = projs.find(p=>p.id===descritor.projId);" in novo
+    and "const area = (proj.areas||[]).find(a=>a.id===descritor.areaId);" in novo
+    and "onedriveItemLocalPorTipoId" not in novo)
 chk("cinto de seguranca: envio automatico espera a primeira varredura com o mapa vazio",
     novo.count("function onedriveEnvioAutomaticoDeveEsperar(){") == 1
     and "if(!onProgresso && onedriveEnvioAutomaticoDeveEsperar()) return;" in novo

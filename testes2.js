@@ -4581,7 +4581,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       "onedrivePrecisaBaixarFotos","aplicarAtualizacaoRemota","__listasIrmasDe",
       "__moverItemEntrePais","__onedriveMesclarItemNovoInterno","onedriveMesclarItemNovo",
       "onedriveRegistrarAssinaturaDeDownload","onedriveDescritorDeCaminho",
-      "onedriveItemLocalPorTipoId","onedriveItemJaConvergido",
+      "onedriveItemLocalNoLugarDoDescritor","onedriveItemJaConvergido",
       "onedriveEnvioAutomaticoDeveEsperar",
     ].forEach(n=> vm.runInContext(funcao(n), ctxS));
     /* Réplica exata do filtro de pendentes de onedriveSincronizarModulo — é
@@ -4691,6 +4691,26 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       const f = funcao("sincronizarIncrementalOneDrive");
       ok(f.indexOf("if(!onProgresso && onedriveEnvioAutomaticoDeveEsperar()) return;") > 0,
          "a espera precisa valer só para o ciclo automático");
+    });
+    /* Conflito de POSIÇÃO: o mesmo item movido para pais diferentes em dois
+       aparelhos deixa DUAS cópias na nuvem, em endereços diferentes. Ler o
+       arquivo da cópia órfã não pode fazer o app assinar aquele endereço —
+       o item mora em outro lugar. Uma busca solta pela árvore encontraria o
+       item mesmo assim (no endereço vencedor) e assinaria a pasta errada;
+       por isso a busca desce pelos ids de pai do próprio descritor. */
+    t("cópia órfã noutro endereço NÃO é confundida com o item convergido", ()=>{
+      const proj = { id:"pz", empresa:"C", criadoEm:TS, atualizadoEm:TS, areas:[
+        { id:"az1", nome:"A1", criadoEm:TS, atualizadoEm:TS, maquinas:[
+          { id:"mz", nome:"Maq", criadoEm:TS, atualizadoEm:TS+200, tarefas:[] } ]},
+        { id:"az2", nome:"A2", criadoEm:TS, atualizadoEm:TS, maquinas:[] } ]};
+      ctxS.STATE.projetosSimples = [proj];
+      const dadosMaq = { id:"mz", nome:"Maq", criadoEm:TS, atualizadoEm:TS+200, tarefas:[] };
+      ctxS.__d = { tipo:"maquina", projId:"pz", areaId:"az1" }; ctxS.__dados = dadosMaq;
+      eq(vm.runInContext("onedriveItemJaConvergido(__d,__dados)", ctxS), true,
+         "no endereço certo e mesmo carimbo: é a mesma versão, tem de assinar");
+      ctxS.__d = { tipo:"maquina", projId:"pz", areaId:"az2" }; // órfã: a máquina não está aqui
+      eq(vm.runInContext("onedriveItemJaConvergido(__d,__dados)", ctxS), false,
+         "assinou o endereço da cópia órfã — a assinatura apontaria para a pasta errada");
     });
   }
 
