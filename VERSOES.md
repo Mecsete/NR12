@@ -28,6 +28,54 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 18/08/2026 22:10
+
+Corrigido o defeito de fundo da sincronização: aparelho que não criou nada
+reenviando tudo para o OneDrive.
+
+**O que estava acontecendo.** O app tinha duas memórias separadas
+respondendo à mesma pergunta. Na hora de receber, ele perguntava "eu já
+tenho este arquivo?". Na hora de enviar, perguntava "eu já enviei este
+arquivo?" — e consultava outro lugar. Quando as duas discordavam, dava o
+pior resultado possível: o recebimento via o arquivo, concluía "já tenho,
+pulo" e ia embora **sem anotar nada**; o envio olhava o mesmo item, não
+achava anotação nenhuma, concluía "nunca mandei isto" e mandava a árvore
+inteira de volta para a nuvem — com fotos, gastando dados móveis, num
+aparelho onde ninguém tinha criado nada.
+
+**Quando isso acontecia.** Sempre que o aparelho tinha os dados mas perdia
+o caderno de anotações: ao restaurar um backup (o caderno é de propósito
+deixado de fora do backup, por ser de cada aparelho), ao limpar os dados do
+navegador, ao reinstalar, ou ao trocar de navegador.
+
+**Por que as tentativas anteriores não pegaram.** Já existiam quatro
+proteções para isso, mas todas dependiam de um índice da nuvem que também
+fica de fora do backup, vence em 24 horas e só é montado pela sincronização
+**manual**. O ciclo automático — o que dispara sozinho dois minutos depois
+de abrir o app — não tinha nenhuma delas. A proteção chegava depois do
+estrago.
+
+**O que mudou.** Quando não há anotação sobre um arquivo, o app deixa de
+tratar isso como "não mudou" e passa a tratar como o que realmente é: "não
+sei". Aí ele confere o arquivo de texto (poucos KB — as fotos viajam à
+parte e não entram nessa conta) e, se estiver igual ao que já existe aqui,
+**anota e pronto: nada é enviado**. O caderno se reconstrói sozinho, de
+graça. Além disso, enquanto a primeira conferência não termina, o envio
+automático espera — para não sair mandando coisa antes de saber o que já
+está na nuvem.
+
+**Proteção contra perder trabalho de campo.** O app nunca considera um item
+sincronizado só porque o tamanho do arquivo bateu: dois textos diferentes
+podem ocupar exatamente os mesmos bytes. Se este aparelho tiver uma edição
+mais nova que a da nuvem, ela é preservada e continua na fila para subir —
+isso está travado por teste automático.
+
+**O que esta entrega não resolve.** Continua valendo a limitação já
+conhecida: quando o mesmo item é movido para lugares diferentes em dois
+aparelhos, a sincronização não sabe decidir sozinha qual posição vale.
+
+---
+
 ## 18/08/2026 15:00
 
 Geração de textos pela IA mais rápida: descrição do risco, mitigação

@@ -1473,6 +1473,41 @@ chk("so existe UMA pausa de 250ms por risco agora (depois do lote), nao mais uma
 chk("o aviso na tela junta os campos pedidos numa frase so, em vez de trocar um por vez",
     'camposPendentes.map(p=>CAMPO_ROTULO[p.campo]||p.campo).join(" + ")' in novo)
 
+print("\n=== 60. APARELHO QUE NAO CRIOU NADA NAO REENVIA A ARVORE ===")
+# Defeito relatado em campo e reproduzido com o codigo real: o motor tinha
+# DUAS memorias respondendo a mesma pergunta. O recebimento perguntava "ja
+# tenho este arquivo?" e o envio perguntava "ja enviei este arquivo?", em
+# memorias diferentes. Aparelho com os dados mas sem o mapa de assinaturas
+# (restaurou backup -- o mapa e excluido de proposito do backup --, limpou
+# dados do navegador, reinstalou) fazia o recebimento responder "ja tenho,
+# pulo" SEM gravar nada, e o envio responder "nunca mandei, mando tudo".
+chk("sem assinatura, 'nao sei' -- nao mais 'nao mudou' (era a linha de origem do defeito)",
+    "if(!reg) return !!seAindaNaoSabe;" in novo
+    and "if(!reg) return false; // sem assinatura o item nem foi enviado/baixado por aqui" not in novo)
+chk("sem assinatura, tamanho igual NAO basta -- confere o texto de verdade (protege edicao de campo)",
+    "  if(!onedriveAssinaturaDe(chave)) return false;\n  if(tamanhoTextoLocalDoItem(tipo, itemLocal) !== tamanhoRemoto) return false;" in novo)
+chk("os dois atalhos do cache de convergencia so valem com assinatura ja existente",
+    "if(onedriveAssinaturaDe(chave) && arquivoJaExistente(arq.caminho, arq.tamanho)){" in novo
+    and "&& !(onedriveAssinaturaDe(\"risco:\"+riscoExistente.id) && arquivoJaExistente(arq.caminho, arq.tamanho))" in novo)
+chk("item convergido tambem assina -- e o que reconstroi o mapa sem enviar nada",
+    "if(descritor.tipo !== \"fotos\" && (inseriu || onedriveItemJaConvergido(descritor, dados)))" in novo
+    and novo.count("function onedriveItemJaConvergido(descritor, dados){") == 1
+    and novo.count("function onedriveItemLocalPorTipoId(tipo, id){") == 1)
+chk("so assina quando os carimbos sao IGUAIS -- versao local mais nova continua subindo",
+    "return (dados.atualizadoEm || dados.criadoEm || 0) === (local.atualizadoEm || local.criadoEm || 0);" in novo)
+chk("onedriveItemLocalPorTipoId reaproveita __listasIrmasDe, sem duplicar varredura de arvore",
+    "for(const lista of __listasIrmasDe(tipo)){\n    const achado = lista.find(x=>x && x.id===id);" in novo)
+chk("cinto de seguranca: envio automatico espera a primeira varredura com o mapa vazio",
+    novo.count("function onedriveEnvioAutomaticoDeveEsperar(){") == 1
+    and "if(!onProgresso && onedriveEnvioAutomaticoDeveEsperar()) return;" in novo
+    and "if(onedriveCarregarAssinaturas(__assinaturasOneDriveSimples).size > 0) return false;" in novo)
+chk("a varredura de recebimento libera o envio ao terminar (nao trava para sempre)",
+    novo.count("let __downloadJaVarreuNestaSessao = false;") == 1
+    and novo.count("__downloadJaVarreuNestaSessao = true;") == 1)
+chk("nada do filtro de pendentes do envio foi alterado -- a correcao e toda do lado do recebimento",
+    "    if(!registro) return true;                              // nunca subiu" in novo
+    and "    if(registro.atualizadoEm !== it.atualizadoEm) return true; // mudou desde a última subida" in novo)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

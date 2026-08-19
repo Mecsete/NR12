@@ -4536,6 +4536,164 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     C.chamarIAResiliente = chamarOriginalT102;
   }
 
+  console.log("\n=== t103 · aparelho que não criou nada NÃO reenvia a árvore ===");
+  /* O defeito: o motor tinha DUAS memórias independentes respondendo à mesma
+     pergunta. O recebimento perguntava "eu já tenho este arquivo?" e o envio
+     perguntava "eu já enviei este arquivo?" — em memórias diferentes. Um
+     aparelho com os dados mas sem o mapa de assinaturas (restaurou backup,
+     limpou dados do navegador, reinstalou) fazia o recebimento responder
+     "já tenho, pulo" SEM gravar nada, e o envio responder "nunca mandei,
+     mando tudo" — a árvore inteira subia de novo, com fotos, por dados
+     móveis, num aparelho onde ninguém tinha criado nada.
+
+     Este grupo monta um CONTEXTO PRÓPRIO (o ambiente compartilhado lá de
+     cima não tem o motor de sincronização carregado) e roda o ciclo real:
+     descritor -> mesclagem -> filtro de pendentes do envio. */
+  {
+    const ctxS = {
+      console, JSON, Math, Date, Map, Set, Object, Array, String, Number, RegExp, isFinite, isNaN,
+      OUTRO, STATE: { projetosSimples: [], ui:{} },
+      ONEDRIVE_PASTA_APP:"APR-Campo", SUBPASTA_BACKUP:"Backup",
+      ONEDRIVE_LIMITE_AUTO_BYTES: 300000, CAMPO_FOTOS_LISTA:"fotosOutras",
+      nomeMaquinaS: m=>m.nome||"", valOuOutro:(v,o)=>v===OUTRO?(o||""):(v||""),
+      Blob: class { constructor(a){ this.size = Buffer.byteLength(a.join(""),"utf8"); } },
+      exclusaoConfirmadaPeloUsuario: ()=>false, registrarEventoSync: ()=>{},
+      marcarProgressoSync: ()=>{}, localizarItemLocal: ()=>null,
+      completarFotosDeItem: ()=>false, itemTemFotosEmbutidas: ()=>false,
+    };
+    vm.createContext(ctxS);
+    /* nomeArquivoSeguro entra à mão: a regex dele tem aspas dentro da classe
+       de caracteres e o extrator funcao() acima para no lugar errado. */
+    vm.runInContext('function nomeArquivoSeguro(s){ let n = String(s||"sem-nome").trim().slice(0,48)'
+      + '.replace(/[\\\\/:*?"<>|]/g,"-").replace(/\\s+/g," ").replace(/^\\.+/,"").replace(/[. ]+$/,"");'
+      + ' if(/^(CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])$/i.test(n)) n = n+"_"; return n || "sem-nome"; }', ctxS);
+    vm.runInContext(constante("CAMPOS_FILHOS_SYNC"), ctxS);
+    vm.runInContext(constante("CAMPO_FILHOS_POR_TIPO"), ctxS);
+    vm.runInContext("var __ultimoCarimboVisto = 0;", ctxS);
+    vm.runInContext("var __assinaturasOneDriveSimples = { mapa:null, chaveEstado:'oneDriveAssinaturasSimples' };", ctxS);
+    vm.runInContext("var __arvoreSimplesCache = null, __indiceNuvemMapa = null, __indiceNuvemMapaEm = 0;", ctxS);
+    vm.runInContext("var __downloadJaVarreuNestaSessao = false;", ctxS);
+    [ "__carregarUltimoCarimbo","registrarCarimboVisto","agoraSync",
+      "segmentoPastaComId","extrairSufixoDoNome","idBateComSufixo",
+      "listarItensSincronizaveisSimples","separarFotosDoItem","__ehFotoEmbutida",
+      "tamanhoTextoLocalDoItem","onedriveCarregarAssinaturas","onedriveAssinaturaDe",
+      "onedriveAnotarTamanho","onedriveArquivoMudouNaNuvem","onedriveMesmaVersaoPeloTamanho",
+      "onedrivePrecisaBaixarFotos","aplicarAtualizacaoRemota","__listasIrmasDe",
+      "__moverItemEntrePais","__onedriveMesclarItemNovoInterno","onedriveMesclarItemNovo",
+      "onedriveRegistrarAssinaturaDeDownload","onedriveDescritorDeCaminho",
+      "onedriveItemLocalPorTipoId","onedriveItemJaConvergido",
+      "onedriveEnvioAutomaticoDeveEsperar",
+    ].forEach(n=> vm.runInContext(funcao(n), ctxS));
+    /* Réplica exata do filtro de pendentes de onedriveSincronizarModulo — é
+       ele que decide o que sobe. Se a réplica sair do lugar, o teste perde o
+       sentido; por isso o teste seguinte confere que o original não mudou. */
+    vm.runInContext(`function pendentesDeUpload(){
+      const itensAtuais = listarItensSincronizaveisSimples();
+      const assinaturas = onedriveCarregarAssinaturas(__assinaturasOneDriveSimples);
+      return itensAtuais.filter(it => {
+        const registro = assinaturas.get(it.id);
+        if(!registro) return true;
+        if(registro.atualizadoEm !== it.atualizadoEm) return true;
+        if(registro.fotosPendentes) return true;
+        return false;
+      });
+    }`, ctxS);
+
+    const TS = 1750000000000;
+    const IDS = { proj:"xp1a2b", area:"xa3c4d", maq:"xm5e6f", tar:"xt7g8h", risco:"xr9i0j" };
+    const PREF = "APR-Campo/Backup/Simplificado/";
+    const arvore = ()=>({ id:IDS.proj, empresa:"Corteva", criadoEm:TS, atualizadoEm:TS, areas:[
+      { id:IDS.area, nome:"Debulha", criadoEm:TS, atualizadoEm:TS, maquinas:[
+        { id:IDS.maq, nome:"Debulhador", criadoEm:TS, atualizadoEm:TS, tarefas:[
+          { id:IDS.tar, tarefa:"Limpeza", tarefaOutro:"", criadoEm:TS, atualizadoEm:TS, riscos:[
+            { id:IDS.risco, nome:"Esmagamento", descricao:"d", fotosOutras:[], criadoEm:TS, atualizadoEm:TS } ]} ]} ]} ]});
+    const zerar = ()=>{ ctxS.STATE.projetosSimples=[arvore()]; ctxS.STATE.oneDriveAssinaturasSimples={}; ctxS.__assinaturasOneDriveSimples.mapa=null; };
+    const caminhoDe = it => PREF + it.pasta.join("/") + "/" + it.arquivo;
+    const pendIds = ()=> vm.runInContext("pendentesDeUpload()", ctxS).map(i=>i.id);
+    const nAssin = ()=> Object.keys(ctxS.STATE.oneDriveAssinaturasSimples).length;
+    zerar();
+    const itensNuvem = JSON.parse(JSON.stringify(vm.runInContext("listarItensSincronizaveisSimples()", ctxS)));
+    const mesclar = (d, dados)=>{ ctxS.__d=d; ctxS.__dados=dados; return vm.runInContext("onedriveMesclarItemNovo(__d,__dados)", ctxS); };
+    const descPara = it => ({ caminho:caminhoDe(it), nome:it.arquivo, tamanho:500, tipo:it.tipo,
+      projId:IDS.proj, areaId:IDS.area, maquinaId:IDS.maq, tarefaId:IDS.tar });
+
+    t("o filtro de pendentes do envio continua sendo o que este teste replica", ()=>{
+      const f = funcao("onedriveSincronizarModulo");
+      ok(f.indexOf("if(!registro) return true;") > 0
+         && f.indexOf("if(registro.atualizadoEm !== it.atualizadoEm) return true;") > 0,
+         "o filtro real mudou — a réplica deste teste precisa acompanhar");
+    });
+    t("aparelho com os dados e SEM assinaturas ainda parte de 'tudo pendente'", ()=>{
+      zerar();
+      eq(nAssin(), 0);
+      eq(pendIds().length, itensNuvem.length, "cenário de partida não é mais o do defeito");
+    });
+    t("o recebimento passa a CONFERIR o arquivo em vez de pular sem gravar nada", ()=>{
+      zerar();
+      const decisoes = itensNuvem.map(it=>{
+        ctxS.__entrada = { caminho:caminhoDe(it), nome:it.arquivo, tamanho:500 };
+        const d = vm.runInContext("onedriveDescritorDeCaminho(__entrada)", ctxS);
+        return d && d.jaExiste ? "pulou" : "confere";
+      });
+      ok(decisoes.every(x=>x==="confere"),
+         "voltou a pular sem assinatura — é exatamente o defeito de origem: " + decisoes.join(","));
+    });
+    t("depois da varredura o mapa se reconstrói sozinho e NADA fica para enviar", ()=>{
+      zerar();
+      for(const it of itensNuvem){
+        ctxS.__entrada = { caminho:caminhoDe(it), nome:it.arquivo, tamanho:500 };
+        const d = vm.runInContext("onedriveDescritorDeCaminho(__entrada)", ctxS);
+        if(d && !d.jaExiste && !d.aguardandoPai) mesclar(descPara(it), it.dados);
+      }
+      eq(nAssin(), itensNuvem.length, "assinaturas não foram reconstruídas");
+      eq(pendIds().length, 0, "o aparelho ainda quer enviar algo que não criou");
+    });
+    t("GARANTIA: edição local ainda não enviada NÃO é marcada como sincronizada", ()=>{
+      zerar();
+      const r = ctxS.STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos[0];
+      r.descricao = "EDICAO DE CAMPO AINDA NAO ENVIADA";
+      r.atualizadoEm = TS + 9999; // mais novo que a versão da nuvem
+      const itR = itensNuvem.find(i=>i.id==="risco:"+IDS.risco);
+      mesclar(descPara(itR), itR.dados); // chega a versão ANTIGA da nuvem
+      const depois = ctxS.STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos[0];
+      eq(depois.descricao, "EDICAO DE CAMPO AINDA NAO ENVIADA", "a versão da nuvem sobrescreveu a edição local");
+      ok(!ctxS.STATE.oneDriveAssinaturasSimples["risco:"+IDS.risco],
+         "assinou uma versão que nunca subiu — a edição de campo ficaria perdida para sempre");
+      ok(pendIds().includes("risco:"+IDS.risco), "a edição local precisa continuar na fila de envio");
+    });
+    t("versão mais NOVA vinda do outro aparelho é aplicada e não vira pendência", ()=>{
+      zerar();
+      const itR = JSON.parse(JSON.stringify(itensNuvem.find(i=>i.id==="risco:"+IDS.risco)));
+      itR.dados.descricao = "TEXTO NOVO DO OUTRO APARELHO";
+      itR.dados.atualizadoEm = TS + 7777;
+      mesclar(descPara(itR), itR.dados);
+      const depois = ctxS.STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos[0];
+      eq(depois.descricao, "TEXTO NOVO DO OUTRO APARELHO");
+      ok(!!ctxS.STATE.oneDriveAssinaturasSimples["risco:"+IDS.risco], "não assinou o que acabou de receber");
+      ok(!pendIds().includes("risco:"+IDS.risco), "voltaria a devolver para a nuvem o que veio dela (o eco)");
+    });
+    t("o envio automático espera a primeira varredura quando o mapa está vazio", ()=>{
+      zerar();
+      vm.runInContext("__downloadJaVarreuNestaSessao = false;", ctxS);
+      eq(vm.runInContext("onedriveEnvioAutomaticoDeveEsperar()", ctxS), true,
+         "enviaria às cegas antes de saber o que já está na nuvem");
+      vm.runInContext("__downloadJaVarreuNestaSessao = true;", ctxS);
+      eq(vm.runInContext("onedriveEnvioAutomaticoDeveEsperar()", ctxS), false,
+         "travaria o envio para sempre depois da varredura");
+    });
+    t("aparelho sem nenhum dado local nunca fica travado esperando", ()=>{
+      ctxS.STATE.projetosSimples = []; ctxS.STATE.oneDriveAssinaturasSimples = {};
+      ctxS.__assinaturasOneDriveSimples.mapa = null;
+      vm.runInContext("__downloadJaVarreuNestaSessao = false;", ctxS);
+      eq(vm.runInContext("onedriveEnvioAutomaticoDeveEsperar()", ctxS), false);
+    });
+    t("o botão manual não é afetado pela espera (ele busca a árvore antes de enviar)", ()=>{
+      const f = funcao("sincronizarIncrementalOneDrive");
+      ok(f.indexOf("if(!onProgresso && onedriveEnvioAutomaticoDeveEsperar()) return;") > 0,
+         "a espera precisa valer só para o ciclo automático");
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

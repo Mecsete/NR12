@@ -1814,7 +1814,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "18/08/2026 15:00";
+const APP_BUILD = "18/08/2026 22:10";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -2815,11 +2815,33 @@ function podeSincronizarAutomaticoAgora(){
    Microsoft). Também cede a vez quando a sincronização manual está rodando —
    ela já envia tudo, e as duas juntas disputavam os mesmos arquivos. */
 let __uploadAutoRodando = false;
+/* Uma varredura de recebimento já terminou nesta sessão? Enquanto não tiver
+   terminado, o mapa de assinaturas vazio ainda não é uma informação
+   confiável. */
+let __downloadJaVarreuNestaSessao = false;
+/* CINTO DE SEGURANÇA DA PRIMEIRA RODADA DEPOIS DE RESTAURAR.
+   O aparelho que restaurou um backup tem a árvore inteira e ZERO assinaturas
+   (o mapa é de propósito excluído do backup — ver __BACKUP_CAMPOS_EXCLUIR).
+   Como o envio roda antes do recebimento no ciclo automático, ele veria
+   "nenhum item foi enviado por mim" e mandaria tudo para a nuvem antes de a
+   varredura ter chance de reconstruir o mapa. Nesse estado — e SÓ nele —
+   o envio automático espera uma rodada. O botão manual não é afetado (ele
+   busca a árvore da nuvem antes de enviar, então já sabe o que está lá), e
+   o atraso é de um ciclo só: assim que a varredura terminar, tudo segue
+   normalmente. Aparelho realmente novo, que criou dados sem nunca ter
+   recebido nada, também não trava: a varredura termina (sem achar nada) e
+   libera o envio na sequência. */
+function onedriveEnvioAutomaticoDeveEsperar(){
+  if(__downloadJaVarreuNestaSessao) return false;
+  if(onedriveCarregarAssinaturas(__assinaturasOneDriveSimples).size > 0) return false;
+  return listarItensSincronizaveisSimples().length > 0;
+}
 async function sincronizarIncrementalOneDrive(onProgresso){
   if(!getOneDriveConta()) return;
   if(__uploadAutoRodando && !onProgresso) return; // já tem um envio em andamento — este gatilho pode esperar o próximo ciclo
   if(__sincronizandoAgora && !onProgresso) return; // sincronização manual em curso já cobre o envio
   if(!onProgresso && !podeSincronizarAutomaticoAgora()) return; // economia de dados: adia até o Wi-Fi
+  if(!onProgresso && onedriveEnvioAutomaticoDeveEsperar()) return; // mapa vazio e recebimento ainda não varreu — não envia às cegas
   __uploadAutoRodando = true;
   try{
     await onedriveSincronizarModulo("Simplificado", listarItensSincronizaveisSimples, __assinaturasOneDriveSimples, onProgresso);
@@ -3120,7 +3142,12 @@ function onedriveClassificarNovosSimples(arvoreProjetos){
        já bateu com o daqui (cache de convergência). Então não há nada de novo:
        aproveita para anotar o tamanho — de graça, sem baixar — e a partir de
        agora qualquer edição feita no outro aparelho é detectada na hora. */
-    if(arquivoJaExistente(arq.caminho, arq.tamanho)){ onedriveAnotarTamanho(chave, "tamanho", arq.tamanho); return; }
+    /* O atalho do cache de convergência só vale quando JÁ existe assinatura:
+       onedriveAnotarTamanho não cria registro do zero, então sem assinatura
+       este "return" pulava o arquivo sem deixar nada gravado — o mesmo furo
+       corrigido em onedriveArquivoMudouNaNuvem. Sem assinatura, segue o
+       caminho normal e confere o texto de verdade. */
+    if(onedriveAssinaturaDe(chave) && arquivoJaExistente(arq.caminho, arq.tamanho)){ onedriveAnotarTamanho(chave, "tamanho", arq.tamanho); return; }
     if(onedriveMesmaVersaoPeloTamanho(tipo, itemLocal, chave, arq.tamanho)) return;
     registrar(arq.tamanho, { tipo, ...ids, atualizacao:true, chaveAssinatura:chave, caminho:arq.caminho, nome:arq.nome, tamanho:arq.tamanho });
   };
@@ -3192,7 +3219,10 @@ function onedriveClassificarNovosSimples(arvoreProjetos){
             if(!riscoExistente){
               registrar(arq.tamanho, { tipo:"risco", ...idsRisco, caminho:arq.caminho, tamanho:arq.tamanho });
             }else if(onedriveArquivoMudouNaNuvem("risco:"+riscoExistente.id, "tamanho", arq.tamanho, true)
-                     && !arquivoJaExistente(arq.caminho, arq.tamanho)
+                     /* mesmo cuidado do nível acima: o cache de convergência só
+                        pode barrar o arquivo quando já existe assinatura, senão
+                        o risco é pulado sem nada ser gravado */
+                     && !(onedriveAssinaturaDe("risco:"+riscoExistente.id) && arquivoJaExistente(arq.caminho, arq.tamanho))
                      && !onedriveMesmaVersaoPeloTamanho("risco", riscoExistente, "risco:"+riscoExistente.id, arq.tamanho)){
               registrar(arq.tamanho, { tipo:"risco", ...idsRisco, atualizacao:true, chaveAssinatura:"risco:"+riscoExistente.id, caminho:arq.caminho, nome:arq.nome, tamanho:arq.tamanho });
             }
@@ -3244,9 +3274,42 @@ function onedriveRegistrarAssinaturaDeDownload(descritor, dados){
     STATE[ref.chaveEstado][chave] = registro;
   }catch(e){ /* falha aqui só significa um reenvio a mais — nunca perde dado */ }
 }
+/* Localiza um item local por tipo + id, sem depender de saber onde ele mora.
+   Reaproveita __listasIrmasDe, que já enumera todas as listas de cada nível
+   da árvore — é a mesma varredura usada para descobrir item movido de pai. */
+function onedriveItemLocalPorTipoId(tipo, id){
+  if(!tipo || !id) return null;
+  if(tipo==="projeto") return (STATE.projetosSimples||[]).find(p=>p.id===id) || null;
+  for(const lista of __listasIrmasDe(tipo)){
+    const achado = lista.find(x=>x && x.id===id);
+    if(achado) return achado;
+  }
+  return null;
+}
+/* O arquivo que acabou de ser lido da nuvem é EXATAMENTE a versão que já
+   existe aqui? Só nesse caso (carimbos iguais) é seguro gravar a assinatura
+   sem ter inserido nada: significa que este aparelho e a nuvem estão no mesmo
+   ponto, então "já está enviado" é verdade.
+   Carimbo remoto MAIOR não chega aqui (a mesclagem aplica e devolve true).
+   Carimbo remoto MENOR devolve false de propósito: a versão daqui é mais
+   nova e PRECISA subir — gravar assinatura aí esconderia uma edição de campo
+   para sempre. Como agoraSync() nunca repete um valor no mesmo aparelho,
+   carimbos iguais são a mesma versão, não uma coincidência. */
+function onedriveItemJaConvergido(descritor, dados){
+  if(!descritor || !dados || !dados.id) return false;
+  const local = onedriveItemLocalPorTipoId(descritor.tipo, dados.id);
+  if(!local) return false;
+  return (dados.atualizadoEm || dados.criadoEm || 0) === (local.atualizadoEm || local.criadoEm || 0);
+}
 function onedriveMesclarItemNovo(descritor, dados){
   const inseriu = __onedriveMesclarItemNovoInterno(descritor, dados);
-  if(inseriu && descritor.tipo !== "fotos") onedriveRegistrarAssinaturaDeDownload(descritor, dados);
+  /* ANTES: a assinatura só era gravada quando algo foi realmente inserido.
+     Um item que já estava aqui na mesma versão devolvia false e ia embora
+     sem deixar registro — e o envio, sem registro, reenviava tudo. Agora o
+     item convergido também assina, que é o que faz o mapa se reconstruir
+     sozinho num aparelho que o perdeu, sem enviar nem um byte. */
+  if(descritor.tipo !== "fotos" && (inseriu || onedriveItemJaConvergido(descritor, dados)))
+    onedriveRegistrarAssinaturaDeDownload(descritor, dados);
   /* Anota o tamanho do arquivo que acabou de ser lido — inclusive quando nada
      mudou. É essa memória que permite, na próxima verificação, saber num
      relance se o outro aparelho mexeu no item, sem precisar baixar de novo. */
@@ -3982,6 +4045,10 @@ async function sincronizarDownloadOneDrive(){
         mesclados = await onedriveDeltaProcessarFila();
       }
     }
+    // A varredura chegou ao fim sem estourar: a partir daqui o envio
+    // automático pode confiar no que o mapa de assinaturas diz (ver
+    // onedriveEnvioAutomaticoDeveEsperar).
+    __downloadJaVarreuNestaSessao = true;
     // Mesmo com zero mesclados: a fila/pendentes podem ter mudado, e a
     // varredura pode ter descoberto fotos — grava e atualiza a tela sempre.
     await dbSet(STATE);
@@ -4153,7 +4220,19 @@ function onedriveAnotarTamanho(chave, campo, tamanho){
    varredura, sem baixar nada, e a partir daí toda troca é detectada. */
 function onedriveArquivoMudouNaNuvem(chave, campo, tamanhoRemoto, seAindaNaoSabe){
   const reg = onedriveAssinaturaDe(chave);
-  if(!reg) return false; // sem assinatura o item nem foi enviado/baixado por aqui — outro caminho cuida
+  /* SEM ASSINATURA = "NÃO SEI", NÃO "NÃO MUDOU".
+     Esta linha devolvia false, e era a origem do defeito mais caro do motor:
+     um aparelho com os dados mas sem o mapa de assinaturas (restaurou um
+     backup, limpou os dados do navegador, reinstalou) via TODO arquivo da
+     nuvem como "não mudou" e o recebimento ia embora sem gravar nada. Do
+     outro lado, o envio olhava o mesmo item, não achava assinatura nenhuma,
+     concluía "nunca mandei isto" e reenviava a árvore inteira — com fotos,
+     por dados móveis. Era o "aparelho que não criou nada mandando tudo".
+     Devolvendo o que o parâmetro manda (para texto, "confira uma vez"), o
+     arquivo é conferido de verdade e a assinatura nasce daí. O pacote de
+     FOTOS não passa por aqui (usa onedrivePrecisaBaixarFotos), então nada
+     de megabytes é rebaixado por causa desta linha. */
+  if(!reg) return !!seAindaNaoSabe;
   const conhecido = reg[campo];
   if(typeof conhecido !== "number") return !!seAindaNaoSabe;
   return conhecido !== tamanhoRemoto;
@@ -4211,6 +4290,18 @@ function onedriveConteudoJaEnviado(item, registro){
   return tamanhoTextoLocalDoItem(item.tipo, item.dados || {}) === registro.tamanho;
 }
 function onedriveMesmaVersaoPeloTamanho(tipo, itemLocal, chave, tamanhoRemoto){
+  /* SEM ASSINATURA, TAMANHO IGUAL NÃO É PROVA.
+     Dois conteúdos diferentes podem ocupar exatamente os mesmos bytes —
+     trocar um valor por outro do mesmo comprimento não muda o tamanho do
+     arquivo. Se aqui bastasse o tamanho, um aparelho sem assinaturas que
+     tivesse uma edição de campo ainda não enviada marcaria essa edição como
+     "já sincronizada" e ela NUNCA subiria: perda silenciosa de dado num
+     laudo assinado. Com assinatura, o tamanho continua valendo (é a
+     comparação barata que evita download à toa, e o item já foi conferido
+     antes); sem assinatura, devolve false de propósito para o arquivo de
+     texto ser baixado e conferido item a item. Custa poucos KB — as fotos
+     viajam em arquivo separado e não entram nessa conta. */
+  if(!onedriveAssinaturaDe(chave)) return false;
   if(tamanhoTextoLocalDoItem(tipo, itemLocal) !== tamanhoRemoto) return false;
   onedriveAnotarTamanho(chave, "tamanho", tamanhoRemoto);
   return true;
