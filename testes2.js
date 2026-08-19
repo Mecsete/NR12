@@ -83,7 +83,16 @@ let overlayHtml=""; function abrirOverlay(h){ overlayHtml=h; }
 let __buscaAtual = "";
 let __laudoGaleriaTeste = false;
 let __iaCelulasVazias=0,__iaCelulasTotal=0,__iaChamadasFalhas=0,__iaMotivoFalha="";
-let CHAVE="k"; function getIAApiKey(){ return CHAVE; } function setIAApiKey(v){ CHAVE = v||""; }
+/* localStorage de mentira, só em memória — dá pra rodar getIAApiKey/
+   setIAApiKey/getIAApiKeysMapa REAIS (extraídas do arquivo entregue, não
+   reescritas à mão) dentro do vm, que é o padrão do projeto: testar o que
+   foi de fato entregue, não uma imitação que pode divergir do original. */
+const __localStorageTeste = new Map();
+const localStorage = {
+  getItem: (k)=> __localStorageTeste.has(k) ? __localStorageTeste.get(k) : null,
+  setItem: (k,v)=> { __localStorageTeste.set(k, String(v)); },
+  removeItem: (k)=> { __localStorageTeste.delete(k); },
+};
 /* Config de IA persistente (antes era um objeto novo a cada chamada, o que
    impedia testar mesclagem — qualquer alteração se perdia na chamada seguinte). */
 let __iaConfigTeste = { usarNaExportacaoExcel:true, provedor:"anthropic", modelo:"claude-sonnet-5", endpoint:"", prompts:{} };
@@ -133,7 +142,7 @@ function progressoFechar(meu){ if(meu === false) return; painelTeste.fechamentos
 function progressoCancelado(){ return painelTeste.cancelar; }
 const ctx = { OUTRO, STATE, linhasEscopoSimples, nomeMaquinaS, valOuOutro, escapeHtml, ic, toast, marcarAlterado,
   progressoAbrir, progressoAtualizar, progressoFechar, progressoCancelado,
-  render, go, esperar, uid, imgReg, abrirOverlay, getIAApiKey, setIAApiKey, getIAConfig, resetIAConfigTeste,
+  render, go, esperar, uid, imgReg, abrirOverlay, getIAConfig, resetIAConfigTeste, localStorage,
   chamarIAResiliente, parseRespostaJsonIA,
   getAreasSelecionadasExport, formatarDataHoraBR, screenSimplesConfigIA, getMecseteConfig, getCurrentProjetoSimples,
   __modeloExcelCortevaCarregado, __modeloExcelCortevaMeta, __buscaAtual,
@@ -177,9 +186,20 @@ vm.runInContext(funcao("getUsuariosInspetores"), ctx);
    objetos/arrays, entao vem por regex direto. */
 [ "IA_PROVEDORES", "IA_PROMPTS_PADRAO" ].forEach(n=> vm.runInContext(constante(n), ctx));
 vm.runInContext((/\nconst IA_PROVEDOR_PADRAO\s*=\s*"[^"]*";/.exec(HTML)||[""])[0], ctx);
-[ "getNormasIA", "getNormasRemovidas", "getPromptsEm", "marcarPromptAlterado", "marcarChaveIAAlterada",
+/* IA_LOCALSTORAGE_KEY/IA_LOCALSTORAGE_KEYS são const de string simples —
+   vêm por regex direto, como IA_PROVEDOR_PADRAO logo acima. Precisam existir
+   ANTES de getIAApiKeysMapa ser definida (ela as lê). */
+vm.runInContext((/\nconst IA_LOCALSTORAGE_KEY\s*=\s*"[^"]*";/.exec(HTML)||[""])[0], ctx);
+vm.runInContext((/\nconst IA_LOCALSTORAGE_KEYS\s*=\s*"[^"]*";/.exec(HTML)||[""])[0], ctx);
+[ "getNormasIA", "getNormasRemovidas", "getPromptsEm", "marcarPromptAlterado",
+  "getIAApiKeysMapa", "salvarIAApiKeysMapa", "getIAApiKey", "setIAApiKey",
+  "getApiKeysEm", "marcarChaveIAAlterada", "trocarProvedorIAAtivo", "iaProvedoresDisponiveis",
   "getApiKeyEm", "getIASyncEm", "marcarIAAlterada", "montarPacoteIA", "aplicarPacoteIA"
 ].forEach(n=> vm.runInContext(funcao(n), ctx));
+/* mesmo padrao do antigo CHAVE="k": ha chave por padrao para o provedor de
+   teste, senao toda geracao em lote que roda antes de qualquer setIAApiKey()
+   explicito bateria em "sem chave" e devolveria 0. */
+vm.runInContext("setIAApiKey('k')", ctx);
 
 /* blocos novos, extraidos do arquivo entregue */
 const BLOCO_A = trecho("/* =========================================================================\n   GESTÃO DO LAUDO — os textos da IA passam a morar DENTRO do app", "\nfunction hrnDoItem({tarefa,risco}){");
@@ -622,10 +642,10 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     eq(C.laudoGet(alvoR, "risco").fin, "");
   });
   t("sem chave de IA a geracao avisa e nao quebra", async ()=>{});
-  CHAVE = "";
+  vm.runInContext("setIAApiKey('')", ctx);
   const g0 = await C.gerarLaudoIAItens(C.linhasEscopoSimples(), null, {});
   t("sem chave devolve 0 e emite aviso", ()=>{ eq(g0, 0); ok(toasts.length > 0); });
-  CHAVE = "k";
+  vm.runInContext("setIAApiKey('k')", ctx);
 
   console.log("\n=== t24 · miniaturas nos cartões ===");
   STATE.projetosSimples = [mkProjeto()];
@@ -700,11 +720,11 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(h.indexOf("laudoVerPlaqueta('r1')") > 0, "foto não amplia");
   });
   t("sem chave de IA, mostra o caminho para configurar", ()=>{
-    CHAVE = "";
+    vm.runInContext("setIAApiKey('')", ctx);
     const h = C.laudoBlocoPlaqueta(C.linhasEscopoSimples()[0]);
     ok(h.indexOf("laudoLerPlaqueta") < 0, "não deveria oferecer leitura");
     ok(h.indexOf("Configure a IA na aba IA") > 0);
-    CHAVE = "k";
+    vm.runInContext("setIAApiKey('k')", ctx);
   });
   t("sem foto, oferece fotografar e explica o porquê", ()=>{
     const it = C.linhasEscopoSimples()[0];
@@ -2084,9 +2104,15 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   });
 
   console.log("\n=== t55 · IA compartilhada: nenhuma norma ou instrução se perde ===");
+  /* STATE.ui.apiKeyEm (carimbo unico) virou STATE.ui.apiKeysEm (por provedor) —
+     estes testes usam sempre "anthropic" (provedor fixo do __iaConfigTeste),
+     entao gravam/leem o carimbo desse provedor especificamente. */
+  function marcarCarimboChaveTeste(valor){
+    vm.runInContext("getApiKeysEm()['anthropic'] = " + (valor||0) + ";", ctx);
+  }
   function iaLimpa(){
     STATE.ui.normasIA = []; STATE.ui.normasRemovidas = {}; STATE.ui.promptsEm = {};
-    STATE.ui.iaSyncEm = 0; STATE.ui.apiKeyEm = 0;
+    STATE.ui.iaSyncEm = 0; STATE.ui.apiKeyEm = 0; STATE.ui.apiKeysEm = {};
     vm.runInContext("setIAApiKey(''); resetIAConfigTeste();", ctx);
   }
   function pacoteDe(normas, prompts, promptsEm, chave, chaveEm){
@@ -2095,7 +2121,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     const c = vm.runInContext("getIAConfig()", ctx);
     Object.assign(c.prompts, prompts);
     STATE.ui.promptsEm = { ...promptsEm };
-    if(chave !== undefined){ vm.runInContext("setIAApiKey(" + JSON.stringify(chave) + ")", ctx); STATE.ui.apiKeyEm = chaveEm||0; }
+    if(chave !== undefined){ vm.runInContext("setIAApiKey(" + JSON.stringify(chave) + ")", ctx); marcarCarimboChaveTeste(chaveEm); }
     STATE.ui.iaSyncEm = 5000;
     return JSON.parse(JSON.stringify(vm.runInContext("montarPacoteIA()", ctx)));
   }
@@ -2147,7 +2173,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     const pacSemChave = pacoteDe([], {}, {}, "", 0);
     iaLimpa();
     vm.runInContext("setIAApiKey('chave-boa')", ctx);
-    STATE.ui.apiKeyEm = 5000;
+    marcarCarimboChaveTeste(5000);
     vm.runInContext("aplicarPacoteIA(" + JSON.stringify(pacSemChave) + ")", ctx);
     eq(vm.runInContext("getIAApiKey()", ctx), "chave-boa", "a chave foi apagada por um aparelho que nunca teve chave");
   });
@@ -2161,7 +2187,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     const pacRemocao = pacoteDe([], {}, {}, "", 9000);
     iaLimpa();
     vm.runInContext("setIAApiKey('chave-antiga')", ctx);
-    STATE.ui.apiKeyEm = 100;
+    marcarCarimboChaveTeste(100);
     vm.runInContext("aplicarPacoteIA(" + JSON.stringify(pacRemocao) + ")", ctx);
     eq(vm.runInContext("getIAApiKey()", ctx), "", "a remoção não viajou");
   });
@@ -2190,8 +2216,8 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   t("cada ponto de edição carimba a parte certa", ()=>{
     ok(HTML.indexOf("onIAConfigPromptInput(tipo, v){ getIAConfig().prompts[tipo] = v; marcarPromptAlterado(tipo); }") > 0,
        "instrução não carimba por instrução");
-    ok(HTML.indexOf("onIAApiKeyInput(v){ setIAApiKey(v.trim()); marcarChaveIAAlterada(); }") > 0,
-       "chave não tem carimbo próprio");
+    ok(HTML.indexOf("onIAApiKeyInput(v){ setIAApiKey(v.trim()); marcarChaveIAAlterada(getIAConfig().provedor); }") > 0,
+       "chave não tem carimbo próprio, por provedor");
     ok(HTML.indexOf("getNormasRemovidas()[id] = agoraSync();") > 0, "remover norma não deixa lápide");
     const iUp = HTML.indexOf("async onUploadNormaPDF(");
     ok(HTML.slice(iUp, iUp+900).indexOf("criadoEm:agora, atualizadoEm:agora") > 0, "norma nova nasce sem carimbo");
@@ -2486,17 +2512,17 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
        "a confirmação precisa vir ANTES de apagar");
   });
   t("chave que já existia ganha carimbo e passa a viajar", ()=>{
-    STATE.ui.apiKeyEm = undefined;
+    STATE.ui.apiKeysEm = {};
     vm.runInContext("setIAApiKey('chave-antiga')", ctx);
     ok(vm.runInContext("getApiKeyEm()", ctx) > 0, "a chave nunca sairia deste aparelho");
   });
   t("aparelho sem chave continua em zero e não apaga a dos outros", ()=>{
-    STATE.ui.apiKeyEm = undefined;
+    STATE.ui.apiKeysEm = {};
     vm.runInContext("setIAApiKey('')", ctx);
     eq(vm.runInContext("getApiKeyEm()", ctx), 0);
   });
   t("o carimbo da chave não é recalculado toda hora", ()=>{
-    STATE.ui.apiKeyEm = undefined;
+    STATE.ui.apiKeysEm = {};
     vm.runInContext("setIAApiKey('k')", ctx);
     const a = vm.runInContext("getApiKeyEm()", ctx);
     eq(vm.runInContext("getApiKeyEm()", ctx), a, "mudaria a cada chamada e viveria em conflito");
@@ -2971,9 +2997,12 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   });
   t("todas as chamadas de IA passam pelo mesmo ponto", ()=>{
     eq(HTML.split("contextoNormasIA(textoUsuario)").length - 1, 1, "mais de um lugar montando o prompt");
-    const i = HTML.indexOf("async function chamarIAResiliente(");
-    ok(HTML.slice(i, i + 500).indexOf("chamarIA(tipo, textoUsuario)") > 0,
-       "o caminho com retentativa deixou de usar chamarIA, e perderia as normas");
+    const iRetentativas = HTML.indexOf("async function iaTentarComRetentativas(");
+    ok(HTML.slice(iRetentativas, iRetentativas + 500).indexOf("chamarIA(tipo, textoUsuario)") > 0,
+       "o laço de retentativas deixou de usar chamarIA, e perderia as normas");
+    const iResiliente = HTML.indexOf("async function chamarIAResiliente(");
+    ok(HTML.slice(iResiliente, iResiliente + 400).indexOf("iaTentarComRetentativas(tipo, textoUsuario)") > 0,
+       "chamarIAResiliente deixou de passar pelo laço único de retentativas");
   });
 
   console.log("\n=== t69 · modal de criação de risco (bloco 1) ===");
@@ -3510,7 +3539,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   STATE.ui.laudoFiltroArea = ""; STATE.ui.laudoFiltroMaq = ""; STATE.ui.laudoFiltroTar = "";
   const itensT77a = C.linhasEscopoSimples().slice(0, 3);
   itensT77a.forEach(it=>{ it.maquina.laudoIA = {}; it.tarefa.laudoIA = {}; it.risco.laudoIA = {}; });
-  setIAApiKey("chave-teste");
+  vm.runInContext("setIAApiKey('chave-teste')", ctx);
   await C.gerarLaudoIAItens(itensT77a, null, { refazer:true });
   t("a geração em lote de verdade abre, atualiza e fecha o painel", ()=>{
     eq(painelTeste.aberturas.length, 1, "deveria abrir um painel só");
@@ -5071,6 +5100,120 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(HTML.indexOf('laudoSelectHRN(rid,"gpd",HRN_GPD_TABELA,gpdCanonico(r.gpd),autoGPD,"Estimado")') > 0, "seletor da revisão do laudo");
     ok(HTML.indexOf("const gpd = gpdCanonico(r && r.gpd);") > 0, "severidade do PLr");
     ok(HTML.indexOf("${gpdCanonico(r.gpd)===gpdSug?") > 0, "aviso de 'já aplicado'");
+  });
+
+  console.log("\n=== t109 · chave de IA por provedor, alternância automática e migração ===");
+  function iaProvedorTesteLimpo(){
+    vm.runInContext("STATE.ui.apiKeysEm={}; STATE.ui.iaConfig=undefined; resetIAConfigTeste();", ctx);
+    vm.runInContext("localStorage.removeItem(IA_LOCALSTORAGE_KEY); localStorage.removeItem(IA_LOCALSTORAGE_KEYS);", ctx);
+  }
+  t("Google Gemini e Groq têm link para gerar a chave; Personalizado não", ()=>{
+    ok(HTML.indexOf('linkChave: "https://aistudio.google.com/apikey"') > 0, "sem link do Gemini");
+    ok(HTML.indexOf('linkChave: "https://console.groq.com/keys"') > 0, "sem link do Groq");
+    const iPers = HTML.indexOf('"personalizado": {');
+    ok(HTML.slice(iPers, iPers+500).indexOf("linkChave: null,") > 0, "Personalizado ganhou um link que não existe");
+  });
+  t("chave no formato antigo (única) migra para o mapa por provedor", ()=>{
+    /* getIAApiKeysMapa() lê STATE.ui.iaConfig.provedor para decidir em qual
+       provedor a chave única antiga migra (é o que getIAConfig() devolve
+       de verdade no app; aqui no laboratório getIAConfig() é um stub à
+       parte — precisa alinhar os dois manualmente para testar a migração
+       de verdade, senão ela cai no padrão google-gemini). */
+    iaProvedorTesteLimpo();
+    vm.runInContext("localStorage.setItem(IA_LOCALSTORAGE_KEY, 'chave-formato-antigo'); STATE.ui.iaConfig = { provedor: 'anthropic' }; getIAConfig().provedor='anthropic';", ctx);
+    eq(vm.runInContext("getIAApiKey()", ctx), "chave-formato-antigo", "a migração não trouxe a chave antiga");
+    eq(vm.runInContext("getIAApiKeysMapa().anthropic", ctx), "chave-formato-antigo",
+       "a chave antiga não entrou no provedor certo do mapa novo");
+  });
+  t("cada provedor guarda a própria chave, sem se apagarem ao trocar", ()=>{
+    iaProvedorTesteLimpo();
+    vm.runInContext("getIAConfig().provedor='google-gemini'; setIAApiKey('chave-gemini');", ctx);
+    vm.runInContext("getIAConfig().provedor='groq'; setIAApiKey('chave-groq');", ctx);
+    vm.runInContext("getIAConfig().provedor='google-gemini';", ctx);
+    eq(vm.runInContext("getIAApiKey()", ctx), "chave-gemini", "a chave do Gemini sumiu ao salvar a do Groq");
+    vm.runInContext("getIAConfig().provedor='groq';", ctx);
+    eq(vm.runInContext("getIAApiKey()", ctx), "chave-groq", "a chave do Groq sumiu");
+  });
+  t("iaProvedoresDisponiveis só lista quem tem chave salva, gratuitos primeiro", ()=>{
+    iaProvedorTesteLimpo();
+    vm.runInContext("getIAConfig().provedor='google-gemini'; setIAApiKey('k-gemini');", ctx);
+    vm.runInContext("getIAConfig().provedor='openai'; setIAApiKey('k-openai');", ctx);
+    vm.runInContext("getIAConfig().provedor='groq'; setIAApiKey('k-groq');", ctx);
+    eq(JSON.stringify(vm.runInContext("iaProvedoresDisponiveis(false)", ctx)), JSON.stringify(["google-gemini","groq"]),
+       "sem incluir pagos, só os dois gratuitos deveriam aparecer");
+    eq(JSON.stringify(vm.runInContext("iaProvedoresDisponiveis(true)", ctx)), JSON.stringify(["google-gemini","groq","openai"]),
+       "com pagos incluídos, gratuitos continuam vindo primeiro");
+  });
+  t("provedor sem chave salva não é candidato, mesmo com pagos habilitados", ()=>{
+    iaProvedorTesteLimpo();
+    vm.runInContext("getIAConfig().provedor='groq'; setIAApiKey('k-groq');", ctx);
+    const disp = vm.runInContext("iaProvedoresDisponiveis(true)", ctx);
+    eq(JSON.stringify(disp), JSON.stringify(["groq"]), "provedor sem chave nenhuma entrou na lista");
+  });
+  t("personalizado nunca é candidato automático, mesmo com chave e pagos habilitados", ()=>{
+    iaProvedorTesteLimpo();
+    vm.runInContext("getIAConfig().provedor='personalizado'; setIAApiKey('k-custom');", ctx);
+    const disp = vm.runInContext("iaProvedoresDisponiveis(true)", ctx);
+    ok(disp.indexOf("personalizado") < 0, "personalizado apareceu como candidato de alternância automática");
+  });
+  t("trocarProvedorIAAtivo troca provedor, endpoint e modelo juntos", ()=>{
+    vm.runInContext("resetIAConfigTeste(); trocarProvedorIAAtivo('groq');", ctx);
+    const c = vm.runInContext("getIAConfig()", ctx);
+    eq(c.provedor, "groq");
+    eq(c.endpoint, "https://api.groq.com/openai/v1");
+    eq(c.modelo, "llama-3.3-70b-versatile");
+  });
+  t("trocarProvedorIAAtivo não mexe em nada se já é o provedor ativo", ()=>{
+    vm.runInContext("resetIAConfigTeste();", ctx);
+    const c = vm.runInContext("getIAConfig()", ctx);
+    c.endpoint = "endpoint-customizado-preservar";
+    vm.runInContext("trocarProvedorIAAtivo('anthropic')", ctx);
+    eq(vm.runInContext("getIAConfig().endpoint", ctx), "endpoint-customizado-preservar",
+       "reescreveu o endpoint mesmo sem trocar de provedor");
+  });
+  (()=>{
+    const iCR = HTML.indexOf("async function chamarIAResiliente(");
+    const iImg = HTML.indexOf("async function chamarIAImagem(");
+    const corpoCR = HTML.slice(iCR, iImg);
+    t("a alternância automática só entra por limite de uso (429)", ()=>{
+      ok(corpoCR.indexOf("__iaUltimoStatus === 429 && getIAConfig().alternarProvedorAutomatico !== false") > 0,
+         "a troca não está condicionada especificamente ao 429");
+    });
+    t("provedor pago só entra na troca automática com o interruptor ligado", ()=>{
+      ok(corpoCR.indexOf("iaProvedoresDisponiveis(!!getIAConfig().alternarIncluirPagos)") > 0,
+         "a lista de candidatos não respeita o interruptor de pagos — poderia gastar dinheiro sem avisar");
+    });
+    t("o provedor atual nunca é candidato de troca para ele mesmo", ()=>{
+      ok(corpoCR.indexOf(".filter(id=>id!==atual)") > 0, "trocaria o provedor pelo próprio provedor");
+    });
+    t("a troca é sticky: trocarProvedorIAAtivo persiste antes de tentar de novo", ()=>{
+      ok(corpoCR.indexOf("trocarProvedorIAAtivo(candidato)") > 0,
+         "sem persistir a troca, a próxima chamada voltaria a bater no provedor esgotado");
+    });
+    t("o pedido é retomado no novo provedor, não reiniciado do zero", ()=>{
+      eq((corpoCR.match(/iaTentarComRetentativas\(tipo, textoUsuario\)/g)||[]).length, 2,
+         "esperada uma chamada inicial e uma de retomada após a troca");
+    });
+    t("o usuário é avisado quando a troca automática acontece", ()=>{
+      ok(corpoCR.indexOf("toast(`Limite de uso do provedor anterior atingido") > 0, "troca silenciosa, sem avisar");
+    });
+  })();
+  t("config de IA liga a alternância automática por padrão e mantém pagos desligados", ()=>{
+    ok(HTML.indexOf("if(c.alternarProvedorAutomatico===undefined) c.alternarProvedorAutomatico = true;") > 0,
+       "alternância automática deveria vir ligada por padrão");
+    ok(HTML.indexOf("if(c.alternarIncluirPagos===undefined) c.alternarIncluirPagos = false;") > 0,
+       "provedores pagos deveriam vir desligados por padrão — segurança financeira");
+  });
+  t("o link para gerar a chave abre em aba nova, sem navegar para fora do app", ()=>{
+    const i = HTML.indexOf('${IA_PROVEDORES[cfg.provedor].linkChave ? `<a class="btn btn-secondary btn-block"');
+    ok(i > 0, "botão do link não existe mais");
+    const trecho = HTML.slice(i, i+400);
+    ok(trecho.indexOf('target="_blank"') > 0, "não abre em aba nova");
+    ok(trecho.indexOf('rel="noopener noreferrer"') > 0, "sem proteção noopener/noreferrer");
+    ok(trecho.indexOf("Abrir site para gerar a chave") > 0, "sem o texto do botão");
+  });
+  t("a tela mostra quais provedores já têm chave salva, sem abrir o seletor", ()=>{
+    ok(HTML.indexOf('return "Chaves salvas: " + linhas.join(" · ");') > 0, "sem o resumo de chaves salvas");
   });
 
   console.log("\n---------------------------------------");

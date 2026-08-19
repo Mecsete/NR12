@@ -28,6 +28,47 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 19/08/2026 19:02
+
+Chave de IA por provedor, com troca automática quando o limite de uso acaba,
+e link direto para gerar a chave.
+
+Antes, o app guardava **uma única chave de IA**, sempre a do provedor
+selecionado no momento. Ao trocar de provedor (por exemplo, do Google Gemini
+para o Groq) a chave anterior se perdia da tela — era preciso ir ao site do
+provedor, copiar a chave de novo e colar no app toda vez que fosse alternar.
+
+Agora:
+
+- **Cada provedor guarda a própria chave.** Dá para configurar Google Gemini,
+  Groq, OpenAI, Claude (Anthropic) e Personalizado todos de uma vez — trocar
+  de provedor no seletor não apaga nem mistura nenhuma chave. Um aviso na
+  tela ("Chaves salvas: ✓ Google Gemini · — Groq · ...") mostra de relance
+  quais já estão configuradas.
+- **Quando o provedor atual esgota o limite de uso (erro 429), o app troca
+  sozinho** para outro provedor que já tenha chave salva, e retoma o mesmo
+  pedido nele — sem precisar perceber o erro, abrir Configurações e trocar à
+  mão. A troca fica valendo (não volta a insistir no provedor esgotado) até
+  ele também esgotar.
+  - Por segurança, **só entra na troca automática por causa de limite de
+    uso (429)** — chave recusada ou pedido inválido não trocam de provedor
+    sozinhos, porque trocar não resolveria e esconderia um erro de
+    configuração que precisa ser corrigido na chave.
+  - **Por padrão, só alterna entre provedores gratuitos** (Google Gemini e
+    Groq) — o app nunca passa a gastar dinheiro do seu bolso sem avisar.
+    Incluir os provedores pagos (OpenAI, Claude) na troca automática é opção
+    explícita, com interruptor próprio em Configurações → IA, desligado até
+    você ligar.
+- **O link "onde gerar esta chave" agora é clicável** — abre o site do
+  provedor direto numa aba nova, em vez de precisar copiar o endereço à mão
+  para o navegador.
+
+A configuração continua sincronizando pelo OneDrive entre seus aparelhos,
+agora com um cuidado a mais: a chave (e o carimbo de "quando foi salva") de
+cada provedor viaja separadamente, então salvar a chave do Gemini num
+aparelho e a do Groq em outro não faz uma apagar a outra quando os dois
+sincronizarem.
+
 ## 19/08/2026 12:43
 
 Montador de risco alinhado aos nomes novos do Grau do Dano.

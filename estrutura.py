@@ -305,9 +305,13 @@ chk("aplicarPacoteIA devolve {mudou, faltaNoRemoto} (nao mais booleano)",
     and novo.count("if(Array.isArray(pacote.normas)) STATE.ui.normasIA = pacote.normas.filter(n=>n && n.texto);") == 0)
 chk("a substituicao em bloco das instrucoes foi removida",
     novo.count("c.prompts = { ...IA_PROMPTS_PADRAO, ...p.prompts };") == 0)
+# marcarChaveIAAlterada() passou a exigir o provedor (carimbo por provedor,
+# ver secao 22) -- os 2 pontos de edicao (colar a chave / remover a chave)
+# agora chamam com o provedor explicito, nao mais sem parametro nenhum.
 chk("cada ponto de edicao carimba a parte certa",
     novo.count("marcarPromptAlterado(tipo);") == 1
-    and novo.count("marcarChaveIAAlterada();") == 2
+    and novo.count("marcarChaveIAAlterada(getIAConfig().provedor);") == 1
+    and novo.count("marcarChaveIAAlterada(provedor);") == 1
     and novo.count("getNormasRemovidas()[id] = agoraSync();") == 1)
 chk("norma nova nasce com carimbo proprio",
     novo.count("criadoEm:agora, atualizadoEm:agora") == 1)
@@ -397,9 +401,13 @@ chk("restaurar instrucoes padrao pede confirmacao ANTES de apagar",
     "if(!confirm(" in _corpo
     and _corpo.find("if(!confirm(") < _corpo.find("getIAConfig().prompts = {...IA_PROMPTS_PADRAO}"))
 chk("a confirmacao avisa que afeta os outros aparelhos", "TODOS os aparelhos" in _corpo)
+# getApiKeyEm() virou um espelho do carimbo POR PROVEDOR (getApiKeysEm) do
+# provedor ativo agora -- existe so para o pacote de sincronizacao continuar
+# levando os 2 campos antigos (apiKey/apiKeyEm) tambem, para um aparelho
+# ainda na versao anterior a chave-por-provedor continuar recebendo algo.
 chk("a chave que ja existia ganha carimbo e passa a viajar",
     novo.count("function getApiKeyEm(") == 1
-    and novo.count("STATE.ui.apiKeyEm = getIAApiKey() ? agoraSync() : 0;") == 1
+    and novo.count("porProvedor[pid] = getIAApiKey() ? agoraSync() : 0;") == 1
     and novo.count("apiKeyEm: getApiKeyEm(),") == 1
     and novo.count("const chaveLocalEm = getApiKeyEm();") == 1)
 for marca in ["function onedriveDiagnosticoDados(", "function onedriveDiagnosticoTexto(",
@@ -1688,6 +1696,55 @@ chk("eventos 'Laceracao' e 'Contusao' apontam para o grau que leva o nome deles"
     and '{ v:"Contusão",               gpd:"Fratura osso menor",' not in novo)
 chk("risco ja preenchido continua intocado -- a sugestao so entra em gpd vazio",
     'if(!String(r.gpd||"").trim()){' in novo)
+
+print("\n=== 66. CHAVE DE IA POR PROVEDOR, COM ALTERNANCIA AUTOMATICA NO LIMITE DE USO ===")
+# Pedido do usuario: configurar as chaves dos provedores gratuitos de uma vez
+# e o app alternar sozinho quando um esgota o limite, em vez de precisar
+# perceber, abrir Configuracoes e copiar a chave de novo do site. Antes havia
+# UMA chave salva (apr_ia_apikey) para o provedor ativo -- trocar de provedor
+# perdia a chave do anterior. Agora ha um mapa por provedor
+# (apr_ia_apikeys) e um carimbo por provedor (o mesmo padrao ja usado em
+# getPromptsEm/marcarPromptAlterado), para que sincronizar o Gemini de um
+# aparelho e o Groq de outro nao apague nenhum dos dois.
+chk("mapa de chaves por provedor existe, com migracao do formato antigo (uma chave so)",
+    novo.count('const IA_LOCALSTORAGE_KEYS = "apr_ia_apikeys";') == 1
+    and novo.count("function getIAApiKeysMapa(){") == 1
+    and "const antiga = localStorage.getItem(IA_LOCALSTORAGE_KEY);" in novo
+    and 'localStorage.setItem(IA_LOCALSTORAGE_KEYS, JSON.stringify(mapa));' in novo)
+chk("getIAApiKey/setIAApiKey continuam sem argumento (30+ pontos de chamada nao mudam)",
+    "function getIAApiKey(){ return getIAApiKeysMapa()[getIAConfig().provedor] || \"\"; }" in novo
+    and novo.count("function setIAApiKey(v){") == 1)
+chk("cada provedor tem seu proprio carimbo de sincronizacao, nao um so compartilhado",
+    novo.count("function getApiKeysEm(){") == 1
+    and novo.count("function marcarChaveIAAlterada(provedorId){") == 1
+    and "marcarChaveIAAlterada(getIAConfig().provedor);" in novo  # onIAApiKeyInput
+    and "marcarChaveIAAlterada(provedor);" in novo)  # App.removerChaveIA
+chk("o pacote de sincronizacao leva o mapa novo E o campo antigo (compatibilidade)",
+    "apiKeys: { ...getIAApiKeysMapa() }," in novo
+    and "apiKeysEm: { ...getApiKeysEm() }," in novo
+    and "apiKeyEm: getApiKeyEm()," in novo)
+chk("a mesclagem percorre a UNIAO de apiKeys e apiKeysEm, nao so apiKeys",
+    "const idsProvedores = new Set([...Object.keys(pacote.apiKeys), ...Object.keys(emRemotoPorProvedor)]);" in novo)
+chk("pacote antigo (so uma chave, sem apiKeys) ainda e aceito -- aparelho nao atualizado nao para de sincronizar",
+    'else if(typeof pacote.apiKey === "string"){' in novo)
+chk("provedor disponivel para alternancia so entra com chave salva, gratuitos primeiro, pago so com o interruptor",
+    novo.count("function iaProvedoresDisponiveis(incluirPagos){") == 1
+    and 'id !== "personalizado"' in novo
+    and "(incluirPagos || IA_PROVEDORES[id].gratuito)" in novo)
+chk("trocar de provedor troca tambem endpoint e modelo juntos, e nao repete se ja e o ativo",
+    novo.count("function trocarProvedorIAAtivo(novoId){") == 1
+    and "if(!IA_PROVEDORES[novoId] || c.provedor === novoId) return;" in novo)
+chk("a alternancia automatica so entra por limite de uso (429) e persiste a troca antes de repetir o pedido",
+    "if(__iaUltimoStatus === 429 && getIAConfig().alternarProvedorAutomatico !== false){" in novo
+    and "trocarProvedorIAAtivo(candidato);" in novo
+    and novo.count("await iaTentarComRetentativas(tipo, textoUsuario);") == 2)
+chk("provedor pago nunca entra na alternancia automatica sem o interruptor ligado (por padrao, desligado)",
+    "if(c.alternarIncluirPagos===undefined) c.alternarIncluirPagos = false;" in novo
+    and "iaProvedoresDisponiveis(!!getIAConfig().alternarIncluirPagos)" in novo)
+chk("cada provedor com link de geracao de chave abre em aba nova (Personalizado nao tem link)",
+    novo.count("linkChave:") == 5
+    and 'linkChave: null,' in novo
+    and 'target="_blank" rel="noopener noreferrer">${ic(\'share\')} Abrir site para gerar a chave</a>' in novo)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")

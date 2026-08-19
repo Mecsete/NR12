@@ -1840,7 +1840,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "19/08/2026 12:43";
+const APP_BUILD = "19/08/2026 19:02";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -9490,6 +9490,8 @@ const IA_PROVEDORES = {
     endpoint: "https://generativelanguage.googleapis.com/v1beta",
     modelo: "gemini-flash-latest",
     dicaChave: "Gratuita: crie em aistudio.google.com/apikey → Get API key.",
+    linkChave: "https://aistudio.google.com/apikey",
+    gratuito: true,
   },
   "openai": {
     nome: "OpenAI (ChatGPT)",
@@ -9497,6 +9499,8 @@ const IA_PROVEDORES = {
     endpoint: "https://api.openai.com/v1",
     modelo: "gpt-4o-mini",
     dicaChave: "Paga: crie em platform.openai.com/api-keys.",
+    linkChave: "https://platform.openai.com/api-keys",
+    gratuito: false,
   },
   "groq": {
     nome: "Groq (gratuito e rápido)",
@@ -9504,6 +9508,8 @@ const IA_PROVEDORES = {
     endpoint: "https://api.groq.com/openai/v1",
     modelo: "llama-3.3-70b-versatile",
     dicaChave: "Gratuita: crie em console.groq.com/keys.",
+    linkChave: "https://console.groq.com/keys",
+    gratuito: true,
   },
   "anthropic": {
     nome: "Claude (Anthropic)",
@@ -9511,6 +9517,8 @@ const IA_PROVEDORES = {
     endpoint: "https://api.anthropic.com/v1",
     modelo: "claude-sonnet-5",
     dicaChave: "Paga: crie em console.anthropic.com → API Keys. O modelo pode ser trocado no campo abaixo.",
+    linkChave: "https://console.anthropic.com/settings/keys",
+    gratuito: false,
   },
   "personalizado": {
     nome: "Personalizado (avançado)",
@@ -9518,6 +9526,8 @@ const IA_PROVEDORES = {
     endpoint: "",
     modelo: "",
     dicaChave: "Para outro provedor compatível com o padrão OpenAI (ex.: OpenRouter, DeepSeek). Preencha o endpoint e o modelo manualmente abaixo.",
+    linkChave: null,
+    gratuito: false,
   },
 };
 const IA_PROVEDOR_PADRAO = "google-gemini";
@@ -9629,8 +9639,56 @@ function gravarInspetorNoProjeto(p){
   if(u){ p.inspetorNome = u.nome||""; p.inspetorCargo = u.cargo||""; }
   else if(!p.inspetorId){ p.inspetorNome = ""; p.inspetorCargo = ""; }
 }
-function getIAApiKey(){ try{ return localStorage.getItem(IA_LOCALSTORAGE_KEY) || ""; }catch(e){ return ""; } }
-function setIAApiKey(v){ try{ if(v) localStorage.setItem(IA_LOCALSTORAGE_KEY, v); else localStorage.removeItem(IA_LOCALSTORAGE_KEY); }catch(e){} }
+/* CHAVE POR PROVEDOR, NÃO UMA CHAVE SÓ.
+   Antes havia uma única chave guardada, sem saber de qual provedor era —
+   trocar de "Gemini" para "Groq" no seletor não trocava de chave nenhuma,
+   só passava a mandar a chave do Gemini para o endereço do Groq (que a
+   recusava). Voltar para o Gemini exigia colar a chave de novo, porque
+   nada tinha ficado salvo por provedor. Isso é o que impedia deixar 3
+   chaves configuradas ao mesmo tempo e o app escolher sozinha qual usar.
+   Agora cada provedor tem a sua própria chave guardada, num mapa só. */
+const IA_LOCALSTORAGE_KEYS = "apr_ia_apikeys";
+function getIAApiKeysMapa(){
+  try{
+    const bruto = localStorage.getItem(IA_LOCALSTORAGE_KEYS);
+    const mapa = bruto ? JSON.parse(bruto) : null;
+    if(mapa && typeof mapa === "object") return mapa;
+  }catch(e){}
+  /* MIGRAÇÃO DA CHAVE ÚNICA ANTIGA — só roda uma vez: se o mapa novo ainda
+     não existe mas a chave antiga (apr_ia_apikey) existe, ela vira a chave
+     do provedor que já estava selecionado. Sem isto, quem já tinha
+     configurado a IA veria a chave "sumir" na primeira abertura desta
+     versão. */
+  try{
+    const antiga = localStorage.getItem(IA_LOCALSTORAGE_KEY);
+    if(antiga){
+      const provedorAtual = (STATE.ui.iaConfig && IA_PROVEDORES[STATE.ui.iaConfig.provedor]) ? STATE.ui.iaConfig.provedor : IA_PROVEDOR_PADRAO;
+      const mapa = { [provedorAtual]: antiga };
+      localStorage.setItem(IA_LOCALSTORAGE_KEYS, JSON.stringify(mapa));
+      return mapa;
+    }
+  }catch(e){}
+  return {};
+}
+function salvarIAApiKeysMapa(mapa){
+  try{
+    const limpo = {}; let n = 0;
+    for(const id in (mapa||{})){ if(String(mapa[id]||"").trim()){ limpo[id] = mapa[id]; n++; } }
+    if(n>0) localStorage.setItem(IA_LOCALSTORAGE_KEYS, JSON.stringify(limpo));
+    else localStorage.removeItem(IA_LOCALSTORAGE_KEYS);
+  }catch(e){}
+}
+/* Continuam com o mesmo nome e a mesma assinatura de sempre (sem
+   parâmetro) — todo o resto do app chama getIAApiKey() esperando "a chave
+   que vale AGORA", e isso continua verdadeiro: agora ela é lida do
+   provedor ativo no momento, em vez de ser a única chave que existisse. */
+function getIAApiKey(){ return getIAApiKeysMapa()[getIAConfig().provedor] || ""; }
+function setIAApiKey(v){
+  const mapa = getIAApiKeysMapa();
+  const provedor = getIAConfig().provedor;
+  if(v) mapa[provedor] = v; else delete mapa[provedor];
+  salvarIAApiKeysMapa(mapa);
+}
 /* O endereço-base que vai ser chamado. Provedor da lista usa SEMPRE o
    endereço dele; só o modo Personalizado usa o que foi digitado. Assim um
    endereço errado guardado não tem como derrubar a IA de novo. */
@@ -9662,9 +9720,48 @@ function getIAConfig(){
   if(c.modelo===undefined) c.modelo = preset.modelo;
   if(c.usarNaExportacaoExcel===undefined) c.usarNaExportacaoExcel = true;
   if(c.usarReferencias===undefined) c.usarReferencias = true;
+  /* Troca sozinha de provedor quando o de agora esgota o limite de uso (429).
+     Ligada por padrão: é o comportamento que resolve "preciso copiar a chave
+     de novo toda vez" sem exigir que a pessoa vá procurar um botão. Quem não
+     quiser (ex.: quer perceber o aviso e decidir na hora) desliga na tela. */
+  if(c.alternarProvedorAutomatico===undefined) c.alternarProvedorAutomatico = true;
+  /* Por padrão a troca automática só circula entre provedores GRATUITOS —
+     mesmo que uma chave paga (OpenAI, Claude) esteja salva, o app não passa
+     a gastar dinheiro sozinho sem a pessoa ter escolhido isso explicitamente. */
+  if(c.alternarIncluirPagos===undefined) c.alternarIncluirPagos = false;
   if(!c.prompts) c.prompts = {};
   ["equipamento","escopo","risco","mitigacao","tarefa","equipamento_xlsx","escopo_xlsx","tarefa_xlsx","risco_xlsx","mitigacao_xlsx"].forEach(k=>{ if(c.prompts[k]===undefined) c.prompts[k] = IA_PROMPTS_PADRAO[k]; });
   return c;
+}
+/* Troca o provedor ativo, preenchendo endpoint/modelo com o preset novo —
+   exatamente o que o seletor manual já fazia (App.onIAProvedorInput), só
+   que reaproveitável também pela alternância automática de provedor
+   dentro de chamarIAResiliente, sem duplicar a lógica em dois lugares. */
+function trocarProvedorIAAtivo(novoId){
+  const c = getIAConfig();
+  if(!IA_PROVEDORES[novoId] || c.provedor === novoId) return;
+  const preset = IA_PROVEDORES[novoId];
+  c.provedor = novoId;
+  c.endpoint = preset.endpoint;
+  c.modelo = preset.modelo;
+  marcarIAAlterada();
+}
+/* Provedores com CHAVE SALVA, na ordem em que a alternância automática os
+   experimenta: os gratuitos primeiro, sempre — mesmo que uma chave paga
+   também esteja salva, ela só entra na lista se incluirPagos for true
+   (controlado pela pessoa em Configurações → IA, desligado por padrão).
+   "Personalizado" nunca entra sozinho aqui: formato e custo variam por
+   provedor digitado à mão, e trocar para lá sem a pessoa ter escolhido
+   isso poderia mandar o pedido para um endereço errado ou cobrado. */
+function iaProvedoresDisponiveis(incluirPagos){
+  const chaves = getIAApiKeysMapa();
+  return Object.keys(IA_PROVEDORES)
+    .filter(id => id !== "personalizado" && String(chaves[id]||"").trim()
+                  && (incluirPagos || IA_PROVEDORES[id].gratuito))
+    .sort((a,b)=>{
+      const ga = IA_PROVEDORES[a].gratuito, gb = IA_PROVEDORES[b].gratuito;
+      return ga===gb ? 0 : (ga ? -1 : 1); // gratuitos primeiro; Array.sort é estável, preserva a ordem entre os do mesmo grupo
+    });
 }
 function esperar(ms){ return new Promise(r=>setTimeout(r,ms)); }
 /* ===================================================================
@@ -9701,7 +9798,7 @@ function getIASyncEm(){
   if(typeof STATE.ui.iaSyncEm !== "number"){
     // Primeira vez com esta versão: se já existe configuração aqui, ela é
     // tratada como "recém-alterada" para ser enviada e não sobrescrita.
-    const temAlgo = !!getIAApiKey() || (Array.isArray(STATE.ui.normasIA) && STATE.ui.normasIA.length>0)
+    const temAlgo = Object.keys(getIAApiKeysMapa()).length>0 || (Array.isArray(STATE.ui.normasIA) && STATE.ui.normasIA.length>0)
                     || (STATE.ui.iaConfig && Object.keys(STATE.ui.iaConfig).length>0);
     STATE.ui.iaSyncEm = temAlgo ? Date.now() : 0;
   }
@@ -9733,29 +9830,48 @@ function marcarPromptAlterado(tipo){
   getPromptsEm()[tipo] = agoraSync();
   marcarIAAlterada();
 }
-function marcarChaveIAAlterada(){
-  STATE.ui.apiKeyEm = agoraSync();
+/* CARIMBO POR PROVEDOR — mesma ideia de getPromptsEm()/marcarPromptAlterado:
+   uma chave por provedor precisa de um carimbo por provedor. Com um carimbo
+   só (como era antes), sincronizar dois aparelhos que cada um tivesse
+   cadastrado uma chave DIFERENTE (um o Gemini, outro o Groq) faria o mais
+   recente dos dois APAGAR a chave que o outro tinha — a mesma armadilha que
+   "juntar tudo pelo carimbo mais novo" já causou noutras partes do app. Com
+   um carimbo por provedor, as duas chaves sobrevivem nos dois aparelhos. */
+function getApiKeysEm(){
+  if(!STATE.ui.apiKeysEm || typeof STATE.ui.apiKeysEm !== "object") STATE.ui.apiKeysEm = {};
+  return STATE.ui.apiKeysEm;
+}
+function marcarChaveIAAlterada(provedorId){
+  const pid = provedorId || getIAConfig().provedor;
+  getApiKeysEm()[pid] = agoraSync();
   marcarIAAlterada();
 }
-/* Carimbo da chave de API. Na primeira vez com esta versão, uma chave que JÁ
-   existia aqui é tratada como recém-digitada — sem isto, o carimbo ficaria em
-   zero dos dois lados, ninguém venceria o desempate e a chave nunca viajaria
-   para os outros aparelhos. Aparelho sem chave continua em zero e não sai
-   apagando a chave de ninguém. */
+/* Carimbo "espelho" do provedor ATIVO agora — existe só para o pacote de
+   sincronização continuar mandando os dois campos antigos (apiKey/apiKeyEm)
+   também, então um aparelho que ainda estivesse rodando a versão anterior
+   (antes de existir chave por provedor) continua recebendo alguma coisa
+   utilizável em vez de nada. Na primeira vez com esta versão, uma chave que
+   JÁ existia aqui entra como recém-digitada — sem isto, o carimbo ficaria em
+   zero dos dois lados e a chave nunca viajaria para os outros aparelhos. */
 function getApiKeyEm(){
-  if(typeof STATE.ui.apiKeyEm !== "number"){
-    STATE.ui.apiKeyEm = getIAApiKey() ? agoraSync() : 0;
+  const pid = getIAConfig().provedor;
+  const porProvedor = getApiKeysEm();
+  if(typeof porProvedor[pid] !== "number"){
+    porProvedor[pid] = getIAApiKey() ? agoraSync() : 0;
   }
-  return STATE.ui.apiKeyEm;
+  return porProvedor[pid];
 }
 function montarPacoteIA(){
   const c = getIAConfig();
   return {
     atualizadoEm: getIASyncEm(),
-    apiKey: getIAApiKey(),
+    apiKey: getIAApiKey(),   // espelho do provedor ativo — só para um aparelho ainda na versão anterior continuar recebendo alguma chave
     apiKeyEm: getApiKeyEm(),
+    apiKeys: { ...getIAApiKeysMapa() },
+    apiKeysEm: { ...getApiKeysEm() },
     config: { provedor:c.provedor, endpoint:c.endpoint, modelo:c.modelo,
               usarNaExportacaoExcel:c.usarNaExportacaoExcel, usarReferencias:c.usarReferencias,
+              alternarProvedorAutomatico:c.alternarProvedorAutomatico, alternarIncluirPagos:c.alternarIncluirPagos,
               prompts:{...(c.prompts||{})} },
     promptsEm: { ...getPromptsEm() },
     normasRemovidas: { ...getNormasRemovidas() },
@@ -9773,19 +9889,57 @@ function aplicarPacoteIA(pacote){
   const c = getIAConfig();
   const p = pacote.config || {};
 
-  /* CHAVE DE API — só troca se a de lá for comprovadamente mais recente.
-     Sem este carimbo, um aparelho que nunca teve chave apagava a chave de
-     todos os outros na primeira sincronização. */
-  const chaveRemotaEm = pacote.apiKeyEm || 0;
-  const chaveLocalEm = getApiKeyEm();
-  if(typeof pacote.apiKey === "string"){
+  /* CHAVES DE API, uma por provedor — união por provedor, carimbo por
+     provedor (mesmo padrão de getPromptsEm()/marcarPromptAlterado abaixo).
+     Cada chave só troca se a de lá for comprovadamente mais recente
+     NAQUELE provedor especificamente: sem isto, sincronizar um aparelho
+     com a chave do Gemini e outro com a chave do Groq faria o carimbo mais
+     recente dos dois APAGAR a chave que só o outro tinha — a mesma
+     armadilha de "o pacote inteiro mais novo substitui o outro" que já
+     obrigou normas e instruções a serem mescladas campo a campo. */
+  const chavesLocais = getIAApiKeysMapa();
+  const emLocalPorProvedor = getApiKeysEm();
+  const emRemotoPorProvedor = (pacote.apiKeysEm && typeof pacote.apiKeysEm === "object") ? pacote.apiKeysEm : null;
+  let chavesMudaram = false;
+  if(pacote.apiKeys && typeof pacote.apiKeys === "object" && emRemotoPorProvedor){
+    /* Percorre a UNIÃO dos provedores presentes em apiKeys e em apiKeysEm —
+       uma remoção deliberada tira o provedor do mapa de chaves (ver
+       setIAApiKey), então só sobra o carimbo em apiKeysEm; se o laço andasse
+       só sobre Object.keys(pacote.apiKeys), essa remoção nunca seria vista
+       e o outro aparelho ficaria com a chave antiga para sempre. */
+    const idsProvedores = new Set([...Object.keys(pacote.apiKeys), ...Object.keys(emRemotoPorProvedor)]);
+    idsProvedores.forEach(pid=>{
+      if(!IA_PROVEDORES[pid]) return;
+      const chaveRemota = pacote.apiKeys[pid] || "";
+      const tsRem = emRemotoPorProvedor[pid] || 0, tsLoc = emLocalPorProvedor[pid] || 0;
+      if(tsRem > tsLoc){
+        if((chavesLocais[pid]||"") !== chaveRemota){
+          if(chaveRemota) chavesLocais[pid] = chaveRemota; else delete chavesLocais[pid];
+          chavesMudaram = true;
+        }
+        emLocalPorProvedor[pid] = tsRem;
+        registrarCarimboVisto(tsRem);
+      }else if(tsLoc > tsRem){
+        faltaNoRemoto = true; // a chave deste provedor aqui é mais nova — precisa voltar
+      }else if(tsRem === 0 && tsLoc === 0 && chaveRemota && !chavesLocais[pid]){
+        // Nenhum dos dois carimbou ainda (config de antes desta versão):
+        // aceita a chave de lá só se aqui não existe nenhuma NESTE provedor.
+        chavesLocais[pid] = chaveRemota; chavesMudaram = true;
+      }
+    });
+    Object.keys(chavesLocais).forEach(pid=>{ if(!(pid in pacote.apiKeys) && !(pid in emRemotoPorProvedor)) faltaNoRemoto = true; });
+    if(chavesMudaram){ salvarIAApiKeysMapa(chavesLocais); mudou = true; }
+  }else if(typeof pacote.apiKey === "string"){
+    /* PACOTE ANTIGO (de antes de existir chave por provedor) — só o campo
+       único de sempre. Mantido intacto para um aparelho que ainda não
+       atualizou continuar sincronizando normalmente. */
+    const chaveRemotaEm = pacote.apiKeyEm || 0;
+    const chaveLocalEm = getApiKeyEm();
     if(chaveRemotaEm > chaveLocalEm){
       if(pacote.apiKey !== getIAApiKey()){ setIAApiKey(pacote.apiKey); mudou = true; }
-      STATE.ui.apiKeyEm = chaveRemotaEm;
+      emLocalPorProvedor[c.provedor] = chaveRemotaEm;
       registrarCarimboVisto(chaveRemotaEm);
     }else if(chaveRemotaEm === 0 && chaveLocalEm === 0 && pacote.apiKey && !getIAApiKey()){
-      // Nenhum dos dois lados carimbou ainda (configuração anterior a esta
-      // versão): aceita a chave de lá só se aqui não existe nenhuma.
       setIAApiKey(pacote.apiKey); mudou = true;
     }
     if(chaveLocalEm > chaveRemotaEm) faltaNoRemoto = true;
@@ -9799,6 +9953,12 @@ function aplicarPacoteIA(pacote){
   }
   if(typeof p.usarReferencias === "boolean" && c.usarReferencias !== p.usarReferencias){
     c.usarReferencias = p.usarReferencias; mudou = true;
+  }
+  if(typeof p.alternarProvedorAutomatico === "boolean" && c.alternarProvedorAutomatico !== p.alternarProvedorAutomatico){
+    c.alternarProvedorAutomatico = p.alternarProvedorAutomatico; mudou = true;
+  }
+  if(typeof p.alternarIncluirPagos === "boolean" && c.alternarIncluirPagos !== p.alternarIncluirPagos){
+    c.alternarIncluirPagos = p.alternarIncluirPagos; mudou = true;
   }
 
   /* INSTRUÇÕES — uma a uma, cada qual com seu carimbo. */
@@ -10373,7 +10533,14 @@ async function corrigirPortuguesIA(texto){
   return revisaoPtAceitavel(base, novo) ? novo : base;
 }
 
-async function chamarIAResiliente(tipo, textoUsuario){
+/* Uma rodada de tentativas (esperas crescentes) NO PROVEDOR QUE ESTIVER
+   ATIVO no momento em que é chamada — não decide sozinha trocar de
+   provedor; isso é responsabilidade de quem chama. Devolve o texto (deu
+   certo) ou null (esgotou as tentativas neste provedor); o motivo da
+   última falha fica em __iaMotivoFalha. Extraída de chamarIAResiliente
+   para poder ser chamada de novo, sem repetir o laço, depois de trocar de
+   provedor automaticamente. */
+async function iaTentarComRetentativas(tipo, textoUsuario){
   for(let t=0; t<IA_ESPERAS_RETENTATIVA.length; t++){
     if(IA_ESPERAS_RETENTATIVA[t]) await esperar(IA_ESPERAS_RETENTATIVA[t]);
     const r = await chamarIA(tipo, textoUsuario);
@@ -10385,6 +10552,34 @@ async function chamarIAResiliente(tipo, textoUsuario){
     else if(st>=500) __iaMotivoFalha = "o servidor da IA está indisponível (erro " + st + ")";
     else if(st===-1) __iaMotivoFalha = "falha de conexão com a IA";
     else if(st>0) __iaMotivoFalha = "resposta inesperada da IA (erro " + st + ")";
+  }
+  return null;
+}
+/* ALTERNÂNCIA AUTOMÁTICA ENTRE PROVEDORES.
+   Antes, quando o provedor configurado esgotava o limite de uso (erro 429),
+   a única saída era perceber o aviso, abrir Configurações, trocar o
+   provedor à mão e clicar de novo em "Gerar" — e, sem chave salva por
+   provedor, ainda por cima precisava copiar a chave de novo do site.
+   Agora, tendo mais de uma chave salva (ver getIAApiKeysMapa), o app troca
+   sozinho para o próximo provedor disponível e retoma o MESMO pedido nele.
+   A troca fica valendo: as chamadas seguintes já nascem no provedor que
+   funcionou, em vez de bater de novo no que acabou de esgotar.
+   Só entra em ação por LIMITE DE USO (429) — chave recusada (401/403) ou
+   pedido inválido (400) são problema de configuração DAQUELE provedor
+   específico, não de cota; nesses casos trocar de provedor não resolveria
+   nada, e esconderia um erro que precisa ser corrigido na chave. */
+async function chamarIAResiliente(tipo, textoUsuario){
+  const r = await iaTentarComRetentativas(tipo, textoUsuario);
+  if(r) return r;
+  if(__iaUltimoStatus === 429 && getIAConfig().alternarProvedorAutomatico !== false){
+    const atual = getIAConfig().provedor;
+    const candidatos = iaProvedoresDisponiveis(!!getIAConfig().alternarIncluirPagos).filter(id=>id!==atual);
+    for(const candidato of candidatos){
+      trocarProvedorIAAtivo(candidato);
+      toast(`Limite de uso do provedor anterior atingido — alternando automaticamente para ${IA_PROVEDORES[candidato].nome}.`);
+      const r2 = await iaTentarComRetentativas(tipo, textoUsuario);
+      if(r2) return r2;
+    }
   }
   __iaChamadasFalhas++;
   return null;
@@ -13364,11 +13559,22 @@ function screenSimplesConfigIA(){
     <select oninput="App.onIAProvedorInput(this.value)">
       ${Object.keys(IA_PROVEDORES).map(id=>`<option value="${id}" ${cfg.provedor===id?"selected":""}>${IA_PROVEDORES[id].nome}</option>`).join("")}
     </select>
+    <div class="field-hint">${(()=>{
+      /* Cada provedor guarda a própria chave (ver getIAApiKeysMapa) — trocar
+         aqui não perde nem mistura chave nenhuma. Este resumo existe para a
+         pessoa ver, sem precisar abrir o seletor um por um, quais já estão
+         configuradas. */
+      const chaves = getIAApiKeysMapa();
+      const linhas = Object.keys(IA_PROVEDORES).filter(id=>id!=="personalizado").map(id=>
+        (String(chaves[id]||"").trim() ? "✓ " : "— ") + IA_PROVEDORES[id].nome.replace(/\s*\([^)]*\)/,""));
+      return "Chaves salvas: " + linhas.join(" · ");
+    })()}</div>
   </div>
   <div class="field">
-    <label>Chave de API</label>
+    <label>Chave de API — ${escapeHtml(IA_PROVEDORES[cfg.provedor].nome)}</label>
     <input type="password" value="${escapeHtml(getIAApiKey())}" placeholder="Cole aqui a chave do provedor escolhido acima" oninput="App.onIAApiKeyInput(this.value)">
     <div class="field-hint">${escapeHtml((IA_PROVEDORES[cfg.provedor]||IA_PROVEDORES[IA_PROVEDOR_PADRAO]).dicaChave)}</div>
+    ${IA_PROVEDORES[cfg.provedor].linkChave ? `<a class="btn btn-secondary btn-block" style="margin-top:8px;text-align:center;text-decoration:none" href="${escapeHtml(IA_PROVEDORES[cfg.provedor].linkChave)}" target="_blank" rel="noopener noreferrer">${ic('share')} Abrir site para gerar a chave</a>` : ""}
   </div>
   ${cfg.provedor==="personalizado" ? `
   <div class="field">
@@ -13391,6 +13597,21 @@ function screenSimplesConfigIA(){
   <button class="btn btn-secondary btn-block" onclick="App.testarIA()">${ic('check')} Testar conexão</button>
   ${__ultimoTesteIA ? `<div class="field-hint" style="margin-top:8px;color:${__ultimoTesteIA.ok?'var(--ok, #2e7d32)':'var(--danger, #c0392b)'}">${escapeHtml(__ultimoTesteIA.mensagem)}</div>` : ""}
   ${cfg.provedor==="openai" ? `<div class="field-hint" style="margin-top:8px">Se o teste falhar dizendo que não conseguiu alcançar o endereço, o problema é de rede (internet, firewall ou antivírus), não da chave — chave errada devolve um erro com explicação. Google Gemini e Groq são alternativas gratuitas que funcionam igual neste app.</div>` : ""}
+  <div class="card card-pad" style="margin-top:14px">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+      <div style="min-width:0">
+        <div style="font-weight:800;font-size:13.5px;margin-bottom:3px">Alternar sozinho quando o limite for atingido</div>
+        <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:0">Se o provedor de agora esgotar o limite de uso (erro 429), o app passa a usar automaticamente outro provedor que já tenha chave salva — sem precisar abrir esta tela para trocar. A troca fica valendo até esse provedor novo também esgotar.</p>
+      </div>
+      <label class="switch" style="flex-shrink:0"><input type="checkbox" ${cfg.alternarProvedorAutomatico?'checked':''} onchange="App.toggleIAAlternarProvedor()"><span class="switch-track"></span></label>
+    </div>
+    ${cfg.alternarProvedorAutomatico ? `
+    <div style="display:flex;align-items:center;gap:12px;margin-top:12px;padding-top:12px;border-top:1px solid var(--bg-soft)">
+      <div style="flex:1;font-size:12.5px;color:var(--ink-dim)">Incluir provedores <b>pagos</b> na alternância (hoje: ${Object.keys(IA_PROVEDORES).filter(id=>id!=="personalizado" && !IA_PROVEDORES[id].gratuito).map(id=>IA_PROVEDORES[id].nome.replace(/\s*\([^)]*\)/,"")).join(", ")}) — desligado por padrão, para o app nunca gastar dinheiro sozinho.</div>
+      <label class="switch" style="flex-shrink:0"><input type="checkbox" ${cfg.alternarIncluirPagos?'checked':''} onchange="App.toggleIAAlternarPagos()"><span class="switch-track"></span></label>
+    </div>` : `
+    <div class="field-hint" style="margin-top:10px">Desligado — se este provedor esgotar o limite, a geração para e mostra o aviso, como sempre foi.</div>`}
+  </div>
   <div class="section-title">Aprender com os laudos já aprovados</div>
   <div class="card card-pad">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
@@ -15437,18 +15658,15 @@ const App = {
   },
 
   /* ---------- Inteligência Artificial (opcional) ---------- */
-  onIAApiKeyInput(v){ setIAApiKey(v.trim()); marcarChaveIAAlterada(); },
+  onIAApiKeyInput(v){ setIAApiKey(v.trim()); marcarChaveIAAlterada(getIAConfig().provedor); },
   onIAProvedorInput(v){
-    const c = getIAConfig();
-    c.provedor = IA_PROVEDORES[v] ? v : IA_PROVEDOR_PADRAO;
-    const preset = IA_PROVEDORES[c.provedor];
     // Troca de provedor sempre preenche endpoint/modelo com o preset certo —
     // é o que garante que "escolher da lista + colar a chave" funcione sem
     // o usuário precisar editar mais nada, mesmo se ele tinha personalizado
-    // esses campos antes num provedor diferente.
-    c.endpoint = preset.endpoint;
-    c.modelo = preset.modelo;
-    marcarIAAlterada(); render();
+    // esses campos antes num provedor diferente. A chave, agora, é por
+    // provedor — trocar de seletor não perde nem mistura chave nenhuma.
+    trocarProvedorIAAtivo(IA_PROVEDORES[v] ? v : IA_PROVEDOR_PADRAO);
+    render();
   },
   onIAConfigInput(campo, v){ getIAConfig()[campo] = v; marcarIAAlterada(); },
   onIAConfigPromptInput(tipo, v){ getIAConfig().prompts[tipo] = v; marcarPromptAlterado(tipo); },
@@ -15461,7 +15679,16 @@ const App = {
     Object.keys(IA_PROMPTS_PADRAO).forEach(tipo=>{ getPromptsEm()[tipo] = agoraSync(); });
     marcarIAAlterada(); render(); toast("Instruções restauradas");
   },
-  removerChaveIA(){ setIAApiKey(""); marcarChaveIAAlterada(); render(); toast("Chave removida — IA desativada"); },
+  removerChaveIA(){
+    const provedor = getIAConfig().provedor;
+    setIAApiKey(""); marcarChaveIAAlterada(provedor); render();
+    // Só diz "IA desativada" se não sobrou chave NENHUMA — com chave por
+    // provedor, remover a de um não desliga a IA se outra ainda está salva.
+    const sobrouAlguma = Object.values(getIAApiKeysMapa()).some(v=>String(v||"").trim());
+    toast(sobrouAlguma ? `Chave de ${IA_PROVEDORES[provedor].nome} removida.` : "Chave removida — IA desativada");
+  },
+  toggleIAAlternarProvedor(){ const c=getIAConfig(); c.alternarProvedorAutomatico=!c.alternarProvedorAutomatico; marcarIAAlterada(); render(); },
+  toggleIAAlternarPagos(){ const c=getIAConfig(); c.alternarIncluirPagos=!c.alternarIncluirPagos; marcarIAAlterada(); render(); },
   toggleIAExportacaoExcel(){ const c=getIAConfig(); c.usarNaExportacaoExcel=!c.usarNaExportacaoExcel; marcarIAAlterada(); render(); },
   toggleIAReferencias(){
     const c=getIAConfig();
