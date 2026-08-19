@@ -28,6 +28,40 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 19/08/2026 08:41
+
+Sincronização deixa de ser interrompida quando você troca de aplicativo — e
+o que já baixou não precisa mais ser refeito.
+
+**O que estava acontecendo.** Havia um cronômetro de segurança: se a
+sincronização passasse 90 segundos sem nenhum avanço, o app concluía que
+tinha travado e a interrompia. Isso existe para o caso de a conexão morrer
+de vez. Só que, quando a janela do app sai da frente (você troca de
+aplicativo ou minimiza), o navegador passa a segurar os temporizadores da
+página — as pausas de 0,2 segundo entre um item e outro viram quase um
+minuto cada. A sincronização continuava andando, só que devagar; passava
+dos 90 segundos sem avanço aparente e era morta pelo próprio cronômetro
+de segurança. Não era falha de rede: era o vigia disparando à toa.
+
+Agora, com a janela fora da frente, o cronômetro fica de sobreaviso em vez
+de desistir — ele volta a valer assim que você retorna ao app. Travamento
+de verdade continua sendo detectado normalmente.
+
+**O que já baixou não é mais refeito.** A lista de pacotes de fotos que
+faltam encolhia só na memória e só era gravada no disco no fim do lote
+inteiro. Fechar o app no meio de um lote de 18 pacotes fazia reabrir com os
+18 de volta na fila — as fotos já estavam salvas, mas o app não sabia
+disso e baixava tudo outra vez. Agora essa lista é gravada durante o lote,
+no máximo a cada 4 segundos.
+
+**Correção da barra de progresso.** Na fase de recebimento o app não sabe
+de antemão quantos itens virão (cada passada descobre uma camada nova).
+A barra aparecia cheia nessa fase, dando a impressão de "concluído mas
+travado". Voltou a ser a barra animada de "andando", que é o que a fase
+realmente é.
+
+---
+
 ## 19/08/2026 08:09
 
 Página de Backup reorganizada: um painel só, com o que falta em tamanho e

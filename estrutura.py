@@ -1572,6 +1572,29 @@ chk("nenhum recurso foi removido -- diagnostico, historico e os dois controles d
     and "App.onedriveBaixarPendentesConfirmar()" in novo
     and "App.onedriveVerificarBootstrapNovoDispositivo(true)" in novo)
 
+print("\n=== 62. SINCRONIZACAO SOBREVIVE A ABA EM SEGUNDO PLANO ===")
+# Usuario: "se eu sair da pagina para outro app ele perde a sincronizacao e
+# aqueles itens voltam a precisar de sincronizar novamente". Duas causas
+# independentes: (1) o vigia de 90 s sem avanco disparava porque o navegador
+# segura os temporizadores da aba escondida -- as pausas de 200 ms entre
+# itens viram quase um minuto cada e a sincronizacao, andando, era MORTA
+# pelo proprio cronometro de seguranca; (2) a fila de fotos pendentes
+# encolhia so na memoria e so ia ao disco no FIM do lote.
+chk("vigia fica de sobreaviso com a aba escondida, em vez de desistir",
+    'if(document.visibilityState === "hidden"){ marcarProgressoSync(); return; }' in novo)
+chk("a checagem da aba vem ANTES da desistencia (senao nao protege nada)",
+    novo.find('if(document.visibilityState === "hidden"){ marcarProgressoSync(); return; }')
+    < novo.find('reject(new Error("ONEDRIVE_TEMPO_ESGOTADO"))'))
+chk("com a aba visivel o vigia continua valendo -- travar de verdade ainda e detectado",
+    "if(__syncUltimoProgressoEm && (Date.now() - __syncUltimoProgressoEm > msSemProgresso)){" in novo)
+chk("fila de fotos gravada durante o lote, com limite de ritmo",
+    "const gravarPendentesSePassouTempo = () => {" in novo
+    and "if(Date.now() - ultimaGravacao < 4000) return;" in novo
+    and "else dbSet(STATE); // mesmo sem mudança de conteúdo, a fila encolheu" in novo)
+chk("barra sem total conhecido volta a ser a animada, nao 100% fixo",
+    "sync-progresso-trilha${pct==null?' sync-progresso-indeterminado':''}" in novo
+    and "width:${pct!=null?pct:100}%" not in novo)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

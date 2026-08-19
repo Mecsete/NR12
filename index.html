@@ -1814,7 +1814,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "19/08/2026 08:09";
+const APP_BUILD = "19/08/2026 08:41";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -2970,6 +2970,19 @@ function comVigilanciaDeProgresso(promessa, msSemProgresso){
     let terminou = false;
     const verificador = setInterval(() => {
       if(terminou) return;
+      /* ABA EM SEGUNDO PLANO NÃO CONTA COMO "TRAVOU".
+         Quando a pessoa troca de aplicativo ou minimiza a janela, o navegador
+         passa a segurar os temporizadores da página (o Chrome chega a
+         liberar UM por minuto depois de alguns minutos escondida). As pausas
+         de 200 ms entre um item e outro viram quase um minuto cada, e a
+         sincronização — que está andando, só devagar — passava dos 90 s sem
+         avanço e era MORTA por este vigia. Era essa a causa de "saí do app e
+         perdi a sincronização": não era erro de rede, era o próprio
+         cronômetro de segurança disparando à toa.
+         O vigia existe para o caso de travar de verdade enquanto a pessoa
+         está olhando. Escondida, ele fica de sobreaviso: reinicia a contagem
+         em vez de desistir, e volta a valer assim que a aba reaparecer. */
+      if(document.visibilityState === "hidden"){ marcarProgressoSync(); return; }
       if(__syncUltimoProgressoEm && (Date.now() - __syncUltimoProgressoEm > msSemProgresso)){
         terminou = true;
         clearInterval(verificador);
@@ -4168,6 +4181,20 @@ async function onedriveBaixarPendentes(onProgresso){
   const pendentes = STATE.oneDrivePendentes || [];
   if(pendentes.length===0) return;
   let algumaMudanca = false;
+  /* A lista de pendentes encolhia só na memória; o disco só era atualizado no
+     FIM do lote inteiro. Num lote de 18 pacotes de fotos, fechar o app (ou o
+     navegador matar a aba) no décimo significava reabrir com os 18 de volta
+     na fila — as fotos já estavam salvas, mas o app não sabia disso e baixava
+     tudo de novo. Era isso que o usuário via como "os itens voltam a precisar
+     de sincronizar". Agora a lista vai para o disco a cada 4 segundos, no
+     máximo: gravação pequena (só a lista, não as fotos) e suficiente para que
+     nada precise ser refeito. */
+  let ultimaGravacao = Date.now();
+  const gravarPendentesSePassouTempo = () => {
+    if(Date.now() - ultimaGravacao < 4000) return;
+    ultimaGravacao = Date.now();
+    dbSet(STATE);
+  };
   // No máximo 2 fotos ao mesmo tempo: cada pacote de fotos pode ter dezenas de
   // MB, e vários simultâneos na memória era exatamente o que fazia o navegador
   // do celular (principalmente iPhone) matar o app no meio da sincronização.
@@ -4183,6 +4210,7 @@ async function onedriveBaixarPendentes(onProgresso){
         // aqui não aparecem mais como pendentes na próxima abertura, então não são
         // baixados de novo à toa.
         STATE.oneDrivePendentes = (STATE.oneDrivePendentes||[]).filter(p=>p!==item);
+        gravarPendentesSePassouTempo();
       }catch(e){ /* falha ao interpretar — mantém pendente, tenta de novo depois */ }
     }
     // Quando não veio texto (falha de rede momentânea), o item continua na
@@ -4190,6 +4218,7 @@ async function onedriveBaixarPendentes(onProgresso){
     if(onProgresso) onProgresso(item.tamanho||0, item.tipo);
   });
   if(algumaMudanca){ dbSet(STATE); render(); }
+  else dbSet(STATE); // mesmo sem mudança de conteúdo, a fila encolheu — precisa ficar gravada
   atualizarChipSync();
 }
 /* Soma o tamanho estimado (bytes) de tudo que este aparelho ainda não enviou
@@ -5164,10 +5193,14 @@ function syncPainelHtml(){
     const pct = temTotal ? Math.min(100, Math.round((p.itemAtual/p.totalItens)*100)) : null;
     const restanteBytes = (p.bytesTotal||0) - (p.bytesFeitos||0);
     const tempo = temTotal ? syncTempoEstimado(restanteBytes) : "";
+    /* Sem total conhecido (a fase de recebimento descobre novas camadas a
+       cada passada), a barra tem de ser a ANIMADA de "andando" — desenhá-la
+       cheia fazia parecer concluída e travada, que é exatamente o oposto do
+       que está acontecendo. */
     topo = `<div style="font-weight:800;font-size:14px;display:flex;align-items:center;gap:7px">
         <span class="btn-spinner" style="border-top-color:var(--accent)"></span>${rotulo}${pct!=null? " · "+pct+"%" : "…"}
       </div>
-      <div class="sync-progresso-trilha" style="margin:8px 0 6px"><div class="sync-progresso-barra" style="width:${pct!=null?pct:100}%"></div></div>
+      <div class="sync-progresso-trilha${pct==null?' sync-progresso-indeterminado':''}" style="margin:8px 0 6px"><div class="sync-progresso-barra" style="${pct!=null?`width:${pct}%`:''}"></div></div>
       <div style="font-size:12px;color:var(--ink-dim)">${
         temTotal ? `${Math.min(p.itemAtual,p.totalItens)} de ${p.totalItens} · ${fmtBytes(p.bytesFeitos)} de ${fmtBytes(p.bytesTotal)}${tempo? ` · falta ${tempo}`:""}`
                  : `${p.itemAtual} ite${p.itemAtual===1?'m':'ns'} · ${fmtBytes(p.bytesFeitos)}`

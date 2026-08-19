@@ -4811,6 +4811,47 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  console.log("\n=== t105 · sincronização sobrevive à aba em segundo plano ===");
+  /* Usuário: "se eu sair da página para outro app ele perde a sincronização e
+     aqueles itens voltam a precisar de sincronizar novamente". Duas causas
+     independentes, as duas confirmadas no código:
+     1) o vigia de progresso (90 s sem avanço = "travou") disparava porque o
+        navegador segura os temporizadores da aba escondida — as pausas de
+        200 ms entre itens viram quase um minuto cada, e a sincronização, que
+        estava andando, era MORTA pelo próprio cronômetro de segurança;
+     2) a lista de pacotes de fotos pendentes encolhia só na memória e só ia
+        para o disco no FIM do lote — fechar no meio devolvia a fila inteira. */
+  t("o vigia não desiste enquanto a aba está escondida — só fica de sobreaviso", ()=>{
+    const f = funcao("comVigilanciaDeProgresso");
+    const iAba = f.indexOf('if(document.visibilityState === "hidden"){ marcarProgressoSync(); return; }');
+    const iDesiste = f.indexOf('reject(new Error("ONEDRIVE_TEMPO_ESGOTADO"))');
+    ok(iAba > 0, "sem isso, trocar de aplicativo mata a sincronização em 90 s");
+    ok(iAba < iDesiste, "a checagem da aba precisa vir ANTES da desistência, senão não protege nada");
+  });
+  t("com a aba visível o vigia continua valendo (senão travar de verdade nunca seria detectado)", ()=>{
+    const f = funcao("comVigilanciaDeProgresso");
+    ok(f.indexOf("__syncUltimoProgressoEm && (Date.now() - __syncUltimoProgressoEm > msSemProgresso)") > 0);
+  });
+  t("a fila de fotos vai para o disco durante o lote, não só no fim", ()=>{
+    const f = funcao("onedriveBaixarPendentes");
+    ok(f.indexOf("const gravarPendentesSePassouTempo = () => {") > 0, "sem gravação incremental");
+    ok(f.indexOf("if(Date.now() - ultimaGravacao < 4000) return;") > 0, "sem limite de ritmo, seriam dezenas de gravações");
+    const iRemove = f.indexOf("STATE.oneDrivePendentes = (STATE.oneDrivePendentes||[]).filter(p=>p!==item);");
+    const iGrava = f.indexOf("gravarPendentesSePassouTempo();");
+    ok(iRemove > 0 && iGrava > iRemove, "a gravação tem de vir DEPOIS de tirar o item da fila");
+  });
+  t("mesmo sem mudança de conteúdo, a fila menor é gravada", ()=>{
+    const f = funcao("onedriveBaixarPendentes");
+    ok(f.indexOf("else dbSet(STATE);") > 0,
+       "sem isto, um lote que só reconfirmou fotos já existentes voltaria com a fila cheia");
+  });
+  t("barra sem total conhecido usa a animação de 'andando', não 100% fixo", ()=>{
+    const f = funcao("syncPainelHtml");
+    ok(f.indexOf("sync-progresso-indeterminado") > 0,
+       "desenhada cheia, a barra parece concluída e travada — o oposto do que está havendo");
+    eq(f.indexOf("width:${pct!=null?pct:100}%"), -1, "voltou a desenhar 100% quando não sabe o total");
+  });
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);
