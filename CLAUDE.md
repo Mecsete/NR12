@@ -54,13 +54,41 @@ Rodar sempre, nesta ordem, depois de qualquer edição no `index.html`:
    de impressão removível etc. — ver o próprio arquivo para a lista
    completa; sem argumentos, assume `original.html` e `index.html` na
    pasta atual)
-4. `node testes2.js` — suíte funcional (~250 testes) que roda sobre o
+4. `node testes2.js` — suíte funcional que roda sobre o
    código **extraído do próprio `index.html` entregue**, não sobre um
    rascunho separado
+5. `node banco.js` — banco de ensaio do motor de sincronização (ver abaixo)
 
-Todos os quatro precisam passar limpo antes de considerar uma tarefa
+Todos os cinco precisam passar limpo antes de considerar uma tarefa
 concluída. Se qualquer um falhar, o trabalho não está pronto — não existe
 "passa na maioria".
+
+### `banco.js` — por que existe
+
+Os testes de 1 a 4 conferem o código **parado**: se a função tem tal linha,
+se o identificador não mudou, se a função devolve tal valor. Três defeitos
+graves de sincronização passaram por todos eles em agosto/2026 — aparelho
+que não criou nada reenviando a árvore inteira, sincronização que nunca
+terminava, e um cronômetro de segurança matando sincronização saudável.
+Nenhum era detectável olhando uma função isolada: só apareciam **rodando o
+motor em ciclos**.
+
+`banco.js` sobe dois aparelhos e uma nuvem de mentira em memória, roda o
+código real do `index.html` e cobra uma propriedade só, que é a que todos
+os três violaram:
+
+> Sem ninguém mexer em nada, a sincronização tem de PARAR sozinha.
+
+Se um ciclo sem edição nenhuma ainda transfere alguma coisa, existe defeito
+— não importa qual seja. Os ensaios cobrem: aparelho que só recebe,
+aparelho que restaurou backup, renomear, mover, excluir, fotos, nomes que
+colidem depois do corte de 48 caracteres, pasta que falha ao listar,
+envio recusado por limite de requisições, sincronização morta no meio, e
+uma rodada de resistência com falhas aleatórias.
+
+Ao mexer em qualquer coisa do motor de sincronização, o certo é
+**acrescentar um ensaio novo aqui** reproduzindo o caso, e não só uma
+checagem de texto no `estrutura.py`.
 
 ## Histórico de versões (`VERSOES.md`)
 
@@ -271,6 +299,9 @@ não reaproveitar os números antigos achando que vão bater.
 - `testes2.js` — suíte funcional (Node, sem dependências externas — os
   módulos do app são extraídos por regex direto do `index.html` e rodados
   em `vm.createContext`)
+- `banco.js` — banco de ensaio do motor de sincronização: dois aparelhos e
+  uma nuvem de mentira em memória, rodando em ciclos até parar. Aceita o
+  caminho do arquivo como argumento (`node banco.js index.html`)
 
 Ao adicionar uma funcionalidade nova, o padrão do projeto é: escrever o
 código, extrair o trecho novo do `index.html` já modificado (não de um
