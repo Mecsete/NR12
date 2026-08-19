@@ -4852,6 +4852,90 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     eq(f.indexOf("width:${pct!=null?pct:100}%"), -1, "voltou a desenhar 100% quando não sabe o total");
   });
 
+  console.log("\n=== t106 · pasta que falhou ao listar não vira 'faltava na nuvem' ===");
+  /* A sincronização "que nunca termina", diagnosticada em campo em 19/08:
+     quando a listagem de uma pasta falhava (limite de requisições 429, rede,
+     sessão), a função de listagem gravava uma lista VAZIA — indistinguível de
+     pasta realmente vazia. A reconciliação percorria os 1167 itens do
+     aparelho, não achava os arquivos daquelas pastas na foto da nuvem,
+     concluía "faltava na nuvem", APAGAVA a assinatura e agendava reenvio. O
+     reenvio gerava mais requisições, mais 429, mais pastas falsamente
+     vazias — ciclo que se alimenta sozinho num aparelho onde ninguém criou
+     nada. O diagnóstico do usuário mostrava 17 dessas "correções" no mesmo
+     segundo e o mesmo arquivo enviado duas vezes em 18 s. */
+  {
+    const reparosLog = [];
+    const ctxR = {
+      console, JSON, Math, Date, Map, Set, Object, Array, String, Number,
+      STATE: { projetosSimples:[{id:"p"}], ui:{} },
+      ONEDRIVE_PASTA_APP:"APR-Campo", SUBPASTA_BACKUP:"Backup",
+      itemTemFotosEmbutidas: ()=>false,
+      rotuloCaminhoSync: p=>p.join("/"),
+      registrarEventoSync: (dir,nome,tipo,b,ok,motivo)=>reparosLog.push({nome, motivo}),
+      onedriveJaExisteNaNuvem: ()=>false,
+      onedriveGuardarIndiceNuvem: ()=>{},
+    };
+    vm.createContext(ctxR);
+    vm.runInContext("var __arvoreSimplesCache=null; var __arvoreNuvemIncompleta=false;", ctxR);
+    vm.runInContext("var __assinaturasOneDriveSimples = { mapa:null, chaveEstado:'oneDriveAssinaturasSimples' };", ctxR);
+    ["onedriveCarregarAssinaturas","onedriveColetarArquivosDaArvore","onedriveReconciliarComArvore"]
+      .forEach(n=> vm.runInContext(funcao(n), ctxR));
+    vm.runInContext(`function listarItensSincronizaveisSimples(){ return [
+      { id:"risco:r1", tipo:"risco", atualizadoEm:1, pasta:["Proj","AreaOk","Maq","Tar"], arquivo:"risco_r1.json", dados:{} },
+      { id:"risco:r2", tipo:"risco", atualizadoEm:1, pasta:["Proj","AreaFalhou","Maq","Tar"], arquivo:"risco_r2.json", dados:{} },
+      { id:"risco:r3", tipo:"risco", atualizadoEm:1, pasta:["Proj","AreaFalhou","Maq","Tar"], arquivo:"risco_r3.json", dados:{} } ]; }`, ctxR);
+    const PREF = "APR-Campo/Backup/Simplificado";
+    // A pasta "AreaFalhou" voltou vazia porque a listagem falhou — na nuvem
+    // os arquivos dela existem normalmente.
+    const arvore = ()=>[{ nome:"Proj", pasta:true, caminho:PREF+"/Proj", filhos:[
+      { nome:"AreaOk", pasta:true, caminho:PREF+"/Proj/AreaOk", filhos:[
+        { nome:"Maq", pasta:true, caminho:PREF+"/Proj/AreaOk/Maq", filhos:[
+          { nome:"Tar", pasta:true, caminho:PREF+"/Proj/AreaOk/Maq/Tar", filhos:[
+            { nome:"risco_r1.json", pasta:false, caminho:PREF+"/Proj/AreaOk/Maq/Tar/risco_r1.json", tamanho:500 } ]} ]} ]},
+      { nome:"AreaFalhou", pasta:true, caminho:PREF+"/Proj/AreaFalhou", filhos:[] } ]}];
+    const reconciliar = (incompleta)=>{
+      ctxR.STATE.oneDriveAssinaturasSimples = {
+        "risco:r1": { atualizadoEm:1, pasta:["Proj","AreaOk","Maq","Tar"], arquivo:"risco_r1.json", tamanho:500 },
+        "risco:r2": { atualizadoEm:1, pasta:["Proj","AreaFalhou","Maq","Tar"], arquivo:"risco_r2.json", tamanho:500 },
+        "risco:r3": { atualizadoEm:1, pasta:["Proj","AreaFalhou","Maq","Tar"], arquivo:"risco_r3.json", tamanho:500 } };
+      ctxR.__assinaturasOneDriveSimples.mapa = null;
+      reparosLog.length = 0;
+      vm.runInContext("__arvoreNuvemIncompleta = " + (incompleta?"true":"false") + ";", ctxR);
+      ctxR.__arv = arvore();
+      const n = vm.runInContext("onedriveReconciliarComArvore(__arv)", ctxR);
+      return { reparos:n, restantes:Object.keys(ctxR.STATE.oneDriveAssinaturasSimples) };
+    };
+
+    t("com a foto da nuvem INCOMPLETA, nenhuma assinatura é apagada", ()=>{
+      const r = reconciliar(true);
+      eq(r.reparos, 0, "reparou a partir de uma foto furada — é o ciclo infinito voltando");
+      eq(r.restantes.length, 3, "apagou assinatura de item que está salvo na nuvem");
+      eq(reparosLog.length, 0, "registrou 'faltava na nuvem' para pasta que só não pôde ser lida");
+    });
+    t("com a foto COMPLETA, some de verdade da nuvem continua sendo reparado", ()=>{
+      const r = reconciliar(false);
+      ok(r.reparos > 0, "a autocura legítima precisa continuar funcionando");
+      ok(r.restantes.indexOf("risco:r1") >= 0, "apagou a assinatura do item que ESTÁ na nuvem");
+      ok(reparosLog.some(x=>x.motivo && x.motivo.indexOf("faltava na nuvem") >= 0));
+    });
+    t("toda falha de listagem levanta a marca — inclusive falta de token", ()=>{
+      const f = funcao("onedriveListarFilhosEmLote");
+      ok(f.indexOf('onedriveMarcarArvoreIncompleta("sem token")') > 0, "sem token, tudo voltaria 'vazio' em silêncio");
+      ok(f.indexOf('catch(e){ onedriveMarcarArvoreIncompleta("pasta " + caminho); resultado.set(caminho, []); }') > 0,
+         "era exatamente aqui que a falha virava 'pasta vazia'");
+    });
+    t("cada varredura começa com a marca limpa", ()=>{
+      const f = funcao("onedriveListarArvore");
+      ok(f.indexOf("__arvoreNuvemIncompleta = false;") > 0,
+         "sem zerar, uma falha antiga bloquearia a autocura para sempre");
+    });
+    t("índice da nuvem não é guardado a partir de varredura furada", ()=>{
+      const f = funcao("onedriveGuardarIndiceNuvem");
+      ok(f.indexOf("if(__arvoreNuvemIncompleta) return;") > 0,
+         "índice furado mente por 24h e transforma falha de rede em reenvio garantido");
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

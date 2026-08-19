@@ -28,6 +28,42 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 19/08/2026 09:17
+
+Encontrada e corrigida a causa da sincronização que nunca terminava.
+
+**O que estava acontecendo.** Para saber o que já está salvo na nuvem, o app
+lista as pastas do OneDrive. Quando a listagem de uma pasta falhava — limite
+de requisições da Microsoft, oscilação de rede, sessão — o app anotava
+**"pasta vazia"**, que é indistinguível de uma pasta que realmente não tem
+nada. Ou seja: "não consegui ver" virava "não tem nada lá".
+
+Em seguida, a conferência automática percorria os itens do aparelho, não
+encontrava os arquivos daquelas pastas na foto que tinha em mãos, e concluía
+o oposto da verdade: *"faltava na nuvem — reenvio agendado"*. Ela então
+apagava o registro de envio daqueles itens, e eles voltavam para a fila como
+se nunca tivessem subido.
+
+O reenvio gerava mais requisições, que geravam mais recusas por limite, que
+faziam mais pastas voltarem "vazias", que geravam mais reenvios. **Um ciclo
+que se alimenta sozinho** — por isso a sincronização nunca terminava, num
+notebook onde ninguém cria itens novos, e por isso o histórico mostrava
+equipamentos antigos subindo de novo e o mesmo arquivo enviado duas vezes
+em poucos segundos.
+
+**O que mudou.** Toda falha de listagem agora é registrada como falha, não
+como pasta vazia. E quem tira conclusões a partir da foto da nuvem passou a
+exigir uma foto completa: com a varredura furada, a conferência não apaga
+registro nenhum — espera a próxima, que costuma vir inteira. O índice da
+nuvem também deixou de ser guardado quando a varredura falha (antes, uma
+falha momentânea contaminava as decisões pelas 24 horas seguintes).
+
+A autocura de verdade continua existindo: se um arquivo realmente sumiu da
+nuvem, ele continua sendo reenviado. O que mudou é que agora ela só age com
+a informação completa na mão.
+
+---
+
 ## 19/08/2026 08:41
 
 Sincronização deixa de ser interrompida quando você troca de aplicativo — e

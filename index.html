@@ -1814,7 +1814,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "19/08/2026 08:41";
+const APP_BUILD = "19/08/2026 09:17";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -3072,11 +3072,29 @@ const ONEDRIVE_BATCH_TAMANHO = 20; // limite máximo de sub-pedidos por chamada 
    paginação (mais de 200 itens, raro nesta hierarquia) ou que falharam dentro
    do lote caem de volta para onedriveListarFilhos individual, que já sabe
    lidar com isso. */
+/* "NÃO CONSEGUI VER" NÃO É "ESTÁ VAZIO".
+   Quando a listagem de uma pasta falhava (limite de requisições 429, queda de
+   rede, sessão expirada), esta função gravava uma lista VAZIA — indistinguível
+   de uma pasta que realmente não tem nada. Quem lia isso depois tirava a
+   conclusão oposta da verdade, e a pior delas estava na reconciliação: ela
+   percorre todos os itens do aparelho, não encontra os arquivos daquelas
+   pastas na foto da nuvem e conclui "faltava na nuvem", APAGA a assinatura e
+   agenda reenvio. O reenvio gera mais requisições, que geram mais 429, que
+   fazem mais pastas voltarem "vazias" — e o ciclo se alimenta sozinho, para
+   sempre, num aparelho onde ninguém criou nada. Era exatamente o
+   "a sincronização nunca tem fim" relatado em campo.
+   Agora toda falha de listagem levanta esta marca, e quem depende de uma foto
+   COMPLETA da nuvem se recusa a agir enquanto ela estiver levantada. */
+let __arvoreNuvemIncompleta = false;
+function onedriveMarcarArvoreIncompleta(motivo){
+  __arvoreNuvemIncompleta = true;
+  console.warn("Listagem da nuvem incompleta —", motivo);
+}
 async function onedriveListarFilhosEmLote(caminhos){
   const resultado = new Map();
   if(caminhos.length===0) return resultado;
   const token = await onedriveObterToken();
-  if(!token){ caminhos.forEach(c=>resultado.set(c, [])); return resultado; }
+  if(!token){ onedriveMarcarArvoreIncompleta("sem token"); caminhos.forEach(c=>resultado.set(c, [])); return resultado; }
   const precisamBuscaIndividual = [];
   for(let inicio=0; inicio<caminhos.length; inicio+=ONEDRIVE_BATCH_TAMANHO){
     const lote = caminhos.slice(inicio, inicio+ONEDRIVE_BATCH_TAMANHO);
@@ -3129,7 +3147,7 @@ async function onedriveListarFilhosEmLote(caminhos){
   }
   await executarComConcorrencia(precisamBuscaIndividual, 5, async (caminho) => {
     try{ resultado.set(caminho, await onedriveListarFilhos(caminho)); }
-    catch(e){ resultado.set(caminho, []); }
+    catch(e){ onedriveMarcarArvoreIncompleta("pasta " + caminho); resultado.set(caminho, []); }
   });
   return resultado;
 }
@@ -3148,6 +3166,7 @@ async function onedriveListarArvore(caminhoPasta, profundidadeRestante){
       ? { nome: f.nome, pasta: true, caminho: caminhoFilho, filhos: [] }
       : { nome: f.nome, pasta: false, caminho: caminhoFilho, tamanho: f.tamanho };
   });
+  __arvoreNuvemIncompleta = false; // cada varredura começa limpa; qualquer falha no caminho levanta a marca
   const filhosRaiz = (await onedriveListarFilhosEmLote([caminhoPasta])).get(caminhoPasta) || [];
   const nivelRaiz = construirNos(caminhoPasta, filhosRaiz);
   let nivelAtual = nivelRaiz.filter(n=>n.pasta);
@@ -4943,6 +4962,12 @@ const INDICE_NUVEM_MAX_ITENS = 6000;
 function onedriveGuardarIndiceNuvem(mapaArquivos){
   try{
     if(!mapaArquivos || mapaArquivos.size===0) return;
+    /* Índice montado a partir de uma varredura furada mente por 24 h: os itens
+       das pastas que falharam constam como "não existem na nuvem", e é
+       justamente esse índice que onedriveJaExisteNaNuvem consulta para decidir
+       se pode curar uma assinatura sem reenviar. Guardar incompleto transforma
+       uma falha momentânea de rede em reenvio garantido pelo resto do dia. */
+    if(__arvoreNuvemIncompleta) return;
     const arquivos = {};
     let n = 0;
     for(const [k,v] of mapaArquivos){ if(n++ >= INDICE_NUVEM_MAX_ITENS) break; arquivos[k] = v; }
@@ -5018,6 +5043,15 @@ function onedriveReconciliarComArvore(arvore){
     // provável é falha de sessão/rede disfarçada — não conclui que "está tudo
     // faltando" (isso dispararia um reenvio total à toa).
     if(existentes.size===0 && temProjetosLocais) return 0;
+    /* A proteção acima só cobria o caso extremo (NADA listado). O caso real em
+       campo é parcial: um punhado de pastas falha por limite de requisições e
+       volta "vazia", enquanto o resto lista normalmente. Concluir "faltava na
+       nuvem" a partir de uma foto furada apaga assinaturas de itens que estão
+       perfeitamente salvos, agenda reenvio, e o reenvio provoca mais 429 — a
+       sincronização que nunca termina. Só se apaga assinatura com a foto
+       COMPLETA na mão; incompleta, esta rodada não repara nada e a próxima
+       varredura tenta de novo. */
+    if(__arvoreNuvemIncompleta) return 0;
     const mapa = onedriveCarregarAssinaturas(__assinaturasOneDriveSimples);
     const prefixo = `${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado/`.toLowerCase();
     let reparos = 0;

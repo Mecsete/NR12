@@ -1595,6 +1595,33 @@ chk("barra sem total conhecido volta a ser a animada, nao 100% fixo",
     "sync-progresso-trilha${pct==null?' sync-progresso-indeterminado':''}" in novo
     and "width:${pct!=null?pct:100}%" not in novo)
 
+print("\n=== 63. 'NAO CONSEGUI VER' DEIXA DE VIRAR 'ESTA VAZIO' NA NUVEM ===")
+# Causa da "sincronizacao que nunca tem fim", diagnosticada em campo em
+# 19/08 com 1167 itens: quando a listagem de uma pasta falhava (429, rede,
+# sessao), onedriveListarFilhosEmLote gravava lista VAZIA -- indistinguivel
+# de pasta realmente vazia. A reconciliacao nao achava os arquivos daquelas
+# pastas, concluia "faltava na nuvem", APAGAVA a assinatura e agendava
+# reenvio; o reenvio gerava mais requisicoes, mais 429, mais pastas
+# falsamente vazias. O diagnostico do usuario mostrava 17 dessas correcoes
+# no mesmo segundo e o mesmo arquivo enviado duas vezes em 18 s.
+chk("existe uma marca de varredura incompleta, levantada por toda falha de listagem",
+    novo.count("let __arvoreNuvemIncompleta = false;") == 1
+    and novo.count("function onedriveMarcarArvoreIncompleta(motivo){") == 1
+    and 'onedriveMarcarArvoreIncompleta("sem token")' in novo
+    and 'catch(e){ onedriveMarcarArvoreIncompleta("pasta " + caminho); resultado.set(caminho, []); }' in novo)
+chk("cada varredura comeca com a marca limpa (senao a autocura travaria para sempre)",
+    "__arvoreNuvemIncompleta = false; // cada varredura começa limpa" in novo)
+chk("reconciliacao nao apaga assinatura a partir de foto furada",
+    "if(__arvoreNuvemIncompleta) return 0;" in novo)
+chk("a protecao antiga (nuvem TOTALMENTE vazia) continua de pe -- a nova cobre o caso parcial",
+    "if(existentes.size===0 && temProjetosLocais) return 0;" in novo)
+chk("indice da nuvem nao e guardado a partir de varredura furada",
+    "if(__arvoreNuvemIncompleta) return;" in novo
+    and novo.find("if(__arvoreNuvemIncompleta) return;") > novo.find("function onedriveGuardarIndiceNuvem"))
+chk("a autocura legitima continua existindo -- so passou a exigir foto completa",
+    'registrarEventoSync("up", reg.arquivo, item.tipo, 0, true, "faltava na nuvem — reenvio agendado"' in novo
+    and "mapa.delete(item.id);" in novo)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
