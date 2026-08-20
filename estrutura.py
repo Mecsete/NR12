@@ -1349,10 +1349,18 @@ chk("FE e NP viraram exibicao so-leitura (laudoValorTarefaHrn), nao <select>",
     and 'laudoSelectHRN(rid,"fe"' not in novo and 'laudoSelectHRN(rid,"np"' not in novo
     and novo.count('${laudoValorTarefaHrn(freqTarefa? "Da tarefa ("+freqTarefa+"): "+autoFE : "Sem frequência na tarefa", !freqTarefa)}') == 1
     and novo.count('${laudoValorTarefaHrn(npTarefa? "Da tarefa ("+npTarefa+"): "+autoNP : "Sem nº na tarefa", !npTarefa)}') == 1)
-chk("vermelho (borda + fundo + texto) só quando a tarefa não tem o dado, sem botão de confirmar",
+chk("vermelho (borda + fundo + texto) só quando a tarefa não tem o dado",
     'border:1.5px solid #B3261E;background:#FDE7E5;color:#8C1D18;border-radius:' in novo
-    and "A tarefa não tem frequência informada — edite a tarefa para preencher." in novo
-    and "A tarefa não tem nº de pessoas informado — edite a tarefa para preencher." in novo)
+    and "A tarefa não tem frequência informada." in novo
+    and "A tarefa não tem nº de pessoas informado." in novo)
+# 19/08: em vez de só um texto pedindo para editar a tarefa em outra tela, o
+# alerta ganhou um botão que abre o MESMO modal de edição de tarefa usado no
+# cadastro em campo (abrirModalTarefaS) — sem sair da página do laudo.
+chk("o alerta de FE/NP sem preenchimento tem botão que abre a tarefa sem sair do laudo",
+    # 3 ocorrências do mesmo literal: 1 no botão do alerta de FE, 1 no de NP
+    # (ambos em laudoBlocoHRN) e 1 no atalho "Editar a tarefa" do menu '...'
+    # (menuLaudoCard) -- as três chamam o mesmo abrirModalTarefaS, de propósito.
+    novo.count("App.abrirModalTarefaS('${item.tarefa.id}','${item.maquina.id}')") == 3)
 
 print("\n=== 55. REDESENHO DE FUNDO NAO DERRUBA MAIS O FOCO DE QUEM DIGITA ===")
 # Usuario reportou de novo, depois do fix anterior (laudoSetMedidaExistenteCampo
@@ -1745,6 +1753,38 @@ chk("cada provedor com link de geracao de chave abre em aba nova (Personalizado 
     novo.count("linkChave:") == 5
     and 'linkChave: null,' in novo
     and 'target="_blank" rel="noopener noreferrer">${ic(\'share\')} Abrir site para gerar a chave</a>' in novo)
+
+print("\n=== 67. EDITAR AREA/MAQUINA/TAREFA/RISCO SEM SAIR DA PAGINA DO LAUDO ===")
+# Pedido do usuario, a partir da tela de Avaliacao HRN: quando Frequencia ou
+# Nº de pessoas nao estao preenchidos na tarefa, o alerta so dizia "edite a
+# tarefa para preencher" -- sem nenhum jeito de agir dali, era preciso sair
+# do laudo, ir ate o cadastro em campo, achar a tarefa e voltar. O pedido foi
+# mais amplo: poder alterar area, equipamento, tarefa E risco direto da
+# pagina do laudo. A solucao REAPROVEITA os mesmos modais do cadastro em
+# campo (abrirModalAreaS/MaquinaS/TarefaS/RiscoS, com o mesmo formulario e a
+# mesma gravacao) -- nao existe formulario duplicado so para o laudo.
+chk("o menu '...' do laudo ganhou atalhos para area, maquina e tarefa, alem do risco que ja existia",
+    novo.count("App.abrirModalTarefaS('${item.tarefa.id}','${item.maquina.id}')") >= 1
+    and novo.count("App.abrirModalMaquinaS('${item.maquina.id}','${item.area.id}')") == 1
+    and novo.count("App.abrirModalAreaS('${item.area.id}','${item.proj.id}')") == 1)
+_iniMenu = novo.find("menuLaudoCard(rid, tarefaId){")
+_fimMenu = novo.find("laudoCopiarRisco(rid){", _iniMenu)
+_trechoMenu = novo[_iniMenu:_fimMenu]
+chk("os atalhos novos ficam entre 'editar risco' e 'copiar risco', sem reordenar o resto do menu",
+    _trechoMenu.find("Visualizar / editar o risco") < _trechoMenu.find("Editar a tarefa")
+    < _trechoMenu.find("Editar a máquina/ativo") < _trechoMenu.find("Editar a área")
+    < _trechoMenu.find("Copiar risco") < _trechoMenu.find("Excluir risco"))
+chk("nenhum modal foi duplicado -- os atalhos chamam as MESMAS funcoes do cadastro em campo",
+    novo.count("abrirModalAreaS(id, projetoSId, onSaved){") == 1
+    and novo.count("abrirModalMaquinaS(id, areaSId, onSaved){") == 1
+    and novo.count("abrirModalTarefaS(id, maquinaSId, onSaved){") == 1
+    and novo.count("function formAreaSHtml(){") == 1
+    and novo.count("function formMaquinaSHtml(){") == 1
+    and novo.count("function formTarefaSHtml(){") == 1)
+chk("o alerta de FE/NP sem preenchimento virou acao direta, nao so texto",
+    "A tarefa não tem frequência informada." in novo
+    and "A tarefa não tem nº de pessoas informado." in novo
+    and novo.count("Editar tarefa</button>") >= 2)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")

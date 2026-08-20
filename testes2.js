@@ -4331,7 +4331,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
      validar. PO e GPD nunca ficam vermelhos: sempre têm estimativa
      própria do risco, não vêm de um campo da tarefa que possa faltar. */
   t("sem frequência/nº de pessoas na tarefa, os dois campos ficam vermelhos", ()=>{
-    const item = { risco:{ id:"rAlert1" }, tarefa:{ frequencia:"", numPessoas:"" } };
+    const item = { risco:{ id:"rAlert1" }, tarefa:{ id:"tAlert1", frequencia:"", numPessoas:"" }, maquina:{ id:"mAlert1" } };
     const html = C.laudoBlocoHRN(item);
     ok(html.indexOf("border:1.5px solid #B3261E;background:#FDE7E5;color:#8C1D18") >= 0);
     eq((html.match(/border:1\.5px solid #B3261E;background:#FDE7E5;color:#8C1D18/g)||[]).length, 2,
@@ -4340,12 +4340,12 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(html.indexOf("A tarefa não tem nº de pessoas informado") > 0);
   });
   t("com frequência/nº de pessoas preenchidos, nada fica vermelho", ()=>{
-    const item = { risco:{ id:"rAlert2" }, tarefa:{ frequencia:"Diário", numPessoas:"2" } };
+    const item = { risco:{ id:"rAlert2" }, tarefa:{ id:"tAlert2", frequencia:"Diário", numPessoas:"2" }, maquina:{ id:"mAlert2" } };
     const html = C.laudoBlocoHRN(item);
     eq(html.indexOf("border:1.5px solid #B3261E"), -1, "ficou vermelho com os dois campos preenchidos");
   });
   t("PO e GPD nunca ficam vermelhos, mesmo sem nada escolhido no risco", ()=>{
-    const item = { risco:{ id:"rAlert3" }, tarefa:{ frequencia:"Diário", numPessoas:"2" } };
+    const item = { risco:{ id:"rAlert3" }, tarefa:{ id:"tAlert3", frequencia:"Diário", numPessoas:"2" }, maquina:{ id:"mAlert3" } };
     const html = C.laudoBlocoHRN(item);
     // só os 2 do FE/NP — nenhum extra por causa de PO/GPD.
     eq((html.match(/border:1\.5px solid #B3261E/g)||[]).length, 0);
@@ -4355,7 +4355,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
        Frequência/Nº de pessoas são sempre da tarefa, sem exceção — então
        um valor solto em risco.fe/risco.np (dado antigo, de antes desta
        decisão, por exemplo) não deve mais aparecer nem tirar o alerta. */
-    const item = { risco:{ id:"rAlert4", fe:"Diária", np:"1-2 pessoas" }, tarefa:{ frequencia:"", numPessoas:"" } };
+    const item = { risco:{ id:"rAlert4", fe:"Diária", np:"1-2 pessoas" }, tarefa:{ id:"tAlert4", frequencia:"", numPessoas:"" }, maquina:{ id:"mAlert4" } };
     const html = C.laudoBlocoHRN(item);
     eq((html.match(/border:1\.5px solid #B3261E/g)||[]).length, 2,
        "um fe/np solto no risco nao pode mais calar o alerta da tarefa vazia");
@@ -4402,7 +4402,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(HTML.indexOf(`onclick="App.menuLaudoCard('\${item.risco.id}','\${item.tarefa.id}')"`) > 0,
          "faltou o botão dentro do item");
     });
-  t("as 3 opções do menu são as que o usuário pediu, na ordem certa", ()=>{
+  t("as opções do menu original continuam na ordem certa", ()=>{
     const f_ini = HTML.indexOf("menuLaudoCard(rid, tarefaId){");
     const f_fim = HTML.indexOf("laudoCopiarRisco(rid){", f_ini);
     const trecho = HTML.slice(f_ini, f_fim);
@@ -4411,6 +4411,33 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     const iExcluir = trecho.indexOf("Excluir risco");
     ok(iVer > 0 && iCopiar > iVer && iExcluir > iCopiar, "ordem errada ou opção faltando");
     ok(trecho.indexOf("danger:true") > 0, "excluir precisa continuar marcado como ação perigosa (fica vermelho)");
+  });
+  t("menu ganhou atalhos para editar área/máquina/tarefa sem sair do laudo", ()=>{
+    /* Pedido do usuário: poder alterar área, equipamento, tarefa e risco
+       direto na página do Laudo, sem precisar ir ao cadastro em campo.
+       Reaproveita os MESMOS modais já usados no cadastro (abrirModalAreaS/
+       MaquinaS/TarefaS) — não duplica formulário nenhum. */
+    const f_ini = HTML.indexOf("menuLaudoCard(rid, tarefaId){");
+    const f_fim = HTML.indexOf("laudoCopiarRisco(rid){", f_ini);
+    const trecho = HTML.slice(f_ini, f_fim);
+    ok(trecho.indexOf("App.abrirModalTarefaS('${item.tarefa.id}','${item.maquina.id}')") > 0, "sem atalho para editar a tarefa");
+    ok(trecho.indexOf("App.abrirModalMaquinaS('${item.maquina.id}','${item.area.id}')") > 0, "sem atalho para editar a máquina");
+    ok(trecho.indexOf("App.abrirModalAreaS('${item.area.id}','${item.proj.id}')") > 0, "sem atalho para editar a área");
+    const iVer = trecho.indexOf("Visualizar / editar o risco");
+    const iTarefa = trecho.indexOf("Editar a tarefa");
+    const iMaquina = trecho.indexOf("Editar a máquina/ativo");
+    const iArea = trecho.indexOf("Editar a área");
+    const iCopiar = trecho.indexOf("Copiar risco");
+    ok(iVer > 0 && iTarefa > iVer && iMaquina > iTarefa && iArea > iMaquina && iCopiar > iArea,
+       "os novos atalhos precisam vir entre 'editar risco' e 'copiar risco'");
+  });
+  t("Frequência e Nº de pessoas sem preenchimento ganham botão direto para editar a tarefa", ()=>{
+    /* Antes disso era só um texto ("edite a tarefa para preencher") sem
+       nenhum jeito de agir a partir da própria tela do laudo. */
+    const item = { risco:{ id:"rAlertBtn" }, tarefa:{ id:"tAlertBtn", frequencia:"", numPessoas:"" }, maquina:{ id:"mAlertBtn" } };
+    const html = C.laudoBlocoHRN(item);
+    eq((html.match(/App\.abrirModalTarefaS\('tAlertBtn','mAlertBtn'\)/g)||[]).length, 2,
+       "esperado um botão de editar tarefa junto do alerta de FE e outro junto do de NP");
   });
   t("excluir continua pedindo confirmação — reaproveita removerRiscoS sem duplicar a lógica",
     ()=>{

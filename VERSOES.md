@@ -28,6 +28,32 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 20/08/2026 13:31
+
+Dá para editar área, equipamento, tarefa e risco sem sair da página do Laudo.
+
+Antes, se faltasse algo — por exemplo Frequência ou Nº de pessoas na tarefa,
+que entram direto na conta do HRN — a tela só avisava em vermelho e dizia
+"edite a tarefa para preencher". Não havia como agir dali: era preciso sair
+do Laudo, voltar ao cadastro em campo, achar a tarefa certa e só depois
+retornar para conferir se o número mudou.
+
+Agora:
+
+- Cada alerta vermelho de Frequência ou Nº de pessoas ganhou um botão
+  **Editar tarefa** — abre a mesma tela de edição usada no cadastro em
+  campo, você preenche e salva sem sair do Laudo. O HRN recalcula na hora.
+- O menu "⋮" de cada linha do Laudo (o mesmo que já tinha "Editar o risco",
+  "Copiar" e "Excluir") ganhou três opções novas: **Editar a tarefa**,
+  **Editar a máquina/ativo** e **Editar a área**. Cobre o pedido de poder
+  mexer em qualquer nível — área, equipamento, tarefa ou risco — direto da
+  revisão do laudo.
+
+Nenhum formulário foi duplicado: os atalhos abrem exatamente as mesmas
+telas de edição do cadastro em campo, então tudo que já funciona lá (fotos,
+sugestão de tipo de equipamento, geração de descrição com IA) continua
+valendo igual quando aberto a partir do Laudo.
+
 ## 19/08/2026 19:02
 
 Chave de IA por provedor, com troca automática quando o limite de uso acaba,

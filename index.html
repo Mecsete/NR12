@@ -1840,7 +1840,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "19/08/2026 19:02";
+const APP_BUILD = "20/08/2026 13:31";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -13000,7 +13000,7 @@ function laudoBlocoHRN(item){
       <div class="field" style="margin-bottom:0">
         <label style="display:flex;align-items:center;gap:4px">${!freqTarefa? `<span style="color:#B3261E">Frequência (FE)</span>` : "Frequência (FE)"} ${laudoInfoBtnHrn("fe")}</label>
         ${laudoValorTarefaHrn(freqTarefa? "Da tarefa ("+freqTarefa+"): "+autoFE : "Sem frequência na tarefa", !freqTarefa)}
-        ${!freqTarefa? `<div class="field-hint" style="color:#B3261E;margin-top:3px">A tarefa não tem frequência informada — edite a tarefa para preencher.</div>`:""}
+        ${!freqTarefa? `<div class="field-hint" style="color:#B3261E;margin-top:3px">A tarefa não tem frequência informada. <button type="button" class="clear-text-btn" style="display:inline-flex;color:#B3261E" onclick="App.abrirModalTarefaS('${item.tarefa.id}','${item.maquina.id}')">${ic('edit')} Editar tarefa</button></div>`:""}
         ${laudoInfoBoxHrn("fe", HRN_FE_TABELA)}
       </div>
       <div class="field" style="margin-bottom:0">
@@ -13011,7 +13011,7 @@ function laudoBlocoHRN(item){
       <div class="field" style="margin-bottom:0">
         <label style="display:flex;align-items:center;gap:4px">${!npTarefa? `<span style="color:#B3261E">Nº de pessoas (NP)</span>` : "Nº de pessoas (NP)"} ${laudoInfoBtnHrn("np")}</label>
         ${laudoValorTarefaHrn(npTarefa? "Da tarefa ("+npTarefa+"): "+autoNP : "Sem nº na tarefa", !npTarefa)}
-        ${!npTarefa? `<div class="field-hint" style="color:#B3261E;margin-top:3px">A tarefa não tem nº de pessoas informado — edite a tarefa para preencher.</div>`:""}
+        ${!npTarefa? `<div class="field-hint" style="color:#B3261E;margin-top:3px">A tarefa não tem nº de pessoas informado. <button type="button" class="clear-text-btn" style="display:inline-flex;color:#B3261E" onclick="App.abrirModalTarefaS('${item.tarefa.id}','${item.maquina.id}')">${ic('edit')} Editar tarefa</button></div>`:""}
         ${laudoInfoBoxHrn("np", HRN_NP_TABELA)}
       </div>
     </div>
@@ -17333,6 +17333,9 @@ const App = {
     const nomeRisco = item.risco.nome===OUTRO ? item.risco.nomeOutro : item.risco.nome;
     abrirMenuAcoes(nomeRisco||"Risco", "", [
       {label:"Visualizar / editar o risco", icon:"edit", onclick:`App.abrirModalRiscoS('${rid}','${tarefaId}')`},
+      {label:"Editar a tarefa", icon:"edit", onclick:`App.abrirModalTarefaS('${item.tarefa.id}','${item.maquina.id}')`},
+      {label:"Editar a máquina/ativo", icon:"edit", onclick:`App.abrirModalMaquinaS('${item.maquina.id}','${item.area.id}')`},
+      {label:"Editar a área", icon:"edit", onclick:`App.abrirModalAreaS('${item.area.id}','${item.proj.id}')`},
       {label:"Copiar risco", icon:"copy", onclick:`App.laudoCopiarRisco('${rid}')`},
       {label:"Excluir risco", icon:"trash", onclick:`App.removerRiscoS('${rid}','${tarefaId}')`, danger:true},
     ]);
