@@ -5243,6 +5243,32 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(HTML.indexOf('return "Chaves salvas: " + linhas.join(" · ");') > 0, "sem o resumo de chaves salvas");
   });
 
+  console.log("\n=== t110 · sem nota de campo na tarefa, 'seu texto' cai para o nome dela ===");
+  /* Usuário reportou: digitou um nome de tarefa em "Outra tarefa
+     (especificar)" ("Realizar o teste de plantabilidade") mas a Descrição
+     da tarefa, na revisão do laudo, mostrava "(nada escrito em campo)" —
+     como se nada tivesse sido informado. laudoTextoOriginal("tarefa") só
+     olhava tarefa.descricao (a nota opcional), nunca o nome da tarefa.
+     Mesmo padrão de fallback que "solucao" já tinha (cai para descMedida
+     quando não há proposta) — sem inventar nada, só deixando de esconder o
+     que o inspetor de fato digitou. */
+  t("tarefa 'Outra' sem nota de campo: seu texto de campo usa o nome digitado", ()=>{
+    const item = { tarefa:{ tarefa:OUTRO, tarefaOutro:"Realizar o teste de plantabilidade", descricao:"" }, maquina:{}, risco:{} };
+    eq(C.laudoTextoOriginal(item, "tarefa"), "Realizar o teste de plantabilidade");
+  });
+  t("tarefa do menu fixo sem nota de campo: seu texto de campo usa o nome da lista", ()=>{
+    const item = { tarefa:{ tarefa:"Limpeza e higienização", tarefaOutro:"", descricao:"" }, maquina:{}, risco:{} };
+    eq(C.laudoTextoOriginal(item, "tarefa"), "Limpeza e higienização");
+  });
+  t("nota de campo escrita pelo inspetor sempre vence o nome da tarefa", ()=>{
+    const item = { tarefa:{ tarefa:OUTRO, tarefaOutro:"Realizar o teste de plantabilidade", descricao:"Nota detalhada escrita à mão" }, maquina:{}, risco:{} };
+    eq(C.laudoTextoOriginal(item, "tarefa"), "Nota detalhada escrita à mão");
+  });
+  t("tarefa sem nome nenhum (fixture incompleta) não quebra — cai para vazio", ()=>{
+    const item = { tarefa:{ tarefa:"", tarefaOutro:"", descricao:"" }, maquina:{}, risco:{} };
+    eq(C.laudoTextoOriginal(item, "tarefa"), "");
+  });
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

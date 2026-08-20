@@ -1786,6 +1786,22 @@ chk("o alerta de FE/NP sem preenchimento virou acao direta, nao so texto",
     and "A tarefa não tem nº de pessoas informado." in novo
     and novo.count("Editar tarefa</button>") >= 2)
 
+print("\n=== 68. TAREFA SEM NOTA DE CAMPO: 'SEU TEXTO' CAI PARA O NOME DELA ===")
+# Usuario reportou: digitou o nome da tarefa em "Outra tarefa (especificar)"
+# mas a Descricao da tarefa, na revisao do laudo, mostrava "(nada escrito em
+# campo)" -- como se nada tivesse sido informado. laudoTextoOriginal so olhava
+# tarefa.descricao (a nota opcional), nunca o nome/tarefaOutro. Mesmo padrao
+# de fallback que "solucao" ja usava (cai para descMedida quando nao ha
+# proposta) -- so deixa de esconder o que o inspetor de fato digitou.
+chk("laudoTextoOriginal('tarefa') cai para o nome da tarefa quando a nota de campo esta vazia",
+    'if(campo==="tarefa")  return item.tarefa.descricao || valOuOutro(item.tarefa.tarefa, item.tarefa.tarefaOutro) || "";' in novo)
+chk("a nota de campo escrita pelo inspetor continua vencendo (fallback so entra quando ela esta vazia)",
+    novo.find('if(campo==="tarefa")  return item.tarefa.descricao ||') > 0)
+chk("os outros 3 campos (escopo/risco/existente) nao ganharam fallback nenhum -- mudanca so em tarefa",
+    'if(campo==="escopo")  return item.maquina.descricao || "";' in novo
+    and 'if(campo==="risco")   return item.risco.descricao || "";' in novo
+    and 'if(campo==="existente") return item.risco.descMedida || "";' in novo)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

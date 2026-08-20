@@ -28,6 +28,23 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 20/08/2026 22:32
+
+Corrigido: nome digitado em "Outra tarefa (especificar)" sumia da revisão do laudo.
+
+Reportado pelo usuário: ao criar uma tarefa e digitar um nome próprio em
+"Outra tarefa (especificar)" (por exemplo "Realizar o teste de
+plantabilidade"), sem preencher também a "Descrição (opcional)" da tarefa,
+a Descrição da tarefa na revisão do laudo aparecia como "(nada escrito em
+campo)" — como se nada tivesse sido informado, mesmo o nome já dizendo o
+que a tarefa é.
+
+Agora, quando a nota de campo (opcional) está vazia, "Seu texto de campo"
+usa o nome da tarefa como foi digitado ou escolhido — vale tanto para
+"Outra tarefa (especificar)" quanto para as tarefas da lista fixa. Se você
+escrever alguma coisa na nota de campo, ela continua valendo por cima do
+nome, como sempre foi.
+
 ## 20/08/2026 13:31
 
 Dá para editar área, equipamento, tarefa e risco sem sair da página do Laudo.
