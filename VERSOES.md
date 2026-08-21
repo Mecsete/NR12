@@ -20,6 +20,22 @@ antigo, feche e abra o app novamente.
 > publicação). A partir de **07/08/2026 10:25**, o número na tela é
 > exatamente o mesmo desta lista.
 
+> **Atenção às versões de 19/08/2026 16:03 a 21/08/2026.** Três versões
+> publicadas nesse intervalo foram carimbadas com **3 horas a mais** que o
+> horário real (o relógio usado para gerar o número devolveu UTC em vez do
+> horário de Brasília). O número que aparece no rodapé desses aparelhos é:
+>
+> | O aparelho mostra | Foi publicada de verdade em |
+> |---|---|
+> | 19/08/2026 19:02 | 19/08/2026 16:03 |
+> | 20/08/2026 13:31 | 20/08/2026 10:32 |
+> | 20/08/2026 22:32 | 20/08/2026 19:33 |
+>
+> Os títulos dessas três entradas abaixo foram mantidos como estão **de
+> propósito**: é por eles que se identifica qual versão um aparelho está
+> rodando, e mudá-los quebraria essa correspondência. A partir de
+> **21/08/2026 09:40** o número voltou a ser o horário real de Brasília.
+
 > **Atenção à versão de 17/08/2026 21:55.** Ela foi escrita com a data
 > errada — publicada de manhã em 18/08/2026, mas com o carimbo ainda de
 > 17/08. O registro abaixo já está com a data corrigida (18/08/2026
@@ -28,7 +44,7 @@ antigo, feche e abra o app novamente.
 
 ---
 
-## 21/08/2026 12:24
+## 21/08/2026 09:40
 
 Corrigido: risco excluído num aparelho voltava a aparecer — e chegava a
 reaparecer sozinho na nuvem.
