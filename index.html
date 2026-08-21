@@ -1840,7 +1840,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "21/08/2026 09:40";
+const APP_BUILD = "21/08/2026 11:36";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -11566,7 +11566,22 @@ function laudoEntradaExistente(item){
   return partes.join("\n");
 }
 function laudoTextoOriginal(item, campo){
-  if(campo==="escopo")  return item.maquina.descricao || "";
+  /* ESCOPO LEVA O NOME DO EQUIPAMENTO NA FRENTE.
+     Antes vinha só a "Descrição (opcional)" da máquina — que em campo é
+     usada para o código do ativo ("CNV-002"). Sozinho, esse código não diz
+     que equipamento é, e era ele que ia para o laudo quando a IA não tinha
+     gerado nada. O nome ("Mesa que alimenta a CV-3404") é o primeiro campo
+     preenchido em campo e é o que identifica a máquina; a descrição entra
+     como complemento. A IA já recebia os dois assim (ver "Nome: ... /
+     Descrição: ..." na geração) — quem estava fora de compasso era a tela.
+     Não repete quando os dois são a mesma coisa: nomeMaquinaS cai para
+     descricao quando a máquina não tem nome. */
+  if(campo==="escopo"){
+    const nomeMaq = nomeMaquinaS(item.maquina);
+    const descMaq = String(item.maquina.descricao || "").trim();
+    if(nomeMaq && descMaq && descMaq !== nomeMaq) return nomeMaq + " — " + descMaq;
+    return descMaq || nomeMaq || "";
+  }
   /* Sem nota de campo (opcional), cai para o nome da tarefa como foi
      digitado/escolhido — é texto que o inspetor de fato informou (inclusive
      em "Outra tarefa (especificar)", onde é a única descrição que existe) e

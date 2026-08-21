@@ -5460,6 +5460,61 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   lapidesLimpas();
   STATE.projetosSimples = [];
 
+  console.log("\n=== t112 · Escopo do equipamento mostra o NOME da máquina ===");
+  /* Reportado com print: "Seu texto de campo" do Escopo mostrava só "CNV-002"
+     — a Descrição (opcional) da máquina, que em campo é usada para o código do
+     ativo. O nome ("Mesa que alimenta a CV-3404") é o primeiro campo
+     preenchido e é o que identifica o equipamento; sem ele o laudo saía com um
+     código solto quando a IA ainda não tinha gerado nada. A IA já recebia os
+     dois (Nome + Descrição) na geração — quem estava fora de compasso era a
+     tela e o texto final. */
+  const esc = (maq)=> C.laudoTextoOriginal({ maquina:maq, tarefa:{}, risco:{} }, "escopo");
+
+  t("com nome e descrição, os dois aparecem — o nome primeiro", ()=>{
+    eq(esc({ nome:"Mesa que alimenta a CV-3404", descricao:"CNV-002" }),
+       "Mesa que alimenta a CV-3404 — CNV-002");
+  });
+  t("sem descrição, vale o nome do equipamento", ()=>{
+    eq(esc({ nome:"Mesa que alimenta a CV-3404", descricao:"" }), "Mesa que alimenta a CV-3404");
+  });
+  t("máquina sem nome (dado antigo) continua mostrando a descrição, sem repetir", ()=>{
+    /* nomeMaquinaS cai para descricao quando não há nome — sem a guarda o
+       texto sairia "CNV-002 — CNV-002". */
+    eq(esc({ nome:"", descricao:"CNV-002" }), "CNV-002");
+  });
+  t("nome igual à descrição não é escrito duas vezes", ()=>{
+    eq(esc({ nome:"CNV-002", descricao:"CNV-002" }), "CNV-002");
+  });
+  t("máquina sem nome e sem descrição não quebra nem inventa texto", ()=>{
+    eq(esc({ nome:"", descricao:"" }), "");
+  });
+  t("o que vai para o laudo passa a carregar o nome também", ()=>{
+    const item = { maquina:{ nome:"Mesa que alimenta a CV-3404", descricao:"CNV-002", laudoIA:{} },
+                   tarefa:{ laudoIA:{} }, risco:{ laudoIA:{} } };
+    eq(C.laudoTextoFinal(item, "escopo"), "Mesa que alimenta a CV-3404 — CNV-002",
+       "sem sugestão da IA, o laudo recebia só o código do ativo");
+  });
+  t("a sugestão da IA, quando existe, continua vencendo o texto de campo", ()=>{
+    const item = { maquina:{ nome:"Mesa", descricao:"CNV-002",
+                             laudoIA:{ escopoSug:"TEXTO DA IA", escopoFin:"", escopoSt:"" } },
+                   tarefa:{ laudoIA:{} }, risco:{ laudoIA:{} } };
+    eq(C.laudoTextoFinal(item, "escopo"), "TEXTO DA IA");
+  });
+  t("o escopo aprovado NÃO sobrescreve a descrição digitada em campo", ()=>{
+    /* Garantia de que a mudança não come o campo do usuário: o texto do
+       escopo tem coluna própria (maquina.escopo). */
+    ok(HTML.indexOf("maquina: { ...item.maquina, escopo: t.escopo || item.maquina.escopo || \"\" },") > 0,
+       "o escopo passaria a sobrescrever a Descrição da máquina");
+  });
+  t("a IA já recebia Nome e Descrição — a tela é que estava atrás", ()=>{
+    /* 4 pontos mandam "Nome: ... / Descrição: ...": os 3 caminhos de geração
+       do escopo (Excel antigo, lote e por item) mais a entrada com
+       referências. Todos já levavam o nome — o que faltava era a TELA e o
+       texto final usarem a mesma informação. */
+    eq((HTML.match(/Nome: \$\{nomeMaquinaS\(/g)||[]).length, 4,
+       "a geração do escopo precisa continuar mandando o nome junto");
+  });
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

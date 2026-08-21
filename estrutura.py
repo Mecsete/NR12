@@ -1811,9 +1811,12 @@ chk("laudoTextoOriginal('tarefa') cai para o nome da tarefa quando a nota de cam
     'if(campo==="tarefa")  return item.tarefa.descricao || valOuOutro(item.tarefa.tarefa, item.tarefa.tarefaOutro) || "";' in novo)
 chk("a nota de campo escrita pelo inspetor continua vencendo (fallback so entra quando ela esta vazia)",
     novo.find('if(campo==="tarefa")  return item.tarefa.descricao ||') > 0)
-chk("os outros 3 campos (escopo/risco/existente) nao ganharam fallback nenhum -- mudanca so em tarefa",
-    'if(campo==="escopo")  return item.maquina.descricao || "";' in novo
-    and 'if(campo==="risco")   return item.risco.descricao || "";' in novo
+# 21/08: o escopo saiu desta checagem porque passou a levar o NOME da maquina
+# de proposito (secao 70). Risco e Mitigacao existente continuam sem fallback
+# nenhum — sao texto que o engenheiro escreveu, e nao ha outro campo de onde
+# tirar substituto sem inventar conteudo.
+chk("Risco e Mitigacao existente continuam sem fallback -- a mudanca nao vazou para eles",
+    'if(campo==="risco")   return item.risco.descricao || "";' in novo
     and 'if(campo==="existente") return item.risco.descMedida || "";' in novo)
 
 print("\n=== 69. LAPIDES QUE VIAJAM: EXCLUSAO FEITA NUM APARELHO VALE NOS OUTROS ===")
@@ -1864,6 +1867,22 @@ chk("exclusao nova nao espera a janela de 10 min para viajar",
     "__lapidesSyncUltimaVerificacao = 0;" in novo)
 chk("toda remocao por lapide deixa rastro no historico",
     'registrarEventoSync("del", chave, a.tipo, 0, true, "excluido em outro aparelho", "");' in novo)
+
+print("\n=== 70. ESCOPO DO EQUIPAMENTO LEVA O NOME DA MAQUINA ===")
+# Usuario, com print: "Seu texto de campo" do Escopo mostrava so "CNV-002" — a
+# Descricao (opcional) da maquina, que em campo e usada para o codigo do ativo.
+# O nome ("Mesa que alimenta a CV-3404") e o primeiro campo preenchido e e o que
+# identifica o equipamento; sem ele o laudo saia com um codigo solto sempre que a
+# IA ainda nao tivesse gerado o texto. A geracao da IA ja mandava Nome +
+# Descricao — quem estava atras eram a tela e o texto final.
+chk("o escopo monta nome + descricao, sem repetir quando sao iguais",
+    "const nomeMaq = nomeMaquinaS(item.maquina);" in novo
+    and 'if(nomeMaq && descMaq && descMaq !== nomeMaq) return nomeMaq + " — " + descMaq;' in novo
+    and 'return descMaq || nomeMaq || "";' in novo)
+chk("o texto do escopo continua com coluna propria e NAO sobrescreve a descricao de campo",
+    'maquina: { ...item.maquina, escopo: t.escopo || item.maquina.escopo || "" },' in novo)
+chk("a geracao da IA continua mandando Nome e Descricao juntos",
+    novo.count("Nome: ${nomeMaquinaS(") == 4)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")

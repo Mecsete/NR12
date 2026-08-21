@@ -44,6 +44,29 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 21/08/2026 11:36
+
+Escopo do equipamento passa a mostrar o nome da máquina.
+
+Na revisão do laudo, o campo **Escopo do equipamento** mostrava em "Seu texto
+de campo" apenas a *Descrição (opcional)* da máquina — que em campo é usada
+para o código do ativo, tipo "CNV-002". Um código sozinho não diz que
+equipamento é, e era ele que ia para o laudo enquanto a IA não tivesse gerado
+o texto.
+
+Agora aparece o **nome da máquina** (o primeiro campo que você preenche no
+cadastro) com a descrição como complemento:
+
+> Mesa que alimenta a CV-3404 — CNV-002
+
+Quando a máquina não tem descrição, vale só o nome; quando os dois são a
+mesma coisa, não se repete. **Nada do que foi preenchido em campo muda:** o
+texto do escopo tem coluna própria e não sobrescreve a Descrição da máquina,
+que continua indo para a coluna do inventário como sempre.
+
+A IA já recebia nome e descrição juntos na hora de gerar — quem estava
+desencontrado era a tela e o texto que ia para o laudo.
+
 ## 21/08/2026 09:40
 
 Corrigido: risco excluído num aparelho voltava a aparecer — e chegava a
