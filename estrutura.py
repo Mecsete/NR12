@@ -1884,6 +1884,41 @@ chk("o texto do escopo continua com coluna propria e NAO sobrescreve a descricao
 chk("a geracao da IA continua mandando Nome e Descricao juntos",
     novo.count("Nome: ${nomeMaquinaS(") == 4)
 
+print("\n=== 71. IMPORTAR TEXTOS DO LAUDO GERADOS FORA DO APP ===")
+# Usuario: "criamos todo um sistema de IA para alimentar os laudos atraves da
+# API mas a API nao consegue tratar o volume". Medido no backup dele: 1209
+# textos pendentes — muito acima do que os planos gratuitos entregam em limite
+# de requisicao e cota diaria. Este caminho aceita os mesmos textos escritos
+# fora do app. O que ele NUNCA pode fazer e passar por cima de decisao do
+# engenheiro ou encostar em dado de campo — e disso que tratam as checagens.
+chk("existe a funcao de importacao, com formato proprio e campos declarados",
+    novo.count("function importarTextosLaudo(pacote){") == 1
+    and 'const LAUDO_TEXTOS_FORMATO = "apr-textos-laudo-v1";' in novo
+    and 'const LAUDO_CAMPOS_IMPORTAVEIS = ["escopo", "tarefa", "risco", "existente", "solucao"];' in novo)
+chk("o texto entra como SUGESTAO a decidir, nunca como decisao tomada",
+    'laudoSet(item, campo, { sug: texto, st: "pend", duv: String((linha && linha.duvida) || "").trim() });' in novo)
+chk("campo que ja tem texto ou decisao NAO e tocado",
+    "if(g.sug || g.fin || g.st){ res.pulados++; return; }" in novo)
+chk("arquivo de outro formato e recusado inteiro, sem aplicar nada",
+    "if(pacote.formato !== LAUDO_TEXTOS_FORMATO || !Array.isArray(pacote.textos)) return null;" in novo)
+chk("a importacao passa por laudoSet — ou seja, carimba para sincronizar",
+    novo.count("laudoSet(item, campo, { sug: texto") == 1
+    and "function laudoCarimbarParaSincronizar(item, campo){" in novo)
+chk("botao, seletor de arquivo e aviso de resultado estao na tela",
+    '<input type="file" id="fileTextosLaudo" accept="application/json,.json" hidden>' in novo
+    and "Importar textos do laudo (.json)" in novo
+    and "por já ter sua decisão." in novo
+    and "sem item correspondente neste aparelho." in novo)
+# O corpo da funcao so escreve via laudoSet: nenhuma atribuicao direta a campo
+# de dado (descricao, nome, foto). Se algum dia alguem acrescentar uma, esta
+# checagem cai — que e exatamente o ponto.
+_ini71 = novo.find("function importarTextosLaudo(pacote){")
+_corpo71 = novo[_ini71:novo.find("\n}", novo.find("if(res.aplicados > 0)", _ini71))]
+chk("a importacao nao escreve em nenhum campo de dado de campo",
+    _ini71 > 0
+    and ".descricao =" not in _corpo71 and ".nome =" not in _corpo71
+    and ".foto" not in _corpo71 and "atualizadoEm =" not in _corpo71)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

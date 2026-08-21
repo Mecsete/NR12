@@ -44,6 +44,30 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 21/08/2026 12:06
+
+Importar textos do laudo gerados fora do app.
+
+Num projeto grande, a geração dos textos pelo provedor de IA não termina: são
+centenas de chamadas e os planos gratuitos cortam por limite de requisições e
+cota diária muito antes do fim. Não é defeito do app — é volume.
+
+Agora, em **Laudo → IA**, existe **"Importar textos do laudo (.json)"**. Ele
+carrega textos escritos fora do app e os coloca no campo certo de cada
+equipamento, tarefa e risco.
+
+Três regras que fazem disso uma ajuda e não um risco:
+
+- Os textos entram como **sugestão aguardando sua decisão**, exatamente como
+  os que a IA gera. Nada vai para o laudo sem você aprovar na tela de revisão.
+- Campo que você **já aplicou, editou ou recusou nunca é tocado**. Importar o
+  mesmo arquivo duas vezes não duplica nem sobrescreve nada.
+- A importação não encosta em **nenhum dado de campo** — nome, descrição,
+  fotos e HRN ficam como estão.
+
+Ao final, a tela informa quantos textos entraram, quantos foram pulados por já
+terem sua decisão e quantos não têm item correspondente neste aparelho.
+
 ## 21/08/2026 11:36
 
 Escopo do equipamento passa a mostrar o nome da máquina.

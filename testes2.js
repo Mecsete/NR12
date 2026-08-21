@@ -5515,6 +5515,116 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
        "a geração do escopo precisa continuar mandando o nome junto");
   });
 
+  console.log("\n=== t113 · importar textos do laudo gerados fora do app ===");
+  /* Por que existe: num projeto com centenas de riscos, a geração pelo
+     provedor de IA esbarra no limite de requisições e na cota diária muito
+     antes de terminar. Este caminho aceita os mesmos textos escritos fora.
+     O que ele NUNCA pode fazer: entrar por cima de decisão do engenheiro,
+     nem encostar em dado de campo. */
+  /* importarTextosLaudo, LAUDO_CAMPOS_IMPORTAVEIS e LAUDO_TEXTOS_FORMATO ja
+     vem dentro do BLOCO_A (moram na secao do laudo, junto de laudoGet e
+     laudoSet) — extrair de novo daria 'Identifier has already been declared'. */
+
+  function arvoreImport(){
+    const T = 1000;
+    const mk = (id, e) => Object.assign({ id, criadoEm:T, atualizadoEm:T }, e||{});
+    STATE.projetosSimples = [ mk("pi", { empresa:"X", areas:[
+      mk("ai", { nome:"A", maquinas:[
+        mk("mi", { nome:"Maq", fotosOutras:[], tarefas:[
+          mk("ti", { tarefa:"Tar", tarefaOutro:"", riscos:[
+            mk("ri", { nome:"R", descricao:"desc de campo", fotosOutras:[] }) ]}) ]}) ]}) ]}) ];
+    STATE.ui.areasSelecionadasExport = ["ai"]; STATE.ui.areasExportConhecidas = ["ai"];
+    return C.linhasEscopoSimples()[0];
+  }
+  const pac = (textos)=>({ formato:"apr-textos-laudo-v1", textos });
+
+  t("os quatro campos entram no item certo, como sugestão a decidir", ()=>{
+    const it = arvoreImport();
+    ctx.__p = pac([ {id:"mi",campo:"escopo", texto:"E"}, {id:"ti",campo:"tarefa", texto:"T"},
+                    {id:"ri",campo:"risco",  texto:"R"}, {id:"ri",campo:"solucao",texto:"S"} ]);
+    const r = vm.runInContext("importarTextosLaudo(__p)", ctx);
+    eq(r.aplicados, 4, JSON.stringify(r));
+    eq(C.laudoGet(it,"escopo").sug, "E"); eq(C.laudoGet(it,"tarefa").sug, "T");
+    eq(C.laudoGet(it,"risco").sug, "R");  eq(C.laudoGet(it,"solucao").sug, "S");
+    ["escopo","tarefa","risco","solucao"].forEach(c=>
+      eq(C.laudoGet(it,c).st, "pend", c + " não entrou como 'aguardando decisão'"));
+  });
+  t("a dúvida da IA vem junto com o texto", ()=>{
+    const it = arvoreImport();
+    ctx.__p = pac([ {id:"ri",campo:"risco",texto:"R",duvida:"O que falta saber?"} ]);
+    vm.runInContext("importarTextosLaudo(__p)", ctx);
+    eq(C.laudoGet(it,"risco").duv, "O que falta saber?");
+  });
+  t("NUNCA entra por cima de texto já aplicado, editado ou recusado", ()=>{
+    ["ok","edit","no"].forEach(estado=>{
+      const it = arvoreImport();
+      C.laudoSet(it, "risco", { fin:"DECISÃO DO ENGENHEIRO", st:estado });
+      ctx.__p = pac([ {id:"ri",campo:"risco",texto:"TEXTO IMPORTADO"} ]);
+      const r = vm.runInContext("importarTextosLaudo(__p)", ctx);
+      eq(r.aplicados, 0, "aplicou por cima de um campo com estado '"+estado+"'");
+      eq(r.pulados, 1);
+      eq(C.laudoGet(it,"risco").fin, "DECISÃO DO ENGENHEIRO", "apagou a decisão do engenheiro ("+estado+")");
+      eq(C.laudoGet(it,"risco").sug, "", "escreveu sugestão por cima de campo já decidido ("+estado+")");
+    });
+  });
+  t("também não entra por cima de sugestão que já existe", ()=>{
+    const it = arvoreImport();
+    C.laudoSet(it, "risco", { sug:"SUGESTÃO ANTERIOR" });
+    ctx.__p = pac([ {id:"ri",campo:"risco",texto:"NOVA"} ]);
+    const r = vm.runInContext("importarTextosLaudo(__p)", ctx);
+    eq(r.aplicados, 0); eq(C.laudoGet(it,"risco").sug, "SUGESTÃO ANTERIOR");
+  });
+  t("importar duas vezes não duplica nem sobrescreve", ()=>{
+    const it = arvoreImport();
+    ctx.__p = pac([ {id:"ri",campo:"risco",texto:"R"} ]);
+    eq(vm.runInContext("importarTextosLaudo(__p)", ctx).aplicados, 1);
+    const r2 = vm.runInContext("importarTextosLaudo(__p)", ctx);
+    eq(r2.aplicados, 0); eq(r2.pulados, 1);
+    eq(C.laudoGet(it,"risco").sug, "R");
+  });
+  t("nenhum dado de campo é alterado pela importação", ()=>{
+    const it = arvoreImport();
+    ctx.__p = pac([ {id:"mi",campo:"escopo",texto:"E"}, {id:"ri",campo:"risco",texto:"R"} ]);
+    vm.runInContext("importarTextosLaudo(__p)", ctx);
+    eq(it.risco.descricao, "desc de campo", "mexeu na descrição escrita em campo");
+    eq(it.maquina.nome, "Maq", "mexeu no nome da máquina");
+  });
+  t("item que não existe neste aparelho é contado, não quebra", ()=>{
+    arvoreImport();
+    ctx.__p = pac([ {id:"NAO-EXISTE",campo:"risco",texto:"R"} ]);
+    const r = vm.runInContext("importarTextosLaudo(__p)", ctx);
+    eq(r.naoAchados, 1); eq(r.aplicados, 0);
+  });
+  t("linha sem texto, sem id ou com campo inválido é recusada", ()=>{
+    arvoreImport();
+    ctx.__p = pac([ {id:"ri",campo:"risco",texto:"   "}, {id:"",campo:"risco",texto:"R"},
+                    {id:"ri",campo:"inventado",texto:"R"}, {id:"ri",campo:"laudoIA",texto:"R"} ]);
+    const r = vm.runInContext("importarTextosLaudo(__p)", ctx);
+    eq(r.invalidos, 4, JSON.stringify(r)); eq(r.aplicados, 0);
+  });
+  t("arquivo de outro formato é recusado inteiro", ()=>{
+    arvoreImport();
+    ctx.__p = { formato:"outra-coisa", textos:[{id:"ri",campo:"risco",texto:"R"}] };
+    eq(vm.runInContext("importarTextosLaudo(__p)", ctx), null);
+    ctx.__p = { formato:"apr-textos-laudo-v1" };            // sem a lista
+    eq(vm.runInContext("importarTextosLaudo(__p)", ctx), null);
+    eq(vm.runInContext("importarTextosLaudo(null)", ctx), null);
+  });
+  t("o texto importado carimba o item para sincronizar com os outros aparelhos", ()=>{
+    const it = arvoreImport();
+    const antes = it.risco.atualizadoEm;
+    ctx.__p = pac([ {id:"ri",campo:"risco",texto:"R"} ]);
+    vm.runInContext("importarTextosLaudo(__p)", ctx);
+    ok(it.risco.atualizadoEm > antes, "sem carimbo, o texto ficaria só neste aparelho");
+  });
+  t("a tela avisa o resultado e o botão existe na aba IA", ()=>{
+    ok(HTML.indexOf("Importar textos do laudo (.json)") > 0, "sem o botão de importar");
+    ok(HTML.indexOf('<input type="file" id="fileTextosLaudo"') > 0, "sem o seletor de arquivo");
+    ok(HTML.indexOf("por já ter sua decisão.") > 0, "não informa quantos foram pulados");
+    ok(HTML.indexOf("sem item correspondente neste aparelho.") > 0, "não informa os não encontrados");
+  });
+  STATE.projetosSimples = [];
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);
