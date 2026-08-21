@@ -44,6 +44,33 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 21/08/2026 12:15
+
+Escopo do equipamento passa a identificar a máquina com os campos rotulados.
+
+No cartão **Escopo do equipamento** aparecia uma linha só de texto. Numa
+máquina cadastrada apenas com a tag (por exemplo "QD-NDC-02"), não dava para
+saber se aquilo era o nome, o código ou a descrição — nem o que faltava
+preencher. Agora aparece assim:
+
+> **Equipamento**
+> Nome: QD-NDC-02
+> Descrição: *não preenchido em campo*
+> Tipo: *não preenchido em campo*
+
+O que está em branco é dito em branco, em vez de simplesmente não aparecer —
+é assim que se enxerga, na hora de revisar, que a máquina foi cadastrada só
+com a tag e por isso a IA não tem do que escrever o escopo. Um botão
+**Editar equipamento** leva direto ao cadastro, sem sair do laudo. O texto que
+vai para o laudo continua sendo nome + descrição, como antes.
+
+**Corrigido junto:** os atalhos "Editar tarefa" (no alerta de Frequência/Nº de
+pessoas) e "Editar a tarefa"/"Editar a máquina" (no menu ⋮) podiam não abrir
+nada, sem mensagem nenhuma. As telas de cadastro só localizam o item dentro do
+projeto "atual", e a aba Laudo nunca definia isso — bastava entrar direto no
+Laudo para o botão ficar mudo. Agora todos os atalhos passam pelo mesmo ponto,
+que acerta isso antes de abrir.
+
 ## 21/08/2026 12:06
 
 Importar textos do laudo gerados fora do app.

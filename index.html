@@ -1841,7 +1841,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "21/08/2026 12:06";
+const APP_BUILD = "21/08/2026 12:15";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -11939,6 +11939,20 @@ function laudoItensDoEscopo(){
   const ids = getAreasSelecionadasExport();
   return linhasEscopoSimples().filter(it=> ids.includes(it.area.id));
 }
+/* ABRIR O CADASTRO A PARTIR DA TELA DO LAUDO.
+   abrirModalAreaS/MaquinaS/TarefaS/RiscoS só encontram o item DENTRO do
+   projeto "atual" (STATE.ui.projetoSId → todasAreasSimples → ...), e a aba
+   Laudo nunca precisou definir isso: ela navega por laudoRiscoId. Sem
+   sincronizar antes, o atalho simplesmente não abre nada — falha calada.
+   menuLaudoCard já fazia isso inline; virou função para que todo atalho novo
+   passe pelo mesmo lugar em vez de repetir (e esquecer) as quatro linhas. */
+function laudoSincronizarAtuais(item){
+  if(!item) return;
+  if(item.proj)    STATE.ui.projetoSId = item.proj.id;
+  if(item.area)    STATE.ui.areaSId    = item.area.id;
+  if(item.maquina) STATE.ui.maquinaSId = item.maquina.id;
+  if(item.tarefa)  STATE.ui.tarefaSId  = item.tarefa.id;
+}
 function laudoItemPorId(riscoId){
   return laudoItensDoEscopo().find(it=> it.risco.id === riscoId) || linhasEscopoSimples().find(it=> it.risco.id === riscoId) || null;
 }
@@ -13225,6 +13239,31 @@ function laudoBlocoPlaqueta(item){
       : "Sem foto da plaqueta ainda — fotografe pelos botões ao lado e a IA já tenta ler os dados na sequência."}</div>
   </div>`;
 }
+/* IDENTIFICAÇÃO DO EQUIPAMENTO NO CARTÃO DO ESCOPO.
+   Quem está revisando precisa saber DE QUE MÁQUINA o texto fala antes de
+   aprová-lo. A trilha no topo da tela é pequena e cortada, e uma linha só de
+   texto ("QD-NDC-02") não diz se aquilo é o nome, o código ou a descrição.
+   Aqui cada dado aparece com seu rótulo — e o que não foi preenchido aparece
+   dito como não preenchido, em vez de simplesmente não aparecer. É isso que
+   deixa visível, na hora da revisão, que a máquina foi cadastrada só com a
+   tag: sem nome descritivo e sem tipo, a IA não tem do que escrever o escopo.
+   O botão leva direto ao cadastro do equipamento, sem sair do laudo. */
+function laudoBlocoIdentificacaoEquipamento(item){
+  const m = (item && item.maquina) || {};
+  const areaId = ((item && item.area) || {}).id || "";
+  const tipo = valOuOutro(m.tipoEquip, m.tipoEquipOutro);
+  const linha = (rot, valor) => `<div style="display:flex;gap:8px;margin-top:3px">
+      <span style="flex-shrink:0;font-weight:700;color:var(--ink-dim);min-width:70px">${rot}</span>
+      <span style="min-width:0;${valor ? "color:var(--ink);font-weight:600" : "color:var(--ink-faint);font-style:italic"}">${escapeHtml(valor || "não preenchido em campo")}</span>
+    </div>`;
+  return `<div style="font-size:11px;font-weight:800;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Equipamento</div>
+    <div style="font-size:13px;background:var(--bg-soft);border-radius:8px;padding:9px 10px">
+      ${linha("Nome:", m.nome||"")}
+      ${linha("Descrição:", m.descricao||"")}
+      ${linha("Tipo:", tipo)}
+      ${m.id ? `<button type="button" class="clear-text-btn" style="margin-top:8px" onclick="App.laudoEditarEquipamento('${(item.risco||{}).id||""}')">${ic('edit')} Editar equipamento</button>` : ""}
+    </div>`;
+}
 function laudoBlocoCampo(item, campo){
   const def = laudoCampoDef(campo);
   const g = laudoGet(item, campo);
@@ -13254,6 +13293,8 @@ function laudoBlocoCampo(item, campo){
 
     ${campo==="existente"
       ? laudoBlocoMedidaExistenteEditavelHtml(item)
+      : campo==="escopo"
+      ? laudoBlocoIdentificacaoEquipamento(item)
       : `<div style="font-size:11px;font-weight:800;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">${campo==="solucao" ? "O que você propôs em campo" : "Seu texto de campo"}</div>
     <div style="font-size:13px;color:var(--ink-dim);background:var(--bg-soft);border-radius:8px;padding:9px 10px;white-space:pre-wrap">${escapeHtml(orig || "(nada escrito em campo)")}</div>
     ${solucaoSemProposta? `<div class="field-hint" style="margin-top:5px">Você ainda não escreveu o que precisa ser feito. Sem proposta, o laudo repete a descrição do que já existe — gere a sugestão da IA ou escreva a solução no risco.</div>`:""}`}
@@ -13359,7 +13400,7 @@ function laudoBlocoHRN(item){
       <div class="field" style="margin-bottom:0">
         <label style="display:flex;align-items:center;gap:4px">${!freqTarefa? `<span style="color:#B3261E">Frequência (FE)</span>` : "Frequência (FE)"} ${laudoInfoBtnHrn("fe")}</label>
         ${laudoValorTarefaHrn(freqTarefa? "Da tarefa ("+freqTarefa+"): "+autoFE : "Sem frequência na tarefa", !freqTarefa)}
-        ${!freqTarefa? `<div class="field-hint" style="color:#B3261E;margin-top:3px">A tarefa não tem frequência informada. <button type="button" class="clear-text-btn" style="display:inline-flex;color:#B3261E" onclick="App.abrirModalTarefaS('${item.tarefa.id}','${item.maquina.id}')">${ic('edit')} Editar tarefa</button></div>`:""}
+        ${!freqTarefa? `<div class="field-hint" style="color:#B3261E;margin-top:3px">A tarefa não tem frequência informada. <button type="button" class="clear-text-btn" style="display:inline-flex;color:#B3261E" onclick="App.laudoEditarTarefa('${item.risco.id}')">${ic('edit')} Editar tarefa</button></div>`:""}
         ${laudoInfoBoxHrn("fe", HRN_FE_TABELA)}
       </div>
       <div class="field" style="margin-bottom:0">
@@ -13370,7 +13411,7 @@ function laudoBlocoHRN(item){
       <div class="field" style="margin-bottom:0">
         <label style="display:flex;align-items:center;gap:4px">${!npTarefa? `<span style="color:#B3261E">Nº de pessoas (NP)</span>` : "Nº de pessoas (NP)"} ${laudoInfoBtnHrn("np")}</label>
         ${laudoValorTarefaHrn(npTarefa? "Da tarefa ("+npTarefa+"): "+autoNP : "Sem nº na tarefa", !npTarefa)}
-        ${!npTarefa? `<div class="field-hint" style="color:#B3261E;margin-top:3px">A tarefa não tem nº de pessoas informado. <button type="button" class="clear-text-btn" style="display:inline-flex;color:#B3261E" onclick="App.abrirModalTarefaS('${item.tarefa.id}','${item.maquina.id}')">${ic('edit')} Editar tarefa</button></div>`:""}
+        ${!npTarefa? `<div class="field-hint" style="color:#B3261E;margin-top:3px">A tarefa não tem nº de pessoas informado. <button type="button" class="clear-text-btn" style="display:inline-flex;color:#B3261E" onclick="App.laudoEditarTarefa('${item.risco.id}')">${ic('edit')} Editar tarefa</button></div>`:""}
         ${laudoInfoBoxHrn("np", HRN_NP_TABELA)}
       </div>
     </div>
@@ -17693,17 +17734,29 @@ const App = {
   menuLaudoCard(rid, tarefaId){
     const item = laudoItemPorId(rid);
     if(!item) return;
-    STATE.ui.projetoSId = item.proj.id; STATE.ui.areaSId = item.area.id;
-    STATE.ui.maquinaSId = item.maquina.id; STATE.ui.tarefaSId = item.tarefa.id;
+    laudoSincronizarAtuais(item);
     const nomeRisco = item.risco.nome===OUTRO ? item.risco.nomeOutro : item.risco.nome;
     abrirMenuAcoes(nomeRisco||"Risco", "", [
       {label:"Visualizar / editar o risco", icon:"edit", onclick:`App.abrirModalRiscoS('${rid}','${tarefaId}')`},
-      {label:"Editar a tarefa", icon:"edit", onclick:`App.abrirModalTarefaS('${item.tarefa.id}','${item.maquina.id}')`},
-      {label:"Editar a máquina/ativo", icon:"edit", onclick:`App.abrirModalMaquinaS('${item.maquina.id}','${item.area.id}')`},
+      {label:"Editar a tarefa", icon:"edit", onclick:`App.laudoEditarTarefa('${rid}')`},
+      {label:"Editar a máquina/ativo", icon:"edit", onclick:`App.laudoEditarEquipamento('${rid}')`},
       {label:"Editar a área", icon:"edit", onclick:`App.abrirModalAreaS('${item.area.id}','${item.proj.id}')`},
       {label:"Copiar risco", icon:"copy", onclick:`App.laudoCopiarRisco('${rid}')`},
       {label:"Excluir risco", icon:"trash", onclick:`App.removerRiscoS('${rid}','${tarefaId}')`, danger:true},
     ]);
+  },
+  /* Atalhos do laudo para o cadastro. Passam por laudoSincronizarAtuais
+     porque, sem isso, abrirModalMaquinaS/TarefaS não localizam o item e o
+     modal não abre. */
+  laudoEditarEquipamento(rid){
+    const it = laudoItemPorId(rid); if(!it) return;
+    laudoSincronizarAtuais(it);
+    App.abrirModalMaquinaS(it.maquina.id, it.area.id);
+  },
+  laudoEditarTarefa(rid){
+    const it = laudoItemPorId(rid); if(!it) return;
+    laudoSincronizarAtuais(it);
+    App.abrirModalTarefaS(it.tarefa.id, it.maquina.id);
   },
   laudoCopiarRisco(rid){
     // Não depende do "atual" — resolve tudo a partir do próprio risco,

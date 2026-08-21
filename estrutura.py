@@ -1370,11 +1370,12 @@ chk("vermelho (borda + fundo + texto) só quando a tarefa não tem o dado",
 # 19/08: em vez de só um texto pedindo para editar a tarefa em outra tela, o
 # alerta ganhou um botão que abre o MESMO modal de edição de tarefa usado no
 # cadastro em campo (abrirModalTarefaS) — sem sair da página do laudo.
+# 21/08: os botoes passaram a chamar App.laudoEditarTarefa, que sincroniza o
+# projeto "atual" ANTES de abrir. Chamando abrirModalTarefaS direto, como era
+# antes, o modal nao abria quando a pessoa entrava direto no Laudo (o estado em
+# que STATE.ui.projetoSId ainda esta vazio) -- falha calada.
 chk("o alerta de FE/NP sem preenchimento tem botão que abre a tarefa sem sair do laudo",
-    # 3 ocorrências do mesmo literal: 1 no botão do alerta de FE, 1 no de NP
-    # (ambos em laudoBlocoHRN) e 1 no atalho "Editar a tarefa" do menu '...'
-    # (menuLaudoCard) -- as três chamam o mesmo abrirModalTarefaS, de propósito.
-    novo.count("App.abrirModalTarefaS('${item.tarefa.id}','${item.maquina.id}')") == 3)
+    novo.count("App.laudoEditarTarefa('${item.risco.id}')") == 2)
 
 print("\n=== 55. REDESENHO DE FUNDO NAO DERRUBA MAIS O FOCO DE QUEM DIGITA ===")
 # Usuario reportou de novo, depois do fix anterior (laudoSetMedidaExistenteCampo
@@ -1415,9 +1416,18 @@ _fimImlc = novo.find("laudoCopiarRisco(rid){", _imlc)
 _trechoImlc = novo[_imlc:_fimImlc] if _imlc > 0 else ""
 chk("menuLaudoCard resolve o item via laudoItemPorId (nao depende do 'atual')",
     _imlc > 0 and "const item = laudoItemPorId(rid);" in _trechoImlc)
+# 21/08: as quatro atribuicoes sairam de dentro de menuLaudoCard e viraram
+# laudoSincronizarAtuais, porque os atalhos NOVOS (editar equipamento, editar
+# tarefa) precisavam exatamente da mesma coisa e falhavam calados sem ela.
+# A checagem passou a cobrir o ponto unico onde isso agora mora.
 chk("menuLaudoCard sincroniza projeto/area/maquina/tarefa 'atuais' antes de abrir o menu",
-    "STATE.ui.projetoSId = item.proj.id; STATE.ui.areaSId = item.area.id;" in _trechoImlc
-    and "STATE.ui.maquinaSId = item.maquina.id; STATE.ui.tarefaSId = item.tarefa.id;" in _trechoImlc)
+    "laudoSincronizarAtuais(item);" in _trechoImlc)
+chk("laudoSincronizarAtuais faz as quatro sincronizacoes, num lugar so",
+    novo.count("function laudoSincronizarAtuais(item){") == 1
+    and "if(item.proj)    STATE.ui.projetoSId = item.proj.id;" in novo
+    and "if(item.area)    STATE.ui.areaSId    = item.area.id;" in novo
+    and "if(item.maquina) STATE.ui.maquinaSId = item.maquina.id;" in novo
+    and "if(item.tarefa)  STATE.ui.tarefaSId  = item.tarefa.id;" in novo)
 _fimLcr = novo.find("laudoAbrirItem(id){", _imlc)
 _trechoLcr = novo[novo.find("laudoCopiarRisco(rid){", _imlc):_fimLcr]
 chk("laudoCopiarRisco tambem usa laudoItemPorId -- nao volta a depender de buscarTarefaSimplesPorId",
@@ -1778,9 +1788,12 @@ print("\n=== 67. EDITAR AREA/MAQUINA/TAREFA/RISCO SEM SAIR DA PAGINA DO LAUDO ==
 # campo (abrirModalAreaS/MaquinaS/TarefaS/RiscoS, com o mesmo formulario e a
 # mesma gravacao) -- nao existe formulario duplicado so para o laudo.
 chk("o menu '...' do laudo ganhou atalhos para area, maquina e tarefa, alem do risco que ja existia",
-    novo.count("App.abrirModalTarefaS('${item.tarefa.id}','${item.maquina.id}')") >= 1
-    and novo.count("App.abrirModalMaquinaS('${item.maquina.id}','${item.area.id}')") == 1
+    novo.count("App.laudoEditarTarefa('${rid}')") == 1
+    and novo.count("App.laudoEditarEquipamento('${rid}')") == 1
     and novo.count("App.abrirModalAreaS('${item.area.id}','${item.proj.id}')") == 1)
+chk("os atalhos passam por metodos que sincronizam o 'atual' antes de abrir",
+    "  laudoEditarEquipamento(rid){" in novo and "  laudoEditarTarefa(rid){" in novo
+    and novo.count("laudoSincronizarAtuais(it);") == 2)
 _iniMenu = novo.find("menuLaudoCard(rid, tarefaId){")
 _fimMenu = novo.find("laudoCopiarRisco(rid){", _iniMenu)
 _trechoMenu = novo[_iniMenu:_fimMenu]

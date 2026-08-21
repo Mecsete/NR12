@@ -4396,8 +4396,13 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(f_ini > 0, "método não encontrado");
       ok(trecho.indexOf("const item = laudoItemPorId(rid);") > 0,
          "precisa resolver o item sem depender do 'atual' — é o próprio bug que isto corrige");
-      ok(trecho.indexOf("STATE.ui.projetoSId = item.proj.id;") > 0);
-      ok(trecho.indexOf("STATE.ui.tarefaSId = item.tarefa.id;") > 0);
+      /* As quatro atribuições saíram daqui e viraram laudoSincronizarAtuais:
+         os atalhos novos (editar equipamento/tarefa) precisavam da mesma coisa
+         e falhavam calados sem ela. Agora existe um ponto só. */
+      ok(trecho.indexOf("laudoSincronizarAtuais(item);") > 0, "deixou de sincronizar o 'atual'");
+      const helper = funcao("laudoSincronizarAtuais");
+      ok(helper.indexOf("STATE.ui.projetoSId = item.proj.id;") > 0);
+      ok(helper.indexOf("STATE.ui.tarefaSId  = item.tarefa.id;") > 0);
     });
   t("laudoCopiarRisco usa laudoItemPorId, não buscarTarefaSimplesPorId (não depende do 'atual')",
     ()=>{
@@ -4437,8 +4442,8 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     const f_ini = HTML.indexOf("menuLaudoCard(rid, tarefaId){");
     const f_fim = HTML.indexOf("laudoCopiarRisco(rid){", f_ini);
     const trecho = HTML.slice(f_ini, f_fim);
-    ok(trecho.indexOf("App.abrirModalTarefaS('${item.tarefa.id}','${item.maquina.id}')") > 0, "sem atalho para editar a tarefa");
-    ok(trecho.indexOf("App.abrirModalMaquinaS('${item.maquina.id}','${item.area.id}')") > 0, "sem atalho para editar a máquina");
+    ok(trecho.indexOf("App.laudoEditarTarefa('${rid}')") > 0, "sem atalho para editar a tarefa");
+    ok(trecho.indexOf("App.laudoEditarEquipamento('${rid}')") > 0, "sem atalho para editar a máquina");
     ok(trecho.indexOf("App.abrirModalAreaS('${item.area.id}','${item.proj.id}')") > 0, "sem atalho para editar a área");
     const iVer = trecho.indexOf("Visualizar / editar o risco");
     const iTarefa = trecho.indexOf("Editar a tarefa");
@@ -4453,7 +4458,10 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
        nenhum jeito de agir a partir da própria tela do laudo. */
     const item = { risco:{ id:"rAlertBtn" }, tarefa:{ id:"tAlertBtn", frequencia:"", numPessoas:"" }, maquina:{ id:"mAlertBtn" } };
     const html = C.laudoBlocoHRN(item);
-    eq((html.match(/App\.abrirModalTarefaS\('tAlertBtn','mAlertBtn'\)/g)||[]).length, 2,
+    /* Passa por App.laudoEditarTarefa (e não direto por abrirModalTarefaS)
+       porque só ele sincroniza o projeto "atual" antes de abrir — sem isso o
+       modal não abria para quem entrava direto na aba Laudo. */
+    eq((html.match(/App\.laudoEditarTarefa\('rAlertBtn'\)/g)||[]).length, 2,
        "esperado um botão de editar tarefa junto do alerta de FE e outro junto do de NP");
   });
   t("excluir continua pedindo confirmação — reaproveita removerRiscoS sem duplicar a lógica",
@@ -5624,6 +5632,84 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(HTML.indexOf("sem item correspondente neste aparelho.") > 0, "não informa os não encontrados");
   });
   STATE.projetosSimples = [];
+
+  console.log("\n=== t114 · Escopo identifica o equipamento e o atalho abre de verdade ===");
+  /* Usuário, com print: no cartão do Escopo aparecia só "QD-NDC-02" e não dava
+     para saber se aquilo era o nome, o código ou a descrição — nem o que
+     faltava preencher. Agora cada dado tem seu rótulo, e o que está em branco
+     é dito em branco. */
+  const idEq = (maq, area)=> C.laudoBlocoIdentificacaoEquipamento({ maquina:maq, area:area||{id:"a1"}, risco:{id:"r1"} });
+
+  t("os três dados do equipamento aparecem rotulados", ()=>{
+    const h = idEq({ id:"m1", nome:"Mesa que alimenta a CV-3404", descricao:"CNV-002", tipoEquip:"Correia transportadora" });
+    ["Equipamento","Nome:","Descrição:","Tipo:"].forEach(r=> ok(h.indexOf(r)>0, "faltou o rótulo "+r));
+    ok(h.indexOf("Mesa que alimenta a CV-3404")>0);
+    ok(h.indexOf("CNV-002")>0);
+    ok(h.indexOf("Correia transportadora")>0);
+  });
+  t("o que não foi preenchido em campo é dito, não some da tela", ()=>{
+    /* O caso do print: máquina cadastrada só com a tag. Antes ficava a dúvida
+       "o app está mostrando o nome ou a descrição?"; agora está escrito. */
+    const h = idEq({ id:"m1", nome:"QD-NDC-02", descricao:"", tipoEquip:"" });
+    eq((h.match(/não preenchido em campo/g)||[]).length, 2,
+       "descrição e tipo vazios precisam aparecer como não preenchidos");
+    ok(h.indexOf("QD-NDC-02")>0, "o nome sumiu");
+  });
+  t("tipo 'Outro (especificar)' mostra o que foi digitado, não o rótulo interno", ()=>{
+    const h = idEq({ id:"m1", nome:"X", descricao:"", tipoEquip:OUTRO, tipoEquipOutro:"Transportador de canecas duplo" });
+    ok(h.indexOf("Transportador de canecas duplo")>0);
+    ok(h.indexOf(OUTRO) < 0, "vazou o valor interno do 'Outro'");
+  });
+  t("o cartão do Escopo usa a identificação; os outros campos seguem como antes", ()=>{
+    ok(HTML.indexOf("      : campo===\"escopo\"\n      ? laudoBlocoIdentificacaoEquipamento(item)") > 0,
+       "o cartão do escopo não passou a usar a identificação");
+    ok(HTML.indexOf('${campo==="solucao" ? "O que você propôs em campo" : "Seu texto de campo"}') > 0,
+       "os demais campos perderam o rótulo de sempre");
+  });
+  t("o texto que VAI PARA O LAUDO continua sendo nome + descrição", ()=>{
+    /* A identificação é só a leitura na tela: o texto do laudo não muda. */
+    const item = { maquina:{ id:"m1", nome:"Mesa", descricao:"CNV-002", laudoIA:{} }, tarefa:{laudoIA:{}}, risco:{laudoIA:{}} };
+    eq(C.laudoTextoFinal(item, "escopo"), "Mesa — CNV-002");
+  });
+  t("máquina sem id não desenha botão quebrado", ()=>{
+    const h = idEq({ nome:"X", descricao:"", tipoEquip:"" });
+    ok(h.indexOf("Editar equipamento") < 0, "botão apontando para máquina sem id");
+  });
+
+  /* O DEFEITO QUE ISTO GUARDA: abrirModalMaquinaS/TarefaS só acham o item
+     DENTRO do projeto "atual" (STATE.ui.projetoSId). A aba Laudo nunca define
+     isso — navega por laudoRiscoId. Os atalhos chamando o modal direto não
+     abriam nada, sem mensagem nenhuma. */
+  t("os atalhos do laudo sincronizam o 'atual' antes de abrir o cadastro", ()=>{
+    /* São métodos do App (laudoEditarEquipamento(rid){...}), não funções
+       soltas — funcao() não os alcança. Recorte direto do arquivo, que é o
+       padrão do projeto para os métodos do App. */
+    const recorte = (nome)=>{ const i = HTML.indexOf("  " + nome + "(rid){"); return HTML.slice(i, i+340); };
+    const eq_ = recorte("laudoEditarEquipamento");
+    const tf_ = recorte("laudoEditarTarefa");
+    ok(eq_.indexOf("laudoSincronizarAtuais(it);") > 0, "editar equipamento abriria em branco");
+    ok(tf_.indexOf("laudoSincronizarAtuais(it);") > 0, "editar tarefa abriria em branco");
+    ok(eq_.indexOf("laudoSincronizarAtuais(it);") < eq_.indexOf("App.abrirModalMaquinaS("),
+       "sincronizar precisa vir ANTES de abrir, senão não adianta");
+    ok(tf_.indexOf("laudoSincronizarAtuais(it);") < tf_.indexOf("App.abrirModalTarefaS("),
+       "sincronizar precisa vir ANTES de abrir, senão não adianta");
+  });
+  t("laudoSincronizarAtuais preenche os quatro níveis e aguenta item incompleto", ()=>{
+    STATE.ui.projetoSId = null; STATE.ui.areaSId = null; STATE.ui.maquinaSId = null; STATE.ui.tarefaSId = null;
+    ctx.__it = { proj:{id:"P"}, area:{id:"A"}, maquina:{id:"M"}, tarefa:{id:"T"}, risco:{id:"R"} };
+    vm.runInContext("laudoSincronizarAtuais(__it)", ctx);
+    eq(STATE.ui.projetoSId, "P"); eq(STATE.ui.areaSId, "A");
+    eq(STATE.ui.maquinaSId, "M"); eq(STATE.ui.tarefaSId, "T");
+    vm.runInContext("laudoSincronizarAtuais(null)", ctx);   // não pode quebrar
+    eq(STATE.ui.projetoSId, "P", "um item nulo não pode zerar o que já estava certo");
+  });
+  t("os atalhos resolvem o item pelo risco, sem depender do 'atual'", ()=>{
+    ["laudoEditarEquipamento","laudoEditarTarefa"].forEach(m=>{
+      const i = HTML.indexOf("  " + m + "(rid){");
+      ok(i > 0, m + " não existe");
+      ok(HTML.slice(i, i+340).indexOf("laudoItemPorId(rid)") > 0, m + " voltou a depender do 'atual'");
+    });
+  });
 
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
