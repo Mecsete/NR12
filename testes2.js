@@ -201,6 +201,15 @@ vm.runInContext((/\nconst IA_LOCALSTORAGE_KEYS\s*=\s*"[^"]*";/.exec(HTML)||[""])
    explicito bateria em "sem chave" e devolveria 0. */
 vm.runInContext("setIAApiKey('k')", ctx);
 
+/* lapides de exclusao que viajam entre aparelhos, extraidas do arquivo entregue */
+vm.runInContext(constante("LAPIDE_VALIDADE_MS"), ctx);
+vm.runInContext("var __lapidesSyncUltimaVerificacao = 0;", ctx);
+[ "registrarLapidesExclusao","exclusaoConfirmadaPeloUsuario","lapideDe","lapideVenceDadosRemotos",
+  "__lapideFilhos","__subarvoreTocadaDepoisDe","__tamanhoSubarvore","__lapidesRemoviveis",
+  "idsSincronizaveisDe","getLapidesSyncEm","marcarLapidesAlteradas",
+  "montarPacoteLapides","aplicarPacoteLapides"
+].forEach(n=> vm.runInContext(funcao(n), ctx));
+
 /* blocos novos, extraidos do arquivo entregue */
 const BLOCO_A = trecho("/* =========================================================================\n   GESTÃO DO LAUDO — os textos da IA passam a morar DENTRO do app", "\nfunction hrnDoItem({tarefa,risco}){");
 const BLOCO_B = trecho("/* =========================================================================\n   GESTÃO DO LAUDO — TELAS", "\nfunction screenSimplesConfig(){");
@@ -3960,8 +3969,16 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     const f = funcao("onedriveSincronizarModulo");
     ok(f.indexOf('registrarEventoSync("del", registro.arquivo, "exclusão"') > 0,
        "apagar ficava sem rastro nenhum no app");
-    ok(f.indexOf('exclusaoConfirmadaPeloUsuario(id) ? "exclusão confirmada no aparelho" : "sumiu do aparelho, confirmado na sincronização"') > 0,
+    /* A expressão virou a variável confirmadaAntes, lida ANTES de apagar: a
+       exclusão agora GRAVA lápide durante o próprio envio, e se a pergunta
+       fosse feita depois disso todo apagamento passaria a se dizer
+       "confirmado no aparelho", inclusive o que só sumiu. */
+    ok(f.indexOf('const confirmadaAntes = exclusaoConfirmadaPeloUsuario(id);') > 0,
+       "sem ler antes de apagar, o registro passa a mentir o motivo");
+    ok(f.indexOf('confirmadaAntes ? "exclusão confirmada no aparelho" : "sumiu do aparelho, confirmado na sincronização"') > 0,
        "sem distinguir os dois caminhos, o registro não responde POR QUE apagou");
+    ok(f.indexOf('const confirmadaAntes') < f.indexOf('onedriveApagarBlob(subpasta, registro.arquivo)'),
+       "a leitura precisa vir ANTES do apagamento, não depois");
   });
   /* O motivo só era guardado em falha ou reparo — numa exclusão bem-sucedida
      ele se perderia, que é justamente o dado que se quer depois. */
@@ -4615,11 +4632,17 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ONEDRIVE_LIMITE_AUTO_BYTES: 300000, CAMPO_FOTOS_LISTA:"fotosOutras",
       nomeMaquinaS: m=>m.nome||"", valOuOutro:(v,o)=>v===OUTRO?(o||""):(v||""),
       Blob: class { constructor(a){ this.size = Buffer.byteLength(a.join(""),"utf8"); } },
-      exclusaoConfirmadaPeloUsuario: ()=>false, registrarEventoSync: ()=>{},
+      registrarEventoSync: ()=>{},
       marcarProgressoSync: ()=>{}, localizarItemLocal: ()=>null,
       completarFotosDeItem: ()=>false, itemTemFotosEmbutidas: ()=>false,
     };
     vm.createContext(ctxS);
+    /* Lápides de verdade (antes era o stub exclusaoConfirmadaPeloUsuario:false).
+       Sem STATE.exclusoesConfirmadas preenchido elas devolvem "não há lápide",
+       que é o cenário deste grupo — mas agora é o código real decidindo. */
+    vm.runInContext(constante("LAPIDE_VALIDADE_MS"), ctxS);
+    ["exclusaoConfirmadaPeloUsuario","lapideDe","lapideVenceDadosRemotos"]
+      .forEach(n=> vm.runInContext(funcao(n), ctxS));
     /* nomeArquivoSeguro entra à mão: a regex dele tem aspas dentro da classe
        de caracteres e o extrator funcao() acima para no lugar errado. */
     vm.runInContext('function nomeArquivoSeguro(s){ let n = String(s||"sem-nome").trim().slice(0,48)'
@@ -4936,7 +4959,9 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     vm.createContext(ctxR);
     vm.runInContext("var __arvoreSimplesCache=null; var __arvoreNuvemIncompleta=false;", ctxR);
     vm.runInContext("var __assinaturasOneDriveSimples = { mapa:null, chaveEstado:'oneDriveAssinaturasSimples' };", ctxR);
-    ["onedriveCarregarAssinaturas","onedriveColetarArquivosDaArvore","onedriveReconciliarComArvore"]
+    vm.runInContext(constante("LAPIDE_VALIDADE_MS"), ctxR);
+    ["onedriveCarregarAssinaturas","onedriveColetarArquivosDaArvore","onedriveReconciliarComArvore",
+     "lapideDe","lapideVenceDadosRemotos"]
       .forEach(n=> vm.runInContext(funcao(n), ctxR));
     vm.runInContext(`function listarItensSincronizaveisSimples(){ return [
       { id:"risco:r1", tipo:"risco", atualizadoEm:1, pasta:["Proj","AreaOk","Maq","Tar"], arquivo:"risco_r1.json", dados:{} },
@@ -4975,6 +5000,28 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(r.reparos > 0, "a autocura legítima precisa continuar funcionando");
       ok(r.restantes.indexOf("risco:r1") >= 0, "apagou a assinatura do item que ESTÁ na nuvem");
       ok(reparosLog.some(x=>x.motivo && x.motivo.indexOf("faltava na nuvem") >= 0));
+    });
+    /* O DEFEITO QUE ISTO GUARDA: "meu envio falhou" e "outro aparelho apagou
+       de propósito" chegam na autocura exatamente iguais — o arquivo não está
+       na nuvem. Reenviar no segundo caso ressuscita o que alguém excluiu. */
+    t("item com lápide NÃO é reenviado pela autocura (não ressuscita)", ()=>{
+      /* r2, não r1: o arquivo de r1 EXISTE na nuvem, então ele nem chega ao
+         trecho da autocura. Quem some de lá (pasta listada e vazia) é r2/r3. */
+      ctxR.STATE.exclusoesConfirmadas = { "risco:r2": Date.now() };
+      const r = reconciliar(false);
+      ctxR.STATE.exclusoesConfirmadas = {};
+      ok(r.restantes.indexOf("risco:r2") < 0, "a assinatura do item apagado tinha de sair");
+      ok(!reparosLog.some(x=>x.nome==="risco_r2.json"), "agendou reenvio de item apagado de propósito");
+      ok(reparosLog.some(x=>x.nome==="risco_r3.json"), "r3, sem lápide, tinha de continuar sendo reenviado");
+    });
+    t("lápide NÃO impede o reenvio de quem foi editado DEPOIS dela", ()=>{
+      /* Trabalho novo tem de subir mesmo existindo lápide: é alguém que
+         voltou a mexer no item depois da exclusão. */
+      ctxR.STATE.exclusoesConfirmadas = { "risco:r2": 1 }; // lápide antiquíssima
+      const r = reconciliar(false);
+      ctxR.STATE.exclusoesConfirmadas = {};
+      ok(reparosLog.some(x=>x.motivo && x.motivo.indexOf("faltava na nuvem") >= 0),
+         "a autocura legítima parou de funcionar por causa de uma lápide velha");
     });
     t("toda falha de listagem levanta a marca — inclusive falta de token", ()=>{
       const f = funcao("onedriveListarFilhosEmLote");
@@ -5268,6 +5315,150 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     const item = { tarefa:{ tarefa:"", tarefaOutro:"", descricao:"" }, maquina:{}, risco:{} };
     eq(C.laudoTextoOriginal(item, "tarefa"), "");
   });
+
+  console.log("\n=== t111 · exclusão feita num aparelho vale nos outros (lápides que viajam) ===");
+  /* O defeito: a lápide ("apaguei isto de propósito") ficava SÓ no aparelho
+     que apagou. Os outros continuavam com a cópia e — pior — a autocura deles
+     via o arquivo faltando na nuvem, concluía "meu envio falhou" e REENVIAVA.
+     O item excluído voltava para a nuvem e dali para qualquer aparelho novo.
+     Reproduzido de ponta a ponta em banco.js (ensaios 17 a 21); aqui ficam as
+     regras de decisão, item a item. */
+  function lapidesLimpas(){
+    STATE.exclusoesConfirmadas = {};
+    STATE.ui.lapidesSyncEm = 0;
+    STATE.projetosSimples = [];
+  }
+  const L = (e)=> vm.runInContext(e, ctx);
+  /* Carimbos precisam ser proximos de AGORA: a lapide vale 120 dias, entao um
+     numero pequeno (5000 = janeiro de 1970) ja nasce vencido e o teste mediria
+     a expiracao em vez da regra que quer medir. */
+  const AGORA = Date.now();
+
+  t("a lápide usa o relógio lógico do app, não a hora crua do aparelho", ()=>{
+    lapidesLimpas();
+    L('registrarLapidesExclusao(["risco:rx"])');
+    ok(L('lapideDe("risco:rx")') > 0, "não gravou a lápide");
+    ok(funcao("registrarLapidesExclusao").indexOf("const agora = agoraSync();") > 0,
+       "voltou a usar Date.now() — a lápide sairia do relógio comum e o empate ficaria imprevisível");
+  });
+  t("apagar marca que a lápide precisa viajar, e sem esperar a janela de 10 min", ()=>{
+    lapidesLimpas();
+    const antes = L("getLapidesSyncEm()");
+    L('registrarLapidesExclusao(["risco:ry"])');
+    ok(L("getLapidesSyncEm()") > antes, "a lápide não seria enviada para os outros aparelhos");
+    eq(L("__lapidesSyncUltimaVerificacao"), 0,
+       "sem zerar o limitador, uma exclusão podia ficar até 10 min parada antes de viajar");
+  });
+  t("exclusão só vence quem é MAIS ANTIGO que ela", ()=>{
+    lapidesLimpas();
+    STATE.exclusoesConfirmadas = { "risco:r1": AGORA };
+    ok(L('lapideVenceDadosRemotos("risco:r1", {atualizadoEm:'+(AGORA-60000)+'})'), "versão velha tinha de ser recusada");
+    ok(!L('lapideVenceDadosRemotos("risco:r1", {atualizadoEm:'+(AGORA+60000)+'})'),
+       "versão editada DEPOIS da exclusão é trabalho novo — não pode ser jogada fora");
+  });
+  t("no empate quem fica é o dado, nunca a exclusão", ()=>{
+    lapidesLimpas();
+    STATE.exclusoesConfirmadas = { "risco:r1": AGORA };
+    ok(!L('lapideVenceDadosRemotos("risco:r1", {atualizadoEm:'+AGORA+'})'),
+       "carimbo igual não pode apagar: o risco é perder trabalho de alguém");
+  });
+  t("item sem lápide nenhuma nunca é recusado", ()=>{
+    lapidesLimpas();
+    ok(!L('lapideVenceDadosRemotos("risco:naoexiste", {atualizadoEm:1})'));
+  });
+  t("lápide vencida (mais de 120 dias) deixa de valer", ()=>{
+    lapidesLimpas();
+    STATE.exclusoesConfirmadas = { "risco:r1": Date.now() - (121*24*60*60*1000) };
+    eq(L('lapideDe("risco:r1")'), 0, "lápide velha continuaria recusando item para sempre");
+  });
+  t("basta UM item editado para a ramificação inteira escapar da exclusão", ()=>{
+    lapidesLimpas();
+    /* Área apagada num aparelho, mas alguém escreveu num risco lá dentro
+       depois disso: a área inteira precisa sobreviver, senão o laudo em
+       andamento vai junto. */
+    const risco = { id:"r1", atualizadoEm: AGORA+60000 };
+    const tarefa = { id:"t1", atualizadoEm: AGORA-60000, riscos:[risco] };
+    const maquina = { id:"m1", atualizadoEm: AGORA-60000, tarefas:[tarefa] };
+    const area = { id:"a1", atualizadoEm: AGORA-60000, maquinas:[maquina] };
+    const tocada = vm.runInContext("(function(a,ts){ return __subarvoreTocadaDepoisDe('area', a, ts); })", ctx);
+    ok(tocada(area, AGORA), "a edição no risco lá no fundo não salvou a área");
+    risco.atualizadoEm = AGORA-60000;
+    ok(!tocada(area, AGORA), "sem nada editado depois, a área tinha de poder sair");
+  });
+  t("o freio conta a ramificação inteira, não só o item de cima", ()=>{
+    const area = { id:"a1", maquinas:[ { id:"m1", tarefas:[ { id:"t1", riscos:[{id:"r1"},{id:"r2"}] } ] } ] };
+    eq(vm.runInContext("(function(a){ return __tamanhoSubarvore('area', a); })", ctx)(area), 5,
+       "área + máquina + tarefa + 2 riscos = 5 itens que somem da nuvem");
+  });
+  t("a varredura aponta o item apagado e NÃO desce dentro dele", ()=>{
+    lapidesLimpas();
+    STATE.projetosSimples = [{ id:"p1", atualizadoEm:AGORA-60000, areas:[
+      { id:"a1", atualizadoEm:AGORA-60000, maquinas:[] },
+      { id:"a2", atualizadoEm:AGORA-60000, maquinas:[] } ]}];
+    STATE.exclusoesConfirmadas = { "area:a1": AGORA };
+    const alvos = L("__lapidesRemoviveis()");
+    eq(alvos.length, 1, "apontou o número errado de itens para remover");
+    eq(alvos[0].tipo, "area");
+    eq(alvos[0].item.id, "a1");
+    ok(STATE.projetosSimples[0].areas.length === 2, "a varredura não pode remover nada sozinha");
+  });
+  t("o pacote leva as lápides e a mesclagem é por UNIÃO", ()=>{
+    lapidesLimpas();
+    STATE.exclusoesConfirmadas = { "risco:daqui": AGORA-60000 };
+    const pac = L("montarPacoteLapides()");
+    ok("lapides" in pac && "atualizadoEm" in pac, "o pacote está incompleto");
+    eq(pac.lapides["risco:daqui"], AGORA-60000);
+    ctx.__pac = { atualizadoEm: AGORA, lapides: { "risco:dele": AGORA } };
+    const r = L("aplicarPacoteLapides(__pac)");
+    ok(r.mudou, "não aplicou a lápide que veio de fora");
+    eq(STATE.exclusoesConfirmadas["risco:daqui"], AGORA-60000, "a lápide daqui foi apagada pela de lá");
+    eq(STATE.exclusoesConfirmadas["risco:dele"], AGORA, "a lápide de lá não chegou");
+    ok(r.faltaNoRemoto, "sem avisar, a exclusão feita aqui nunca chegaria nos outros");
+  });
+  t("a mesma lápide com carimbo maior atualiza; menor não retrocede", ()=>{
+    lapidesLimpas();
+    STATE.exclusoesConfirmadas = { "risco:r1": AGORA-60000 };
+    ctx.__pac = { lapides: { "risco:r1": AGORA } };
+    L("aplicarPacoteLapides(__pac)");
+    eq(STATE.exclusoesConfirmadas["risco:r1"], AGORA);
+    ctx.__pac = { lapides: { "risco:r1": AGORA-120000 } };
+    L("aplicarPacoteLapides(__pac)");
+    eq(STATE.exclusoesConfirmadas["risco:r1"], AGORA, "um pacote velho não pode fazer o carimbo voltar");
+  });
+  t("pacote vencido não ressuscita lápide antiga", ()=>{
+    lapidesLimpas();
+    ctx.__pac = { lapides: { "risco:velho": Date.now() - (200*24*60*60*1000) } };
+    L("aplicarPacoteLapides(__pac)");
+    ok(!STATE.exclusoesConfirmadas["risco:velho"], "lápide de 200 dias voltaria a valer");
+  });
+  t("apagar um item também apaga na nuvem tudo que estava dentro dele", ()=>{
+    const area = { id:"a1", maquinas:[{ id:"m1", tarefas:[{ id:"t1", riscos:[{id:"r1"}] }] }] };
+    const ids = vm.runInContext("(function(a){ return idsSincronizaveisDe('area', a); })", ctx)(area);
+    ["area:a1","maquina:m1","tarefa:t1","risco:r1"].forEach(x=> ok(ids.indexOf(x)>=0, "faltou "+x));
+  });
+  t("a sincronização de lápides entra ANTES do envio e antes da autocura", ()=>{
+    /* Ordem é o que faz a correção funcionar: se as exclusões chegarem depois,
+       este aparelho reenvia para a nuvem justamente o que o outro apagou. */
+    const auto = funcao("sincronizarIncrementalOneDrive");
+    ok(auto.indexOf("await onedriveSincronizarLapides(!!onProgresso);") > 0, "o ciclo automático não sincroniza lápides");
+    ok(auto.indexOf("onedriveSincronizarLapides") < auto.indexOf('onedriveSincronizarModulo("Simplificado"'),
+       "as lápides precisam chegar ANTES de o envio decidir o que mandar");
+    const man = funcao("onedriveSincronizarAgora");
+    ok(man.indexOf("await onedriveSincronizarLapides(true);") > 0, "a sincronização manual não sincroniza lápides");
+    ok(man.indexOf("onedriveSincronizarLapides") < man.indexOf("onedriveReconciliarComArvore(download.arvore)"),
+       "as lápides precisam chegar ANTES da autocura, que é quem decide reenviar");
+  });
+  t("o envio grava lápide quando descobre que um item sumiu do aparelho", ()=>{
+    const f = funcao("onedriveSincronizarModulo");
+    ok(f.indexOf("if(!confirmadaAntes) registrarLapidesExclusao([id]);") > 0,
+       "item apagado com o OneDrive desconectado não avisaria os outros aparelhos");
+  });
+  t("a remoção pelas lápides é registrada no histórico", ()=>{
+    ok(HTML.indexOf('registrarEventoSync("del", chave, a.tipo, 0, true, "excluido em outro aparelho", "");') > 0,
+       "sumiria item da tela sem deixar rastro nenhum de por quê");
+  });
+  lapidesLimpas();
+  STATE.projetosSimples = [];
 
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");

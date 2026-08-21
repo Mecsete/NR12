@@ -1840,7 +1840,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "20/08/2026 22:32";
+const APP_BUILD = "21/08/2026 12:24";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -2676,15 +2676,126 @@ function localizarItemLocal(descritor){
 const LAPIDE_VALIDADE_MS = 120*24*60*60*1000;
 function registrarLapidesExclusao(ids){
   if(!STATE.exclusoesConfirmadas || typeof STATE.exclusoesConfirmadas !== "object") STATE.exclusoesConfirmadas = {};
-  const agora = Date.now();
+  /* agoraSync() e nao Date.now(): a lapide entra no MESMO relogio logico dos
+     carimbos de edicao. E isso que permite comparar "apaguei" com "editei" e
+     decidir quem venceu, mesmo com a data de um dos aparelhos errada. */
+  const agora = agoraSync();
   ids.forEach(id=>{ if(id) STATE.exclusoesConfirmadas[id] = agora; });
-  for(const k in STATE.exclusoesConfirmadas){ if(agora - STATE.exclusoesConfirmadas[k] > LAPIDE_VALIDADE_MS) delete STATE.exclusoesConfirmadas[k]; }
+  for(const k in STATE.exclusoesConfirmadas){ if(Date.now() - STATE.exclusoesConfirmadas[k] > LAPIDE_VALIDADE_MS) delete STATE.exclusoesConfirmadas[k]; }
+  marcarLapidesAlteradas();
 }
 function exclusaoConfirmadaPeloUsuario(id){
   const m = STATE.exclusoesConfirmadas;
   if(!m || typeof m !== "object") return false;
   const ts = m[id];
   return !!ts && (Date.now() - ts) <= LAPIDE_VALIDADE_MS;
+}
+/* Carimbo da lapide (0 = nao existe ou ja venceu). */
+function lapideDe(chave){
+  const m = STATE.exclusoesConfirmadas;
+  if(!m || typeof m !== "object") return 0;
+  const ts = m[chave];
+  if(typeof ts !== "number" || !ts) return 0;
+  return (Date.now() - ts) <= LAPIDE_VALIDADE_MS ? ts : 0;
+}
+/* A EXCLUSAO SO VENCE QUEM E MAIS ANTIGO QUE ELA.
+   Regra unica que decide todo empate entre "isto foi apagado" e "isto foi
+   editado". Se a versao em questao foi mexida DEPOIS da exclusao, alguem
+   ainda estava trabalhando nela — e trabalho novo nunca perde para uma
+   exclusao antiga. E a mesma regra que a lista de inspetores ja usa
+   (ver aplicarPacoteEquipe: "some quem foi removido DEPOIS da ultima
+   edicao dele"), agora valendo tambem para a arvore de projetos. */
+function lapideVenceDadosRemotos(chave, dados){
+  const ts = lapideDe(chave);
+  if(!ts) return false;
+  /* MENOR, nao "menor ou igual": no empate quem fica e o DADO, nao a
+     exclusao. Carimbo igual so acontece entre aparelhos diferentes (dentro
+     de um mesmo aparelho agoraSync nunca repete), e nesse caso as duas
+     leituras possiveis sao "sobrou um item que ja era para ter sumido" ou
+     "sumiu um item que alguem estava escrevendo". A primeira o usuario
+     resolve apagando de novo; a segunda e trabalho perdido. */
+  return ((dados && (dados.atualizadoEm || dados.criadoEm)) || 0) < ts;
+}
+/* Qual lista de filhos cada nivel da arvore carrega, e de que tipo eles sao. */
+function __lapideFilhos(tipo){
+  if(tipo==="projeto") return { campo:"areas",    tipo:"area" };
+  if(tipo==="area")    return { campo:"maquinas", tipo:"maquina" };
+  if(tipo==="maquina") return { campo:"tarefas",  tipo:"tarefa" };
+  if(tipo==="tarefa")  return { campo:"riscos",   tipo:"risco" };
+  return null;
+}
+/* Basta UM item da ramificacao ter sido mexido depois da exclusao para a
+   ramificacao INTEIRA sobreviver. Sem isto, apagar uma area num aparelho
+   levaria junto um risco que outra pessoa acabou de escrever la dentro —
+   exatamente o tipo de perda que nao pode acontecer num laudo assinado. */
+function __subarvoreTocadaDepoisDe(tipo, item, ts){
+  if(!item) return false;
+  // >= e nao > : mesma regra de empate de lapideVenceDadosRemotos — carimbo
+  // igual mantem o item, nunca o apaga.
+  if((item.atualizadoEm || item.criadoEm || 0) >= ts) return true;
+  const f = __lapideFilhos(tipo);
+  if(!f || !Array.isArray(item[f.campo])) return false;
+  for(const filho of item[f.campo]){ if(__subarvoreTocadaDepoisDe(f.tipo, filho, ts)) return true; }
+  return false;
+}
+/* Quantos itens sincronizaveis somem junto com esta ramificacao — e o numero
+   que o freio de exclusao em massa precisa enxergar. */
+function __tamanhoSubarvore(tipo, item){
+  let n = 1;
+  const f = __lapideFilhos(tipo);
+  if(f && Array.isArray(item[f.campo])) item[f.campo].forEach(x=>{ n += __tamanhoSubarvore(f.tipo, x); });
+  return n;
+}
+/* Percorre a arvore e devolve o que as lapides mandam remover. Nao remove
+   nada: so aponta, para quem chamou decidir (e para o freio poder contar). */
+function __lapidesRemoviveis(){
+  const alvos = [];
+  const olhar = (tipo, lista) => {
+    if(!Array.isArray(lista)) return;
+    for(let i=lista.length-1; i>=0; i--){
+      const item = lista[i];
+      if(!item || !item.id) continue;
+      const ts = lapideDe(tipo+":"+item.id);
+      if(ts && !__subarvoreTocadaDepoisDe(tipo, item, ts)){
+        alvos.push({ tipo, item, lista, indice:i, itens:__tamanhoSubarvore(tipo, item) });
+        continue; // nao desce: a ramificacao inteira ja esta marcada para sair
+      }
+      const f = __lapideFilhos(tipo);
+      if(f) olhar(f.tipo, item[f.campo]);
+    }
+  };
+  olhar("projeto", STATE.projetosSimples);
+  return alvos;
+}
+/* Aplica na arvore local as exclusoes confirmadas em QUALQUER aparelho.
+   Devolve { removidos, itens, bloqueados } — "bloqueados" > 0 significa que o
+   freio de exclusao em massa segurou a remocao desta rodada (nada foi
+   perdido; so nao foi aplicado sozinho). */
+function aplicarLapidesNaArvore(permitirEmMassa){
+  const alvos = __lapidesRemoviveis();
+  if(alvos.length === 0) return { removidos:0, itens:0, bloqueados:0 };
+  const itensQueSaem = alvos.reduce((n,a)=>n+a.itens, 0);
+  const totalAgora = listarItensSincronizaveisSimples().length;
+  /* MESMO FREIO DO ENVIO, agora tambem na chegada. Um pacote de lapides
+     estranho (arquivo corrompido, defeito, aparelho com estado quebrado)
+     nunca pode limpar a arvore deste aparelho sozinho. */
+  if(!permitirEmMassa && exclusaoEmMassaSuspeita(itensQueSaem, Math.max(0, totalAgora - itensQueSaem))){
+    return { removidos:0, itens:itensQueSaem, bloqueados:alvos.length };
+  }
+  const mapa = onedriveCarregarAssinaturas(__assinaturasOneDriveSimples);
+  let removidos = 0;
+  alvos.forEach(a=>{
+    a.lista.splice(a.indice, 1);
+    removidos++;
+    /* A assinatura sai junto: sem isso o envio seguinte tentaria apagar na
+       nuvem um arquivo que ja nao existe, gastando chamadas a toa. */
+    const chave = a.tipo+":"+a.item.id;
+    mapa.delete(chave);
+    if(STATE[__assinaturasOneDriveSimples.chaveEstado]) delete STATE[__assinaturasOneDriveSimples.chaveEstado][chave];
+    registrarEventoSync("del", chave, a.tipo, 0, true, "excluido em outro aparelho", "");
+  });
+  if(removidos > 0) marcarAlterado();
+  return { removidos, itens:itensQueSaem, bloqueados:0 };
 }
 /* Quando a pessoa escolhe MANTER na nuvem, o app precisa esquecer que um dia
    enviou aquele item — senão a sincronização seguinte entenderia o sumiço
@@ -2766,10 +2877,24 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
     await executarComConcorrencia(idsParaApagar, 5, async (id) => {
       const registro = assinaturas.get(id);
       const subpasta = [SUBPASTA_BACKUP, raizModulo, ...registro.pasta].join("/");
+      /* Lido ANTES de apagar: logo abaixo este mesmo item pode ganhar uma
+         lápide, e aí a resposta mudaria — o histórico passaria a chamar de
+         "confirmada no aparelho" algo que na verdade só sumiu. */
+      const confirmadaAntes = exclusaoConfirmadaPeloUsuario(id);
       const ok = await onedriveApagarBlob(subpasta, registro.arquivo);
       // O irmão de fotos também sai — 404 (nunca existiu) é tratado como sucesso.
       const okFotos = await onedriveApagarBlob(subpasta, "fotos_"+registro.arquivo);
-      if(ok && okFotos) assinaturas.delete(id);
+      if(ok && okFotos){
+        assinaturas.delete(id);
+        /* SEGUNDA PORTA DA EXCLUSÃO. Além do "apagar também na nuvem?" na hora
+           de excluir, um item pode sumir daqui e a sincronização concluir que
+           deve apagá-lo lá (item removido com o OneDrive desconectado, por
+           exemplo). Sem gravar a lápide também neste caminho, os OUTROS
+           aparelhos nunca ficariam sabendo — continuariam com o item e o
+           reenviariam para a nuvem, que é como um item apagado voltava a
+           aparecer sozinho. */
+        if(!confirmadaAntes) registrarLapidesExclusao([id]);
+      }
       /* APAGAR TAMBÉM ENTRA NO HISTÓRICO.
          Até aqui, enviar e receber ficavam registrados e apagar não — então,
          quando arquivos sumiam da nuvem, não havia no app nenhuma forma de
@@ -2778,7 +2903,7 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
          de excluir ("exclusão confirmada") ou o item sumiu do aparelho e a
          sincronização manual perguntou ("sumiu do aparelho"). */
       registrarEventoSync("del", registro.arquivo, "exclusão", 0, ok && okFotos,
-        exclusaoConfirmadaPeloUsuario(id) ? "exclusão confirmada no aparelho" : "sumiu do aparelho, confirmado na sincronização",
+        confirmadaAntes ? "exclusão confirmada no aparelho" : "sumiu do aparelho, confirmado na sincronização",
         subpasta);
     });
   }
@@ -2912,6 +3037,11 @@ async function sincronizarIncrementalOneDrive(onProgresso){
   if(!onProgresso && onedriveEnvioAutomaticoDeveEsperar()) return; // mapa vazio e recebimento ainda não varreu — não envia às cegas
   __uploadAutoRodando = true;
   try{
+    /* ANTES dos módulos, de propósito: as exclusões vindas de outros aparelhos
+       precisam já ter saído da árvore quando o envio for decidir o que mandar.
+       Na ordem inversa, este aparelho reenviaria para a nuvem justamente o
+       item que o outro acabou de apagar. */
+    await onedriveSincronizarLapides(!!onProgresso);
     await onedriveSincronizarModulo("Simplificado", listarItensSincronizaveisSimples, __assinaturasOneDriveSimples, onProgresso);
     await onedriveSincronizarModulo("Completo", listarItensSincronizaveisCompleto, __assinaturasOneDriveCompleto, onProgresso);
     // Configurações de IA (chave, prompts, base de normas) — arquivo pequeno,
@@ -3484,9 +3614,12 @@ function __onedriveMesclarItemNovoInterno(descritor, dados){
   // Todo carimbo que chega de fora entra na conta do relógio lógico, para que
   // a próxima edição feita aqui vença — mesmo com a data do aparelho errada.
   if(dados && typeof dados.atualizadoEm === "number") registrarCarimboVisto(dados.atualizadoEm);
-  // Item apagado de propósito neste aparelho não volta a existir só porque o
-  // arquivo ainda está na nuvem (ver LÁPIDES DE EXCLUSÃO).
-  if(descritor.tipo!=="fotos" && dados && dados.id && exclusaoConfirmadaPeloUsuario(descritor.tipo+":"+dados.id)) return false;
+  /* Item apagado de propósito (aqui ou em outro aparelho) não volta a existir
+     só porque o arquivo ainda está na nuvem (ver LÁPIDES DE EXCLUSÃO).
+     A recusa olha o carimbo: versão MAIS NOVA que a exclusão volta a valer —
+     é alguém que editou o item depois de apagado e cujo trabalho não pode
+     ser jogado fora (ver lapideVenceDadosRemotos). */
+  if(descritor.tipo!=="fotos" && dados && dados.id && lapideVenceDadosRemotos(descritor.tipo+":"+dados.id, dados)) return false;
   if(descritor.tipo==="fotos"){
     // Pacote de fotos de um item que já chegou como texto: encaixa as fotos
     // no item local e apaga a marca de "fotos virão no Wi-Fi".
@@ -5100,6 +5233,21 @@ function onedriveReconciliarComArvore(arvore){
       }
       const caminhoTexto = prefixo + (reg.pasta.join("/") + "/" + reg.arquivo).toLowerCase();
       if(!existentes.has(caminhoTexto)){
+        /* O ARQUIVO SUMIU DA NUVEM — MAS POR QUÊ?
+           A autocura abaixo existe para envio que falhou calado. Só que
+           "meu envio falhou" e "outro aparelho apagou isto de propósito"
+           chegam aqui EXATAMENTE iguais: o arquivo não está lá. Reenviar no
+           segundo caso ressuscita na nuvem o que alguém acabou de excluir —
+           e o item volta para todo mundo. Havendo lápide que vença esta
+           versão, o certo é esquecer o item, não reenviá-lo. (Se a versão
+           daqui for MAIS NOVA que a exclusão, lapideVenceDadosRemotos
+           devolve false e o reenvio acontece normalmente: aí é trabalho
+           novo, e trabalho novo tem de subir.) */
+        if(lapideVenceDadosRemotos(item.id, item.dados)){
+          mapa.delete(item.id);
+          if(STATE[__assinaturasOneDriveSimples.chaveEstado]) delete STATE[__assinaturasOneDriveSimples.chaveEstado][item.id];
+          continue;
+        }
         // Consta como enviado, mas o arquivo NÃO está na nuvem — apaga a
         // assinatura: o próximo envio manda o item de novo, do zero.
         mapa.delete(item.id);
@@ -5377,6 +5525,10 @@ async function onedriveSincronizarAgora(){
     if(cfgIAManual && cfgIAManual.recebeu) toast("Configurações de IA recebidas de outro aparelho");
     const equipeManual = await onedriveSincronizarEquipe(true);
     if(equipeManual && equipeManual.recebeu) toast("Lista de inspetores atualizada por outro aparelho");
+    /* Antes da autocura (onedriveReconciliarComArvore) logo abaixo: é ela que
+       decide o que "faltou na nuvem" e precisa voltar. Se as exclusões ainda
+       não tiverem chegado, ela reenviaria o que foi apagado de propósito. */
+    await onedriveSincronizarLapides(true);
     const download = await onedriveEstimarPendentesDownload();
     marcarProgressoSync();
     // AUTOCURA: antes de contar o que falta enviar, confere item por item se o
@@ -10214,6 +10366,145 @@ async function onedriveSincronizarEquipe(forcar){
     return { mudou:false, erro:true };
   }finally{
     __equipeSyncEmAndamento = false;
+  }
+}
+/* =========================================================================
+   LÁPIDES QUE VIAJAM — a exclusão feita num aparelho vale nos outros
+
+   O problema que isto resolve: até aqui, apagar um risco gravava a lápide
+   ("apaguei isto de propósito") SÓ no aparelho que apagou. O arquivo saía da
+   nuvem, mas os outros aparelhos continuavam com a cópia local — e nunca
+   ficavam sabendo. Pior: a autocura de cada um deles via o arquivo faltando
+   na nuvem, concluía "meu envio falhou" e REENVIAVA. O item apagado voltava
+   para a nuvem e, dali, para qualquer aparelho novo. Era assim que um risco
+   excluído reaparecia.
+
+   A correção é a mesma peça já usada pela lista de inspetores: a lápide vira
+   um dado sincronizado. Um arquivo pequeno (só ids e carimbos, nunca
+   conteúdo) na mesma pasta Config, com mesclagem por UNIÃO — nenhuma lápide
+   se perde, venha de onde vier.
+
+   As três travas que impedem isto de virar perda de dado:
+     1. exclusão só vence quem é MAIS ANTIGO que ela — se você editou o item
+        depois da exclusão, ele fica (ver lapideVenceDadosRemotos);
+     2. basta um item editado dentro da ramificação para a ramificação
+        inteira sobreviver (ver __subarvoreTocadaDepoisDe);
+     3. o mesmo freio de exclusão em massa do envio vale na chegada: um
+        pacote que mandasse limpar meia árvore não é obedecido sozinho.
+   ========================================================================= */
+const SUBPASTA_CONFIG_LAPIDES = SUBPASTA_BACKUP + "/Config";
+const LAPIDES_SYNC_INTERVALO_AUTO_MS = 10*60*1000;
+let __lapidesSyncUltimaVerificacao = 0;
+let __lapidesSyncEmAndamento = false;
+let __avisoLapidesMassaEm = 0;
+function getLapidesSyncEm(){
+  if(typeof STATE.ui.lapidesSyncEm !== "number") STATE.ui.lapidesSyncEm = 0;
+  return STATE.ui.lapidesSyncEm;
+}
+function marcarLapidesAlteradas(){
+  STATE.ui.lapidesSyncEm = agoraSync();
+  /* Zera o limitador de 10 minutos: uma exclusao nova nao pode ficar parada
+     esperando a proxima janela para viajar. Sem isto, uma lapide criada logo
+     depois da rodada de lapides deste ciclo (e o envio cria lapide quando
+     descobre item sumido) so subiria na janela seguinte — e ate la o outro
+     aparelho continuaria reenviando o item apagado. */
+  __lapidesSyncUltimaVerificacao = 0;
+  marcarAlterado();
+}
+function montarPacoteLapides(){
+  return {
+    atualizadoEm: getLapidesSyncEm(),
+    lapides: { ...(STATE.exclusoesConfirmadas || {}) },
+  };
+}
+/* União pura: a lápide mais recente de cada id vence, e nenhuma some por ter
+   chegado de um aparelho que não conhecia as outras. "faltaNoRemoto" avisa
+   que este aparelho tem lápide que o arquivo da nuvem não tinha — aí a união
+   precisa voltar, senão a exclusão feita aqui nunca chegaria nos outros. */
+function aplicarPacoteLapides(pacote){
+  if(!pacote || typeof pacote !== "object") return { mudou:false, faltaNoRemoto:false };
+  if(!STATE.exclusoesConfirmadas || typeof STATE.exclusoesConfirmadas !== "object") STATE.exclusoesConfirmadas = {};
+  const minhas = STATE.exclusoesConfirmadas;
+  const remotas = (pacote.lapides && typeof pacote.lapides === "object") ? pacote.lapides : {};
+  const agora = Date.now();
+  let mudou = false;
+  for(const chave in remotas){
+    const ts = remotas[chave];
+    if(typeof ts !== "number" || !ts) continue;
+    // Lápide vencida (mais de 120 dias) não entra: passado esse tempo todos os
+    // aparelhos já sincronizaram, e guardá-la para sempre só faria a lista crescer.
+    if(agora - ts > LAPIDE_VALIDADE_MS) continue;
+    if(ts > (minhas[chave] || 0)){ minhas[chave] = ts; registrarCarimboVisto(ts); mudou = true; }
+  }
+  const faltaNoRemoto = Object.keys(minhas).some(k=>!(k in remotas));
+  return { mudou, faltaNoRemoto };
+}
+async function onedriveSincronizarLapides(forcar){
+  if(!getOneDriveConta() || !navigator.onLine) return { mudou:false };
+  if(__lapidesSyncEmAndamento) return { mudou:false };
+  if(!forcar && (Date.now() - __lapidesSyncUltimaVerificacao) < LAPIDES_SYNC_INTERVALO_AUTO_MS) return { mudou:false };
+  __lapidesSyncEmAndamento = true;
+  try{
+    const pasta = `${ONEDRIVE_PASTA_APP}/${SUBPASTA_CONFIG_LAPIDES}`;
+    const mapa = await onedriveListarFilhosEmLote([pasta]);
+    const filhos = mapa.get(pasta) || [];
+    let remotoTs = 0, remotoNome = "";
+    const antigos = [];
+    filhos.forEach(f=>{
+      const m = /^lapides_(\d+)\.json$/.exec(f.nome||"");
+      if(!m) return;
+      antigos.push(f.nome);
+      const ts = Number(m[1]);
+      if(ts > remotoTs){ remotoTs = ts; remotoNome = f.nome; }
+    });
+    let removidos = 0;
+    if(remotoTs > getLapidesSyncEm() && remotoNome){
+      const texto = await onedriveBaixarTexto(`${pasta}/${remotoNome}`);
+      if(texto){
+        try{
+          const r = aplicarPacoteLapides(JSON.parse(texto));
+          STATE.ui.lapidesSyncEm = remotoTs;
+          registrarCarimboVisto(remotoTs);
+          if(r.mudou){
+            marcarAlterado();
+            registrarEventoSync("down", remotoNome, "exclusões", new Blob([texto]).size, true, undefined, "Exclusões de outros aparelhos");
+          }
+          if(r.faltaNoRemoto) marcarLapidesAlteradas();
+        }catch(e){ /* arquivo ilegível — o próximo envio conserta */ }
+      }
+    }
+    /* Aplicar é sempre, não só quando chegou pacote novo: lápide que chegou
+       numa rodada anterior pode ter sido segurada pelo freio de massa, ou o
+       item pode ter chegado depois dela (o texto vem numa passada, a lápide
+       já estava aqui). Rodar toda vez é o que faz as duas ordens darem no
+       mesmo lugar. */
+    const res = aplicarLapidesNaArvore(!!forcar);
+    removidos = res.removidos;
+    if(res.bloqueados > 0 && (Date.now() - __avisoLapidesMassaEm) > 6*60*60*1000){
+      __avisoLapidesMassaEm = Date.now();
+      toast(`Chegou uma exclusão de ${res.itens} itens feita em outro aparelho. Por segurança ela NÃO foi aplicada sozinha — use "Sincronizar agora" para revisar e concluir.`, false);
+    }
+    if(removidos > 0){
+      toast(`${removidos} ite${removidos===1?'m excluído':'ns excluídos'} em outro aparelho ${removidos===1?'foi removido':'foram removidos'} daqui.`);
+    }
+    const agoraLocal = getLapidesSyncEm();
+    if(agoraLocal > remotoTs && agoraLocal > 0){
+      const nome = `lapides_${agoraLocal}.json`;
+      const blob = new Blob([JSON.stringify(montarPacoteLapides(), null, 0)], {type:"application/json"});
+      const ok = await onedriveEnviarBlob(SUBPASTA_CONFIG_LAPIDES, blob, nome);
+      registrarEventoSync("up", nome, "exclusões", blob.size, ok, __ultimoMotivoFalhaEnvio, "Exclusões deste aparelho");
+      if(ok){
+        for(const antigo of antigos){ if(antigo !== nome) await onedriveApagarBlob(SUBPASTA_CONFIG_LAPIDES, antigo); }
+        __lapidesSyncUltimaVerificacao = Date.now();
+        return { mudou:true, enviou:true, removidos };
+      }
+    }
+    __lapidesSyncUltimaVerificacao = Date.now();
+    return { mudou:removidos>0, removidos };
+  }catch(e){
+    return { mudou:false, erro:true };
+  }finally{
+    __lapidesSyncEmAndamento = false;
   }
 }
 /* =========================================================================

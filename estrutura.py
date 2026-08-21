@@ -26,8 +26,17 @@ print("\n=== 4. MOTOR DE SINCRONIZACAO ===")
 # A fila e um atalho descartavel — a varredura completa de 30 em 30 min
 # reconstroi o que for real, entao limpa-la nao perde dado. A checagem da
 # secao 23 garante que limparFilaNuvem nao encosta em projetosSimples.
-_extra = {"oneDriveDeltaFila": 3}
-for marca in ["oneDriveDeltaFila", "lapide", "tombstone", "exclusoesConfirmadas", "__backupV2AplicarLinha"]:
+# O +3 de oneDriveDeltaFila era da entrega do diagnostico/limpar fila: a
+# referencia (original.html) JA vem daquele commit, entao contar de novo
+# somaria duas vezes. Zerado.
+# exclusoesConfirmadas +6: a lapide deixou de ser um dado so local e virou um
+# dado SINCRONIZADO (ver secao 69) — o pacote que viaja, a mesclagem por uniao
+# e a aplicacao na arvore tocam o mapa em pontos novos, de proposito.
+# "lapide" saiu desta lista: a palavra agora aparece em dezenas de comentarios
+# do subsistema novo, e pinar a contagem exata quebraria a validacao a cada
+# comentario escrito. O que importa dela e estrutural e esta na secao 69.
+_extra = {"oneDriveDeltaFila": 0, "exclusoesConfirmadas": 6}
+for marca in ["oneDriveDeltaFila", "tombstone", "exclusoesConfirmadas", "__backupV2AplicarLinha"]:
     a, b = orig.count(marca) + _extra.get(marca, 0), novo.count(marca)
     chk("'%s' inalterado (%d)" % (marca, a), a == b, "orig+extra=%d novo=%d" % (a, b))
 
@@ -149,7 +158,12 @@ d = len(novo) - len(orig)
 # Teto de 420 para 700 KB: entrou a figura do processo embutida em base64
 # (~228 KB). O teto continua pegando acidente grosseiro — foto embutida por
 # engano somaria MEGAbytes, nao centenas de KB.
-chk("crescimento coerente com os novos modulos (%d bytes)" % d, 20000 < d < 700000, "delta=%d" % d)
+# Piso de 20.000 para 5.000 bytes: aquele numero foi escrito quando a entrega
+# em questao acrescentava modulos inteiros. Uma correcao cirurgica no motor de
+# sincronizacao cresce alguns milhares de bytes e nao pode ser reprovada por
+# isso. O teto (que e o que pega acidente grosseiro, tipo foto embutida por
+# engano) continua igual.
+chk("crescimento coerente com os novos modulos (%d bytes)" % d, 5000 < d < 700000, "delta=%d" % d)
 chk("nada foi removido do original por engano",
     all(novo.count(m) >= 1 for m in ["exportarMasterXLSXFotos", "gerarBytesXlsmCorteva", "montarItensInventario", "gerarBytesDocxSimples"]))
 
@@ -298,10 +312,10 @@ chk("o pacote de IA leva carimbo por parte",
     all(novo.count(m) == 1 for m in ["apiKeyEm: getApiKeyEm(),",
                                      "promptsEm: { ...getPromptsEm() }",
                                      "normasRemovidas: { ...getNormasRemovidas() }"]))
-# 2 = equipe (entrega anterior) + IA (esta entrega): as duas mesclagens por
-# uniao usam exatamente o mesmo contrato de retorno.
+# 3 = equipe + IA + lapides: as tres mesclagens por uniao usam exatamente o
+# mesmo contrato de retorno. A de lapides entrou nesta entrega (secao 69).
 chk("aplicarPacoteIA devolve {mudou, faltaNoRemoto} (nao mais booleano)",
-    novo.count("return { mudou, faltaNoRemoto };") == 2
+    novo.count("return { mudou, faltaNoRemoto };") == 3
     and novo.count("if(Array.isArray(pacote.normas)) STATE.ui.normasIA = pacote.normas.filter(n=>n && n.texto);") == 0)
 chk("a substituicao em bloco das instrucoes foi removida",
     novo.count("c.prompts = { ...IA_PROMPTS_PADRAO, ...p.prompts };") == 0)
@@ -1801,6 +1815,55 @@ chk("os outros 3 campos (escopo/risco/existente) nao ganharam fallback nenhum --
     'if(campo==="escopo")  return item.maquina.descricao || "";' in novo
     and 'if(campo==="risco")   return item.risco.descricao || "";' in novo
     and 'if(campo==="existente") return item.risco.descMedida || "";' in novo)
+
+print("\n=== 69. LAPIDES QUE VIAJAM: EXCLUSAO FEITA NUM APARELHO VALE NOS OUTROS ===")
+# Usuario: "riscos excluidos em outro dispositivo estao ficando duplicados no
+# meu". Reproduzido em banco.js: a lapide ("apaguei isto de proposito") ficava
+# SO no aparelho que apagou. Os outros continuavam com a copia e a autocura
+# deles via o arquivo faltando na nuvem, concluia "meu envio falhou" e
+# REENVIAVA — o item excluido voltava para a nuvem e dali para todo aparelho
+# novo. Tres defeitos numa causa so.
+chk("a lapide entrou no relogio logico (nao sai mais de Date.now() cru)",
+    "  const agora = agoraSync();\n  ids.forEach(id=>{ if(id) STATE.exclusoesConfirmadas[id] = agora; });" in novo)
+chk("existe o subsistema de sincronizacao das lapides, no mesmo molde de equipe/IA",
+    novo.count("function montarPacoteLapides(){") == 1
+    and novo.count("function aplicarPacoteLapides(pacote){") == 1
+    and novo.count("async function onedriveSincronizarLapides(forcar){") == 1
+    and "const SUBPASTA_CONFIG_LAPIDES = SUBPASTA_BACKUP + \"/Config\";" in novo)
+chk("a mesclagem e por UNIAO, com carimbo por id e sem aceitar lapide vencida",
+    "if(ts > (minhas[chave] || 0)){ minhas[chave] = ts; registrarCarimboVisto(ts); mudou = true; }" in novo
+    and "if(agora - ts > LAPIDE_VALIDADE_MS) continue;" in novo
+    and "const faltaNoRemoto = Object.keys(minhas).some(k=>!(k in remotas));" in novo)
+# TRAVA 1 — exclusao so vence quem e mais antigo que ela.
+chk("edicao feita DEPOIS da exclusao vence a exclusao",
+    novo.count("function lapideVenceDadosRemotos(chave, dados){") == 1
+    and "return ((dados && (dados.atualizadoEm || dados.criadoEm)) || 0) < ts;" in novo)
+# TRAVA 2 — a ramificacao inteira e poupada por um unico item editado.
+chk("um item editado salva a ramificacao inteira (area > maquina > tarefa > risco)",
+    novo.count("function __subarvoreTocadaDepoisDe(tipo, item, ts){") == 1
+    and "if((item.atualizadoEm || item.criadoEm || 0) >= ts) return true;" in novo
+    and novo.count("function __lapideFilhos(tipo){") == 1)
+# TRAVA 3 — o freio de exclusao em massa passa a valer tambem na CHEGADA.
+chk("freio de exclusao em massa tambem na chegada, contando a subarvore",
+    novo.count("function aplicarLapidesNaArvore(permitirEmMassa){") == 1
+    and "if(!permitirEmMassa && exclusaoEmMassaSuspeita(itensQueSaem, Math.max(0, totalAgora - itensQueSaem))){" in novo
+    and novo.count("function __tamanhoSubarvore(tipo, item){") == 1)
+chk("a autocura deixou de ressuscitar o que foi apagado de proposito",
+    "if(lapideVenceDadosRemotos(item.id, item.dados)){" in novo
+    and novo.find("if(lapideVenceDadosRemotos(item.id, item.dados)){") < novo.find('"faltava na nuvem — reenvio agendado"'))
+chk("item que sumiu do aparelho tambem gera lapide (segunda porta da exclusao)",
+    "if(!confirmadaAntes) registrarLapidesExclusao([id]);" in novo
+    and "const confirmadaAntes = exclusaoConfirmadaPeloUsuario(id);" in novo)
+chk("a mesclagem recusa por carimbo, nao mais recusa seca",
+    "if(descritor.tipo!==\"fotos\" && dados && dados.id && lapideVenceDadosRemotos(descritor.tipo+\":\"+dados.id, dados)) return false;" in novo
+    and "exclusaoConfirmadaPeloUsuario(descritor.tipo+\":\"+dados.id)) return false;" not in novo)
+chk("as lapides chegam ANTES do envio e ANTES da autocura (a ordem e o que corrige)",
+    novo.find("await onedriveSincronizarLapides(!!onProgresso);") < novo.find('await onedriveSincronizarModulo("Simplificado"')
+    and novo.find("await onedriveSincronizarLapides(true);") < novo.find("onedriveReconciliarComArvore(download.arvore)"))
+chk("exclusao nova nao espera a janela de 10 min para viajar",
+    "__lapidesSyncUltimaVerificacao = 0;" in novo)
+chk("toda remocao por lapide deixa rastro no historico",
+    'registrarEventoSync("del", chave, a.tipo, 0, true, "excluido em outro aparelho", "");' in novo)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")

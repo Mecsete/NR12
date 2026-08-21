@@ -62,14 +62,20 @@ function novoAparelho(nome, nuvem){
   const ctx = {
     console, JSON, Math, Date, Map, Set, Promise, Object, Array, String, Number, RegExp, isFinite, isNaN,
     OUTRO:"Outro (especificar)",
-    STATE:{ projetosSimples:[], ui:{}, oneDriveAssinaturasSimples:{}, oneDrivePendentes:[] },
+    STATE:{ projetosSimples:[], ui:{}, oneDriveAssinaturasSimples:{}, oneDrivePendentes:[], exclusoesConfirmadas:{} },
     ONEDRIVE_PASTA_APP:"APR-Campo", SUBPASTA_BACKUP:"Backup",
     ONEDRIVE_LIMITE_AUTO_BYTES: 300000,
     CAMPO_FOTOS_LISTA:"fotosOutras",
     nomeMaquinaS: m=>m.nome||"",
     valOuOutro:(v,o)=>v==="Outro (especificar)"?(o||""):(v||""),
     Blob: class { constructor(a){ this.size = Buffer.byteLength(a.join(""),"utf8"); } },
-    exclusaoConfirmadaPeloUsuario:()=>false,
+    /* exclusaoConfirmadaPeloUsuario ERA um stub fixo em false — com ele, toda a
+       lógica de lápide ficava fora do ensaio, e foi exatamente aí que o defeito
+       "risco excluído volta do outro aparelho" pôde nascer sem nenhum ensaio
+       reclamar. Agora as funções de lápide são extraídas do index.html, como o
+       resto do motor. */
+    marcarAlterado:()=>{},
+    navigator:{ onLine:true },
     registrarEventoSync:()=>{},
     marcarProgressoSync:()=>{},
     journalGravarItem:()=>{},
@@ -92,8 +98,19 @@ function novoAparelho(nome, nuvem){
     .replace(/[\\\\/:*?"<>|]/g,"-").replace(/\\s+/g," ").replace(/^\\.+/,"").replace(/[. ]+$/,"");
     if(/^(CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])$/i.test(n)) n = n+"_"; return n || "sem-nome"; }`, ctx);
   ["CAMPOS_FILHOS_SYNC","CAMPO_FILHOS_POR_TIPO"].forEach(n=>vm.runInContext(constante(n),ctx));
+  vm.runInContext(constante("LAPIDE_VALIDADE_MS"),ctx);
   vm.runInContext("var __ultimoCarimboVisto=0; var __arvoreSimplesCache=null; var __indiceNuvemMapa=null; var __indiceNuvemMapaEm=0; var __arvoreNuvemIncompleta=false;", ctx);
   vm.runInContext("var __assinaturasOneDriveSimples={mapa:null,chaveEstado:'oneDriveAssinaturasSimples'};", ctx);
+  /* SUBPASTA_CONFIG_LAPIDES e uma const de EXPRESSAO (concatenacao), que o
+     extrator constante() nao sabe delimitar — vem escrita aqui. */
+  vm.runInContext("var SUBPASTA_CONFIG_LAPIDES = SUBPASTA_BACKUP + '/Config';", ctx);
+  vm.runInContext("var LAPIDES_SYNC_INTERVALO_AUTO_MS = 600000; var __lapidesSyncUltimaVerificacao=0; var __lapidesSyncEmAndamento=false; var __avisoLapidesMassaEm=0;", ctx);
+  // Listagem de pasta da nuvem de mentira, no formato que o app espera.
+  ctx.onedriveListarFilhosEmLote = async (pastas) => {
+    const m = new Map();
+    for(const p of pastas){ const f = nuvem.filhos(p); m.set(p, f===null ? [] : f); }
+    return m;
+  };
   [ "__carregarUltimoCarimbo","registrarCarimboVisto","agoraSync",
     "segmentoPastaComId","extrairSufixoDoNome","idBateComSufixo",
     "listarItensSincronizaveisSimples","separarFotosDoItem","__ehFotoEmbutida",
@@ -110,6 +127,11 @@ function novoAparelho(nome, nuvem){
     "onedriveClassificarNovosSimples","onedriveMarcarJaExistente","arquivoJaExistente",
     "arquivoEstaEmQuarentena","executarComConcorrencia","exclusaoEmMassaSuspeita",
     "rotuloCaminhoSync","onedriveSincronizarModulo","marcarSubarvoreMaquinaAlterada","onedriveBaixarPendentes",
+    // lapides de exclusao — o codigo real, nao mais um stub fixo em false
+    "registrarLapidesExclusao","exclusaoConfirmadaPeloUsuario","lapideDe","lapideVenceDadosRemotos",
+    "__lapideFilhos","__subarvoreTocadaDepoisDe","__tamanhoSubarvore","__lapidesRemoviveis",
+    "aplicarLapidesNaArvore","idsSincronizaveisDe","getLapidesSyncEm","marcarLapidesAlteradas",
+    "montarPacoteLapides","aplicarPacoteLapides","onedriveSincronizarLapides",
   ].forEach(n=>vm.runInContext(funcao(n),ctx));
 
   // Rede de mentira: envia/apaga/baixa direto na nuvem em memória.
@@ -146,6 +168,11 @@ function montarArvore(nuvem, ap){
 async function ciclo(ap){
   const nuvem = ap.nuvem;
   nuvem.transferencias = 0;
+
+  /* ---- EXCLUSOES DE OUTROS APARELHOS (codigo real) ----
+     Primeiro item do ciclo, igual ao app (ver sincronizarIncrementalOneDrive):
+     a arvore precisa ja estar limpa quando o envio decidir o que mandar. */
+  await vm.runInContext("onedriveSincronizarLapides(true)", ap.ctx);
 
   // ---- ENVIO (código real) ----
   ap.ctx.__arv = null;
@@ -597,6 +624,198 @@ async function rodarAteParar(ap, maxCiclos, rotulo){
       fila.every((v,i)=> i===0 || v<=fila[i-1]), "fila por ciclo: "+fila.join(", "));
     const semFoto = vm.runInContext(`(function(){ let n=0; STATE.projetosSimples.forEach(p=>p.areas.forEach(a=>a.maquinas.forEach(m=>m.tarefas.forEach(t=>t.riscos.forEach(r=>{ if(!r.foto) n++; }))))); return n; })()`, B.ctx);
     checar("todos os riscos de B ficaram com a foto", semFoto===0, semFoto+" riscos sem foto");
+  }
+
+  /* ------------------------------------------------------------------
+     Atalhos para os ensaios de exclusao. excluirRisco/excluirArea fazem o
+     mesmo que a tela faz: gravam a lapide e tiram o item da arvore. */
+  const riscosDe = ap => vm.runInContext(
+    `(STATE.projetosSimples[0]?STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos.map(r=>r.id):[])`, ap.ctx);
+  const idsDe = ap => vm.runInContext(`listarItensSincronizaveisSimples().map(i=>i.id)`, ap.ctx);
+  function excluirRisco(ap, rid){
+    vm.runInContext(`(function(){
+      const t = STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0];
+      const r = t.riscos.find(x=>x.id===${JSON.stringify(rid)});
+      registrarLapidesExclusao(idsSincronizaveisDe("risco", r));
+      t.riscos = t.riscos.filter(x=>x.id!==${JSON.stringify(rid)});
+    })()`, ap.ctx);
+  }
+  function excluirArea(ap, aid){
+    vm.runInContext(`(function(){
+      const p = STATE.projetosSimples[0];
+      const a = p.areas.find(x=>x.id===${JSON.stringify(aid)});
+      registrarLapidesExclusao(idsSincronizaveisDe("area", a));
+      p.areas = p.areas.filter(x=>x.id!==${JSON.stringify(aid)});
+    })()`, ap.ctx);
+  }
+  const arquivosCom = (nuvem, id) => [...nuvem.arquivos.keys()].filter(c=>c.includes(id));
+
+  console.log("\n" + L + "\nENSAIO 17 - risco excluido num aparelho some do outro (e nao volta)\n" + L);
+  {
+    const nuvem = novaNuvem();
+    const A = novoAparelho("A", nuvem);
+    A.ctx.STATE.projetosSimples = [arvoreExemplo(1,1,1,3,false)];
+    await rodarAteParar(A, 8);
+    const B = novoAparelho("B", nuvem);
+    await rodarAteParar(B, 8);
+    checar("A e B comecam iguais", riscosDe(A).join()===riscosDe(B).join(),
+      "A="+riscosDe(A).join()+" B="+riscosDe(B).join());
+
+    const alvo = riscosDe(A)[1];
+    excluirRisco(A, alvo);
+    await rodarAteParar(A, 8);
+    checar("o arquivo do risco sai da nuvem", arquivosCom(nuvem, alvo).length===0);
+
+    for(let i=0;i<4;i++) await ciclo(B);
+    checar("B removeu o risco excluido", riscosDe(B).indexOf(alvo)<0, "B="+riscosDe(B).join());
+    checar("B NAO ressuscitou o arquivo na nuvem", arquivosCom(nuvem, alvo).length===0,
+      arquivosCom(nuvem, alvo).join());
+    checar("B nao perdeu os outros riscos", riscosDe(B).length===2, "B="+riscosDe(B).join());
+
+    const C = novoAparelho("C", nuvem);
+    await rodarAteParar(C, 10);
+    checar("aparelho NOVO nao recebe o risco excluido", riscosDe(C).indexOf(alvo)<0, "C="+riscosDe(C).join());
+    checar("aparelho NOVO recebe os outros dois", riscosDe(C).length===2, "C="+riscosDe(C).join());
+
+    const rA = await rodarAteParar(A, 6), rB = await rodarAteParar(B, 6);
+    checar("depois da exclusao os dois voltam ao silencio", rA.parou && rB.parou,
+      "A: "+rA.hist.join(",")+" | B: "+rB.hist.join(","));
+  }
+
+  console.log("\n" + L + "\nENSAIO 18 - SEGURANCA: quem editou depois da exclusao nao perde o trabalho\n" + L);
+  {
+    const nuvem = novaNuvem();
+    const A = novoAparelho("A", nuvem);
+    A.ctx.STATE.projetosSimples = [arvoreExemplo(1,1,1,3,false)];
+    await rodarAteParar(A, 8);
+    const B = novoAparelho("B", nuvem);
+    await rodarAteParar(B, 8);
+
+    const alvo = riscosDe(A)[1];
+    excluirRisco(A, alvo);
+    await rodarAteParar(A, 8);
+    vm.runInContext(`(function(){
+      const t = STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0];
+      const r = t.riscos.find(x=>x.id===${JSON.stringify(alvo)});
+      r.descricao = "TEXTO ESCRITO DEPOIS DA EXCLUSAO";
+      r.atualizadoEm = agoraSync();
+    })()`, B.ctx);
+    for(let i=0;i<4;i++) await ciclo(B);
+
+    checar("o risco editado depois da exclusao SOBREVIVE em B", riscosDe(B).indexOf(alvo)>=0, "B="+riscosDe(B).join());
+    checar("o texto novo continua intacto",
+      vm.runInContext(`STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos.find(r=>r.id===${JSON.stringify(alvo)}).descricao`, B.ctx)
+      === "TEXTO ESCRITO DEPOIS DA EXCLUSAO");
+    checar("o trabalho novo volta para a nuvem", arquivosCom(nuvem, alvo).length>0);
+
+    for(let i=0;i<4;i++) await ciclo(A);
+    checar("A aceita de volta o risco que ele mesmo apagou (edicao mais nova vence)",
+      riscosDe(A).indexOf(alvo)>=0, "A="+riscosDe(A).join());
+    checar("A e B convergem para a MESMA arvore", idsDe(A).sort().join()===idsDe(B).sort().join(),
+      "A="+idsDe(A).length+" itens, B="+idsDe(B).length);
+  }
+
+  console.log("\n" + L + "\nENSAIO 19 - SEGURANCA: um risco editado salva a AREA inteira da exclusao\n" + L);
+  {
+    const nuvem = novaNuvem();
+    const A = novoAparelho("A", nuvem);
+    A.ctx.STATE.projetosSimples = [arvoreExemplo(2,1,1,3,false)];
+    await rodarAteParar(A, 8);
+    const B = novoAparelho("B", nuvem);
+    await rodarAteParar(B, 8);
+
+    const areaAlvo = vm.runInContext("STATE.projetosSimples[0].areas[0].id", A.ctx);
+    excluirArea(A, areaAlvo);
+    await rodarAteParar(A, 8);
+    /* Busca a area POR ID dentro de B: a ordem do array em B vem da ordem de
+       download, que nao e a mesma de A. Editar "areas[0]" as cegas mexia na
+       area errada e o ensaio media outra coisa. */
+    const riscoDentro = vm.runInContext(`(function(){
+      const a = STATE.projetosSimples[0].areas.find(x=>x.id===${JSON.stringify(areaAlvo)});
+      const r = a.maquinas[0].tarefas[0].riscos[0];
+      r.descricao = "LAUDO EM ANDAMENTO"; r.atualizadoEm = agoraSync();
+      return r.id;
+    })()`, B.ctx);
+    for(let i=0;i<5;i++) await ciclo(B);
+
+    const areasB = vm.runInContext("STATE.projetosSimples[0].areas.map(a=>a.id)", B.ctx);
+    checar("a area NAO foi removida de B (tinha trabalho novo dentro)", areasB.indexOf(areaAlvo)>=0, "areas de B: "+areasB.join());
+    checar("o caminho inteiro ate o risco sobreviveu (area > maquina > tarefa > risco)",
+      vm.runInContext(`(function(){
+        const a = STATE.projetosSimples[0].areas.find(x=>x.id===${JSON.stringify(areaAlvo)});
+        if(!a || !a.maquinas[0] || !a.maquinas[0].tarefas[0]) return false;
+        return a.maquinas[0].tarefas[0].riscos.some(r=>r.id===${JSON.stringify(riscoDentro)});
+      })()`, B.ctx));
+    checar("o texto escrito em campo continua intacto",
+      vm.runInContext(`(function(){
+        const a = STATE.projetosSimples[0].areas.find(x=>x.id===${JSON.stringify(areaAlvo)});
+        const r = a.maquinas[0].tarefas[0].riscos.find(r=>r.id===${JSON.stringify(riscoDentro)});
+        return r && r.descricao;
+      })()`, B.ctx) === "LAUDO EM ANDAMENTO");
+    checar("a outra area, sem edicao, permanece intacta", areasB.length===2, "areas de B: "+areasB.join());
+  }
+
+  console.log("\n" + L + "\nENSAIO 20 - SEGURANCA: freio de massa segura exclusao gigante no automatico\n" + L);
+  {
+    const nuvem = novaNuvem();
+    const A = novoAparelho("A", nuvem);
+    A.ctx.STATE.projetosSimples = [arvoreExemplo(2,2,2,2,false)];
+    await rodarAteParar(A, 8);
+    const B = novoAparelho("B", nuvem);
+    await rodarAteParar(B, 8);
+    const antesB = idsDe(B).length;
+
+    /* Pacote de lapides mandando apagar TUDO — o que um estado corrompido ou
+       um defeito futuro produziria. Nao pode limpar a arvore sozinho. */
+    const todos = idsDe(A);
+    const carimbo = vm.runInContext("agoraSync()", B.ctx) + 1000;
+    const lap = {}; todos.forEach(id=>{ lap[id] = carimbo; });
+    B.ctx.__lap = { atualizadoEm: carimbo, lapides: lap };
+    vm.runInContext("aplicarPacoteLapides(__lap)", B.ctx);
+
+    const auto = vm.runInContext("aplicarLapidesNaArvore(false)", B.ctx);
+    checar("no automatico o freio segura: nada foi removido", auto.removidos===0 && auto.bloqueados>0,
+      JSON.stringify(auto));
+    checar("a arvore de B continua inteira", idsDe(B).length===antesB,
+      "antes="+antesB+" agora="+idsDe(B).length);
+
+    const manual = vm.runInContext("aplicarLapidesNaArvore(true)", B.ctx);
+    checar("no manual (usuario mandou) a mesma exclusao e aplicada", manual.removidos>0, JSON.stringify(manual));
+  }
+
+  console.log("\n" + L + "\nENSAIO 21 - item que sumiu do aparelho (sem confirmacao) tambem propaga\n" + L);
+  {
+    const nuvem = novaNuvem();
+    const A = novoAparelho("A", nuvem);
+    A.ctx.STATE.projetosSimples = [arvoreExemplo(1,1,1,3,false)];
+    await rodarAteParar(A, 8);
+    const B = novoAparelho("B", nuvem);
+    await rodarAteParar(B, 8);
+
+    /* Caminho SEM lapide na origem: o item some da arvore (excluido com o
+       OneDrive desconectado, por exemplo) e quem descobre e a sincronizacao. */
+    const alvo = riscosDe(A)[2];
+    vm.runInContext(`(function(){
+      const t = STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0];
+      t.riscos = t.riscos.filter(x=>x.id!==${JSON.stringify(alvo)});
+    })()`, A.ctx);
+    checar("A nao tem lapide antes de sincronizar",
+      vm.runInContext(`lapideDe("risco:"+${JSON.stringify(alvo)})`, A.ctx)===0);
+
+    await rodarAteParar(A, 8);
+    checar("a sincronizacao gravou a lapide sozinha",
+      vm.runInContext(`lapideDe("risco:"+${JSON.stringify(alvo)})`, A.ctx)>0);
+    /* Um ciclo a mais em A: a lapide nasce DENTRO do envio, depois da rodada
+       de lapides deste ciclo — quem a leva para a nuvem e o ciclo seguinte.
+       (No app isso acontece sozinho: o ciclo automatico repete a cada 2 min e
+       marcarLapidesAlteradas zera o limitador de 10 min para nao atrasar.) */
+    await ciclo(A);
+    checar("a lapide subiu para a nuvem",
+      [...nuvem.arquivos.keys()].some(c=>c.includes("lapides_")));
+
+    for(let i=0;i<4;i++) await ciclo(B);
+    checar("B removeu o item que sumiu de A", riscosDe(B).indexOf(alvo)<0, "B="+riscosDe(B).join());
+    checar("nada ressuscitou na nuvem", arquivosCom(nuvem, alvo).length===0);
   }
 
   console.log("\n" + L);

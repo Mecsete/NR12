@@ -28,6 +28,54 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 21/08/2026 12:24
+
+Corrigido: risco excluído num aparelho voltava a aparecer — e chegava a
+reaparecer sozinho na nuvem.
+
+Relatado como "riscos excluídos em outro dispositivo ficando duplicados".
+Havia uma causa só, com três efeitos encadeados: quando você apagava um
+risco, a marca de "apaguei isto de propósito" ficava **somente no aparelho
+que apagou**. Nos outros:
+
+1. o risco continuava lá, porque eles nunca ficavam sabendo da exclusão;
+2. pior — cada um deles tem uma rotina que confere se o que ele já enviou
+   continua na nuvem, para reenviar o que porventura tenha falhado. Essa
+   rotina não sabia distinguir "meu envio falhou" de "outro aparelho apagou
+   isto", e nos dois casos reenviava. O risco excluído **voltava para a
+   nuvem**;
+3. dali em diante, qualquer aparelho novo recebia o risco excluído como se
+   fosse normal.
+
+Agora a marca de exclusão viaja junto com o resto: quando você apaga algo,
+os outros aparelhos removem aquele item na sincronização seguinte, e a
+rotina de reenvio deixou de ressuscitar o que foi apagado.
+
+**Suas exclusões antigas também são limpas.** O aparelho onde você apagou
+guarda essas marcas por 120 dias — assim que ele sincronizar depois desta
+atualização, os outros se acertam sozinhos, sem você precisar apagar de
+novo. O que foi apagado há mais de 120 dias, ou com o OneDrive
+desconectado, não tem registro em lugar nenhum: nesses casos basta apagar
+uma vez mais e agora fica.
+
+### Três travas para nada ser perdido no caminho
+
+Como esta correção **remove** itens, ela foi construída em torno de não
+apagar trabalho de ninguém:
+
+- **Quem editou depois da exclusão vence.** Se alguém apagou um risco mas
+  você escreveu nele depois, o seu texto fica — e volta a valer inclusive
+  no aparelho que tinha apagado.
+- **Um item salvo salva o ramo inteiro.** Se apagaram uma área e havia um
+  único risco lá dentro editado depois, a área inteira (com máquina e
+  tarefa) sobrevive. Laudo em andamento não vai junto.
+- **Exclusão grande não acontece sozinha.** Se chegar uma exclusão que
+  limparia boa parte do projeto, a sincronização automática não obedece:
+  ela avisa e espera você conferir em "Sincronizar agora".
+
+Toda remoção feita por esse caminho fica registrada no histórico de
+sincronização, com o motivo — dá para conferir depois o que saiu e por quê.
+
 ## 20/08/2026 22:32
 
 Corrigido: nome digitado em "Outra tarefa (especificar)" sumia da revisão do laudo.
