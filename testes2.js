@@ -5711,6 +5711,87 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   });
 
+  console.log("\n=== t115 · importar dados de plaqueta lidos fora do app ===");
+  /* Modelo, marca, nº de série, ano de fabricação, capacidade e tensão não são
+     preenchidos em campo — são lidos da foto da plaqueta, normalmente no
+     escritório. importarDadosPlaqueta, PLAQUETA_CAMPOS_IMPORTAVEIS,
+     PLAQUETA_FORMATO e maquinaSimplesGlobalPorId já vêm dentro do BLOCO_A
+     (mesma seção de importarTextosLaudo) — não precisam de extração à parte. */
+  function arvoreMaquinas(lista){
+    const T = 1000;
+    const mk = (id, e) => Object.assign({ id, criadoEm:T, atualizadoEm:T }, e||{});
+    const maquinas = lista.map(([id, extra]) => mk(id, Object.assign(
+      { nome:"M", descricao:"", tipoEquip:"", modelo:"", marca:"", numeroSerie:"", anoFabricacao:"", capacidade:"", tensao:"", fotosOutras:[], tarefas:[] },
+      extra || {})));
+    STATE.projetosSimples = [ mk("pp", { empresa:"X", areas:[ mk("aa", { nome:"A", maquinas }) ] }) ];
+  }
+  const pacotePlaqueta = (maquinas) => ({ formato:"apr-plaqueta-v1", maquinas });
+
+  t("preenche todos os campos vazios de uma máquina sem dado nenhum", ()=>{
+    arvoreMaquinas([["m1", {}]]);
+    ctx.__p = pacotePlaqueta([{ id:"m1", modelo:"V-200", marca:"WEG", numeroSerie:"SN1", anoFabricacao:"2019", capacidade:"5000 m3/h", tensao:"380V" }]);
+    const r = vm.runInContext("importarDadosPlaqueta(__p)", ctx);
+    eq(r.camposAplicados, 6, JSON.stringify(r));
+    eq(r.maquinasAtualizadas, 1);
+    const m = STATE.projetosSimples[0].areas[0].maquinas[0];
+    eq(m.modelo, "V-200"); eq(m.marca, "WEG"); eq(m.tensao, "380V");
+  });
+  t("NUNCA sobrescreve campo que já tem valor", ()=>{
+    arvoreMaquinas([["m1", { marca:"MARCA-DE-CAMPO-JA-PREENCHIDA" }]]);
+    ctx.__p = pacotePlaqueta([{ id:"m1", marca:"MARCA-NOVA-NAO-PODE-ENTRAR", modelo:"X100" }]);
+    const r = vm.runInContext("importarDadosPlaqueta(__p)", ctx);
+    eq(r.camposAplicados, 1, "só o modelo (vazio) deveria ter entrado");
+    const m = STATE.projetosSimples[0].areas[0].maquinas[0];
+    eq(m.marca, "MARCA-DE-CAMPO-JA-PREENCHIDA", "sobrescreveu marca já preenchida em campo");
+    eq(m.modelo, "X100");
+  });
+  t("máquina que não existe neste aparelho é contada, não quebra", ()=>{
+    arvoreMaquinas([["m1", {}]]);
+    ctx.__p = pacotePlaqueta([{ id:"NAO-EXISTE", marca:"FANTASMA" }]);
+    const r = vm.runInContext("importarDadosPlaqueta(__p)", ctx);
+    eq(r.naoAchadas, 1); eq(r.camposAplicados, 0); eq(r.maquinasAtualizadas, 0);
+  });
+  t("linha sem id é inválida, não derruba o resto do pacote", ()=>{
+    arvoreMaquinas([["m1", {}], ["m2", {}]]);
+    ctx.__p = pacotePlaqueta([{ marca:"SEM-ID" }, { id:"m2", marca:"OK" }]);
+    const r = vm.runInContext("importarDadosPlaqueta(__p)", ctx);
+    eq(r.invalidos, 1); eq(r.camposAplicados, 1);
+  });
+  t("busca a máquina em QUALQUER projeto/área, não só no 'atual'", ()=>{
+    /* O mesmo defeito que já corrigido nos atalhos do laudo (laudoSincronizarAtuais):
+       maquinaSimplesGlobalPorId não pode depender de STATE.ui.projetoSId. */
+    arvoreMaquinas([["m1", {}]]);
+    STATE.ui.projetoSId = null; STATE.ui.areaSId = null; STATE.ui.maquinaSId = null;
+    ctx.__p = pacotePlaqueta([{ id:"m1", marca:"WEG" }]);
+    const r = vm.runInContext("importarDadosPlaqueta(__p)", ctx);
+    eq(r.maquinasAtualizadas, 1, "não achou a máquina sem o projeto 'atual' definido");
+  });
+  t("máquina atualizada ganha carimbo de sincronização; a que não mudou nada, não", ()=>{
+    arvoreMaquinas([["m1", {}], ["m2", { marca:"JA-TEM-TUDO", modelo:"JA-TEM", numeroSerie:"JA-TEM", anoFabricacao:"JA-TEM", capacidade:"JA-TEM", tensao:"JA-TEM" }]]);
+    const antes1 = STATE.projetosSimples[0].areas[0].maquinas[0].atualizadoEm;
+    const antes2 = STATE.projetosSimples[0].areas[0].maquinas[1].atualizadoEm;
+    ctx.__p = pacotePlaqueta([{ id:"m1", marca:"WEG" }, { id:"m2", marca:"NAO-PODE-ENTRAR" }]);
+    vm.runInContext("importarDadosPlaqueta(__p)", ctx);
+    ok(STATE.projetosSimples[0].areas[0].maquinas[0].atualizadoEm > antes1, "m1 mudou e não foi carimbada");
+    eq(STATE.projetosSimples[0].areas[0].maquinas[1].atualizadoEm, antes2, "m2 não mudou nada mas foi carimbada assim mesmo");
+  });
+  t("arquivo de outro formato é recusado inteiro", ()=>{
+    arvoreMaquinas([["m1", {}]]);
+    ctx.__p = { formato:"outra-coisa", maquinas:[{ id:"m1", marca:"WEG" }] };
+    eq(vm.runInContext("importarDadosPlaqueta(__p)", ctx), null);
+    ctx.__p = { formato:"apr-plaqueta-v1" };
+    eq(vm.runInContext("importarDadosPlaqueta(__p)", ctx), null);
+    eq(vm.runInContext("importarDadosPlaqueta(null)", ctx), null);
+  });
+  t("botão, seletor de arquivo e aviso de resultado estão na tela, e não sobrescreve", ()=>{
+    ok(HTML.indexOf('<input type="file" id="fileDadosPlaqueta" accept="application/json,.json" hidden>') > 0, "sem o seletor de arquivo");
+    ok(HTML.indexOf("Importar dados de plaqueta (.json)") > 0, "sem o botão");
+    ok(HTML.indexOf('if(valor && !jaTemValor){ m[campo] = valor;') > 0, "a trava de não sobrescrever sumiu");
+    ok(HTML.indexOf("Só preenche o que estiver vazio") > 0, "a tela não avisa a regra de não sobrescrever");
+  });
+  STATE.projetosSimples = [];
+  STATE.ui.projetoSId = null; STATE.ui.areaSId = null; STATE.ui.maquinaSId = null; STATE.ui.tarefaSId = null;
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

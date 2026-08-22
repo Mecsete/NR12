@@ -44,6 +44,21 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 22/08/2026 16:51
+
+Importar dados de plaqueta lidos fora do app.
+
+Modelo, marca, nº de série, ano de fabricação, capacidade e tensão não são
+preenchidos em campo — normalmente são lidos da foto da plaqueta, no
+escritório. O app já lê isso por IA de visão (botão "Ler dados da plaqueta
+com IA", dentro do cadastro do equipamento). Agora, em **Laudo → IA**,
+existe também **"Importar dados de plaqueta (.json)"**, para quando essa
+leitura for feita fora do app.
+
+Mesma garantia do botão que já existia: **só preenche o que estiver vazio**
+no cadastro. Campo que já tem valor — preenchido em campo ou lido antes —
+nunca é sobrescrito.
+
 ## 21/08/2026 12:15
 
 Escopo do equipamento passa a identificar a máquina com os campos rotulados.

@@ -684,6 +684,7 @@ var st,ct,ut,lt,dt,ht,pt,gt,ft,mt=function(){function t(e,t,r){this.networkInter
 <input type="file" id="fileHazardGaleria" accept="image/*" multiple hidden>
 <input type="file" id="fileImport" accept="application/json" hidden>
 <input type="file" id="fileTextosLaudo" accept="application/json,.json" hidden>
+<input type="file" id="fileDadosPlaqueta" accept="application/json,.json" hidden>
 <div id="toast" class="toast"></div>
 
 <script>/* PizZip (biblioteca para ler/escrever arquivos .docx como zip) */
@@ -1841,7 +1842,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "21/08/2026 12:15";
+const APP_BUILD = "22/08/2026 16:51";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -11506,6 +11507,52 @@ function importarTextosLaudo(pacote){
   if(res.aplicados > 0) marcarAlterado();
   return res;
 }
+/* =========================================================================
+   IMPORTAR DADOS DE PLAQUETA LIDOS FORA DO APP
+
+   Modelo, marca, nº de série, ano de fabricação, capacidade e tensão não são
+   preenchidos em campo — são lidos da foto da plaqueta, normalmente no
+   escritório (o app já tem lerPlaquetaIA para isso, por chamada de API de
+   visão). Este caminho aceita os mesmos seis campos quando a leitura foi
+   feita fora do app.
+
+   Mesma regra de segurança do lerPlaquetaIA: só preenche o que está VAZIO.
+   Campo que já tem valor nunca é sobrescrito — nem por um valor diferente,
+   nem pelo mesmo. Isto não é uma sugestão aguardando decisão (como os
+   textos do laudo): é dado de cadastro, então grava direto: mas nunca por
+   cima do que já existe.
+   ========================================================================= */
+const PLAQUETA_CAMPOS_IMPORTAVEIS = ["modelo", "marca", "numeroSerie", "anoFabricacao", "capacidade", "tensao"];
+const PLAQUETA_FORMATO = "apr-plaqueta-v1";
+function maquinaSimplesGlobalPorId(id){
+  for(const p of (STATE.projetosSimples||[])){
+    for(const a of (p.areas||[])){
+      const m = (a.maquinas||[]).find(x=>x.id===id);
+      if(m) return m;
+    }
+  }
+  return null;
+}
+function importarDadosPlaqueta(pacote){
+  if(!pacote || typeof pacote !== "object") return null;
+  if(pacote.formato !== PLAQUETA_FORMATO || !Array.isArray(pacote.maquinas)) return null;
+  const res = { camposAplicados:0, maquinasAtualizadas:0, naoAchadas:0, invalidos:0 };
+  pacote.maquinas.forEach(linha=>{
+    const id = (linha && linha.id) || "";
+    if(!id || typeof linha !== "object"){ res.invalidos++; return; }
+    const m = maquinaSimplesGlobalPorId(id);
+    if(!m){ res.naoAchadas++; return; }
+    let mudouEsta = false;
+    PLAQUETA_CAMPOS_IMPORTAVEIS.forEach(campo=>{
+      const valor = String(linha[campo] || "").trim();
+      const jaTemValor = String(m[campo] || "").trim();
+      if(valor && !jaTemValor){ m[campo] = valor; res.camposAplicados++; mudouEsta = true; }
+    });
+    if(mudouEsta){ m.atualizadoEm = agoraSync(); res.maquinasAtualizadas++; }
+  });
+  if(res.maquinasAtualizadas > 0) marcarAlterado();
+  return res;
+}
 /* CARIMBO DE SINCRONIZAÇÃO — sem isto, a revisão do laudo era um trabalho
    solitário. Aprovar uma sugestão, recusar, editar o texto ou receber uma
    sugestão nova da IA gravava tudo certinho em .laudoIA e salvava no
@@ -14017,6 +14064,12 @@ function screenSimplesConfigIA(){
     <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:8px">Em projeto grande, a geração pelo provedor de IA esbarra no limite de requisições muito antes de terminar. Aqui você carrega os textos escritos fora do app (arquivo .json). Eles entram como <b>sugestão aguardando sua decisão</b>, exatamente como os da IA — você continua aprovando um a um na revisão. Campo que você já aplicou, editou ou recusou <b>não é tocado</b>, e nenhum dado de campo é alterado.</p>
     <button class="btn btn-secondary btn-block" onclick="document.getElementById('fileTextosLaudo').click()">${ic('upload')} Importar textos do laudo (.json)</button>
     ${__ultimoImporteTextos ? `<div class="field-hint" style="margin-top:8px;color:${__ultimoImporteTextos.erro?'var(--danger, #c0392b)':'var(--ok, #2e7d32)'}">${escapeHtml(__ultimoImporteTextos.mensagem)}</div>` : ""}
+  </div>
+  <div class="section-title">Dados de plaqueta lidos fora do app</div>
+  <div class="card card-pad">
+    <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:8px">Modelo, marca, nº de série, ano de fabricação, capacidade e tensão normalmente são preenchidos olhando a foto da plaqueta no escritório, não em campo. Aqui você carrega esses dados já lidos fora do app (arquivo .json). <b>Só preenche o que estiver vazio</b> no cadastro do equipamento — campo que já tem valor nunca é sobrescrito.</p>
+    <button class="btn btn-secondary btn-block" onclick="document.getElementById('fileDadosPlaqueta').click()">${ic('upload')} Importar dados de plaqueta (.json)</button>
+    ${__ultimoImportePlaqueta ? `<div class="field-hint" style="margin-top:8px;color:${__ultimoImportePlaqueta.erro?'var(--danger, #c0392b)':'var(--ok, #2e7d32)'}">${escapeHtml(__ultimoImportePlaqueta.mensagem)}</div>` : ""}
   </div>
   <div class="section-title">Aprender com os laudos já aprovados</div>
   <div class="card card-pad">
@@ -18606,6 +18659,31 @@ document.getElementById("fileTextosLaudo").addEventListener("change", async func
     }
   }catch(e){
     __ultimoImporteTextos = { erro:true, mensagem:"Não foi possível ler o arquivo: " + (e && e.message ? e.message : "erro desconhecido") };
+    toast("Não foi possível ler o arquivo", false);
+  }
+  render();
+});
+/* Resultado do ultimo importe de plaqueta, mostrado na propria aba IA. */
+let __ultimoImportePlaqueta = null;
+document.getElementById("fileDadosPlaqueta").addEventListener("change", async function(){
+  const file = this.files[0]; if(!file) return;
+  this.value = "";
+  try{
+    const pacote = JSON.parse(await file.text());
+    const r = importarDadosPlaqueta(pacote);
+    if(!r){
+      __ultimoImportePlaqueta = { erro:true, mensagem:"Arquivo não reconhecido. Esperado um .json no formato de dados de plaqueta (apr-plaqueta-v1)." };
+      toast("Arquivo não reconhecido", false);
+    }else{
+      let msg = r.camposAplicados + " campo" + (r.camposAplicados===1?"":"s") + " preenchido" + (r.camposAplicados===1?"":"s") + " em " + r.maquinasAtualizadas + " máquina" + (r.maquinasAtualizadas===1?"":"s") + ".";
+      if(r.naoAchadas) msg += " " + r.naoAchadas + " sem máquina correspondente neste aparelho.";
+      if(r.invalidos)  msg += " " + r.invalidos + " linha(s) inválida(s).";
+      __ultimoImportePlaqueta = { erro:false, mensagem: msg };
+      toast(r.maquinasAtualizadas > 0 ? "Dados de plaqueta importados" : "Nada a importar: os campos já estavam preenchidos");
+      await dbSet(STATE);
+    }
+  }catch(e){
+    __ultimoImportePlaqueta = { erro:true, mensagem:"Não foi possível ler o arquivo: " + (e && e.message ? e.message : "erro desconhecido") };
     toast("Não foi possível ler o arquivo", false);
   }
   render();

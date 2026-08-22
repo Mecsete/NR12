@@ -1932,6 +1932,30 @@ chk("a importacao nao escreve em nenhum campo de dado de campo",
     and ".descricao =" not in _corpo71 and ".nome =" not in _corpo71
     and ".foto" not in _corpo71 and "atualizadoEm =" not in _corpo71)
 
+print("\n=== 72. IMPORTAR DADOS DE PLAQUETA LIDOS FORA DO APP ===")
+# Modelo, marca, numero de serie, ano, capacidade e tensao nao sao dados de
+# campo -- sao lidos da foto da plaqueta, normalmente no escritorio. O app ja
+# tem lerPlaquetaIA (leitura por API de visao, direto no draft da maquina).
+# Este caminho aceita os mesmos seis campos quando a leitura foi feita fora
+# do app -- e precisa da MESMA garantia: nunca sobrescrever o que ja existe.
+chk("existe a funcao de importacao, com formato e campos proprios",
+    novo.count("function importarDadosPlaqueta(pacote){") == 1
+    and 'const PLAQUETA_FORMATO = "apr-plaqueta-v1";' in novo
+    and 'const PLAQUETA_CAMPOS_IMPORTAVEIS = ["modelo", "marca", "numeroSerie", "anoFabricacao", "capacidade", "tensao"];' in novo)
+chk("so preenche campo vazio -- nunca sobrescreve o que ja existe",
+    "if(valor && !jaTemValor){ m[campo] = valor; res.camposAplicados++; mudouEsta = true; }" in novo)
+chk("a maquina e localizada em QUALQUER projeto/area, nao so no 'atual'",
+    novo.count("function maquinaSimplesGlobalPorId(id){") == 1
+    and "for(const p of (STATE.projetosSimples||[])){" in novo)
+chk("maquina alterada ganha carimbo de sincronizacao (agoraSync), nao Date.now() cru",
+    "if(mudouEsta){ m.atualizadoEm = agoraSync(); res.maquinasAtualizadas++; }" in novo)
+chk("arquivo de outro formato e recusado inteiro, sem aplicar nada",
+    'if(pacote.formato !== PLAQUETA_FORMATO || !Array.isArray(pacote.maquinas)) return null;' in novo)
+chk("botao, seletor de arquivo e aviso de resultado estao na tela",
+    '<input type="file" id="fileDadosPlaqueta" accept="application/json,.json" hidden>' in novo
+    and "Importar dados de plaqueta (.json)" in novo
+    and "Só preenche o que estiver vazio" in novo)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
