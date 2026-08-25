@@ -42,6 +42,42 @@ antigo, feche e abra o app novamente.
 > 09:57). Se o rodapé de Configurações de algum aparelho ainda mostrar
 > "17/08/2026 21:55", é a mesma versão — só o número que estava errado.
 
+> **Atenção aos carimbos de 25/08/2026, entre 12:20 e 15:35.** Nesse
+> intervalo os números registrados aqui e mostrados no app estavam
+> **adiantados** — foram escritos de cabeça, sem ler o relógio, e o desvio foi
+> crescendo até 74 minutos. As versões são as mesmas; só o carimbo estava
+> errado. A correspondência com a hora real da publicação:
+>
+> | Carimbo mostrado no app | Publicada de fato às |
+> |---|---|
+> | 25/08/2026 12:20 | 12:11 |
+> | 25/08/2026 13:45 | 12:56 |
+> | 25/08/2026 14:30 | 13:47 |
+> | 25/08/2026 15:05 | 14:08 |
+> | 25/08/2026 15:35 | 14:21 |
+>
+> Os títulos abaixo foram mantidos como estão, e **não** corrigidos, de
+> propósito: é por eles que se identifica a versão que um aparelho está
+> mostrando. Trocá-los deixaria um aparelho com "15:05" na tela sem nenhum
+> registro correspondente. Da versão **25/08/2026 14:26** em diante o carimbo
+> volta a ser a hora real, lida do relógio na hora de publicar.
+
+---
+
+## 25/08/2026 14:26
+
+**Correção dos carimbos de versão.**
+
+O número da versão existe para uma coisa só: conferir, olhando o rodapé de
+Configurações, qual versão um aparelho está rodando. Nas publicações de hoje
+entre 12:20 e 15:35 esse número foi escrito de cabeça em vez de lido do
+relógio, e foi ficando cada vez mais adiantado — até 74 minutos. Na prática
+isso tirou do número a única serventia que ele tem.
+
+Nada no funcionamento do app mudou nesta versão. O carimbo volta a ser a hora
+real, e a tabela acima faz a correspondência para quem estiver com um número
+antigo na tela.
+
 ---
 
 ## 25/08/2026 15:35
