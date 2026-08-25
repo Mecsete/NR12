@@ -64,6 +64,38 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 25/08/2026 16:28
+
+**Sincronização: o app parou de se confundir com pastas duplicadas na nuvem.**
+
+Ao olhar a pasta real do OneDrive, encontrei o projeto Corteva existindo em
+**três pastas ao mesmo tempo**, todas com o mesmo identificador `c268c7`:
+
+| Pasta na nuvem | Áreas dentro |
+|---|---|
+| `Corteva (c268c7)` | 26 |
+| `Corteva A (c268c7)` | 0 (vazia) |
+| `Corteva Agriscience (c268c7)` | 34 |
+
+É o mesmo projeto, renomeado ao longo do tempo. Cada renomeação criava uma
+pasta nova **sem remover a antiga** — o defeito de endereço corrigido hoje mais
+cedo. O estrago histórico já estava lá: **25 das 70 áreas duplicadas, 1.226
+arquivos a mais** para o app listar e avaliar a cada ciclo.
+
+E não era só desperdício. A marca que diz "já vi este arquivo, ele tem tanto de
+tamanho" é guardada **uma só por item** — a mesma para todas as cópias. Cada
+cópia sobrescrevia a marca deixada pela outra, e na varredura seguinte as duas
+pareciam ter mudado.
+
+Agora um item tem **um endereço**: entre pastas irmãs de mesmo identificador, o
+app escolhe uma e ignora as outras. A escolha é pelo nome que ele calcularia
+hoje para o item; não achando, pela pasta com mais arquivos dentro.
+
+**Nada é apagado da nuvem.** As cópias antigas continuam lá, intactas — apenas
+param de ser lidas. Isso é de propósito: 75 arquivos existem só nelas (44 com
+foto) e 79 são maiores que os da pasta atual. Antes de qualquer limpeza, esse
+conteúdo precisa ser conferido.
+
 ## 25/08/2026 14:26
 
 **Correção dos carimbos de versão.**

@@ -1970,7 +1970,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "25/08/2026 14:26";
+const APP_BUILD = "25/08/2026 16:28";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -3565,6 +3565,49 @@ async function onedriveListarArvore(caminhoPasta, profundidadeRestante){
 /* Percorre a árvore já buscada (em memória, sem mais chamadas de rede) e
    separa o que é novo (não existe neste aparelho) em duas listas: pequeno
    (sem foto, baixa sozinho) e grande (tem foto, fica pendente). */
+/* PASTAS IRMÃS COM O MESMO ID — herança das renomeações antigas.
+   Até hoje, renomear um item criava uma pasta nova na nuvem e deixava a
+   antiga para trás (é o defeito de endereço corrigido nesta mesma versão).
+   O resultado, na nuvem real, é o mesmo projeto existindo em três pastas:
+   "Corteva (c268c7)", "Corteva A (c268c7)" e "Corteva Agriscience (c268c7)".
+
+   Isso sozinho já seria só desperdício de espaço. O problema é que o app
+   descia em TODAS elas, e a assinatura de cada item é guardada por
+   "tipo:id" — UMA só para todas as cópias. Cada cópia sobrescrevia o
+   tamanho registrado pela outra e, na varredura seguinte, as duas pareciam
+   ter mudado. Vaivém infinito: é a fila de "atualizado em outro aparelho"
+   que nunca zerava, com itens que ninguém tinha tocado.
+
+   A partir daqui, um item tem UM endereço: entre pastas irmãs de mesmo id,
+   uma é a canônica e as outras são ignoradas. NADA é apagado da nuvem — as
+   cópias continuam lá, intactas, apenas param de confundir a sincronização.
+   Quem escolhe: primeiro o nome que o app calcularia hoje para o item; sem
+   ele, a pasta com mais arquivos dentro (a mais completa). */
+function __arquivosNoNo(no){
+  let n = 0;
+  const anda = (x)=>{ for(const f of (x.filhos||[])){ if(f.pasta) anda(f); else n++; } };
+  anda(no || {});
+  return n;
+}
+function onedriveDuplicatasParaIgnorar(nodes, nomeEsperadoDoId){
+  const pular = new Set();
+  const porId = new Map();
+  for(const no of (nodes||[])){
+    if(!no || !no.pasta) continue;
+    const sufixo = extrairSufixoDoNome(no.nome);
+    if(!sufixo) continue;
+    if(!porId.has(sufixo)) porId.set(sufixo, []);
+    porId.get(sufixo).push(no);
+  }
+  porId.forEach((lista, sufixo)=>{
+    if(lista.length <= 1) return;
+    const esperado = nomeEsperadoDoId ? nomeEsperadoDoId(sufixo) : null;
+    let escolhida = esperado ? lista.find(n=>n.nome === esperado) : null;
+    if(!escolhida) escolhida = lista.reduce((a,b)=> __arquivosNoNo(b) > __arquivosNoNo(a) ? b : a);
+    lista.forEach(n=>{ if(n !== escolhida) pular.add(n); });
+  });
+  return pular;
+}
 function onedriveClassificarNovosSimples(arvoreProjetos){
   const pequenos = [], grandes = [];
   const registrar = (tamanho, reg) => {
@@ -3604,8 +3647,13 @@ function onedriveClassificarNovosSimples(arvoreProjetos){
     if(onedriveMesmaVersaoPeloTamanho(tipo, itemLocal, chave, arq.tamanho)) return;
     registrar(arq.tamanho, { tipo, ...ids, atualizacao:true, chaveAssinatura:chave, caminho:arq.caminho, nome:arq.nome, tamanho:arq.tamanho });
   };
+  const pularProj = onedriveDuplicatasParaIgnorar(arvoreProjetos, (sufixo)=>{
+    const p = (STATE.projetosSimples||[]).find(x=>idBateComSufixo(x.id, sufixo));
+    return p ? segmentoPastaComId(p.empresa || p.nome || "Projeto", p.id) : null;
+  });
   for(const nodeProj of arvoreProjetos){
     if(!nodeProj.pasta) continue;
+    if(pularProj.has(nodeProj)) continue; // cópia parada do mesmo projeto — ver onedriveDuplicatasParaIgnorar
     const projLocal = STATE.projetosSimples.find(p=>idBateComSufixo(p.id, extrairSufixoDoNome(nodeProj.nome)));
     if(!projLocal){
       // Projeto que este aparelho ainda não conhece. Antes, isso era pulado
@@ -3622,8 +3670,13 @@ function onedriveClassificarNovosSimples(arvoreProjetos){
     }
     registrarTextoSeMudou(nodeProj, "_projeto.json", "projeto", projLocal, {});
     registrarFotosSeEsperando(nodeProj, "_projeto.json", projLocal, "projeto", {});
+    const pularArea = onedriveDuplicatasParaIgnorar(nodeProj.filhos, (sufixo)=>{
+      const a = (projLocal.areas||[]).find(x=>idBateComSufixo(x.id, sufixo));
+      return a ? segmentoPastaComId(a.nome || "Área", a.id) : null;
+    });
     for(const nodeArea of nodeProj.filhos){
       if(!nodeArea.pasta) continue;
+      if(pularArea.has(nodeArea)) continue;
       const areaLocal = projLocal.areas.find(a=>idBateComSufixo(a.id, extrairSufixoDoNome(nodeArea.nome)));
       if(!areaLocal){
         const arq = nodeArea.filhos.find(f=>!f.pasta && f.nome==="_area.json");
@@ -3632,8 +3685,13 @@ function onedriveClassificarNovosSimples(arvoreProjetos){
       }
       registrarTextoSeMudou(nodeArea, "_area.json", "area", areaLocal, { projId:projLocal.id });
       registrarFotosSeEsperando(nodeArea, "_area.json", areaLocal, "area", { projId:projLocal.id });
+      const pularMaq = onedriveDuplicatasParaIgnorar(nodeArea.filhos, (sufixo)=>{
+        const m = (areaLocal.maquinas||[]).find(x=>idBateComSufixo(x.id, sufixo));
+        return m ? segmentoPastaComId(nomeMaquinaS(m) || "Máquina", m.id) : null;
+      });
       for(const nodeMaq of nodeArea.filhos){
         if(!nodeMaq.pasta) continue;
+        if(pularMaq.has(nodeMaq)) continue;
         const maqLocal = areaLocal.maquinas.find(m=>idBateComSufixo(m.id, extrairSufixoDoNome(nodeMaq.nome)));
         if(!maqLocal){
           const arq = nodeMaq.filhos.find(f=>!f.pasta && f.nome==="_maquina.json");
@@ -3642,8 +3700,14 @@ function onedriveClassificarNovosSimples(arvoreProjetos){
         }
         registrarTextoSeMudou(nodeMaq, "_maquina.json", "maquina", maqLocal, { projId:projLocal.id, areaId:areaLocal.id });
         registrarFotosSeEsperando(nodeMaq, "_maquina.json", maqLocal, "maquina", { projId:projLocal.id, areaId:areaLocal.id });
+        const pularTar = onedriveDuplicatasParaIgnorar(nodeMaq.filhos, (sufixo)=>{
+          const t = (maqLocal.tarefas||[]).find(x=>idBateComSufixo(x.id, sufixo));
+          if(!t) return null;
+          return segmentoPastaComId(valOuOutro(t.tarefa, t.tarefaOutro) || "Tarefa", t.id);
+        });
         for(const nodeTar of nodeMaq.filhos){
           if(!nodeTar.pasta) continue;
+          if(pularTar.has(nodeTar)) continue;
           const tarLocal = maqLocal.tarefas.find(t=>idBateComSufixo(t.id, extrairSufixoDoNome(nodeTar.nome)));
           if(!tarLocal){
             const arq = nodeTar.filhos.find(f=>!f.pasta && f.nome==="_tarefa.json");

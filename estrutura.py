@@ -2141,6 +2141,35 @@ chk("nao descarta ponto antigo enquanto houver foto perdida conhecida",
 chk("o teto normal continua valendo quando nao ha dano",
     "const base = onedriveTudoConfirmadoNaNuvem() ? MIN_PONTOS_RESTAURACAO : MAX_PONTOS_RESTAURACAO;" in novo)
 
+print("\n=== 77. UM ITEM TEM UM ENDERECO NA NUVEM ===")
+# Na nuvem real do usuario o projeto de id c268c7 existe em TRES pastas
+# ("Corteva", "Corteva A", "Corteva Agriscience") -- heranca das renomeacoes
+# antigas, que criavam pasta nova sem remover a antiga (ver secao 73). 25 das
+# 70 areas ficaram duplicadas: 1226 arquivos a mais para listar e avaliar a
+# cada ciclo. Pior, a assinatura de cada item e guardada por "tipo:id" -- UMA
+# so para todas as copias -- entao cada copia sobrescrevia o tamanho
+# registrado pela outra.
+chk("existe a escolha da pasta canonica entre irmas de mesmo id",
+    novo.count("function onedriveDuplicatasParaIgnorar(") == 1
+    and novo.count("function __arquivosNoNo(") == 1)
+chk("desempata pelo nome que o app calcularia hoje; sem ele, pela mais completa",
+    "let escolhida = esperado ? lista.find(n=>n.nome === esperado) : null;" in novo
+    and "if(!escolhida) escolhida = lista.reduce((a,b)=> __arquivosNoNo(b) > __arquivosNoNo(a) ? b : a);" in novo)
+chk("uma pasta sozinha (o caso normal) nunca e ignorada",
+    "if(lista.length <= 1) return;" in novo)
+chk("os quatro niveis pulam as duplicatas",
+    novo.count("if(pularProj.has(nodeProj)) continue;") == 1
+    and novo.count("if(pularArea.has(nodeArea)) continue;") == 1
+    and novo.count("if(pularMaq.has(nodeMaq)) continue;") == 1
+    and novo.count("if(pularTar.has(nodeTar)) continue;") == 1)
+# 1 definicao + 4 usos + 1 mencao no comentario que explica o porque.
+# NADA e apagado da nuvem: as copias continuam la, intactas -- so param de
+# ser lidas. O ensaio 24 do banco.js cobra isso de verdade, conferindo que a
+# classificacao nao propoe nenhum item vindo da pasta parada.
+chk("a escolha e usada nos quatro niveis, e nada e apagado",
+    novo.count("onedriveDuplicatasParaIgnorar") == 6
+    and "NADA é apagado da nuvem" in novo)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

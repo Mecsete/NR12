@@ -150,22 +150,26 @@ function novoAparelho(nome, nuvem){
      comportamento antigo (compara o caminho inteiro, letra por letra). É o que
      permite `node banco.js original.html` rodar e REPROVAR nos ensaios 22 e 23,
      em vez de estourar por função inexistente. */
-  ["enderecoLogicoDaPasta","onedriveMesmoEnderecoLogico"].forEach(n=>{
+  ["enderecoLogicoDaPasta","onedriveMesmoEnderecoLogico",
+   "__arquivosNoNo","onedriveDuplicatasParaIgnorar"].forEach(n=>{
     try{ vm.runInContext(funcao(n), ctx); }
-    catch(e){ /* versão antiga: fica o comportamento de antes, abaixo */ }
+    catch(e){ if(process.env.BANCO_DEBUG) console.log("  [extracao] " + n + " -> " + e.message); }
   });
-  vm.runInContext(`
-    if(typeof enderecoLogicoDaPasta !== "function"){
-      function enderecoLogicoDaPasta(p){ return Array.isArray(p) ? p.join("/") : null; }
-      this.enderecoLogicoDaPasta = enderecoLogicoDaPasta;
-    }
-    if(typeof onedriveMesmoEnderecoLogico !== "function"){
-      function onedriveMesmoEnderecoLogico(a,b){
-        return Array.isArray(a) && Array.isArray(b) && a.join("/") === b.join("/");
-      }
-      this.onedriveMesmoEnderecoLogico = onedriveMesmoEnderecoLogico;
-    }
-  `, ctx);
+  /* Preenchidos aqui do lado do Node, e NÃO por um script rodado dentro do
+     contexto: `function f(){}` dentro de um `if` é hasteada para o escopo do
+     script e nasce como undefined, sobrescrevendo a função que a extração
+     acabou de definir. O sintoma era um ReferenceError em ensaio nenhum
+     relacionado, difícil de enxergar. Atribuir direto na propriedade do
+     contexto não tem essa armadilha. */
+  if(typeof ctx.enderecoLogicoDaPasta !== "function")
+    ctx.enderecoLogicoDaPasta = p => Array.isArray(p) ? p.join("/") : null;
+  if(typeof ctx.onedriveMesmoEnderecoLogico !== "function")
+    ctx.onedriveMesmoEnderecoLogico = (a,b) => Array.isArray(a) && Array.isArray(b) && a.join("/") === b.join("/");
+  /* Versão anterior à correção: não ignorava pasta duplicada nenhuma. */
+  if(typeof ctx.onedriveDuplicatasParaIgnorar !== "function")
+    ctx.onedriveDuplicatasParaIgnorar = () => new Set();
+  if(typeof ctx.__arquivosNoNo !== "function")
+    ctx.__arquivosNoNo = () => 0;
 
   // Rede de mentira: envia/apaga/baixa direto na nuvem em memória.
   ctx.onedriveEnviarBlob = async (subpasta, blob, filename) => {
@@ -969,6 +973,89 @@ async function rodarAteParar(ap, maxCiclos, rotulo){
       vm.runInContext(`(STATE.projetosSimples[0].areas[1].maquinas||[]).some(m=>m.id===${JSON.stringify(idMaq)})`, B.ctx));
     checar("B nao ficou com a maquina duplicada nas duas areas",
       vm.runInContext(`(STATE.projetosSimples[0].areas[0].maquinas||[]).every(m=>m.id!==${JSON.stringify(idMaq)})`, B.ctx));
+  }
+
+  console.log("\n" + L + "\nENSAIO 24 - pasta duplicada do MESMO id nao gera vaivem eterno\n" + L);
+  {
+    /* Na nuvem real do usuario, o projeto de id c268c7 existe em TRES pastas
+       ("Corteva", "Corteva A", "Corteva Agriscience") -- heranca das
+       renomeacoes antigas, que criavam pasta nova sem remover a antiga.
+       O app descia em todas, e a assinatura de cada item e guardada por
+       "tipo:id": UMA so para todas as copias. Cada copia sobrescrevia o
+       tamanho registrado pela outra e, na varredura seguinte, as duas
+       pareciam ter mudado. Fila que nunca zerava, com itens que ninguem
+       tocou -- era a linha "N atualizados em outro aparelho, para receber". */
+    const nuvem = novaNuvem();
+    const A = novoAparelho("A", nuvem);
+    A.ctx.STATE.projetosSimples = [arvoreExemplo(1, 2, 2, 2, false)];
+    await rodarAteParar(A, 8);
+    const idProj = A.ctx.STATE.projetosSimples[0].id;
+    const sufixo = String(idProj).slice(-6);
+    const pastaViva = "Corteva (" + sufixo + ")";
+    const pastaVelha = "Corteva Agriscience LTDA (" + sufixo + ")";
+
+    /* Reproduz o estrago historico: uma copia da arvore inteira numa pasta de
+       projeto com o MESMO id e outro nome legivel. E ela precisa ser uma copia
+       VELHA, com conteudo diferente -- e isso que dispara o vaivem. Na nuvem
+       real do usuario, 79 arquivos da pasta antiga eram MAIORES que os da
+       viva. Copia identica nao reproduz nada: os tamanhos batem e o app nao
+       ve novidade. */
+    let copiados = 0;
+    for(const [caminho, arq] of [...nuvem.arquivos]){
+      if(caminho.indexOf("/" + pastaViva + "/") < 0) continue;
+      let texto = arq.texto;
+      try{
+        const o = JSON.parse(texto);
+        if(o && typeof o === "object" && o.id){
+          // versao ANTIGA: texto mais longo (tamanho diferente) e carimbo mais velho
+          if(typeof o.nome === "string") o.nome = o.nome + " (nome antigo, bem mais comprido)";
+          if(typeof o.atualizadoEm === "number") o.atualizadoEm = o.atualizadoEm - 100000;
+          texto = JSON.stringify(o, null, 0);
+        }
+      }catch(e){}
+      nuvem.arquivos.set(caminho.replace("/" + pastaViva + "/", "/" + pastaVelha + "/"),
+                         { tamanho: Buffer.byteLength(texto, "utf8"), texto });
+      copiados++;
+    }
+    checar("o cenario montou a pasta duplicada", copiados > 0, copiados + " arquivos");
+    checar("a nuvem tem as duas pastas do mesmo id",
+      [...nuvem.arquivos.keys()].some(c=>c.includes(pastaViva)) &&
+      [...nuvem.arquivos.keys()].some(c=>c.includes(pastaVelha)));
+
+    /* O QUE A CORRECAO PROMETE: a varredura para de DESCER na pasta parada.
+       Sem isso, os 1226 arquivos das pastas antigas do projeto do usuario
+       eram listados e avaliados a cada ciclo, e cada copia sobrescrevia o
+       tamanho registrado pela outra (a assinatura e uma so por "tipo:id").
+       Aqui a arvore da nuvem e classificada e conferimos se algum item
+       proposto aponta para a pasta parada. */
+    {
+      const arv = montarArvore(nuvem, A);
+      A.ctx.__arv = arv;
+      const cls = vm.runInContext("onedriveClassificarNovosSimples(__arv)", A.ctx);
+      const propostos = [...(cls.pequenos||[]), ...(cls.grandes||[])];
+      const daVelha = propostos.filter(d => String(d.caminho||"").includes(pastaVelha));
+      checar("a varredura IGNORA a pasta parada (nao propoe nada de la)",
+        daVelha.length === 0, daVelha.length + " itens propostos da pasta antiga: " +
+        daVelha.slice(0,2).map(d=>d.caminho).join(" | "));
+    }
+
+    const r = await rodarAteParar(A, 10);
+    checar("A volta ao silencio mesmo com a pasta duplicada la", r.parou,
+      "transferencias por ciclo: " + r.hist.join(", "));
+    checar("nada foi APAGADO da nuvem (as copias continuam intactas)",
+      [...nuvem.arquivos.keys()].filter(c=>c.includes(pastaVelha)).length === copiados,
+      [...nuvem.arquivos.keys()].filter(c=>c.includes(pastaVelha)).length + " de " + copiados);
+
+    const B = novoAparelho("B", nuvem);
+    const rB = await rodarAteParar(B, 12);
+    checar("aparelho NOVO tambem silencia", rB.parou, "B: " + rB.hist.join(", "));
+    const nA = idsDe(A).length, nB = idsDe(B).length;
+    checar("B recebeu a arvore UMA vez, sem duplicar itens", nA === nB, "A=" + nA + " B=" + nB);
+
+    let depois = 0;
+    for(let i=0;i<3;i++){ depois += (await ciclo(A)).transferencias; depois += (await ciclo(B)).transferencias; }
+    checar("SEM VAIVEM: 6 ciclos alternados sem editar = zero trafego", depois === 0,
+      "ainda transferiu " + depois);
   }
 
   console.log("\n" + L);
