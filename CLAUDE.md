@@ -128,15 +128,45 @@ quatro passos de validação.**
 - **CAMADA_FOTOS**: fotos ficam como referência curta `idbfoto:<id>` dentro
   de `STATE`; os bytes reais moram no IndexedDB sob a chave `foto:<id>`.
   Nunca tratar foto como base64 inline dentro de `STATE`.
-- **Sincronização**: texto sincroniza em qualquer conexão; foto só em
-  Wi-Fi. Bug fixes no motor de sync são sempre **aditivos** (ex.: um
-  listener novo), nunca alteram a lógica central existente. Last-write-wins
-  por timestamp resolve conflito de conteúdo no mesmo endereço — não
-  resolve conflito de posição (mesmo item em caminhos diferentes em
-  aparelhos diferentes).
+- **Sincronização**: texto e foto sobem em qualquer conexão (a regra "foto só
+  no Wi-Fi" foi removida em 25/08/2026: o Safari do iPhone nunca informa o
+  tipo de rede, então "foto só no Wi-Fi" significava, na prática, "foto nunca
+  sobe" — um dia inteiro de campo terminava com tudo parado no aparelho).
+  RECEBER foto automaticamente continua exigindo Wi-Fi confirmado. Bug fixes
+  no motor de sync são sempre **aditivos** (ex.: um listener novo), nunca
+  alteram a lógica central existente. Last-write-wins por timestamp resolve
+  conflito de conteúdo no mesmo endereço — não resolve conflito de posição
+  (mesmo item em caminhos diferentes em aparelhos diferentes).
 - **Excel**: nunca reexportar o `.xlsm` original do cliente (perde macros
   VBA e imagens embutidas). Entregas de laudo geram tabela estruturada ou
   `.xlsx` só com a aba relevante.
+- **Rotina de fundo NUNCA decide apagar lendo o `STATE` global.** `STATE` é
+  reatribuído inteiro em três momentos — abertura do app (começa vazio até a
+  leitura do banco terminar), volta pelo bfcache, e restauração de ponto.
+  Qualquer rotina disparada sem `await` que leia `STATE` depois de um `await`
+  pode pegá-lo vazio. Foi assim que `fotosLimparOrfasSeForHora` apagou fotos
+  de campo em 25/08/2026: montava a lista de "fotos ainda usadas" a partir do
+  `STATE` e removia do IndexedDB tudo que sobrava. Ler a fonte **persistida**
+  (`DB_KEY`), somar todas as fontes possíveis (STATE, pontos de restauração,
+  rascunho) e desistir da operação inteira quando a fonte de verdade não puder
+  ser lida. Ver seção 73 do `estrutura.py` e t116 do `testes2.js`.
+- **Um item tem UM endereço na nuvem, identificado pelo id, não pelo nome.**
+  O caminho é montado com o nome legível de cada nível, mas o nome é
+  decoração — quem identifica é o sufixo de id no fim da pasta. Comparar o
+  caminho inteiro fazia toda renomeação virar "mudou de endereço": o app
+  apagava a cópia antiga e reenviava o item e todos os filhos, a cada ciclo,
+  sem convergir nunca. Usar `onedriveMesmoEnderecoLogico`. E, entre pastas
+  irmãs de mesmo id (herança das renomeações antigas — na nuvem real do
+  usuário o mesmo projeto existe em três pastas), só a canônica é lida:
+  `onedriveDuplicatasParaIgnorar`. Seções 73 e 77; ensaios 22, 23 e 24.
+- **Nunca substituir um arquivo da nuvem por um muito menor**
+  (`onedriveEnvioEncolheDemais`). Nos arquivos no formato antigo a foto vai
+  embutida no arquivo do item; se o que vai subir é uma fração do que está
+  lá, falta alguma coisa neste aparelho e regravar apaga a última cópia. Vale
+  também para pacote de fotos: `completarFotosDeItem` nunca reduz a
+  quantidade de fotos REAIS de quem recebe — contar `data:image`, nunca o
+  `length` da lista (uma lista danificada mantém o tamanho e perde o
+  conteúdo). Seções 75 e 79; t118 e t121.
 - **Módulo de impressão A4**: vive inteiro entre as marcas
   `INÍCIO DO MÓDULO DE IMPRESSÃO DO LAUDO — BLOCO REMOVÍVEL` e
   `FIM DO MÓDULO DE IMPRESSÃO DO LAUDO`. Removível sem tocar em mais nada
@@ -276,6 +306,39 @@ python3 estrutura.py original.html index.html | grep '=== '
 
 O número de seções tem que ter crescido. Vale o mesmo princípio da função
 `rep()` dos patches: nenhuma substituição sem contagem verificada.
+
+## APP_BUILD: ler o relógio EM TODA entrega
+
+O carimbo tem de vir de uma execução de `date '+%d/%m/%Y %H:%M'` feita
+**naquela entrega** — nunca do carimbo anterior mais um tanto, nunca de
+estimativa. Em 25/08/2026, numa sessão com seis publicações seguidas, o
+relógio foi lido uma vez e os cinco carimbos seguintes foram escritos de
+cabeça: o desvio cresceu até 74 minutos e o número perdeu a única serventia
+que tem (o Luiz olhar o rodapé e saber qual versão está no aparelho).
+
+Na prática, passar a hora como argumento em vez de digitá-la:
+
+```bash
+AGORA=$(date '+%d/%m/%Y %H:%M') && python patch.py "$AGORA"
+```
+
+Se um carimbo errado já foi publicado, **não reescrever os títulos antigos do
+`VERSOES.md`** — é por eles que se identifica a versão que está num aparelho.
+Acrescentar uma tabela de correspondência "carimbo mostrado → hora real".
+
+## Cuidado ao gravar com script Python
+
+Um script de patch que faz várias substituições e só grava no fim **perde
+tudo** se uma substituição intermediária falhar (`sys.exit` antes do
+`write`). Isso aconteceu três vezes em 25/08/2026, sempre com o mesmo
+sintoma: o script imprime "OK" para as primeiras e some com elas. Ou gravar
+a cada substituição, ou usar a ferramenta de edição direta quando forem
+poucas mudanças.
+
+Lembrar também que `estrutura.py` ancora várias checagens na **assinatura**
+de funções (`find("async function X(a, b){")`). Acrescentar um parâmetro
+derruba a seção inteira por um motivo que nada tem a ver com o que ela
+prova — ancorar pelo NOME (`find("async function X(")`).
 
 ## Aviso sobre `estrutura.py`
 
