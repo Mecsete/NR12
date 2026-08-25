@@ -6006,6 +6006,79 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  /* ==================================================================
+     t117 · foto sobe sozinha tambem no iPhone
+
+     onedriveEstaEmWifi() pergunta ao navegador em que rede o aparelho
+     esta. O Safari do iPhone nao implementa essa API -- a resposta e
+     sempre "nao sei", e o codigo tratava "nao sei" como "nao e Wi-Fi".
+     Os dois primeiros testes reproduzem exatamente esse aparelho.
+     ================================================================== */
+  console.log("\n=== t117 · foto sobe sozinha tambem no iPhone ===");
+  {
+    const ctx = vm.createContext({});
+    vm.runInContext(`
+      var STATE = {};
+      var navigator = {};   // iPhone: sem navigator.connection, como no Safari
+      var __onProgresso = null;
+    `, ctx);
+    ["onedriveEstaEmWifi","podeSincronizarAutomaticoAgora"].forEach(n=> vm.runInContext(funcao(n), ctx));
+    /* A decisao em si, recortada do arquivo entregue: e a linha que define
+       se a foto pode subir agora. */
+    const linha = HTML.match(/const podeSubirFotos = [^;]+;/);
+    ok(linha, "a linha que decide o envio de fotos nao foi encontrada");
+    vm.runInContext("function podeSubirFotos(onProgresso){ " + linha[0].replace("const podeSubirFotos =", "return") + " }", ctx);
+    const pode = (onProgresso)=>{ ctx.__op = onProgresso; return vm.runInContext("podeSubirFotos(__op)", ctx); };
+
+    t("iPhone (navegador nao informa a rede): onedriveEstaEmWifi da 'nao'", ()=>{
+      vm.runInContext("STATE = {};", ctx);
+      eq(vm.runInContext("onedriveEstaEmWifi()", ctx), false,
+         "o cenario do teste nao reproduz o iPhone");
+    });
+    t("O CASO REAL: no iPhone, a foto sobe sozinha mesmo assim", ()=>{
+      vm.runInContext("STATE = {};", ctx);
+      ok(pode(null) === true,
+        "no iPhone a foto continua presa esperando um Wi-Fi que o app nunca reconhece");
+    });
+    t("aparelho que informa Wi-Fi tambem sobe (nada foi quebrado no caminho antigo)", ()=>{
+      vm.runInContext("STATE = {}; navigator = { connection: { type: 'wifi' } };", ctx);
+      ok(pode(null) === true);
+      vm.runInContext("navigator = {};", ctx);
+    });
+    t("Wi-Fi confirmado na mao continua valendo", ()=>{
+      vm.runInContext("STATE = { wifiConfirmado: true };", ctx);
+      eq(vm.runInContext("onedriveEstaEmWifi()", ctx), true);
+      ok(pode(null) === true);
+    });
+    t("sincronizacao manual sempre pode enviar foto", ()=>{
+      vm.runInContext("STATE = {};", ctx);
+      ok(pode(function(){}) === true, "o toque explicito no botao deveria autorizar");
+    });
+    t("modo economico, se um dia voltar, volta a segurar a foto", ()=>{
+      /* podeSincronizarAutomaticoAgora respeita sincronizarEmDadosMoveis===false.
+         O interruptor foi removido da tela, mas a regra segue no codigo -- e o
+         envio de foto agora a obedece junto com o texto, em vez de ter uma
+         regra propria e escondida. */
+      vm.runInContext("STATE = { sincronizarEmDadosMoveis: false };", ctx);
+      eq(vm.runInContext("podeSincronizarAutomaticoAgora()", ctx), false);
+      ok(pode(null) === false, "no modo economico a foto deveria esperar");
+      ok(pode(function(){}) === true, "mas o botao manual deveria continuar enviando");
+    });
+    t("RECEBER foto automaticamente continua exigindo Wi-Fi confirmado", ()=>{
+      ok(HTML.indexOf("if(STATE.baixarFotosAutoWifi && onedriveEstaEmWifi()){") > 0,
+         "o download automatico de fotos deixou de exigir Wi-Fi -- sao dezenas de MB");
+    });
+    t("o aviso de consumo so aparece em volume grande, e nao afirma a rede", ()=>{
+      ok(HTML.indexOf("const LIMIAR_PERGUNTAR_BYTES = 20*1024*1024;") > 0, "o limiar nao subiu");
+      ok(HTML.indexOf("Você não parece estar no Wi-Fi. Sincronizar agora") < 0,
+         "o aviso ainda afirma um tipo de rede que o app nao tem como saber");
+    });
+    t("a tela deixa claro que o envio nao depende da chave de Wi-Fi", ()=>{
+      ok(HTML.indexOf("O envio do seu trabalho não depende desta chave.") > 0);
+      ok(HTML.indexOf("limitação do Safari, não deste app") > 0);
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

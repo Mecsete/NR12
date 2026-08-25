@@ -85,6 +85,10 @@ function novoAparelho(nome, nuvem){
     getOneDriveConta:()=>({email:"x"}),
     avisarExclusaoMassaBloqueada:()=>{},
     onedriveEstaEmWifi:()=>true,
+    /* O envio de fotos passou a seguir a política do texto (qualquer rede)
+       em vez da detecção de Wi-Fi — que no iPhone nunca dizia "sim". Aqui o
+       ensaio quer a rede liberada, como já queria com onedriveEstaEmWifi. */
+    podeSincronizarAutomaticoAgora:()=>true,
     onedriveEstimarFotosParaEnviar:()=>({totalItens:0,totalBytes:0}),
     marcarArquivoCorrompido:()=>{},
     rotuloCaminhoNuvem:c=>c,

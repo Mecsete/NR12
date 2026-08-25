@@ -1888,7 +1888,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "25/08/2026 11:35";
+const APP_BUILD = "25/08/2026 12:20";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -2896,9 +2896,26 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
   const itensAtuais = listarItens();
   const assinaturas = onedriveCarregarAssinaturas(mapaAssinaturasRef);
   const idsAtuais = new Set(itensAtuais.map(it=>it.id));
-  // Fotos podem subir agora? Wi-Fi confirmado, ou sincronização manual (o
-  // toque explícito no botão é a autorização para usar a rede que houver).
-  const podeSubirFotos = onedriveEstaEmWifi() || !!onProgresso;
+  /* Fotos podem subir agora? Seguem a MESMA política do texto: qualquer
+     conexão. A sincronização manual também, claro.
+
+     ANTES ISTO ERA `onedriveEstaEmWifi()`, e no iPhone significava NUNCA.
+     O Safari não implementa a API que informa o tipo de rede — é uma
+     limitação da Apple, não deste app — então a resposta ali era sempre
+     "não sei", e "não sei" caía como "não é Wi-Fi". Um dia inteiro de
+     levantamento com o aparelho no Wi-Fi terminava com todas as fotos
+     paradas no celular, esperando um Wi-Fi que o app nunca ia reconhecer,
+     e sem nada na tela dizendo que estavam bloqueadas.
+
+     Foto parada no aparelho é trabalho de campo sem cópia em lugar nenhum
+     — e o inspetor já saiu do local. Entre gastar dados móveis e arriscar
+     perder o levantamento do dia, a escolha é enviar. Quem precisa poupar
+     dados usa o botão manual e deixa o app fechado.
+
+     RECEBER fotos é outra história e continua exigindo Wi-Fi confirmado
+     (ver baixarFotosAutoWifi): receber é comodidade, não proteção de
+     trabalho, e são dezenas de MB de uma vez. */
+  const podeSubirFotos = podeSincronizarAutomaticoAgora() || !!onProgresso;
 
   const idsExcluidosTodos = [];
   assinaturas.forEach((registro, id)=>{ if(!idsAtuais.has(id)) idsExcluidosTodos.push(id); });
@@ -5620,14 +5637,21 @@ async function onedriveSincronizarAgora(){
       toast("Encontrado Projeto ou Área ainda não conhecidos neste aparelho — o restante (Equipamentos, Tarefas, Riscos) aparece nas próximas passadas desta mesma sincronização.");
     }
 
-    const LIMIAR_PERGUNTAR_BYTES = 50*1024; // abaixo disso não vale incomodar com confirmação
+    /* Limiar de 50 KB para 20 MB, e o texto deixou de afirmar o que o app
+       não tem como saber. O app NÃO sabe em que rede o aparelho está (o
+       iPhone não informa) — dizer "você não parece estar no Wi-Fi" era um
+       chute apresentado como fato, e no iPhone aparecia em TODA
+       sincronização, inclusive no Wi-Fi do escritório. Aviso que aparece
+       sempre deixa de ser aviso: a pessoa aprende a tocar em "OK" sem ler.
+       Agora só aparece quando o volume justifica de verdade. */
+    const LIMIAR_PERGUNTAR_BYTES = 20*1024*1024; // 20 MB — só quando o volume justifica mesmo
     if(!onedriveEstaEmWifi() && totalBytesGeral > LIMIAR_PERGUNTAR_BYTES){
       const totalMB = (totalBytesGeral/1024/1024).toFixed(1);
       const partes = [];
       if(upload.totalItens>0) partes.push(`${upload.totalItens} ${upload.totalItens===1?'alteração sua':'alterações suas'}`);
       if(download.grandes.length>0) partes.push(`${download.grandes.length} ${download.grandes.length===1?'foto':'fotos'} de outro aparelho`);
       const detalhe = partes.length ? ` (${partes.join(' + ')})` : '';
-      if(!confirm(`Você não parece estar no Wi-Fi. Sincronizar agora deve consumir aproximadamente ${totalMB} MB de dados móveis${detalhe}. Continuar?`)){
+      if(!confirm(`Esta sincronização vai transferir cerca de ${totalMB} MB${detalhe}.\n\nSe você estiver em dados móveis, isso será consumido do seu plano. Continuar?`)){
         toast("Sincronização cancelada");
         return;
       }
@@ -13942,11 +13966,11 @@ function screenSimplesConfigBackup(){
   ${syncHistoricoHtml()}
   ${onedriveDiagnosticoInlineHtml()}
   <div class="section-title">Sincronização · Fotos e consumo de dados</div>
-  <p style="font-size:11.5px;color:var(--ink-dim);margin:0 2px 6px">O texto sincroniza sempre, em qualquer conexão. Só as fotos aguardam Wi-Fi — os controles abaixo valem para elas.</p>
+  <p style="font-size:11.5px;color:var(--ink-dim);margin:0 2px 6px"><b>Enviar:</b> texto e fotos sobem sozinhos, em qualquer conexão — trabalho de campo sem cópia na nuvem é trabalho que pode se perder. <b>Receber:</b> fotos que vêm de outro aparelho são dezenas de MB e só descem sozinhas com a chave abaixo ligada.</p>
   <div class="card card-pad" style="display:flex;align-items:center;gap:12px">
     <div style="flex:1">
       <div style="font-weight:800;font-size:14px">Estou no Wi-Fi agora</div>
-      <div style="font-size:12px;color:var(--ink-dim)">O navegador não sabe informar isso de forma confiável — marque aqui quando tiver certeza, e o app para de perguntar sobre consumo de dados.</div>
+      <div style="font-size:12px;color:var(--ink-dim)">O iPhone não informa ao app em que rede está — é uma limitação do Safari, não deste app. Marque aqui quando tiver certeza: é o que libera o download automático das fotos vindas de outro aparelho. O envio do seu trabalho não depende desta chave.</div>
     </div>
     <label class="switch"><input type="checkbox" ${STATE.wifiConfirmado?'checked':''} onchange="App.onedriveToggleWifiConfirmado()"><span class="switch-track"></span></label>
   </div>

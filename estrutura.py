@@ -2006,6 +2006,28 @@ chk("a trava de 10 minutos continua no lugar",
 chk("a remocao em si nao mudou -- so a lista de quem pode ser removido",
     "remover.forEach(fid => store.delete(FOTO_KEY_PREFIXO + fid));" in novo)
 
+print("\n=== 74. FOTO SOBE SOZINHA TAMBEM NO IPHONE ===")
+# onedriveEstaEmWifi() pergunta ao navegador o tipo de rede. O Safari do
+# iPhone NAO implementa essa API (limitacao da Apple), entao a resposta era
+# sempre "nao sei" -- e o codigo tratava "nao sei" como "nao e Wi-Fi". Na
+# pratica, no iPhone a foto so subia no toque manual: um dia inteiro de campo
+# no Wi-Fi terminava com tudo parado no aparelho, sem aviso nenhum.
+chk("o ENVIO de fotos segue a politica do texto, nao a deteccao de Wi-Fi",
+    "const podeSubirFotos = podeSincronizarAutomaticoAgora() || !!onProgresso;" in novo
+    and "const podeSubirFotos = onedriveEstaEmWifi() || !!onProgresso;" not in novo)
+chk("a deteccao de Wi-Fi continua existindo (nao foi arrancada do app)",
+    novo.count("function onedriveEstaEmWifi(){") == 1)
+chk("RECEBER foto automaticamente continua exigindo Wi-Fi confirmado",
+    "if(STATE.baixarFotosAutoWifi && onedriveEstaEmWifi()){" in novo)
+chk("o aviso de consumo so aparece em volume grande",
+    "const LIMIAR_PERGUNTAR_BYTES = 20*1024*1024;" in novo)
+chk("o aviso parou de afirmar em que rede o aparelho esta",
+    "Voc\u00ea n\u00e3o parece estar no Wi-Fi. Sincronizar agora" not in novo)
+chk("a tela explica que o envio NAO depende da chave de Wi-Fi",
+    "O envio do seu trabalho n\u00e3o depende desta chave." in novo)
+chk("a tela atribui a limitacao ao Safari, nao ao app",
+    "limita\u00e7\u00e3o do Safari, n\u00e3o deste app" in novo)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

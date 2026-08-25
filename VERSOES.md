@@ -44,6 +44,38 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 25/08/2026 12:20
+
+**Correção: no iPhone, as fotos nunca subiam sozinhas.**
+
+Para decidir se podia enviar fotos, o app perguntava ao navegador em que tipo
+de rede o aparelho estava. **O Safari do iPhone nunca responde essa pergunta**
+— a Apple não implementa essa função, e não é algo que este app possa
+contornar. O código tratava o "não sei" como "não é Wi-Fi".
+
+Na prática, no iPhone a foto só subia quando alguém tocava em "Sincronizar
+agora". Um dia inteiro de levantamento com o aparelho no Wi-Fi terminava com
+todas as fotos paradas no celular — e nada na tela dizia que estavam
+bloqueadas. Junto com o defeito da faxina (versão anterior), foi assim que um
+dia de trabalho se perdeu: as fotos nunca saíram do aparelho, e no aparelho
+estavam sendo apagadas.
+
+O que mudou:
+
+- **Enviar:** foto agora segue a mesma regra do texto — sobe em qualquer
+  conexão, sem depender de o app adivinhar o tipo de rede. Trabalho de campo
+  sem cópia na nuvem é trabalho que pode se perder; entre gastar alguns MB de
+  dados e arriscar o levantamento do dia, o app envia.
+- **Receber** continua exigindo a chave "Estou no Wi-Fi agora": receber é
+  comodidade, não proteção de trabalho, e são dezenas de MB de uma vez.
+- O aviso de consumo de dados na sincronização manual **parou de aparecer em
+  toda sincronização** (no iPhone ele aparecia sempre, inclusive no Wi-Fi do
+  escritório, porque se baseava naquela mesma pergunta sem resposta). Agora só
+  aparece acima de 20 MB, e não afirma mais em que rede o aparelho está — o
+  app não tem como saber isso.
+- A tela de Backup foi reescrita para dizer a verdade: o que depende da chave
+  de Wi-Fi (receber) e o que não depende (enviar).
+
 ## 25/08/2026 11:35
 
 **Correção urgente: fotos de campo podiam ser apagadas sozinhas.**
