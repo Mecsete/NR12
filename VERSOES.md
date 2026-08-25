@@ -44,6 +44,37 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 25/08/2026 14:30
+
+**Recuperar fotos perdidas, sem desfazer nada.**
+
+A faxina defeituosa apagava as fotos que o app (lido num instante errado) não
+reconhecia como suas — **mas nunca apagou foto protegida por um ponto de
+restauração**. Ou seja: boa parte das fotos que sumiram da tela continua
+dentro do aparelho, presa nos pontos, sem nenhuma tela que as mostre.
+
+Restaurar um ponto inteiro traria as fotos de volta e **levaria junto todo o
+trabalho feito depois dele**. A recuperação faz o contrário: entra nos pontos,
+pega **só as fotos** e devolve aos espaços vazios.
+
+Em **Configurações → Backup → "Procurar e devolver fotos perdidas"**. Antes de
+mexer em qualquer coisa ela mostra quantas fotos encontrou e pede confirmação.
+
+Três garantias:
+
+- **Nunca substitui uma foto que já está boa.**
+- **Nunca reduz** a quantidade de fotos que o item já tem.
+- **Não toca no carimbo de data.** Isso importa quando duas pessoas trabalham
+  no mesmo projeto: o carimbo é o que decide quem vence na sincronização, e
+  mexer nele faria a versão do celular passar por cima do texto que a outra
+  pessoa está editando no escritório. Para as fotos recuperadas subirem, o
+  app marca apenas "fotos pendentes" — sobe o pacote de fotos, o texto fica
+  onde está.
+
+Se alguma foto não puder voltar (o arquivo também sumiu do aparelho), o item
+continua marcado e **não sobe** — assim o arquivo que está na nuvem, que ainda
+pode ter essa foto embutida, não é regravado por cima.
+
 ## 25/08/2026 13:45
 
 **Urgente: o aparelho que perdeu fotos parava de destruir a cópia da nuvem.**

@@ -6174,6 +6174,154 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  /* ==================================================================
+     t119 - recuperacao de fotos a partir dos pontos de restauracao
+
+     A faxina defeituosa nunca apagava foto referenciada por um ponto de
+     restauracao -- entao as fotos perdidas da tela continuam no aparelho,
+     presas nos pontos. Restaurar um ponto inteiro desfaria o trabalho do
+     dia; esta recuperacao pega SO AS FOTOS e devolve aos espacos vazios.
+     ================================================================== */
+  console.log("\n=== t119 - recuperar fotos dos pontos de restauracao ===");
+  {
+    const ctx = vm.createContext({ console, Map, Set, Array, Object, String, JSON, Promise });
+    vm.runInContext([
+      'var FOTO_REF_PREFIXO = "idbfoto:"; var CAMPO_FOTOS_LISTA = "fotosOutras";',
+      'var FOTO_KEY_PREFIXO = "foto:"; var DB_STORE = "kv";',
+      'var STATE = { projetosSimples: [], oneDriveAssinaturasSimples: {} };',
+      'var __assinaturasOneDriveSimples = { mapa:null, chaveEstado:"oneDriveAssinaturasSimples" };',
+      'var __pontos = []; var __bytes = new Map(); var __gravou = 0;',
+      'function temIndexedDB(){ return true; }',
+      'async function dbOpen(){ return {}; }',
+      'async function listarPontosDeRestauracao(){ return __pontos; }',
+      'async function fotosLerLote(db, refs){ const m = new Map(); refs.forEach(f=>{ if(__bytes.has(f)) m.set(f, __bytes.get(f)); }); return m; }',
+      'async function dbSet(){ __gravou++; return true; }',
+      'function marcarAlterado(){}',
+      'function agoraSync(){ return 9999; }'
+    ].join("\n"), ctx);
+    vm.runInContext(constante("CAMPO_MARCA_FOTO_PERDIDA"), ctx);
+    vm.runInContext(constante("CAMPOS_FOTO_UNICA"), ctx);
+    ["ehFotoDataUrlPersist","ehFotoRefPersist","__ehFotoOuRef","__percorrerItensSimples",
+     "fotosGuardadasNosPontos","onedriveCarregarAssinaturas","marcarFotosPendentesParaEnvio",
+     "__recuperarFotosDosPontos","recuperarFotosDosPontos","contarFotosRecuperaveis"]
+      .forEach(n=> vm.runInContext(funcao(n), ctx));
+
+    const A = "data:image/jpeg;base64,AAAA", B = "data:image/jpeg;base64,BBBB", C = "data:image/jpeg;base64,CCCC";
+    function cenario(o){
+      ctx.STATE = { projetosSimples: o.atual, oneDriveAssinaturasSimples: o.assinaturas || {} };
+      vm.runInContext("__assinaturasOneDriveSimples.mapa = null; __gravou = 0;", ctx);
+      ctx.__pontos = o.ponto ? [{ ts:1, dados:{ projetosSimples: o.ponto } }] : [];
+      ctx.__bytes = new Map(Object.entries(o.bytes || {}));
+    }
+    const arv = (risco)=> [ { id:"p", areas:[ { id:"a", maquinas:[ { id:"m", tarefas:[ { id:"t", riscos:[ risco ] } ] } ] } ] } ];
+    const oRisco = ()=> ctx.STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos[0];
+    const ta = async (nome, fn)=>{ total++; try{ await fn(); console.log("  ok  "+nome); }
+      catch(e){ falhas++; console.log("  ERRO "+nome+" -> "+(e&&e.message?e.message:e)); } };
+
+    await ta("O CASO REAL: devolve a foto perdida guardada no ponto", async ()=>{
+      cenario({ atual: arv({ id:"r1", foto:null, fotosOutras:[null,null], __fotosPerdidas:true }),
+                ponto: arv({ id:"r1", foto:"idbfoto:F1", fotosOutras:["idbfoto:F2","idbfoto:F3"] }),
+                bytes: { F1:A, F2:B, F3:C } });
+      const r = await vm.runInContext("recuperarFotosDosPontos()", ctx);
+      eq(r.fotos, 3, "nao devolveu as tres fotos");
+      eq(oRisco().foto, A);
+      eq(oRisco().fotosOutras.length, 2);
+      eq(oRisco().fotosOutras[0], B); eq(oRisco().fotosOutras[1], C);
+      eq(oRisco().__fotosPerdidas, undefined, "a marca de dano deveria ter saido");
+    });
+
+    await ta("NUNCA sobrescreve foto que ja esta boa", async ()=>{
+      cenario({ atual: arv({ id:"r1", foto:C, fotosOutras:[] }),
+                ponto: arv({ id:"r1", foto:"idbfoto:F1", fotosOutras:[] }), bytes: { F1:A } });
+      const r = await vm.runInContext("recuperarFotosDosPontos()", ctx);
+      eq(oRisco().foto, C, "sobrescreveu uma foto boa com a do ponto");
+      eq(r.fotos, 0);
+    });
+
+    await ta("NUNCA reduz a quantidade de fotos que ja existe", async ()=>{
+      cenario({ atual: arv({ id:"r1", fotosOutras:[A,B,C] }),
+                ponto: arv({ id:"r1", fotosOutras:["idbfoto:F1"] }), bytes: { F1:A } });
+      await vm.runInContext("recuperarFotosDosPontos()", ctx);
+      eq(oRisco().fotosOutras.length, 3, "o ponto reduziu a lista de fotos");
+    });
+
+    await ta("NAO mexe no carimbo de data (o escritorio nao perde o texto dele)", async ()=>{
+      cenario({ atual: arv({ id:"r1", foto:null, atualizadoEm:111, nome:"texto de campo" }),
+                ponto: arv({ id:"r1", foto:"idbfoto:F1", atualizadoEm:50, nome:"texto ANTIGO" }),
+                bytes: { F1:A } });
+      await vm.runInContext("recuperarFotosDosPontos()", ctx);
+      eq(oRisco().atualizadoEm, 111, "mexeu no carimbo - a versao daqui passaria por cima do escritorio");
+      eq(oRisco().nome, "texto de campo", "o texto antigo do ponto voltou junto");
+      eq(oRisco().foto, A, "a foto nao voltou");
+    });
+
+    await ta("marca o item como 'fotos pendentes' para o pacote subir sozinho", async ()=>{
+      cenario({ atual: arv({ id:"r1", foto:null }),
+                ponto: arv({ id:"r1", foto:"idbfoto:F1" }), bytes: { F1:A },
+                assinaturas: { "risco:r1": { atualizadoEm:111, fotosPendentes:false, tamanhoFotos:44 } } });
+      await vm.runInContext("recuperarFotosDosPontos()", ctx);
+      const reg = ctx.STATE.oneDriveAssinaturasSimples["risco:r1"];
+      eq(reg.fotosPendentes, true, "nao entrou na fila de envio de fotos");
+      eq(reg.tamanhoFotos, undefined, "o tamanho antigo do pacote ficou e barraria o reenvio");
+      eq(reg.atualizadoEm, 111, "mexeu no carimbo da assinatura");
+    });
+
+    await ta("referencia sem o arquivo no aparelho e contada, nao quebra", async ()=>{
+      cenario({ atual: arv({ id:"r1", foto:null, fotosOutras:[null] }),
+                ponto: arv({ id:"r1", foto:"idbfoto:SUMIU", fotosOutras:["idbfoto:F2"] }), bytes: { F2:B } });
+      const r = await vm.runInContext("recuperarFotosDosPontos()", ctx);
+      eq(r.fotos, 1); ok(r.semBytes >= 1, "nao contou a referencia sem arquivo");
+      eq(oRisco().foto, null, "inventou foto para uma referencia sem arquivo");
+      eq(oRisco().fotosOutras[0], B);
+    });
+
+    await ta("com foto faltando, a marca de dano PERMANECE (nao libera o envio)", async ()=>{
+      cenario({ atual: arv({ id:"r1", foto:null, fotosOutras:[null], __fotosPerdidas:true }),
+                ponto: arv({ id:"r1", foto:"idbfoto:SUMIU", fotosOutras:["idbfoto:F2"] }), bytes: { F2:B } });
+      await vm.runInContext("recuperarFotosDosPontos()", ctx);
+      eq(oRisco().__fotosPerdidas, true, "liberou o envio com foto ainda faltando");
+    });
+
+    await ta("espaco vazio sem nada de onde voltar some do cartao", async ()=>{
+      cenario({ atual: arv({ id:"r1", fotosOutras:[A,null,null] }),
+                ponto: arv({ id:"r1", fotosOutras:["idbfoto:F1"] }), bytes:{ F1:A } });
+      await vm.runInContext("recuperarFotosDosPontos()", ctx);
+      eq(oRisco().fotosOutras.length, 1, "os quadros vazios continuaram na tela");
+      eq(oRisco().fotosOutras[0], A);
+    });
+
+    await ta("contar NAO altera nada (previa antes de confirmar)", async ()=>{
+      cenario({ atual: arv({ id:"r1", foto:null, fotosOutras:[null] }),
+                ponto: arv({ id:"r1", foto:"idbfoto:F1", fotosOutras:["idbfoto:F2"] }), bytes: { F1:A, F2:B } });
+      const r = await vm.runInContext("contarFotosRecuperaveis()", ctx);
+      eq(r.fotos, 2, "a previa contou errado");
+      eq(oRisco().foto, null, "a previa alterou o estado");
+      eq(vm.runInContext("__gravou", ctx), 0, "a previa gravou no banco");
+    });
+
+    await ta("sem pontos de restauracao, nao faz nada e nao quebra", async ()=>{
+      cenario({ atual: arv({ id:"r1", foto:null }), ponto:null, bytes:{} });
+      const r = await vm.runInContext("recuperarFotosDosPontos()", ctx);
+      eq(r.fotos, 0); eq(r.pontos, 0);
+    });
+
+    await ta("maquina tambem recupera fotoGeral e fotoPlaqueta", async ()=>{
+      cenario({ atual: [ { id:"p", areas:[ { id:"a", maquinas:[ { id:"m", fotoGeral:null, fotoPlaqueta:null, tarefas:[] } ] } ] } ],
+                ponto: [ { id:"p", areas:[ { id:"a", maquinas:[ { id:"m", fotoGeral:"idbfoto:F1", fotoPlaqueta:"idbfoto:F2", tarefas:[] } ] } ] } ],
+                bytes: { F1:A, F2:B } });
+      const r = await vm.runInContext("recuperarFotosDosPontos()", ctx);
+      eq(r.fotos, 2);
+      const m = ctx.STATE.projetosSimples[0].areas[0].maquinas[0];
+      eq(m.fotoGeral, A); eq(m.fotoPlaqueta, B);
+    });
+
+    await ta("ponto no formato antigo (foto embutida) tambem serve", async ()=>{
+      cenario({ atual: arv({ id:"r1", foto:null }), ponto: arv({ id:"r1", foto:A }), bytes:{} });
+      const r = await vm.runInContext("recuperarFotosDosPontos()", ctx);
+      eq(r.fotos, 1); eq(oRisco().foto, A);
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

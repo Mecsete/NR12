@@ -1955,7 +1955,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "25/08/2026 13:45";
+const APP_BUILD = "25/08/2026 14:30";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -3908,6 +3908,158 @@ function contarItensComFotoPerdida(){
     }
   }
   return n;
+}
+/* =========================================================================
+   RECUPERAÇÃO DE FOTOS A PARTIR DOS PONTOS DE RESTAURAÇÃO
+
+   A faxina de fotos órfãs, no defeito corrigido em 25/08, apagava do banco
+   tudo o que o STATE (lido num instante em que ainda estava vazio) não
+   referenciava. Mas ela sempre respeitou uma exceção: NUNCA apagou foto
+   referenciada por um ponto de restauração. É por isso que as fotos que
+   sumiram da tela continuam, em boa parte, dentro do aparelho — presas nos
+   pontos, sem nenhuma tela que as mostre.
+
+   Restaurar um ponto inteiro traria as fotos de volta e levaria junto todo o
+   trabalho feito depois dele. Esta recuperação faz o contrário: entra nos
+   pontos, pega SÓ AS FOTOS e devolve aos espaços vazios do estado atual.
+   Texto, carimbo de data, HRN, medidas, decisões do laudo — nada disso é
+   tocado.
+
+   Três regras, nesta ordem de importância:
+   1. NUNCA sobrescreve uma foto que já está boa;
+   2. NUNCA reduz a quantidade de fotos que o item já tem;
+   3. não mexe em atualizadoEm — o carimbo é o que decide quem vence na
+      sincronização, e mexer nele faria a versão deste aparelho passar por
+      cima do texto que a outra pessoa está editando no escritório. Para as
+      fotos recuperadas subirem, marca-se apenas "fotos pendentes" na
+      assinatura: sobe o pacote de fotos, o texto fica onde está.
+   ========================================================================= */
+const CAMPOS_FOTO_UNICA = ["foto", "fotoGeral", "fotoPlaqueta"];
+function __percorrerItensSimples(projetos, fn){
+  for(const p of (projetos||[])){
+    fn(p, "projeto");
+    for(const a of (p.areas||[])){
+      fn(a, "area");
+      for(const m of (a.maquinas||[])){
+        fn(m, "maquina");
+        for(const t of (m.tarefas||[])){
+          fn(t, "tarefa");
+          for(const r of (t.riscos||[])) fn(r, "risco");
+        }
+      }
+    }
+  }
+}
+/* Dentro de um ponto a foto pode estar dos dois jeitos: como referência
+   (pontos novos, que são leves) ou embutida (pontos no formato antigo). */
+function __ehFotoOuRef(v){ return ehFotoDataUrlPersist(v) || ehFotoRefPersist(v); }
+/* Junta, varrendo os pontos do mais novo para o mais antigo, o que cada item
+   já teve de foto. O primeiro ponto que tiver algo para um campo é o que
+   vale — é o mais recente, então o mais parecido com o que se perdeu. */
+function fotosGuardadasNosPontos(pontos){
+  const porItem = new Map();
+  for(const ponto of (pontos||[])){
+    const dados = (ponto && ponto.dados) || ponto;
+    __percorrerItensSimples(dados && dados.projetosSimples, (item)=>{
+      if(!item || !item.id) return;
+      let reg = porItem.get(item.id);
+      if(!reg){ reg = { unicas:{}, lista:[] }; porItem.set(item.id, reg); }
+      for(const campo of CAMPOS_FOTO_UNICA){
+        if(!reg.unicas[campo] && __ehFotoOuRef(item[campo])) reg.unicas[campo] = item[campo];
+      }
+      const lista = Array.isArray(item[CAMPO_FOTOS_LISTA]) ? item[CAMPO_FOTOS_LISTA].filter(__ehFotoOuRef) : [];
+      if(lista.length > reg.lista.length) reg.lista = lista;
+    });
+  }
+  return porItem;
+}
+/* Põe o item de volta na fila de envio SÓ pelas fotos — sem tocar no carimbo
+   de data. Assim o pacote de fotos sobe e o texto continua exatamente como
+   está, sem passar por cima do que a outra pessoa editou no escritório. */
+function marcarFotosPendentesParaEnvio(chave){
+  const mapa = onedriveCarregarAssinaturas(__assinaturasOneDriveSimples);
+  const reg = mapa.get(chave);
+  if(!reg) return;
+  reg.fotosPendentes = true;
+  delete reg.tamanhoFotos; // o pacote mudou de tamanho — a comparação tem de ser refeita
+  mapa.set(chave, reg);
+  if(!STATE[__assinaturasOneDriveSimples.chaveEstado] || typeof STATE[__assinaturasOneDriveSimples.chaveEstado] !== "object") STATE[__assinaturasOneDriveSimples.chaveEstado] = {};
+  STATE[__assinaturasOneDriveSimples.chaveEstado][chave] = reg;
+}
+/* Só conta, sem mexer em nada — alimenta o botão da tela ("N fotos podem
+   voltar") para a pessoa saber o que esperar antes de tocar. */
+async function contarFotosRecuperaveis(){
+  const r = await __recuperarFotosDosPontos(true);
+  return r;
+}
+async function recuperarFotosDosPontos(){
+  return await __recuperarFotosDosPontos(false);
+}
+async function __recuperarFotosDosPontos(apenasContar){
+  const res = { itens:0, fotos:0, semBytes:0, pontos:0 };
+  if(!temIndexedDB()) return res;
+  const pontos = await listarPontosDeRestauracao();
+  res.pontos = pontos.length;
+  if(!pontos.length) return res;
+  const porItem = fotosGuardadasNosPontos(pontos);
+  if(porItem.size === 0) return res;
+  // Quais bytes precisam ser lidos do banco (as referências dos pontos).
+  const refs = new Set();
+  porItem.forEach(reg=>{
+    for(const c in reg.unicas) if(ehFotoRefPersist(reg.unicas[c])) refs.add(reg.unicas[c].slice(FOTO_REF_PREFIXO.length));
+    reg.lista.forEach(v=>{ if(ehFotoRefPersist(v)) refs.add(v.slice(FOTO_REF_PREFIXO.length)); });
+  });
+  const db = await dbOpen();
+  const mapa = await fotosLerLote(db, refs);
+  /* Referência cujo arquivo também sumiu do banco: não há o que devolver.
+     Conta como "sem bytes" e segue — não é motivo para derrubar o resto. */
+  const resolver = (v)=>{
+    if(ehFotoDataUrlPersist(v)) return v;
+    if(ehFotoRefPersist(v)){ const f = mapa.get(v.slice(FOTO_REF_PREFIXO.length)); if(f) return f; res.semBytes++; return null; }
+    return null;
+  };
+  const paraCarimbar = [];
+  __percorrerItensSimples(STATE.projetosSimples, (item, tipo)=>{
+    const reg = item && item.id ? porItem.get(item.id) : null;
+    if(!reg) return;
+    let ganhou = 0, faltou = 0;
+    const aplicar = (obj)=>{
+      for(const campo of CAMPOS_FOTO_UNICA){
+        if(!reg.unicas[campo]) continue;
+        if(ehFotoDataUrlPersist(item[campo])) continue; // já tem foto boa aqui — não se toca
+        const f = resolver(reg.unicas[campo]);
+        if(f){ if(obj) item[campo] = f; ganhou++; } else faltou++;
+      }
+      const aqui = Array.isArray(item[CAMPO_FOTOS_LISTA]) ? item[CAMPO_FOTOS_LISTA].filter(ehFotoDataUrlPersist) : [];
+      const doPonto = [];
+      reg.lista.forEach(v=>{ const f = resolver(v); if(f) doPonto.push(f); else faltou++; });
+      if(doPonto.length > aqui.length){
+        ganhou += (doPonto.length - aqui.length);
+        if(obj) item[CAMPO_FOTOS_LISTA] = doPonto;
+      }else if(obj && Array.isArray(item[CAMPO_FOTOS_LISTA]) && item[CAMPO_FOTOS_LISTA].length !== aqui.length){
+        // Espaço vazio que não tem de onde voltar: some, para o cartão parar
+        // de mostrar um quadro que nunca vai carregar.
+        item[CAMPO_FOTOS_LISTA] = aqui;
+      }
+    };
+    aplicar(!apenasContar);
+    if(ganhou > 0){
+      res.itens++; res.fotos += ganhou;
+      if(!apenasContar){
+        /* A marca de dano só sai quando NADA ficou faltando — enquanto
+           faltar foto, o item continua parado, sem regravar o arquivo da
+           nuvem que ainda pode ter a foto que falta. */
+        if(faltou === 0) delete item[CAMPO_MARCA_FOTO_PERDIDA];
+        paraCarimbar.push(tipo + ":" + item.id);
+      }
+    }
+  });
+  if(!apenasContar && res.itens > 0){
+    paraCarimbar.forEach(marcarFotosPendentesParaEnvio);
+    marcarAlterado();
+    await dbSet(STATE);
+  }
+  return res;
 }
 function onedriveEstaEmWifi(){
   if(STATE.wifiConfirmado) return true;
@@ -14178,6 +14330,12 @@ function screenSimplesConfigBackup(){
   <button class="btn btn-primary btn-block" onclick="App.exportarBackup()">${ic('download')} Exportar backup (.json) — ${STATE.projetosSimples.length} projeto(s) / ${linhas.length} risco(s)</button>
   <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="document.getElementById('fileImport').click()">${ic('upload')} Importar backup (.json)</button>
   <p style="text-align:center;font-size:11px;color:var(--ink-faint);margin-top:16px">Versão ${APP_BUILD}</p>
+  <div class="section-title">Backup · Recuperar fotos perdidas</div>
+  <div class="card card-pad">
+    <p style="font-size:12.5px;color:var(--ink-dim)">Se algum risco ou equipamento está mostrando <b>quadro vermelho</b> ou <b>"Pendente"</b> onde havia foto, ela pode estar guardada dentro dos pontos de restauração deste aparelho. Isto entra nos pontos, pega <b>só as fotos</b> e devolve aos espaços vazios — <b>não desfaz nada</b>: texto, medidas, HRN e decisões do laudo ficam exatamente como estão. Foto que já está boa nunca é substituída.</p>
+    ${__ultimaRecuperacaoFotos ? `<div class="field-hint" style="margin-top:8px;color:${__ultimaRecuperacaoFotos.erro?'var(--danger, #c0392b)':'var(--ok, #2e7d32)'}">${escapeHtml(__ultimaRecuperacaoFotos.mensagem)}</div>` : ""}
+  </div>
+  <button class="btn btn-primary btn-block" style="margin-top:8px" onclick="App.recuperarFotosPerdidas()">${ic('shield')} Procurar e devolver fotos perdidas</button>
   <div class="section-title">Backup · Pontos de restauração (neste aparelho)</div>
   ${__statusArmazenamentoCache && __statusArmazenamentoCache.espaco ? `<div class="card card-pad" style="margin-bottom:8px">
     <div style="font-size:12.5px;color:var(--ink-dim)">Espaço livre estimado no aparelho: <b>${(__statusArmazenamentoCache.espaco.livre/1024/1024/1024).toFixed(1)} GB</b>${__statusArmazenamentoCache.espaco.livre < FOLGA_MINIMA_DESEJADA_BYTES ? ' <span style="color:#FF6B5E;font-weight:700">— abaixo da folga recomendada de 2 GB</span>' : ''}${__statusArmazenamentoCache.persistente ? ' · dados protegidos contra limpeza automática do navegador' : ''}</div>
@@ -16222,6 +16380,33 @@ const App = {
   tentarSalvarNovamente(){
     if(!__ultimoErroSalvar) return; // toque no selo em estado normal não faz nada
     marcarAlterado();
+  },
+  async recuperarFotosPerdidas(){
+    toast("Procurando fotos nos pontos de restauração…");
+    try{
+      const prev = await contarFotosRecuperaveis();
+      if(!prev || prev.fotos === 0){
+        __ultimaRecuperacaoFotos = { erro:false, mensagem: (prev && prev.pontos===0)
+          ? "Não há pontos de restauração neste aparelho — não há de onde puxar fotos."
+          : "Nenhuma foto para devolver: os pontos de restauração não têm nenhuma foto que já não esteja aqui." };
+        toast("Nenhuma foto para devolver");
+        render(); return;
+      }
+      if(!confirm(`Encontrei ${prev.fotos} foto${prev.fotos===1?'':'s'} em ${prev.itens} ${prev.itens===1?'item':'itens'} para devolver.
+
+Só os espaços vazios são preenchidos — nenhuma foto boa é substituída, e nada mais do cadastro é alterado.
+
+Devolver agora?`)) return;
+      const r = await recuperarFotosDosPontos();
+      let msg = r.fotos + " foto" + (r.fotos===1?"":"s") + " devolvida" + (r.fotos===1?"":"s") + " em " + r.itens + " " + (r.itens===1?"item":"itens") + ".";
+      if(r.semBytes) msg += " " + r.semBytes + " referência(s) sem o arquivo no aparelho — essa(s) só voltam pela nuvem.";
+      __ultimaRecuperacaoFotos = { erro:false, mensagem: msg };
+      toast(r.fotos + " foto(s) devolvida(s)");
+    }catch(e){
+      __ultimaRecuperacaoFotos = { erro:true, mensagem:"Não foi possível concluir: " + (e && e.message ? e.message : "erro desconhecido") };
+      toast("Não foi possível concluir a recuperação", false);
+    }
+    render();
   },
   async criarPontoDeRestauracaoManual(){
     toast("Criando ponto de restauração…");
@@ -18910,6 +19095,8 @@ document.getElementById("fileTextosLaudo").addEventListener("change", async func
 });
 /* Resultado do ultimo importe de plaqueta, mostrado na propria aba IA. */
 let __ultimoImportePlaqueta = null;
+/* Resultado da última recuperação de fotos, mostrado na tela de Backup. */
+let __ultimaRecuperacaoFotos = null;
 document.getElementById("fileDadosPlaqueta").addEventListener("change", async function(){
   const file = this.files[0]; if(!file) return;
   this.value = "";

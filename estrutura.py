@@ -1611,6 +1611,10 @@ chk("as secoes nao alternam mais de assunto: Sincronizacao, depois Backup, depoi
     re.findall(r'<div class="section-title">([^<]+)</div>', novo[_ini61:_fim61])
     == ["Sincronização", "Sincronização · Fotos e consumo de dados", "Sincronização · Conta",
         "Backup · Pasta local do aparelho", "Backup · Arquivo completo (.json)",
+        # "Recuperar fotos perdidas" entrou logo ANTES dos pontos de restauração,
+        # que é de onde ela puxa as fotos — os dois assuntos ficam vizinhos, e a
+        # regra desta checagem (não alternar de assunto) continua respeitada.
+        "Backup · Recuperar fotos perdidas",
         "Backup · Pontos de restauração (neste aparelho)", "Dados"])
 chk("tamanho pequeno nao aparece mais como '0.0 MB'",
     "return `${g.qtd} ${onedriveRotuloTipo(t,g.qtd)} ${fecho} (${fmtBytes(g.bytes)})`;" in novo)
@@ -2055,6 +2059,46 @@ chk("o teste antigo, que olhava so o TAMANHO da lista, saiu",
     "Array.isArray(v) && v.length>0 && (substituir || !Array.isArray(local[k]) || local[k].length===0)" not in novo)
 chk("existe contagem de itens com foto perdida para a tela",
     novo.count("function contarItensComFotoPerdida(") == 1)
+
+print("\n=== 76. RECUPERAR FOTOS DOS PONTOS DE RESTAURACAO ===")
+# A faxina defeituosa nunca apagava foto referenciada por um ponto de
+# restauracao -- entao as fotos que sumiram da tela continuam no aparelho,
+# presas dentro dos pontos. Restaurar um ponto INTEIRO traria as fotos e
+# levaria junto todo o trabalho feito depois dele; esta recuperacao entra nos
+# pontos e pega SO AS FOTOS.
+_ini76 = novo.find("async function __recuperarFotosDosPontos(apenasContar){")
+_fim76 = novo.find("\nfunction onedriveEstaEmWifi", _ini76)
+chk("existe a recuperacao, com previa que nao altera nada",
+    _ini76 > 0 and _fim76 > _ini76
+    and novo.count("async function recuperarFotosDosPontos(){") == 1
+    and novo.count("async function contarFotosRecuperaveis(){") == 1)
+chk("junta os pontos do mais novo para o mais antigo",
+    novo.count("function fotosGuardadasNosPontos(") == 1
+    and "if(!reg.unicas[campo] && __ehFotoOuRef(item[campo])) reg.unicas[campo] = item[campo];" in novo)
+chk("NUNCA sobrescreve foto que ja esta boa",
+    "if(ehFotoDataUrlPersist(item[campo])) continue;" in novo)
+chk("NUNCA reduz a quantidade de fotos que ja existe",
+    "if(doPonto.length > aqui.length){" in novo)
+# O carimbo e o que decide quem vence na sincronizacao. Mexer nele faria a
+# versao deste aparelho passar por cima do texto que a outra pessoa esta
+# editando no escritorio -- perda de trabalho alheio para devolver uma foto.
+chk("a recuperacao NAO mexe no carimbo de data de nenhum item",
+    _ini76 > 0 and "atualizadoEm" not in novo[_ini76:_fim76])
+chk("poe o item na fila SO pelas fotos, sem tocar no carimbo",
+    novo.count("function marcarFotosPendentesParaEnvio(") == 1
+    and "reg.fotosPendentes = true;" in novo
+    and "delete reg.tamanhoFotos;" in novo)
+chk("a marca de dano so sai quando NADA ficou faltando",
+    "if(faltou === 0) delete item[CAMPO_MARCA_FOTO_PERDIDA];" in novo)
+chk("ponto no formato antigo (foto embutida) tambem serve",
+    novo.count("function __ehFotoOuRef(") == 1
+    and "return ehFotoDataUrlPersist(v) || ehFotoRefPersist(v);" in novo)
+chk("botao e aviso de resultado estao na tela",
+    "App.recuperarFotosPerdidas()" in novo
+    and "Procurar e devolver fotos perdidas" in novo
+    and "let __ultimaRecuperacaoFotos = null;" in novo)
+chk("a tela deixa claro que nada e desfeito",
+    "não desfaz nada" in novo)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
