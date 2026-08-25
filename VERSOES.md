@@ -64,6 +64,38 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 25/08/2026 20:08
+
+**A última trava antes de reconectar: nunca trocar um arquivo da nuvem por um
+muito menor.**
+
+A proteção da versão das 13:45 impede que um item com foto perdida sobrescreva
+o arquivo da nuvem. Mas ela depende de o app ter **flagrado** a foto sumindo —
+e ele só consegue flagrar uma vez: na leitura seguinte já não há referência
+nenhuma, só um vazio, indistinguível de "aqui nunca teve foto".
+
+Num aparelho onde o estrago já tinha sido gravado **antes** dessa versão
+existir — que é o caso do seu — a marca nunca é criada, e a proteção não
+protege nada.
+
+Esta trava não depende de o app ter percebido coisa alguma. Ela olha o fato
+bruto: **o tamanho do arquivo**. Nos arquivos no formato antigo, a foto vai
+embutida no próprio arquivo do item — centenas de KB. Se o que este aparelho
+vai enviar é uma fração disso, alguma coisa está faltando aqui, e regravar por
+cima apagaria a última cópia que existe.
+
+Duas condições, as duas necessárias: o arquivo de lá tem de ser **4 vezes
+maior** e a diferença tem de passar de **100 KB**. Assim uma edição de texto
+comum — apagar um parágrafo longo — continua subindo normalmente, e só a
+diferença que só uma foto explica é barrada.
+
+Quando barra, **o motivo fica escrito no histórico de transferências** —
+não some em silêncio.
+
+O preço: apagar fotos de propósito deixa de propagar sozinho, e o item fica
+parado com um aviso visível. É um preço pequeno; o contrário, apagar em
+silêncio o acervo da nuvem, foi o que custou um dia de trabalho.
+
 ## 25/08/2026 19:15
 
 **A frase do risco ficou em português de laudo.**

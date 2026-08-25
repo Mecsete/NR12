@@ -2217,6 +2217,30 @@ chk("item reescrito ganha carimbo (a mudanca precisa viajar)",
 chk("a tela avisa para sincronizar antes, por causa da segunda pessoa",
     "sincronize antes" in novo and "App.recomporFrasesRiscos()" in novo)
 
+print("\n=== 79. NAO TROCAR ARQUIVO DA NUVEM POR UM MUITO MENOR ===")
+# A trava da secao 75 (__fotosPerdidas) so funciona quando a leitura conseguiu
+# FLAGRAR a foto sumindo -- e ela so flagra uma vez: na leitura seguinte ja nao
+# ha referencia, so um vazio, indistinguivel de "aqui nunca teve foto". Num
+# aparelho onde o dano ja tinha sido gravado ANTES de a marca existir, ela
+# nunca e criada e nao protege nada. Esta olha o fato bruto: o tamanho.
+_sync79 = novo[novo.find("async function onedriveSincronizarModulo"):]
+_sync79 = _sync79[:_sync79.find("\nfunction ")]
+_f79 = _sync79.find("if(onedriveEnvioEncolheDemais(item, tamTexto)){")
+_e79 = _sync79.find("okTexto = await onedriveEnviarBlob")
+chk("existe a trava, com as duas condicoes declaradas",
+    novo.count("function onedriveEnvioEncolheDemais(") == 1
+    and "const ENVIO_ENCOLHIMENTO_SUSPEITO = 4;" in novo
+    and "const ENVIO_ENCOLHIMENTO_MINIMO_BYTES = 100*1024;" in novo)
+chk("sem indice confiavel da nuvem, nao inventa suspeita",
+    "if(!indice) return false; // sem índice confiável não se inventa suspeita" in novo)
+chk("precisa ser muito menor E com diferenca grande",
+    "if(bytesLocais * ENVIO_ENCOLHIMENTO_SUSPEITO >= remoto) return false;" in novo
+    and "return (remoto - bytesLocais) > ENVIO_ENCOLHIMENTO_MINIMO_BYTES;" in novo)
+chk("a trava e consultada ANTES de enviar, nao depois",
+    _f79 > 0 and _e79 > _f79)
+chk("bloqueio deixa o motivo no historico, nao some em silencio",
+    "não enviado: o arquivo na nuvem é bem maior" in novo)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

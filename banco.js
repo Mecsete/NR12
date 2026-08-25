@@ -151,7 +151,8 @@ function novoAparelho(nome, nuvem){
      permite `node banco.js original.html` rodar e REPROVAR nos ensaios 22 e 23,
      em vez de estourar por função inexistente. */
   ["enderecoLogicoDaPasta","onedriveMesmoEnderecoLogico",
-   "__arquivosNoNo","onedriveDuplicatasParaIgnorar"].forEach(n=>{
+   "__arquivosNoNo","onedriveDuplicatasParaIgnorar",
+   "onedriveEnvioEncolheDemais"].forEach(n=>{
     try{ vm.runInContext(funcao(n), ctx); }
     catch(e){ if(process.env.BANCO_DEBUG) console.log("  [extracao] " + n + " -> " + e.message); }
   });
@@ -170,6 +171,19 @@ function novoAparelho(nome, nuvem){
     ctx.onedriveDuplicatasParaIgnorar = () => new Set();
   if(typeof ctx.__arquivosNoNo !== "function")
     ctx.__arquivosNoNo = () => 0;
+  /* A trava de encolhimento precisa das duas constantes numéricas, que o
+     extrator constante() não sabe delimitar (número puro não abre chave).
+     Lidas do arquivo por expressão regular, para o ensaio ficar preso ao
+     valor REAL entregue. Versão anterior à correção: nunca bloqueia. */
+  if(typeof ctx.onedriveEnvioEncolheDemais !== "function"){
+    ctx.onedriveEnvioEncolheDemais = () => false;
+  } else {
+    for(const n of ["ENVIO_ENCOLHIMENTO_SUSPEITO","ENVIO_ENCOLHIMENTO_MINIMO_BYTES"]){
+      const m = new RegExp("const " + n + " = ([^;]+);").exec(HTML);
+      if(m) vm.runInContext("var " + n + " = " + m[1] + ";", ctx);
+    }
+    if(typeof ctx.onedriveIndiceNuvem !== "function") ctx.onedriveIndiceNuvem = () => null;
+  }
 
   // Rede de mentira: envia/apaga/baixa direto na nuvem em memória.
   ctx.onedriveEnviarBlob = async (subpasta, blob, filename) => {

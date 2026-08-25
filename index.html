@@ -1970,7 +1970,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "25/08/2026 19:15";
+const APP_BUILD = "25/08/2026 20:08";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -3128,6 +3128,15 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
     if(textoPrecisaSubir){
       const blobTexto = new Blob([JSON.stringify(tinhaFotos ? semFotos : item.dados, null, 0)], {type:"application/json"});
       tamTexto = blobTexto.size;
+      /* Ver onedriveEnvioEncolheDemais: o arquivo de lá é muito maior que o
+         daqui, então provavelmente tem foto embutida que este aparelho não
+         tem mais. Não regrava por cima. */
+      if(onedriveEnvioEncolheDemais(item, tamTexto)){
+        registrarEventoSync("up", item.arquivo, item.tipo, 0, false,
+          "não enviado: o arquivo na nuvem é bem maior — pode ter fotos que faltam aqui",
+          rotuloCaminhoSync(item.pasta));
+        return;
+      }
       okTexto = await onedriveEnviarBlob(subpasta, blobTexto, item.arquivo);
       registrarEventoSync("up", item.arquivo, item.tipo, blobTexto.size, okTexto, __ultimoMotivoFalhaEnvio, rotuloCaminhoSync(item.pasta));
       if(onProgresso) onProgresso(blobTexto.size, item.tipo);
@@ -5709,6 +5718,34 @@ function onedriveCurarAssinatura(item, mapaRef, fotosPendentes){
    no mesmo caminho é uma evidência prática de que é o mesmo conteúdo. Usa
    exatamente o mesmo corpo que o envio de verdade usaria (texto sem fotos,
    quando o item tem fotos embutidas) — mesma função separarFotosDoItem. */
+/* NUNCA TROCAR UM ARQUIVO DA NUVEM POR OUTRO MUITO MENOR.
+   Esta é a última trava, e ela não depende de o app ter percebido o dano.
+
+   A trava anterior (__fotosPerdidas) só funciona quando a leitura conseguiu
+   FLAGRAR a foto sumindo — e ela só flagra uma vez: na leitura seguinte já
+   não há referência nenhuma, só um vazio, indistinguível de "aqui nunca teve
+   foto". Num aparelho onde o dano já tinha sido gravado como vazio antes de
+   essa marca existir, ela nunca é criada, e a trava não protege nada.
+
+   Esta olha o fato bruto: nos arquivos no formato antigo, a foto vai EMBUTIDA
+   no arquivo do item — centenas de KB. Se o que este aparelho vai enviar é
+   uma fração disso, alguma coisa está faltando aqui, e regravar por cima
+   apaga a última cópia que existe. Não envia, e deixa dito no histórico.
+
+   O preço: apagar fotos DE PROPÓSITO deixa de propagar sozinho, e o item fica
+   parado com um aviso. É um preço pequeno e visível, e o contrário — apagar
+   em silêncio o acervo da nuvem — foi o que custou um dia de trabalho. */
+const ENVIO_ENCOLHIMENTO_SUSPEITO = 4;              // vezes menor
+const ENVIO_ENCOLHIMENTO_MINIMO_BYTES = 100*1024;   // e pelo menos 100 KB a menos
+function onedriveEnvioEncolheDemais(item, bytesLocais){
+  const indice = onedriveIndiceNuvem();
+  if(!indice) return false; // sem índice confiável não se inventa suspeita — segue o fluxo normal
+  const prefixo = `${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado/`.toLowerCase();
+  const remoto = indice.get(prefixo + (item.pasta.join("/") + "/" + item.arquivo).toLowerCase());
+  if(typeof remoto !== "number" || remoto <= 0) return false;
+  if(bytesLocais * ENVIO_ENCOLHIMENTO_SUSPEITO >= remoto) return false;
+  return (remoto - bytesLocais) > ENVIO_ENCOLHIMENTO_MINIMO_BYTES;
+}
 function onedriveJaExisteNaNuvem(item){
   const indice = onedriveIndiceNuvem();
   if(!indice) return false; // sem índice confiável — não arrisca, envia normalmente

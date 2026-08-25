@@ -6551,6 +6551,85 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  /* ==================================================================
+     t121 - a ultima trava: nao trocar um arquivo da nuvem por um
+     muito menor
+
+     A trava anterior (__fotosPerdidas) so funciona quando a leitura
+     conseguiu FLAGRAR a foto sumindo -- e ela so flagra uma vez: na
+     leitura seguinte ja nao ha referencia, so um vazio, indistinguivel
+     de "aqui nunca teve foto". Num aparelho onde o dano ja tinha sido
+     gravado antes de a marca existir, ela nunca e criada.
+     Esta trava olha o fato bruto: o tamanho do arquivo.
+     ================================================================== */
+  console.log("\n=== t121 - nao sobrescrever arquivo da nuvem por um menor ===");
+  {
+    const ctx = vm.createContext({ String, Array, Object, Map, Number });
+    vm.runInContext([
+      'var ONEDRIVE_PASTA_APP = "Apps/APR"; var SUBPASTA_BACKUP = "Backup";',
+      'var __indice = null;',
+      'function onedriveIndiceNuvem(){ return __indice; }'
+    ].join("\n"), ctx);
+    /* constante() so sabe delimitar const que abre chave ou colchete; numero
+       puro faz o extrator varrer ate a proxima chave e trazer lixo junto.
+       Estas duas sao lidas do index.html por expressao regular, para o teste
+       continuar preso ao valor REAL entregue. */
+    ["ENVIO_ENCOLHIMENTO_SUSPEITO","ENVIO_ENCOLHIMENTO_MINIMO_BYTES"].forEach(n=>{
+      const m = new RegExp("const " + n + " = ([^;]+);").exec(HTML);
+      ok(m, "constante nao encontrada no index.html: " + n);
+      vm.runInContext("var " + n + " = " + m[1] + ";", ctx);
+    });
+    vm.runInContext(funcao("onedriveEnvioEncolheDemais"), ctx);
+    const item = { pasta:["Proj (aaa111)","Area (bbb222)"], arquivo:"_area.json" };
+    const caminho = "apps/apr/backup/simplificado/proj (aaa111)/area (bbb222)/_area.json";
+    const encolhe = (remoto, local)=>{
+      ctx.__indice = (remoto === null) ? null : new Map([[caminho, remoto]]);
+      ctx.__item = item; ctx.__local = local;
+      return vm.runInContext("onedriveEnvioEncolheDemais(__item, __local)", ctx);
+    };
+
+    t("O CASO REAL: 900 KB na nuvem (foto embutida) x 2 KB aqui -> BLOQUEIA", ()=>{
+      ok(encolhe(900*1024, 2*1024) === true, "deixaria apagar a foto da nuvem");
+    });
+    t("arquivo do mesmo tamanho passa normalmente", ()=>{
+      ok(encolhe(2048, 2048) === false);
+    });
+    t("texto que cresceu passa normalmente", ()=>{
+      ok(encolhe(2048, 9000) === false);
+    });
+    t("encolhimento PEQUENO passa — texto editado nao fica preso", ()=>{
+      /* Apagar um paragrafo longo da descricao encolhe o arquivo, e isso tem
+         de continuar subindo. So a diferenca GRANDE (acima de 100 KB) e
+         tratada como suspeita de foto. */
+      ok(encolhe(20000, 1000) === false, "prendeu uma edicao de texto comum");
+    });
+    t("precisa das DUAS condicoes: muito menor E diferenca grande", ()=>{
+      // 4x menor, mas so 90 KB de diferenca -> passa
+      ok(encolhe(120*1024, 30*1024) === false);
+      // diferenca enorme, mas menos de 4x -> passa
+      ok(encolhe(900*1024, 300*1024) === false);
+      // as duas -> bloqueia
+      ok(encolhe(900*1024, 100*1024) === true);
+    });
+    t("sem indice confiavel da nuvem, nao inventa suspeita", ()=>{
+      ok(encolhe(null, 10) === false, "bloqueou sem ter como saber o tamanho de la");
+    });
+    t("arquivo que ainda nao existe na nuvem passa", ()=>{
+      ctx.__indice = new Map(); ctx.__item = item; ctx.__local = 10;
+      ok(vm.runInContext("onedriveEnvioEncolheDemais(__item, __local)", ctx) === false);
+    });
+    t("o envio consulta a trava e deixa o motivo no historico", ()=>{
+      const f = funcao("onedriveSincronizarModulo");
+      ok(f.indexOf("if(onedriveEnvioEncolheDemais(item, tamTexto)){") > 0,
+         "a trava nao esta ligada no caminho de envio");
+      ok(f.indexOf("não enviado: o arquivo na nuvem é bem maior") > 0,
+         "bloqueia em silencio, sem dizer por que");
+      const antes = f.indexOf("onedriveEnvioEncolheDemais");
+      const envio = f.indexOf("okTexto = await onedriveEnviarBlob");
+      ok(antes > 0 && envio > antes, "a trava esta DEPOIS do envio — nao serve de nada");
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);
