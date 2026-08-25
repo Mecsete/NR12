@@ -1786,11 +1786,26 @@ function avisarSeEspacoBaixo(info){
    protegido em outro lugar. Em espaço crítico, isso é ignorado: os pontos de
    restauração cedem lugar de propósito, porque manter os dados de trabalho
    funcionando é mais importante do que manter várias cópias históricas. */
+/* Teto de pontos enquanto HOUVER FOTO PERDIDA conhecida. Um ponto de
+   restauração não é só uma cópia de segurança: ele é a única coisa que
+   segura as fotos que sumiram do resto do aparelho (a limpeza de órfãs
+   nunca remove foto referenciada por um ponto — ver fotosLimparOrfasSeForHora).
+   Descartar o ponto mais antigo, nesse estado, é jogar fora a última fonte
+   das fotos perdidas há mais tempo. E o app cria um ponto sozinho a cada
+   abertura depois de 4 h: com o teto normal de 8, bastavam algumas
+   aberturas para os pontos antigos irem embora em silêncio, no exato
+   momento em que eram mais necessários.
+   O teto volta ao normal sozinho assim que a recuperação devolver as fotos
+   e as marcas saírem. Manter pontos a mais custa quase nada: cada um guarda
+   REFERÊNCIAS às fotos, não as fotos — alguns KB. */
+const MAX_PONTOS_COM_FOTO_PERDIDA = 20;
 async function limitePontosRestauracaoAgora(){
   const info = await checarEspacoDisponivel();
   avisarSeEspacoBaixo(info);
   if(info && info.livre < FOLGA_CRITICA_BYTES) return 1;
-  return onedriveTudoConfirmadoNaNuvem() ? MIN_PONTOS_RESTAURACAO : MAX_PONTOS_RESTAURACAO;
+  const base = onedriveTudoConfirmadoNaNuvem() ? MIN_PONTOS_RESTAURACAO : MAX_PONTOS_RESTAURACAO;
+  try{ if(contarItensComFotoPerdida() > 0) return Math.max(base, MAX_PONTOS_COM_FOTO_PERDIDA); }catch(e){}
+  return base;
 }
 function resumoContagemEstado(state){
   const projetos = (state && state.projetosSimples) || [];
@@ -1955,7 +1970,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "25/08/2026 15:05";
+const APP_BUILD = "25/08/2026 15:35";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -3988,14 +4003,19 @@ function marcarFotosPendentesParaEnvio(chave){
 }
 /* Só conta, sem mexer em nada — alimenta o botão da tela ("N fotos podem
    voltar") para a pessoa saber o que esperar antes de tocar. */
-async function contarFotosRecuperaveis(){
-  return await __recuperarFotosDosPontos(true, null);
+async function contarFotosRecuperaveis(desde){
+  return await __recuperarFotosDosPontos(true, null, desde);
 }
-async function recuperarFotosDosPontos(onProgresso){
-  return await __recuperarFotosDosPontos(false, onProgresso);
+async function recuperarFotosDosPontos(onProgresso, desde){
+  return await __recuperarFotosDosPontos(false, onProgresso, desde);
 }
 const RECUPERACAO_LOTE_ITENS = 20; // ver comentário sobre memória abaixo
-async function __recuperarFotosDosPontos(apenasContar, onProgresso){
+/* "desde" recorta por data de CRIAÇÃO do item: 0 = tudo. Serve para começar
+   pequeno — devolver primeiro as fotos do levantamento recente, conferir na
+   tela que voltaram certas, e só então soltar o resto. Numa operação que
+   mexe em centenas de itens de uma vez, poder testar em um pedaço pequeno
+   antes vale mais do que a pressa. */
+async function __recuperarFotosDosPontos(apenasContar, onProgresso, desde){
   const res = { itens:0, fotos:0, semBytes:0, pontos:0, lotes:0 };
   if(!temIndexedDB()) return res;
   const pontos = await listarPontosDeRestauracao();
@@ -4016,9 +4036,13 @@ async function __recuperarFotosDosPontos(apenasContar, onProgresso){
     return false;
   };
   const alvos = [];
+  const corte = Number(desde) || 0;
   __percorrerItensSimples(STATE.projetosSimples, (item, tipo)=>{
     const reg = item && item.id ? porItem.get(item.id) : null;
     if(!reg) return;
+    // Recorte por data de criação. Item sem criadoEm (dado antigo) fica de
+    // fora do recorte estreito — aparece na passada "tudo", que não recorta.
+    if(corte && (Number(item.criadoEm) || 0) < corte) return;
     let ganhou = 0, faltou = 0;
     for(const campo of CAMPOS_FOTO_UNICA){
       if(!reg.unicas[campo]) continue;
@@ -14366,7 +14390,8 @@ function screenSimplesConfigBackup(){
     <p style="font-size:12.5px;color:var(--ink-dim)">Se algum risco ou equipamento está mostrando <b>quadro vermelho</b> ou <b>"Pendente"</b> onde havia foto, ela pode estar guardada dentro dos pontos de restauração deste aparelho. Isto entra nos pontos, pega <b>só as fotos</b> e devolve aos espaços vazios — <b>não desfaz nada</b>: texto, medidas, HRN e decisões do laudo ficam exatamente como estão. Foto que já está boa nunca é substituída.</p>
     ${__ultimaRecuperacaoFotos ? `<div class="field-hint" style="margin-top:8px;color:${__ultimaRecuperacaoFotos.erro?'var(--danger, #c0392b)':'var(--ok, #2e7d32)'}">${escapeHtml(__ultimaRecuperacaoFotos.mensagem)}</div>` : ""}
   </div>
-  <button class="btn btn-primary btn-block" style="margin-top:8px" onclick="App.recuperarFotosPerdidas()">${ic('shield')} Procurar e devolver fotos perdidas</button>
+  <button class="btn btn-primary btn-block" style="margin-top:8px" onclick="App.recuperarFotosPerdidas(7)">${ic('shield')} Devolver fotos — só o que foi criado nos últimos 7 dias</button>
+  <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.recuperarFotosPerdidas(0)">${ic('shield')} Devolver fotos — o projeto inteiro</button>
   <div class="section-title">Backup · Pontos de restauração (neste aparelho)</div>
   ${__statusArmazenamentoCache && __statusArmazenamentoCache.espaco ? `<div class="card card-pad" style="margin-bottom:8px">
     <div style="font-size:12.5px;color:var(--ink-dim)">Espaço livre estimado no aparelho: <b>${(__statusArmazenamentoCache.espaco.livre/1024/1024/1024).toFixed(1)} GB</b>${__statusArmazenamentoCache.espaco.livre < FOLGA_MINIMA_DESEJADA_BYTES ? ' <span style="color:#FF6B5E;font-weight:700">— abaixo da folga recomendada de 2 GB</span>' : ''}${__statusArmazenamentoCache.persistente ? ' · dados protegidos contra limpeza automática do navegador' : ''}</div>
@@ -16412,25 +16437,27 @@ const App = {
     if(!__ultimoErroSalvar) return; // toque no selo em estado normal não faz nada
     marcarAlterado();
   },
-  async recuperarFotosPerdidas(){
+  async recuperarFotosPerdidas(dias){
+    const desde = (Number(dias) > 0) ? (Date.now() - Number(dias)*24*60*60*1000) : 0;
+    const rotulo = desde ? `criados nos últimos ${Number(dias)} dias` : "do projeto inteiro";
     toast("Procurando fotos nos pontos de restauração…");
     try{
-      const prev = await contarFotosRecuperaveis();
+      const prev = await contarFotosRecuperaveis(desde);
       if(!prev || prev.fotos === 0){
         __ultimaRecuperacaoFotos = { erro:false, mensagem: (prev && prev.pontos===0)
           ? "Não há pontos de restauração neste aparelho — não há de onde puxar fotos."
-          : "Nenhuma foto para devolver: os pontos de restauração não têm nenhuma foto que já não esteja aqui." };
+          : ("Nenhuma foto para devolver (" + rotulo + "): os pontos de restauração não têm nenhuma foto que já não esteja aqui.") };
         toast("Nenhuma foto para devolver");
         render(); return;
       }
-      if(!confirm(`Encontrei ${prev.fotos} foto${prev.fotos===1?'':'s'} em ${prev.itens} ${prev.itens===1?'item':'itens'} para devolver.
+      if(!confirm(`Encontrei ${prev.fotos} foto${prev.fotos===1?'':'s'} em ${prev.itens} ${prev.itens===1?'item':'itens'} ${rotulo}.
 
 Só os espaços vazios são preenchidos — nenhuma foto boa é substituída, e nada mais do cadastro é alterado.
 
 Devolver agora?`)) return;
       const r = await recuperarFotosDosPontos((feitos, total)=>{
         toast("Devolvendo fotos… " + feitos + " de " + total + " itens");
-      });
+      }, desde);
       let msg = r.fotos + " foto" + (r.fotos===1?"":"s") + " devolvida" + (r.fotos===1?"":"s") + " em " + r.itens + " " + (r.itens===1?"item":"itens") + ".";
       if(r.semBytes) msg += " " + r.semBytes + " referência(s) sem o arquivo no aparelho — essa(s) só voltam pela nuvem.";
       __ultimaRecuperacaoFotos = { erro:false, mensagem: msg };

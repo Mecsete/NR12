@@ -2066,12 +2066,15 @@ print("\n=== 76. RECUPERAR FOTOS DOS PONTOS DE RESTAURACAO ===")
 # presas dentro dos pontos. Restaurar um ponto INTEIRO traria as fotos e
 # levaria junto todo o trabalho feito depois dele; esta recuperacao entra nos
 # pontos e pega SO AS FOTOS.
-_ini76 = novo.find("async function __recuperarFotosDosPontos(apenasContar, onProgresso){")
+# Ancora pelo NOME, nao pela assinatura: a lista de parametros ja mudou
+# duas vezes (onProgresso, depois desde) e cada vez derrubava a secao
+# inteira por um motivo que nada tinha a ver com o que se quer provar.
+_ini76 = novo.find("async function __recuperarFotosDosPontos(")
 _fim76 = novo.find("\nfunction onedriveEstaEmWifi", _ini76)
 chk("existe a recuperacao, com previa que nao altera nada",
     _ini76 > 0 and _fim76 > _ini76
-    and novo.count("async function recuperarFotosDosPontos(onProgresso){") == 1
-    and novo.count("async function contarFotosRecuperaveis(){") == 1)
+    and novo.count("async function recuperarFotosDosPontos(") == 1
+    and novo.count("async function contarFotosRecuperaveis(") == 1)
 chk("junta os pontos do mais novo para o mais antigo",
     novo.count("function fotosGuardadasNosPontos(") == 1
     and "if(!reg.unicas[campo] && __ehFotoOuRef(item[campo])) reg.unicas[campo] = item[campo];" in novo)
@@ -2094,8 +2097,8 @@ chk("ponto no formato antigo (foto embutida) tambem serve",
     novo.count("function __ehFotoOuRef(") == 1
     and "return ehFotoDataUrlPersist(v) || ehFotoRefPersist(v);" in novo)
 chk("botao e aviso de resultado estao na tela",
-    "App.recuperarFotosPerdidas()" in novo
-    and "Procurar e devolver fotos perdidas" in novo
+    "App.recuperarFotosPerdidas(" in novo
+    and "Devolver fotos — " in novo
     and "let __ultimaRecuperacaoFotos = null;" in novo)
 chk("a tela deixa claro que nada e desfeito",
     "não desfaz nada" in novo)
@@ -2116,6 +2119,27 @@ chk("cada lote le so os seus arquivos e grava antes do seguinte",
     and "await dbSet(STATE);" in novo[_ini76:_fim76])
 chk("a tela mostra o andamento por lote",
     "Devolvendo fotos… " in novo)
+# Recorte por data: comecar pequeno (o levantamento recente), conferir na
+# tela, e so entao soltar o resto. Numa operacao que mexe em centenas de
+# itens, poder testar num pedaco pequeno antes vale mais do que a pressa.
+chk("da para recortar por data de criacao, e a previa usa o mesmo recorte",
+    "async function contarFotosRecuperaveis(desde){" in novo
+    and "async function recuperarFotosDosPontos(onProgresso, desde){" in novo
+    and "if(corte && (Number(item.criadoEm) || 0) < corte) return;" in novo)
+chk("a tela oferece os dois recortes",
+    "App.recuperarFotosPerdidas(7)" in novo
+    and "App.recuperarFotosPerdidas(0)" in novo
+    and "criados nos últimos ${Number(dias)} dias" in novo)
+# O ponto de restauracao e a UNICA coisa que segura as fotos que sumiram do
+# resto do aparelho (fotosLimparOrfasSeForHora nunca remove foto referenciada
+# por um ponto). Com o teto normal de 8 e um ponto criado a cada abertura
+# depois de 4 h, bastavam algumas aberturas para os pontos antigos -- as
+# fontes das perdas mais antigas -- irem embora em silencio.
+chk("nao descarta ponto antigo enquanto houver foto perdida conhecida",
+    "const MAX_PONTOS_COM_FOTO_PERDIDA = 20;" in novo
+    and "if(contarItensComFotoPerdida() > 0) return Math.max(base, MAX_PONTOS_COM_FOTO_PERDIDA);" in novo)
+chk("o teto normal continua valendo quando nao ha dano",
+    "const base = onedriveTudoConfirmadoNaNuvem() ? MIN_PONTOS_RESTAURACAO : MAX_PONTOS_RESTAURACAO;" in novo)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")

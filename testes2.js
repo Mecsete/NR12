@@ -6355,6 +6355,43 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(Math.max.apply(null, pedidos) <= lote, "um lote pediu mais fotos que o tamanho do lote: " + pedidos.join(","));
       eq(r.lotes, Math.ceil(N/lote), "numero de lotes fora do esperado");
     });
+    await ta("RECORTE POR DATA: devolve so os itens criados na janela", async ()=>{
+      /* Comecar pequeno: devolver primeiro o levantamento recente, conferir
+         na tela, e so entao soltar o resto. */
+      const HOJE = 1756000000000, DIA = 24*60*60*1000;
+      const novos = { id:"rNovo", foto:null, criadoEm: HOJE - 2*DIA };
+      const velho = { id:"rVelho", foto:null, criadoEm: HOJE - 40*DIA };
+      const arv2 = (lista)=> [ { id:"p", areas:[ { id:"a", maquinas:[ { id:"m", tarefas:[ { id:"t", riscos:lista } ] } ] } ] } ];
+      const pt = [ { id:"rNovo", foto:"idbfoto:F1" }, { id:"rVelho", foto:"idbfoto:F2" } ];
+      cenario({ atual: arv2([novos, velho]), ponto: arv2(pt), bytes:{ F1:A, F2:B } });
+      ctx.__desde = HOJE - 7*DIA;
+      const r = await vm.runInContext("recuperarFotosDosPontos(null, __desde)", ctx);
+      eq(r.fotos, 1, "o recorte de 7 dias deveria pegar so o item novo");
+      const rs = ctx.STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos;
+      eq(rs[0].foto, A, "o item novo nao recebeu a foto");
+      eq(rs[1].foto, null, "o recorte deixou passar um item fora da janela");
+    });
+    await ta("sem recorte, pega tudo (inclusive item sem data de criacao)", async ()=>{
+      const arv2 = (lista)=> [ { id:"p", areas:[ { id:"a", maquinas:[ { id:"m", tarefas:[ { id:"t", riscos:lista } ] } ] } ] } ];
+      cenario({ atual: arv2([{ id:"r1", foto:null }, { id:"r2", foto:null, criadoEm:1 }]),
+                ponto: arv2([{ id:"r1", foto:"idbfoto:F1" }, { id:"r2", foto:"idbfoto:F2" }]),
+                bytes:{ F1:A, F2:B } });
+      const r = await vm.runInContext("recuperarFotosDosPontos(null, 0)", ctx);
+      eq(r.fotos, 2, "sem recorte deveria devolver as duas");
+    });
+    await ta("a previa respeita o mesmo recorte da execucao", async ()=>{
+      const HOJE = 1756000000000, DIA = 24*60*60*1000;
+      const arv2 = (lista)=> [ { id:"p", areas:[ { id:"a", maquinas:[ { id:"m", tarefas:[ { id:"t", riscos:lista } ] } ] } ] } ];
+      cenario({ atual: arv2([{ id:"rNovo", foto:null, criadoEm: HOJE - 2*DIA },
+                             { id:"rVelho", foto:null, criadoEm: HOJE - 40*DIA }]),
+                ponto: arv2([{ id:"rNovo", foto:"idbfoto:F1" }, { id:"rVelho", foto:"idbfoto:F2" }]),
+                bytes:{ F1:A, F2:B } });
+      ctx.__desde = HOJE - 7*DIA;
+      const p = await vm.runInContext("contarFotosRecuperaveis(__desde)", ctx);
+      eq(p.fotos, 1, "a previa contou fora do recorte");
+      const t = await vm.runInContext("contarFotosRecuperaveis(0)", ctx);
+      eq(t.fotos, 2, "a previa sem recorte contou errado");
+    });
     await ta("ponto no formato antigo (foto embutida) tambem serve", async ()=>{
       cenario({ atual: arv({ id:"r1", foto:null }), ponto: arv({ id:"r1", foto:A }), bytes:{} });
       const r = await vm.runInContext("recuperarFotosDosPontos()", ctx);

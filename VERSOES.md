@@ -44,6 +44,31 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 25/08/2026 15:35
+
+**Recuperação por partes, e pontos de restauração protegidos.**
+
+Duas mudanças, as duas nascidas da mesma pergunta: *"se der errado, dá para
+voltar?"*
+
+**1. Devolver as fotos em duas etapas.** Agora há dois botões: **"só o que foi
+criado nos últimos 7 dias"** e **"o projeto inteiro"**. Numa operação que mexe
+em centenas de itens de uma vez, poder testar num pedaço pequeno, conferir na
+tela que as fotos voltaram certas, e só então soltar o resto vale mais do que
+a pressa.
+
+**2. O app parou de descartar pontos de restauração enquanto houver foto
+perdida.** Um ponto não é só uma cópia de segurança: ele é a **única coisa que
+segura as fotos que sumiram do resto do aparelho** — a limpeza de órfãs nunca
+remove foto referenciada por um ponto. Só que o teto normal é de 8 pontos, e o
+app cria um sozinho a cada abertura depois de 4 horas. Bastavam algumas
+aberturas do app para os pontos mais antigos — as fontes das perdas mais
+antigas — irem embora em silêncio, no exato momento em que eram mais
+necessários. Enquanto houver item marcado com foto perdida, o teto sobe para
+20 e nenhum ponto antigo é descartado. Volta ao normal sozinho quando as
+fotos forem recuperadas. Custa quase nada: cada ponto guarda **referências**
+às fotos, não as fotos.
+
 ## 25/08/2026 15:05
 
 **Recuperação de fotos agora trabalha em lotes.**
