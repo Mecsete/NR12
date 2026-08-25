@@ -44,6 +44,69 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 25/08/2026 13:45
+
+**Urgente: o aparelho que perdeu fotos parava de destruir a cópia da nuvem.**
+
+As fotos que sumiram do celular **continuam existindo na nuvem**, embutidas
+dentro dos próprios arquivos de texto de cada item (formato antigo,
+monolítico). Só que o app estava apagando essa última cópia sozinho, por duas
+portas:
+
+1. **Regravando o arquivo.** Ao sincronizar um item cuja foto local virou
+   vazia, o app subia a versão de agora — sem foto — por cima do arquivo da
+   nuvem que ainda tinha a foto dentro.
+2. **Contaminando o outro aparelho.** Uma lista de fotos danificada mantém o
+   *tamanho* e perde o *conteúdo*: vira `[vazio, vazio]`. O app testava só o
+   tamanho ("tem 2, então tem foto") e mandava esse pacote vazio substituir as
+   fotos **boas** de quem recebesse. O aparelho danificado apagava as fotos do
+   aparelho saudável — justamente a cópia de onde elas podem voltar.
+
+O que mudou:
+
+- Ao ler os dados, o app **marca os itens cuja foto não foi encontrada**, no
+  único momento em que isso ainda é visível (antes de a referência virar
+  vazio). A marca é só do aparelho e nunca vai para a nuvem.
+- **Item marcado não sobe.** O arquivo da nuvem fica intacto, com a foto
+  dentro, esperando a recuperação. O preço é uma edição de texto demorar a
+  chegar ao outro aparelho; o preço do contrário é foto de campo apagada para
+  sempre.
+- **A marca não se apaga sozinha** — só sai quando as fotos voltarem de fato.
+- **Um pacote de fotos nunca reduz** a quantidade de fotos reais de quem
+  recebe. Pode acrescentar ou trocar por fotos de verdade; não pode esvaziar.
+  Isso também destrava a recuperação: uma lista só de espaços vazios agora
+  conta zero fotos reais, então aceita as fotos de volta.
+
+## 25/08/2026 13:10
+
+**Sincronização: renomear um item reenviava a árvore inteira, sem parar.**
+
+O endereço de cada arquivo na nuvem é montado com o **nome legível** de cada
+nível. O nome do equipamento, por sua vez, sai de "nome, ou descrição se o
+nome estiver vazio" — ou seja, muda quando qualquer um dos dois é preenchido
+ou corrigido.
+
+Quando o nome mudava, o endereço calculado deixava de bater com o endereço
+gravado. O app concluía "este item mudou de lugar", **apagava a cópia antiga
+na nuvem e subia tudo de novo** — o item e todos os filhos dele. Com dois
+aparelhos, isso nunca terminava: cada um recalculava o nome com o que sabia,
+via o endereço do outro como errado, apagava e reenviava; o outro fazia o
+mesmo de volta no ciclo seguinte.
+
+Era isso que aparecia no histórico como o mesmo arquivo subindo duas vezes no
+mesmo minuto (uma linha sem tamanho, que é a cópia antiga sendo apagada, e
+outra logo abaixo com o tamanho real), em equipamentos que ninguém tinha
+tocado — e é uma das causas da fila de sincronização que nunca zerava.
+
+Agora os endereços são comparados pelo **identificador**, não pelo nome.
+Mesmo identificador = mesmo lugar, só o rótulo mudou: o arquivo fica onde
+está e nada é reenviado. Mudança de pai de verdade (mover um equipamento de
+área) continua movendo o arquivo, como antes.
+
+O único efeito colateral é a pasta na nuvem manter o nome antigo depois de
+uma renomeação. Isso é cosmético: o app sempre localizou as pastas pelo
+identificador, nunca pelo texto.
+
 ## 25/08/2026 12:20
 
 **Correção: no iPhone, as fotos nunca subiam sozinhas.**

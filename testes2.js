@@ -6079,6 +6079,101 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  /* ==================================================================
+     t118 · aparelho danificado nao contamina o aparelho saudavel
+
+     O celular de campo perdeu as fotos locais: fotosOutras virou
+     [null, null] -- mesma quantidade, conteudo nenhum. As fotos de
+     verdade continuam embutidas nos arquivos de texto da nuvem. Duas
+     portas por onde o aparelho danificado apagava essa ultima copia.
+     ================================================================== */
+  console.log("\n=== t118 · aparelho danificado nao contamina o saudavel ===");
+  {
+    const ctx = vm.createContext({ Array, Object, String, JSON });
+    vm.runInContext('var CAMPO_FOTOS_LISTA = "fotosOutras";', ctx);
+    ["__ehFotoEmbutida","completarFotosDeItem","separarFotosDoItem"].forEach(n=> vm.runInContext(funcao(n), ctx));
+    const F1 = "data:image/jpeg;base64,AAAA", F2 = "data:image/jpeg;base64,BBBB", F3 = "data:image/jpeg;base64,CCCC";
+    const completar = (local, pacote)=>{ ctx.__l = local; ctx.__p = pacote;
+      const r = vm.runInContext("completarFotosDeItem(__l, __p)", ctx); return { mudou:r, local:ctx.__l }; };
+
+    t("O CASO REAL: pacote so de nulls NAO apaga as fotos boas de quem recebe", ()=>{
+      /* Aparelho do escritorio, com as duas fotos boas, recebe o pacote que o
+         celular danificado subiu. __fotosAtualizar ligado = "substitua pelas
+         de la" -- era exatamente aqui que as boas eram trocadas por nulls. */
+      const r = completar({ id:"r1", fotosOutras:[F1,F2], __fotosAtualizar:true },
+                          { id:"r1", fotosOutras:[null,null] });
+      eq(r.local.fotosOutras.length, 2, "o pacote vazio apagou as fotos boas");
+      eq(r.local.fotosOutras[0], F1); eq(r.local.fotosOutras[1], F2);
+    });
+    t("foto unica: null que chega nunca sobrescreve foto boa", ()=>{
+      const r = completar({ id:"r1", foto:F1, __fotosAtualizar:true }, { id:"r1", foto:null });
+      eq(r.local.foto, F1);
+    });
+    t("A RECUPERACAO: lista so de espacos vazios aceita as fotos de volta", ()=>{
+      /* O outro lado do mesmo defeito: com [null,null], a lista tinha
+         "tamanho 2" e o app a considerava preenchida -- entao nunca buscava
+         as fotos de volta. Contando fotos REAIS, ela conta zero e recebe. */
+      const r = completar({ id:"r1", fotosOutras:[null,null] }, { id:"r1", fotosOutras:[F1,F2] });
+      ok(r.mudou, "nao aceitou as fotos de volta");
+      eq(r.local.fotosOutras.length, 2); eq(r.local.fotosOutras[0], F1);
+    });
+    t("pacote que traz MAIS fotos entra; pacote que traz MENOS nao", ()=>{
+      const a = completar({ id:"r1", fotosOutras:[F1], __fotosAtualizar:true }, { id:"r1", fotosOutras:[F1,F2,F3] });
+      eq(a.local.fotosOutras.length, 3, "pacote maior deveria entrar");
+      const b = completar({ id:"r1", fotosOutras:[F1,F2,F3], __fotosAtualizar:true }, { id:"r1", fotosOutras:[F1] });
+      eq(b.local.fotosOutras.length, 3, "pacote menor nao pode reduzir o que ja existe");
+    });
+    t("lista vazia de verdade continua recebendo as fotos", ()=>{
+      const r = completar({ id:"r1", fotosOutras:[] }, { id:"r1", fotosOutras:[F1] });
+      eq(r.local.fotosOutras.length, 1);
+    });
+    t("a marca de dano nunca viaja para a nuvem", ()=>{
+      ctx.__d = { id:"r1", nome:"x", foto:F1, fotosOutras:[F2], __fotosPerdidas:true, __fotosAtualizar:true };
+      const r = vm.runInContext("separarFotosDoItem(__d)", ctx);
+      eq(r.semFotos.__fotosPerdidas, undefined, "a marca de dano foi para a nuvem");
+      eq(r.semFotos.__fotosAtualizar, undefined);
+      eq(r.semFotos.__fotosOmitidas, true);
+    });
+    t("item marcado como danificado nao entra na fila de envio", ()=>{
+      ok(HTML.indexOf("if(it.dados && it.dados[CAMPO_MARCA_FOTO_PERDIDA]) return false;") > 0,
+         "a trava do envio sumiu — item sem foto voltaria a regravar a nuvem");
+    });
+    t("a marca nao se apaga sozinha na leitura seguinte", ()=>{
+      ok(HTML.indexOf("else if(obj[CAMPO_MARCA_FOTO_PERDIDA]) delete obj[CAMPO_MARCA_FOTO_PERDIDA]") < 0,
+         "a marca volta a se apagar sozinha — a proteção some na segunda leitura");
+    });
+  }
+  {
+    /* A marcacao em si, sobre a arvore crua lida do banco. */
+    const ctx = vm.createContext({ Set, Array, Object, String });
+    vm.runInContext('var FOTO_REF_PREFIXO = "idbfoto:";', ctx);
+    vm.runInContext(constante("CAMPO_MARCA_FOTO_PERDIDA"), ctx);
+    ["ehFotoRefPersist","fotosColetarRefs","__refsProprriasDoItem","__marcarSeTemRefPerdida","marcarItensComFotoPerdida"]
+      .forEach(n=> vm.runInContext(funcao(n), ctx));
+    t("marca so o item que perdeu, sem contaminar os pais", ()=>{
+      ctx.__bruto = { projetosSimples: [ { id:"p", areas: [ { id:"a", maquinas: [
+        { id:"m", fotoGeral:"idbfoto:BOA", tarefas: [ { id:"t", riscos: [
+          { id:"r1", fotosOutras:["idbfoto:SUMIU"] },
+          { id:"r2", fotosOutras:["idbfoto:BOA"] }
+        ] } ] } ] } ] } ] };
+      ctx.__mapa = new Map([["BOA","data:image/jpeg;base64,AAAA"]]);
+      const n = vm.runInContext("marcarItensComFotoPerdida(__bruto, __mapa)", ctx);
+      eq(n, 1, "marcou mais itens do que o que realmente perdeu");
+      const t0 = ctx.__bruto.projetosSimples[0].areas[0].maquinas[0].tarefas[0];
+      eq(t0.riscos[0].__fotosPerdidas, true, "o risco danificado nao foi marcado");
+      eq(t0.riscos[1].__fotosPerdidas, undefined, "marcou um risco intacto");
+      eq(ctx.__bruto.projetosSimples[0].areas[0].maquinas[0].__fotosPerdidas, undefined,
+         "o risco danificado contaminou a maquina inteira");
+      eq(ctx.__bruto.projetosSimples[0].__fotosPerdidas, undefined, "contaminou o projeto inteiro");
+    });
+    t("arvore intacta nao marca nada", ()=>{
+      ctx.__bruto = { projetosSimples: [ { id:"p", areas: [ { id:"a", maquinas: [
+        { id:"m", fotoGeral:"idbfoto:BOA", tarefas: [] } ] } ] } ] };
+      ctx.__mapa = new Map([["BOA","data:image/jpeg;base64,AAAA"]]);
+      eq(vm.runInContext("marcarItensComFotoPerdida(__bruto, __mapa)", ctx), 0);
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

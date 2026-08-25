@@ -1556,6 +1556,70 @@ async function fotosLimparOrfasSeForHora(){
     });
   }catch(e){}
 }
+/* =========================================================================
+   FOTO PERDIDA — DETECÇÃO NA LEITURA
+
+   Quando o arquivo de uma foto não está mais no banco, fotosReinserirDeMapa
+   troca a referência por null e o app segue funcionando. Só que, a partir daí,
+   nada distingue "esta foto se perdeu" de "aqui nunca teve foto" — e essa
+   confusão tem uma consequência cara: o envio sobe o item sem foto e REGRAVA
+   o arquivo da nuvem, que ainda tinha a foto embutida dentro dele. A última
+   cópia existente é apagada pelo próprio app, em silêncio.
+
+   Por isso a perda é registrada AQUI, no único momento em que ela é visível:
+   quando as referências ainda existem e já se sabe quais não foram
+   encontradas. Cada item afetado leva a marca __fotosPerdidas.
+
+   A marca é só deste aparelho e nunca viaja: separarFotosDoItem a remove
+   antes de qualquer envio, como já fazia com __fotosAtualizar. */
+const CAMPO_MARCA_FOTO_PERDIDA = "__fotosPerdidas";
+/* Refs de foto que estão nos campos PRÓPRIOS do item — sem descer para os
+   filhos, que têm marca própria. Sem essa separação, um risco com foto
+   perdida marcaria a máquina, a área e o projeto inteiros como danificados. */
+function __refsProprriasDoItem(obj, campoFilhos){
+  const refs = new Set();
+  for(const k in obj){
+    if(k === campoFilhos) continue;
+    fotosColetarRefs(obj[k], refs);
+  }
+  return refs;
+}
+function __marcarSeTemRefPerdida(obj, campoFilhos, mapa){
+  if(!obj || typeof obj !== "object") return false;
+  let perdeu = false;
+  __refsProprriasDoItem(obj, campoFilhos).forEach(fid => { if(!mapa.has(fid)) perdeu = true; });
+  if(perdeu) obj[CAMPO_MARCA_FOTO_PERDIDA] = true;
+  /* A MARCA NUNCA SE APAGA SOZINHA — de propósito.
+     Ela nasce da referência que não foi encontrada. Mas na PRÓXIMA gravação a
+     referência já não existe: no lugar dela ficou um null, e null não é
+     referência nenhuma. Ou seja, da segunda leitura em diante não sobra
+     nenhum vestígio do dano — e um "else delete" aqui limparia a marca de um
+     item que continua sem as fotos, liberando o envio para regravar o arquivo
+     da nuvem sem elas. Seria desfazer a proteção exatamente no caso que ela
+     existe para cobrir.
+     Quem limpa a marca é a recuperação, e só depois de ter as fotos de volta
+     na mão (ver recuperarFotosDeItem). Enquanto isso o item fica parado: no
+     máximo uma edição de texto demora a chegar ao outro aparelho. */
+  return perdeu;
+}
+function marcarItensComFotoPerdida(bruto, mapa){
+  let total = 0;
+  const conta = (o, campoFilhos) => { if(__marcarSeTemRefPerdida(o, campoFilhos, mapa)) total++; };
+  for(const p of ((bruto && bruto.projetosSimples) || [])){
+    conta(p, "areas");
+    for(const a of (p.areas || [])){
+      conta(a, "maquinas");
+      for(const m of (a.maquinas || [])){
+        conta(m, "tarefas");
+        for(const t of (m.tarefas || [])){
+          conta(t, "riscos");
+          for(const r of (t.riscos || [])) conta(r, null);
+        }
+      }
+    }
+  }
+  return total;
+}
 async function dbGet(){
   try{
     const db = await dbOpen();
@@ -1574,6 +1638,9 @@ async function dbGet(){
     fotosColetarRefs(bruto, refs);
     if(refs.size === 0) return bruto;
     const mapa = await fotosLerLote(db, refs);
+    // ANTES de reinserir: depois que a referência vira null, não há mais como
+    // saber que ali existia uma foto.
+    marcarItensComFotoPerdida(bruto, mapa);
     return fotosReinserirDeMapa(bruto, mapa);
   }catch(e){
     // NÃO rebaixa __storageMode aqui: uma leitura com falha momentânea não
@@ -1888,7 +1955,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "25/08/2026 12:20";
+const APP_BUILD = "25/08/2026 13:45";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -2661,6 +2728,7 @@ function separarFotosDoItem(dados){
     semFotos[k] = v;
   }
   delete semFotos.__fotosAtualizar; // marca interna de "o pacote mudou" — não faz sentido viajar para a nuvem
+  delete semFotos.__fotosPerdidas;  // marca local de dano — é deste aparelho, não do item
   if(tinhaFotos) semFotos.__fotosOmitidas = true;
   return { semFotos, soFotos, tinhaFotos };
 }
@@ -2677,8 +2745,26 @@ function completarFotosDeItem(local, pacoteFotos){
   for(const k in pacoteFotos){
     if(k==="id") continue;
     const v = pacoteFotos[k];
+    /* O campo de foto única já estava protegido: só entra se o que chegou for
+       foto de verdade (__ehFotoEmbutida), então um null nunca sobrescreve. */
     if(__ehFotoEmbutida(v) && (substituir || !local[k])){ if(local[k]!==v){ local[k] = v; mudou = true; } }
-    if(k===CAMPO_FOTOS_LISTA && Array.isArray(v) && v.length>0 && (substituir || !Array.isArray(local[k]) || local[k].length===0)){ local[k] = v.slice(); mudou = true; }
+    /* A LISTA DE FOTOS NÃO ESTAVA.
+       O teste era `Array.isArray(v) && v.length>0` — só o TAMANHO da lista.
+       Um aparelho que perdeu as fotos sobe um pacote com [null, null]: tamanho
+       2, conteúdo nenhum. Passava no teste, e com __fotosAtualizar ligado
+       fazia `local[k] = v.slice()` — trocando as fotos BOAS de quem recebeu por
+       nulls. O aparelho danificado contaminava o saudável, que é exatamente a
+       cópia de onde as fotos podem voltar.
+       Regra nova: contam-se as fotos DE VERDADE dos dois lados, e o pacote só
+       entra quando traz mais do que já existe aqui. Um pacote pode acrescentar
+       ou substituir por fotos reais; nunca pode reduzir.
+       Isso também destrava a recuperação: uma lista local só de espaços
+       vazios conta zero fotos reais, então qualquer foto que chegue entra. */
+    if(k===CAMPO_FOTOS_LISTA && Array.isArray(v)){
+      const chegaram = v.filter(__ehFotoEmbutida);
+      const aqui = Array.isArray(local[k]) ? local[k].filter(__ehFotoEmbutida) : [];
+      if(chegaram.length > aqui.length){ local[k] = chegaram; mudou = true; }
+    }
   }
   if(local.__fotosAtualizar){ delete local.__fotosAtualizar; mudou = true; }
   if(local.__fotosOmitidas){ delete local.__fotosOmitidas; mudou = true; }
@@ -2974,6 +3060,19 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
   }
 
   const pendentes = itensAtuais.filter(it => {
+    /* TRAVA: ITEM COM FOTO PERDIDA NÃO SOBE.
+       A foto sumiu do aparelho, mas o arquivo que está na nuvem ainda tem a
+       foto embutida dentro dele — é a última cópia que existe. Subir a versão
+       daqui REGRAVA aquele arquivo sem a foto e apaga essa última cópia, em
+       silêncio, sem ninguém pedir nada.
+       Enquanto o item estiver marcado, ele fica parado: o texto daqui espera,
+       o arquivo de lá continua intacto, e a recuperação tem de onde puxar as
+       fotos de volta. A marca sai sozinha na leitura seguinte assim que as
+       fotos voltarem (ver marcarItensComFotoPerdida), e aí o item volta à
+       fila normalmente.
+       O preço é uma edição de texto que demora a chegar ao outro aparelho.
+       O preço do contrário é foto de campo apagada para sempre. */
+    if(it.dados && it.dados[CAMPO_MARCA_FOTO_PERDIDA]) return false;
     const registro = assinaturas.get(it.id);
     if(!registro) return true;                              // nunca subiu
     if(registro.atualizadoEm !== it.atualizadoEm) return true; // mudou desde a última subida
@@ -2984,9 +3083,16 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
   // vários MB na memória durante o envio, e muitos simultâneos derrubavam o app
   // em celulares com menos memória.
   await executarComConcorrencia(pendentes, 3, async (item) => {
+    const registroAnterior = assinaturas.get(item.id);
+    /* SÓ O NOME MUDOU: o arquivo continua onde está. Sem esta linha, uma
+       renomeação (aqui ou no outro aparelho) fazia o item e TODOS os filhos
+       dele serem apagados e reenviados na nuvem — a cada ciclo, para sempre.
+       Ver enderecoLogicoDaPasta. Mudança de pai de verdade não passa por
+       aqui: o esqueleto de ids muda e o caminho novo vale. */
+    if(registroAnterior && onedriveMesmoEnderecoLogico(registroAnterior.pasta, item.pasta))
+      item.pasta = registroAnterior.pasta;
     const subpasta = [SUBPASTA_BACKUP, raizModulo, ...item.pasta].join("/");
     const { semFotos, soFotos, tinhaFotos } = separarFotosDoItem(item.dados);
-    const registroAnterior = assinaturas.get(item.id);
     // O texto só precisa subir de novo se o item mudou (se estamos aqui apenas
     // para completar as fotos de um texto já enviado, não repete o texto).
     let textoPrecisaSubir = !registroAnterior || registroAnterior.atualizadoEm !== item.atualizadoEm;
@@ -3028,7 +3134,7 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
        apagada; sem isso ela ficaria órfã lá e os outros aparelhos a baixariam
        de volta como se fosse um item novo, criando duplicata. */
     if(okTexto && registroAnterior && Array.isArray(registroAnterior.pasta)
-       && registroAnterior.pasta.join("/") !== item.pasta.join("/")){
+       && !onedriveMesmoEnderecoLogico(registroAnterior.pasta, item.pasta)){
       const subpastaAntiga = [SUBPASTA_BACKUP, raizModulo, ...registroAnterior.pasta].join("/");
       const arquivoAntigo = registroAnterior.arquivo || item.arquivo;
       await onedriveApagarBlob(subpastaAntiga, arquivoAntigo);
@@ -3273,6 +3379,43 @@ async function onedriveBaixarTexto(caminhoArquivo){
 function extrairSufixoDoNome(nome){
   const m = /\(([a-z0-9]{6})\)$/i.exec(nome||"");
   return m ? m[1] : null;
+}
+/* ENDEREÇO NA NUVEM É IDENTIDADE, NÃO É NOME.
+   O caminho de um arquivo é montado com o nome legível de cada nível —
+   "Projeto (c268c7)/Área (pl3m1h)/Máquina (7v25c3)/Tarefa (bel1we)". O nome
+   é só para quem for olhar as pastas pelo gerenciador de arquivos; quem
+   identifica o item é o sufixo de id no fim de cada pasta.
+
+   Só que o envio comparava o caminho INTEIRO, letra por letra, com o que
+   estava gravado na assinatura. Qualquer mudança no nome — e o nome da
+   máquina sai de `m.nome || m.descricao`, então muda quando qualquer um dos
+   dois é preenchido ou corrigido — fazia o envio concluir "o item mudou de
+   endereço": ele APAGAVA a cópia antiga na nuvem e subia tudo de novo. E não
+   era só o item: todos os filhos dele mudavam de caminho junto.
+
+   Com dois aparelhos, isso não convergia nunca. Cada um recalculava o nome
+   com o que sabia, via o caminho do outro como "endereço errado", apagava e
+   reenviava — e o outro fazia o mesmo de volta no ciclo seguinte. É o
+   "envia, apaga, envia de novo" que nunca terminava, e a explicação de itens
+   que ninguém tocou aparecendo no histórico de envio.
+
+   Estas duas funções comparam endereços pelo ESQUELETO DE IDS, ignorando o
+   rótulo legível. Mesmo esqueleto = mesmo lugar, só o nome mudou: mantém o
+   caminho que já está na nuvem e não mexe em nada. Esqueleto diferente = o
+   item realmente mudou de pai, e aí a mudança de endereço vale, como antes.
+
+   O custo é a pasta na nuvem continuar com o nome antigo depois de uma
+   renomeação. Isso é cosmético e não afeta nada: o recebimento sempre
+   localizou as pastas por idBateComSufixo (pelo id), nunca pelo texto. */
+function enderecoLogicoDaPasta(pasta){
+  if(!Array.isArray(pasta) || pasta.length === 0) return null;
+  /* Segmento sem sufixo de id (formato inesperado) entra inteiro, para dois
+     caminhos diferentes nunca colapsarem no mesmo esqueleto por engano. */
+  return pasta.map(seg => extrairSufixoDoNome(String(seg||"")) || ("=" + String(seg||""))).join("/");
+}
+function onedriveMesmoEnderecoLogico(pastaA, pastaB){
+  const a = enderecoLogicoDaPasta(pastaA), b = enderecoLogicoDaPasta(pastaB);
+  return !!a && !!b && a === b;
 }
 function idBateComSufixo(idReal, sufixo6){
   return !!sufixo6 && String(idReal||"").slice(-6) === sufixo6;
@@ -3747,6 +3890,25 @@ function __onedriveMesclarItemNovoInterno(descritor, dados){
    nela gera avisos de "parece não estar no Wi-Fi" errados, mesmo conectado.
    A solução real é deixar a pessoa confirmar manualmente (STATE.wifiConfirmado),
    e usar a API do navegador só como pista secundária, nunca como única fonte. */
+/* Quantos itens estão com foto perdida agora — alimenta o aviso da tela de
+   Backup e o diagnóstico. */
+function contarItensComFotoPerdida(){
+  let n = 0;
+  for(const p of (STATE.projetosSimples || [])){
+    if(p[CAMPO_MARCA_FOTO_PERDIDA]) n++;
+    for(const a of (p.areas || [])){
+      if(a[CAMPO_MARCA_FOTO_PERDIDA]) n++;
+      for(const m of (a.maquinas || [])){
+        if(m[CAMPO_MARCA_FOTO_PERDIDA]) n++;
+        for(const t of (m.tarefas || [])){
+          if(t[CAMPO_MARCA_FOTO_PERDIDA]) n++;
+          for(const r of (t.riscos || [])) if(r[CAMPO_MARCA_FOTO_PERDIDA]) n++;
+        }
+      }
+    }
+  }
+  return n;
+}
 function onedriveEstaEmWifi(){
   if(STATE.wifiConfirmado) return true;
   try{
@@ -4614,7 +4776,7 @@ function onedriveConteudoJaEnviado(item, registro){
   /* Endereço diferente = o item MUDOU DE LUGAR na nuvem (mover área de
      projeto). O conteúdo é o mesmo, mas precisa subir para o caminho novo —
      senão a mudança nunca chegaria aos outros aparelhos. */
-  if(!Array.isArray(registro.pasta) || registro.pasta.join("/") !== item.pasta.join("/")) return false;
+  if(!onedriveMesmoEnderecoLogico(registro.pasta, item.pasta)) return false;
   if(registro.arquivo !== item.arquivo) return false;
   return tamanhoTextoLocalDoItem(item.tipo, item.dados || {}) === registro.tamanho;
 }
@@ -4893,7 +5055,9 @@ function onedriveDiagnosticoDados(){
          se repete a cada ciclo, é aqui que a fila fica presa. */
       const antes = Array.isArray(reg.pasta) ? reg.pasta.join("/") : "";
       const agora = (it.pasta||[]).join("/");
-      if(antes && antes !== agora){
+      // Só conta como mudança de endereço o que muda de PAI — renomear não
+      // move mais nada, então não faz sentido continuar apontando isso aqui.
+      if(antes && antes !== agora && !onedriveMesmoEnderecoLogico(reg.pasta, it.pasta||[])){
         mudancaEndereco++;
         detalhe += " · ENDEREÇO MUDOU — antes: " + antes + " · agora: " + agora;
       }

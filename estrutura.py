@@ -2028,6 +2028,34 @@ chk("a tela explica que o envio NAO depende da chave de Wi-Fi",
 chk("a tela atribui a limitacao ao Safari, nao ao app",
     "limita\u00e7\u00e3o do Safari, n\u00e3o deste app" in novo)
 
+print("\n=== 75. APARELHO DANIFICADO NAO CONTAMINA O SAUDAVEL ===")
+# As fotos que sumiram do aparelho continuam EMBUTIDAS nos arquivos de texto
+# da nuvem. Duas portas por onde o aparelho danificado destruia essa ultima
+# copia: (a) subindo o proprio item e regravando o arquivo sem a foto;
+# (b) subindo um pacote "fotos_" com [null,null], que do outro lado
+# substituia as fotos BOAS por nulls.
+chk("a leitura MARCA os itens cuja foto nao foi encontrada",
+    novo.count("function marcarItensComFotoPerdida(") == 1
+    and 'const CAMPO_MARCA_FOTO_PERDIDA = "__fotosPerdidas";' in novo)
+chk("a marca e posta ANTES de a referencia virar null",
+    "marcarItensComFotoPerdida(bruto, mapa);\n    return fotosReinserirDeMapa(bruto, mapa);" in novo)
+chk("so os campos PROPRIOS marcam o item (risco nao marca a maquina inteira)",
+    novo.count("function __refsProprriasDoItem(") == 1
+    and "if(k === campoFilhos) continue;" in novo)
+chk("a marca NAO se apaga sozinha na leitura seguinte",
+    "else if(obj[CAMPO_MARCA_FOTO_PERDIDA]) delete obj[CAMPO_MARCA_FOTO_PERDIDA]" not in novo)
+chk("item marcado NAO entra na fila de envio",
+    "if(it.dados && it.dados[CAMPO_MARCA_FOTO_PERDIDA]) return false;" in novo)
+chk("a marca de dano nunca viaja para a nuvem",
+    "delete semFotos.__fotosPerdidas;" in novo)
+chk("pacote de fotos so entra quando traz MAIS fotos reais do que ja existe",
+    "const chegaram = v.filter(__ehFotoEmbutida);" in novo
+    and "if(chegaram.length > aqui.length){ local[k] = chegaram; mudou = true; }" in novo)
+chk("o teste antigo, que olhava so o TAMANHO da lista, saiu",
+    "Array.isArray(v) && v.length>0 && (substituir || !Array.isArray(local[k]) || local[k].length===0)" not in novo)
+chk("existe contagem de itens com foto perdida para a tela",
+    novo.count("function contarItensComFotoPerdida(") == 1)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

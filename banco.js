@@ -102,6 +102,12 @@ function novoAparelho(nome, nuvem){
     .replace(/[\\\\/:*?"<>|]/g,"-").replace(/\\s+/g," ").replace(/^\\.+/,"").replace(/[. ]+$/,"");
     if(/^(CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])$/i.test(n)) n = n+"_"; return n || "sem-nome"; }`, ctx);
   ["CAMPOS_FILHOS_SYNC","CAMPO_FILHOS_POR_TIPO"].forEach(n=>vm.runInContext(constante(n),ctx));
+  /* Marca local de "este item está com foto perdida" — o envio a consulta para
+     não regravar na nuvem o arquivo que ainda tem a foto embutida dentro dele.
+     Versões anteriores à correção não têm a const; nelas fica um nome que
+     nenhum item carrega, e o comportamento é o de antes. */
+  try{ vm.runInContext(constante("CAMPO_MARCA_FOTO_PERDIDA"), ctx); }
+  catch(e){ vm.runInContext('var CAMPO_MARCA_FOTO_PERDIDA = "__fotosPerdidas";', ctx); }
   vm.runInContext(constante("LAPIDE_VALIDADE_MS"),ctx);
   vm.runInContext("var __ultimoCarimboVisto=0; var __arvoreSimplesCache=null; var __indiceNuvemMapa=null; var __indiceNuvemMapaEm=0; var __arvoreNuvemIncompleta=false;", ctx);
   vm.runInContext("var __assinaturasOneDriveSimples={mapa:null,chaveEstado:'oneDriveAssinaturasSimples'};", ctx);
@@ -137,6 +143,29 @@ function novoAparelho(nome, nuvem){
     "aplicarLapidesNaArvore","idsSincronizaveisDe","getLapidesSyncEm","marcarLapidesAlteradas",
     "montarPacoteLapides","aplicarPacoteLapides","onedriveSincronizarLapides",
   ].forEach(n=>vm.runInContext(funcao(n),ctx));
+
+  /* Comparação de endereço por ESQUELETO DE IDS (ensaios 22 e 23). Extraída
+     quando existe; quando não existe — ou seja, ao rodar a bancada contra uma
+     versão ANTERIOR à correção — entram estas versões, que reproduzem o
+     comportamento antigo (compara o caminho inteiro, letra por letra). É o que
+     permite `node banco.js original.html` rodar e REPROVAR nos ensaios 22 e 23,
+     em vez de estourar por função inexistente. */
+  ["enderecoLogicoDaPasta","onedriveMesmoEnderecoLogico"].forEach(n=>{
+    try{ vm.runInContext(funcao(n), ctx); }
+    catch(e){ /* versão antiga: fica o comportamento de antes, abaixo */ }
+  });
+  vm.runInContext(`
+    if(typeof enderecoLogicoDaPasta !== "function"){
+      function enderecoLogicoDaPasta(p){ return Array.isArray(p) ? p.join("/") : null; }
+      this.enderecoLogicoDaPasta = enderecoLogicoDaPasta;
+    }
+    if(typeof onedriveMesmoEnderecoLogico !== "function"){
+      function onedriveMesmoEnderecoLogico(a,b){
+        return Array.isArray(a) && Array.isArray(b) && a.join("/") === b.join("/");
+      }
+      this.onedriveMesmoEnderecoLogico = onedriveMesmoEnderecoLogico;
+    }
+  `, ctx);
 
   // Rede de mentira: envia/apaga/baixa direto na nuvem em memória.
   ctx.onedriveEnviarBlob = async (subpasta, blob, filename) => {
@@ -820,6 +849,126 @@ async function rodarAteParar(ap, maxCiclos, rotulo){
     for(let i=0;i<4;i++) await ciclo(B);
     checar("B removeu o item que sumiu de A", riscosDe(B).indexOf(alvo)<0, "B="+riscosDe(B).join());
     checar("nada ressuscitou na nuvem", arquivosCom(nuvem, alvo).length===0);
+  }
+
+  console.log("\n" + L + "\nENSAIO 22 - renomear equipamento NAO reenvia a arvore inteira\n" + L);
+  {
+    /* O endereco do arquivo na nuvem e montado com o NOME legivel de cada
+       nivel. Quem identifica o item e o sufixo de id no fim da pasta -- o
+       nome e so para quem for olhar as pastas pelo gerenciador de arquivos.
+       Mas o envio comparava o caminho INTEIRO com o gravado na assinatura:
+       renomear qualquer nivel fazia o app concluir "mudou de endereco",
+       APAGAR a copia antiga e subir tudo de novo -- o item e todos os filhos
+       dele. Era o par de linhas "arquivo X (- bytes)" seguido de "arquivo X
+       (459 B)" no historico, no mesmo minuto, sem ninguem ter tocado no item. */
+    const nuvem = novaNuvem();
+    const A = novoAparelho("A", nuvem);
+    A.ctx.STATE.projetosSimples = [arvoreExemplo(1, 2, 2, 3, false)];
+    await rodarAteParar(A, 8);
+    const B = novoAparelho("B", nuvem);
+    await rodarAteParar(B, 8);
+    checar("A e B comecam iguais e em silencio",
+      riscosDe(A).join() === riscosDe(B).join(), "A=" + riscosDe(A).length + " B=" + riscosDe(B).length);
+
+    const arquivosAntes = new Set(nuvem.arquivos.keys());
+    const totalAntes = arquivosAntes.size;
+
+    /* A pessoa corrige o nome do equipamento -- so o nome, mais nada. */
+    vm.runInContext(`(function(){
+      const m = STATE.projetosSimples[0].areas[0].maquinas[0];
+      m.nome = "Mesa de selecao manual B (corrigido)";
+      m.atualizadoEm = (m.atualizadoEm||0) + 1000;
+    })()`, A.ctx);
+
+    const rA = await rodarAteParar(A, 8);
+    checar("A volta ao silencio depois de renomear", rA.parou,
+      "transferencias por ciclo: " + rA.hist.join(", "));
+
+    const arquivosDepois = new Set(nuvem.arquivos.keys());
+    const sumiram = [...arquivosAntes].filter(c => !arquivosDepois.has(c));
+    const nasceram = [...arquivosDepois].filter(c => !arquivosAntes.has(c));
+    checar("NENHUM arquivo foi apagado da nuvem so por causa da renomeacao",
+      sumiram.length === 0, sumiram.length + " apagados: " + sumiram.slice(0,3).join(" | "));
+    checar("nenhum arquivo novo foi criado em endereco diferente",
+      nasceram.length === 0, nasceram.length + " novos: " + nasceram.slice(0,3).join(" | "));
+    checar("o total de arquivos na nuvem nao mudou",
+      nuvem.arquivos.size === totalAntes, totalAntes + " -> " + nuvem.arquivos.size);
+
+    /* O outro aparelho recebe o nome novo e nao desfaz nada. */
+    const rB = await rodarAteParar(B, 8);
+    checar("B volta ao silencio depois de receber o nome novo", rB.parou,
+      "transferencias por ciclo: " + rB.hist.join(", "));
+    checar("B recebeu o nome corrigido",
+      vm.runInContext("STATE.projetosSimples[0].areas[0].maquinas[0].nome", B.ctx) === "Mesa de selecao manual B (corrigido)",
+      vm.runInContext("STATE.projetosSimples[0].areas[0].maquinas[0].nome", B.ctx));
+
+    /* O TESTE QUE PEGA O PING-PONG: com os dois em silencio, alternar ciclos
+       nao pode voltar a transferir nada. No codigo antigo, cada aparelho
+       recalculava o nome com o que sabia, via o caminho do outro como
+       "endereco errado", apagava e reenviava -- para sempre. */
+    let trafegoDepois = 0;
+    for(let i = 0; i < 3; i++){
+      trafegoDepois += (await ciclo(A)).transferencias;
+      trafegoDepois += (await ciclo(B)).transferencias;
+    }
+    checar("SEM PING-PONG: 6 ciclos alternados sem ninguem editar = zero trafego",
+      trafegoDepois === 0, "ainda transferiu " + trafegoDepois);
+    /* riscosDe olha uma tarefa so (maquinas[0].tarefas[0]): 3 riscos. O que
+       importa aqui e que a renomeacao nao levou nenhum deles embora. */
+    checar("os riscos continuam todos la, nos dois aparelhos",
+      riscosDe(A).length === 3 && riscosDe(B).length === 3,
+      "A=" + riscosDe(A).length + " B=" + riscosDe(B).length);
+    checar("a arvore inteira continua na nuvem, item por item",
+      nuvem.arquivos.size === totalAntes, totalAntes + " -> " + nuvem.arquivos.size);
+  }
+
+  console.log("\n" + L + "\nENSAIO 23 - mover de pai DE VERDADE continua movendo na nuvem\n" + L);
+  {
+    /* O contraponto do ensaio 22: a correcao nao pode ter desligado a
+       mudanca de endereco legitima. Mover uma maquina de area TEM de mover
+       o arquivo na nuvem -- senao a mudanca nunca chegaria ao outro
+       aparelho e a copia antiga ficaria orfa la, sendo rebaixada de volta
+       como se fosse item novo. */
+    const nuvem = novaNuvem();
+    const A = novoAparelho("A", nuvem);
+    A.ctx.STATE.projetosSimples = [arvoreExemplo(2, 1, 1, 2, false)];
+    await rodarAteParar(A, 8);
+    const caminhoAntes = [...nuvem.arquivos.keys()].filter(c => c.endsWith("_maquina.json"));
+    checar("as duas maquinas estao na nuvem", caminhoAntes.length === 2, caminhoAntes.length + "");
+
+    /* Move a maquina da area 0 para a area 1 -- muda de PAI, nao so de nome.
+       Fiel ao app: executarMoverMaquinaS chama marcarSubarvoreMaquinaAlterada,
+       que recarimba tarefas e riscos junto. Sem esse recarimbo os filhos nunca
+       entrariam na fila de envio e os arquivos deles ficariam orfaos no
+       endereco antigo -- que e justamente o que o recarimbo existe para
+       evitar ("sem isto a mudanca nunca sai deste aparelho"). */
+    const idMaq = vm.runInContext(`(function(){
+      const p = STATE.projetosSimples[0];
+      const m = p.areas[0].maquinas.shift();
+      p.areas[1].maquinas.push(m);
+      marcarSubarvoreMaquinaAlterada(m);
+      return m.id;
+    })()`, A.ctx);
+    const sufixo = String(idMaq).slice(-6);
+
+    const rA = await rodarAteParar(A, 8);
+    checar("A volta ao silencio depois de mover", rA.parou, rA.hist.join(", "));
+
+    const doMovido = [...nuvem.arquivos.keys()].filter(c => c.includes("(" + sufixo + ")"));
+    checar("a maquina movida existe em UM endereco so na nuvem",
+      doMovido.filter(c => c.endsWith("_maquina.json")).length === 1,
+      doMovido.join(" | "));
+    checar("o arquivo esta embaixo da area NOVA",
+      doMovido.some(c => c.includes("Area 1")), doMovido.join(" | "));
+    checar("nao sobrou copia orfa embaixo da area antiga",
+      !doMovido.some(c => c.includes("Area 0")), doMovido.join(" | "));
+
+    const B = novoAparelho("B", nuvem);
+    await rodarAteParar(B, 10);
+    checar("B recebe a maquina na area certa",
+      vm.runInContext(`(STATE.projetosSimples[0].areas[1].maquinas||[]).some(m=>m.id===${JSON.stringify(idMaq)})`, B.ctx));
+    checar("B nao ficou com a maquina duplicada nas duas areas",
+      vm.runInContext(`(STATE.projetosSimples[0].areas[0].maquinas||[]).every(m=>m.id!==${JSON.stringify(idMaq)})`, B.ctx));
   }
 
   console.log("\n" + L);
