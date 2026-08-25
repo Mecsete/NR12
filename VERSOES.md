@@ -44,6 +44,46 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 25/08/2026 11:35
+
+**Correção urgente: fotos de campo podiam ser apagadas sozinhas.**
+
+Cada foto é guardada em duas partes dentro do aparelho: o cadastro (que sabe
+que existe uma foto ali) e o arquivo da foto em si, guardado à parte. De
+tempos em tempos o app faz uma faxina que apaga arquivos de foto que não
+pertencem mais a nenhum item — fotos de coisas excluídas, que só ocupariam
+espaço.
+
+Essa faxina decidia o que apagar olhando os dados **que estavam na tela
+naquele instante**. Só que ela roda em segundo plano e demora alguns
+instantes para terminar. Nesse intervalo, os dados da tela podem ter sido
+trocados inteiros — é o que acontece toda vez que o app abre (ele começa
+vazio e só se enche quando termina de ler o aparelho), ao voltar para o app
+pelo histórico do navegador, e ao restaurar um ponto. Pegando esse instante
+vazio, **todas** as fotos pareciam não pertencer a nada — e eram apagadas de
+vez.
+
+As fotos mais antigas escapavam por estarem em algum ponto de restauração.
+As tiradas **depois do último ponto** — ou seja, as do dia de trabalho em
+campo — não tinham proteção nenhuma. Foi assim que fotos de levantamento se
+perderam.
+
+O que mudou:
+
+- A faxina passa a conferir os dados **gravados no aparelho**, que nunca
+  estão pela metade, em vez dos dados da tela. Continua somando tudo mais que
+  possa segurar uma foto: os dados da tela, os pontos de restauração e o
+  formulário ainda não salvo.
+- **Na dúvida, não apaga.** Se não conseguir ler os dados gravados, a faxina
+  inteira desiste e fica para a próxima.
+- **Disjuntor:** se de uma vez só quase todo o banco de fotos parecer
+  descartável, a faxina se cancela — isso nunca é normal.
+- **Foto que não abre passa a se identificar na tela**, com moldura vermelha
+  e o aviso "Foto não encontrada neste aparelho — refotografe". Antes virava
+  um quadro cinza vazio, que em campo se confunde com "ainda não fotografei
+  aqui" — por isso o problema só aparecia semanas depois, no escritório,
+  quando já não dava para voltar ao local.
+
 ## 22/08/2026 16:51
 
 Importar dados de plaqueta lidos fora do app.

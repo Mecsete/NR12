@@ -5792,6 +5792,220 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   STATE.projetosSimples = [];
   STATE.ui.projetoSId = null; STATE.ui.areaSId = null; STATE.ui.maquinaSId = null; STATE.ui.tarefaSId = null;
 
+  /* ==================================================================
+     t116 · foto de campo nao pode ser apagada por engano
+
+     A limpeza de fotos orfas decidia o que apagar lendo o STATE EM
+     MEMORIA. Ela roda em segundo plano (dbSet dispara e nao espera), e
+     nesse intervalo o STATE pode ter sido trocado inteiro: na abertura
+     do app ele comeca VAZIO ate a leitura do banco terminar. Pego nesse
+     instante, TODO o banco de fotos parecia orfao e era apagado de vez.
+     As fotos antigas escapavam por estarem em algum ponto de
+     restauracao; as tiradas depois do ultimo ponto -- as do dia de
+     trabalho em campo -- nao tinham protecao nenhuma.
+
+     O primeiro teste aqui e a reproducao exata desse cenario. Ele
+     falharia no codigo antigo.
+     ================================================================== */
+  console.log("\n=== t116 · foto de campo nao pode ser apagada por engano ===");
+  {
+    async function ta(nome, fn){
+      total++;
+      try{ await fn(); console.log("  ok  " + nome); }
+      catch(e){ falhas++; console.log("  ERRO " + nome + " -> " + (e && e.message ? e.message : e)); }
+    }
+    /* Banco de mentira com o pouco que a funcao usa: get, delete e
+       getAllKeys, mais o oncomplete da transacao. */
+    function bancoFalso(registros){
+      const dados = new Map(Object.entries(registros || {}));
+      const db = {
+        dados,
+        transaction(){
+          const store = {
+            get(k){ const rq = { onsuccess:null, onerror:null, result: dados.get(k) };
+                    setTimeout(()=>{ rq.onsuccess && rq.onsuccess(); }, 0); return rq; },
+            delete(k){ dados.delete(k); },
+            getAllKeys(){ const rq = { onsuccess:null, onerror:null, result: Array.from(dados.keys()) };
+                    setTimeout(()=>{ rq.onsuccess && rq.onsuccess(); }, 0); return rq; }
+          };
+          const tx = { oncomplete:null, onerror:null, objectStore(){ return store; } };
+          setTimeout(()=>{ tx.oncomplete && tx.oncomplete(); }, 0);
+          return tx;
+        }
+      };
+      return db;
+    }
+    const ctx = vm.createContext({ console, setTimeout, Date, Promise, Set, Map, Array, Object, String, JSON });
+    vm.runInContext(`
+      const DB_STORE = "kv"; const DB_KEY = "estado";
+      const FOTO_KEY_PREFIXO = "foto:"; const FOTO_REF_PREFIXO = "idbfoto:";
+      var __ultimaLimpezaFotosEm = 0; var __fotosNoBanco = null;
+      var __fotoIdCache = new Map();
+      var STATE = {}; var __db = null; var __pontos = []; var __rascunho = null;
+      var __erros = [];
+      const console2 = { error: (m)=>__erros.push(m) };
+      function temIndexedDB(){ return true; }
+      async function dbOpen(){ return __db; }
+      async function listarPontosDeRestauracao(){ return __pontos; }
+      async function lerDraftPersistente(){ return __rascunho; }
+    `, ctx);
+    // console.error da funcao vai para a lista de erros, para poder conferir
+    ctx.console = { error: (m)=>vm.runInContext("__erros", ctx).push(m), log: ()=>{} };
+    ["ehFotoDataUrlPersist","ehFotoRefPersist","fotoCalcularId","fotosColetarRefs",
+     "fotosColetarIdsEmbutidas","fotosCarregarIndice","fotosLimparOrfasSeForHora"]
+      .forEach(n=> vm.runInContext(funcao(n), ctx));
+
+    const FOTO_A = "data:image/jpeg;base64," + "A".repeat(500);
+    const FOTO_B = "data:image/jpeg;base64," + "B".repeat(500);
+    const idDe = (f)=>{ ctx.__f = f; return vm.runInContext("fotoCalcularId(__f)", ctx); };
+    function preparar({ estadoMemoria, gravado, pontos, rascunho, fotosNoBanco }){
+      const registros = {};
+      (fotosNoBanco || []).forEach(f => { registros["foto:" + idDe(f)] = f; });
+      if(gravado !== undefined) registros["estado"] = gravado;
+      ctx.__db = bancoFalso(registros);
+      vm.runInContext("__fotosNoBanco = null; __ultimaLimpezaFotosEm = 0; __erros = [];", ctx);
+      ctx.STATE = estadoMemoria;
+      ctx.__pontos = pontos || [];
+      ctx.__rascunho = rascunho || null;
+      return ctx.__db;
+    }
+    const sobreviveu = (db, f)=> db.dados.has("foto:" + idDe(f));
+
+    await ta("O CASO REAL: app abrindo com o STATE ainda vazio NAO apaga as fotos do dia", async ()=>{
+      /* Exatamente o que aconteceu em campo: as fotos do dia estao no
+         banco e referenciadas pelo registro GRAVADO, mas o STATE em
+         memoria ainda esta vazio porque a leitura do banco nao terminou.
+         Nenhum ponto de restauracao as cobre (foram tiradas depois do
+         ultimo ponto). No codigo antigo, as duas eram apagadas aqui. */
+      const gravado = { projetosSimples: [ { areas: [ { maquinas: [
+        { fotoGeral: "idbfoto:" + idDe(FOTO_A), fotosOutras: ["idbfoto:" + idDe(FOTO_B)] }
+      ] } ] } ] };
+      const db = preparar({ estadoMemoria: {}, gravado, pontos: [], fotosNoBanco: [FOTO_A, FOTO_B] });
+      await vm.runInContext("fotosLimparOrfasSeForHora()", ctx);
+      ok(sobreviveu(db, FOTO_A), "apagou a foto do equipamento com o STATE ainda vazio");
+      ok(sobreviveu(db, FOTO_B), "apagou a foto do risco com o STATE ainda vazio");
+    });
+
+    await ta("foto realmente orfa continua sendo apagada (a limpeza nao virou enfeite)", async ()=>{
+      const gravado = { projetosSimples: [ { areas: [ { maquinas: [
+        { fotoGeral: "idbfoto:" + idDe(FOTO_A) }
+      ] } ] } ] };
+      const db = preparar({ estadoMemoria: gravado, gravado, pontos: [], fotosNoBanco: [FOTO_A, FOTO_B] });
+      await vm.runInContext("fotosLimparOrfasSeForHora()", ctx);
+      ok(sobreviveu(db, FOTO_A), "apagou uma foto que estava referenciada");
+      ok(!sobreviveu(db, FOTO_B), "a foto orfa de verdade deveria ter sido apagada");
+    });
+
+    await ta("sem conseguir ler o registro gravado, nao apaga NADA", async ()=>{
+      const db = preparar({ estadoMemoria: {}, gravado: undefined, pontos: [], fotosNoBanco: [FOTO_A, FOTO_B] });
+      await vm.runInContext("fotosLimparOrfasSeForHora()", ctx);
+      ok(sobreviveu(db, FOTO_A) && sobreviveu(db, FOTO_B),
+         "apagou fotos sem ter o registro gravado para conferir");
+    });
+
+    await ta("o STATE em memoria SOMA protecao, nunca tira (foto so em memoria sobrevive)", async ()=>{
+      /* Foto ainda embutida no STATE em memoria e que o registro gravado
+         (mais antigo) ainda nao conhece: continua protegida. */
+      const gravado = { projetosSimples: [] };
+      const memoria = { projetosSimples: [ { areas: [ { maquinas: [ { fotoGeral: FOTO_A } ] } ] } ] };
+      const db = preparar({ estadoMemoria: memoria, gravado, pontos: [], fotosNoBanco: [FOTO_A] });
+      await vm.runInContext("fotosLimparOrfasSeForHora()", ctx);
+      ok(sobreviveu(db, FOTO_A), "apagou foto que so o STATE em memoria conhecia");
+    });
+
+    await ta("ponto de restauracao continua protegendo as fotos dele", async ()=>{
+      const gravado = { projetosSimples: [] };
+      const ponto = { ts: 1, dados: { projetosSimples: [ { areas: [ { maquinas: [
+        { fotoGeral: "idbfoto:" + idDe(FOTO_A) } ] } ] } ] } };
+      const db = preparar({ estadoMemoria: {}, gravado, pontos: [ponto], fotosNoBanco: [FOTO_A] });
+      await vm.runInContext("fotosLimparOrfasSeForHora()", ctx);
+      ok(sobreviveu(db, FOTO_A), "apagou foto protegida por ponto de restauracao");
+    });
+
+    await ta("rascunho nao salvo protege as fotos dele", async ()=>{
+      /* Foto acabou de ser tirada e o formulario ainda nao foi salvo:
+         ela vive no rascunho, nao no STATE nem no registro gravado. */
+      const gravado = { projetosSimples: [] };
+      const rascunho = { tipo:"riscoS", entity: { fotosOutras: [FOTO_A] }, ts: 1 };
+      const db = preparar({ estadoMemoria: {}, gravado, pontos: [], rascunho, fotosNoBanco: [FOTO_A] });
+      await vm.runInContext("fotosLimparOrfasSeForHora()", ctx);
+      ok(sobreviveu(db, FOTO_A), "apagou a foto de um formulario ainda nao salvo");
+    });
+
+    await ta("disjuntor: querer apagar quase todo o banco de uma vez cancela a limpeza", async ()=>{
+      const muitas = [];
+      for(let i = 0; i < 40; i++) muitas.push("data:image/jpeg;base64," + String(i) + "x".repeat(300));
+      const gravado = { projetosSimples: [] }; // nao referencia nenhuma: 40 de 40 pareceriam orfas
+      const db = preparar({ estadoMemoria: {}, gravado, pontos: [], fotosNoBanco: muitas });
+      await vm.runInContext("fotosLimparOrfasSeForHora()", ctx);
+      eq(db.dados.size, 41, "o disjuntor deixou passar uma limpeza em massa");
+      ok(vm.runInContext("__erros.length", ctx) > 0, "o disjuntor disparou em silencio, sem deixar rastro");
+    });
+
+    await ta("abaixo do disjuntor, a limpeza normal segue funcionando", async ()=>{
+      const poucas = [];
+      for(let i = 0; i < 10; i++) poucas.push("data:image/jpeg;base64," + String(i) + "y".repeat(300));
+      const gravado = { projetosSimples: [] };
+      const db = preparar({ estadoMemoria: {}, gravado, pontos: [], fotosNoBanco: poucas });
+      await vm.runInContext("fotosLimparOrfasSeForHora()", ctx);
+      eq(db.dados.size, 1, "10 orfas de verdade deveriam ter saido (sobra so o registro gravado)");
+    });
+
+    await ta("a trava de 10 minutos continua valendo", async ()=>{
+      const gravado = { projetosSimples: [] };
+      const db = preparar({ estadoMemoria: {}, gravado, pontos: [], fotosNoBanco: [FOTO_A] });
+      await vm.runInContext("fotosLimparOrfasSeForHora()", ctx);
+      eq(db.dados.size, 1, "a primeira passada deveria ter limpado a orfa");
+      db.dados.set("foto:" + idDe(FOTO_B), FOTO_B);
+      await vm.runInContext("fotosLimparOrfasSeForHora()", ctx); // segunda chamada seguida
+      ok(sobreviveu(db, FOTO_B), "rodou de novo dentro dos 10 minutos, sem respeitar a trava");
+    });
+  }
+
+  /* Segunda ponta da mesma correcao: uma foto que nao abre precisa se
+     identificar na tela. Antes ela virava um quadro cinza vazio, que em
+     campo se confunde com "ainda nao fotografei" -- foi por isso que o
+     problema so apareceu semanas depois, no escritorio. */
+  {
+    const ctx = vm.createContext({ });
+    vm.runInContext("var __imgReg = []; var __marcados = [];", ctx);
+    vm.runInContext(`
+      var document = { querySelectorAll: function(){ return __els; } };
+      var __els = [];
+      function elFalso(ref){
+        return { dataset: { imgref: String(ref) }, src: null, alt: null, title: null,
+                 style: {}, atributos: {},
+                 removeAttribute: function(){ delete this.dataset.imgref; },
+                 setAttribute: function(k,v){ this.atributos[k] = v; } };
+      }
+    `, ctx);
+    vm.runInContext(funcao("hidratarImagens"), ctx);
+    t("foto presente entra pelo src, como sempre", ()=>{
+      vm.runInContext(`
+        __imgReg = ["data:image/jpeg;base64,AAA"];
+        __els = [elFalso(0)];
+        hidratarImagens();
+      `, ctx);
+      eq(vm.runInContext("__els[0].src", ctx), "data:image/jpeg;base64,AAA");
+      eq(vm.runInContext("__els[0].atributos['data-foto-perdida']", ctx), undefined,
+         "marcou como perdida uma foto que estava la");
+    });
+    t("foto que nao abre se identifica na tela, em vez de quadro cinza mudo", ()=>{
+      vm.runInContext(`
+        __imgReg = [null];
+        __els = [elFalso(0)];
+        hidratarImagens();
+      `, ctx);
+      eq(vm.runInContext("__els[0].src", ctx), null, "colocou src de uma foto que nao existe");
+      eq(vm.runInContext("__els[0].atributos['data-foto-perdida']", ctx), "1",
+         "a foto perdida nao foi marcada");
+      ok(String(vm.runInContext("__els[0].title", ctx)).indexOf("refotografe") > 0,
+         "sem instrucao do que fazer em campo");
+      ok(String(vm.runInContext("__els[0].style.border", ctx)).indexOf("#c0392b") >= 0,
+         "sem destaque visual no quadro da foto perdida");
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

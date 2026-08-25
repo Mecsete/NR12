@@ -1481,10 +1481,29 @@ async function fotosLerLote(db, refs){
   return mapa;
 }
 /* Limpeza de fotos órfãs (itens apagados): roda no máximo a cada 10 minutos,
-   em segundo plano, e só remove uma foto quando NEM o STATE atual NEM nenhum
-   ponto de restauração a referencia. Pontos no formato antigo carregam as
+   em segundo plano, e só remove uma foto quando NEM o registro GRAVADO no
+   banco, NEM o STATE em memória, NEM nenhum ponto de restauração, NEM o
+   rascunho em andamento a referenciam. Pontos no formato antigo carregam as
    próprias fotos embutidas, então não dependem de nenhuma chave "foto:" —
-   não precisam de proteção aqui. */
+   não precisam de proteção aqui.
+
+   POR QUE LER O REGISTRO GRAVADO, E NÃO SÓ O STATE EM MEMÓRIA — esta função
+   é disparada em segundo plano (quem a chama não espera por ela) e só chega
+   ao fim alguns instantes depois. Nesse intervalo o STATE em memória pode
+   ter sido TROCADO INTEIRO por outro objeto: é o que acontece na abertura do
+   app (o STATE começa vazio e só é preenchido quando a leitura do banco
+   termina), ao voltar para o app pelo cache do navegador, e ao restaurar um
+   ponto. Pegando o STATE justamente nesse instante vazio, TODA foto parecia
+   órfã — e era apagada para sempre. As antigas escapavam por estarem em
+   algum ponto de restauração; as tiradas DEPOIS do último ponto (ou seja,
+   as do dia de trabalho em campo) não tinham proteção nenhuma. Foi assim que
+   fotos de levantamento se perderam. O registro gravado no banco nunca está
+   pela metade — é ele que manda aqui.
+
+   E a regra final: na dúvida, não apaga. Se o registro gravado não puder ser
+   lido, a limpeza inteira desiste e fica para a próxima. Foto órfã ocupando
+   espaço é um problema pequeno e reversível; foto de campo apagada por
+   engano não tem volta. */
 let __ultimaLimpezaFotosEm = 0;
 async function fotosLimparOrfasSeForHora(){
   if(!temIndexedDB()) return;
@@ -1492,15 +1511,42 @@ async function fotosLimparOrfasSeForHora(){
   __ultimaLimpezaFotosEm = Date.now();
   try{
     const db = await dbOpen();
+    const gravado = await new Promise((resolve)=>{
+      try{
+        const tx = db.transaction(DB_STORE,"readonly");
+        const rq = tx.objectStore(DB_STORE).get(DB_KEY);
+        rq.onsuccess = ()=>resolve(rq.result || null);
+        rq.onerror   = ()=>resolve(null);
+      }catch(e){ resolve(null); }
+    });
+    if(!gravado) return; // sem o registro gravado não há como conferir — não apaga nada
     const referenciadas = new Set();
+    fotosColetarRefs(gravado, referenciadas);
+    fotosColetarIdsEmbutidas(gravado, referenciadas);
     fotosColetarIdsEmbutidas(STATE, referenciadas);
     fotosColetarRefs(STATE, referenciadas);
     const pontos = await listarPontosDeRestauracao();
     for(const p of pontos) fotosColetarRefs(p, referenciadas);
+    // O rascunho não salvo guarda as fotos embutidas nele mesmo, mas pode
+    // conter referências se um dia mudar de forma — as duas varreduras
+    // custam quase nada e fecham a porta dos dois jeitos.
+    const rascunho = await lerDraftPersistente();
+    if(rascunho){ fotosColetarIdsEmbutidas(rascunho, referenciadas); fotosColetarRefs(rascunho, referenciadas); }
     const indice = await fotosCarregarIndice(db);
     const remover = [];
     indice.forEach(fid => { if(!referenciadas.has(fid)) remover.push(fid); });
     if(remover.length === 0) return;
+    /* DISJUNTOR. Apagar uma ou outra foto de item excluído é rotina; querer
+       apagar quase todo o banco de uma vez não é — isso só acontece quando a
+       lista de referências veio incompleta por algum motivo não previsto
+       aqui. Nesse caso a limpeza desiste inteira. O preço é espaço ocupado
+       por fotos que talvez fossem mesmo descartáveis; o preço do contrário
+       seria perder fotos de campo, que é exatamente o que não pode voltar
+       a acontecer. */
+    if(remover.length >= 30 && remover.length > indice.size * 0.6){
+      console.error("Limpeza de fotos abortada por segurança: " + remover.length + " de " + indice.size + " fotos pareceram órfãs de uma vez.");
+      return;
+    }
     await new Promise((resolve)=>{
       const tx = db.transaction(DB_STORE, "readwrite");
       const store = tx.objectStore(DB_STORE);
@@ -1842,7 +1888,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "22/08/2026 16:51";
+const APP_BUILD = "25/08/2026 11:35";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -8133,7 +8179,18 @@ function hidratarImagens(){
   document.querySelectorAll("img[data-imgref]").forEach(el=>{
     const f = __imgReg[+el.dataset.imgref];
     el.removeAttribute("data-imgref");
-    if(f) el.src = f;
+    if(f){ el.src = f; return; }
+    /* FOTO QUE NÃO ABRE NÃO PODE PASSAR DESPERCEBIDA. Antes, quando a foto
+       não era encontrada, o quadro ficava simplesmente cinza e vazio — em
+       campo isso se confunde com "ainda não fotografei aqui", e o problema
+       só aparecia semanas depois, no escritório, quando já não havia como
+       voltar ao local. Agora o quadro se identifica na hora, ainda em frente
+       à máquina, enquanto refotografar custa dez segundos. */
+    el.alt   = "Foto não encontrada neste aparelho";
+    el.title = "Foto não encontrada neste aparelho — refotografe";
+    el.setAttribute("data-foto-perdida", "1");
+    el.style.background = "repeating-linear-gradient(45deg,#f6d0d0,#f6d0d0 7px,#e9adad 7px,#e9adad 14px)";
+    el.style.border = "2px solid #c0392b";
   });
 }
 /* A ROLAGEM NÃO PODE VOLTAR AO TOPO SOZINHA.

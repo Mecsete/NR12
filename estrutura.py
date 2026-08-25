@@ -35,7 +35,11 @@ print("\n=== 4. MOTOR DE SINCRONIZACAO ===")
 # "lapide" saiu desta lista: a palavra agora aparece em dezenas de comentarios
 # do subsistema novo, e pinar a contagem exata quebraria a validacao a cada
 # comentario escrito. O que importa dela e estrutural e esta na secao 69.
-_extra = {"oneDriveDeltaFila": 0, "exclusoesConfirmadas": 6}
+# O +6 de exclusoesConfirmadas era da entrega da lapide sincronizada: a
+# referencia (original.html) JA vem daquele commit, entao contar de novo
+# somaria duas vezes -- exatamente o que ja tinha acontecido com
+# oneDriveDeltaFila logo acima. Zerado pelo mesmo motivo.
+_extra = {"oneDriveDeltaFila": 0, "exclusoesConfirmadas": 0}
 for marca in ["oneDriveDeltaFila", "tombstone", "exclusoesConfirmadas", "__backupV2AplicarLinha"]:
     a, b = orig.count(marca) + _extra.get(marca, 0), novo.count(marca)
     chk("'%s' inalterado (%d)" % (marca, a), a == b, "orig+extra=%d novo=%d" % (a, b))
@@ -163,7 +167,12 @@ d = len(novo) - len(orig)
 # sincronizacao cresce alguns milhares de bytes e nao pode ser reprovada por
 # isso. O teto (que e o que pega acidente grosseiro, tipo foto embutida por
 # engano) continua igual.
-chk("crescimento coerente com os novos modulos (%d bytes)" % d, 5000 < d < 700000, "delta=%d" % d)
+# Piso de 5.000 para 500 bytes: uma correcao de uma funcao so (como a da
+# secao 73) cresce pouco mais de 3 KB, e ja foi reprovada por isso. O piso
+# nunca foi a defesa real contra "nao mudou nada" -- essa defesa sao as
+# checagens por funcionalidade de cada secao, que exigem o texto exato do
+# que entrou. O piso so pega o arquivo trocado por engano por um identico.
+chk("crescimento coerente com o que a entrega mexeu (%d bytes)" % d, 500 < d < 700000, "delta=%d" % d)
 chk("nada foi removido do original por engano",
     all(novo.count(m) >= 1 for m in ["exportarMasterXLSXFotos", "gerarBytesXlsmCorteva", "montarItensInventario", "gerarBytesDocxSimples"]))
 
@@ -1955,6 +1964,47 @@ chk("botao, seletor de arquivo e aviso de resultado estao na tela",
     '<input type="file" id="fileDadosPlaqueta" accept="application/json,.json" hidden>' in novo
     and "Importar dados de plaqueta (.json)" in novo
     and "Só preenche o que estiver vazio" in novo)
+
+print("\n=== 73. FOTO DE CAMPO NAO PODE SER APAGADA POR ENGANO ===")
+# A limpeza de fotos orfas decidia o que apagar lendo o STATE EM MEMORIA. Ela
+# roda em segundo plano (quem chama nao espera), e nesse intervalo o STATE
+# pode ter sido trocado inteiro -- na abertura do app ele comeca VAZIO ate a
+# leitura do banco terminar. Pego nesse instante, todo o banco de fotos
+# parecia orfao e era apagado de vez. As fotos antigas escapavam por estarem
+# em algum ponto de restauracao; as tiradas depois do ultimo ponto (as do dia
+# de campo) nao tinham protecao nenhuma. Estas checagens travam as duas
+# pontas: de onde vem a lista de referencias, e o que acontece na duvida.
+chk("a lista de referencias sai do registro GRAVADO, nao so do STATE em memoria",
+    "const gravado = await new Promise((resolve)=>{" in novo
+    and "fotosColetarRefs(gravado, referenciadas);" in novo
+    and "fotosColetarIdsEmbutidas(gravado, referenciadas);" in novo)
+chk("sem conseguir ler o registro gravado, NAO apaga nada",
+    novo.count("if(!gravado) return;") == 1)
+chk("o STATE em memoria continua sendo somado (uniao), nunca substituindo",
+    "fotosColetarIdsEmbutidas(STATE, referenciadas);" in novo
+    and "fotosColetarRefs(STATE, referenciadas);" in novo)
+chk("os pontos de restauracao continuam protegendo as fotos deles",
+    "for(const p of pontos) fotosColetarRefs(p, referenciadas);" in novo)
+chk("o rascunho nao salvo tambem protege as fotos dele",
+    "const rascunho = await lerDraftPersistente();" in novo
+    and "if(rascunho){ fotosColetarIdsEmbutidas(rascunho, referenciadas); fotosColetarRefs(rascunho, referenciadas); }" in novo)
+chk("existe disjuntor contra apagar quase todo o banco de uma vez",
+    "if(remover.length >= 30 && remover.length > indice.size * 0.6){" in novo)
+chk("o disjuntor deixa rastro em vez de sumir em silencio",
+    'console.error("Limpeza de fotos abortada por seguran' in novo)
+# Segunda ponta: foto que nao abre deixa de ser um quadro cinza mudo.
+chk("foto que nao abre se identifica na tela, em vez de quadro vazio",
+    'el.setAttribute("data-foto-perdida", "1");' in novo
+    and 'el.title = "Foto n\u00e3o encontrada neste aparelho \u2014 refotografe";' in novo)
+chk("a foto que ABRE continua entrando pelo mesmo caminho de sempre",
+    "if(f){ el.src = f; return; }" in novo)
+# A limpeza continua sendo limpeza: nada disso pode ter desligado a funcao.
+chk("a limpeza continua sendo disparada pela gravacao, como antes",
+    novo.count("fotosLimparOrfasSeForHora();") == orig.count("fotosLimparOrfasSeForHora();"))
+chk("a trava de 10 minutos continua no lugar",
+    "if(Date.now() - __ultimaLimpezaFotosEm < 10*60*1000) return;" in novo)
+chk("a remocao em si nao mudou -- so a lista de quem pode ser removido",
+    "remover.forEach(fid => store.delete(FOTO_KEY_PREFIXO + fid));" in novo)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
