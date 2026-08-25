@@ -6195,12 +6195,16 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       'async function dbOpen(){ return {}; }',
       'async function listarPontosDeRestauracao(){ return __pontos; }',
       'async function fotosLerLote(db, refs){ const m = new Map(); refs.forEach(f=>{ if(__bytes.has(f)) m.set(f, __bytes.get(f)); }); return m; }',
+      // O indice tem so as CHAVES das fotos -- e o que permite a previa
+      // responder "esta foto ainda existe?" sem carregar nenhum arquivo.
+      'async function fotosCarregarIndice(db){ return new Set(__bytes.keys()); }',
       'async function dbSet(){ __gravou++; return true; }',
       'function marcarAlterado(){}',
       'function agoraSync(){ return 9999; }'
     ].join("\n"), ctx);
     vm.runInContext(constante("CAMPO_MARCA_FOTO_PERDIDA"), ctx);
     vm.runInContext(constante("CAMPOS_FOTO_UNICA"), ctx);
+    vm.runInContext('var RECUPERACAO_LOTE_ITENS = ' + (/const RECUPERACAO_LOTE_ITENS = (\d+)/.exec(HTML)||[0,20])[1] + ';', ctx);
     ["ehFotoDataUrlPersist","ehFotoRefPersist","__ehFotoOuRef","__percorrerItensSimples",
      "fotosGuardadasNosPontos","onedriveCarregarAssinaturas","marcarFotosPendentesParaEnvio",
      "__recuperarFotosDosPontos","recuperarFotosDosPontos","contarFotosRecuperaveis"]
@@ -6282,12 +6286,23 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       eq(oRisco().__fotosPerdidas, true, "liberou o envio com foto ainda faltando");
     });
 
-    await ta("espaco vazio sem nada de onde voltar some do cartao", async ()=>{
+    await ta("quando algo volta, os quadros vazios sem par tambem somem", async ()=>{
+      cenario({ atual: arv({ id:"r1", fotosOutras:[A,null,null] }),
+                ponto: arv({ id:"r1", fotosOutras:["idbfoto:F1","idbfoto:F2"] }), bytes:{ F1:A, F2:B } });
+      await vm.runInContext("recuperarFotosDosPontos()", ctx);
+      eq(oRisco().fotosOutras.length, 2, "sobrou quadro vazio depois de recuperar");
+      eq(oRisco().fotosOutras[0], A); eq(oRisco().fotosOutras[1], B);
+    });
+    await ta("sem NADA para devolver, o quadro vermelho FICA (nao esconde a perda)", async ()=>{
+      /* O quadro vermelho e a unica coisa que diz "aqui havia uma foto".
+         Apagar o espaco vazio deixaria o cartao bonito e a perda invisivel
+         -- exatamente o silencio que fez este problema demorar semanas para
+         aparecer. So se limpa o que sobra DEPOIS de uma recuperacao real. */
       cenario({ atual: arv({ id:"r1", fotosOutras:[A,null,null] }),
                 ponto: arv({ id:"r1", fotosOutras:["idbfoto:F1"] }), bytes:{ F1:A } });
-      await vm.runInContext("recuperarFotosDosPontos()", ctx);
-      eq(oRisco().fotosOutras.length, 1, "os quadros vazios continuaram na tela");
-      eq(oRisco().fotosOutras[0], A);
+      const r = await vm.runInContext("recuperarFotosDosPontos()", ctx);
+      eq(r.fotos, 0, "nao havia nada de novo para devolver");
+      eq(oRisco().fotosOutras.length, 3, "escondeu a perda apagando os quadros vazios");
     });
 
     await ta("contar NAO altera nada (previa antes de confirmar)", async ()=>{
@@ -6315,6 +6330,31 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       eq(m.fotoGeral, A); eq(m.fotoPlaqueta, B);
     });
 
+    await ta("EM LOTES: nunca carrega o acervo inteiro de uma vez", async ()=>{
+      /* A versao anterior lia de uma vez os arquivos de TODAS as fotos
+         citadas em TODOS os pontos -- uns 2 GB de imagem na memoria de um
+         celular. E o mesmo erro que derrubava o Safari na exportacao do
+         backup. Aqui contamos quantas fotos cada leitura pede: nenhuma
+         leitura pode pedir o acervo inteiro. */
+      const N = 100, riscos = [], bytes = {};
+      for(let i=0;i<N;i++){ riscos.push({ id:"r"+i, foto:null }); bytes["F"+i] = A; }
+      const pt = [];
+      for(let i=0;i<N;i++) pt.push({ id:"r"+i, foto:"idbfoto:F"+i });
+      const arvN = (lista)=> [ { id:"p", areas:[ { id:"a", maquinas:[ { id:"m", tarefas:[ { id:"t", riscos:lista } ] } ] } ] } ];
+      cenario({ atual: arvN(riscos), ponto: arvN(pt), bytes });
+      vm.runInContext([
+        "var __pedidos = [];",
+        "async function fotosLerLote(db, refs){ __pedidos.push(refs.size); const m = new Map();",
+        "  refs.forEach(f=>{ if(__bytes.has(f)) m.set(f, __bytes.get(f)); }); return m; }"
+      ].join(" "), ctx);
+      const r = await vm.runInContext("recuperarFotosDosPontos()", ctx);
+      eq(r.fotos, N, "nao devolveu todas");
+      const pedidos = vm.runInContext("__pedidos", ctx);
+      const lote = vm.runInContext("RECUPERACAO_LOTE_ITENS", ctx);
+      ok(pedidos.length > 1, "leu tudo numa tacada so — o pico de memoria ainda cresce com o acervo");
+      ok(Math.max.apply(null, pedidos) <= lote, "um lote pediu mais fotos que o tamanho do lote: " + pedidos.join(","));
+      eq(r.lotes, Math.ceil(N/lote), "numero de lotes fora do esperado");
+    });
     await ta("ponto no formato antigo (foto embutida) tambem serve", async ()=>{
       cenario({ atual: arv({ id:"r1", foto:null }), ponto: arv({ id:"r1", foto:A }), bytes:{} });
       const r = await vm.runInContext("recuperarFotosDosPontos()", ctx);

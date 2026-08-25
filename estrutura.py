@@ -2066,11 +2066,11 @@ print("\n=== 76. RECUPERAR FOTOS DOS PONTOS DE RESTAURACAO ===")
 # presas dentro dos pontos. Restaurar um ponto INTEIRO traria as fotos e
 # levaria junto todo o trabalho feito depois dele; esta recuperacao entra nos
 # pontos e pega SO AS FOTOS.
-_ini76 = novo.find("async function __recuperarFotosDosPontos(apenasContar){")
+_ini76 = novo.find("async function __recuperarFotosDosPontos(apenasContar, onProgresso){")
 _fim76 = novo.find("\nfunction onedriveEstaEmWifi", _ini76)
 chk("existe a recuperacao, com previa que nao altera nada",
     _ini76 > 0 and _fim76 > _ini76
-    and novo.count("async function recuperarFotosDosPontos(){") == 1
+    and novo.count("async function recuperarFotosDosPontos(onProgresso){") == 1
     and novo.count("async function contarFotosRecuperaveis(){") == 1)
 chk("junta os pontos do mais novo para o mais antigo",
     novo.count("function fotosGuardadasNosPontos(") == 1
@@ -2099,6 +2099,23 @@ chk("botao e aviso de resultado estao na tela",
     and "let __ultimaRecuperacaoFotos = null;" in novo)
 chk("a tela deixa claro que nada e desfeito",
     "não desfaz nada" in novo)
+# A versao 14:30 lia de uma vez os arquivos de TODAS as fotos citadas em TODOS
+# os pontos -- uns 2 GB de imagem na memoria de um celular. E o mesmo erro que
+# derrubava o Safari na exportacao do backup: corrigido o sintoma la, repetido
+# aqui. A previa passa a usar o INDICE (so as chaves, sem byte nenhum) e a
+# devolucao trabalha em lotes.
+chk("a previa nao carrega nenhuma foto -- usa so o indice de chaves",
+    "const indice = await fotosCarregarIndice(db);" in novo[_ini76:_fim76]
+    and "if(ehFotoRefPersist(v)) return indice.has(v.slice(FOTO_REF_PREFIXO.length));" in novo)
+chk("a devolucao trabalha em lotes, com tamanho declarado",
+    "const RECUPERACAO_LOTE_ITENS = 20;" in novo
+    and "for(let ini = 0; ini < alvos.length; ini += RECUPERACAO_LOTE_ITENS){" in novo)
+chk("cada lote le so os seus arquivos e grava antes do seguinte",
+    "const mapa = await fotosLerLote(db, refs);" in novo[_ini76:_fim76]
+    and "mapa.clear();" in novo
+    and "await dbSet(STATE);" in novo[_ini76:_fim76])
+chk("a tela mostra o andamento por lote",
+    "Devolvendo fotos… " in novo)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")

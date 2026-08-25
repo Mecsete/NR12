@@ -44,6 +44,33 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 25/08/2026 15:05
+
+**Recuperação de fotos agora trabalha em lotes.**
+
+A versão 14:30 carregava, de uma vez só na memória, os arquivos de **todas** as
+fotos citadas em **todos** os pontos de restauração — num acervo de campo, algo
+como 2 GB de imagem na memória de um celular. É exatamente o mesmo erro que
+travou o Safari na exportação do backup pela manhã: corrigi o sintoma lá e
+repeti a causa aqui.
+
+O que mudou:
+
+- **A prévia não carrega foto nenhuma.** Ela usa o índice de chaves do banco
+  (só os identificadores, sem os arquivos) para responder "esta foto ainda
+  existe aqui?". Fica instantânea e não pesa nada, mesmo com milhares de fotos.
+- **A devolução processa 20 itens por vez.** Cada lote lê só os seus próprios
+  arquivos, grava e libera antes do seguinte. O pico de memória deixa de
+  crescer com o tamanho do acervo — e, se algo interromper no meio, **o que já
+  voltou está gravado**.
+- A tela mostra o andamento ("Devolvendo fotos… 120 de 486 itens").
+
+Também ficou explícito um comportamento que estava implícito: **quando não há
+nada para devolver, o quadro vermelho permanece.** Apagar o espaço vazio
+deixaria o cartão bonito e a perda invisível — que é exatamente o silêncio que
+fez este problema demorar semanas para aparecer. Só se limpa o que sobra
+depois de uma recuperação de verdade.
+
 ## 25/08/2026 14:30
 
 **Recuperar fotos perdidas, sem desfazer nada.**

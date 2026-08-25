@@ -1955,7 +1955,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "25/08/2026 14:30";
+const APP_BUILD = "25/08/2026 15:05";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -3989,78 +3989,109 @@ function marcarFotosPendentesParaEnvio(chave){
 /* Só conta, sem mexer em nada — alimenta o botão da tela ("N fotos podem
    voltar") para a pessoa saber o que esperar antes de tocar. */
 async function contarFotosRecuperaveis(){
-  const r = await __recuperarFotosDosPontos(true);
-  return r;
+  return await __recuperarFotosDosPontos(true, null);
 }
-async function recuperarFotosDosPontos(){
-  return await __recuperarFotosDosPontos(false);
+async function recuperarFotosDosPontos(onProgresso){
+  return await __recuperarFotosDosPontos(false, onProgresso);
 }
-async function __recuperarFotosDosPontos(apenasContar){
-  const res = { itens:0, fotos:0, semBytes:0, pontos:0 };
+const RECUPERACAO_LOTE_ITENS = 20; // ver comentário sobre memória abaixo
+async function __recuperarFotosDosPontos(apenasContar, onProgresso){
+  const res = { itens:0, fotos:0, semBytes:0, pontos:0, lotes:0 };
   if(!temIndexedDB()) return res;
   const pontos = await listarPontosDeRestauracao();
   res.pontos = pontos.length;
   if(!pontos.length) return res;
   const porItem = fotosGuardadasNosPontos(pontos);
   if(porItem.size === 0) return res;
-  // Quais bytes precisam ser lidos do banco (as referências dos pontos).
-  const refs = new Set();
-  porItem.forEach(reg=>{
-    for(const c in reg.unicas) if(ehFotoRefPersist(reg.unicas[c])) refs.add(reg.unicas[c].slice(FOTO_REF_PREFIXO.length));
-    reg.lista.forEach(v=>{ if(ehFotoRefPersist(v)) refs.add(v.slice(FOTO_REF_PREFIXO.length)); });
-  });
   const db = await dbOpen();
-  const mapa = await fotosLerLote(db, refs);
-  /* Referência cujo arquivo também sumiu do banco: não há o que devolver.
-     Conta como "sem bytes" e segue — não é motivo para derrubar o resto. */
-  const resolver = (v)=>{
-    if(ehFotoDataUrlPersist(v)) return v;
-    if(ehFotoRefPersist(v)){ const f = mapa.get(v.slice(FOTO_REF_PREFIXO.length)); if(f) return f; res.semBytes++; return null; }
-    return null;
+  /* PRIMEIRA PASSADA — DESCOBRIR, SEM CARREGAR NENHUMA FOTO.
+     O índice do banco tem só as CHAVES das fotos (ids curtos), não os
+     arquivos. Com ele dá para responder "esta foto ainda existe aqui?" sem
+     gastar um byte de memória. É o que permite a prévia ser instantânea e
+     barata mesmo num acervo de milhares de fotos. */
+  const indice = await fotosCarregarIndice(db);
+  const existeArquivo = (v)=>{
+    if(ehFotoDataUrlPersist(v)) return true;              // ponto antigo: a foto está dentro dele
+    if(ehFotoRefPersist(v)) return indice.has(v.slice(FOTO_REF_PREFIXO.length));
+    return false;
   };
-  const paraCarimbar = [];
+  const alvos = [];
   __percorrerItensSimples(STATE.projetosSimples, (item, tipo)=>{
     const reg = item && item.id ? porItem.get(item.id) : null;
     if(!reg) return;
     let ganhou = 0, faltou = 0;
-    const aplicar = (obj)=>{
+    for(const campo of CAMPOS_FOTO_UNICA){
+      if(!reg.unicas[campo]) continue;
+      if(ehFotoDataUrlPersist(item[campo])) continue;     // já tem foto boa aqui — não se toca
+      if(existeArquivo(reg.unicas[campo])) ganhou++; else faltou++;
+    }
+    const aqui = Array.isArray(item[CAMPO_FOTOS_LISTA]) ? item[CAMPO_FOTOS_LISTA].filter(ehFotoDataUrlPersist).length : 0;
+    let daLista = 0;
+    reg.lista.forEach(v=>{ if(existeArquivo(v)) daLista++; else faltou++; });
+    if(daLista > aqui) ganhou += (daLista - aqui);
+    if(ganhou > 0){
+      res.itens++; res.fotos += ganhou; res.semBytes += faltou;
+      alvos.push({ item, tipo, reg, faltou });
+    }
+  });
+  if(apenasContar || alvos.length === 0) return res;
+  /* SEGUNDA PASSADA — DEVOLVER, EM LOTES.
+     A versão anterior lia de uma vez os arquivos de TODAS as fotos citadas
+     em TODOS os pontos: num acervo como o de campo, uns 2 GB de imagem na
+     memória de um celular. É o mesmo erro que derrubava o Safari na
+     exportação do backup — corrigi o sintoma lá e repeti a causa aqui.
+     Agora cada lote lê só os seus próprios arquivos e grava antes do
+     seguinte: o pico de memória não cresce com o tamanho do acervo, e uma
+     interrupção no meio não desfaz o que já voltou. */
+  for(let ini = 0; ini < alvos.length; ini += RECUPERACAO_LOTE_ITENS){
+    const lote = alvos.slice(ini, ini + RECUPERACAO_LOTE_ITENS);
+    const refs = new Set();
+    lote.forEach(alvo=>{
+      for(const c in alvo.reg.unicas){ const v = alvo.reg.unicas[c]; if(ehFotoRefPersist(v)) refs.add(v.slice(FOTO_REF_PREFIXO.length)); }
+      alvo.reg.lista.forEach(v=>{ if(ehFotoRefPersist(v)) refs.add(v.slice(FOTO_REF_PREFIXO.length)); });
+    });
+    const mapa = await fotosLerLote(db, refs);
+    const resolver = (v)=>{
+      if(ehFotoDataUrlPersist(v)) return v;
+      if(ehFotoRefPersist(v)) return mapa.get(v.slice(FOTO_REF_PREFIXO.length)) || null;
+      return null;
+    };
+    const carimbar = [];
+    lote.forEach(({ item, tipo, reg, faltou })=>{
+      let mexeu = false;
       for(const campo of CAMPOS_FOTO_UNICA){
         if(!reg.unicas[campo]) continue;
-        if(ehFotoDataUrlPersist(item[campo])) continue; // já tem foto boa aqui — não se toca
-        const f = resolver(reg.unicas[campo]);
-        if(f){ if(obj) item[campo] = f; ganhou++; } else faltou++;
+        if(ehFotoDataUrlPersist(item[campo])) continue;
+        const foto = resolver(reg.unicas[campo]);
+        if(foto){ item[campo] = foto; mexeu = true; }
       }
       const aqui = Array.isArray(item[CAMPO_FOTOS_LISTA]) ? item[CAMPO_FOTOS_LISTA].filter(ehFotoDataUrlPersist) : [];
       const doPonto = [];
-      reg.lista.forEach(v=>{ const f = resolver(v); if(f) doPonto.push(f); else faltou++; });
-      if(doPonto.length > aqui.length){
-        ganhou += (doPonto.length - aqui.length);
-        if(obj) item[CAMPO_FOTOS_LISTA] = doPonto;
-      }else if(obj && Array.isArray(item[CAMPO_FOTOS_LISTA]) && item[CAMPO_FOTOS_LISTA].length !== aqui.length){
+      reg.lista.forEach(v=>{ const foto = resolver(v); if(foto) doPonto.push(foto); });
+      if(doPonto.length > aqui.length){ item[CAMPO_FOTOS_LISTA] = doPonto; mexeu = true; }
+      else if(Array.isArray(item[CAMPO_FOTOS_LISTA]) && item[CAMPO_FOTOS_LISTA].length !== aqui.length){
         // Espaço vazio que não tem de onde voltar: some, para o cartão parar
         // de mostrar um quadro que nunca vai carregar.
-        item[CAMPO_FOTOS_LISTA] = aqui;
+        item[CAMPO_FOTOS_LISTA] = aqui; mexeu = true;
       }
-    };
-    aplicar(!apenasContar);
-    if(ganhou > 0){
-      res.itens++; res.fotos += ganhou;
-      if(!apenasContar){
+      if(mexeu){
         /* A marca de dano só sai quando NADA ficou faltando — enquanto
            faltar foto, o item continua parado, sem regravar o arquivo da
            nuvem que ainda pode ter a foto que falta. */
         if(faltou === 0) delete item[CAMPO_MARCA_FOTO_PERDIDA];
-        paraCarimbar.push(tipo + ":" + item.id);
+        carimbar.push(tipo + ":" + item.id);
       }
-    }
-  });
-  if(!apenasContar && res.itens > 0){
-    paraCarimbar.forEach(marcarFotosPendentesParaEnvio);
+    });
+    carimbar.forEach(marcarFotosPendentesParaEnvio);
+    mapa.clear(); // libera os arquivos deste lote antes de gravar o próximo
     marcarAlterado();
     await dbSet(STATE);
+    res.lotes++;
+    if(onProgresso) onProgresso(Math.min(ini + RECUPERACAO_LOTE_ITENS, alvos.length), alvos.length);
   }
   return res;
 }
+
 function onedriveEstaEmWifi(){
   if(STATE.wifiConfirmado) return true;
   try{
@@ -16397,7 +16428,9 @@ const App = {
 Só os espaços vazios são preenchidos — nenhuma foto boa é substituída, e nada mais do cadastro é alterado.
 
 Devolver agora?`)) return;
-      const r = await recuperarFotosDosPontos();
+      const r = await recuperarFotosDosPontos((feitos, total)=>{
+        toast("Devolvendo fotos… " + feitos + " de " + total + " itens");
+      });
       let msg = r.fotos + " foto" + (r.fotos===1?"":"s") + " devolvida" + (r.fotos===1?"":"s") + " em " + r.itens + " " + (r.itens===1?"item":"itens") + ".";
       if(r.semBytes) msg += " " + r.semBytes + " referência(s) sem o arquivo no aparelho — essa(s) só voltam pela nuvem.";
       __ultimaRecuperacaoFotos = { erro:false, mensagem: msg };
