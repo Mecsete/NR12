@@ -1200,8 +1200,12 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
 
   console.log("\n=== t35 · descrição escrita sozinha ===");
   t("frase completa fica natural e cita os quatro itens", ()=>{
+    /* Redacao revista em 25/08/2026 (ver t120): a parte do corpo liga-se ao
+       evento em vez de vir solta no fim, o componente entra como AGENTE e nao
+       como lugar, e o "da maquina" saiu -- era ruido, o laudo ja diz de qual
+       maquina se trata. */
     const r = { local:"Transmissão de potência", componente:"Correia", evento:"Arrastamento", parteCorpo:"Dedos" };
-    eq(C.montarDescricaoRisco(r), "Risco de arrastamento na correia, na transmissão de potência da máquina, com possível lesão nos dedos.");
+    eq(C.montarDescricaoRisco(r), "Risco de arrastamento dos dedos na correia da transmissão de potência.");
   });
   t("artigo acompanha o gênero da palavra", ()=>{
     eq(C.riscoArtigoEm("Eixo"), "no eixo");
@@ -1220,10 +1224,10 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     eq(C.montarDescricaoRisco({ evento:"Corte", componente:"Lâmina" }), "Risco de corte na lâmina.");
     /* Sem componente, o complemento emenda direto no evento — a vírgula só
        entra quando já houve um complemento antes dela. */
-    eq(C.montarDescricaoRisco({ evento:"Queda", local:"Escada" }), "Risco de queda na escada da máquina.");
+    eq(C.montarDescricaoRisco({ evento:"Queda", local:"Escada" }), "Risco de queda na escada.");
     eq(C.montarDescricaoRisco({ evento:"Queda", componente:"Guarda-corpo", local:"Escada" }),
-       "Risco de queda no guarda-corpo, na escada da máquina.");
-    eq(C.montarDescricaoRisco({ local:"Escada" }), "Risco na escada da máquina.");
+       "Risco de queda no guarda-corpo, na escada.");
+    eq(C.montarDescricaoRisco({ local:"Escada" }), "Risco na escada da máquina.");  // sem evento, cai no formato antigo
     eq(C.montarDescricaoRisco({ componente:"Correia" }), "Risco na correia.");
     eq(C.montarDescricaoRisco({ parteCorpo:"Mão" }), "Risco com possível lesão na mão.");
   });
@@ -1323,7 +1327,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   t("a frase montada aparece na tela antes de salvar", ()=>{
     const h = C.blocoMontadorRiscoHtml({ local:"Escada", componente:"", evento:"Queda", parteCorpo:"Cabeça", descricao:"", gpd:"" });
     ok(h.indexOf("risco-montador-frase") > 0);
-    ok(h.indexOf("Risco de queda na escada da máquina, com possível lesão na cabeça.") > 0);
+    ok(h.indexOf("Risco de queda na escada, com lesão na cabeça.") > 0);
   });
   t("o grau sugerido aparece com o motivo e botão de aplicar", ()=>{
     const h = C.blocoMontadorRiscoHtml({ local:"", componente:"", evento:"Queda", parteCorpo:"Cabeça", descricao:"", gpd:"" });
@@ -3017,15 +3021,16 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   console.log("\n=== t69 · modal de criação de risco (bloco 1) ===");
   vm.runInContext(funcao("montarNomeRisco"), ctx);
   t("o nome do risco usa os quatro itens em frase corrida", ()=>{
+    // Redacao revista em 25/08/2026 — ver t120.
     ctx.__r = { evento:"Agarramento", componente:"Correia", local:"Transmissão de potência", parteCorpo:"Mãos" };
     eq(vm.runInContext("montarNomeRisco(__r)", ctx),
-       "Agarramento na correia, na transmissão de potência, com lesão nas mãos");
+       "Agarramento das mãos na correia da transmissão de potência");
   });
   t("sem componente, o complemento emenda sem vírgula", ()=>{
     ctx.__r = { evento:"Queda", componente:"", local:"Plataforma", parteCorpo:"" };
     eq(vm.runInContext("montarNomeRisco(__r)", ctx), "Queda na plataforma");
     ctx.__r = { evento:"Corte", componente:"", local:"", parteCorpo:"Dedos" };
-    eq(vm.runInContext("montarNomeRisco(__r)", ctx), "Corte com lesão nos dedos");
+    eq(vm.runInContext("montarNomeRisco(__r)", ctx), "Corte nos dedos");
   });
   t("o nome do risco junta evento e componente", ()=>{
     ctx.__r = { evento:"Agarramento", componente:"Correia transportadora" };
@@ -6396,6 +6401,153 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       cenario({ atual: arv({ id:"r1", foto:null }), ponto: arv({ id:"r1", foto:A }), bytes:{} });
       const r = await vm.runInContext("recuperarFotosDosPontos()", ctx);
       eq(r.fotos, 1); eq(oRisco().foto, A);
+    });
+  }
+
+  /* ==================================================================
+     t120 - a frase do risco montada dos quatro campos
+
+     Os casos abaixo sao COMBINACOES REAIS do levantamento da Corteva,
+     tiradas dos arquivos da nuvem. O defeito de fundo era o componente
+     entrar sempre como LUGAR ("Amputacao NA lamina"), quando a lamina e
+     o AGENTE; e a parte do corpo vir solta no fim ("com lesao na mao"),
+     redundante quando o proprio evento ja e a lesao.
+     ================================================================== */
+  console.log("\n=== t120 - frase do risco (dados reais de campo) ===");
+  {
+    const ctx = vm.createContext({ String, Array, Object, RegExp });
+    ["RISCO_LOCAIS","RISCO_COMPONENTES","RISCO_EVENTOS","RISCO_PARTES","RISCO_CAMPOS",
+     "RISCO_NUCLEOS_FEMININOS","RISCO_EVENTO_CLASSE","RISCO_EVENTO_PARTE_GENITIVO",
+     "RISCO_PARTES_SO_NO_FIM","RISCO_LOCAIS_POSICAO"].forEach(n=> vm.runInContext(constante(n), ctx));
+    ["riscoArtigoEm","riscoArtigoDe","riscoTemGenitivo","riscoSeSobrepoem",
+     "riscoLocalEhPosicao","riscoLigaLocal","montarNomeRisco","montarDescricaoRisco",
+     "__montarDescricaoRiscoAntigo"].forEach(n=> vm.runInContext(funcao(n), ctx));
+    const nomeDe = (ev, comp, loc, parte)=>{
+      ctx.__r = { evento:ev, componente:comp, local:loc, parteCorpo:parte };
+      return vm.runInContext("montarNomeRisco(__r)", ctx);
+    };
+    const caso = (rot, ev, comp, loc, parte, esperado)=> t(rot, ()=>{
+      eq(nomeDe(ev, comp, loc, parte), esperado);
+    });
+
+    caso("a parte do corpo cola no evento, e o local encadeia",
+      "Amputação","Lâmina","Tampa de inspeção","Mão",
+      "Amputação da mão na lâmina da tampa de inspeção");
+    caso("componente que ja tem 'de' dentro nao encadeia — entra virgula",
+      "Amputação","Porta de dosagem","Tampa superior","Mão",
+      "Amputação da mão na porta de dosagem, na tampa superior");
+    caso("componente que repete o local some; fica o mais especifico",
+      "Esmagamento","Tampa","Tampa superior","Braço",
+      "Esmagamento do braço na tampa superior");
+    caso("evento de ORIGEM: o material cai DO componente",
+      "Queda de material","Rodapé","Escada","Cabeça",
+      "Queda de material do rodapé da escada, com lesão na cabeça");
+    caso("evento com parte locativa ganha virgula (nao 'corte no pe na bica')",
+      "Corte","Bica de descida do grão","Acesso","Pé",
+      "Corte no pé, na bica de descida do grão, no acesso");
+    caso("sem componente, a frase de sempre continua igual",
+      "Queda","","Acesso","Corpo inteiro",
+      "Queda no acesso, com lesão no corpo inteiro");
+    caso("'corpo inteiro' nunca cola no evento — volta para o fim",
+      "Agarramento","botões","botões","Corpo inteiro",
+      "Agarramento nos botões, com lesão no corpo inteiro");
+
+    t("evento desconhecido nao piora: cai no formato antigo", ()=>{
+      /* Evento digitado em "Outro" que nao esta classificado continua com a
+         montagem de sempre -- a correcao nunca deixa nada pior do que era. */
+      eq(nomeDe("Solavanco","alavanca","Acesso","Mão"),
+         "Solavanco na alavanca, no acesso, com lesão na mão");
+    });
+    t("local que e POSICAO nao aceita genitivo: 'na esteira, no inferior'", ()=>{
+      /* "na esteira DO inferior" nao e portugues. Genitivo so para local da
+         lista do app, que sao substantivos de lugar de verdade. */
+      const r = nomeDe("Aprisionamento","esteira","inferior","Mão");
+      ok(r.indexOf("do inferior") < 0, "encadeou genitivo num local que e posicao: " + r);
+      ok(r.indexOf("no inferior") > 0, "perdeu o local: " + r);
+    });
+    t("genero de substantivo feminino terminado em -e", ()=>{
+      /* "partes moveis" saia como "NOS partes moveis". */
+      eq(vm.runInContext('riscoArtigoEm("partes móveis")', ctx), "nas partes móveis");
+      eq(vm.runInContext('riscoArtigoEm("haste de comando")', ctx), "na haste de comando");
+    });
+    t("riscoArtigoDe reaproveita o genero de riscoArtigoEm", ()=>{
+      eq(vm.runInContext('riscoArtigoDe("Mão")', ctx), "da mão");
+      eq(vm.runInContext('riscoArtigoDe("Braço")', ctx), "do braço");
+      eq(vm.runInContext('riscoArtigoDe("Dedos")', ctx), "dos dedos");
+      eq(vm.runInContext('riscoArtigoDe("")', ctx), "");
+    });
+    t("a descricao DERIVA do nome — os dois nunca divergem", ()=>{
+      ctx.__r = { evento:"Amputação", componente:"Lâmina", local:"Tampa de inspeção", parteCorpo:"Mão" };
+      const nome = vm.runInContext("montarNomeRisco(__r)", ctx);
+      const desc = vm.runInContext("montarDescricaoRisco(__r)", ctx);
+      eq(desc, "Risco de " + nome.charAt(0).toLowerCase() + nome.slice(1) + ".");
+      ok(desc.indexOf("da máquina") < 0, "a descricao ainda carrega o 'da máquina' antigo");
+    });
+    t("sem evento nenhum, nada e inventado", ()=>{
+      eq(nomeDe("","Lâmina","Acesso","Mão"), "");
+      ctx.__r = {}; eq(vm.runInContext("montarDescricaoRisco(__r)", ctx), "");
+    });
+  }
+  {
+    /* A recomposicao em massa: so toca no que o proprio app escreveu. */
+    const ctx = vm.createContext({ String, Array, Object, RegExp, Set, Map });
+    vm.runInContext("var STATE = { projetosSimples: [] }; var __carimbo = 5000;", ctx);
+    vm.runInContext("function marcarAlterado(){} function agoraSync(){ return ++__carimbo; }", ctx);
+    ["RISCO_LOCAIS","RISCO_COMPONENTES","RISCO_EVENTOS","RISCO_PARTES","RISCO_CAMPOS",
+     "RISCO_NUCLEOS_FEMININOS","RISCO_EVENTO_CLASSE","RISCO_EVENTO_PARTE_GENITIVO",
+     "RISCO_PARTES_SO_NO_FIM","RISCO_LOCAIS_POSICAO"].forEach(n=> vm.runInContext(constante(n), ctx));
+    ["riscoArtigoEm","riscoArtigoDe","riscoTemGenitivo","riscoSeSobrepoem","riscoLocalEhPosicao",
+     "riscoLigaLocal","montarNomeRisco","montarDescricaoRisco","__montarDescricaoRiscoAntigo",
+     "__percorrerItensSimples","recomporFrasesDosRiscos"].forEach(n=> vm.runInContext(funcao(n), ctx));
+    const arv = (riscos)=> [ { id:"p", areas:[ { id:"a", maquinas:[ { id:"m", tarefas:[ { id:"t", riscos } ] } ] } ] } ];
+    const riscos = ()=> ctx.STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos;
+
+    t("reescreve o que o app tinha montado", ()=>{
+      const velho = "Amputação na lâmina, na tampa de inspeção, com lesão na mão";
+      ctx.STATE = { projetosSimples: arv([{ id:"r1", evento:"Amputação", componente:"Lâmina",
+        local:"Tampa de inspeção", parteCorpo:"Mão", nome:velho, nomeAuto:velho, atualizadoEm:1 }]) };
+      const r = vm.runInContext("recomporFrasesDosRiscos(false)", ctx);
+      eq(r.nomes, 1);
+      eq(riscos()[0].nome, "Amputação da mão na lâmina da tampa de inspeção");
+      eq(riscos()[0].nomeAuto, riscos()[0].nome, "nomeAuto ficou dessincronizado do nome");
+      ok(riscos()[0].atualizadoEm > 1, "nao carimbou — a mudanca nunca viajaria para o outro aparelho");
+    });
+    t("NUNCA toca na frase que a pessoa digitou", ()=>{
+      const meu = "Risco de decepar a mão na lâmina — conforme laudo anterior";
+      ctx.STATE = { projetosSimples: arv([{ id:"r1", evento:"Amputação", componente:"Lâmina",
+        local:"Tampa de inspeção", parteCorpo:"Mão",
+        nome:meu, nomeAuto:"Amputação na lâmina, na tampa de inspeção, com lesão na mão",
+        descricao:"Descrição minha, escrita à mão.", descricaoAuto:"outra coisa",
+        atualizadoEm:1 }]) };
+      const r = vm.runInContext("recomporFrasesDosRiscos(false)", ctx);
+      eq(riscos()[0].nome, meu, "sobrescreveu texto escrito a mao");
+      eq(r.preservados, 1);
+      eq(riscos()[0].atualizadoEm, 1, "carimbou um item que nao mudou");
+    });
+    t("contar NAO altera nada (previa antes de confirmar)", ()=>{
+      const velho = "Amputação na lâmina, na tampa de inspeção, com lesão na mão";
+      ctx.STATE = { projetosSimples: arv([{ id:"r1", evento:"Amputação", componente:"Lâmina",
+        local:"Tampa de inspeção", parteCorpo:"Mão", nome:velho, nomeAuto:velho, atualizadoEm:1 }]) };
+      const r = vm.runInContext("recomporFrasesDosRiscos(true)", ctx);
+      eq(r.nomes, 1, "a previa contou errado");
+      eq(riscos()[0].nome, velho, "a previa alterou o texto");
+      eq(riscos()[0].atualizadoEm, 1, "a previa carimbou");
+    });
+    t("rodar duas vezes nao muda nada na segunda", ()=>{
+      const velho = "Amputação na lâmina, na tampa de inspeção, com lesão na mão";
+      ctx.STATE = { projetosSimples: arv([{ id:"r1", evento:"Amputação", componente:"Lâmina",
+        local:"Tampa de inspeção", parteCorpo:"Mão", nome:velho, nomeAuto:velho, atualizadoEm:1 }]) };
+      vm.runInContext("recomporFrasesDosRiscos(false)", ctx);
+      const carimbo = riscos()[0].atualizadoEm;
+      const r2 = vm.runInContext("recomporFrasesDosRiscos(false)", ctx);
+      eq(r2.riscos, 0, "reescreveu de novo o que ja estava certo");
+      eq(riscos()[0].atualizadoEm, carimbo, "carimbou de novo sem mudanca");
+    });
+    t("risco sem os quatro campos e ignorado", ()=>{
+      ctx.STATE = { projetosSimples: arv([{ id:"r1", nome:"Escrito à mão, sem campos", atualizadoEm:1 }]) };
+      const r = vm.runInContext("recomporFrasesDosRiscos(false)", ctx);
+      eq(r.riscos, 0);
+      eq(riscos()[0].nome, "Escrito à mão, sem campos");
     });
   }
 

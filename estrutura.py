@@ -1615,6 +1615,11 @@ chk("as secoes nao alternam mais de assunto: Sincronizacao, depois Backup, depoi
         # que é de onde ela puxa as fotos — os dois assuntos ficam vizinhos, e a
         # regra desta checagem (não alternar de assunto) continua respeitada.
         "Backup · Recuperar fotos perdidas",
+        # "Reescrever as frases" entrou entre a recuperacao de fotos e os
+        # pontos: as tres sao ferramentas de conserto do que ja existe e ficam
+        # juntas. A regra desta checagem (nao alternar de assunto) segue
+        # valendo -- tudo aqui e "Backup".
+        "Backup · Reescrever as frases dos riscos",
         "Backup · Pontos de restauração (neste aparelho)", "Dados"])
 chk("tamanho pequeno nao aparece mais como '0.0 MB'",
     "return `${g.qtd} ${onedriveRotuloTipo(t,g.qtd)} ${fecho} (${fmtBytes(g.bytes)})`;" in novo)
@@ -2070,7 +2075,13 @@ print("\n=== 76. RECUPERAR FOTOS DOS PONTOS DE RESTAURACAO ===")
 # duas vezes (onProgresso, depois desde) e cada vez derrubava a secao
 # inteira por um motivo que nada tinha a ver com o que se quer provar.
 _ini76 = novo.find("async function __recuperarFotosDosPontos(")
-_fim76 = novo.find("\nfunction onedriveEstaEmWifi", _ini76)
+# O recorte termina na funcao seguinte a recuperacao. Entre ela e
+# onedriveEstaEmWifi entrou depois a recomposicao de frases, que MEXE em
+# atualizadoEm de proposito -- sem estreitar o recorte, a checagem de "a
+# recuperacao nao mexe no carimbo" passava a acusar a funcao errada.
+_fim76 = novo.find("\nfunction recomporFrasesDosRiscos", _ini76)
+if _fim76 < 0:
+    _fim76 = novo.find("\nfunction onedriveEstaEmWifi", _ini76)
 chk("existe a recuperacao, com previa que nao altera nada",
     _ini76 > 0 and _fim76 > _ini76
     and novo.count("async function recuperarFotosDosPontos(") == 1
@@ -2169,6 +2180,42 @@ chk("os quatro niveis pulam as duplicatas",
 chk("a escolha e usada nos quatro niveis, e nada e apagado",
     novo.count("onedriveDuplicatasParaIgnorar") == 6
     and "NADA é apagado da nuvem" in novo)
+
+print("\n=== 78. A FRASE DO RISCO MONTADA DOS QUATRO CAMPOS ===")
+# O componente entrava sempre como LUGAR ("Amputacao NA lamina"), quando a
+# lamina e o AGENTE que causa; e a parte do corpo vinha solta no fim ("com
+# lesao na mao"), redundante quando o proprio evento ja e a lesao. Os casos
+# concretos, com dados reais de campo, estao no t120 do testes2.js.
+chk("o componente tem CLASSE conforme o evento (contato/origem/lugar)",
+    novo.count("const RISCO_EVENTO_CLASSE = {") == 1
+    and '"Amputação":"contato"' in novo and '"Queda de material":"origem"' in novo)
+chk("evento nao classificado cai no formato antigo, sem piorar",
+    'const classe = RISCO_EVENTO_CLASSE[ev] || "lugar";' in novo)
+chk("a preposicao da parte do corpo muda com o evento",
+    novo.count("const RISCO_EVENTO_PARTE_GENITIVO = [") == 1
+    and novo.count("function riscoArtigoDe(") == 1
+    and 'return em ? em.replace(/^n/i, "d") : "";' in novo)
+chk("'corpo inteiro' nunca cola no evento",
+    novo.count("const RISCO_PARTES_SO_NO_FIM = [") == 1)
+chk("componente que repete o local e descartado",
+    novo.count("function riscoSeSobrepoem(") == 1)
+chk("local que e POSICAO nao aceita genitivo",
+    novo.count("const RISCO_LOCAIS_POSICAO = [") == 1
+    and novo.count("function riscoLocalEhPosicao(") == 1)
+chk("genero de substantivo feminino terminado em -e",
+    novo.count("const RISCO_NUCLEOS_FEMININOS = [") == 1
+    and "RISCO_NUCLEOS_FEMININOS.indexOf(raiz) >= 0" in novo)
+chk("a descricao DERIVA do nome -- uma fonte so, dois textos coerentes",
+    novo.count("function __montarDescricaoRiscoAntigo(") == 1)
+chk("existe a recomposicao em massa, com previa que nao altera nada",
+    novo.count("function recomporFrasesDosRiscos(apenasContar){") == 1
+    and "if(!apenasContar){ item.nome = nomeNovo; item.nomeAuto = nomeNovo; }" in novo)
+chk("NUNCA reescreve frase digitada a mao",
+    "const nomeEhAuto = !nomeAtual || nomeAtual === String(item.nomeAuto||" in novo)
+chk("item reescrito ganha carimbo (a mudanca precisa viajar)",
+    "if(mexeu){ res.riscos++; if(!apenasContar) item.atualizadoEm = agoraSync(); }" in novo)
+chk("a tela avisa para sincronizar antes, por causa da segunda pessoa",
+    "sincronize antes" in novo and "App.recomporFrasesRiscos()" in novo)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")

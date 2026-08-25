@@ -1970,7 +1970,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "25/08/2026 16:28";
+const APP_BUILD = "25/08/2026 19:15";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -4180,6 +4180,49 @@ async function __recuperarFotosDosPontos(apenasContar, onProgresso, desde){
   return res;
 }
 
+/* =========================================================================
+   RECOMPOR AS FRASES DOS RISCOS JÁ EXISTENTES
+
+   A frase nova vale sozinha para risco novo. Os que já existem continuariam
+   com a redação antiga, e o laudo ficaria com duas linguagens convivendo.
+
+   A trava que torna isto seguro já existia no app: toda frase montada
+   automaticamente é guardada também em nomeAuto/descricaoAuto. Se o texto
+   atual ainda for igual a essa cópia, ele nunca foi tocado por ninguém e
+   pode ser reescrito. No instante em que alguém digita por cima, os dois
+   deixam de bater e o texto passa a ser da pessoa — e aí não se mexe.
+
+   CUIDADO COM DUAS PESSOAS: recompor mexe no carimbo de data (é mudança de
+   conteúdo de verdade, precisa viajar). Se o outro aparelho tiver edições
+   que ainda não chegaram aqui, a versão daqui passa por cima. Por isso a
+   tela pede para sincronizar ANTES de recompor. */
+function recomporFrasesDosRiscos(apenasContar){
+  const res = { riscos:0, nomes:0, descricoes:0, preservados:0 };
+  __percorrerItensSimples(STATE.projetosSimples, (item, tipo)=>{
+    if(tipo !== "risco") return;
+    let mexeu = false;
+    const nomeNovo = montarNomeRisco(item);
+    const nomeAtual = String(item.nome||"").trim();
+    const nomeEhAuto = !nomeAtual || nomeAtual === String(item.nomeAuto||"").trim();
+    if(nomeNovo && nomeEhAuto){
+      if(nomeNovo !== nomeAtual){
+        if(!apenasContar){ item.nome = nomeNovo; item.nomeAuto = nomeNovo; }
+        res.nomes++; mexeu = true;
+      }
+    } else if(nomeAtual) res.preservados++;
+    const descNova = montarDescricaoRisco(item);
+    const descAtual = String(item.descricao||"").trim();
+    if(descNova && (!descAtual || descAtual === String(item.descricaoAuto||"").trim())){
+      if(descNova !== descAtual){
+        if(!apenasContar){ item.descricao = descNova; item.descricaoAuto = descNova; }
+        res.descricoes++; mexeu = true;
+      }
+    }
+    if(mexeu){ res.riscos++; if(!apenasContar) item.atualizadoEm = agoraSync(); }
+  });
+  if(!apenasContar && res.riscos > 0) marcarAlterado();
+  return res;
+}
 function onedriveEstaEmWifi(){
   if(STATE.wifiConfirmado) return true;
   try{
@@ -7440,6 +7483,15 @@ const RISCO_OUTRO_MARCA = "__novo__";
 /* "no eixo" / "na correia": em português, o artigo segue o gênero do núcleo do
    termo. Palavra terminada em "a" quase sempre é feminina — regra simples que
    acerta tanto nos itens da lista quanto nos que o usuário cadastrar. */
+const RISCO_NUCLEOS_FEMININOS = ["parte","ponte","haste","base","face","chave","grade",
+  "rede","torre","lente","frente","corrente","superfície","superficie","fase","sede","chapa"];
+/* "na mão" → "da mão"; "no braço" → "do braço"; "nos dedos" → "dos dedos".
+   Reaproveita o gênero e o número que riscoArtigoEm já resolve, em vez de
+   deduzir tudo de novo por outro caminho e correr o risco de divergir. */
+function riscoArtigoDe(valor){
+  const em = riscoArtigoEm(valor);
+  return em ? em.replace(/^n/i, "d") : "";
+}
 function riscoArtigoEm(valor){
   const t = String(valor||"").trim();
   if(!t) return "";
@@ -7463,7 +7515,11 @@ function riscoArtigoEm(valor){
       if(o && o.em) return (o.em.indexOf("na") === 0 ? "nas " : "nos ") + minusculo;
     }
   }
-  const feminino = /a$/.test(raiz) || /(ção|são|gem|dade|tude)$/.test(raiz);
+  /* Substantivos femininos terminados em "-e" não têm marca nenhuma que a
+     regra do "-a" pegue: "partes móveis" saía como "NOS partes móveis". Estes
+     são os que aparecem de verdade em equipamento. */
+  const feminino = /a$/.test(raiz) || /(ção|são|gem|dade|tude)$/.test(raiz)
+                   || RISCO_NUCLEOS_FEMININOS.indexOf(raiz) >= 0;
   const artigo = feminino ? (plural ? "nas " : "na ") : (plural ? "nos " : "no ");
   return artigo + minusculo;
 }
@@ -7512,7 +7568,20 @@ function opcoesCampoRisco(chave, proj){
 /* Monta a descrição em português corrente citando tudo o que foi escolhido.
    Exemplo: "Risco de arrastamento na correia, na transmissão de potência,
    com possível lesão nos dedos." */
+/* A descrição passa a DERIVAR do nome, em vez de repetir a montagem por
+   conta própria. Eram duas construções paralelas para os mesmos quatro
+   campos, e qualquer ajuste numa tinha de ser espelhado na outra à mão --
+   foi assim que "na escada da máquina" continuou na descrição depois de o
+   nome já ter mudado. Uma fonte só, dois textos sempre coerentes. */
 function montarDescricaoRisco(r){
+  const nome = montarNomeRisco(r);
+  if(nome){
+    const t = "Risco de " + nome.charAt(0).toLowerCase() + nome.slice(1);
+    return t.charAt(0).toUpperCase() + t.slice(1) + ".";
+  }
+  return __montarDescricaoRiscoAntigo(r);
+}
+function __montarDescricaoRiscoAntigo(r){
   if(!r) return "";
   const ev = String(r.evento||"").trim();
   const comp = String(r.componente||"").trim();
@@ -7541,7 +7610,100 @@ function montarDescricaoRisco(r){
    Fica sem o "Risco de" da descrição e sem ponto final — é um título de lista,
    não uma frase de laudo. Ex.: "Agarramento na correia transportadora, na
    transmissão, com lesão nas mãos". */
+/* COMO O COMPONENTE SE RELACIONA COM O EVENTO.
+   Este era o defeito de fundo da frase: o componente entrava sempre como
+   LUGAR — "Amputação na lâmina" —, e a amputação não acontece *na* lâmina, é
+   a lâmina que a causa. A relação muda com o evento:
+     contato = o componente causa o dano (a lâmina que amputa);
+     origem  = alguma coisa sai dele (o material que cai do rodapé);
+     lugar   = é só onde acontece (a queda no acesso).
+   Evento não listado aqui cai em "lugar", que é exatamente o comportamento
+   de antes — nunca fica pior do que era. */
+const RISCO_EVENTO_CLASSE = {
+  "Esmagamento":"contato","Amputação":"contato","Corte":"contato","Laceração":"contato",
+  "Perfuração":"contato","Arrastamento":"contato","Agarramento":"contato","Enroscamento":"contato",
+  "Fratura":"contato","Contusão":"contato","Queimadura":"contato","Choque elétrico":"contato",
+  "Queda de material":"origem","Projeção de partículas":"origem",
+  // Escritos em "Outro", mas frequentes no campo:
+  "Aprisionamento":"contato","Prensamento":"contato","Atrito":"contato",
+  "Abrasão":"contato","Impacto":"contato","Cisalhamento":"contato","Entalamento":"contato"
+};
+/* A lesão é "de" quando a parte é perdida ou deformada, e "em" quando a lesão
+   acontece nela: "Amputação DA mão", mas "Corte NO pé". */
+const RISCO_EVENTO_PARTE_GENITIVO = ["Amputação","Esmagamento","Fratura","Arrastamento","Agarramento","Enroscamento"];
+/* "Corpo inteiro" não cola no evento: "Amputação do corpo inteiro" não é
+   português de laudo. Volta para o fim, como complemento. */
+const RISCO_PARTES_SO_NO_FIM = ["Corpo inteiro"];
+function riscoTemGenitivo(t){ return /\s(?:de|do|da|dos|das)\s/i.test(" " + String(t||"") + " "); }
+/* Componente e local dizendo quase a mesma coisa ("Tampa" e "Tampa superior")
+   viravam "na tampa, na tampa superior". */
+function riscoSeSobrepoem(a, b){
+  const x = String(a||"").toLowerCase().trim(), y = String(b||"").toLowerCase().trim();
+  if(!x || !y) return false;
+  return x === y || x.indexOf(y) >= 0 || y.indexOf(x) >= 0;
+}
+/* O encadeamento "na lâmina DA tampa de inspeção" só funciona quando o local
+   é uma COISA. Boa parte dos locais digitados em "Outro" são POSIÇÕES —
+   "inferior", "início", "lateral" — e "na esteira do início" não é português.
+   A lista abaixo é de bloqueio, não de permissão: são poucas palavras e dá
+   para enumerá-las, enquanto exigir que o local viesse da lista do app
+   descartaria termos perfeitamente bons que a pessoa digitou ("tampa de
+   inspeção", "traseira da máquina"). Vale também para o local composto que
+   TERMINA numa dessas ("piso inferior" → "no piso inferior", com vírgula). */
+const RISCO_LOCAIS_POSICAO = ["inferior","superior","lateral","frente","traseira","fundo",
+  "topo","início","inicio","ínicio","final","fínal","meio","centro","interno","externo",
+  "esquerda","direita","dianteira","cima","baixo"];
+function riscoLocalEhPosicao(t){
+  const x = String(t||"").toLowerCase().trim();
+  if(!x) return false;
+  if(RISCO_LOCAIS_POSICAO.indexOf(x) >= 0) return true;
+  const ultima = x.split(/\s+/).pop();
+  return RISCO_LOCAIS_POSICAO.indexOf(ultima) >= 0;
+}
+function riscoLigaLocal(comp, loc){
+  return (!riscoTemGenitivo(comp) && !riscoLocalEhPosicao(loc))
+    ? riscoArtigoDe(loc) : (", " + riscoArtigoEm(loc));
+}
 function montarNomeRisco(r){
+  if(!r) return "";
+  const ev = String(r.evento||"").trim();
+  if(!ev) return "";
+  let comp = String(r.componente||"").trim();
+  let loc = String(r.local||"").trim();
+  const parte = String(r.parteCorpo||"").trim();
+  if(comp && loc && riscoSeSobrepoem(comp, loc)){
+    if(loc.length >= comp.length) comp = ""; else loc = "";   // fica o mais específico
+  }
+  const classe = RISCO_EVENTO_CLASSE[ev] || "lugar";
+  const cab = ev.charAt(0).toUpperCase() + ev.slice(1);
+  const pedacos = [];
+  if(classe === "contato"){
+    const soNoFim = RISCO_PARTES_SO_NO_FIM.indexOf(parte) >= 0;
+    /* "Amputação DA mão NA lâmina" encadeia bem. "Corte NO pé NA bica" cola
+       duas preposições iguais e trava a leitura — aí entra a vírgula. */
+    const genitiva = RISCO_EVENTO_PARTE_GENITIVO.indexOf(ev) >= 0;
+    if(parte && !soNoFim) pedacos.push((genitiva ? riscoArtigoDe(parte) : riscoArtigoEm(parte)) + ((!genitiva && comp) ? "," : ""));
+    if(comp){
+      pedacos.push(riscoArtigoEm(comp));
+      if(loc) pedacos.push(riscoLigaLocal(comp, loc));
+    } else if(loc) pedacos.push(riscoArtigoEm(loc));
+    if(parte && soNoFim) pedacos.push(", com lesão " + riscoArtigoEm(parte));
+  } else if(classe === "origem"){
+    if(comp){
+      pedacos.push(riscoArtigoDe(comp));
+      if(loc) pedacos.push(riscoLigaLocal(comp, loc));
+    } else if(loc) pedacos.push(riscoArtigoEm(loc));
+    if(parte) pedacos.push(", com lesão " + riscoArtigoEm(parte));
+  } else {
+    if(comp) pedacos.push(riscoArtigoEm(comp));
+    if(loc) pedacos.push((comp ? ", " : "") + riscoArtigoEm(loc));
+    if(parte) pedacos.push(", com lesão " + riscoArtigoEm(parte));
+  }
+  let saida = cab;
+  for(const p of pedacos) saida += (p.charAt(0) === "," ? "" : " ") + p;
+  return saida.replace(/\s+,/g, ",").replace(/\s{2,}/g, " ").trim();
+}
+function __montarNomeRiscoAntigo(r){
   if(!r) return "";
   const ev = String(r.evento||"").trim();
   const comp = String(r.componente||"").trim();
@@ -14456,6 +14618,12 @@ function screenSimplesConfigBackup(){
   </div>
   <button class="btn btn-primary btn-block" style="margin-top:8px" onclick="App.recuperarFotosPerdidas(7)">${ic('shield')} Devolver fotos — só o que foi criado nos últimos 7 dias</button>
   <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.recuperarFotosPerdidas(0)">${ic('shield')} Devolver fotos — o projeto inteiro</button>
+  <div class="section-title">Backup · Reescrever as frases dos riscos</div>
+  <div class="card card-pad">
+    <p style="font-size:12.5px;color:var(--ink-dim)">O nome e a descrição do risco são montados a partir de <b>Evento, Componente, Local e Parte do corpo</b>. A redação foi melhorada: a parte do corpo passou a ligar-se ao evento ("Amputação <b>da mão</b> na lâmina da tampa de inspeção", em vez de "Amputação na lâmina, na tampa de inspeção, com lesão na mão"). Isto reescreve os riscos que já existem.<br><br><b>Frase que você digitou por cima nunca é tocada</b> — só as que o próprio app tinha montado.<br><br>Se houver outra pessoa trabalhando no mesmo projeto, <b>sincronize antes</b>: recompor altera o carimbo de data, e edições que ainda não chegaram aqui seriam passadas por cima.</p>
+    ${__ultimaRecomposicaoFrases ? `<div class="field-hint" style="margin-top:8px;color:${__ultimaRecomposicaoFrases.erro?'var(--danger, #c0392b)':'var(--ok, #2e7d32)'}">${escapeHtml(__ultimaRecomposicaoFrases.mensagem)}</div>` : ""}
+  </div>
+  <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.recomporFrasesRiscos()">${ic('edit')} Reescrever as frases dos riscos</button>
   <div class="section-title">Backup · Pontos de restauração (neste aparelho)</div>
   ${__statusArmazenamentoCache && __statusArmazenamentoCache.espaco ? `<div class="card card-pad" style="margin-bottom:8px">
     <div style="font-size:12.5px;color:var(--ink-dim)">Espaço livre estimado no aparelho: <b>${(__statusArmazenamentoCache.espaco.livre/1024/1024/1024).toFixed(1)} GB</b>${__statusArmazenamentoCache.espaco.livre < FOLGA_MINIMA_DESEJADA_BYTES ? ' <span style="color:#FF6B5E;font-weight:700">— abaixo da folga recomendada de 2 GB</span>' : ''}${__statusArmazenamentoCache.persistente ? ' · dados protegidos contra limpeza automática do navegador' : ''}</div>
@@ -16500,6 +16668,26 @@ const App = {
   tentarSalvarNovamente(){
     if(!__ultimoErroSalvar) return; // toque no selo em estado normal não faz nada
     marcarAlterado();
+  },
+  recomporFrasesRiscos(){
+    const prev = recomporFrasesDosRiscos(true);
+    if(!prev || prev.riscos === 0){
+      __ultimaRecomposicaoFrases = { erro:false, mensagem:"Nenhuma frase a reescrever: as automáticas já estão na redação nova" + (prev && prev.preservados ? (" (" + prev.preservados + " frase(s) sua(s) preservada(s))") : "") + "." };
+      toast("Nada a reescrever");
+      render(); return;
+    }
+    if(!confirm(`Reescrever ${prev.riscos} risco${prev.riscos===1?'':'s'}?
+
+${prev.nomes} nome(s) e ${prev.descricoes} descrição(ões).${prev.preservados ? `
+
+${prev.preservados} frase(s) que você digitou continuam intocadas.` : ""}
+
+Os pontos de restauração continuam disponíveis se quiser voltar atrás.`)) return;
+    const r = recomporFrasesDosRiscos(false);
+    __ultimaRecomposicaoFrases = { erro:false, mensagem: r.riscos + " risco(s) reescrito(s): " + r.nomes + " nome(s) e " + r.descricoes + " descrição(ões)." + (r.preservados ? (" " + r.preservados + " frase(s) sua(s) preservada(s).") : "") };
+    toast(r.riscos + " risco(s) reescrito(s)");
+    dbSet(STATE);
+    render();
   },
   async recuperarFotosPerdidas(dias){
     const desde = (Number(dias) > 0) ? (Date.now() - Number(dias)*24*60*60*1000) : 0;
@@ -19221,6 +19409,8 @@ document.getElementById("fileTextosLaudo").addEventListener("change", async func
 let __ultimoImportePlaqueta = null;
 /* Resultado da última recuperação de fotos, mostrado na tela de Backup. */
 let __ultimaRecuperacaoFotos = null;
+/* Resultado da última recomposição de frases, mostrado na tela de Backup. */
+let __ultimaRecomposicaoFrases = null;
 document.getElementById("fileDadosPlaqueta").addEventListener("change", async function(){
   const file = this.files[0]; if(!file) return;
   this.value = "";

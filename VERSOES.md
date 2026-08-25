@@ -64,6 +64,53 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 25/08/2026 19:15
+
+**A frase do risco ficou em português de laudo.**
+
+O nome e a descrição do risco são montados a partir de **Evento, Componente,
+Local e Parte do corpo**. O defeito era de fundo: o componente entrava sempre
+como *lugar* — "Amputação **na** lâmina" — quando a amputação não acontece na
+lâmina, é a lâmina que a causa. E a parte do corpo vinha solta no fim ("com
+lesão na mão"), redundante quando o próprio evento já é a lesão.
+
+Nos riscos reais do levantamento:
+
+| Antes | Agora |
+|---|---|
+| Amputação na lâmina, na tampa de inspeção, com lesão na mão | Amputação **da mão** na lâmina, na tampa de inspeção |
+| Esmagamento na tampa, na tampa superior, com lesão no braço | Esmagamento **do braço** na tampa superior |
+| Queda de material no rodapé, na escada, com lesão na cabeça | Queda de material **do rodapé da escada**, com lesão na cabeça |
+| Agarramento nos botões, nos botões, com lesão no corpo inteiro | Agarramento nos botões, com lesão no corpo inteiro |
+| Arrastamento na correia, na transmissão de potência, com lesão nas mãos | Arrastamento **das mãos** na correia da transmissão de potência |
+
+O que passou a ser levado em conta:
+
+- **A relação do componente com o evento.** Contato (a lâmina que amputa),
+  origem (o material que cai do rodapé) ou lugar (a queda no acesso).
+- **A preposição da parte do corpo muda com o evento**: amputação **da** mão,
+  mas corte **no** pé.
+- **Componente que repete o local é descartado** — "na tampa, na tampa
+  superior" virava ruído.
+- **"Corpo inteiro" nunca cola no evento** ("Amputação do corpo inteiro" não
+  é português de laudo) — volta para o fim como complemento.
+- **Locais que são posição** ("inferior", "início", "lateral") não aceitam o
+  encadeamento: "na esteira, no início", não "na esteira do início".
+- **Gênero de palavra feminina terminada em "-e"**: "**nas** partes móveis",
+  não "nos partes móveis".
+- **A descrição passou a derivar do nome.** Eram duas montagens paralelas para
+  os mesmos quatro campos, e qualquer ajuste numa precisava ser espelhado na
+  outra à mão.
+- Evento não classificado (digitado em "Outro") continua com a montagem de
+  sempre — a mudança nunca deixa nada pior do que era.
+
+**Para os riscos que já existem:** Configurações → Backup → **"Reescrever as
+frases dos riscos"**. Mostra quantos serão afetados e pede confirmação.
+**Frase que você digitou por cima nunca é tocada** — só as que o próprio app
+tinha montado. Se houver outra pessoa no mesmo projeto, **sincronize antes**:
+reescrever altera o carimbo de data, e edições que ainda não chegaram ao
+aparelho seriam passadas por cima.
+
 ## 25/08/2026 16:28
 
 **Sincronização: o app parou de se confundir com pastas duplicadas na nuvem.**
