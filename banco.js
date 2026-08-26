@@ -112,6 +112,11 @@ function novoAparelho(nome, nuvem){
   catch(e){ vm.runInContext('var CAMPO_MARCA_FOTO_PERDIDA = "__fotosPerdidas";', ctx); }
   vm.runInContext(constante("LAPIDE_VALIDADE_MS"),ctx);
   vm.runInContext("var __ultimoCarimboVisto=0; var __arvoreSimplesCache=null; var __indiceNuvemMapa=null; var __indiceNuvemMapaEm=0; var __arvoreNuvemIncompleta=false;", ctx);
+  // __progresso fica sempre null nos ensaios: progressoCancelado() (usada por
+  // recuperarFotosPerdidasDaNuvem) so retorna true se algum dia um teste
+  // simular o toque em "Parar" atribuindo a ele.
+  vm.runInContext("var __progresso=null;", ctx);
+  ctx.__wakeLock = null;
   vm.runInContext("var __assinaturasOneDriveSimples={mapa:null,chaveEstado:'oneDriveAssinaturasSimples'};", ctx);
   /* SUBPASTA_CONFIG_LAPIDES e uma const de EXPRESSAO (concatenacao), que o
      extrator constante() nao sabe delimitar — vem escrita aqui. */
@@ -141,6 +146,7 @@ function novoAparelho(nome, nuvem){
     "rotuloCaminhoSync","onedriveSincronizarModulo","marcarSubarvoreMaquinaAlterada","onedriveBaixarPendentes",
     "sincDuplicatasNaArvore","sincJuntarDuplicata",
     "marcarFotosPendentesParaEnvio","recuperarFotosPerdidasDaNuvem","manterTelaAcesa","liberarTelaAcesa",
+    "progressoCancelado",
     // lapides de exclusao — o codigo real, nao mais um stub fixo em false
     "registrarLapidesExclusao","exclusaoConfirmadaPeloUsuario","lapideDe","lapideVenceDadosRemotos",
     "__lapideFilhos","__subarvoreTocadaDepoisDe","__tamanhoSubarvore","__lapidesRemoviveis",
@@ -1307,6 +1313,29 @@ async function rodarAteParar(ap, maxCiclos, rotulo){
       checar("baixa VARIOS itens ao mesmo tempo, nao um por um (mais rapido num projeto grande)",
         maxSimultaneo > 1, "maximo simultaneo=" + maxSimultaneo);
       checar("mesmo em paralelo, recupera todos os itens corretamente", r2.recuperados === 6, "recuperados=" + r2.recuperados);
+    }
+
+    /* "Parar" precisa ser seguro: o que já voltou antes do toque continua
+       salvo, e nada novo começa depois. Simula o toque em Parar no meio do
+       lote (via __progresso.cancelado, o mesmo estado que o botão real
+       liga) e confere as duas coisas. */
+    {
+      const nuvem3 = novaNuvem();
+      const A3 = novoAparelho("A3", nuvem3);
+      A3.ctx.STATE.projetosSimples = [arvoreExemplo(1, 1, 1, 6, true)];
+      await rodarAteParar(A3, 8);
+      vm.runInContext(`STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos.forEach(r=>{ r.foto=null; r.__fotosPerdidas=true; })`, A3.ctx);
+      let processados = 0;
+      A3.ctx.onedriveBaixarTexto = async (c) => {
+        processados++;
+        if(processados === 2) vm.runInContext(`__progresso = { cancelado:true };`, A3.ctx); // simula o toque em "Parar"
+        return nuvem3.get(c);
+      };
+      const r3 = await vm.runInContext("recuperarFotosPerdidasDaNuvem(null)", A3.ctx);
+      checar("parar no meio nao processa TODOS os itens (a trava funcionou)",
+        r3.recuperados + r3.semNadaNaNuvem < 6, "recuperados+semNadaNaNuvem=" + (r3.recuperados + r3.semNadaNaNuvem));
+      checar("o que JA tinha voltado antes de parar continua salvo (nada foi desfeito)",
+        r3.recuperados >= 1, "recuperados=" + r3.recuperados);
     }
   }
 

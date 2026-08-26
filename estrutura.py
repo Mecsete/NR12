@@ -846,13 +846,15 @@ chk("a estimativa so aparece com pelo menos dois itens medidos",
 chk("parar sai antes da proxima chamada, nao no meio de uma",
     "__progresso.cancelado = true;" in novo
     and novo.count("if(progressoCancelado()) break;") == 4)
-# Excel, Word e a geracao de textos. Sem finally o painel ficaria preso na
-# tela — exatamente o defeito do aviso que se renovava sozinho.
+# Excel, Word, a geracao de textos e (desde 26/08/2026) a recuperacao de
+# fotos perdidas. Sem finally o painel ficaria preso na tela — exatamente o
+# defeito do aviso que se renovava sozinho.
 chk("o painel fecha em qualquer desfecho",
-    len(re.findall(r"\}\s*finally\s*\{[^}]*progressoFechar", novo)) == 3
+    len(re.findall(r"\}\s*finally\s*\{[^}]*progressoFechar", novo)) == 4
     and novo.count("progressoFechar(painelExport)") == 1
     and novo.count("progressoFechar(painelWord)") == 1
-    and novo.count("finally{ progressoFechar(meuPainel); }") == 1)
+    and novo.count("finally{ progressoFechar(meuPainel); }") == 1
+    and novo.count("finally{\n      progressoFechar(souDono);\n    }") == 1)
 chk("exportacao parada nao entrega arquivo pela metade",
     novo.count('if(progressoCancelado()){ toast("Exportação parada') == 3)
 chk("os avisos repetidos por item sairam do caminho",
@@ -2129,7 +2131,7 @@ chk("cada lote le so os seus arquivos e grava antes do seguinte",
     and "mapa.clear();" in novo
     and "await dbSet(STATE);" in novo[_ini76:_fim76])
 chk("a tela mostra o andamento por lote",
-    "Devolvendo fotos… " in novo)
+    "progressoAtualizar(feitos, total, feitos + \" de \" + total + \" itens\");" in novo)
 # Recorte por data: comecar pequeno (o levantamento recente), conferir na
 # tela, e so entao soltar o resto. Numa operacao que mexe em centenas de
 # itens, poder testar num pedaco pequeno antes vale mais do que a pressa.

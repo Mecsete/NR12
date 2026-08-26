@@ -64,6 +64,24 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 26/08/2026 09:12
+
+**"Devolver fotos" ganhou barra de progresso de verdade, com botão "Parar"
+seguro, em vez do aviso piscando a cada item.**
+
+Com projetos grandes (um caso real teve 580 itens para conferir), o aviso
+reaparecendo e sumindo a cada item não dava noção nenhuma de quanto faltava,
+nem tinha como interromper de forma controlada. Agora aparece um painel com
+barra, porcentagem, contagem "X de Y", tempo decorrido e estimativa do que
+falta — igual ao que já existe na geração de textos da IA e nas exportações.
+
+O botão "Parar" é seguro: para de pegar itens novos, mas não desfaz nada do
+que já tinha voltado até aquele momento (isso já estava garantido pela
+gravação a cada poucos segundos da correção anterior). Tocar em "Devolver
+fotos" de novo depois continua exatamente de onde parou.
+
+---
+
 ## 26/08/2026 08:26
 
 **Correção urgente na recuperação de fotos da nuvem publicada há pouco: ela

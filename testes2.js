@@ -3526,14 +3526,23 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   t("o painel some em qualquer desfecho das exportações", ()=>{
     eq((HTML.match(/progressoFechar\(painelExport\)/g)||[]).length, 1);
     eq((HTML.match(/progressoFechar\(painelWord\)/g)||[]).length, 1);
-    eq((HTML.match(/\}\s*finally\s*\{[^}]*progressoFechar/g)||[]).length, 3,
-       "Excel, Word e a geração de textos — sem finally, um erro deixaria o painel preso na frente do app");
+    eq((HTML.match(/\}\s*finally\s*\{[^}]*progressoFechar/g)||[]).length, 4,
+       "Excel, Word, a geração de textos e a recuperação de fotos perdidas — sem finally, um erro deixaria o painel preso na frente do app");
     ok(funcao("gerarLaudoIAItens").indexOf("finally{ progressoFechar(meuPainel); }") > 0);
+    ok(HTML.indexOf("finally{\n      progressoFechar(souDono);\n    }") > 0);
   });
   t("quem não abriu o painel não fecha o dos outros", ()=>{
     ok(funcao("progressoFechar").indexOf("if(meu === false) return;") > 0,
        "a geração de textos fecharia o painel da exportação no meio");
     ok(funcao("progressoAbrir").indexOf("if(__progresso){") > 0, "abriria dois painéis empilhados");
+  });
+  t("devolver fotos usa o painel de progresso, não mais o toast repetido", ()=>{
+    ok(HTML.indexOf('if(progressoAbrir("Devolvendo fotos deste aparelho", prev.itens)) souDono = true;') > 0);
+    ok(HTML.indexOf('if(progressoAbrir("Buscando fotos direto na nuvem", 0)) souDono = true;') > 0);
+    ok(HTML.indexOf('if(!progressoCancelado()){') > 0,
+       "não pode começar a buscar na nuvem se a pessoa já pediu para parar na etapa local");
+    ok(HTML.indexOf("if(progressoCancelado()) return;") > 0,
+       "recuperarFotosPerdidasDaNuvem precisa checar Parar item a item, senão o botão não faz nada com 580 itens na fila");
   });
   t("exportação parada não entrega arquivo pela metade", ()=>{
     eq((HTML.match(/if\(progressoCancelado\(\)\)\{ toast\("Exportação parada/g)||[]).length, 3,

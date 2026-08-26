@@ -1970,7 +1970,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "26/08/2026 08:26";
+const APP_BUILD = "26/08/2026 09:12";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -4320,6 +4320,11 @@ async function recuperarFotosPerdidasDaNuvem(onProgresso){
   };
   try{
     await executarComConcorrencia(alvos, 3, async (alvo) => {
+      /* Parada pedida pelo usuário: não inicia mais nenhum item novo — o que
+         já foi recuperado até aqui já está gravado (gravarSePassouTempo +
+         a gravação final no finally), então parar no meio nunca desfaz o
+         que já voltou. */
+      if(progressoCancelado()) return;
       const caminho = `${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado/${alvo.pasta.join("/")}/fotos_${alvo.arquivo}`;
       const texto = await onedriveBaixarTexto(caminho);
       let pacote = null;
@@ -16926,7 +16931,7 @@ Os pontos de restauração continuam disponíveis se quiser voltar atrás.`)) re
     const desde = (Number(dias) > 0) ? (Date.now() - Number(dias)*24*60*60*1000) : 0;
     const rotulo = desde ? `criados nos últimos ${Number(dias)} dias` : "do projeto inteiro";
     toast("Procurando fotos nos pontos de restauração…");
-    let msgLocal, devolvidas = 0;
+    let msgLocal = "", devolvidas = 0, souDono = false;
     try{
       const prev = await contarFotosRecuperaveis(desde);
       if(!prev || prev.fotos === 0){
@@ -16939,26 +16944,38 @@ Os pontos de restauração continuam disponíveis se quiser voltar atrás.`)) re
 Só os espaços vazios são preenchidos — nenhuma foto boa é substituída, e nada mais do cadastro é alterado.
 
 Devolver agora?`)) return;
+        /* Painel visual em vez de toast: com centenas de itens (um projeto
+           real chegou a 580), o toast reaparecendo a cada item pisca sem
+           dar noção real de quanto falta. O painel mostra barra, contagem,
+           tempo decorrido/estimado e um "Parar" seguro — o que já foi
+           devolvido até o toque em Parar continua salvo. */
+        if(progressoAbrir("Devolvendo fotos deste aparelho", prev.itens)) souDono = true;
         const r = await recuperarFotosDosPontos((feitos, total)=>{
-          toast("Devolvendo fotos… " + feitos + " de " + total + " itens");
+          progressoAtualizar(feitos, total, feitos + " de " + total + " itens");
         }, desde);
         devolvidas += r.fotos;
         msgLocal = r.fotos + " foto" + (r.fotos===1?"":"s") + " devolvida" + (r.fotos===1?"":"s") + " deste aparelho, em " + r.itens + " " + (r.itens===1?"item":"itens") + ".";
         if(r.semBytes) msgLocal += " " + r.semBytes + " referência(s) sem o arquivo aqui.";
       }
-      toast("Procurando o que sobrou direto na nuvem…");
-      const rn = await recuperarFotosPerdidasDaNuvem((feitos, total)=>{
-        toast("Buscando na nuvem… " + feitos + " de " + total + " itens");
-      });
+      let rn = { itens:0, recuperados:0, semNadaNaNuvem:0 };
+      if(!progressoCancelado()){
+        if(progressoAbrir("Buscando fotos direto na nuvem", 0)) souDono = true;
+        rn = await recuperarFotosPerdidasDaNuvem((feitos, total)=>{
+          progressoAtualizar(feitos, total, feitos + " de " + total + " itens na nuvem");
+        });
+      }
       devolvidas += rn.recuperados;
       const msgNuvem = rn.itens === 0 ? "" :
         ` Direto na nuvem: ${rn.recuperados} de ${rn.itens} item${rn.itens===1?'':'s'} ainda danificado${rn.itens===1?'':'s'} recuperado${rn.recuperados===1?'':'s'}` +
         (rn.semNadaNaNuvem ? `, ${rn.semNadaNaNuvem} sem nada na nuvem — essa(s) é perda de verdade, só refotografando.` : ".");
-      __ultimaRecuperacaoFotos = { erro:false, mensagem: msgLocal + msgNuvem };
+      const msgParado = progressoCancelado() ? " Parado a seu pedido — o que já tinha voltado continua salvo; toque de novo para continuar." : "";
+      __ultimaRecuperacaoFotos = { erro:false, mensagem: msgLocal + msgNuvem + msgParado };
       toast(devolvidas + " foto(s) devolvida(s) no total");
     }catch(e){
       __ultimaRecuperacaoFotos = { erro:true, mensagem:"Não foi possível concluir: " + (e && e.message ? e.message : "erro desconhecido") };
       toast("Não foi possível concluir a recuperação", false);
+    } finally{
+      progressoFechar(souDono);
     }
     render();
   },
