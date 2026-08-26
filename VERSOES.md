@@ -64,6 +64,26 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 26/08/2026 08:26
+
+**Correção urgente na recuperação de fotos da nuvem publicada há pouco: ela
+parava no meio, sem terminar, em projetos com muitos itens danificados.**
+
+O recurso publicado minutos atrás ("Devolver fotos" também buscando na
+nuvem) baixava um item de cada vez e só gravava tudo no disco no final do
+processo inteiro. Num projeto com centenas de itens marcados (um caso real
+chegou a 580), isso demorava tempo suficiente para a tela do celular apagar
+sozinha no meio — e, como nada tinha sido salvo ainda, qualquer foto já
+recuperada até ali se perdia de novo, sem aviso nenhum.
+
+Agora: baixa até 3 itens ao mesmo tempo (mais rápido), grava no aparelho a
+cada poucos segundos durante o processo (não só no final) e tenta manter a
+tela acesa enquanto roda. Se mesmo assim for interrompido, o que já tinha
+sido recuperado continua salvo — e tocar em "Devolver fotos" de novo
+continua exatamente de onde parou, sem repetir trabalho.
+
+---
+
 ## 26/08/2026 08:13
 
 **O botão "Devolver fotos" agora também procura direto na nuvem, não só nos

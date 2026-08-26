@@ -140,7 +140,7 @@ function novoAparelho(nome, nuvem){
     "arquivoEstaEmQuarentena","executarComConcorrencia","exclusaoEmMassaSuspeita",
     "rotuloCaminhoSync","onedriveSincronizarModulo","marcarSubarvoreMaquinaAlterada","onedriveBaixarPendentes",
     "sincDuplicatasNaArvore","sincJuntarDuplicata",
-    "marcarFotosPendentesParaEnvio","recuperarFotosPerdidasDaNuvem",
+    "marcarFotosPendentesParaEnvio","recuperarFotosPerdidasDaNuvem","manterTelaAcesa","liberarTelaAcesa",
     // lapides de exclusao — o codigo real, nao mais um stub fixo em false
     "registrarLapidesExclusao","exclusaoConfirmadaPeloUsuario","lapideDe","lapideVenceDadosRemotos",
     "__lapideFilhos","__subarvoreTocadaDepoisDe","__tamanhoSubarvore","__lapidesRemoviveis",
@@ -1286,6 +1286,28 @@ async function rodarAteParar(ap, maxCiclos, rotulo){
     checar("o item SEM nada na nuvem continua sem foto (nada inventado)", !perdidaDepois.foto);
     checar("a marca de dano continua no item sem nada na nuvem -- protege contra reenvio apagar a ultima chance",
       !!perdidaDepois.__fotosPerdidas);
+
+    /* Achado em campo: com 580 itens marcados, um por vez era lento demais e
+       uma interrupcao no meio (tela apagando) parecia travar sem terminar.
+       Prova que agora baixa VARIOS ao mesmo tempo, nao um por um. */
+    {
+      const nuvem2 = novaNuvem();
+      const A2 = novoAparelho("A2", nuvem2);
+      A2.ctx.STATE.projetosSimples = [arvoreExemplo(1, 1, 1, 6, true)];
+      await rodarAteParar(A2, 8);
+      vm.runInContext(`STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos.forEach(r=>{ r.foto=null; r.__fotosPerdidas=true; })`, A2.ctx);
+      let emAndamento = 0, maxSimultaneo = 0;
+      A2.ctx.onedriveBaixarTexto = async (c) => {
+        emAndamento++; maxSimultaneo = Math.max(maxSimultaneo, emAndamento);
+        await new Promise(resolve=>setTimeout(resolve, 15));
+        emAndamento--;
+        return nuvem2.get(c);
+      };
+      const r2 = await vm.runInContext("recuperarFotosPerdidasDaNuvem(null)", A2.ctx);
+      checar("baixa VARIOS itens ao mesmo tempo, nao um por um (mais rapido num projeto grande)",
+        maxSimultaneo > 1, "maximo simultaneo=" + maxSimultaneo);
+      checar("mesmo em paralelo, recupera todos os itens corretamente", r2.recuperados === 6, "recuperados=" + r2.recuperados);
+    }
   }
 
   console.log("\n" + L);
