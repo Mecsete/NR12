@@ -152,10 +152,17 @@ function novoAparelho(nome, nuvem){
      em vez de estourar por função inexistente. */
   ["enderecoLogicoDaPasta","onedriveMesmoEnderecoLogico",
    "__arquivosNoNo","onedriveDuplicatasParaIgnorar",
-   "onedriveEnvioEncolheDemais"].forEach(n=>{
+   "onedriveEnvioEncolheDemais",
+   "__itemExisteAlgumLugar","riscoOrfaoConhecido","marcarRiscoOrfaoConhecido"].forEach(n=>{
     try{ vm.runInContext(funcao(n), ctx); }
     catch(e){ if(process.env.BANCO_DEBUG) console.log("  [extracao] " + n + " -> " + e.message); }
   });
+  /* Versão anterior à correção do risco órfão: nunca marca nada, então o
+     classificador (que só CONSULTA riscoOrfaoConhecido, sem depender de ela
+     existir) nunca acha nada marcado — comportamento antigo preservado. */
+  if(typeof ctx.riscoOrfaoConhecido !== "function") ctx.riscoOrfaoConhecido = () => false;
+  if(typeof ctx.marcarRiscoOrfaoConhecido !== "function") ctx.marcarRiscoOrfaoConhecido = () => {};
+  if(typeof ctx.__itemExisteAlgumLugar !== "function") ctx.__itemExisteAlgumLugar = () => false;
   /* Preenchidos aqui do lado do Node, e NÃO por um script rodado dentro do
      contexto: `function f(){}` dentro de um `if` é hasteada para o escopo do
      script e nasce como undefined, sobrescrevendo a função que a extração
@@ -1070,6 +1077,85 @@ async function rodarAteParar(ap, maxCiclos, rotulo){
     for(let i=0;i<3;i++){ depois += (await ciclo(A)).transferencias; depois += (await ciclo(B)).transferencias; }
     checar("SEM VAIVEM: 6 ciclos alternados sem editar = zero trafego", depois === 0,
       "ainda transferiu " + depois);
+  }
+
+  console.log("\n" + L + "\nENSAIO 25 - risco com o MESMO id em DUAS tarefas reais nao gera vaivem eterno\n" + L);
+  {
+    /* A CAUSA REAL da "fila que nunca termina" reportada pelo usuario, achada
+       rodando o codigo contra a nuvem real dele: 60 riscos com o mesmo id
+       espalhados em duas tarefas. 51 eram efeito colateral de pasta-pai
+       duplicada (ensaio 24 ja cobre). Os outros 9 sao um risco que foi movido
+       (ou copiado por engano) de uma tarefa de verdade para outra tarefa de
+       verdade -- as duas continuam existindo, distintas -- e a copia antiga
+       nunca foi removida da nuvem.
+
+       O mecanismo do loop infinito: a classificacao so pergunta "este risco
+       esta na tarefa ATUAL?" -- nao sabe que ele ja existe em outra tarefa.
+       Propoe baixar de novo. A mesclagem sabe (via __moverItemEntrePais) e
+       recusa -- mas recusar nao deixava rastro, e a classificacao "esquecia"
+       na sincronizacao seguinte. Para sempre. */
+    const nuvem = novaNuvem();
+    const A = novoAparelho("A", nuvem);
+    A.ctx.STATE.projetosSimples = [arvoreExemplo(1, 1, 2, 0, false)]; // 2 tarefas, riscos vazios
+    const idRisco = uid();
+    const riscoOriginal = { id:idRisco, nome:"Risco compartilhado", descricao:"desc",
+      foto:null, fotosOutras:[], criadoEm:1750000000000, atualizadoEm:1750000000000 };
+    vm.runInContext(`STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos.push(${JSON.stringify(riscoOriginal)})`, A.ctx);
+    await rodarAteParar(A, 8);
+
+    const tarefas = () => vm.runInContext(
+      `STATE.projetosSimples[0].areas[0].maquinas[0].tarefas.map(t=>({id:t.id, riscos:t.riscos.map(r=>r.id)}))`, A.ctx);
+    const antes = tarefas();
+    checar("o risco comeca so na tarefa 0", antes[0].riscos.includes(idRisco) && !antes[1].riscos.includes(idRisco));
+
+    /* Injeta na nuvem a copia orfa, debaixo da OUTRA tarefa -- exatamente o
+       estrago historico encontrado na nuvem real (mover risco de tarefa nunca
+       limpava a copia antiga). O CONTEUDO PRECISA TER TAMANHO DIFERENTE do
+       original: uma copia byte-a-byte identica já é resolvida sozinha pelo
+       cache `arquivoJaExistente` (que existia antes de qualquer coisa de
+       hoje) — isso mascararia se a correção nova importa. Na nuvem real do
+       usuário as duas cópias tinham tamanhos diferentes (615 B x 1299 B,
+       uma edição depois da duplicação), e é essa diferença de tamanho que
+       faz a classificação insistir em propor de novo a cada ciclo. */
+    const arqOriginal = [...nuvem.arquivos.keys()].find(c => c.endsWith("risco_" + idRisco + ".json"));
+    checar("achou o arquivo original na nuvem para copiar", !!arqOriginal, arqOriginal);
+    const dadosOrfao = { ...riscoOriginal, descricao: "desc " + "x".repeat(200), atualizadoEm: 1750000000000 - 5000 };
+    const conteudoOrfao = JSON.stringify(dadosOrfao, null, 0);
+    const caminhoOrfao = arqOriginal.replace(/Tarefa 0 \([a-z0-9]+\)/, m => {
+      const idTarefa1 = tarefas()[1].id;
+      return m.replace(/\([a-z0-9]+\)$/, "(" + idTarefa1.slice(-6) + ")").replace("Tarefa 0", "Tarefa 1");
+    });
+    checar("o caminho orfao aponta para a OUTRA tarefa", caminhoOrfao !== arqOriginal && caminhoOrfao.includes("Tarefa 1"),
+      caminhoOrfao);
+    checar("a copia orfa tem tamanho DIFERENTE do original (senao o cache de conteudo ja resolveria sozinho)",
+      conteudoOrfao.length !== nuvem.arquivos.get(arqOriginal).texto.length);
+    nuvem.put(caminhoOrfao, conteudoOrfao);
+
+    const r1 = await rodarAteParar(A, 10);
+    checar("A converge (para de transferir) mesmo com a copia orfa na nuvem", r1.parou,
+      "transferencias por ciclo: " + r1.hist.join(", "));
+
+    const depois = tarefas();
+    const numTarefasComRisco = depois.filter(t => t.riscos.includes(idRisco)).length;
+    checar("o risco vive em EXATAMENTE uma tarefa (nao duplicou, nao sumiu)",
+      numTarefasComRisco === 1, "vive em " + numTarefasComRisco + " tarefa(s): " + JSON.stringify(depois));
+
+    /* Aparelho NOVO, sincronizando do zero com a nuvem (que ainda tem as DUAS
+       copias): tambem nao pode entrar em loop, nem duplicar o risco. */
+    const B = novoAparelho("B", nuvem);
+    const r2 = await rodarAteParar(B, 12);
+    checar("aparelho NOVO tambem converge", r2.parou, "B: " + r2.hist.join(", "));
+    const riscosB = vm.runInContext(
+      `STATE.projetosSimples[0].areas[0].maquinas[0].tarefas.flatMap(t=>t.riscos.map(r=>r.id))`, B.ctx);
+    checar("aparelho NOVO recebeu o risco UMA vez so", riscosB.filter(id=>id===idRisco).length === 1,
+      riscosB.join(","));
+
+    /* Depois de tudo assentado, ciclos alternados sem editar nada = zero
+       trafego -- o mesmo padrao cobrado em todos os ensaios de convergencia. */
+    let semTrafego = 0;
+    for(let i=0;i<3;i++){ semTrafego += (await ciclo(A)).transferencias; semTrafego += (await ciclo(B)).transferencias; }
+    checar("SEM VAIVEM: 6 ciclos alternados sem editar = zero trafego", semTrafego === 0,
+      "ainda transferiu " + semTrafego);
   }
 
   console.log("\n" + L);

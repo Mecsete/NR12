@@ -1970,7 +1970,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "25/08/2026 20:08";
+const APP_BUILD = "25/08/2026 22:49";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -3743,6 +3743,10 @@ function onedriveClassificarNovosSimples(arvoreProjetos){
             if(!m) continue;
             const riscoExistente = tarLocal.riscos.find(r=>r.id===m[1]);
             if(!riscoExistente){
+              // Já sabemos: é cópia órfã de um risco que existe em outra tarefa,
+              // e o arquivo da nuvem não mudou de tamanho desde a última vez que
+              // conferimos. Propor de novo não muda nada — só reaqueceria a fila.
+              if(riscoOrfaoConhecido(arq.caminho, arq.tamanho)) continue;
               registrar(arq.tamanho, { tipo:"risco", ...idsRisco, caminho:arq.caminho, tamanho:arq.tamanho });
             }else if(onedriveArquivoMudouNaNuvem("risco:"+riscoExistente.id, "tamanho", arq.tamanho, true)
                      /* mesmo cuidado do nível acima: o cache de convergência só
@@ -3758,6 +3762,43 @@ function onedriveClassificarNovosSimples(arvoreProjetos){
     }
   }
   return { pequenos, grandes };
+}
+/* =========================================================================
+   RISCO ÓRFÃO CONHECIDO — a causa real da fila que nunca zerava
+
+   Um risco pode existir em DUAS tarefas de verdade na nuvem: foi movido (ou
+   copiado por engano) de uma tarefa para outra, e a cópia antiga nunca foi
+   removida. Isso é diferente do defeito de pasta-pai duplicada corrigido mais
+   cedo — aqui as duas tarefas são reais e distintas, não uma renomeação da
+   mesma.
+
+   A classificação só verifica "este risco está na tarefa ATUAL?" — não sabe
+   que ele já existe em outro lugar. Propõe baixar. A mesclagem, essa sim,
+   sabe (via __moverItemEntrePais) e recusa inserir de novo — mas recusar não
+   deixava rastro nenhum, e na sincronização seguinte a classificação
+   "esquecia" e propunha de novo. Para sempre: é a fila que nunca termina.
+
+   A correção ensina a classificação a lembrar. Quando a mesclagem rejeita um
+   item porque ele já existe em outro lugar da árvore local, isso fica
+   registrado por CAMINHO + TAMANHO. Enquanto o arquivo da nuvem continuar
+   com esse tamanho, não é proposto de novo — só volta a ser conferido se o
+   arquivo mudar de verdade, o que dá a chance de um "movido de verdade,
+   desta vez" ser aceito, exatamente como já acontece hoje. */
+function __itemExisteAlgumLugar(tipo, id){
+  for(const lista of __listasIrmasDe(tipo)){
+    if(lista.some(x=>x && x.id===id)) return true;
+  }
+  return false;
+}
+function riscoOrfaoConhecido(caminho, tamanho){
+  const mapa = STATE.oneDriveRiscosOrfaosConhecidos;
+  return !!(mapa && mapa[caminho] === tamanho);
+}
+function marcarRiscoOrfaoConhecido(caminho, tamanho){
+  if(!caminho || typeof tamanho !== "number") return;
+  if(!STATE.oneDriveRiscosOrfaosConhecidos || typeof STATE.oneDriveRiscosOrfaosConhecidos !== "object")
+    STATE.oneDriveRiscosOrfaosConhecidos = {};
+  STATE.oneDriveRiscosOrfaosConhecidos[caminho] = tamanho;
 }
 /* Encaixa um item baixado no lugar certo da árvore local, por id — nunca
    sobrescreve algo que já existe (proteção extra contra corrida entre
@@ -3844,6 +3885,20 @@ function onedriveItemJaConvergido(descritor, dados){
 }
 function onedriveMesclarItemNovo(descritor, dados){
   const inseriu = __onedriveMesclarItemNovoInterno(descritor, dados);
+  /* Risco que não foi inserido PORQUE já existe em outro lugar da árvore
+     local (__moverItemEntrePais recusou, do lado de dentro de
+     __onedriveMesclarItemNovoInterno) fica registrado como órfão conhecido,
+     por este caminho específico — ver o bloco de comentário logo acima da
+     definição de __itemExisteAlgumLugar. Sem isto, a classificação propõe o
+     mesmo arquivo para sempre. Não depende de SABER por que a inserção
+     falhou: se o item existe em outro lugar, o caminho é órfão, ponto —
+     e essa checagem nunca é acionada para os demais tipos (projeto, área,
+     máquina, tarefa), porque esses já não chegam aqui duplicados: a pasta-pai
+     repetida é filtrada antes, em onedriveDuplicatasParaIgnorar. */
+  if(!inseriu && descritor.tipo==="risco" && dados && dados.id && descritor.caminho
+     && __itemExisteAlgumLugar("risco", dados.id)){
+    marcarRiscoOrfaoConhecido(descritor.caminho, descritor.tamanho);
+  }
   /* ANTES: a assinatura só era gravada quando algo foi realmente inserido.
      Um item que já estava aqui na mesma versão devolvia false e ia embora
      sem deixar registro — e o envio, sem registro, reenviava tudo. Agora o
@@ -14966,7 +15021,7 @@ function jsonEmPartes(valor, partes){
 const __BACKUP_V2_MARCA = '{"__formatoBackup":"apr-v2"';
 // Caches internos deste aparelho que não devem viajar num backup (são
 // por-aparelho; levá-los junto confundia o controle de envio do destino).
-const __BACKUP_CAMPOS_EXCLUIR = new Set(["projetosSimples","projetos","oneDriveAssinaturasSimples","oneDriveAssinaturasCompleto","oneDrivePendentes","oneDriveDeltaFila","oneDriveJaExistentes","arquivosCorrompidosIgnorados","logSincronizacao","oneDriveStatusPendente","oneDriveIndiceNuvem","exclusoesConfirmadas"]);
+const __BACKUP_CAMPOS_EXCLUIR = new Set(["projetosSimples","projetos","oneDriveAssinaturasSimples","oneDriveAssinaturasCompleto","oneDrivePendentes","oneDriveDeltaFila","oneDriveJaExistentes","arquivosCorrompidosIgnorados","logSincronizacao","oneDriveStatusPendente","oneDriveIndiceNuvem","exclusoesConfirmadas","oneDriveRiscosOrfaosConhecidos"]);
 function backupV2EmPartes(partes){
   const resto = {};
   for(const k in STATE){ if(!__BACKUP_CAMPOS_EXCLUIR.has(k)) resto[k] = STATE[k]; }

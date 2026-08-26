@@ -4676,6 +4676,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       "__moverItemEntrePais","__onedriveMesclarItemNovoInterno","onedriveMesclarItemNovo",
       "onedriveRegistrarAssinaturaDeDownload","onedriveDescritorDeCaminho",
       "onedriveItemLocalNoLugarDoDescritor","onedriveItemJaConvergido",
+      "__itemExisteAlgumLugar","riscoOrfaoConhecido","marcarRiscoOrfaoConhecido",
       "onedriveEnvioAutomaticoDeveEsperar",
     ].forEach(n=> vm.runInContext(funcao(n), ctxS));
     /* Réplica exata do filtro de pendentes de onedriveSincronizarModulo — é
@@ -6627,6 +6628,169 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       const antes = f.indexOf("onedriveEnvioEncolheDemais");
       const envio = f.indexOf("okTexto = await onedriveEnviarBlob");
       ok(antes > 0 && envio > antes, "a trava esta DEPOIS do envio — nao serve de nada");
+    });
+  }
+
+  /* ==================================================================
+     t122 - risco com o mesmo id em duas tarefas nao gera fila sem fim
+
+     Achada rodando o classificador REAL contra a nuvem real do usuario:
+     60 riscos com o mesmo id em duas tarefas (o risco foi movido -- ou
+     copiado por engano -- de uma tarefa de verdade para outra, e a copia
+     antiga nunca foi removida da nuvem). A classificacao so pergunta "este
+     risco esta na tarefa ATUAL?" -- nao sabe que ele ja existe em outra.
+     Propoe de novo. A mesclagem recusa (__moverItemEntrePais ja decide
+     isso) mas recusar nao deixava rastro, e a classificacao "esquecia" no
+     ciclo seguinte. Para sempre.
+
+     O app JA TEM uma defesa generica para este tipo de caso
+     (onedriveMarcarJaExistente, chamada por QUEM RECEBE o item quando a
+     mesclagem recusa) -- mas ela so esta ligada em 2 dos 6 pontos que
+     chamam onedriveMesclarItemNovo. onedriveDeltaProcessarFila (a fila de
+     notificacoes em tempo real, "a cada edicao") e um dos que NAO chama.
+     Os testes abaixo isolam exatamente esse caso: chamar classify + merge
+     SEM nenhuma ajuda externa, do jeito que onedriveDeltaProcessarFila faz.
+     ================================================================== */
+  console.log("\n=== t122 · risco com o mesmo id em duas tarefas nao gera fila sem fim ===");
+  {
+    const ctx = vm.createContext({ console, JSON, Math, Date, Map, Set, Promise, Object, Array, String, Number, RegExp });
+    vm.runInContext(`
+      const OUTRO = "Outro (especificar)";
+      var STATE = { projetosSimples: [], ui:{}, oneDriveAssinaturasSimples:{}, oneDrivePendentes:[] };
+      var ONEDRIVE_PASTA_APP="APR-Campo", SUBPASTA_BACKUP="Backup", ONEDRIVE_LIMITE_AUTO_BYTES=300000;
+      var CAMPO_FOTOS_LISTA = "fotosOutras";
+      function nomeMaquinaS(m){ return m&&(m.nome||m.descricao||""); }
+      function valOuOutro(v,o){ return v===OUTRO ? (o||"") : (v||""); }
+      class Blob{ constructor(a){ this.size = Buffer.byteLength(a.join(""),"utf8"); } }
+      function marcarAlterado(){}
+      function registrarCarimboVisto(){}
+      function lapideVenceDadosRemotos(){ return false; }
+      function onedrivePrecisaBaixarFotos(){ return false; }
+      function nomeArquivoSeguro(s){ let n=String(s||"sem-nome").trim().slice(0,48)
+        .replace(/[\\\\\\/:*?"<>|]/g,"-").replace(/\\s+/g," ").replace(/^\\.+/,"").replace(/[. ]+$/,"");
+        if(/^(CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])$/i.test(n)) n=n+"_"; return n||"sem-nome"; }
+      var __arvoreSimplesCache = null;
+      async function fotosCarregarIndice(){ return new Set(); }
+      var __assinaturasOneDriveSimples = { mapa:null, chaveEstado:"oneDriveAssinaturasSimples" };
+    `, ctx);
+    ["CAMPOS_FILHOS_SYNC","CAMPO_FILHOS_POR_TIPO"].forEach(n=>vm.runInContext(constante(n), ctx));
+    ["segmentoPastaComId","extrairSufixoDoNome","idBateComSufixo","separarFotosDoItem","__ehFotoEmbutida",
+     "tamanhoTextoLocalDoItem","onedriveCarregarAssinaturas","onedriveAssinaturaDe","onedriveAnotarTamanho",
+     "onedriveArquivoMudouNaNuvem","onedriveMesmaVersaoPeloTamanho","aplicarAtualizacaoRemota",
+     "__listasIrmasDe","__moverItemEntrePais","__onedriveMesclarItemNovoInterno","onedriveMesclarItemNovo",
+     "onedriveItemLocalNoLugarDoDescritor","onedriveItemJaConvergido","onedriveRegistrarAssinaturaDeDownload",
+     "arquivoJaExistente","arquivoEstaEmQuarentena","onedriveDuplicatasParaIgnorar","__arquivosNoNo",
+     "__itemExisteAlgumLugar","riscoOrfaoConhecido","marcarRiscoOrfaoConhecido","onedriveClassificarNovosSimples"]
+      .forEach(n=> vm.runInContext(funcao(n), ctx));
+
+    function arv(tarefas){ return [ { id:"p00001", empresa:"Corteva", areas:[ { id:"a00001", nome:"Area", maquinas:[
+      { id:"m00001", nome:"Maquina", tarefas } ] } ] } ]; }
+    const no = (nome, filhos)=> ({ nome, pasta:true, caminho:"APR-Campo/Backup/Simplificado/" + nome, filhos });
+    const arq = (caminhoPai, nome, tamanho)=> ({ nome, pasta:false, caminho: caminhoPai + "/" + nome, tamanho });
+
+    t("O CASO REAL: risco em duas tarefas nao entra em fila sem fim (sem nenhuma ajuda externa)", ()=>{
+      const idRisco = "r_dup_1";
+      ctx.STATE = { projetosSimples: arv([
+          { id:"t00001", tarefa:"Limpeza", tarefaOutro:"", riscos:[ { id:idRisco, nome:"Risco", descricao:"desc curta", foto:null, fotosOutras:[], criadoEm:1, atualizadoEm:100 } ] },
+          { id:"t00002", tarefa:"Operação", tarefaOutro:"", riscos:[] },
+        ]), oneDriveAssinaturasSimples:{}, oneDrivePendentes:[] };
+      vm.runInContext("__assinaturasOneDriveSimples.mapa = null;", ctx);
+      // Copia orfa: MESMO id, conteudo mais LONGO (tamanho diferente do que
+      // ja existe aqui) -- se fosse identico, o cache generico de tamanho
+      // já resolveria sozinho e o teste não provaria nada.
+      const conteudoOrfao = JSON.stringify({ id:idRisco, nome:"Risco", descricao:"desc bem mais comprida do que a original, para o tamanho ficar diferente", foto:null, fotosOutras:[], criadoEm:1, atualizadoEm:50 });
+      const projNo = no("Corteva (p00001)", [ no("Area (a00001)", [ no("Maquina (m00001)", [
+        no("Limpeza (t00001)", [ arq("APR-Campo/Backup/Simplificado/Corteva (p00001)/Area (a00001)/Maquina (m00001)/Limpeza (t00001)", "_tarefa.json", 50) ]),
+        no("Operação (t00002)", [
+          arq("APR-Campo/Backup/Simplificado/Corteva (p00001)/Area (a00001)/Maquina (m00001)/Operação (t00002)", "_tarefa.json", 50),
+          { nome:"risco_"+idRisco+".json", pasta:false,
+            caminho:"APR-Campo/Backup/Simplificado/Corteva (p00001)/Area (a00001)/Maquina (m00001)/Operação (t00002)/risco_"+idRisco+".json",
+            tamanho: Buffer.byteLength(conteudoOrfao,"utf8"), __conteudo: conteudoOrfao },
+        ]),
+      ]) ]) ]);
+      const arvore = [projNo];
+      const buscarConteudo = (caminho, no)=>{
+        if(no.caminho === caminho) return no.__conteudo || JSON.stringify(no);
+        for(const f of (no.filhos||[])){ const r = buscarConteudo(caminho, f); if(r) return r; }
+        return null;
+      };
+
+      /* Os nos "_tarefa.json" injetados tem um tamanho de mentira (50) que
+         nunca vai bater com tamanhoTextoLocalDoItem de verdade -- isso e
+         ruido do proprio teste (as tarefas nao sao o que se quer provar
+         aqui), entao a contagem que importa e SO A DO RISCO. */
+      let ultimaContagem = -1, estabilizouEm = -1;
+      for(let ciclo = 1; ciclo <= 6; ciclo++){
+        ctx.__arv = arvore;
+        const cls = vm.runInContext("onedriveClassificarNovosSimples(__arv)", ctx);
+        const doRisco = cls.pequenos.filter(d => d.tipo === "risco");
+        if(ciclo >= 4){ eq(doRisco.length, 0, "ciclo " + ciclo + " ainda propos o risco — fila sem fim"); }
+        for(const d of cls.pequenos){
+          const texto = buscarConteudo(d.caminho, projNo);
+          if(!texto) continue;
+          ctx.__d = d; ctx.__dados = JSON.parse(texto);
+          // DE PROPOSITO sem "else onedriveMarcarJaExistente" -- e exatamente
+          // o que onedriveDeltaProcessarFila faz hoje, e e o cenario que so
+          // a correcao de hoje (dentro de onedriveMesclarItemNovo) cobre.
+          vm.runInContext("onedriveMesclarItemNovo(__d, __dados)", ctx);
+        }
+        if(doRisco.length === 0 && estabilizouEm < 0) estabilizouEm = ciclo;
+        ultimaContagem = doRisco.length;
+      }
+      ok(estabilizouEm > 0 && estabilizouEm <= 3, "nao estabilizou dentro de 3 ciclos (estabilizou em " + estabilizouEm + ")");
+
+      const tarefasFinais = vm.runInContext("STATE.projetosSimples[0].areas[0].maquinas[0].tarefas.map(t=>t.riscos.map(r=>r.id))", ctx);
+      const total_ocorrencias = tarefasFinais.flat().filter(id=>id===idRisco).length;
+      eq(total_ocorrencias, 1, "o risco duplicou ou sumiu: " + JSON.stringify(tarefasFinais));
+    });
+
+    t("sem a checagem de orfao no classificador, o mesmo caso NAO estabiliza (prova que o teste acima testa algo de verdade)", ()=>{
+      /* Mesmo cenario do teste anterior, mas rodando uma copia do
+         classificador com a linha da correcao arrancada -- exatamente o
+         comportamento antigo. Se este teste tambem passasse, o teste
+         anterior não estaria provando nada. */
+      const original = funcao("onedriveClassificarNovosSimples");
+      ok(original.indexOf("if(riscoOrfaoConhecido(arq.caminho, arq.tamanho)) continue;") > 0,
+         "a linha da correcao nao foi encontrada no classificador — o teste de controle não se aplica mais");
+      const semCorrecao = original
+        .replace("if(riscoOrfaoConhecido(arq.caminho, arq.tamanho)) continue;", "/* checagem removida de propósito neste teste de controle */")
+        .replace("function onedriveClassificarNovosSimples", "function onedriveClassificarSemCorrecao");
+      vm.runInContext(semCorrecao, ctx);
+
+      const idRisco = "r_dup_2";
+      ctx.STATE = { projetosSimples: arv([
+          { id:"t00001", tarefa:"Limpeza", tarefaOutro:"", riscos:[ { id:idRisco, nome:"Risco", descricao:"x", foto:null, fotosOutras:[], criadoEm:1, atualizadoEm:100 } ] },
+          { id:"t00002", tarefa:"Operação", tarefaOutro:"", riscos:[] },
+        ]), oneDriveAssinaturasSimples:{}, oneDrivePendentes:[] };
+      vm.runInContext("__assinaturasOneDriveSimples.mapa = null;", ctx);
+      const conteudoOrfao = JSON.stringify({ id:idRisco, nome:"Risco", descricao:"bem mais longa para dar tamanho diferente do original que ja existe aqui localmente", foto:null, fotosOutras:[], criadoEm:1, atualizadoEm:50 });
+      const caminhoT1 = "APR-Campo/Backup/Simplificado/Corteva (p00001)/Area (a00001)/Maquina (m00001)/Limpeza (t00001)";
+      const caminhoT2 = "APR-Campo/Backup/Simplificado/Corteva (p00001)/Area (a00001)/Maquina (m00001)/Operação (t00002)";
+      const projNo = no("Corteva (p00001)", [ no("Area (a00001)", [ no("Maquina (m00001)", [
+        no("Limpeza (t00001)", [ arq(caminhoT1, "_tarefa.json", 50) ]),
+        no("Operação (t00002)", [ arq(caminhoT2, "_tarefa.json", 50),
+          { nome:"risco_"+idRisco+".json", pasta:false, caminho: caminhoT2+"/risco_"+idRisco+".json",
+            tamanho: Buffer.byteLength(conteudoOrfao,"utf8"), __conteudo: conteudoOrfao },
+        ]),
+      ]) ]) ]);
+      const buscarConteudo = (caminho, no)=>{
+        if(no.caminho === caminho) return no.__conteudo || null;
+        for(const f of (no.filhos||[])){ const r = buscarConteudo(caminho, f); if(r) return r; }
+        return null;
+      };
+      let total = -1;
+      for(let ciclo = 1; ciclo <= 5; ciclo++){
+        ctx.__arv = [projNo];
+        const cls = vm.runInContext("onedriveClassificarSemCorrecao(__arv)", ctx);
+        total = cls.pequenos.length + cls.grandes.length;
+        for(const d of cls.pequenos){
+          const texto = buscarConteudo(d.caminho, projNo);
+          if(!texto) continue;
+          ctx.__d = d; ctx.__dados = JSON.parse(texto);
+          vm.runInContext("onedriveMesclarItemNovo(__d, __dados)", ctx);
+        }
+      }
+      ok(total > 0, "o comportamento SEM a correcao deveria continuar propondo o orfao (prova que o teste anterior testa algo de verdade)");
     });
   }
 

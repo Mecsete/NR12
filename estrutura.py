@@ -2173,12 +2173,13 @@ chk("os quatro niveis pulam as duplicatas",
     and novo.count("if(pularArea.has(nodeArea)) continue;") == 1
     and novo.count("if(pularMaq.has(nodeMaq)) continue;") == 1
     and novo.count("if(pularTar.has(nodeTar)) continue;") == 1)
-# 1 definicao + 4 usos + 1 mencao no comentario que explica o porque.
-# NADA e apagado da nuvem: as copias continuam la, intactas -- so param de
-# ser lidas. O ensaio 24 do banco.js cobra isso de verdade, conferindo que a
-# classificacao nao propoe nenhum item vindo da pasta parada.
+# 1 definicao + 4 usos + mencoes em comentarios (o numero exato de mencoes em
+# texto explicativo nao e o que importa aqui -- por isso o piso, nao a
+# igualdade). NADA e apagado da nuvem: as copias continuam la, intactas --
+# so param de ser lidas. O ensaio 24 do banco.js cobra isso de verdade,
+# conferindo que a classificacao nao propoe nenhum item vindo da pasta parada.
 chk("a escolha e usada nos quatro niveis, e nada e apagado",
-    novo.count("onedriveDuplicatasParaIgnorar") == 6
+    novo.count("onedriveDuplicatasParaIgnorar") >= 6
     and "NADA é apagado da nuvem" in novo)
 
 print("\n=== 78. A FRASE DO RISCO MONTADA DOS QUATRO CAMPOS ===")
@@ -2240,6 +2241,38 @@ chk("a trava e consultada ANTES de enviar, nao depois",
     _f79 > 0 and _e79 > _f79)
 chk("bloqueio deixa o motivo no historico, nao some em silencio",
     "não enviado: o arquivo na nuvem é bem maior" in novo)
+
+print("\n=== 80. RISCO COM O MESMO ID EM DUAS TAREFAS NAO GERA FILA SEM FIM ===")
+# Achado rodando o classificador REAL contra a nuvem real do usuario: 60
+# riscos com o mesmo id em duas tarefas (risco movido -- ou copiado por
+# engano -- de uma tarefa de verdade para outra, copia antiga nunca
+# removida). A classificacao so pergunta "esta na tarefa ATUAL?" -- nao sabe
+# que ja existe em outra. A mesclagem sabe (via __moverItemEntrePais) e
+# recusa, mas recusar nao deixava rastro: a classificacao "esquecia" no
+# ciclo seguinte, para sempre.
+chk("existem os tres helpers do risco orfao",
+    novo.count("function __itemExisteAlgumLugar(") == 1
+    and novo.count("function riscoOrfaoConhecido(") == 1
+    and novo.count("function marcarRiscoOrfaoConhecido(") == 1)
+chk("__itemExisteAlgumLugar reaproveita __listasIrmasDe (mesma nocao de 'irmaos')",
+    "for(const lista of __listasIrmasDe(tipo)){" in novo
+    and "if(lista.some(x=>x && x.id===id)) return true;" in novo)
+chk("a mesclagem marca o orfao SEM depender do motivo exato da recusa",
+    "if(!inseriu && descritor.tipo===\"risco\" && dados && dados.id && descritor.caminho" in novo
+    and '__itemExisteAlgumLugar("risco", dados.id)){' in novo
+    and "marcarRiscoOrfaoConhecido(descritor.caminho, descritor.tamanho);" in novo)
+_ini80 = novo.find("function onedriveMesclarItemNovo(descritor, dados){")
+_fim80 = novo.find("\n  const chaveFotos = descritor.chaveAssinatura", _ini80)
+chk("a marcacao mora DENTRO de onedriveMesclarItemNovo -- vale para os 6 pontos que a chamam, incluindo o que nao tinha protecao nenhuma (onedriveDeltaProcessarFila)",
+    novo.count("function onedriveMesclarItemNovo(descritor, dados){") == 1
+    and _ini80 > 0 and _fim80 > _ini80
+    and "marcarRiscoOrfaoConhecido(descritor.caminho, descritor.tamanho);" in novo[_ini80:_fim80])
+chk("o classificador consulta o orfao conhecido antes de propor o risco de novo",
+    "if(riscoOrfaoConhecido(arq.caminho, arq.tamanho)) continue;" in novo)
+chk("chave keyed por CAMINHO + TAMANHO -- muda de tamanho, e conferido de novo (chance de 'movido de verdade, desta vez')",
+    "return !!(mapa && mapa[caminho] === tamanho);" in novo)
+chk("o cache de orfaos fica fora do backup exportado",
+    '"oneDriveRiscosOrfaosConhecidos"' in novo and "__BACKUP_CAMPOS_EXCLUIR" in novo)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
