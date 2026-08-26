@@ -1970,7 +1970,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "26/08/2026 09:12";
+const APP_BUILD = "26/08/2026 09:24";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -4275,29 +4275,44 @@ async function __recuperarFotosDosPontos(apenasContar, onProgresso, desde){
    sobrescreve foto que já esteja aqui, mesma regra de sempre. */
 async function recuperarFotosPerdidasDaNuvem(onProgresso){
   const alvos = [];
+  /* MESMO ID DUAS VEZES NA ÁRVORE (duplicata estrutural ainda não resolvida)
+     — quando as duas cópias carregam a marca de dano, são o MESMO risco
+     perdido, não dois riscos diferentes. Baixar o pacote da nuvem duas
+     vezes para o mesmo id é trabalho e dado gastos à toa — e, pior, quem
+     olha a barra de progresso vê um número inflado que não corresponde a
+     itens realmente distintos. Só a primeira ocorrência de cada id entra;
+     a segunda fica esperando "Juntar duplicatas" (que já preserva foto no
+     merge) resolver de vez, em vez de tentar as duas pela metade aqui. */
+  const idsJaAlvo = new Set();
+  let duplicadosIgnorados = 0;
+  const adicionar = (alvo) => {
+    if(idsJaAlvo.has(alvo.id)){ duplicadosIgnorados++; return; }
+    idsJaAlvo.add(alvo.id);
+    alvos.push(alvo);
+  };
   (STATE.projetosSimples||[]).forEach(proj=>{
     const segProj = segmentoPastaComId(proj.empresa || proj.nome || "Projeto", proj.id);
     (proj.areas||[]).forEach(area=>{
       const segArea = segmentoPastaComId(area.nome || "Área", area.id);
       const caminhoArea = [segProj, segArea];
-      if(area[CAMPO_MARCA_FOTO_PERDIDA]) alvos.push({ id:"area:"+area.id, dados:area, pasta:caminhoArea, arquivo:"_area.json" });
+      if(area[CAMPO_MARCA_FOTO_PERDIDA]) adicionar({ id:"area:"+area.id, dados:area, pasta:caminhoArea, arquivo:"_area.json" });
       (area.maquinas||[]).forEach(maquina=>{
         const segMaquina = segmentoPastaComId(nomeMaquinaS(maquina) || "Máquina", maquina.id);
         const caminhoMaquina = [...caminhoArea, segMaquina];
-        if(maquina[CAMPO_MARCA_FOTO_PERDIDA]) alvos.push({ id:"maquina:"+maquina.id, dados:maquina, pasta:caminhoMaquina, arquivo:"_maquina.json" });
+        if(maquina[CAMPO_MARCA_FOTO_PERDIDA]) adicionar({ id:"maquina:"+maquina.id, dados:maquina, pasta:caminhoMaquina, arquivo:"_maquina.json" });
         (maquina.tarefas||[]).forEach(tarefa=>{
           const tarefaTxt = tarefa.tarefa===OUTRO ? tarefa.tarefaOutro : tarefa.tarefa;
           const segTarefa = segmentoPastaComId(tarefaTxt || "Tarefa", tarefa.id);
           const caminhoTarefa = [...caminhoMaquina, segTarefa];
-          if(tarefa[CAMPO_MARCA_FOTO_PERDIDA]) alvos.push({ id:"tarefa:"+tarefa.id, dados:tarefa, pasta:caminhoTarefa, arquivo:"_tarefa.json" });
+          if(tarefa[CAMPO_MARCA_FOTO_PERDIDA]) adicionar({ id:"tarefa:"+tarefa.id, dados:tarefa, pasta:caminhoTarefa, arquivo:"_tarefa.json" });
           (tarefa.riscos||[]).forEach(risco=>{
-            if(risco[CAMPO_MARCA_FOTO_PERDIDA]) alvos.push({ id:"risco:"+risco.id, dados:risco, pasta:caminhoTarefa, arquivo:`risco_${risco.id}.json` });
+            if(risco[CAMPO_MARCA_FOTO_PERDIDA]) adicionar({ id:"risco:"+risco.id, dados:risco, pasta:caminhoTarefa, arquivo:`risco_${risco.id}.json` });
           });
         });
       });
     });
   });
-  const res = { itens: alvos.length, recuperados: 0, semNadaNaNuvem: 0 };
+  const res = { itens: alvos.length, recuperados: 0, semNadaNaNuvem: 0, duplicadosIgnorados };
   if(alvos.length === 0) return res;
   /* PROJETO GRANDE PODE TER CENTENAS DE ITENS MARCADOS — cada um é uma
      chamada de rede. Sem isto, uma interrupção no meio (tela apagou, app foi
@@ -16967,7 +16982,8 @@ Devolver agora?`)) return;
       devolvidas += rn.recuperados;
       const msgNuvem = rn.itens === 0 ? "" :
         ` Direto na nuvem: ${rn.recuperados} de ${rn.itens} item${rn.itens===1?'':'s'} ainda danificado${rn.itens===1?'':'s'} recuperado${rn.recuperados===1?'':'s'}` +
-        (rn.semNadaNaNuvem ? `, ${rn.semNadaNaNuvem} sem nada na nuvem — essa(s) é perda de verdade, só refotografando.` : ".");
+        (rn.semNadaNaNuvem ? `, ${rn.semNadaNaNuvem} sem nada na nuvem — essa(s) é perda de verdade, só refotografando.` : ".") +
+        (rn.duplicadosIgnorados ? ` (${rn.duplicadosIgnorados} não entraram na conta por serem duplicata do mesmo item — resolva com "Juntar duplicatas" e tente de novo.)` : "");
       const msgParado = progressoCancelado() ? " Parado a seu pedido — o que já tinha voltado continua salvo; toque de novo para continuar." : "";
       __ultimaRecuperacaoFotos = { erro:false, mensagem: msgLocal + msgNuvem + msgParado };
       toast(devolvidas + " foto(s) devolvida(s) no total");

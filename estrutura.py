@@ -2326,6 +2326,8 @@ chk("o botao de sempre chama as DUAS fontes em sequencia, sem botao novo",
     novo.count('onclick="App.recuperarFotosPerdidas(7)"') == 1
     and novo.count('onclick="App.recuperarFotosPerdidas(0)"') == 1
     and "await recuperarFotosPerdidasDaNuvem(" in novo)
+chk("item duplicado (mesma id em duas posicoes) so baixa o pacote da nuvem UMA vez",
+    "if(idsJaAlvo.has(alvo.id)){ duplicadosIgnorados++; return; }" in novo)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")

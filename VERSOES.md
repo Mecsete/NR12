@@ -64,6 +64,24 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 26/08/2026 09:24
+
+**A busca de fotos na nuvem não baixa mais o mesmo pacote duas vezes quando
+o item está duplicado na árvore.**
+
+Sugestão de quem estava acompanhando a recuperação em campo: se o mesmo
+item existe em duas posições da árvore (duplicata ainda não resolvida) e as
+duas cópias estão marcadas como danificadas, é o **mesmo** item perdido, não
+dois — baixar o pacote da nuvem duas vezes gastava rede à toa e inflava o
+número mostrado na barra de progresso.
+
+Agora conta e baixa cada id uma única vez; a mensagem final avisa quantos
+itens foram ignorados por esse motivo e recomenda resolver com "Juntar
+duplicatas" antes de rodar de novo — que aí sim junta as duas cópias em
+uma só, permanentemente.
+
+---
+
 ## 26/08/2026 09:12
 
 **"Devolver fotos" ganhou barra de progresso de verdade, com botão "Parar"

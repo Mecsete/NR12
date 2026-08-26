@@ -1337,6 +1337,34 @@ async function rodarAteParar(ap, maxCiclos, rotulo){
       checar("o que JA tinha voltado antes de parar continua salvo (nada foi desfeito)",
         r3.recuperados >= 1, "recuperados=" + r3.recuperados);
     }
+
+    /* Sugestao do usuario: se o mesmo item esta duplicado na arvore (ainda
+       nao resolvido por "Juntar duplicatas") e as duas copias tem a marca
+       de dano, e o MESMO item perdido, nao dois -- baixar o pacote da
+       nuvem duas vezes so gasta rede e infla o numero na barra de progresso
+       a toa. */
+    {
+      const nuvem4 = novaNuvem();
+      const A4 = novoAparelho("A4", nuvem4);
+      A4.ctx.STATE.projetosSimples = [arvoreExemplo(2, 1, 1, 0, false)];
+      const idMaquina4 = vm.runInContext(`STATE.projetosSimples[0].areas[0].maquinas[0].id`, A4.ctx);
+      vm.runInContext(`STATE.projetosSimples[0].areas[0].maquinas[0].fotoGeral = "data:image/jpeg;base64,"+"G".repeat(300);
+        STATE.projetosSimples[0].areas[0].maquinas[0].atualizadoEm = 1750000000000;`, A4.ctx);
+      await rodarAteParar(A4, 8);
+      // Marca as DUAS copias (original + a que sera duplicada) como perdidas.
+      vm.runInContext(`STATE.projetosSimples[0].areas[0].maquinas[0].fotoGeral = null;
+        STATE.projetosSimples[0].areas[0].maquinas[0].__fotosPerdidas = true;
+        STATE.projetosSimples[0].areas[1].maquinas.push({
+          id:"${idMaquina4}", nome:"Maquina 0", tarefas:[], fotoGeral:null, __fotosPerdidas:true,
+          criadoEm:1750000000000, atualizadoEm:1750000005000
+        });`, A4.ctx);
+      const r4 = await vm.runInContext("recuperarFotosPerdidasDaNuvem(null)", A4.ctx);
+      checar("conta o item danificado UMA vez so, mesmo duplicado em duas posicoes",
+        r4.itens === 1, "itens=" + r4.itens);
+      checar("reporta a duplicata ignorada, em vez de baixar o mesmo pacote duas vezes",
+        r4.duplicadosIgnorados === 1, "duplicadosIgnorados=" + r4.duplicadosIgnorados);
+      checar("mesmo assim recupera a copia que processou", r4.recuperados === 1, "recuperados=" + r4.recuperados);
+    }
   }
 
   console.log("\n" + L);
