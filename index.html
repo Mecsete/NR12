@@ -1970,7 +1970,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "26/08/2026 10:07";
+const APP_BUILD = "26/08/2026 12:20";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -2744,6 +2744,7 @@ function separarFotosDoItem(dados){
   }
   delete semFotos.__fotosAtualizar; // marca interna de "o pacote mudou" — não faz sentido viajar para a nuvem
   delete semFotos.__fotosPerdidas;  // marca local de dano — é deste aparelho, não do item
+  delete semFotos.__fotoNuvemVerificadaEm; // carimbo local de "já conferi a nuvem" — idem
   if(tinhaFotos) semFotos.__fotosOmitidas = true;
   return { semFotos, soFotos, tinhaFotos };
 }
@@ -4284,9 +4285,24 @@ async function recuperarFotosPerdidasDaNuvem(onProgresso){
      a segunda fica esperando "Juntar duplicatas" (que já preserva foto no
      merge) resolver de vez, em vez de tentar as duas pela metade aqui. */
   const idsJaAlvo = new Set();
-  let duplicadosIgnorados = 0;
+  let duplicadosIgnorados = 0, jaVerificadosRecentemente = 0;
+  /* JÁ FOI CHECADO NA NUVEM RECENTEMENTE, E NÃO TINHA NADA — não repete a
+     mesma chamada de rede à toa a cada vez que o botão é tocado de novo.
+     Achado em campo: um projeto com 218 itens marcados ficava do mesmo
+     tamanho a cada rodada, porque nada registrava "isto aqui já foi
+     conferido" — cada toque em "Devolver fotos" refazia as MESMAS 218
+     chamadas, mesmo para os itens que a rodada anterior já tinha confirmado
+     sem nada na nuvem. A marca de dano (CAMPO_MARCA_FOTO_PERDIDA) continua
+     de pé — ela protege contra reenvio, não é sobre "já conferi" — só
+     ganhou uma companheira, com validade curta, que existe só para isto. */
+  const VERIFICACAO_NUVEM_VALIDADE_MS = 24*60*60*1000;
+  const foiVerificadoRecentemente = (obj) => {
+    const ts = obj.__fotoNuvemVerificadaEm;
+    return typeof ts === "number" && (Date.now() - ts) < VERIFICACAO_NUVEM_VALIDADE_MS;
+  };
   const adicionar = (alvo) => {
     if(idsJaAlvo.has(alvo.id)){ duplicadosIgnorados++; return; }
+    if(foiVerificadoRecentemente(alvo.dados)){ jaVerificadosRecentemente++; return; }
     idsJaAlvo.add(alvo.id);
     alvos.push(alvo);
   };
@@ -4312,7 +4328,7 @@ async function recuperarFotosPerdidasDaNuvem(onProgresso){
       });
     });
   });
-  const res = { itens: alvos.length, recuperados: 0, semNadaNaNuvem: 0, duplicadosIgnorados };
+  const res = { itens: alvos.length, recuperados: 0, semNadaNaNuvem: 0, duplicadosIgnorados, jaVerificadosRecentemente };
   if(alvos.length === 0) return res;
   /* PROJETO GRANDE PODE TER CENTENAS DE ITENS MARCADOS — cada um é uma
      chamada de rede. Sem isto, uma interrupção no meio (tela apagou, app foi
@@ -4344,7 +4360,7 @@ async function recuperarFotosPerdidasDaNuvem(onProgresso){
       const texto = await onedriveBaixarTexto(caminho);
       let pacote = null;
       if(texto){ try{ pacote = JSON.parse(texto); }catch(e){ pacote = null; } }
-      if(!pacote){ res.semNadaNaNuvem++; }
+      if(!pacote){ res.semNadaNaNuvem++; alvo.dados.__fotoNuvemVerificadaEm = Date.now(); }
       else{
         let mexeu = false;
         for(const campo of CAMPOS_FOTO_UNICA){
@@ -4362,9 +4378,11 @@ async function recuperarFotosPerdidasDaNuvem(onProgresso){
              risco em liberar o envio de novo: subir agora não apaga nada que
              a própria nuvem já não soubesse. */
           delete alvo.dados[CAMPO_MARCA_FOTO_PERDIDA];
+          delete alvo.dados.__fotoNuvemVerificadaEm;
           marcarFotosPendentesParaEnvio(alvo.id);
         } else {
           res.semNadaNaNuvem++;
+          alvo.dados.__fotoNuvemVerificadaEm = Date.now();
         }
       }
       feito++;
@@ -17019,10 +17037,11 @@ Devolver agora?`)) return;
         });
       }
       devolvidas += rn.recuperados;
-      const msgNuvem = rn.itens === 0 ? "" :
+      const msgNuvem = (rn.itens === 0 ? "" :
         ` Direto na nuvem: ${rn.recuperados} de ${rn.itens} item${rn.itens===1?'':'s'} ainda danificado${rn.itens===1?'':'s'} recuperado${rn.recuperados===1?'':'s'}` +
         (rn.semNadaNaNuvem ? `, ${rn.semNadaNaNuvem} sem nada na nuvem — essa(s) é perda de verdade, só refotografando.` : ".") +
-        (rn.duplicadosIgnorados ? ` (${rn.duplicadosIgnorados} não entraram na conta por serem duplicata do mesmo item — resolva com "Juntar duplicatas" e tente de novo.)` : "");
+        (rn.duplicadosIgnorados ? ` (${rn.duplicadosIgnorados} não entraram na conta por serem duplicata do mesmo item — resolva com "Juntar duplicatas" e tente de novo.)` : "")) +
+        (rn.jaVerificadosRecentemente ? ` (${rn.jaVerificadosRecentemente} não foram checados de novo — já tinham sido conferidos na nuvem nas últimas 24h, sem nada lá.)` : "");
       const msgParado = progressoCancelado() ? " Parado a seu pedido — o que já tinha voltado continua salvo; toque de novo para continuar." : "";
       __ultimaRecuperacaoFotos = { erro:false, mensagem: msgLocal + msgNuvem + msgParado };
       toast(devolvidas + " foto(s) devolvida(s) no total");

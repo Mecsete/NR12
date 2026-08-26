@@ -64,6 +64,26 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 26/08/2026 12:20
+
+**"Devolver fotos" não confere mais na nuvem, de novo, um item que já foi
+checado há pouco tempo.**
+
+Achado em campo: um projeto com 218 itens marcados como danificados
+continuava mostrando 218 a cada nova rodada, mesmo os que a rodada anterior
+já tinha confirmado sem nada na nuvem — nada registrava "isto aqui já foi
+conferido", então cada toque no botão refazia as mesmas centenas de
+chamadas de rede.
+
+Agora, quando um item é checado e a nuvem não tem nada para ele, isso fica
+registrado por 24 horas — nas próximas rodadas desse período, ele é pulado
+sem gastar rede, e a mensagem final avisa quantos foram pulados por esse
+motivo. Passadas as 24h, volta a ser conferido normalmente (para o caso de
+a foto aparecer na nuvem depois, vinda de outro aparelho). Assim que algo é
+encontrado, essa marca sai — a foto recuperada é tratada normalmente.
+
+---
+
 ## 26/08/2026 10:07
 
 **Novo botão: "Copiar lista dos itens que ainda precisam de foto".**

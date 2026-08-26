@@ -2347,6 +2347,24 @@ chk("o botao copia para a area de transferencia, com o mesmo padrao do diagnosti
     and "async copiarListaFotoPerdida(){" in novo
     and novo.count("await navigator.clipboard.writeText(txt);") == 2)
 
+print("\n=== 85. NAO RECONFERE NA NUVEM UM ITEM JA CHECADO HA POUCO ===")
+# Achado em campo: projeto com 218 itens marcados continuava em 218 a cada
+# nova rodada -- nada registrava "isto ja foi conferido", entao cada toque
+# em "Devolver fotos" refazia as MESMAS chamadas de rede para itens que a
+# rodada anterior ja tinha confirmado sem nada na nuvem. A marca de dano
+# (CAMPO_MARCA_FOTO_PERDIDA) continua de pe -- ela protege contra reenvio,
+# nao e sobre "ja conferi" -- ganhou uma companheira com validade de 24h.
+chk("guarda quando um item foi conferido na nuvem sem achar nada",
+    "alvo.dados.__fotoNuvemVerificadaEm = Date.now();" in novo
+    and novo.count("alvo.dados.__fotoNuvemVerificadaEm") >= 2)
+chk("pula quem foi conferido ha menos de 24h, sem gastar chamada de rede",
+    "const VERIFICACAO_NUVEM_VALIDADE_MS = 24*60*60*1000;" in novo
+    and "if(foiVerificadoRecentemente(alvo.dados)){ jaVerificadosRecentemente++; return; }" in novo)
+chk("quando acha algo, tira o carimbo de verificacao (nao faz mais sentido)",
+    "delete alvo.dados.__fotoNuvemVerificadaEm;" in novo)
+chk("o carimbo local nunca viaja para a nuvem, mesma regra dos outros marcadores locais",
+    "delete semFotos.__fotoNuvemVerificadaEm; // carimbo local de \"já conferi a nuvem\" — idem" in novo)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

@@ -1365,6 +1365,44 @@ async function rodarAteParar(ap, maxCiclos, rotulo){
         r4.duplicadosIgnorados === 1, "duplicadosIgnorados=" + r4.duplicadosIgnorados);
       checar("mesmo assim recupera a copia que processou", r4.recuperados === 1, "recuperados=" + r4.recuperados);
     }
+
+    /* Achado em campo: um projeto com 218 itens marcados continuava com 218
+       a cada nova rodada, mesmo os ja checados e confirmados sem nada na
+       nuvem. Prova que a segunda rodada, na hora seguinte, NAO refaz a
+       chamada de rede para quem ja foi conferido -- e que, passado tempo
+       suficiente (aqui simulado voltando o relogio do carimbo), volta a
+       conferir normalmente. */
+    {
+      const nuvem5 = novaNuvem();
+      const A5 = novoAparelho("A5", nuvem5);
+      A5.ctx.STATE.projetosSimples = [arvoreExemplo(1, 1, 1, 1, false)];
+      await rodarAteParar(A5, 8);
+      // Marca o risco como danificado, e a nuvem nao tem nada para ele
+      // (nunca teve foto -- fotos_risco_x.json nunca existiu).
+      vm.runInContext(`STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos[0].__fotosPerdidas = true;`, A5.ctx);
+      let chamadasReais = 0;
+      const baixarOriginal = A5.ctx.onedriveBaixarTexto;
+      A5.ctx.onedriveBaixarTexto = async (c) => { chamadasReais++; return baixarOriginal(c); };
+
+      const r5a = await vm.runInContext("recuperarFotosPerdidasDaNuvem(null)", A5.ctx);
+      checar("primeira rodada: conferiu o item (nao tinha nada na nuvem)",
+        r5a.itens === 1 && r5a.semNadaNaNuvem === 1, "itens=" + r5a.itens + " semNadaNaNuvem=" + r5a.semNadaNaNuvem);
+      checar("primeira rodada: chamou a nuvem UMA vez", chamadasReais === 1, "chamadas=" + chamadasReais);
+
+      const r5b = await vm.runInContext("recuperarFotosPerdidasDaNuvem(null)", A5.ctx);
+      checar("SEGUNDA RODADA LOGO EM SEGUIDA: nao entra na lista de novo (ja foi conferido)",
+        r5b.itens === 0 && r5b.jaVerificadosRecentemente === 1,
+        "itens=" + r5b.itens + " jaVerificadosRecentemente=" + r5b.jaVerificadosRecentemente);
+      checar("O CASO REAL: a segunda rodada NAO gastou outra chamada de rede para o mesmo item",
+        chamadasReais === 1, "chamadas depois da segunda rodada=" + chamadasReais);
+
+      // Passado tempo suficiente (aqui simulado), volta a conferir.
+      vm.runInContext(`STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos[0].__fotoNuvemVerificadaEm = Date.now() - 25*60*60*1000;`, A5.ctx);
+      const r5c = await vm.runInContext("recuperarFotosPerdidasDaNuvem(null)", A5.ctx);
+      checar("passadas 24h, volta a conferir normalmente (nao fica preso para sempre)",
+        r5c.itens === 1, "itens=" + r5c.itens);
+      checar("essa terceira rodada gastou uma nova chamada de rede", chamadasReais === 2, "chamadas=" + chamadasReais);
+    }
   }
 
   console.log("\n" + L);
