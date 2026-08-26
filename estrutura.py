@@ -2393,6 +2393,25 @@ chk("a checagem usa a MESMA funcao que decide se o Salvar carimba o item como al
 chk("abrir so para conferir (sem mudar nada) continua fechando direto, sem gravar nada novo",
     "if(__draftEntity){" in novo and "const semMudanca = listaAlvo && conteudoIgualAoSalvo(listaAlvo, __draftEntity);" in novo)
 
+print("\n=== 87. ZOOM COM PINCA NO VISUALIZADOR DE FOTO ===")
+chk("a funcao de zoom existe e e ligada toda vez que uma foto abre",
+    "function ativarZoomLightbox(lb){" in novo and "ativarZoomLightbox(lb);" in novo)
+chk("pinca de dois dedos amplia (nao so translada)",
+    'if(ev.touches.length === 2){' in novo
+    and "escala = Math.min(ESCALA_MAX, Math.max(ESCALA_MIN, pinçaEscalaInicial * (nova / pinçaDistanciaInicial)));" in novo)
+chk("toque duplo alterna zoom rapido",
+    "if(escala > ESCALA_MIN){ escala = 1; transX = 0; transY = 0; } else { escala = ESCALA_TOQUE_DUPLO; }" in novo)
+chk("fechar com toque simples so acontece no tamanho normal -- nao fecha sem querer ampliado",
+    "if(escala <= ESCALA_MIN){" in novo
+    and "toqueFecharPendente = setTimeout(()=>{ if(document.body.contains(lb)) lb.remove(); }, 320);" in novo)
+chk("o fechamento do primeiro toque e cancelado se um segundo toque vira par (toque duplo nao fecha no meio do gesto)",
+    "clearTimeout(toqueFecharPendente); toqueFecharPendente = null;" in novo)
+chk("fechar tocando fora so conta o toque na propria caixa, nunca um toque na foto que borbulhou",
+    'lb.onclick = (ev)=>{ if(ev.target===lb) lb.remove(); };' in novo)
+chk("a foto nunca foge da tela quando ampliada e arrastada (translacao com limite)",
+    "const limitarTranslacao = () => {" in novo
+    and novo.count("limitarTranslacao();") == 2)  # depois da pinca e depois do arrasto
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

@@ -64,6 +64,23 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 26/08/2026 14:16
+
+**Zoom com pinça ao visualizar fotos.**
+
+Ao abrir qualquer foto em tela cheia (risco, máquina, plaqueta, etc.),
+agora dá para ampliar com dois dedos, e arrastar para navegar pela foto
+ampliada — útil para ler texto pequeno de plaqueta ou examinar detalhe de
+um risco. Toque duplo alterna rapidamente entre o tamanho normal e um
+zoom médio.
+
+O toque simples continua fechando a tela, exatamente como sempre foi —
+mas só quando a foto está no tamanho normal. Ampliada, um toque simples
+não faz nada, de propósito, para não fechar sem querer no meio de um
+exame mais de perto.
+
+---
+
 ## 26/08/2026 13:41
 
 **Sair do formulário sem tocar em "Salvar" agora salva sozinho, em vez de

@@ -288,8 +288,8 @@ details.section .section-body{padding:2px 14px 16px;border-top:1px solid var(--l
 .toast{position:fixed;left:50%;bottom:84px;transform:translateX(-50%) translateY(10px);background:var(--bar);color:#fff;padding:11px 18px;border-radius:999px;font-size:13px;font-weight:700;box-shadow:var(--shadow);opacity:0;transition:opacity .2s, transform .2s;pointer-events:none;z-index:60;display:flex;align-items:center;gap:8px;}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 .toast svg{width:16px;height:16px;color:#7FE08A;flex-shrink:0;}
-.lightbox{position:fixed;inset:0;background:rgba(20,16,10,.92);z-index:80;display:flex;align-items:center;justify-content:center;padding:20px;}
-.lightbox img{max-width:100%;max-height:85vh;border-radius:8px;}
+.lightbox{position:fixed;inset:0;background:rgba(20,16,10,.92);z-index:80;display:flex;align-items:center;justify-content:center;padding:20px;overflow:hidden;}
+.lightbox img{max-width:100%;max-height:85vh;border-radius:8px;touch-action:none;will-change:transform;}
 .lightbox .lb-close{position:absolute;top:18px;right:18px;background:rgba(255,255,255,.12);border:none;color:#fff;width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;}
 .about-box{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px;font-size:13px;color:var(--ink-dim);line-height:1.55;}
 .about-box b{color:var(--ink);}
@@ -1970,7 +1970,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "26/08/2026 13:41";
+const APP_BUILD = "26/08/2026 14:16";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -16966,6 +16966,105 @@ function abrirMenuAcoes(titulo, subtitulo, itens){
 }
 
 /* =========================================================================
+   ZOOM COM PINÇA NO VISUALIZADOR DE FOTO
+
+   Pinça (dois dedos) amplia e reduz; toque duplo alterna zoom rápido;
+   arrastar com um dedo navega quando ampliado. Útil sobretudo para ler
+   placa/plaqueta de equipamento em campo, onde o texto é pequeno.
+
+   Um toque simples continua fechando a tela, exatamente como sempre foi —
+   mas só quando a foto está no tamanho normal (1x). Ampliado, um toque
+   simples não faz nada, de propósito: evita fechar sem querer bem no
+   meio de examinar um detalhe. O botão de fechar (canto superior) sempre
+   funciona, em qualquer zoom.
+   ========================================================================= */
+function ativarZoomLightbox(lb){
+  const img = lb.querySelector("img");
+  if(!img) return;
+  const ESCALA_MIN = 1, ESCALA_MAX = 5, ESCALA_TOQUE_DUPLO = 2.5;
+  let escala = 1, transX = 0, transY = 0;
+  let pinçaDistanciaInicial = 0, pinçaEscalaInicial = 1;
+  let arrastando = false, arrastoOrigemX = 0, arrastoOrigemY = 0, transXInicial = 0, transYInicial = 0;
+  let gestoMoveu = false;
+  let ultimoToqueEm = 0, ultimoToqueX = 0, ultimoToqueY = 0, toqueFecharPendente = null;
+
+  const aplicar = () => { img.style.transform = `translate(${transX}px, ${transY}px) scale(${escala})`; };
+  /* Não deixa a foto "fugir" da tela quando ampliada e arrastada demais —
+     sempre sobra pelo menos a borda dela visível, de qualquer lado. */
+  const limitarTranslacao = () => {
+    const excedeX = Math.max(0, (img.clientWidth * escala - img.clientWidth) / 2);
+    const excedeY = Math.max(0, (img.clientHeight * escala - img.clientHeight) / 2);
+    transX = Math.min(excedeX, Math.max(-excedeX, transX));
+    transY = Math.min(excedeY, Math.max(-excedeY, transY));
+  };
+  const distancia = (t1, t2) => Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+
+  img.addEventListener("touchstart", (ev)=>{
+    gestoMoveu = false;
+    if(ev.touches.length === 2){
+      ev.preventDefault();
+      arrastando = false;
+      pinçaDistanciaInicial = distancia(ev.touches[0], ev.touches[1]);
+      pinçaEscalaInicial = escala;
+    } else if(ev.touches.length === 1 && escala > ESCALA_MIN){
+      arrastando = true;
+      arrastoOrigemX = ev.touches[0].clientX; arrastoOrigemY = ev.touches[0].clientY;
+      transXInicial = transX; transYInicial = transY;
+    }
+  }, {passive:false});
+
+  img.addEventListener("touchmove", (ev)=>{
+    if(ev.touches.length === 2 && pinçaDistanciaInicial > 0){
+      ev.preventDefault();
+      gestoMoveu = true;
+      const nova = distancia(ev.touches[0], ev.touches[1]);
+      escala = Math.min(ESCALA_MAX, Math.max(ESCALA_MIN, pinçaEscalaInicial * (nova / pinçaDistanciaInicial)));
+      limitarTranslacao();
+      aplicar();
+    } else if(arrastando && ev.touches.length === 1){
+      ev.preventDefault();
+      const dx = ev.touches[0].clientX - arrastoOrigemX, dy = ev.touches[0].clientY - arrastoOrigemY;
+      if(Math.abs(dx) > 4 || Math.abs(dy) > 4) gestoMoveu = true;
+      transX = transXInicial + dx; transY = transYInicial + dy;
+      limitarTranslacao();
+      aplicar();
+    }
+  }, {passive:false});
+
+  const finalizarToque = (ev)=>{
+    if(ev.touches.length > 0) return; // ainda tem dedo na tela — só termina quando soltar todos
+    arrastando = false;
+    pinçaDistanciaInicial = 0;
+    if(escala < ESCALA_MIN + 0.02){ escala = 1; transX = 0; transY = 0; aplicar(); }
+    if(gestoMoveu) return; // foi arrasto ou pinça, não uma batida simples — não conta como toque
+    const agora = Date.now();
+    const x = ev.changedTouches[0].clientX, y = ev.changedTouches[0].clientY;
+    const foiToqueDuplo = (agora - ultimoToqueEm) < 320 && distancia({clientX:ultimoToqueX,clientY:ultimoToqueY}, {clientX:x,clientY:y}) < 40;
+    if(foiToqueDuplo){
+      /* O PRIMEIRO toque do par já tinha agendado um fechamento (mais
+         abaixo) — sem cancelar aqui, a tela fechava sozinha bem no meio
+         do gesto de toque duplo, antes de o zoom ter chance de acontecer. */
+      clearTimeout(toqueFecharPendente); toqueFecharPendente = null;
+      ultimoToqueEm = 0; // consome o par — a próxima batida começa uma contagem nova, não vira um terceiro toque
+      if(escala > ESCALA_MIN){ escala = 1; transX = 0; transY = 0; } else { escala = ESCALA_TOQUE_DUPLO; }
+      aplicar();
+    } else {
+      ultimoToqueEm = agora; ultimoToqueX = x; ultimoToqueY = y;
+      /* NÃO FECHA NA HORA — espera o prazo do toque duplo primeiro. Sem
+         isto, o primeiro toque de QUALQUER toque duplo (a forma normal de
+         ampliar) fechava a tela antes do segundo toque conseguir chegar,
+         e o zoom por toque duplo nunca funcionava de verdade. */
+      if(escala <= ESCALA_MIN){
+        clearTimeout(toqueFecharPendente);
+        toqueFecharPendente = setTimeout(()=>{ if(document.body.contains(lb)) lb.remove(); }, 320);
+      }
+    }
+  };
+  img.addEventListener("touchend", finalizarToque);
+  img.addEventListener("touchcancel", finalizarToque);
+}
+
+/* =========================================================================
    API PÚBLICA (App.*)
    ========================================================================= */
 const App = {
@@ -18809,8 +18908,14 @@ Devolver agora?`)) return;
     const lb = document.createElement("div");
     lb.className = "lightbox";
     lb.innerHTML = `<button class="lb-close">${ic('close')}</button><img src="${src}">`;
-    lb.onclick = ()=>lb.remove();
+    /* Fecha ao tocar no FUNDO (a própria caixa, fora da foto e do botão) —
+       nunca na foto, que agora tem seus próprios gestos (ver
+       ativarZoomLightbox). Checar o alvo exato evita que um toque na foto,
+       que passa por cima ("bubbling"), feche a tela sem querer no meio de
+       um toque duplo. */
+    lb.onclick = (ev)=>{ if(ev.target===lb) lb.remove(); };
     document.body.appendChild(lb);
+    ativarZoomLightbox(lb);
   },
 
   setTabelaScope(scope){ STATE.ui.tabelaScope = scope; render(); },
