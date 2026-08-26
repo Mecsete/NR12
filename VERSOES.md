@@ -64,6 +64,41 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 25/08/2026 22:49
+
+**A causa real da fila que nunca termina.**
+
+Rodei o código de sincronização de verdade contra uma cópia da sua nuvem real
+— não um cenário inventado. Achei: **60 riscos existindo, ao mesmo tempo, em
+duas tarefas diferentes**. Não é arquivo corrompido nem pasta duplicada (isso
+já foi corrigido hoje mais cedo) — é o mesmo risco, com o mesmo identificador,
+morando em duas tarefas de verdade, distintas. Provavelmente um risco movido
+de uma tarefa para outra em algum momento, cuja cópia antiga nunca foi
+removida da nuvem.
+
+O mecanismo: a sincronização, ao olhar uma dessas tarefas, só pergunta "este
+risco está *aqui*?" — não sabe que ele já existe em outro lugar. Propõe
+baixar de novo. Uma parte do código já sabia recusar essa duplicata — mas
+recusar não deixava nenhum rastro, e na sincronização seguinte tudo era
+esquecido. Resultado: os mesmos itens voltando para a fila, ciclo após
+ciclo, sem nunca zerar.
+
+Agora, quando um risco é recusado por já existir em outro lugar, isso fica
+registrado. Enquanto o arquivo da nuvem daquele local específico não mudar de
+tamanho, ele não volta a ser proposto — e volta a ser conferido se um dia
+mudar de verdade (a chance de um "foi movido de verdade, desta vez" ser
+aceito, como já acontece hoje).
+
+Uma nota técnica para registro: o app já tinha uma proteção parecida, só que
+ligada em apenas 2 dos 6 pontos que recebem itens da nuvem — a fila de
+notificações em tempo real (que reage a cada edição feita em outro aparelho)
+era o ponto que ficava desprotegido. A correção de hoje mora dentro da função
+que TODOS os 6 pontos compartilham, então protege todos de uma vez.
+
+Validado rodando o código publicado contra a árvore real do seu OneDrive, do
+zero: antes da correção, a simulação nunca zerava; depois, chega a zero em
+poucas voltas.
+
 ## 25/08/2026 20:08
 
 **A última trava antes de reconectar: nunca trocar um arquivo da nuvem por um
