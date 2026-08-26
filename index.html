@@ -1970,7 +1970,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "26/08/2026 12:48";
+const APP_BUILD = "26/08/2026 13:41";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -7541,7 +7541,7 @@ function formProjetoSHtml(){
       <div class="field" style="margin-bottom:0"><label>Email</label><input type="text" value="${escapeHtml(p.emailCliente||"")}" oninput="App.setDraftField('emailCliente', this.value)"></div>
     </div>` : ""}
 
-    <div class="modal-actions" style="margin-top:14px"><button class="btn btn-secondary" onclick="App.cancelarDraftEntidade()">Cancelar</button>
+    <div class="modal-actions" style="margin-top:14px"><button class="btn btn-secondary" onclick="App.cancelarDraftEntidade()">Fechar</button>
     <button class="btn btn-primary" onclick="App.salvarDraftEntidade()">${ic('check')} Salvar</button></div>
   </div></div>`;
 }
@@ -7552,7 +7552,7 @@ function formAreaSHtml(){
     <div class="field"><label>Nome <span class="req">*</span></label><input type="text" placeholder="Ex.: Recepção de Grãos" value="${escapeHtml(a.nome)}" oninput="App.setDraftField('nome', this.value)"></div>
     <div class="field"><label>Descrição da área (opcional)</label><textarea placeholder="Ex.: Área de descarga de grãos a granel, com moega e elevadores de canecas" oninput="App.setDraftField('descricao', this.value)">${escapeHtml(a.descricao||"")}</textarea></div>
     <div class="field" style="margin-bottom:0"><label>Local</label><input type="text" placeholder="Ex.: Galpão 2" value="${escapeHtml(a.local)}" oninput="App.setDraftField('local', this.value)"></div>
-    <div class="modal-actions" style="margin-top:14px"><button class="btn btn-secondary" onclick="App.cancelarDraftEntidade()">Cancelar</button>
+    <div class="modal-actions" style="margin-top:14px"><button class="btn btn-secondary" onclick="App.cancelarDraftEntidade()">Fechar</button>
     <button class="btn btn-primary" onclick="App.salvarDraftEntidade()">${ic('check')} Salvar</button></div>
   </div></div>`;
 }
@@ -7639,7 +7639,7 @@ function formMaquinaSHtml(){
     <div class="field" style="margin-bottom:0;margin-top:14px">
       ${outrasFotosHtml('Outras fotos da máquina', m.fotosOutras)}
     </div>
-    <div class="modal-actions" style="margin-top:14px"><button class="btn btn-secondary" onclick="App.cancelarDraftEntidade()">Cancelar</button>
+    <div class="modal-actions" style="margin-top:14px"><button class="btn btn-secondary" onclick="App.cancelarDraftEntidade()">Fechar</button>
     <button class="btn btn-primary" onclick="App.salvarDraftEntidade()">${ic('check')} Salvar</button></div>
   </div></div>`;
 }
@@ -7669,7 +7669,7 @@ function formTarefaSHtml(){
       <select onchange="App.onDraftSelectChange('frequencia', this.value)">${selectOptions(FREQUENCIA_TAREFA, t.frequencia, true, "Outra (especificar)")}</select>
       ${t.frequencia===OUTRO? `<div class="outro-wrap"><input type="text" placeholder="Especifique a frequência" value="${escapeHtml(t.frequenciaOutro)}" oninput="App.setDraftField('frequenciaOutro', this.value)"></div>`:""}
     </div>
-    <div class="modal-actions" style="margin-top:14px"><button class="btn btn-secondary" onclick="App.cancelarDraftEntidade()">Cancelar</button>
+    <div class="modal-actions" style="margin-top:14px"><button class="btn btn-secondary" onclick="App.cancelarDraftEntidade()">Fechar</button>
     <button class="btn btn-primary" onclick="App.salvarDraftEntidade()">${ic('check')} Salvar</button></div>
   </div></div>`;
 }
@@ -8964,7 +8964,7 @@ function formRiscoSHtml(){
     ${blocoPLrHtml(r, "draft", tarefaCtx)}
     <div class="modal-actions" style="margin-top:14px">
       ${__draftIsExisting()? `<button class="btn btn-danger" onclick="App.removerDraftRisco()">${ic('trash')}</button>`:""}
-      <button class="btn btn-secondary" onclick="App.cancelarDraftEntidade()">Cancelar</button>
+      <button class="btn btn-secondary" onclick="App.cancelarDraftEntidade()">Fechar</button>
       <button class="btn btn-primary" onclick="App.salvarDraftEntidade()">${ic('check')} Salvar</button>
     </div>
   </div></div>`;
@@ -17848,26 +17848,32 @@ Devolver agora?`)) return;
     render(); toast("Risco removido");
   },
   cancelarDraftEntidade(){
-    /* NÃO DESCARTA FOTO EM SILÊNCIO. Antes, tocar fora do cartão (ou em
-       "Cancelar") fechava o formulário na hora, mesmo com fotos tiradas
-       segundos antes — e limpava até o rascunho de emergência junto
-       (limparDraftPersistente), de propósito, achando que era uma decisão
-       consciente. Num toque sem querer na borda da tela — comum em campo,
-       rolando um formulário grande — a foto ia embora sem nenhum rastro:
-       nem marca de dano, nem ponto de restauração, nem cópia na nuvem,
-       porque ela nunca chegou a ser salva em lugar nenhum. Foi assim que
-       fotos de máquinas recém-duplicadas se perderam em 26/08/2026, sem
-       nenhum bug de sincronização por trás — só a falta deste aviso.
-       Item novo (nunca salvo) ou com qualquer campo diferente do que já
-       está gravado pergunta antes; abrir só para conferir e tocar fora
-       continua fechando direto, como sempre foi. */
+    /* NÃO DESCARTA FOTO EM SILÊNCIO — E NEM PERGUNTA: SALVA SOZINHO.
+       Antes, tocar fora do cartão (ou em "Cancelar", que por isso passou a
+       se chamar "Fechar") fechava o formulário na hora, mesmo com fotos
+       tiradas segundos antes — e limpava até o rascunho de emergência
+       junto (limparDraftPersistente), de propósito, achando que era uma
+       decisão consciente. Num toque sem querer na borda da tela — comum em
+       campo, rolando um formulário grande — a foto ia embora sem nenhum
+       rastro: nem marca de dano, nem ponto de restauração, nem cópia na
+       nuvem, porque ela nunca chegou a ser salva em lugar nenhum. Foi
+       assim que fotos de máquinas recém-criadas se perderam em
+       26/08/2026, sem nenhum bug de sincronização por trás — só a falta
+       de um salvamento automático aqui.
+       Uma primeira correção pediu confirmação antes de descartar; o
+       próprio usuário, em campo, pediu para trocar a pergunta por salvar
+       direto — é mais seguro (fecha sem exigir decisão sob pressão) e
+       mais rápido. Cadastro criado por engano continua desfazível depois,
+       pela exclusão normal (com a confirmação de sempre). Abrir só para
+       conferir, sem mudar nada, continua fechando sem gravar nada novo —
+       não carimba, não reenvia foto à toa. */
     if(__draftEntity){
       const listaAlvo = __listaAlvoDoDraft(__draftTipo, __draftParent);
       const semMudanca = listaAlvo && conteudoIgualAoSalvo(listaAlvo, __draftEntity);
-      if(!semMudanca && !confirm("Sair sem salvar? As alterações feitas aqui, incluindo fotos tiradas agora, serão perdidas.")) return;
+      if(!semMudanca){ App.salvarDraftEntidade(); return; }
     }
     __draftEntity=null; __draftParent=null; __draftTipo=null; __modalOnSaved=null; __infoHrnPOAberto=false; __extrasProjetoAberto=false; __extrasMaquinaAberto=false;
-    limparDraftPersistente(); // cancelou de propósito — o rascunho guardado não deve voltar a assombrar na próxima abertura
+    limparDraftPersistente(); // nada para salvar (nada mudou) — o rascunho de emergência também não faz falta
     App.fecharModal();
   },
   salvarDraftEntidade(){

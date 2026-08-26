@@ -64,6 +64,27 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 26/08/2026 13:41
+
+**Sair do formulário sem tocar em "Salvar" agora salva sozinho, em vez de
+perguntar — a pedido de quem estava em campo usando a correção anterior.**
+
+A correção publicada há pouco passou a perguntar "Sair sem salvar?" antes
+de descartar um formulário com foto ou alteração ainda não salva. Funciona,
+mas exige uma decisão bem na hora, sob pressão, em campo. A pedido de quem
+estava testando ao vivo: em vez de perguntar, o app agora **salva
+sozinho** sempre que há algo não salvo — tocar fora do cartão ou no botão
+(que por isso deixou de se chamar "Cancelar" e passou a se chamar
+"Fechar") tem o mesmo efeito de tocar em "Salvar". Abrir um item só para
+conferir, sem mudar nada, continua fechando sem gravar nada novo, como
+sempre foi.
+
+Um cadastro criado ou alterado por engano continua desfazível depois, pela
+exclusão normal (com a confirmação de sempre) — só deixou de ser possível
+"jogar fora" uma edição não salva sem querer.
+
+---
+
 ## 26/08/2026 12:48
 
 **Causa real das fotos de máquinas recém-duplicadas sumindo, sem nenhum bug
