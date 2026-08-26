@@ -64,6 +64,28 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 26/08/2026 00:24
+
+**A Categoria (NBR 14153) parou de aparecer junto do PLr.**
+
+No formulário do risco e no laudo impresso, o resultado da classificação
+mostrava duas informações juntas: o PLr exigido (nível de desempenho,
+NBR ISO 13849-1) e a Categoria estrutural preferencial (NBR 14153). A
+segunda parou de ser exibida.
+
+Motivo: a tabela de correspondência entre PLr e Categoria vem de uma figura
+que é imagem dentro do PDF da NBR 14153, e não foi possível confirmar
+célula a célula com a norma até agora — é a única parte dessa tabela que
+segue com o aviso "A CONFERIR" no código. Já o PLr, que vem do Anexo A da
+NBR ISO 13849-1, foi conferido e continua aparecendo normalmente.
+
+Enquanto essa conferência não acontece, citar a Categoria para um cliente
+é uma afirmação técnica que este projeto ainda não pode garantir. O cálculo
+continua existindo por trás — só a exibição saiu da tela e do PDF. Nada no
+Módulo Completo (a parte congelada do app) foi tocado.
+
+---
+
 ## 25/08/2026 22:49
 
 **A causa real da fila que nunca termina.**

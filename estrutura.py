@@ -2274,6 +2274,24 @@ chk("chave keyed por CAMINHO + TAMANHO -- muda de tamanho, e conferido de novo (
 chk("o cache de orfaos fica fora do backup exportado",
     '"oneDriveRiscosOrfaosConhecidos"' in novo and "__BACKUP_CAMPOS_EXCLUIR" in novo)
 
+print("\n=== 81. CATEGORIA (NBR 14153) SAIU DE PERTO DO PLR ===")
+# A correspondencia PLr -> Categoria preferencial vem da Figura B.1 da NBR
+# 14153, que e IMAGEM dentro do PDF da norma e nao pode ser lida pelo
+# extrator de texto -- e a unica parte do PLR_GRAFICO nao conferida celula a
+# celula (aviso ja existente no proprio codigo). Ate essa conferencia
+# acontecer, a Categoria nao pode ser citada para o cliente. O PLr em si
+# (Anexo A da NBR ISO 13849-1, ja conferido) continua aparecendo.
+chk("o formulario do risco (engenheiro) nao mostra mais a Categoria",
+    "<b>Categoria ${escapeHtml(res.cat)}</b> pela NBR 14153" not in novo
+    and "function plrResultadoHtml(res){" in novo)
+chk("o laudo impresso (PDF/A4) nao mostra mais a Categoria",
+    '<div class="v"><b>PL ${esc(plr.plr)}</b> · Categoria ${esc(plr.cat)}</div>' not in novo
+    and '<div class="v"><b>PL ${esc(plr.plr)}</b></div>' in novo)
+chk("o CALCULO da categoria continua existindo (so a exibicao saiu)",
+    "if(g){ res.plr = g.plr; res.cat = g.cat; }" in novo)
+chk("o Modulo Completo (congelado) nao foi tocado -- continua mostrando Categoria estrutural",
+    'PLr exigido: <b>${m.plr}</b> · Categoria estrutural: <b>${m.cat}</b>' in novo)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

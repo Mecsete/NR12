@@ -1665,11 +1665,17 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(h.indexOf("laudoSetPLr('r9','exposicao'") > 0);
     ok(h.indexOf("laudoSetPLr('r9','evitar'") > 0);
   });
-  t("o resultado aparece com PLr e Categoria juntos", ()=>{
+  t("o resultado aparece com PLr e os parâmetros S·F·P — sem a Categoria", ()=>{
+    /* Categoria saiu da exibição em 26/08/2026: a correspondência PLr→Categoria
+       da Figura B.1 da NBR 14153 é imagem dentro do PDF da norma e ainda não
+       foi conferida célula a célula (mesmo aviso já existente em
+       PLR_GRAFICO). O cálculo de res.cat continua existindo — só não é mais
+       mostrado — então o valor "Categoria 4" que este cenário geraria
+       continua correto internamente, só não aparece na tela. */
     const h = C.blocoPLrHtml({ id:"r1", medidaPropostaTipo:"prot_movel_int", componente:"Correia",
       gpd:"Fatalidade", exposicao:"Mais de 2x por turno", evitar:"Praticamente impossível" }, "draft");
     ok(h.indexOf("PL<span>r</span> e") > 0, "sem o PLr");
-    ok(h.indexOf("Categoria 4") > 0, "sem a categoria");
+    ok(h.indexOf("Categoria") < 0, "a categoria voltou a aparecer, sem ter sido conferida contra a NBR 14153");
     ok(h.indexOf("S2 · F2 · P2") > 0, "sem os parâmetros");
   });
   t("a tela avisa que é o nível REQUERIDO, não o atingido", ()=>{
@@ -3661,8 +3667,25 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(f.indexOf('<div class="lp-rc-hrn">') < f.indexOf('<div class="lp-rc-plr">'), "o PLr precisa vir depois do HRN");
     ok(HTML.indexOf(".lp-rc-plr{flex:0 0 156px;border-left:1px solid #8A8CA3") > 0, "sem a coluna do PLr");
     ok(HTML.indexOf("color:#5B5F7A;white-space:nowrap}") > 0, "o rótulo do PLr voltaria a quebrar em duas linhas");
-    ok(f.indexOf("Função de segurança (PLr)") > 0 && f.indexOf("Categoria ${esc(plr.cat)}") > 0,
-       "o rótulo precisa trazer PLr entre parênteses");
+    ok(f.indexOf("Função de segurança (PLr)") > 0, "o rótulo precisa trazer PLr entre parênteses");
+    // A Categoria (NBR 14153, Figura B.1) saiu do laudo impresso em 26/08/2026 —
+    // a correspondência PLr→Categoria dessa figura ainda não foi conferida
+    // célula a célula (é imagem dentro do PDF da norma). O PLr sozinho, do
+    // Anexo A da NBR ISO 13849-1, já foi conferido e continua aparecendo.
+    ok(f.indexOf("<b>PL ${esc(plr.plr)}</b> · Categoria") < 0,
+       "a Categoria voltou a aparecer junto do PLr no laudo impresso, sem ter sido conferida contra a NBR 14153");
+  });
+  t("o formulário do risco (engenheiro) também não mostra mais a Categoria junto do PLr", ()=>{
+    // Checa a saída de verdade (renderizada), não o texto da função — a
+    // função tem um COMENTÁRIO explicando a remoção que cita a palavra
+    // "Categoria" várias vezes, e bater nisso seria um falso positivo.
+    const h = C.blocoPLrHtml({ id:"r1", medidaPropostaTipo:"prot_movel_int", componente:"Correia",
+      gpd:"Fatalidade", exposicao:"Mais de 2x por turno", evitar:"Praticamente impossível" }, "draft");
+    ok(h.indexOf("PL<span>r</span>") > 0, "sumiu o próprio PLr — foi longe demais");
+    ok(h.indexOf("Categoria") < 0 && h.indexOf("pela NBR 14153") < 0,
+       "a Categoria (NBR 14153, Fig. B.1, ainda não conferida célula a célula) voltou a aparecer no formulário");
+    ok(h.indexOf("S2 · F2 · P2") > 0,
+       "perdeu o resumo S · F · P — só a Categoria devia sair, não o resto");
   });
   t("PLr só aparece quando há função de segurança a classificar", ()=>{
     const f = funcao("blocosEquipamentos");
