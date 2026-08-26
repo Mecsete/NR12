@@ -2292,6 +2292,24 @@ chk("o CALCULO da categoria continua existindo (so a exibicao saiu)",
 chk("o Modulo Completo (congelado) nao foi tocado -- continua mostrando Categoria estrutural",
     'PLr exigido: <b>${m.plr}</b> · Categoria estrutural: <b>${m.cat}</b>' in novo)
 
+print("\n=== 82. ID DUPLICADO NA ARVORE LOCAL NAO APAGA FOTO BOA DA NUVEM ===")
+# Achado investigando o sumico de foto do Abacus 02 e da Cuba Lumialza 100 em
+# 26/08/2026: item com o mesmo id em duas posicoes da arvore local divide UMA
+# SO entrada no mapa de assinaturas, e o envio automatico apagava o endereco
+# "antigo" (a copia boa, com foto) achando que era mudanca de endereco do
+# mesmo id. Duas partes da correcao: o envio para de subir qualquer copia
+# enquanto o id estiver duplicado; e o merge manual de duplicatas ("Juntar
+# duplicatas") passa a preservar foto da copia descartada, nao so a dos
+# filhos (tarefas/riscos).
+chk("o envio automatico ignora id duplicado na arvore antes de decidir o que subir",
+    "if(idsDuplicadosNaArvore.has(it.id)) return false;" in novo)
+chk("a deteccao de duplicata conta ocorrencias por id na propria listagem do ciclo",
+    "__contagemPorId.set(it.id, (__contagemPorId.get(it.id)||0) + 1)" in novo)
+chk("juntar duplicatas preserva foto EMBUTIDA da copia descartada",
+    "if(__ehFotoEmbutida(v) && !__ehFotoEmbutida(fica.obj[k])) fica.obj[k] = v;" in novo)
+chk("juntar duplicatas preserva a lista de fotos com MAIS fotos de verdade, nao só a mais nova",
+    novo.count("if(chegaram.length > aqui.length) fica.obj[k] = chegaram;") == 1)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

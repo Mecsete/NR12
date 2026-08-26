@@ -102,6 +102,8 @@ function novoAparelho(nome, nuvem){
     .replace(/[\\\\/:*?"<>|]/g,"-").replace(/\\s+/g," ").replace(/^\\.+/,"").replace(/[. ]+$/,"");
     if(/^(CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])$/i.test(n)) n = n+"_"; return n || "sem-nome"; }`, ctx);
   ["CAMPOS_FILHOS_SYNC","CAMPO_FILHOS_POR_TIPO"].forEach(n=>vm.runInContext(constante(n),ctx));
+  try{ vm.runInContext(constante("SINC_FILHOS_DE"), ctx); }
+  catch(e){ vm.runInContext('var SINC_FILHOS_DE = { area:"maquinas", maquina:"tarefas", tarefa:"riscos", risco:null };', ctx); }
   /* Marca local de "este item está com foto perdida" — o envio a consulta para
      não regravar na nuvem o arquivo que ainda tem a foto embutida dentro dele.
      Versões anteriores à correção não têm a const; nelas fica um nome que
@@ -137,6 +139,7 @@ function novoAparelho(nome, nuvem){
     "onedriveClassificarNovosSimples","onedriveMarcarJaExistente","arquivoJaExistente",
     "arquivoEstaEmQuarentena","executarComConcorrencia","exclusaoEmMassaSuspeita",
     "rotuloCaminhoSync","onedriveSincronizarModulo","marcarSubarvoreMaquinaAlterada","onedriveBaixarPendentes",
+    "sincDuplicatasNaArvore","sincJuntarDuplicata",
     // lapides de exclusao — o codigo real, nao mais um stub fixo em false
     "registrarLapidesExclusao","exclusaoConfirmadaPeloUsuario","lapideDe","lapideVenceDadosRemotos",
     "__lapideFilhos","__subarvoreTocadaDepoisDe","__tamanhoSubarvore","__lapidesRemoviveis",
@@ -1156,6 +1159,86 @@ async function rodarAteParar(ap, maxCiclos, rotulo){
     for(let i=0;i<3;i++){ semTrafego += (await ciclo(A)).transferencias; semTrafego += (await ciclo(B)).transferencias; }
     checar("SEM VAIVEM: 6 ciclos alternados sem editar = zero trafego", semTrafego === 0,
       "ainda transferiu " + semTrafego);
+  }
+
+  console.log("\n" + L + "\nENSAIO 26 - maquina com o MESMO id em duas posicoes da arvore LOCAL nao apaga a foto boa no envio\n" + L);
+  {
+    /* Achado investigando o sumico de fotos do Abacus 02 e da Cuba Lumialza 100
+       em 26/08/2026, depois de a correcao do dia anterior ja estar publicada.
+       Causa: duas copias da MESMA maquina (mesmo id) na arvore LOCAL -- resto
+       de uma duplicacao historica ainda nao resolvida por "Juntar duplicatas"
+       -- dividem A MESMA entrada no mapa de assinaturas (indexado por id). Ao
+       processar a copia mais recente (que nao tem a foto), o envio automatico
+       ve o endereco da copia BOA como "endereco antigo" desse id e apaga o
+       arquivo dela na nuvem -- fotos inclusas -- mesmo sem ninguem ter
+       apertado nada alem de "Sincronizar agora". A correcao: enquanto o mesmo
+       id existir duas vezes na arvore, nenhuma das copias sobe naquele ciclo. */
+    const nuvem = novaNuvem();
+    const A = novoAparelho("A", nuvem);
+    A.ctx.STATE.projetosSimples = [arvoreExemplo(2, 1, 1, 0, false)]; // 2 areas, cada uma com 1 maquina
+    const idMaquina = vm.runInContext(`STATE.projetosSimples[0].areas[0].maquinas[0].id`, A.ctx);
+    vm.runInContext(`STATE.projetosSimples[0].areas[0].maquinas[0].fotoGeral = "data:image/jpeg;base64,"+"F".repeat(300);
+      STATE.projetosSimples[0].areas[0].maquinas[0].atualizadoEm = 1750000000000;`, A.ctx);
+    await rodarAteParar(A, 8);
+
+    const arqFotoOriginal = [...nuvem.arquivos.keys()].find(c =>
+      c.endsWith("fotos__maquina.json") && c.includes(idMaquina.slice(-6)));
+    checar("a maquina subiu com a foto (pacote fotos__maquina.json na nuvem)", !!arqFotoOriginal, arqFotoOriginal);
+    const conteudoFotoOriginal = arqFotoOriginal ? nuvem.arquivos.get(arqFotoOriginal).texto : null;
+
+    /* Reproduz o estrago: a MESMA maquina (mesmo id) passa a existir tambem
+       na OUTRA area, ja convergida antes -- sem foto, com carimbo mais novo
+       (e por isso "vence" num eventual merge por ultima edicao). Nao cria
+       nenhum item novo alem da propria duplicata: a area 1 ja tinha subido
+       na convergencia inicial, entao nada aqui deveria gerar trafego novo
+       que nao seja o da propria duplicata. */
+    vm.runInContext(`STATE.projetosSimples[0].areas[1].maquinas.push({
+      id:"${idMaquina}", nome:"Maquina 0", tarefas:[], criadoEm:1750000000000, atualizadoEm:1750000005000
+    })`, A.ctx);
+
+    const dupsAntes = vm.runInContext("sincDuplicatasNaArvore()", A.ctx);
+    checar("o cenario montou uma duplicata de verdade (mesmo id em duas posicoes)",
+      dupsAntes.some(g=>g.tipo==="maquina" && g.id===idMaquina), JSON.stringify(dupsAntes.map(g=>g.tipo+":"+g.id)));
+
+    /* PROVA DE QUE O TESTE TESTA ALGO DE VERDADE: rodando a MESMA reproducao
+       contra a versao do envio SEM a trava nova (a linha que ignora id
+       duplicado removida do texto extraido), a foto boa e apagada da nuvem.
+       Isola só esta chamada — não mexe no restante do ensaio. */
+    {
+      const nuvemSemCorrecao = novaNuvem();
+      for(const [c,a] of nuvem.arquivos) nuvemSemCorrecao.arquivos.set(c, {tamanho:a.tamanho, texto:a.texto});
+      const B = novoAparelho("B", nuvemSemCorrecao);
+      B.ctx.STATE.projetosSimples = JSON.parse(JSON.stringify(A.ctx.STATE.projetosSimples));
+      B.ctx.STATE.oneDriveAssinaturasSimples = JSON.parse(JSON.stringify(A.ctx.STATE.oneDriveAssinaturasSimples));
+      const fonteSemTrava = funcao("onedriveSincronizarModulo")
+        .replace("if(idsDuplicadosNaArvore.has(it.id)) return false;\n    ", "");
+      checar("a fonte SEM a trava realmente ficou sem a linha da trava",
+        fonteSemTrava.indexOf("idsDuplicadosNaArvore.has(it.id)) return false") < 0);
+      vm.runInContext(fonteSemTrava.replace("function onedriveSincronizarModulo", "function onedriveSincronizarModulo_SEM_CORRECAO"), B.ctx);
+      await vm.runInContext(`onedriveSincronizarModulo_SEM_CORRECAO("Simplificado", listarItensSincronizaveisSimples, __assinaturasOneDriveSimples, null)`, B.ctx);
+      const sumiuSemCorrecao = arqFotoOriginal && !nuvemSemCorrecao.arquivos.has(arqFotoOriginal);
+      checar("SEM A CORRECAO: a mesma duplicata apaga a foto boa da nuvem (prova que o ensaio testa algo real)",
+        sumiuSemCorrecao, arqFotoOriginal + " ainda existe? " + nuvemSemCorrecao.arquivos.has(arqFotoOriginal||""));
+    }
+
+    const r = await ciclo(A); // UM ciclo de sincronizacao real, com a duplicata presente
+    checar("O CASO REAL: com a duplicata presente, o envio automatico nao mexe em nada",
+      r.transferencias === 0, "transferencias=" + r.transferencias);
+    const fotoAindaNaNuvem = arqFotoOriginal && nuvem.arquivos.has(arqFotoOriginal)
+      && nuvem.arquivos.get(arqFotoOriginal).texto === conteudoFotoOriginal;
+    checar("a foto boa que ja estava na nuvem continua exatamente igual",
+      fotoAindaNaNuvem, arqFotoOriginal + " -> " + (nuvem.arquivos.has(arqFotoOriginal||"") ? "existe" : "SUMIU"));
+
+    /* O caminho correto de resolver a duplicata e "Juntar duplicatas" -- e o
+       merge manual precisa preservar a foto da copia descartada, mesmo ela
+       nao sendo a "vencedora" por ultima edicao. */
+    A.ctx.__grupoDup = vm.runInContext("sincDuplicatasNaArvore().find(g=>g.tipo==='maquina')", A.ctx);
+    const removidas = vm.runInContext("sincJuntarDuplicata(__grupoDup)", A.ctx);
+    checar("juntar duplicatas removeu a copia extra", removidas === 1, "removidas=" + removidas);
+    const fotoSobrevivente = vm.runInContext(
+      `(()=>{ let achou=null; STATE.projetosSimples[0].areas.forEach(a=>a.maquinas.forEach(m=>{ if(m.id==="${idMaquina}") achou=m.fotoGeral; })); return achou; })()`, A.ctx);
+    checar("a foto sobreviveu ao merge de duplicatas, mesmo a copia sem foto tendo sido editada por ultimo",
+      typeof fotoSobrevivente === "string" && fotoSobrevivente.startsWith("data:image"), String(fotoSobrevivente).slice(0,30));
   }
 
   console.log("\n" + L);

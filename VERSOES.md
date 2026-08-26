@@ -64,6 +64,39 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 26/08/2026 07:49
+
+**Causa real de fotos de máquina sumindo mesmo depois da correção de ontem
+(Abacus 02, Cuba Lumialza 100 e outras).**
+
+Achei o mecanismo rodando o código de verdade contra o cenário real: quando a
+mesma máquina existe, por engano, em **duas posições diferentes** da árvore
+local (resquício de uma duplicação antiga, ainda não resolvida pelo botão
+"Juntar duplicatas" do Diagnóstico), a sincronização automática confundia o
+endereço de uma cópia com o "endereço antigo" da outra — e apagava da nuvem a
+cópia boa, com foto, mesmo sem ninguém tocar em nada além de "Sincronizar
+agora". É diferente de tudo que já tinha sido corrigido antes: não precisa de
+nenhum botão, nenhuma ação especial — só precisa da duplicata existir.
+
+Duas correções:
+
+1. Enquanto o mesmo item existir duplicado na árvore, a sincronização
+   automática **para de enviar qualquer uma das cópias** até a duplicata ser
+   resolvida — em vez de arriscar apagar a boa.
+2. O botão "Juntar duplicatas" (Configurações → Diagnóstico da
+   sincronização) agora **preserva a foto da cópia descartada** ao juntar —
+   antes, só as tarefas/riscos filhos eram levados adiante; uma foto que só
+   existisse na cópia "perdedora" (a que não foi editada por último) se
+   perdia em silêncio.
+
+Se você tem máquinas com foto faltando desde hoje de manhã, o caminho mais
+rápido para recuperar é **Configurações → Backup → Recuperar fotos
+perdidas → "só o que foi criado nos últimos 7 dias"** — ele procura nos
+pontos de restauração automáticos deste aparelho e só preenche o que está
+vazio, nunca substitui foto boa.
+
+---
+
 ## 26/08/2026 00:24
 
 **A Categoria (NBR 14153) parou de aparecer junto do PLr.**
