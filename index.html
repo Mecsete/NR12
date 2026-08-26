@@ -1970,7 +1970,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "26/08/2026 09:24";
+const APP_BUILD = "26/08/2026 10:07";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -4376,6 +4376,44 @@ async function recuperarFotosPerdidasDaNuvem(onProgresso){
     await liberarTelaAcesa();
   }
   return res;
+}
+
+/* LISTA, EM TEXTO, TUDO QUE AINDA ESTÁ COM A MARCA DE DANO — depois de
+   tentar as duas fontes (pontos de restauração e nuvem) e nenhuma ter
+   achado a foto, é isto que sobra: os itens que precisam ser refotografados
+   em campo. Lê o STATE atual (não depende de guardar o resultado de uma
+   corrida específica), e junta o mesmo id em duas posições da árvore numa
+   linha só — duplicata não resolvida é o mesmo item perdido, não dois. */
+function listarItensFotoPerdidaTexto(){
+  const linhas = [];
+  const idsJaListados = new Set();
+  const addLinha = (id, texto) => {
+    if(idsJaListados.has(id)) return;
+    idsJaListados.add(id);
+    linhas.push(texto);
+  };
+  (STATE.projetosSimples||[]).forEach(proj=>{
+    const empresa = proj.empresa || proj.nome || "Projeto";
+    (proj.areas||[]).forEach(area=>{
+      const nomeArea = area.nome || "Área";
+      if(area[CAMPO_MARCA_FOTO_PERDIDA]) addLinha("area:"+area.id, `${empresa} › ${nomeArea} — foto da área`);
+      (area.maquinas||[]).forEach(maquina=>{
+        const nomeMaq = nomeMaquinaS(maquina) || "Máquina";
+        if(maquina[CAMPO_MARCA_FOTO_PERDIDA]) addLinha("maquina:"+maquina.id, `${empresa} › ${nomeArea} › ${nomeMaq} — foto geral e/ou plaqueta`);
+        (maquina.tarefas||[]).forEach(tarefa=>{
+          const nomeTarefa = valOuOutro(tarefa.tarefa, tarefa.tarefaOutro) || "Tarefa";
+          if(tarefa[CAMPO_MARCA_FOTO_PERDIDA]) addLinha("tarefa:"+tarefa.id, `${empresa} › ${nomeArea} › ${nomeMaq} › ${nomeTarefa} — foto da tarefa`);
+          (tarefa.riscos||[]).forEach(risco=>{
+            if(risco[CAMPO_MARCA_FOTO_PERDIDA]){
+              const nomeRisco = laudoNomeDoRisco(risco) || "Risco sem nome";
+              addLinha("risco:"+risco.id, `${empresa} › ${nomeArea} › ${nomeMaq} › ${nomeTarefa} › ${nomeRisco} — foto do risco`);
+            }
+          });
+        });
+      });
+    });
+  });
+  return linhas;
 }
 
 /* =========================================================================
@@ -14863,6 +14901,7 @@ function screenSimplesConfigBackup(){
   </div>
   <button class="btn btn-primary btn-block" style="margin-top:8px" onclick="App.recuperarFotosPerdidas(7)">${ic('shield')} Devolver fotos — só o que foi criado nos últimos 7 dias</button>
   <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.recuperarFotosPerdidas(0)">${ic('shield')} Devolver fotos — o projeto inteiro</button>
+  <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.copiarListaFotoPerdida()">${ic('copy')} Copiar lista dos itens que ainda precisam de foto</button>
   <div class="section-title">Backup · Reescrever as frases dos riscos</div>
   <div class="card card-pad">
     <p style="font-size:12.5px;color:var(--ink-dim)">O nome e a descrição do risco são montados a partir de <b>Evento, Componente, Local e Parte do corpo</b>. A redação foi melhorada: a parte do corpo passou a ligar-se ao evento ("Amputação <b>da mão</b> na lâmina da tampa de inspeção", em vez de "Amputação na lâmina, na tampa de inspeção, com lesão na mão"). Isto reescreve os riscos que já existem.<br><br><b>Frase que você digitou por cima nunca é tocada</b> — só as que o próprio app tinha montado.<br><br>Se houver outra pessoa trabalhando no mesmo projeto, <b>sincronize antes</b>: recompor altera o carimbo de data, e edições que ainda não chegaram aqui seriam passadas por cima.</p>
@@ -17038,6 +17077,19 @@ Devolver agora?`)) return;
     toast(n>0
       ? `${n} cópia(s) duplicada(s) removida(s)${resta? " · ainda restam "+resta : ""} — sincronize agora para concluir`
       : "Nada a juntar", n>0);
+  },
+  async copiarListaFotoPerdida(){
+    const linhas = listarItensFotoPerdidaTexto();
+    if(linhas.length === 0){ toast("Nenhum item com foto perdida no momento", false); return; }
+    const txt = `ITENS COM FOTO PERDIDA — para refotografar em campo (${linhas.length})\n` +
+      new Date().toLocaleString("pt-BR") + "\n\n" + linhas.map(l=>"• "+l).join("\n");
+    try{
+      await navigator.clipboard.writeText(txt);
+      toast(linhas.length + " item(ns) copiado(s) — cole onde precisar");
+    }catch(e){
+      console.log(txt);
+      toast("Não foi possível copiar automaticamente — a lista saiu no console do navegador", false);
+    }
   },
   async copiarDiagnosticoSync(){
     const txt = onedriveDiagnosticoTexto();

@@ -2329,6 +2329,24 @@ chk("o botao de sempre chama as DUAS fontes em sequencia, sem botao novo",
 chk("item duplicado (mesma id em duas posicoes) so baixa o pacote da nuvem UMA vez",
     "if(idsJaAlvo.has(alvo.id)){ duplicadosIgnorados++; return; }" in novo)
 
+print("\n=== 84. LISTA COPIAVEL DOS ITENS COM FOTO PERDIDA ===")
+# Pedido em campo: depois de saber QUANTOS itens sao perda de verdade, o
+# proximo passo e saber QUAIS -- para planejar a revisita. A lista le o
+# STATE atual (nao depende de guardar o resultado de uma corrida especifica
+# de recuperarFotosPerdidasDaNuvem) e junta duplicata do mesmo id numa linha
+# so, pelo mesmo motivo que a busca na nuvem: e o mesmo item, nao dois.
+chk("a funcao de listagem existe e le o STATE atual, nao um resultado guardado",
+    "function listarItensFotoPerdidaTexto(){" in novo)
+chk("junta duplicata do mesmo id numa linha so (mesmo item perdido, nao dois)",
+    "if(idsJaListados.has(id)) return;" in novo)
+chk("cobre os quatro niveis que podem carregar a marca de dano (area/maquina/tarefa/risco)",
+    novo.count("CAMPO_MARCA_FOTO_PERDIDA]) addLinha(") == 3
+    and "if(risco[CAMPO_MARCA_FOTO_PERDIDA]){" in novo)
+chk("o botao copia para a area de transferencia, com o mesmo padrao do diagnostico",
+    'onclick="App.copiarListaFotoPerdida()"' in novo
+    and "async copiarListaFotoPerdida(){" in novo
+    and novo.count("await navigator.clipboard.writeText(txt);") == 2)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

@@ -64,6 +64,23 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 26/08/2026 10:07
+
+**Novo botão: "Copiar lista dos itens que ainda precisam de foto".**
+
+Depois de rodar "Devolver fotos" e saber QUANTOS itens são perda de
+verdade, faltava saber QUAIS — para planejar a revisita em campo em vez de
+caçar máquina por máquina na tela. Este botão (Configurações → Backup,
+logo abaixo de "Devolver fotos") copia para a área de transferência a
+lista completa, com o caminho de cada item (empresa › área › máquina ›
+tarefa › risco), pronta para colar onde precisar.
+
+A lista reflete o estado atual do aparelho — não precisa ter acabado de
+rodar a recuperação para usá-la. Item duplicado (mesmo id em duas posições
+da árvore) entra uma vez só, mesma lógica já aplicada na busca da nuvem.
+
+---
+
 ## 26/08/2026 09:24
 
 **A busca de fotos na nuvem não baixa mais o mesmo pacote duas vezes quando
