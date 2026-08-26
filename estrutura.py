@@ -2310,6 +2310,21 @@ chk("juntar duplicatas preserva foto EMBUTIDA da copia descartada",
 chk("juntar duplicatas preserva a lista de fotos com MAIS fotos de verdade, nao só a mais nova",
     novo.count("if(chegaram.length > aqui.length) fica.obj[k] = chegaram;") == 1)
 
+print("\n=== 83. RECUPERAR FOTO PERDIDA DIRETO DA NUVEM (MESMO BOTAO) ===")
+# Pedido explicito: nao criar um terceiro botao -- o mesmo botao de sempre
+# ("Devolver fotos") passa a tentar os pontos de restauracao deste aparelho
+# e, em seguida, a nuvem, sem pedir um segundo toque.
+chk("a funcao de recuperacao direto da nuvem existe",
+    "async function recuperarFotosPerdidasDaNuvem(onProgresso){" in novo)
+chk("so preenche campo vazio -- nunca sobrescreve foto que ja esteja aqui",
+    "if(alvo.dados[campo]) continue; // já tem foto boa aqui — não se toca" in novo)
+chk("so libera o item (tira a marca de dano) quando achou algo de verdade na nuvem",
+    "if(mexeu){" in novo and "delete alvo.dados[CAMPO_MARCA_FOTO_PERDIDA];" in novo)
+chk("o botao de sempre chama as DUAS fontes em sequencia, sem botao novo",
+    novo.count('onclick="App.recuperarFotosPerdidas(7)"') == 1
+    and novo.count('onclick="App.recuperarFotosPerdidas(0)"') == 1
+    and "await recuperarFotosPerdidasDaNuvem(" in novo)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

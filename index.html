@@ -1970,7 +1970,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "26/08/2026 07:49";
+const APP_BUILD = "26/08/2026 08:13";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -4263,6 +4263,72 @@ async function __recuperarFotosDosPontos(apenasContar, onProgresso, desde){
     res.lotes++;
     if(onProgresso) onProgresso(Math.min(ini + RECUPERACAO_LOTE_ITENS, alvos.length), alvos.length);
   }
+  return res;
+}
+
+/* RECUPERAR FOTO PERDIDA DIRETO DA NUVEM — para quando NEM os pontos de
+   restauração deste aparelho têm mais a foto (a função acima já não acha
+   nada), mas a nuvem, se ninguém sobrescreveu o arquivo por cima, ainda tem.
+   Só entra em jogo em item marcado __fotosPerdidas: a referência existia e
+   não resolveu mais neste aparelho — é o único jeito de saber ONDE procurar
+   (o endereço atual do item na árvore). Só preenche campo vazio — nunca
+   sobrescreve foto que já esteja aqui, mesma regra de sempre. */
+async function recuperarFotosPerdidasDaNuvem(onProgresso){
+  const alvos = [];
+  (STATE.projetosSimples||[]).forEach(proj=>{
+    const segProj = segmentoPastaComId(proj.empresa || proj.nome || "Projeto", proj.id);
+    (proj.areas||[]).forEach(area=>{
+      const segArea = segmentoPastaComId(area.nome || "Área", area.id);
+      const caminhoArea = [segProj, segArea];
+      if(area[CAMPO_MARCA_FOTO_PERDIDA]) alvos.push({ id:"area:"+area.id, dados:area, pasta:caminhoArea, arquivo:"_area.json" });
+      (area.maquinas||[]).forEach(maquina=>{
+        const segMaquina = segmentoPastaComId(nomeMaquinaS(maquina) || "Máquina", maquina.id);
+        const caminhoMaquina = [...caminhoArea, segMaquina];
+        if(maquina[CAMPO_MARCA_FOTO_PERDIDA]) alvos.push({ id:"maquina:"+maquina.id, dados:maquina, pasta:caminhoMaquina, arquivo:"_maquina.json" });
+        (maquina.tarefas||[]).forEach(tarefa=>{
+          const tarefaTxt = tarefa.tarefa===OUTRO ? tarefa.tarefaOutro : tarefa.tarefa;
+          const segTarefa = segmentoPastaComId(tarefaTxt || "Tarefa", tarefa.id);
+          const caminhoTarefa = [...caminhoMaquina, segTarefa];
+          if(tarefa[CAMPO_MARCA_FOTO_PERDIDA]) alvos.push({ id:"tarefa:"+tarefa.id, dados:tarefa, pasta:caminhoTarefa, arquivo:"_tarefa.json" });
+          (tarefa.riscos||[]).forEach(risco=>{
+            if(risco[CAMPO_MARCA_FOTO_PERDIDA]) alvos.push({ id:"risco:"+risco.id, dados:risco, pasta:caminhoTarefa, arquivo:`risco_${risco.id}.json` });
+          });
+        });
+      });
+    });
+  });
+  const res = { itens: alvos.length, recuperados: 0, semNadaNaNuvem: 0 };
+  let feito = 0;
+  for(const alvo of alvos){
+    feito++;
+    if(onProgresso) onProgresso(feito, alvos.length);
+    const caminho = `${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado/${alvo.pasta.join("/")}/fotos_${alvo.arquivo}`;
+    const texto = await onedriveBaixarTexto(caminho);
+    let pacote = null;
+    if(texto){ try{ pacote = JSON.parse(texto); }catch(e){ pacote = null; } }
+    if(!pacote){ res.semNadaNaNuvem++; continue; }
+    let mexeu = false;
+    for(const campo of CAMPOS_FOTO_UNICA){
+      if(alvo.dados[campo]) continue; // já tem foto boa aqui — não se toca
+      if(__ehFotoEmbutida(pacote[campo])){ alvo.dados[campo] = pacote[campo]; mexeu = true; }
+    }
+    if(Array.isArray(pacote[CAMPO_FOTOS_LISTA])){
+      const chegaram = pacote[CAMPO_FOTOS_LISTA].filter(__ehFotoEmbutida);
+      const aqui = Array.isArray(alvo.dados[CAMPO_FOTOS_LISTA]) ? alvo.dados[CAMPO_FOTOS_LISTA].filter(__ehFotoEmbutida) : [];
+      if(chegaram.length > aqui.length){ alvo.dados[CAMPO_FOTOS_LISTA] = chegaram; mexeu = true; }
+    }
+    if(mexeu){
+      res.recuperados++;
+      /* A nuvem não tinha mais do que o que acabamos de trazer — não há
+         risco em liberar o envio de novo: subir agora não apaga nada que a
+         própria nuvem já não soubesse. */
+      delete alvo.dados[CAMPO_MARCA_FOTO_PERDIDA];
+      marcarFotosPendentesParaEnvio(alvo.id);
+    } else {
+      res.semNadaNaNuvem++;
+    }
+  }
+  if(res.recuperados > 0){ marcarAlterado(); await dbSet(STATE); }
   return res;
 }
 
@@ -14746,7 +14812,7 @@ function screenSimplesConfigBackup(){
   <p style="text-align:center;font-size:11px;color:var(--ink-faint);margin-top:16px">Versão ${APP_BUILD}</p>
   <div class="section-title">Backup · Recuperar fotos perdidas</div>
   <div class="card card-pad">
-    <p style="font-size:12.5px;color:var(--ink-dim)">Se algum risco ou equipamento está mostrando <b>quadro vermelho</b> ou <b>"Pendente"</b> onde havia foto, ela pode estar guardada dentro dos pontos de restauração deste aparelho. Isto entra nos pontos, pega <b>só as fotos</b> e devolve aos espaços vazios — <b>não desfaz nada</b>: texto, medidas, HRN e decisões do laudo ficam exatamente como estão. Foto que já está boa nunca é substituída.</p>
+    <p style="font-size:12.5px;color:var(--ink-dim)">Se algum risco ou equipamento está mostrando <b>quadro vermelho</b> ou <b>"Pendente"</b> onde havia foto, ela pode estar guardada dentro dos pontos de restauração deste aparelho — ou, se nem lá tiver mais, ainda pode estar <b>na nuvem</b>. Um toque tenta as duas fontes em sequência e devolve aos espaços vazios — <b>não desfaz nada</b>: texto, medidas, HRN e decisões do laudo ficam exatamente como estão. Foto que já está boa nunca é substituída. Se no fim nenhuma das duas tiver a foto, é perda de verdade — o resultado abaixo avisa exatamente quais itens caíram nesse caso.</p>
     ${__ultimaRecuperacaoFotos ? `<div class="field-hint" style="margin-top:8px;color:${__ultimaRecuperacaoFotos.erro?'var(--danger, #c0392b)':'var(--ok, #2e7d32)'}">${escapeHtml(__ultimaRecuperacaoFotos.mensagem)}</div>` : ""}
   </div>
   <button class="btn btn-primary btn-block" style="margin-top:8px" onclick="App.recuperarFotosPerdidas(7)">${ic('shield')} Devolver fotos — só o que foi criado nos últimos 7 dias</button>
@@ -16823,30 +16889,47 @@ Os pontos de restauração continuam disponíveis se quiser voltar atrás.`)) re
     render();
   },
   async recuperarFotosPerdidas(dias){
+    /* DUAS FONTES, UM BOTÃO SÓ. Primeiro tenta os pontos de restauração
+       deste aparelho (rápido, não depende de rede); o que ainda sobrar
+       marcado como danificado, tenta direto na nuvem em seguida — mesmo
+       quando os pontos de restauração não acharam nada, porque são fontes
+       independentes: o que já não existe mais aqui pode ainda existir lá,
+       se ninguém tiver regravado o arquivo por cima. Rodar as duas de uma
+       vez só, sem pedir para tocar de novo, é o que faz o resultado final
+       já dizer o que é recuperável e o que é perda de verdade. */
     const desde = (Number(dias) > 0) ? (Date.now() - Number(dias)*24*60*60*1000) : 0;
     const rotulo = desde ? `criados nos últimos ${Number(dias)} dias` : "do projeto inteiro";
     toast("Procurando fotos nos pontos de restauração…");
+    let msgLocal, devolvidas = 0;
     try{
       const prev = await contarFotosRecuperaveis(desde);
       if(!prev || prev.fotos === 0){
-        __ultimaRecuperacaoFotos = { erro:false, mensagem: (prev && prev.pontos===0)
-          ? "Não há pontos de restauração neste aparelho — não há de onde puxar fotos."
-          : ("Nenhuma foto para devolver (" + rotulo + "): os pontos de restauração não têm nenhuma foto que já não esteja aqui.") };
-        toast("Nenhuma foto para devolver");
-        render(); return;
-      }
-      if(!confirm(`Encontrei ${prev.fotos} foto${prev.fotos===1?'':'s'} em ${prev.itens} ${prev.itens===1?'item':'itens'} ${rotulo}.
+        msgLocal = (prev && prev.pontos===0)
+          ? "Não há pontos de restauração neste aparelho."
+          : ("Nada para devolver dos pontos de restauração (" + rotulo + ").");
+      }else{
+        if(!confirm(`Encontrei ${prev.fotos} foto${prev.fotos===1?'':'s'} em ${prev.itens} ${prev.itens===1?'item':'itens'} ${rotulo}.
 
 Só os espaços vazios são preenchidos — nenhuma foto boa é substituída, e nada mais do cadastro é alterado.
 
 Devolver agora?`)) return;
-      const r = await recuperarFotosDosPontos((feitos, total)=>{
-        toast("Devolvendo fotos… " + feitos + " de " + total + " itens");
-      }, desde);
-      let msg = r.fotos + " foto" + (r.fotos===1?"":"s") + " devolvida" + (r.fotos===1?"":"s") + " em " + r.itens + " " + (r.itens===1?"item":"itens") + ".";
-      if(r.semBytes) msg += " " + r.semBytes + " referência(s) sem o arquivo no aparelho — essa(s) só voltam pela nuvem.";
-      __ultimaRecuperacaoFotos = { erro:false, mensagem: msg };
-      toast(r.fotos + " foto(s) devolvida(s)");
+        const r = await recuperarFotosDosPontos((feitos, total)=>{
+          toast("Devolvendo fotos… " + feitos + " de " + total + " itens");
+        }, desde);
+        devolvidas += r.fotos;
+        msgLocal = r.fotos + " foto" + (r.fotos===1?"":"s") + " devolvida" + (r.fotos===1?"":"s") + " deste aparelho, em " + r.itens + " " + (r.itens===1?"item":"itens") + ".";
+        if(r.semBytes) msgLocal += " " + r.semBytes + " referência(s) sem o arquivo aqui.";
+      }
+      toast("Procurando o que sobrou direto na nuvem…");
+      const rn = await recuperarFotosPerdidasDaNuvem((feitos, total)=>{
+        toast("Buscando na nuvem… " + feitos + " de " + total + " itens");
+      });
+      devolvidas += rn.recuperados;
+      const msgNuvem = rn.itens === 0 ? "" :
+        ` Direto na nuvem: ${rn.recuperados} de ${rn.itens} item${rn.itens===1?'':'s'} ainda danificado${rn.itens===1?'':'s'} recuperado${rn.recuperados===1?'':'s'}` +
+        (rn.semNadaNaNuvem ? `, ${rn.semNadaNaNuvem} sem nada na nuvem — essa(s) é perda de verdade, só refotografando.` : ".");
+      __ultimaRecuperacaoFotos = { erro:false, mensagem: msgLocal + msgNuvem };
+      toast(devolvidas + " foto(s) devolvida(s) no total");
     }catch(e){
       __ultimaRecuperacaoFotos = { erro:true, mensagem:"Não foi possível concluir: " + (e && e.message ? e.message : "erro desconhecido") };
       toast("Não foi possível concluir a recuperação", false);

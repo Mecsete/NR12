@@ -101,7 +101,7 @@ function novoAparelho(nome, nuvem){
   vm.runInContext(`function nomeArquivoSeguro(s){ let n = String(s||"sem-nome").trim().slice(0,48)
     .replace(/[\\\\/:*?"<>|]/g,"-").replace(/\\s+/g," ").replace(/^\\.+/,"").replace(/[. ]+$/,"");
     if(/^(CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])$/i.test(n)) n = n+"_"; return n || "sem-nome"; }`, ctx);
-  ["CAMPOS_FILHOS_SYNC","CAMPO_FILHOS_POR_TIPO"].forEach(n=>vm.runInContext(constante(n),ctx));
+  ["CAMPOS_FILHOS_SYNC","CAMPO_FILHOS_POR_TIPO","CAMPOS_FOTO_UNICA"].forEach(n=>vm.runInContext(constante(n),ctx));
   try{ vm.runInContext(constante("SINC_FILHOS_DE"), ctx); }
   catch(e){ vm.runInContext('var SINC_FILHOS_DE = { area:"maquinas", maquina:"tarefas", tarefa:"riscos", risco:null };', ctx); }
   /* Marca local de "este item está com foto perdida" — o envio a consulta para
@@ -140,6 +140,7 @@ function novoAparelho(nome, nuvem){
     "arquivoEstaEmQuarentena","executarComConcorrencia","exclusaoEmMassaSuspeita",
     "rotuloCaminhoSync","onedriveSincronizarModulo","marcarSubarvoreMaquinaAlterada","onedriveBaixarPendentes",
     "sincDuplicatasNaArvore","sincJuntarDuplicata",
+    "marcarFotosPendentesParaEnvio","recuperarFotosPerdidasDaNuvem",
     // lapides de exclusao — o codigo real, nao mais um stub fixo em false
     "registrarLapidesExclusao","exclusaoConfirmadaPeloUsuario","lapideDe","lapideVenceDadosRemotos",
     "__lapideFilhos","__subarvoreTocadaDepoisDe","__tamanhoSubarvore","__lapidesRemoviveis",
@@ -1239,6 +1240,52 @@ async function rodarAteParar(ap, maxCiclos, rotulo){
       `(()=>{ let achou=null; STATE.projetosSimples[0].areas.forEach(a=>a.maquinas.forEach(m=>{ if(m.id==="${idMaquina}") achou=m.fotoGeral; })); return achou; })()`, A.ctx);
     checar("a foto sobreviveu ao merge de duplicatas, mesmo a copia sem foto tendo sido editada por ultimo",
       typeof fotoSobrevivente === "string" && fotoSobrevivente.startsWith("data:image"), String(fotoSobrevivente).slice(0,30));
+  }
+
+  console.log("\n" + L + "\nENSAIO 27 - recuperar foto perdida direto da nuvem (quando o ponto de restauracao local ja nao tem)\n" + L);
+  {
+    /* Complementa a recuperacao pelos pontos de restauracao (que so olha
+       ESTE aparelho): quando nem os pontos tem mais a foto, mas a nuvem,
+       se ninguem regravou o arquivo por cima, ainda tem, este e o unico
+       caminho que sobra. So mexe em item marcado __fotosPerdidas -- e so
+       preenche o que estiver vazio, nunca substitui foto boa. */
+    const nuvem = novaNuvem();
+    const A = novoAparelho("A", nuvem);
+    A.ctx.STATE.projetosSimples = [arvoreExemplo(1, 1, 1, 2, true)]; // 2 riscos, cada um com foto
+    await rodarAteParar(A, 8);
+
+    const riscos = () => vm.runInContext(
+      `STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos`, A.ctx);
+    const idBoa = riscos()[0].id, idPerdidaDeVerdade = riscos()[1].id;
+
+    /* Risco 0: simula o dano local (a foto sumiu do IndexedDB deste
+       aparelho, exatamente como marcarItensComFotoPerdida faria) -- MAS a
+       nuvem, que ninguem tocou, ainda tem o pacote de fotos intacto. */
+    vm.runInContext(`(()=>{ const r = STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos.find(x=>x.id==="${idBoa}");
+      r.foto = null; r.${'__fotosPerdidas'} = true; })()`, A.ctx);
+    const existiaNaNuvemAntes = [...nuvem.arquivos.keys()].some(c => c.endsWith("fotos_risco_" + idBoa + ".json"));
+    checar("o cenario confirma que a nuvem ainda tem o pacote de fotos deste risco", existiaNaNuvemAntes);
+
+    /* Risco 1: dano local IGUAL, mas aqui a nuvem tambem nao tem mais nada
+       -- e o caso de perda de verdade, sem volta por nenhuma das duas vias. */
+    vm.runInContext(`(()=>{ const r = STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos.find(x=>x.id==="${idPerdidaDeVerdade}");
+      r.foto = null; r.${'__fotosPerdidas'} = true; })()`, A.ctx);
+    const caminhoPerdidaDeVerdade = [...nuvem.arquivos.keys()].find(c => c.endsWith("fotos_risco_" + idPerdidaDeVerdade + ".json"));
+    if(caminhoPerdidaDeVerdade) nuvem.del(caminhoPerdidaDeVerdade);
+
+    const r = await vm.runInContext("recuperarFotosPerdidasDaNuvem(null)", A.ctx);
+    checar("encontrou os dois itens marcados como danificados", r.itens === 2, "itens=" + r.itens);
+    checar("recuperou exatamente o que a nuvem ainda tinha", r.recuperados === 1, "recuperados=" + r.recuperados);
+    checar("contou o outro como sem nada na nuvem (perda de verdade)", r.semNadaNaNuvem === 1, "semNadaNaNuvem=" + r.semNadaNaNuvem);
+
+    const depois = riscos();
+    const boaDepois = depois.find(x=>x.id===idBoa);
+    const perdidaDepois = depois.find(x=>x.id===idPerdidaDeVerdade);
+    checar("O CASO REAL: a foto recuperavel voltou de verdade", typeof boaDepois.foto === "string" && boaDepois.foto.startsWith("data:image"));
+    checar("a marca de dano saiu do item recuperado", !boaDepois.__fotosPerdidas);
+    checar("o item SEM nada na nuvem continua sem foto (nada inventado)", !perdidaDepois.foto);
+    checar("a marca de dano continua no item sem nada na nuvem -- protege contra reenvio apagar a ultima chance",
+      !!perdidaDepois.__fotosPerdidas);
   }
 
   console.log("\n" + L);

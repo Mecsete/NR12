@@ -64,6 +64,28 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 26/08/2026 08:13
+
+**O botão "Devolver fotos" agora também procura direto na nuvem, não só nos
+pontos de restauração deste aparelho.**
+
+Antes, esse botão só olhava dentro dos pontos de restauração salvos neste
+celular. Se o próprio ponto de restauração já não tivesse mais a foto (o
+arquivo original também sumiu do aparelho), não havia mais o que fazer por
+ali — mesmo que a foto ainda existisse, intacta, na nuvem.
+
+Agora, ao tocar em qualquer um dos dois botões, o app tenta as duas fontes
+em sequência, sem precisar tocar duas vezes: primeiro os pontos de
+restauração (mais rápido), depois a nuvem para o que sobrar. No fim, a
+mensagem diz exatamente quantos itens vieram de cada fonte e quantos não
+tinham nada em nenhuma das duas — esses últimos são perda de verdade, sem
+mais nenhum lugar automático para procurar; só refotografando.
+
+Continua com a mesma garantia de sempre: só preenche o que está vazio,
+nunca substitui foto boa, e não mexe em mais nada do cadastro.
+
+---
+
 ## 26/08/2026 07:49
 
 **Causa real de fotos de máquina sumindo mesmo depois da correção de ontem
