@@ -1970,7 +1970,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "26/08/2026 12:20";
+const APP_BUILD = "26/08/2026 12:48";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -6909,6 +6909,18 @@ function conteudoIgualAoSalvo(lista, entidade){
     };
     return normalizar(anterior) === normalizar(entidade);
   }catch(e){ return false; }
+}
+/* A lista onde um draft (Projeto/Área/Máquina/Tarefa/Risco) mora de verdade
+   — usada tanto para SALVAR quanto para decidir se DESCARTAR precisa
+   avisar antes (ver App.cancelarDraftEntidade). Extraída para as duas
+   chamadas nunca divergirem sobre "onde este item vive". */
+function __listaAlvoDoDraft(tipo, parent){
+  if(tipo==="projetoS") return STATE.projetosSimples;
+  if(tipo==="areaS") return (STATE.projetosSimples.find(p=>p.id===parent.projetoSId)||{}).areas;
+  if(tipo==="maquinaS") return (buscarAreaSimplesPorId(parent.areaSId)||{}).maquinas;
+  if(tipo==="tarefaS") return (buscarMaquinaSimplesPorId(parent.maquinaSId)||{}).tarefas;
+  if(tipo==="riscoS") return (buscarTarefaSimplesPorId(parent.tarefaSId)||{}).riscos;
+  return null;
 }
 
 let STATE = {
@@ -17836,6 +17848,24 @@ Devolver agora?`)) return;
     render(); toast("Risco removido");
   },
   cancelarDraftEntidade(){
+    /* NÃO DESCARTA FOTO EM SILÊNCIO. Antes, tocar fora do cartão (ou em
+       "Cancelar") fechava o formulário na hora, mesmo com fotos tiradas
+       segundos antes — e limpava até o rascunho de emergência junto
+       (limparDraftPersistente), de propósito, achando que era uma decisão
+       consciente. Num toque sem querer na borda da tela — comum em campo,
+       rolando um formulário grande — a foto ia embora sem nenhum rastro:
+       nem marca de dano, nem ponto de restauração, nem cópia na nuvem,
+       porque ela nunca chegou a ser salva em lugar nenhum. Foi assim que
+       fotos de máquinas recém-duplicadas se perderam em 26/08/2026, sem
+       nenhum bug de sincronização por trás — só a falta deste aviso.
+       Item novo (nunca salvo) ou com qualquer campo diferente do que já
+       está gravado pergunta antes; abrir só para conferir e tocar fora
+       continua fechando direto, como sempre foi. */
+    if(__draftEntity){
+      const listaAlvo = __listaAlvoDoDraft(__draftTipo, __draftParent);
+      const semMudanca = listaAlvo && conteudoIgualAoSalvo(listaAlvo, __draftEntity);
+      if(!semMudanca && !confirm("Sair sem salvar? As alterações feitas aqui, incluindo fotos tiradas agora, serão perdidas.")) return;
+    }
     __draftEntity=null; __draftParent=null; __draftTipo=null; __modalOnSaved=null; __infoHrnPOAberto=false; __extrasProjetoAberto=false; __extrasMaquinaAberto=false;
     limparDraftPersistente(); // cancelou de propósito — o rascunho guardado não deve voltar a assombrar na próxima abertura
     App.fecharModal();
@@ -17848,12 +17878,7 @@ Devolver agora?`)) return;
     /* Só carimba como alterado se ALGUMA COISA mudou de verdade. Abrir para
        conferir e tocar em "Salvar" não é uma alteração — e não pode custar
        um reenvio de fotos. */
-    const listaAlvo = (tipo==="projetoS") ? STATE.projetosSimples
-      : (tipo==="areaS") ? (STATE.projetosSimples.find(p=>p.id===parent.projetoSId)||{}).areas
-      : (tipo==="maquinaS") ? (buscarAreaSimplesPorId(parent.areaSId)||{}).maquinas
-      : (tipo==="tarefaS") ? (buscarMaquinaSimplesPorId(parent.maquinaSId)||{}).tarefas
-      : (tipo==="riscoS") ? (buscarTarefaSimplesPorId(parent.tarefaSId)||{}).riscos
-      : null;
+    const listaAlvo = __listaAlvoDoDraft(tipo, parent);
     const semMudanca = listaAlvo && conteudoIgualAoSalvo(listaAlvo, ent);
     if(!semMudanca) ent.atualizadoEm = agoraSync();
     if(tipo==="projetoS"){ substituirOuAdicionar(STATE.projetosSimples, ent); }

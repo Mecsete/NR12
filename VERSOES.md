@@ -64,6 +64,37 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 26/08/2026 12:48
+
+**Causa real das fotos de máquinas recém-duplicadas sumindo, sem nenhum bug
+de sincronização por trás: tocar fora do formulário descartava tudo em
+silêncio.**
+
+Achei o mecanismo: nos formulários de Projeto/Área/Máquina/Tarefa/Risco,
+tocar **fora** do cartão (na borda escura) ou em "Cancelar" fechava a tela
+IMEDIATAMENTE, mesmo com fotos tiradas segundos antes — e ainda apagava o
+rascunho de emergência junto, como se fosse uma decisão consciente de
+descartar. Num formulário grande, rolando a tela em campo, um toque sem
+querer perto da borda bastava. A foto ia embora sem deixar rastro nenhum:
+nunca chegou a ser salva em lugar nenhum, então não tinha ponto de
+restauração, nem nuvem, nem marca de dano para "Devolver fotos" encontrar
+depois — por isso a recuperação automática não achava nada para essas
+máquinas específicas.
+
+Agora, sair sem salvar (por fora do cartão ou pelo botão "Cancelar") só
+fecha direto quando **nada mudou de verdade** desde a última vez que foi
+salvo — igual à regra que já existia para decidir se o "Salvar" precisa
+reenviar a foto para a nuvem. Havendo qualquer alteração não salva
+(incluindo foto nova), aparece uma pergunta antes de descartar. Abrir um
+item só para conferir, sem mudar nada, continua fechando na hora, sem
+perguntar.
+
+**Aviso:** as fotos já perdidas por este motivo, antes desta correção, não
+têm como voltar — nunca chegaram a ser gravadas em nenhum lugar recuperável.
+A partir de agora, esse motivo específico de perda deixa de existir.
+
+---
+
 ## 26/08/2026 12:20
 
 **"Devolver fotos" não confere mais na nuvem, de novo, um item que já foi

@@ -2365,6 +2365,25 @@ chk("quando acha algo, tira o carimbo de verificacao (nao faz mais sentido)",
 chk("o carimbo local nunca viaja para a nuvem, mesma regra dos outros marcadores locais",
     "delete semFotos.__fotoNuvemVerificadaEm; // carimbo local de \"já conferi a nuvem\" — idem" in novo)
 
+print("\n=== 86. TOCAR FORA DO FORMULARIO NAO DESCARTA FOTO EM SILENCIO ===")
+# Achado em campo em 26/08/2026: maquinas recem-duplicadas perderam foto sem
+# nenhum bug de sincronizacao por tras -- so a falta deste aviso. Tocar fora
+# do cartao (ou em "Cancelar") fechava o formulario na hora, mesmo com fotos
+# tiradas segundos antes, e ainda limpava o rascunho de emergencia junto,
+# achando que era decisao consciente. Um toque sem querer na borda da tela
+# (comum em campo, rolando um formulario grande) apagava a foto sem
+# nenhum rastro -- nem marca de dano, nem ponto de restauracao, nem nuvem,
+# porque ela nunca chegou a ser salva em lugar nenhum.
+chk("existe a lista compartilhada entre salvar e cancelar (as duas nunca podem divergir sobre onde o item mora)",
+    "function __listaAlvoDoDraft(tipo, parent){" in novo
+    and novo.count("__listaAlvoDoDraft(") == 3)  # a propria definicao + as duas chamadas (salvar e cancelar)
+chk("cancelar pergunta antes de descartar quando ha mudanca nao salva",
+    'if(!semMudanca && !confirm("Sair sem salvar? As alterações feitas aqui, incluindo fotos tiradas agora, serão perdidas.")) return;' in novo)
+chk("a checagem usa a MESMA funcao que decide se o Salvar carimba o item como alterado",
+    novo.count("conteudoIgualAoSalvo(listaAlvo,") == 2)  # salvar e cancelar
+chk("abrir so para conferir (sem mudar nada) continua fechando direto, sem perguntar",
+    "if(__draftEntity){" in novo and "const semMudanca = listaAlvo && conteudoIgualAoSalvo(listaAlvo, __draftEntity);" in novo)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
