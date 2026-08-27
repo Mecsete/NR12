@@ -1987,7 +1987,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "26/08/2026 22:04";
+const APP_BUILD = "26/08/2026 22:35";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -3518,7 +3518,11 @@ function onedriveMarcarArvoreIncompleta(motivo){
   __arvoreNuvemIncompleta = true;
   console.warn("Listagem da nuvem incompleta —", motivo);
 }
-async function onedriveListarFilhosEmLote(caminhos){
+/* onLote (opcional): chamado a cada lote respondido, com quantas pastas já
+   foram lidas do conjunto pedido. Serve para uma operação longa poder dizer
+   "estou viva" enquanto ainda não tem itens para contar — sem isso, ler a
+   lista da nuvem inteira era um silêncio de minutos (ver progressoAbrir). */
+async function onedriveListarFilhosEmLote(caminhos, onLote){
   const resultado = new Map();
   if(caminhos.length===0) return resultado;
   const token = await onedriveObterToken();
@@ -3572,6 +3576,7 @@ async function onedriveListarFilhosEmLote(caminhos){
       const itens = (corpo.value||[]).map(item=>({ nome: item.name, tamanho: item.size||0, pasta: !!item.folder }));
       resultado.set(caminho, itens);
     });
+    if(onLote) onLote(Math.min(inicio + ONEDRIVE_BATCH_TAMANHO, caminhos.length), caminhos.length);
   }
   await executarComConcorrencia(precisamBuscaIndividual, 5, async (caminho) => {
     try{ resultado.set(caminho, await onedriveListarFilhos(caminho)); }
@@ -3587,7 +3592,11 @@ async function onedriveListarFilhosEmLote(caminhos){
    $batch — em vez de uma pasta de cada vez. Isso troca "uma viagem de rede por
    pasta" por "uma viagem de rede por NÍVEL da hierarquia", o que é a diferença
    real de velocidade em projetos com muitas áreas/máquinas/tarefas. */
-async function onedriveListarArvore(caminhoPasta, profundidadeRestante){
+/* onPasta (opcional): recebe (lidas, totalDoNivel, nivel) a cada lote de
+   pastas respondido. Num projeto grande esta função leva minutos e não tem
+   nada para contar ainda — sem um sinal de vida, quem chamou fica com o
+   painel de progresso mudo (ver progressoAbrir). */
+async function onedriveListarArvore(caminhoPasta, profundidadeRestante, onPasta){
   const construirNos = (caminhoBase, itens) => itens.map(f => {
     const caminhoFilho = `${caminhoBase}/${f.nome}`;
     return f.pasta
@@ -3599,8 +3608,11 @@ async function onedriveListarArvore(caminhoPasta, profundidadeRestante){
   const nivelRaiz = construirNos(caminhoPasta, filhosRaiz);
   let nivelAtual = nivelRaiz.filter(n=>n.pasta);
   let restante = profundidadeRestante;
+  let nivel = 1;
   while(nivelAtual.length>0 && restante>0){
-    const filhosPorCaminho = await onedriveListarFilhosEmLote(nivelAtual.map(n=>n.caminho));
+    const filhosPorCaminho = await onedriveListarFilhosEmLote(
+      nivelAtual.map(n=>n.caminho),
+      onPasta ? (lidas, total)=>onPasta(lidas, total, nivel) : undefined);
     const proximoNivel = [];
     for(const no of nivelAtual){
       no.filhos = construirNos(no.caminho, filhosPorCaminho.get(no.caminho) || []);
@@ -3608,6 +3620,7 @@ async function onedriveListarArvore(caminhoPasta, profundidadeRestante){
     }
     nivelAtual = proximoNivel;
     restante--;
+    nivel++;
   }
   return nivelRaiz;
 }
@@ -4481,11 +4494,15 @@ function itemTemEspacoDeFotoVazio(obj){
   if(Array.isArray(lista) && lista.some(f=>!__ehFotoEmbutida(f))) return true; // quadro vermelho: referência que não resolve
   return false;
 }
-async function recuperarFotosVarrendoNuvem(onProgresso){
+async function recuperarFotosVarrendoNuvem(onProgresso, onLendoNuvem){
   const res = { candidatos:0, recuperados:0, semNadaNaNuvem:0, erro:false };
   let arvore;
   try{
-    arvore = await onedriveListarArvore(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`, 4);
+    /* A listagem é a parte demorada (minutos num projeto grande) e não tem
+       item nenhum para contar ainda — daí o aviso separado, para o painel
+       não passar esse tempo todo mudo. */
+    arvore = await onedriveListarArvore(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`, 4,
+      onLendoNuvem ? (lidas, total, nivel)=>onLendoNuvem(lidas, total, nivel) : undefined);
   }catch(e){ res.erro = true; return res; }
   if(!arvore){ res.erro = true; return res; }
   /* Achata a árvore atrás dos pacotes de foto. Um pacote na nuvem é a prova
@@ -7471,7 +7488,15 @@ function progressoAbrir(titulo, total){
   /* Já havendo um painel aberto (uma etapa chamando outra), a de dentro só
      escreve na que já está na tela — senão uma fecharia a outra. */
   if(__progresso){ __progresso.titulo = titulo; progressoDesenhar(); return false; }
-  __progresso = { titulo, feito:0, total:total||0, inicio:Date.now(), cancelado:false, sub:"", aviso:"" };
+  __progresso = { titulo, feito:0, total:total||0, inicio:Date.now(), cancelado:false, sub:"", aviso:"", tique:null };
+  /* RELÓGIO PRÓPRIO — sem isto, o painel só se redesenhava quando alguém
+     chamava progressoAtualizar. Numa etapa que fica em silêncio por
+     minutos (ler a lista inteira de arquivos da nuvem é o caso extremo:
+     centenas de pastas numa tacada só, sem nada para contar ainda), o
+     painel congelava inteiro — barra em 0% E "decorrido 0s" parados. Quem
+     está esperando não tem como distinguir isso de um travamento de
+     verdade, e desiste achando que quebrou. Um tique de 1s garante que o
+     tempo SEMPRE anda enquanto a operação está viva. */
   const div = document.createElement("div");
   div.id = "progressoRoot";
   div.className = "prog-fundo";
@@ -7486,6 +7511,7 @@ function progressoAbrir(titulo, total){
       <div class="field-hint" style="text-align:center;margin-top:6px">O que já ficou pronto é guardado. Dá para continuar depois.</div>
     </div>`;
   document.body.appendChild(div);
+  __progresso.tique = setInterval(progressoDesenhar, 1000);
   progressoDesenhar();
   return true;
 }
@@ -7528,6 +7554,7 @@ function progressoAtualizar(feito, total, sub, aviso){
 }
 function progressoFechar(meu){
   if(meu === false) return;      // quem não abriu o painel não fecha
+  if(__progresso && __progresso.tique){ clearInterval(__progresso.tique); __progresso.tique = null; }
   const el = document.getElementById("progressoRoot");
   if(el) el.remove();
   __progresso = null;
@@ -17541,9 +17568,16 @@ Devolver agora?`)) return;
       if(!progressoCancelado() && getOneDriveConta()){
         if(progressoAbrir("Procurando na nuvem fotos de itens sem marca", 0)) souDono = true;
         progressoAtualizar(0, 0, "lendo a lista de arquivos da nuvem…");
-        rv = await recuperarFotosVarrendoNuvem((feitos, total)=>{
-          progressoAtualizar(feitos, total, feitos + " de " + total + " itens conferidos");
-        });
+        rv = await recuperarFotosVarrendoNuvem(
+          (feitos, total)=>{
+            progressoAtualizar(feitos, total, feitos + " de " + total + " itens conferidos");
+          },
+          (lidas, total, nivel)=>{
+            /* Fase de leitura: ainda não há itens para contar, então o número
+               que anda é o de pastas lidas. Sem isto o painel ficava mudo por
+               minutos e parecia travado. */
+            progressoAtualizar(0, 0, `lendo a lista da nuvem — nível ${nivel}, ${lidas} de ${total} pastas`);
+          });
       }
       devolvidas += rv.recuperados;
       const msgVarredura = rv.erro

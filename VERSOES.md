@@ -64,6 +64,36 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 26/08/2026 22:35
+
+**Correção: a tela de progresso parecia travada na etapa nova de
+"Devolver fotos".**
+
+A etapa nova (varredura ampla da nuvem, publicada às 22:04) começa lendo a
+lista de arquivos da nuvem inteira. Num projeto com centenas de
+equipamentos isso leva minutos — e, durante todo esse tempo, não existe
+nenhum item para contar ainda.
+
+O problema é que a tela de progresso **não tinha relógio próprio**: ela só
+se redesenhava quando a operação avisava que tinha terminado mais um item.
+Sem nenhum item para avisar, a tela ficava completamente parada — barra em
+0% e "decorrido 0s" congelados. Do lado de fora não há como distinguir isso
+de um travamento de verdade.
+
+Duas correções:
+
+1. A tela de progresso agora tem relógio próprio, que anda de segundo em
+   segundo enquanto a operação está viva. Vale para **todas** as operações
+   longas do app, não só esta.
+2. A leitura da lista da nuvem agora informa o andamento enquanto acontece
+   — a tela mostra "lendo a lista da nuvem — nível 2, 120 de 340 pastas",
+   em vez de ficar muda.
+
+Nenhuma mudança no que a recuperação faz: continua só preenchendo espaço
+vazio, sem tocar em foto boa, texto, medidas, HRN ou laudo.
+
+---
+
 ## 26/08/2026 22:04
 
 **"Devolver fotos" agora acha também as fotos dos equipamentos que nem

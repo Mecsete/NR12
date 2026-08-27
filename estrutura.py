@@ -2510,15 +2510,15 @@ print("\n=== 91. VARREDURA AMPLA: RECUPERA FOTO DE ITEM SEM MARCA DE DANO ===")
 # A varredura usa outro sinal: o pacote "fotos_*.json" que existe na nuvem
 # prova que aquele item TEVE foto. Prova de comportamento no ENSAIO 29.
 chk("a varredura ampla existe e nao depende da marca de dano",
-    "async function recuperarFotosVarrendoNuvem(onProgresso){" in novo
+    "async function recuperarFotosVarrendoNuvem(onProgresso, onLendoNuvem){" in novo
     and "function itemTemEspacoDeFotoVazio(obj){" in novo
     and "function __itemLocalDoCaminhoFotosNuvem(caminho){" in novo)
 chk("usa UMA listagem da arvore, nao uma chamada de rede por item",
-    # +1 em relacao ao original: a varredura reaproveita a MESMA listagem em
-    # lote que a sincronizacao ja usava, em vez de perguntar item a item.
-    novo.count("await onedriveListarArvore(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`, 4)")
-        == orig.count("await onedriveListarArvore(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`, 4)") + 1
-    and "arvore = await onedriveListarArvore(" in novo)
+    # A varredura reaproveita a MESMA listagem em lote que a sincronizacao ja
+    # usava, em vez de perguntar item a item.
+    "arvore = await onedriveListarArvore(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`, 4," in novo
+    and novo.count("onedriveListarArvore(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`, 4")
+        == orig.count("onedriveListarArvore(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`, 4") + 1)
 chk("o gatilho e o pacote fotos_* que existe na nuvem (prova de que o item TEVE foto)",
     'if(typeof no.nome === "string" && no.nome.startsWith("fotos_")) pacotes.push(no);' in novo)
 chk("so preenche espaco vazio -- nunca sobrescreve foto boa que ja esta aqui",
@@ -2532,10 +2532,33 @@ chk("falha de rede vira erro explicito, nao 'conferi tudo e nao achei nada'",
     "}catch(e){ res.erro = true; return res; }" in novo
     and "if(!arvore){ res.erro = true; return res; }" in novo)
 chk("entra no MESMO botao de sempre, como terceira etapa -- nenhum botao novo foi criado",
-    "rv = await recuperarFotosVarrendoNuvem((feitos, total)=>{" in novo
+    "rv = await recuperarFotosVarrendoNuvem(" in novo
     and novo.count('onclick="App.recuperarFotosPerdidas(') == orig.count('onclick="App.recuperarFotosPerdidas('))
 chk("grava de tempos em tempos -- interrupcao no meio nao perde o que ja voltou",
     novo.count("const gravarSePassouTempo = async () => {") == 2)  # recuperarFotosPerdidasDaNuvem + a varredura
+
+print("\n=== 92. PAINEL DE PROGRESSO NAO CONGELA EM ETAPA SILENCIOSA ===")
+# progressoDesenhar so era chamado por progressoAtualizar/progressoAbrir: nao
+# havia relogio proprio. Qualquer etapa que ficasse minutos sem nada para
+# contar (ler a lista inteira de arquivos da nuvem e o caso extremo) deixava o
+# painel inteiro parado -- barra em 0% E "decorrido 0s" -- indistinguivel de
+# travamento, e o usuario desistia achando que quebrou.
+chk("o painel tem relogio proprio, que anda sem depender de quem esta rodando chamar algo",
+    "__progresso.tique = setInterval(progressoDesenhar, 1000);" in novo
+    and 'tique:null }' in novo)
+chk("o relogio e encerrado ao fechar o painel -- nao fica rodando para sempre",
+    "if(__progresso && __progresso.tique){ clearInterval(__progresso.tique); __progresso.tique = null; }" in novo)
+chk("etapa aninhada (que nao abriu o painel) continua sem fechar nem parar o relogio de quem abriu",
+    "if(meu === false) return;" in novo
+    and novo.index("if(meu === false) return;") < novo.index("if(__progresso && __progresso.tique){ clearInterval"))
+chk("a listagem da nuvem sabe avisar andamento (parametro opcional, aditivo)",
+    "async function onedriveListarFilhosEmLote(caminhos, onLote){" in novo
+    and "async function onedriveListarArvore(caminhoPasta, profundidadeRestante, onPasta){" in novo
+    and "if(onLote) onLote(Math.min(inicio + ONEDRIVE_BATCH_TAMANHO, caminhos.length), caminhos.length);" in novo)
+chk("os pontos que ja chamavam a listagem continuam funcionando sem passar o parametro novo",
+    novo.count("await onedriveListarArvore(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`, 4)") >= 2)
+chk("a varredura ampla usa esse aviso para mostrar pastas lidas durante a leitura",
+    "lendo a lista da nuvem" in novo and "de ${total} pastas" in novo)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
