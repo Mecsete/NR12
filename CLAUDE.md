@@ -41,6 +41,92 @@ hash SHA256 do corpo de cada identificador entre os dois arquivos. Se
 qualquer um mudar 1 byte, a validação PRECISA falhar e a entrega PRECISA
 ser corrigida antes de prosseguir. Nunca ignore essa falha.
 
+## ⛔ REGRA ZERO — ANÁLISE DE PERDA DE DADOS ANTES DE QUALQUER ENTREGA
+
+**Esta regra vem antes de todas as outras, inclusive da sequência de
+validação.** Ela existe porque, em agosto/2026, o engenheiro responsável
+descobriu **em campo, com dado real de cliente**, uma sequência de perdas de
+foto que eu deveria ter encontrado antes de entregar: duplicata apagando
+foto boa na nuvem, aparelho sem foto sobrescrevendo aparelho com foto,
+rascunho descartado ao tocar fora do formulário, e exclusão inferida
+apagando até 516 arquivos da nuvem sem perguntar. Todas foram encontradas
+por quem não é programador, depois de já estarem publicadas.
+
+### O princípio, na forma em que o responsável o enunciou
+
+> **"Só excluir o que for apagado pelo usuário."**
+
+Generalizando: **o app só pode destruir dado quando existe INTENÇÃO
+DECLARADA do usuário para aquele dado específico.** Ausência, silêncio,
+divergência, erro de leitura, timeout, campo vazio vindo de fora — nada
+disso é intenção. Inferência nunca autoriza destruição.
+
+### As sete perguntas obrigatórias
+
+Antes de entregar QUALQUER mudança que toque em `index.html`, responder por
+escrito, uma a uma. Se a mudança não toca em dado, responder "não se
+aplica" — mas responder.
+
+1. **Esta mudança pode apagar, esvaziar ou sobrescrever algum campo que o
+   usuário preencheu?** Rastrear toda atribuição nova: `x = y`, `delete x`,
+   `splice`, `filter`, `length = n`, `push` que substitui.
+2. **Se um valor chegar vazio/nulo/ausente de fora (nuvem, importação,
+   outro aparelho, arquivo), o que acontece com o valor bom que já está
+   aqui?** A resposta certa é sempre "nada". Vazio de fora nunca vence
+   conteúdo local.
+3. **Existe algum caminho em que o app conclui "isto foi apagado" sem o
+   usuário ter apagado?** Se existe, esse caminho não pode destruir —
+   no máximo perguntar, e no automático nem isso.
+4. **O que acontece se esta operação for interrompida no meio?** (app
+   fechado, tela apagada, bateria, aba morta, rede caindo). O que já foi
+   feito continua salvo? O que faltava se perde ou fica na fila?
+5. **O que acontece se a leitura do banco falhar e o app abrir com uma
+   cópia antiga?** A gravação seguinte destrói o registro bom? (Foi
+   exatamente esse o furo do `dbGet` → `localStorage` → `dbSet`.)
+6. **Um aparelho em estado ruim pode contaminar um aparelho em estado
+   bom?** O aparelho danificado é o que MAIS envia — a sincronização
+   precisa presumir que quem chega pode estar pior do que quem está aqui.
+7. **Se eu estiver errado sobre tudo acima, o usuário consegue voltar
+   atrás?** Ponto de restauração, cópia na nuvem, backup — e ele consegue
+   PERCEBER que perdeu algo, ou o dano fica invisível?
+
+### Regras de projeto derivadas (não flexibilizar)
+
+- **Assimetria de custo é lei.** Errar para o lado conservador custa um
+  arquivo a mais, espaço em disco, uma pergunta extra. Errar para o outro
+  lado custa trabalho de campo que não volta — o inspetor teria que dirigir
+  de volta à planta, quando ainda é possível. Na dúvida, **preserve**.
+- **Foto de campo é o dado mais caro do app.** É o único que não pode ser
+  redigitado. Toda mudança que encosta em foto exige ensaio próprio em
+  `banco.js`, não só teste estático.
+- **A nuvem costuma ser a ÚLTIMA cópia.** Todo `DELETE` na nuvem é
+  potencialmente irreversível. Nenhum caminho automático pode apagar na
+  nuvem sem lápide de intenção declarada.
+- **Vazio nunca vence cheio.** Nem em mesclagem, nem em importação, nem em
+  restauração, nem em complemento de fotos.
+- **Perda silenciosa é pior que erro barulhento.** Se não dá para preservar,
+  tem que dar para PERCEBER: marca no item, aviso na tela, linha no
+  diagnóstico. Um campo que fica vazio sem avisar é o pior desfecho
+  possível — some a informação e some também a chance de recuperá-la.
+- **Mudança em motor de sincronização é ADITIVA.** Ponto novo de chamada,
+  guarda nova, listener novo — nunca reescrever a lógica central existente.
+
+### O que entregar junto com a correção
+
+Toda mudança que responda "sim" a qualquer uma das sete perguntas precisa
+de **um ensaio em `banco.js` que reproduza o estrago e prove que ele não
+acontece mais**. O padrão do projeto (ver ENSAIO 26, 28 e 29) inclui uma
+checagem que roda a REGRA ANTIGA no mesmo cenário e confirma que ela
+destruiria o dado — sem isso, não há prova de que o teste testa algo.
+
+### Documento de referência
+
+`AUDITORIA-PERDA-DADOS.md`, na raiz do repositório, tem o levantamento de
+todos os pontos do código que podem destruir dado, o estado de cada um e o
+que ainda é risco aceito. Reler antes de mexer em sincronização, fotos,
+exclusão, importação ou armazenamento — e **atualizar** quando um caminho
+novo for criado.
+
 ## Sequência de validação obrigatória antes de qualquer entrega
 
 Rodar sempre, nesta ordem, depois de qualquer edição no `index.html`:

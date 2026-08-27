@@ -1161,6 +1161,11 @@ const LS_KEY = "apr_campo_backup_v1";
 let __db = null;
 let __storageMode = "indexeddb";
 let __memoryFallback = null;
+/* Ligada quando dbGet não conseguiu ler o registro do IndexedDB e devolveu a
+   cópia de emergência do localStorage — que é mais velha e não tem fotos. A
+   partir daí, dbSet confere o banco antes de gravar por cima (ver a trava lá
+   dentro), para uma falha momentânea de leitura nunca virar perda definitiva. */
+let __leituraDegradada = false;
 function temIndexedDB(){ try{ return (typeof indexedDB !== "undefined") && indexedDB !== null; }catch(e){ return false; } }
 function dbOpen(){
   return new Promise((resolve,reject)=>{
@@ -1665,6 +1670,17 @@ async function dbGet(){
     // rebaixamento na leitura que contaminava todas as gravações seguintes
     // da sessão (dbSet agora tenta o caminho completo a cada chamada, mas
     // não faz sentido a leitura sabotar o estado de saúde da gravação).
+    /* LEITURA DEGRADADA — E POR QUE ISSO PRECISA FICAR MARCADO.
+       O que se devolve aqui NÃO é o registro bom: o localStorage só é
+       escrito quando o IndexedDB falha, não comporta fotos (limite ~5 MB)
+       e por isso costuma ser uma cópia bem mais velha e bem menor. Um
+       soluço de leitura no iOS (comum sob pressão de memória) fazia o app
+       abrir com essa cópia como se fosse a verdade — e a PRIMEIRA gravação
+       seguinte regravava essa cópia velha por cima do registro bom que
+       continuava intacto no IndexedDB. Perda total e silenciosa, sem
+       ninguém ter apagado nada. A marca abaixo faz dbSet conferir antes de
+       gravar por cima (ver __leituraDegradada lá). */
+    __leituraDegradada = true;
     try{ const raw = localStorage.getItem(LS_KEY); return raw ? JSON.parse(raw) : null; }
     catch(e2){ return __memoryFallback; }
   }
@@ -1679,6 +1695,30 @@ async function dbSet(val){
   // as gravações seguintes; cada tentativa merece o caminho completo.
   try{
     const db = await dbOpen();
+    /* TRAVA CONTRA GRAVAR CÓPIA VELHA POR CIMA DA BOA.
+       Se a leitura desta sessão foi degradada (dbGet caiu no localStorage —
+       ver __leituraDegradada lá), o que está em memória NÃO veio do registro
+       bom. Antes de deixar isso ser gravado por cima, tenta ler o registro
+       do IndexedDB de novo: se ele responder agora, o banco está são e o
+       que temos em memória é a cópia velha — gravar seria destruir o
+       trabalho todo. Nesse caso a gravação é recusada e o erro aparece no
+       chip de status, que já sabe pedir para reabrir o app.
+       Se a releitura também falhar, o banco está mesmo indisponível: aí não
+       há nada bom a preservar e a gravação segue pelos planos B. */
+    if(__leituraDegradada){
+      const bom = await new Promise((resolve)=>{
+        try{
+          const tx = db.transaction(DB_STORE,"readonly");
+          const rq = tx.objectStore(DB_STORE).get(DB_KEY);
+          rq.onsuccess = ()=>resolve(rq.result || null);
+          rq.onerror   = ()=>resolve(null);
+        }catch(e){ resolve(null); }
+      });
+      if(bom){
+        __leituraDegradada = false; // o banco voltou; a partir daqui a leitura é confiável de novo
+        throw new Error("LEITURA_DEGRADADA_NAO_GRAVAR");
+      }
+    }
     // Fotos saem do pacote principal: cada uma vira uma chave própria no
     // banco, gravada UMA única vez (o índice em memória diz quais já estão
     // lá). O STATE em si vira um pacote minúsculo de texto — é isso que
@@ -1699,7 +1739,18 @@ async function dbSet(val){
     __storageMode = "indexeddb"; // gravou de verdade — modo saudável (recupera mesmo se uma tentativa anterior tinha falhado)
     fotosLimparOrfasSeForHora(); // remove fotos de itens apagados, em segundo plano e com trava de tempo
     return true;
-  }catch(e){ /* cai para os planos B abaixo, SÓ nesta tentativa — usando o val ORIGINAL, com as fotos embutidas */ }
+  }catch(e){
+    /* A recusa por leitura degradada NÃO pode cair nos planos B: gravar a
+       cópia velha no localStorage a manteria viva para a próxima abertura,
+       e devolver true faria o app dizer "salvo" sem ter salvado no lugar
+       que importa. Devolve falso para o chip de status mostrar o erro —
+       reabrir o app relê o registro bom e tudo volta ao normal. */
+    if(e && e.message === "LEITURA_DEGRADADA_NAO_GRAVAR"){
+      console.error("Gravação recusada: a sessão abriu com uma cópia antiga e o registro bom está no banco. Reabra o app.");
+      return false;
+    }
+    /* cai para os planos B abaixo, SÓ nesta tentativa — usando o val ORIGINAL, com as fotos embutidas */
+  }
   try{ localStorage.setItem(LS_KEY, JSON.stringify(val)); __storageMode = "localstorage"; return true; }
   catch(e){ /* localStorage cheio ou indisponível — último recurso abaixo */ }
   __storageMode = "memoria";
@@ -1987,7 +2038,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "26/08/2026 22:35";
+const APP_BUILD = "26/08/2026 23:00";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -3009,7 +3060,7 @@ let __avisoExclusaoMassaEm = 0;
 function avisarExclusaoMassaBloqueada(n){
   if(Date.now() - __avisoExclusaoMassaEm < 6*60*60*1000) return; // no máximo 1 aviso a cada 6h
   __avisoExclusaoMassaEm = Date.now();
-  toast(`Atenção: ${n} itens sumiram deste aparelho desde a última sincronização. Por segurança, eles NÃO foram apagados da nuvem — se você não excluiu isso de propósito, use "Sincronizar agora" para trazê-los de volta; se a exclusão foi intencional, o "Sincronizar agora" vai pedir sua confirmação para concluir.`, false);
+  toast(`Atenção: ${n} ${n===1?'item sumiu':'itens sumiram'} deste aparelho sem passar pela pergunta de exclusão. Por segurança, ${n===1?'ele NÃO foi apagado':'eles NÃO foram apagados'} da nuvem — se você não excluiu isso de propósito, use "Sincronizar agora" para ${n===1?'trazê-lo':'trazê-los'} de volta; se a exclusão foi intencional, o "Sincronizar agora" vai pedir sua confirmação para concluir.`, false);
 }
 async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinaturasRef, onProgresso){
   const itensAtuais = listarItens();
@@ -3059,17 +3110,52 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
   // incerto passa pelo freio de exclusão em massa.
   const idsConfirmados = idsExcluidosTodos.filter(exclusaoConfirmadaPeloUsuario);
   const idsExcluidos = idsExcluidosTodos.filter(id=>!exclusaoConfirmadaPeloUsuario(id));
-  let podeApagar = idsExcluidos.length > 0;
-  if(podeApagar && exclusaoEmMassaSuspeita(idsExcluidos.length, itensAtuais.length)){
+  /* =====================================================================
+     REGRA: SÓ SE APAGA DA NUVEM O QUE O USUÁRIO MANDOU APAGAR.
+
+     Existem dois caminhos até uma exclusão na nuvem:
+       1. CONFIRMADA — a pessoa apagou o item e respondeu "sim, apague
+          também na nuvem" (perguntarApagarTambemNaNuvem grava a lápide).
+          Este caminho é intenção declarada e segue direto.
+       2. INFERIDA — o mapa de assinaturas tem o id, a árvore local não
+          tem mais. Isso NÃO é intenção: é uma conclusão tirada da ausência
+          do item, e a ausência pode ter muitas causas que não são o
+          usuário ter apagado nada — leitura do banco que falhou e caiu
+          para uma cópia antiga do localStorage, restauração de um ponto
+          anterior, junção de duplicatas, um item movido por um caminho com
+          defeito, ou um bug ainda não descoberto.
+
+     Até esta versão, o caminho 2 apagava sozinho, e o único freio era
+     exclusaoEmMassaSuspeita — que exige 8+ itens E mais de 30% do total.
+     Num projeto de 1722 itens isso significa que até 516 itens podiam
+     sumir da nuvem sem uma única pergunta. Como a nuvem costuma ser a
+     ÚLTIMA cópia da foto de campo, esse era o caminho mais curto para
+     perda irreversível dentro do app inteiro.
+
+     Agora o caminho 2 nunca apaga por conta própria: no ciclo automático
+     avisa e não toca em nada; na sincronização manual pergunta, seja 1
+     item ou 500. Quem responde "sim" gera a lápide de verdade (linha
+     registrarLapidesExclusao mais abaixo), e a partir daí é caminho 1.
+
+     O preço de errar para este lado é um arquivo a mais na nuvem. O preço
+     de errar para o outro lado é trabalho de campo que não volta. */
+  let podeApagar = false;
+  if(idsExcluidos.length > 0){
     if(!onProgresso){
-      // Ciclo automático: NUNCA propaga uma exclusão em massa sozinho. Os
-      // arquivos ficam na nuvem intocados; só avisa. Se foi engano, a própria
-      // sincronização traz os itens de volta; se foi de propósito, a manual
-      // confirma e conclui.
-      podeApagar = false;
+      // Ciclo automático: nunca propaga exclusão que a pessoa não declarou.
+      // Os arquivos ficam na nuvem intocados; só avisa. Se foi engano, a
+      // própria sincronização traz os itens de volta; se foi de propósito,
+      // a sincronização manual confirma e conclui.
       avisarExclusaoMassaBloqueada(idsExcluidos.length);
     }else{
-      podeApagar = confirm(`${idsExcluidos.length} itens foram removidos deste aparelho e a sincronização vai apagá-los da nuvem também (e do outro aparelho na próxima sincronização dele).\n\nEssa exclusão foi intencional?\n\nOK = apagar da nuvem · Cancelar = manter na nuvem (os itens voltarão para este aparelho)`);
+      const muitos = exclusaoEmMassaSuspeita(idsExcluidos.length, itensAtuais.length);
+      const n = idsExcluidos.length;
+      podeApagar = confirm(
+        `${n} ${n===1?'item sumiu':'itens sumiram'} deste aparelho sem passar pela pergunta de exclusão.\n\n`
+        + (muitos ? "É MUITA COISA de uma vez — confira se não foi uma restauração ou uma falha de leitura antes de confirmar.\n\n" : "")
+        + `Apagar ${n===1?'esse item':'esses itens'} da nuvem também?\n\n`
+        + `OK = apagar da nuvem (some dos outros aparelhos também)\n`
+        + `Cancelar = MANTER na nuvem (${n===1?'o item volta':'os itens voltam'} para este aparelho na próxima sincronização)`);
     }
   }
   const idsParaApagar = idsConfirmados.concat(podeApagar ? idsExcluidos : []);

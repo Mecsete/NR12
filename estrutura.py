@@ -2560,6 +2560,60 @@ chk("os pontos que ja chamavam a listagem continuam funcionando sem passar o par
 chk("a varredura ampla usa esse aviso para mostrar pastas lidas durante a leitura",
     "lendo a lista da nuvem" in novo and "de ${total} pastas" in novo)
 
+print("\n=== 93. SO SE APAGA DA NUVEM O QUE O USUARIO MANDOU APAGAR ===")
+# Antes: exclusao INFERIDA (id no mapa de assinaturas, item nao esta mais na
+# arvore) apagava da nuvem sozinha, freada so por exclusaoEmMassaSuspeita --
+# que exige 8+ itens E >30% do total. Num projeto real de 1722 itens isso
+# liberava ate 516 exclusoes silenciosas. "Sumiu da arvore" nao e intencao do
+# usuario: pode ser leitura degradada, restauracao, juncao de duplicatas ou
+# bug. Como a nuvem costuma ser a ULTIMA copia da foto de campo, era o atalho
+# mais curto para perda irreversivel. Prova de comportamento no ENSAIO 21.
+chk("o ciclo automatico NUNCA apaga exclusao inferida (nem 1 item)",
+    "let podeApagar = false;" in novo
+    and "if(idsExcluidos.length > 0){" in novo
+    and "let podeApagar = idsExcluidos.length > 0;" not in novo)
+chk("a pergunta da sincronizacao manual nao depende mais do freio de massa",
+    "const muitos = exclusaoEmMassaSuspeita(idsExcluidos.length, itensAtuais.length);" in novo
+    and "podeApagar = confirm(" in novo)
+chk("o freio de massa continua existindo, agora so para reforcar o texto da pergunta",
+    "function exclusaoEmMassaSuspeita(nExcluidos, nAtuais){" in novo
+    and "MUITA COISA de uma vez" in novo)
+chk("exclusao CONFIRMADA pelo usuario continua passando direto, sem pergunta nova",
+    "const idsParaApagar = idsConfirmados.concat(podeApagar ? idsExcluidos : []);" in novo)
+
+print("\n=== 94. LEITURA DEGRADADA NAO GRAVA POR CIMA DO REGISTRO BOM ===")
+# dbGet, ao falhar no IndexedDB, devolve a copia do localStorage -- mais velha
+# e sem fotos (limite ~5 MB). O app abria com ela como se fosse a verdade e a
+# PRIMEIRA gravacao seguinte a regravava por cima do registro bom, que seguia
+# intacto no banco. Perda total e silenciosa, sem ninguem apagar nada.
+chk("a leitura degradada fica marcada em vez de passar despercebida",
+    "let __leituraDegradada = false;" in novo
+    and "__leituraDegradada = true;" in novo)
+chk("dbSet confere o banco antes de gravar por cima quando a leitura foi degradada",
+    "if(__leituraDegradada){" in novo
+    and 'throw new Error("LEITURA_DEGRADADA_NAO_GRAVAR");' in novo)
+chk("se o banco responde, a marca e limpa (nao fica travado para sempre)",
+    "__leituraDegradada = false; // o banco voltou" in novo)
+chk("a recusa NAO cai nos planos B nem devolve sucesso -- o chip precisa mostrar erro",
+    'if(e && e.message === "LEITURA_DEGRADADA_NAO_GRAVAR"){' in novo
+    and novo.index('if(e && e.message === "LEITURA_DEGRADADA_NAO_GRAVAR"){')
+        < novo.index("localStorage.setItem(LS_KEY, JSON.stringify(val))"))
+
+print("\n=== 95. REGRA ZERO E AUDITORIA ESTAO DOCUMENTADAS ===")
+try:
+    _claude = open("CLAUDE.md", encoding="utf-8").read()
+    _audit  = open("AUDITORIA-PERDA-DADOS.md", encoding="utf-8").read()
+except Exception as _e:
+    _claude = _audit = ""
+chk("CLAUDE.md tem a REGRA ZERO com as sete perguntas obrigatorias",
+    "REGRA ZERO" in _claude and "sete perguntas" in _claude
+    and "So excluir o que for apagado pelo usuario" in _claude.replace("ó","o").replace("á","a").replace("é","e").replace("ú","u"))
+chk("CLAUDE.md manda escrever ensaio que prova o estrago, nao so o conserto",
+    "REGRA ANTIGA" in _claude or "regra ANTIGA" in _claude)
+chk("a auditoria existe e cobre os eixos principais",
+    all(t in _audit for t in ["Sincroniza", "Armazenamento local", "Riscos aceitos", "divida"] )
+    or all(t in _audit for t in ["Sincroniza", "Armazenamento local", "Riscos aceitos"]))
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

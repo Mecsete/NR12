@@ -64,6 +64,49 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 26/08/2026 23:00
+
+**Duas travas contra perda de dados, encontradas numa auditoria completa —
+não por um sumiço em campo.**
+
+**1. Só se apaga da nuvem o que você mandou apagar.**
+
+A sincronização tinha dois caminhos até apagar um arquivo da nuvem: o que
+você confirma na hora de excluir (correto), e um segundo que apagava por
+conclusão própria — "o mapa diz que este item existe, mas ele não está mais
+na árvore, então foi apagado".
+
+Só que "não está mais na árvore" não é a mesma coisa que "você apagou".
+Pode ser uma leitura do banco que falhou e abriu o app com uma cópia velha,
+uma restauração de ponto anterior, uma junção de duplicatas, ou um defeito
+ainda não descoberto. O único freio era um limite de "exclusão em massa"
+que exige 8 itens **e** mais de 30% do total — num projeto de 1722 itens,
+isso significa que **até 516 arquivos podiam ser apagados da nuvem sem uma
+única pergunta**. E como a nuvem costuma ser a última cópia da foto de
+campo, esse era o caminho mais curto para perda que não volta.
+
+Agora: a sincronização automática **nunca** apaga por conclusão própria —
+avisa e não toca em nada. A sincronização manual pergunta, seja 1 item ou
+500. E, como a nuvem manteve o arquivo, o item some e **volta sozinho** na
+sincronização seguinte, se o sumiço foi acidente.
+
+**2. Abrir com uma cópia antiga não destrói mais a cópia boa.**
+
+Quando a leitura do banco do aparelho falha por um instante (comum no
+iPhone sob pressão de memória), o app carregava uma cópia de emergência
+antiga — que não guarda fotos. E a primeira gravação seguinte regravava
+essa cópia antiga **por cima do registro bom**, que continuava inteiro no
+banco. Perda total e silenciosa, sem ninguém ter apagado nada.
+
+Agora o app marca que a leitura foi degradada e, antes de gravar, confere o
+banco de novo. Se o banco responde, a gravação é recusada e o aviso
+vermelho de "não foi possível salvar" aparece — basta fechar e reabrir o
+app, que a cópia boa é lida normalmente.
+
+Nada disso muda o que você vê na tela ou como o app é usado.
+
+---
+
 ## 26/08/2026 22:35
 
 **Correção: a tela de progresso parecia travada na etapa nova de

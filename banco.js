@@ -75,6 +75,12 @@ function novoAparelho(nome, nuvem){
        reclamar. Agora as funções de lápide são extraídas do index.html, como o
        resto do motor. */
     marcarAlterado:()=>{},
+    /* Resposta do usuario ao "apagar tambem da nuvem?" da sincronizacao
+       MANUAL. Fica controlavel para o ensaio poder exercitar os dois lados:
+       confirmar (apaga) e recusar (mantem na nuvem). */
+    confirm:(...a)=>{ ctx.__confirmChamadas.push(a[0]||""); return ctx.__confirmResposta; },
+    __confirmResposta:false,
+    __confirmChamadas:[],
     navigator:{ onLine:true },
     registrarEventoSync:()=>{},
     marcarProgressoSync:()=>{},
@@ -856,8 +862,23 @@ async function rodarAteParar(ap, maxCiclos, rotulo){
     checar("no manual (usuario mandou) a mesma exclusao e aplicada", manual.removidos>0, JSON.stringify(manual));
   }
 
-  console.log("\n" + L + "\nENSAIO 21 - item que sumiu do aparelho (sem confirmacao) tambem propaga\n" + L);
+  console.log("\n" + L + "\nENSAIO 21 - item que sumiu SEM o usuario mandar nao e apagado da nuvem\n" + L);
   {
+    /* MUDANCA DELIBERADA DE CONTRATO. Ate aqui, um item que sumia da arvore
+       local era apagado da nuvem SOZINHO pelo ciclo automatico, e o unico
+       freio era exclusaoEmMassaSuspeita -- que exige 8+ itens E mais de 30%
+       do total. Num projeto real de 1722 itens isso liberava ate 516
+       exclusoes silenciosas, sem uma unica pergunta.
+       O problema de fundo: "sumiu da arvore" NAO e intencao do usuario, e
+       uma conclusao tirada da ausencia. A ausencia tem varias causas que nao
+       sao exclusao: leitura do banco que falhou e caiu para a copia velha do
+       localStorage, restauracao de um ponto anterior, juncao de duplicatas,
+       item movido por um caminho com defeito, bug futuro. Como a nuvem
+       costuma ser a ULTIMA copia da foto de campo, esse caminho automatico
+       era o atalho mais curto para perda irreversivel dentro do app.
+       Contrato novo: so se apaga da nuvem o que o usuario mandou apagar.
+       O automatico nunca propaga inferencia; o manual pergunta, seja 1 item
+       ou 500. */
     const nuvem = novaNuvem();
     const A = novoAparelho("A", nuvem);
     A.ctx.STATE.projetosSimples = [arvoreExemplo(1,1,1,3,false)];
@@ -865,30 +886,58 @@ async function rodarAteParar(ap, maxCiclos, rotulo){
     const B = novoAparelho("B", nuvem);
     await rodarAteParar(B, 8);
 
-    /* Caminho SEM lapide na origem: o item some da arvore (excluido com o
-       OneDrive desconectado, por exemplo) e quem descobre e a sincronizacao. */
     const alvo = riscosDe(A)[2];
     vm.runInContext(`(function(){
-      const t = STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0];
-      t.riscos = t.riscos.filter(x=>x.id!==${JSON.stringify(alvo)});
+      var t = STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0];
+      t.riscos = t.riscos.filter(function(x){ return x.id!==${JSON.stringify(alvo)}; });
     })()`, A.ctx);
     checar("A nao tem lapide antes de sincronizar",
       vm.runInContext(`lapideDe("risco:"+${JSON.stringify(alvo)})`, A.ctx)===0);
 
+    // ---- CICLO AUTOMATICO: nao pode apagar nada ----
     await rodarAteParar(A, 8);
-    checar("a sincronizacao gravou a lapide sozinha",
-      vm.runInContext(`lapideDe("risco:"+${JSON.stringify(alvo)})`, A.ctx)>0);
-    /* Um ciclo a mais em A: a lapide nasce DENTRO do envio, depois da rodada
-       de lapides deste ciclo — quem a leva para a nuvem e o ciclo seguinte.
-       (No app isso acontece sozinho: o ciclo automatico repete a cada 2 min e
-       marcarLapidesAlteradas zera o limitador de 10 min para nao atrasar.) */
-    await ciclo(A);
-    checar("a lapide subiu para a nuvem",
-      [...nuvem.arquivos.keys()].some(c=>c.includes("lapides_")));
-
+    checar("O CASO REAL: o ciclo automatico NAO apaga da nuvem o que o usuario nao mandou apagar",
+      arquivosCom(nuvem, alvo).length > 0, "arquivos na nuvem=" + arquivosCom(nuvem, alvo).length);
+    checar("e nao inventa lapide sozinho (nada e anunciado aos outros aparelhos)",
+      vm.runInContext(`lapideDe("risco:"+${JSON.stringify(alvo)})`, A.ctx)===0);
     for(let i=0;i<4;i++) await ciclo(B);
-    checar("B removeu o item que sumiu de A", riscosDe(B).indexOf(alvo)<0, "B="+riscosDe(B).join());
-    checar("nada ressuscitou na nuvem", arquivosCom(nuvem, alvo).length===0);
+    checar("o outro aparelho continua com o item -- a copia dele nao foi destruida",
+      riscosDe(B).indexOf(alvo)>=0, "B="+riscosDe(B).join());
+    /* REDE DE SEGURANCA COMPLETA: como a nuvem manteve o arquivo, o proprio
+       recebimento devolve o item ao aparelho onde ele havia sumido. Se o
+       sumico foi um acidente (leitura degradada, restauracao, bug), o
+       trabalho volta sozinho -- que e o desfecho que se quer. */
+    checar("o item VOLTA sozinho para o aparelho onde sumiu (a nuvem serviu de rede)",
+      riscosDe(A).indexOf(alvo)>=0, "A="+riscosDe(A).join());
+
+    // ---- MANUAL + usuario RECUSA: continua sem apagar ----
+    // Some de novo e vai direto para a manual, sem recebimento no meio.
+    vm.runInContext(`(function(){
+      var t = STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0];
+      t.riscos = t.riscos.filter(function(x){ return x.id!==${JSON.stringify(alvo)}; });
+    })()`, A.ctx);
+    A.ctx.__confirmResposta = false;
+    A.ctx.__confirmChamadas = [];
+    await vm.runInContext(`onedriveSincronizarModulo("Simplificado", listarItensSincronizaveisSimples, __assinaturasOneDriveSimples, function(){})`, A.ctx);
+    checar("a sincronizacao MANUAL pergunta mesmo sendo 1 item so (nao depende do freio de massa)",
+      A.ctx.__confirmChamadas.length === 1, "perguntas=" + A.ctx.__confirmChamadas.length);
+    checar("respondendo NAO, o item continua na nuvem",
+      arquivosCom(nuvem, alvo).length > 0);
+
+    // ---- MANUAL + usuario CONFIRMA: agora sim apaga e vira lapide ----
+    A.ctx.__confirmResposta = true;
+    A.ctx.__confirmChamadas = [];
+    await vm.runInContext(`onedriveSincronizarModulo("Simplificado", listarItensSincronizaveisSimples, __assinaturasOneDriveSimples, function(){})`, A.ctx);
+    checar("respondendo SIM, a exclusao acontece de verdade",
+      arquivosCom(nuvem, alvo).length === 0, "sobraram=" + arquivosCom(nuvem, alvo).length);
+    checar("e so entao nasce a lapide, que e o registro da INTENCAO do usuario",
+      vm.runInContext(`lapideDe("risco:"+${JSON.stringify(alvo)})`, A.ctx)>0);
+
+    await ciclo(A);
+    for(let i=0;i<4;i++) await ciclo(B);
+    checar("com a intencao declarada, o outro aparelho remove normalmente",
+      riscosDe(B).indexOf(alvo)<0, "B="+riscosDe(B).join());
+    checar("e nada ressuscita na nuvem", arquivosCom(nuvem, alvo).length===0);
   }
 
   console.log("\n" + L + "\nENSAIO 22 - renomear equipamento NAO reenvia a arvore inteira\n" + L);
