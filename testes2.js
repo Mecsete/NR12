@@ -168,6 +168,10 @@ vm.runInContext(constante("CAMPOS_ADMIN_PROJETO"), ctx);
 /* motor de sincronizacao e equipe, extraidos do arquivo entregue */
 vm.runInContext('const CAMPO_FOTOS_LISTA = "fotosOutras";', ctx);
 vm.runInContext(constante("CAMPOS_FILHOS_SYNC"), ctx);
+/* aplicarAtualizacaoRemota passou a consultar os campos de foto unica para
+   nunca deixar um null vindo de fora apagar foto boa daqui (ver ENSAIO 28
+   em banco.js) — sem esta constante no contexto, ela quebra por referencia. */
+vm.runInContext(constante("CAMPOS_FOTO_UNICA"), ctx);
 [ "__ehFotoEmbutida", "__carregarUltimoCarimbo", "registrarCarimboVisto", "agoraSync",
   "aplicarAtualizacaoRemota", "__listasIrmasDe", "__moverItemEntrePais",
   "marcarSubarvoreAreaAlterada", "marcarSubarvoreMaquinaAlterada", "marcarSubarvoreTarefaAlterada",
@@ -4699,6 +4703,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       + ' if(/^(CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])$/i.test(n)) n = n+"_"; return n || "sem-nome"; }', ctxS);
     vm.runInContext(constante("CAMPOS_FILHOS_SYNC"), ctxS);
     vm.runInContext(constante("CAMPO_FILHOS_POR_TIPO"), ctxS);
+    vm.runInContext(constante("CAMPOS_FOTO_UNICA"), ctxS);
     vm.runInContext("var __ultimoCarimboVisto = 0;", ctxS);
     vm.runInContext("var __assinaturasOneDriveSimples = { mapa:null, chaveEstado:'oneDriveAssinaturasSimples' };", ctxS);
     vm.runInContext("var __arvoreSimplesCache = null, __indiceNuvemMapa = null, __indiceNuvemMapaEm = 0;", ctxS);
@@ -6709,7 +6714,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       async function fotosCarregarIndice(){ return new Set(); }
       var __assinaturasOneDriveSimples = { mapa:null, chaveEstado:"oneDriveAssinaturasSimples" };
     `, ctx);
-    ["CAMPOS_FILHOS_SYNC","CAMPO_FILHOS_POR_TIPO"].forEach(n=>vm.runInContext(constante(n), ctx));
+    ["CAMPOS_FILHOS_SYNC","CAMPO_FILHOS_POR_TIPO","CAMPOS_FOTO_UNICA"].forEach(n=>vm.runInContext(constante(n), ctx));
     ["segmentoPastaComId","extrairSufixoDoNome","idBateComSufixo","separarFotosDoItem","__ehFotoEmbutida",
      "tamanhoTextoLocalDoItem","onedriveCarregarAssinaturas","onedriveAssinaturaDe","onedriveAnotarTamanho",
      "onedriveArquivoMudouNaNuvem","onedriveMesmaVersaoPeloTamanho","aplicarAtualizacaoRemota",
@@ -6909,6 +6914,45 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       // as duas contam o carimbo antigo, mesma convenção já usada em
       // laudoResumoLista (contagem por LINHA, não por entidade única).
       eq(dados.porDia["2026-08-10"].campos, 2, "o carimbo antigo da tarefa deveria valer para as 2 linhas de risco dela");
+    });
+  }
+
+  console.log("\n=== t124 · foto boa daqui nao e apagada por item sem foto vindo de outro aparelho ===");
+  {
+    /* O sumico de fotos que voltava a cada sincronizacao. A protecao de foto
+       em aplicarAtualizacaoRemota so era acionada quando o arquivo remoto
+       trazia __fotosOmitidas -- marca que separarFotosDoItem so escreve se o
+       REMETENTE tinha foto. Aparelho que sobe o item sem foto nenhuma (fotos
+       ainda nao baixadas, ou perdidas ali) mandava fotoGeral:null sem marca
+       nenhuma, e do lado de ca a foto boa era substituida por null.
+       Prova detalhada em banco.js, ENSAIO 28; aqui fica a versao curta que
+       roda junto com o resto da suite. */
+    const FOTO = "data:image/jpeg;base64," + "Z".repeat(120);
+    t("null vindo de aparelho SEM foto nao apaga a foto local (sem depender de __fotosOmitidas)", ()=>{
+      const local = { id:"mx", nome:"n", descricao:"antes", fotoGeral:FOTO, fotosOutras:[FOTO],
+                      criadoEm:1750000000000, atualizadoEm:1750000000000 };
+      const remoto = { id:"mx", nome:"n", descricao:"depois", fotoGeral:null, fotosOutras:[],
+                       criadoEm:1750000000000, atualizadoEm:1750000009999 };
+      ok(remoto.__fotosOmitidas === undefined, "o caso testado precisa ser o SEM marca");
+      C.aplicarAtualizacaoRemota(local, remoto);
+      eq(local.fotoGeral, FOTO, "a foto geral foi apagada por um null de fora");
+      eq(local.fotosOutras.length, 1, "a lista de fotos foi zerada por uma lista vazia de fora");
+      eq(local.descricao, "depois", "o texto editado no outro aparelho precisa continuar chegando");
+    });
+    t("foto de verdade que chega continua substituindo (a correcao nao congela a foto local)", ()=>{
+      const OUTRA = "data:image/jpeg;base64," + "W".repeat(120);
+      const local = { id:"my", fotoGeral:FOTO, fotosOutras:[FOTO], criadoEm:1, atualizadoEm:1 };
+      const remoto = { id:"my", fotoGeral:OUTRA, fotosOutras:[FOTO, OUTRA], criadoEm:1, atualizadoEm:9 };
+      C.aplicarAtualizacaoRemota(local, remoto);
+      eq(local.fotoGeral, OUTRA);
+      eq(local.fotosOutras.length, 2);
+    });
+    t("o caminho legitimo (__fotosOmitidas) continua preservando e marcando para buscar o pacote", ()=>{
+      const local = { id:"mz", fotoGeral:FOTO, fotosOutras:[FOTO], criadoEm:1, atualizadoEm:1 };
+      const remoto = { id:"mz", fotoGeral:null, fotosOutras:[], __fotosOmitidas:true, criadoEm:1, atualizadoEm:9 };
+      C.aplicarAtualizacaoRemota(local, remoto);
+      eq(local.fotoGeral, FOTO);
+      ok(local.__fotosOmitidas === true && local.__fotosAtualizar === true, "faltou marcar para reconferir o pacote");
     });
   }
 

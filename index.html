@@ -1987,7 +1987,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "26/08/2026 21:07";
+const APP_BUILD = "26/08/2026 21:39";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -5420,13 +5420,47 @@ function aplicarAtualizacaoRemota(local, remoto){
   const tsRemoto = remoto.atualizadoEm || remoto.criadoEm || 0;
   if(tsRemoto <= tsLocal) return false; // versão daqui é igual ou mais nova — quem sobe é este aparelho
   const remotoOmitiuFotos = !!remoto.__fotosOmitidas;
+  /* FOTO BOA DAQUI NUNCA É APAGADA POR UM VAZIO QUE CHEGOU DE FORA.
+     Antes, a proteção só valia quando o arquivo remoto vinha marcado com
+     __fotosOmitidas (= "as fotos viajaram no pacote separado"). Só que essa
+     marca depende de o REMETENTE ter tido foto na hora de subir: em
+     separarFotosDoItem, __fotosOmitidas só é escrita quando tinhaFotos é
+     verdadeiro. Um aparelho que subiu o item SEM foto nenhuma — porque as
+     fotos dele ainda não desceram, ou porque ele mesmo as perdeu (o caso
+     __fotosPerdidas, em que a referência não resolve e vira null) — sobe
+     fotoGeral:null SEM marca nenhuma. Aqui do lado de cá, remotoOmitiuFotos
+     dava false, a proteção não era acionada, e a linha local[k] = v
+     substituía a foto BOA por null. O aparelho danificado contaminava o
+     saudável — exatamente o mesmo estrago que já havia sido fechado no
+     caminho dos pacotes de foto (ver completarFotosDeItem), mas que continuou
+     aberto neste caminho, o do item de texto.
+     A regra agora não depende de marca nenhuma do remetente: campo de foto
+     só aceita conteúdo que seja foto DE VERDADE, e a lista de fotos só
+     aceita um conjunto que não REDUZA o que já existe aqui.
+     Consequência assumida: apagar uma foto de propósito em outro aparelho
+     deixa de se propagar para este. É deliberado — refazer uma exclusão
+     custa um toque, e recuperar foto de campo perdida custa uma viagem de
+     volta à planta (quando ainda é possível). */
+  const ehCampoFotoUnica = (k)=> CAMPOS_FOTO_UNICA.indexOf(k) >= 0;
   for(const k in remoto){
     if(k === "__fotosOmitidas" || k === "__fotosAtualizar") continue;
     if(CAMPOS_FILHOS_SYNC.includes(k)) continue;
     const v = remoto[k];
-    const vazioPorqueViajouSeparado = remotoOmitiuFotos && (v === null || (Array.isArray(v) && v.length === 0));
-    const localTemFotoAqui = __ehFotoEmbutida(local[k]) || (Array.isArray(local[k]) && local[k].length > 0 && k === CAMPO_FOTOS_LISTA);
-    if(vazioPorqueViajouSeparado && localTemFotoAqui) continue;
+    if(ehCampoFotoUnica(k)){
+      // Só troca quando o que chegou é foto de verdade. null, "", ou uma
+      // referência não resolvida nunca passam por cima do que está aqui.
+      if(__ehFotoEmbutida(v)) local[k] = v;
+      else if(!__ehFotoEmbutida(local[k])) local[k] = v; // aqui também não há foto — nada a perder
+      continue;
+    }
+    if(k === CAMPO_FOTOS_LISTA && Array.isArray(v)){
+      // Mesma contagem de fotos REAIS usada em completarFotosDeItem: o que
+      // chega pode acrescentar ou substituir por fotos reais, nunca reduzir.
+      const chegaram = v.filter(__ehFotoEmbutida);
+      const aqui = Array.isArray(local[k]) ? local[k].filter(__ehFotoEmbutida) : [];
+      if(chegaram.length >= aqui.length) local[k] = v;
+      continue;
+    }
     local[k] = v;
   }
   /* A versão de lá é mais nova e tem fotos: marca para reconferir o pacote.

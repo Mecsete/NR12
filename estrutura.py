@@ -2472,6 +2472,37 @@ chk("onedriveDeltaProcessarFila em si nao foi alterado -- so ganhou pontos novos
     and orig.count("if(d===null || d.jaExiste) continue;") == novo.count("if(d===null || d.jaExiste) continue;")
     and orig.count("STATE.oneDriveDeltaFila = fila;\n  return mesclados;\n}") == novo.count("STATE.oneDriveDeltaFila = fila;\n  return mesclados;\n}"))
 
+print("\n=== 90. FOTO BOA NAO E APAGADA POR ITEM SEM FOTO VINDO DE OUTRO APARELHO ===")
+# A protecao de foto em aplicarAtualizacaoRemota (caminho do item de TEXTO) so
+# era acionada quando o arquivo remoto trazia __fotosOmitidas -- marca que
+# separarFotosDoItem so escreve quando o REMETENTE tinha foto
+# ("if(tinhaFotos) semFotos.__fotosOmitidas = true"). Um aparelho que sobe o
+# item SEM foto nenhuma (fotos ainda nao baixadas ali, ou perdidas ali --
+# __fotosPerdidas, em que a referencia nao resolve e vira null) manda
+# fotoGeral:null SEM marca; do lado de quem recebe, remotoOmitiuFotos dava
+# false, a protecao nao era acionada, e a foto BOA virava null. Mesmo estrago
+# ja fechado no caminho dos PACOTES de foto (completarFotosDeItem, secao ja
+# coberta pelo t118), que continuou aberto neste caminho.
+chk("a protecao de foto NAO depende mais da marca do remetente (__fotosOmitidas)",
+    "const ehCampoFotoUnica = (k)=> CAMPOS_FOTO_UNICA.indexOf(k) >= 0;" in novo
+    and "if(__ehFotoEmbutida(v)) local[k] = v;" in novo)
+chk("campo de foto unica so aceita foto DE VERDADE por cima de foto que ja existe aqui",
+    "else if(!__ehFotoEmbutida(local[k])) local[k] = v; // aqui também não há foto — nada a perder" in novo)
+chk("a lista de fotos nunca e REDUZIDA pelo que chega (mesma contagem de fotos reais ja usada em completarFotosDeItem)",
+    "if(chegaram.length >= aqui.length) local[k] = v;" in novo
+    # +1 ocorrencia: a contagem de fotos reais passou a existir tambem em
+    # aplicarAtualizacaoRemota, alem dos 2 pontos que ja a usavam
+    # (completarFotosDeItem e a juncao de duplicatas).
+    and novo.count("const chegaram = v.filter(__ehFotoEmbutida);")
+        == orig.count("const chegaram = v.filter(__ehFotoEmbutida);") + 1)
+chk("a linha antiga que apagava a foto sem checar nada saiu de aplicarAtualizacaoRemota",
+    "const vazioPorqueViajouSeparado = remotoOmitiuFotos" in orig
+    and "const vazioPorqueViajouSeparado = remotoOmitiuFotos" not in novo)
+chk("o caminho legitimo (__fotosOmitidas) continua marcando o item para reconferir o pacote de fotos",
+    "if(remotoOmitiuFotos){ local.__fotosOmitidas = true; local.__fotosAtualizar = true; }" in novo)
+chk("o TEXTO comum continua sendo atualizado normalmente -- a correcao nao virou um bloqueio geral",
+    "    local[k] = v;\n  }" in novo)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

@@ -1405,6 +1405,109 @@ async function rodarAteParar(ap, maxCiclos, rotulo){
     }
   }
 
+  console.log("\n" + L + "\nENSAIO 28 - aparelho SEM a foto nao apaga a foto boa de quem RECEBE\n" + L);
+  {
+    /* O SUMICO DE FOTOS QUE VOLTAVA A CADA SINCRONIZACAO.
+       aplicarAtualizacaoRemota (caminho do item de TEXTO) so protegia a foto
+       local quando o arquivo remoto vinha marcado com __fotosOmitidas. Mas
+       essa marca so e escrita por separarFotosDoItem QUANDO O REMETENTE TINHA
+       FOTO ("if(tinhaFotos) semFotos.__fotosOmitidas = true"). Um aparelho que
+       sobe o item SEM foto nenhuma -- porque as fotos dele ainda nao desceram,
+       ou porque ele mesmo as perdeu (__fotosPerdidas: a referencia nao resolve
+       e vira null) -- sobe fotoGeral:null SEM marca. Do lado de quem recebe,
+       remotoOmitiuFotos dava false, a protecao nao era acionada, e a foto BOA
+       era substituida por null. O aparelho danificado contaminava o saudavel.
+       Mesmo estrago ja fechado no caminho dos PACOTES de foto
+       (completarFotosDeItem), que continuou aberto neste. */
+    const FOTO = "data:image/jpeg;base64," + "Z".repeat(400);
+    const FOTO2 = "data:image/jpeg;base64," + "Y".repeat(400);
+    const nuvem = novaNuvem();
+    const A = novoAparelho("A", nuvem);
+
+    const montarLocal = ()=>({ id:"m1", nome:"Tanque calda TNK-016", descricao:"antes",
+      fotoGeral:FOTO, fotoPlaqueta:FOTO2, fotosOutras:[FOTO], criadoEm:1750000000000, atualizadoEm:1750000000000 });
+
+    // O arquivo que um aparelho SEM as fotos sobe: nulls, lista vazia, e
+    // NENHUM __fotosOmitidas -- exatamente o que separarFotosDoItem produz
+    // quando tinhaFotos e false.
+    const remotoSemFoto = { id:"m1", nome:"Tanque calda TNK-016", descricao:"depois",
+      fotoGeral:null, fotoPlaqueta:null, fotosOutras:[], criadoEm:1750000000000, atualizadoEm:1750000009999 };
+    checar("o arquivo do aparelho danificado realmente NAO tem a marca __fotosOmitidas (senao o ensaio nao testaria o caso real)",
+      remotoSemFoto.__fotosOmitidas === undefined);
+
+    A.ctx.__local = montarLocal(); A.ctx.__remoto = remotoSemFoto;
+    const mudou = vm.runInContext("aplicarAtualizacaoRemota(__local, __remoto)", A.ctx);
+    const local = A.ctx.__local;
+    checar("O CASO REAL: a foto geral SOBREVIVE ao item sem foto vindo do outro aparelho",
+      local.fotoGeral === FOTO, "fotoGeral virou " + JSON.stringify(String(local.fotoGeral).slice(0,24)));
+    checar("a plaqueta tambem sobrevive", local.fotoPlaqueta === FOTO2,
+      "fotoPlaqueta virou " + JSON.stringify(String(local.fotoPlaqueta).slice(0,24)));
+    checar("a lista de outras fotos nao e reduzida a vazio",
+      Array.isArray(local.fotosOutras) && local.fotosOutras.length === 1 && local.fotosOutras[0] === FOTO,
+      "fotosOutras=" + JSON.stringify(local.fotosOutras));
+    checar("o TEXTO editado no outro aparelho continua chegando normalmente (nao virou um bloqueio geral)",
+      local.descricao === "depois" && mudou === true, "descricao=" + local.descricao + " mudou=" + mudou);
+
+    /* Prova de que o ensaio testa algo de verdade: a regra ANTIGA (protecao
+       condicionada a __fotosOmitidas) destruiria a foto neste mesmo caso. */
+    {
+      const antigo = montarLocal();
+      const remotoOmitiu = !!remotoSemFoto.__fotosOmitidas; // false -- e esse o bug
+      for(const k in remotoSemFoto){
+        const v = remotoSemFoto[k];
+        const vazioPorqueViajouSeparado = remotoOmitiu && (v === null || (Array.isArray(v) && v.length === 0));
+        const localTemFotoAqui = (typeof antigo[k] === "string" && antigo[k].startsWith("data:image"))
+          || (Array.isArray(antigo[k]) && antigo[k].length > 0 && k === "fotosOutras");
+        if(vazioPorqueViajouSeparado && localTemFotoAqui) continue;
+        antigo[k] = v;
+      }
+      checar("com a regra ANTIGA a foto seria destruida (prova que a correcao e o que segura)",
+        antigo.fotoGeral === null && antigo.fotosOutras.length === 0,
+        "regra antiga preservou sozinha? fotoGeral=" + String(antigo.fotoGeral).slice(0,24));
+    }
+
+    /* O caminho legitimo continua igual: quando o remetente TINHA foto e ela
+       viajou no pacote separado, a foto local e preservada E o item fica
+       marcado para reconferir o pacote. */
+    {
+      A.ctx.__local2 = montarLocal();
+      A.ctx.__remoto2 = { id:"m1", nome:"Tanque calda TNK-016", descricao:"pacote",
+        fotoGeral:null, fotoPlaqueta:null, fotosOutras:[], __fotosOmitidas:true,
+        criadoEm:1750000000000, atualizadoEm:1750000009999 };
+      vm.runInContext("aplicarAtualizacaoRemota(__local2, __remoto2)", A.ctx);
+      const l2 = A.ctx.__local2;
+      checar("caminho legitimo (__fotosOmitidas) continua preservando a foto local",
+        l2.fotoGeral === FOTO && l2.fotosOutras.length === 1);
+      checar("e continua marcando para reconferir o pacote de fotos na nuvem",
+        l2.__fotosOmitidas === true && l2.__fotosAtualizar === true);
+    }
+
+    /* E foto DE VERDADE que chega continua entrando -- a correcao nao pode
+       congelar a foto local e impedir uma troca legitima. */
+    {
+      A.ctx.__local3 = montarLocal();
+      A.ctx.__remoto3 = { id:"m1", nome:"Tanque calda TNK-016", descricao:"nova foto",
+        fotoGeral:FOTO2, fotoPlaqueta:FOTO, fotosOutras:[FOTO, FOTO2],
+        criadoEm:1750000000000, atualizadoEm:1750000009999 };
+      vm.runInContext("aplicarAtualizacaoRemota(__local3, __remoto3)", A.ctx);
+      const l3 = A.ctx.__local3;
+      checar("foto nova de verdade continua substituindo a antiga",
+        l3.fotoGeral === FOTO2 && l3.fotoPlaqueta === FOTO);
+      checar("lista que CRESCE continua entrando (2 fotos substituem 1)",
+        l3.fotosOutras.length === 2);
+    }
+
+    /* Item que aqui tambem nao tem foto: nada a proteger, o valor de fora
+       entra normalmente (nao pode ficar preso em undefined). */
+    {
+      A.ctx.__local4 = { id:"m1", nome:"x", fotoGeral:null, fotosOutras:[], criadoEm:1750000000000, atualizadoEm:1750000000000 };
+      A.ctx.__remoto4 = { id:"m1", nome:"x", fotoGeral:null, fotosOutras:[], criadoEm:1750000000000, atualizadoEm:1750000009999 };
+      vm.runInContext("aplicarAtualizacaoRemota(__local4, __remoto4)", A.ctx);
+      checar("item sem foto dos dois lados continua funcionando normalmente",
+        A.ctx.__local4.fotoGeral === null && Array.isArray(A.ctx.__local4.fotosOutras));
+    }
+  }
+
   console.log("\n" + L);
   console.log(falhas ? "ENSAIOS: " + falhas + " FALHA(S)" : "ENSAIOS: TODOS OK");
   console.log(L + "\n");

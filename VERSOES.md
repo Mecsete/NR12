@@ -64,6 +64,43 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 26/08/2026 21:39
+
+**Correção crítica: um aparelho SEM a foto apagava a foto boa de quem
+recebia. Era esta a causa do sumiço de fotos ligado à sincronização.**
+
+Quando um item (equipamento ou risco) chega de outro aparelho, o app
+substitui os campos do item local pelos que vieram. Havia uma proteção
+para não deixar um campo de foto vazio apagar a foto que já existe aqui —
+mas ela só era acionada quando o arquivo recebido vinha com a marca "as
+fotos viajaram em pacote separado".
+
+O problema: essa marca só é escrita **quando o aparelho que enviou tinha a
+foto**. Um aparelho que sobe o item sem foto nenhuma — porque as fotos
+dele ainda não tinham baixado, ou porque ele mesmo já as tinha perdido —
+manda o campo vazio sem marca nenhuma. Do lado de quem recebe, a proteção
+não era acionada, e a foto boa era trocada por vazio. Na prática: o
+aparelho sem foto contaminava o aparelho que ainda tinha, que é
+justamente a cópia de onde a foto poderia voltar. Por isso o sumiço
+aparecia sempre logo depois de sincronizar.
+
+Esse mesmo estrago já tinha sido fechado no caminho dos pacotes de foto,
+mas continuou aberto no caminho do item de texto — que é o que roda em
+toda sincronização.
+
+A regra agora não depende de marca nenhuma de quem enviou: campo de foto
+só aceita conteúdo que seja **foto de verdade**, e a lista de fotos só
+aceita um conjunto que **não reduza** o que já existe aqui. Texto,
+medidas, HRN e decisões do laudo continuam sincronizando normalmente, sem
+mudança.
+
+Consequência assumida: apagar uma foto de propósito em um aparelho deixa
+de se propagar para os outros. É deliberado — refazer uma exclusão custa
+um toque; recuperar foto de campo perdida custa uma viagem de volta à
+planta, quando ainda é possível.
+
+---
+
 ## 26/08/2026 21:07
 
 **Correção: a "fila da nuvem" no diagnóstico de sincronização podia ficar
