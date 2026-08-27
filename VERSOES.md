@@ -64,6 +64,46 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 27/08/2026 00:18
+
+**O app agora continua enviando enquanto estiver aberto, mantendo a tela
+acesa até a fila acabar.**
+
+Antes, o envio automático rodava a cada 2 minutos e **só com a tela ligada e
+o app na frente**. No iPhone a tela apaga sozinha em menos de um minuto, e o
+navegador congela o temporizador — ou seja, guardar o celular no bolso
+parava a subida. Com 200 itens e fotos de vários MB, era isso que fazia a
+fila não andar.
+
+E o que importa nisso não é a demora: **enquanto a foto não sobe, ela existe
+num lugar só — o seu celular.** Toda fila parada é trabalho de campo sem
+segunda cópia. Foi assim que equipamentos criados em campo ficaram horas
+marcados como "nunca subiu"; quando a foto se perdia antes de subir, não
+havia de onde recuperar.
+
+Agora, enquanto houver algo para enviar, o app sobe a cada 20 segundos e
+mantém a tela acesa até a fila zerar — aí libera a tela sozinho. Não existe
+como enviar com a tela apagada em navegador no iPhone: isso é limitação do
+sistema, não do app. O que dá para fazer é impedir a tela de apagar
+enquanto ainda há o que subir.
+
+Detalhes: a tela é pedida **uma vez**, não a cada envio; sai do caminho da
+sincronização manual; para na hora se você trocar de app; e há uma chave
+para desligar em Configurações → Backup (custo de bateria é escolha sua).
+**Em dia de campo, deixe o aparelho na tomada.**
+
+**Também nesta versão:** o aviso de "backup local desatualizado" parou de
+mentir. Ele afirmava que o `.json` era "a proteção real contra o navegador
+apagar os dados", mesmo em aparelhos onde o sistema já garante que isso não
+vai acontecer — como o seu, que abre pelo ícone da tela de início. Agora o
+aviso confere a situação real do aparelho: quando está protegido, vira uma
+informação discreta explicando o motivo verdadeiro de exportar (é a única
+cópia que sobrevive se o aparelho for perdido, quebrado ou restaurado);
+quando não está, o alerta continua forte e passa a ensinar como resolver —
+adicionar o app à tela de início.
+
+---
+
 ## 27/08/2026 00:09
 
 **Foto que se solta de um equipamento não é mais apagada na hora — fica

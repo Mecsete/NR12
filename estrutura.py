@@ -2650,6 +2650,38 @@ chk("a linha antiga, que apagava sem carencia nenhuma, saiu",
     "indice.forEach(fid => { if(!referenciadas.has(fid)) remover.push(fid); });" in orig
     and "indice.forEach(fid => { if(!referenciadas.has(fid)) remover.push(fid); });" not in novo)
 
+print("\n=== 97. ENVIO CONTINUO: A FILA ANDA ATE ACABAR, COM A TELA ACESA ===")
+# O ciclo automatico roda a cada 2 min e SO com a aba visivel. No iPhone a tela
+# apaga sozinha em menos de um minuto e o navegador congela o temporizador -- o
+# envio para. Enquanto a foto nao sobe ela existe num lugar so; foi assim que
+# equipamentos criados em campo ficaram horas marcados como "nunca subiu" e,
+# perdida a foto antes de subir, nao havia de onde recuperar. Prova em t125.
+chk("o motor do envio continuo existe e roda mais rapido que o ciclo de 2 min",
+    "const ENVIO_CONTINUO_INTERVALO_MS = 20000;" in novo
+    and "async function envioContinuoTique(){" in novo
+    and "function envioContinuoIniciar(){" in novo
+    and "envioContinuoIniciar();" in novo)
+chk("so segura a tela quando ALGO subiu de verdade na passada (nao fica acesa a toa)",
+    "const andou = __enviosDesdeUltimaConferencia > 0;" in novo
+    and "if(!__envioContinuoSegurandoTela && !__wakeLock){" in novo)
+chk("o sinal de 'ainda tem fila' e barato -- conta envios no funil unico, nao varre a arvore",
+    'if(direcao==="up" && ok!==false && !reparo) __enviosDesdeUltimaConferencia++;' in novo)
+chk("solta a tela quando a fila zera",
+    "await envioContinuoSoltarTela();" in novo
+    and novo.count("await envioContinuoSoltarTela();") >= 2)
+chk("nao roda escondido, sem conta, nem com a chave desligada",
+    'if(!envioContinuoLigado() || !getOneDriveConta() || document.visibilityState !== "visible"){' in novo)
+chk("nao disputa com a sincronizacao manual nem rouba a wake lock dela",
+    "if(__sincronizandoAgora) return;" in novo
+    and "if(__sincronizandoAgora) return;" in novo.split("async function envioContinuoSoltarTela(){",1)[1][:400])
+chk("ao sair do app solta a tela; ao voltar confere na hora em vez de esperar 20s",
+    'if(document.visibilityState === "visible") envioContinuoTique().catch(()=>{});' in novo
+    and "else envioContinuoSoltarTela().catch(()=>{});" in novo)
+chk("tem chave para desligar (custo de bateria e escolha do usuario), com padrao ligado",
+    "function envioContinuoLigado(){ return STATE.envioContinuo !== false; }" in novo
+    and "toggleEnvioContinuo(){" in novo
+    and 'onchange="App.toggleEnvioContinuo()"' in novo)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

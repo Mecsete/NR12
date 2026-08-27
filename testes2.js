@@ -7039,6 +7039,101 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  console.log("\n=== t125 · envio contínuo: a fila anda até acabar, com a tela acesa ===");
+  {
+    /* O ciclo automatico roda a cada 2 min e SO com a aba visivel. No iPhone a
+       tela apaga sozinha em menos de um minuto e o navegador congela o
+       temporizador — o envio para. Enquanto a foto nao sobe, ela existe num
+       lugar so, e foi assim que equipamentos criados em campo ficaram horas
+       como "nunca subiu". Aqui a fila anda de 20 em 20s e a tela e mantida
+       acesa ENQUANTO houver o que subir, sendo solta assim que zera. */
+    const ctxE = vm.createContext({ console, Promise, Object, JSON, Date, Math, setInterval:()=>1, clearInterval:()=>{} });
+    vm.runInContext(`
+      var STATE = {};
+      var __wakeLock = null, __sincronizandoAgora = false;
+      var __enviosDesdeUltimaConferencia = 0;
+      var pedidosTela = 0, soltouTela = 0, chamadasEnvio = 0, restantes = 0, porPassada = 3;
+      var visivel = "visible";
+      var document = { visibilityState: "visible", addEventListener: function(){} };
+      Object.defineProperty(document, "visibilityState", { get: function(){ return visivel; } });
+      function getOneDriveConta(){ return conta; }
+      var conta = { email:"x" };
+      async function manterTelaAcesa(){ pedidosTela++; __wakeLock = { release: async function(){} }; }
+      async function liberarTelaAcesa(){ soltouTela++; __wakeLock = null; }
+      function atualizarChipSync(){}
+      async function sincronizarIncrementalOneDrive(){
+        chamadasEnvio++;
+        var envia = Math.min(porPassada, restantes);
+        for(var i=0;i<envia;i++) __enviosDesdeUltimaConferencia++;
+        restantes -= envia;
+      }
+      function reset(fila){
+        pedidosTela=0; soltouTela=0; chamadasEnvio=0; restantes=fila;
+        __envioContinuoSegurandoTela=false; __envioContinuoAtivo=false;
+        __wakeLock=null; __sincronizandoAgora=false; visivel="visible";
+        STATE.envioContinuo = undefined; conta = { email:"x" };
+      }
+    `, ctxE);
+    ["envioContinuoLigado","envioContinuoSoltarTela","envioContinuoTique"]
+      .forEach(n=> vm.runInContext(funcao(n), ctxE));
+    vm.runInContext("var __envioContinuoSegurandoTela=false, __envioContinuoAtivo=false, __envioContinuoTimer=null;", ctxE);
+    const tique = ()=> vm.runInContext("envioContinuoTique()", ctxE);
+    const ler = (expr)=> vm.runInContext(expr, ctxE);
+
+    await (async ()=>{
+      vm.runInContext("reset(7)", ctxE);
+      await tique(); const p1 = ler("({seg:__envioContinuoSegurandoTela, rest:restantes})");
+      await tique(); await tique();
+      const p3 = ler("({seg:__envioContinuoSegurandoTela, rest:restantes})");
+      await tique(); const p4 = ler("({seg:__envioContinuoSegurandoTela, soltou:soltouTela, rest:restantes})");
+      t("O CASO REAL: a fila de 7 itens sobe INTEIRA, sem parar no meio", ()=>{
+        eq(p1.rest, 4, "a 1a passada devia ter subido 3 dos 7");
+        eq(p3.rest, 0, "a fila devia ter zerado, nao parado no meio");
+        eq(ler("chamadasEnvio"), 4, "numero de passadas de envio fora do esperado");
+      });
+      t("segura a tela enquanto a fila anda", ()=>{ ok(p1.seg === true, "nao segurou a tela com fila cheia"); });
+      t("solta a tela assim que a fila zera (nao fica acesa a toa)", ()=>{
+        ok(p4.seg === false && p4.soltou === 1, "nao soltou a tela com a fila vazia");
+      });
+      t("pede a tela UMA vez, nao a cada passada", ()=>{ eq(ler("pedidosTela"), 1); });
+
+      vm.runInContext("reset(9)", ctxE);
+      await tique();
+      const segurouAntes = ler("__envioContinuoSegurandoTela");
+      vm.runInContext("visivel='hidden'", ctxE);
+      await tique();
+      t("app em segundo plano: para de enviar e SOLTA a tela", ()=>{
+        ok(segurouAntes === true, "cenario nao preparou o segurar");
+        ok(ler("__envioContinuoSegurandoTela") === false, "continuou segurando a tela escondido");
+        eq(ler("chamadasEnvio"), 1, "continuou enviando com o app escondido");
+        eq(ler("soltouTela"), 1);
+      });
+
+      vm.runInContext("reset(9); __sincronizandoAgora = true;", ctxE);
+      await tique();
+      t("sincronizacao manual em curso: nao disputa nem rouba a tela dela", ()=>{
+        eq(ler("chamadasEnvio"), 0, "atropelou a sincronizacao manual");
+        eq(ler("pedidosTela"), 0);
+      });
+
+      vm.runInContext("reset(9)", ctxE);
+      await tique();
+      vm.runInContext("STATE.envioContinuo = false;", ctxE);
+      await tique();
+      t("chave desligada: para de enviar e solta a tela", ()=>{
+        eq(ler("chamadasEnvio"), 1, "continuou enviando com a chave desligada");
+        ok(ler("__envioContinuoSegurandoTela") === false && ler("soltouTela") === 1);
+      });
+
+      vm.runInContext("reset(9); conta = null;", ctxE);
+      await tique();
+      t("sem OneDrive conectado: nao faz nada", ()=>{
+        eq(ler("chamadasEnvio"), 0);
+        ok(ler("__envioContinuoSegurandoTela") === false);
+      });
+    })();
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

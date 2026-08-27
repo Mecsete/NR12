@@ -2118,7 +2118,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "27/08/2026 00:09";
+const APP_BUILD = "27/08/2026 00:18";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -2814,8 +2814,14 @@ function rotuloCaminhoNuvem(caminhoCompleto){
    uma ordem de grandeza). Acumula aqui porque este é o único ponto por onde
    passa todo byte enviado ou recebido, nos dois sentidos. */
 let __syncBytesRodada = 0;
+/* Quantos envios deram certo desde a última conferência do envio contínuo.
+   É o sinal mais barato e mais confiável de "ainda tem fila andando": passa
+   por aqui TODO byte que sobe, sem precisar recalcular a fila inteira (o que
+   custaria varrer 1700 itens a cada poucos segundos). Ver envioContinuoTique. */
+let __enviosDesdeUltimaConferencia = 0;
 function registrarEventoSync(direcao, nome, tipo, bytes, ok, motivo, caminho, reparo){
   if(direcao==="up" && ok===false && !reparo) __falhasEnvioNaSync++;
+  if(direcao==="up" && ok!==false && !reparo) __enviosDesdeUltimaConferencia++;
   if(ok !== false && bytes > 0) __syncBytesRodada += bytes;
   if(!Array.isArray(STATE.logSincronizacao)) STATE.logSincronizacao = [];
   STATE.logSincronizacao.unshift({ ts: Date.now(), dir: direcao, nome: String(nome||"").slice(0,80), caminho: String(caminho||"").slice(0,140) || undefined, tipo, bytes: bytes||0, ok: reparo ? true : (ok!==false), reparo: reparo || undefined, motivo: (ok===false || reparo || direcao==="del") ? String(motivo||"").slice(0,60) : undefined });
@@ -6584,6 +6590,81 @@ document.addEventListener("visibilitychange", ()=>{
   if(document.visibilityState==="visible" && __sincronizandoAgora && !__wakeLock){
     manterTelaAcesa();
   }
+});
+/* =========================================================================
+   ENVIO CONTÍNUO — ENQUANTO O APP ESTIVER ABERTO, A FILA ANDA ATÉ ACABAR
+
+   O PROBLEMA. O ciclo automático roda a cada 2 minutos e SÓ quando a aba
+   está visível (document.visibilityState === "visible"). No iPhone, assim
+   que a tela apaga — o que acontece sozinho em menos de um minuto — o
+   navegador congela o temporizador e o envio simplesmente para. Guardar o
+   celular no bolso interrompe a subida.
+
+   A CONSEQUÊNCIA, que é a que importa. Enquanto a foto não sobe, ela existe
+   num lugar só: este aparelho. Toda a fila parada é trabalho de campo sem
+   segunda cópia. Foi assim que equipamentos criados em campo ficaram horas
+   marcados como "nunca subiu" — e, quando a foto se perdeu antes de subir,
+   não havia de onde recuperar. A fila que não anda é, na prática, a maior
+   fonte de risco de perda que sobrou no app.
+
+   O QUE ISTO FAZ. Enquanto houver fila e o app estiver aberto e visível:
+   segura a tela acesa (Wake Lock) e roda o envio a cada 20 segundos, em vez
+   de 2 minutos, até a fila parar de andar. Aí solta a tela e volta ao ritmo
+   normal. Não existe como enviar com a tela apagada em navegador no iPhone
+   — essa é uma limitação do sistema, não do app; o que dá para fazer é
+   impedir que a tela apague enquanto ainda há coisa para subir.
+
+   CUSTO ASSUMIDO: bateria, enquanto a fila estiver andando. Por isso há uma
+   chave para desligar, e a tela é solta assim que a fila esvazia — não fica
+   acesa à toa. O ciclo normal de 2 minutos continua existindo por baixo. */
+const ENVIO_CONTINUO_INTERVALO_MS = 20000;
+let __envioContinuoTimer = null;
+let __envioContinuoSegurandoTela = false;
+let __envioContinuoAtivo = false;   // só para a tela poder mostrar que está trabalhando
+function envioContinuoLigado(){ return STATE.envioContinuo !== false; } // padrão: ligado
+async function envioContinuoSoltarTela(){
+  if(!__envioContinuoSegurandoTela) return;
+  __envioContinuoSegurandoTela = false;
+  // Nunca solta a tela por baixo de uma sincronização manual, que tem a
+  // própria wake lock pelo mesmo motivo.
+  if(__sincronizandoAgora) return;
+  await liberarTelaAcesa();
+}
+async function envioContinuoTique(){
+  if(!envioContinuoLigado() || !getOneDriveConta() || document.visibilityState !== "visible"){
+    __envioContinuoAtivo = false;
+    await envioContinuoSoltarTela();
+    return;
+  }
+  // A manual já faz tudo e tem o próprio painel — sai da frente e tenta depois.
+  if(__sincronizandoAgora) return;
+  __enviosDesdeUltimaConferencia = 0;
+  await sincronizarIncrementalOneDrive();
+  const andou = __enviosDesdeUltimaConferencia > 0;
+  if(andou){
+    /* Tem fila subindo: segura a tela para o iPhone não congelar o
+       temporizador no meio. Pedir de novo quando já se tem é inofensivo,
+       mas evitamos por clareza. */
+    if(!__envioContinuoSegurandoTela && !__wakeLock){
+      __envioContinuoSegurandoTela = true;
+      await manterTelaAcesa();
+    }
+    if(!__envioContinuoAtivo){ __envioContinuoAtivo = true; atualizarChipSync(); }
+  }else{
+    // Nada subiu nesta passada: fila vazia (ou bloqueada). Solta a tela.
+    if(__envioContinuoAtivo){ __envioContinuoAtivo = false; atualizarChipSync(); }
+    await envioContinuoSoltarTela();
+  }
+}
+function envioContinuoIniciar(){
+  if(__envioContinuoTimer) return;
+  __envioContinuoTimer = setInterval(()=>{ envioContinuoTique().catch(()=>{}); }, ENVIO_CONTINUO_INTERVALO_MS);
+}
+/* Ao voltar para o app, confere na hora em vez de esperar os 20s — e ao sair,
+   solta a tela para não deixar wake lock pendurada em segundo plano. */
+document.addEventListener("visibilitychange", ()=>{
+  if(document.visibilityState === "visible") envioContinuoTique().catch(()=>{});
+  else envioContinuoSoltarTela().catch(()=>{});
 });
 let __syncIniciadoEm = null; // marca quando "Sincronizar agora" começou — usado para destravar sozinho se o app for pro segundo plano no meio do caminho
 let __syncProgresso = null; // null quando parado; objeto com detalhes durante a sincronização
@@ -15466,6 +15547,13 @@ function screenSimplesConfigBackup(){
     </div>
     <label class="switch"><input type="checkbox" ${STATE.baixarFotosAutoWifi?'checked':''} onchange="App.onedriveToggleAutoWifi()"><span class="switch-track"></span></label>
   </div>
+  <div class="card card-pad" style="display:flex;align-items:center;gap:12px;margin-top:8px">
+    <div style="flex:1">
+      <div style="font-weight:800;font-size:14px">Continuar enviando com o app aberto${__envioContinuoAtivo?' <span style="color:var(--r-medio)">— enviando agora</span>':''}</div>
+      <div style="font-size:12px;color:var(--ink-dim)">Enquanto houver fila, o app envia a cada 20 segundos e <b>mantém a tela acesa</b> até acabar — no iPhone o envio para assim que a tela apaga, e a foto que ainda não subiu existe num lugar só. Assim que a fila zera, a tela é liberada. Deixe o aparelho na tomada em dia de campo.</div>
+    </div>
+    <label class="switch"><input type="checkbox" ${envioContinuoLigado()?'checked':''} onchange="App.toggleEnvioContinuo()"><span class="switch-track"></span></label>
+  </div>
   <div class="section-title">Sincronização · Conta</div>
   <div class="card card-pad">
     <div style="font-size:12.5px;color:var(--ink-dim)">${ic('onedrive')} Conectado como <b>${escapeHtml(getOneDriveConta().email)}</b><br>Tudo sobe sozinho para a pasta <b>${ONEDRIVE_PASTA_APP}</b> no OneDrive.</div>
@@ -15956,16 +16044,32 @@ function avisoBackupDesatualizadoHtml(){
   const ultimo = STATE.ultimoBackupLocalEm;
   const diasSemBackup = ultimo ? Math.floor((Date.now()-ultimo)/(24*60*60*1000)) : null;
   if(diasSemBackup!==null && diasSemBackup < BACKUP_LOCAL_AVISO_DIAS) return "";
-  const texto = ultimo
-    ? `Já se passaram ${diasSemBackup} dia${diasSemBackup===1?'':'s'} desde o último backup local (.json) salvo no aparelho. Antes de ir a campo sem internet, exporte um novo — é a proteção real contra o navegador apagar os dados sozinho, o que pode acontecer sem aviso (principalmente no iOS).`
-    : `Você ainda não exportou nenhum backup local (.json) neste aparelho. Antes de ir a campo sem internet, exporte um — é a proteção real contra o navegador apagar os dados sozinho, o que pode acontecer sem aviso (principalmente no iOS).`;
-  return `<div class="card card-pad" style="margin-bottom:10px;border:1px solid var(--r-medio);background:rgba(233,78,27,.06)">
+  /* O AVISO PRECISA DIZER A VERDADE DESTE APARELHO.
+     Até 27/08/2026 este texto era fixo e afirmava que o backup .json era "a
+     proteção real contra o navegador apagar os dados sozinho". Nos aparelhos
+     em que o sistema JÁ concedeu armazenamento persistente — o caso de quem
+     instalou o app na tela de início —, isso é falso: o navegador não vai
+     apagar. O app inclusive sabia disso e mostrava "dados protegidos contra
+     limpeza automática" na tela de Backup, contradizendo o próprio aviso.
+     Alarme falso não é inofensivo: ensina a fechar aviso sem ler, e o
+     próximo aviso a ser ignorado pode ser o que importa de verdade. Pior,
+     escondia o motivo VERDADEIRO — o arquivo exportado é a única cópia que
+     sobrevive ao aparelho ser perdido, quebrado ou restaurado, coisa que a
+     permissão de armazenamento não cobre. */
+  const protegido = !!(__statusArmazenamentoCache && __statusArmazenamentoCache.persistente);
+  const quando = ultimo
+    ? `Já se passaram ${diasSemBackup} dia${diasSemBackup===1?'':'s'} desde o último backup local (.json).`
+    : `Você ainda não exportou nenhum backup local (.json) neste aparelho.`;
+  const porque = protegido
+    ? `Este aparelho está protegido contra a limpeza automática do navegador, e o OneDrive já guarda uma cópia do que subiu — então não há pressa. O arquivo exportado serve para outra coisa: é a única cópia que sobrevive se o aparelho for perdido, quebrado ou restaurado.`
+    : `Este aparelho <b>não</b> tem a proteção contra limpeza automática do navegador, e no iOS isso significa que os dados podem ser apagados sem aviso. Para resolver de vez, abra o app pelo Safari e use <b>Compartilhar → Adicionar à Tela de Início</b> — passando a abrir por esse ícone, o sistema protege os dados. Até lá, exporte um backup.`;
+  return `<div class="card card-pad" style="margin-bottom:10px;border:1px solid ${protegido?'var(--bg-soft)':'var(--r-medio)'};background:${protegido?'transparent':'rgba(233,78,27,.06)'}">
     <div style="display:flex;gap:10px;align-items:flex-start">
-      <div style="flex-shrink:0;margin-top:1px">${ic('warn')}</div>
+      <div style="flex-shrink:0;margin-top:1px">${ic(protegido?'info':'warn')}</div>
       <div style="flex:1">
-        <div style="font-weight:800;font-size:13.5px">Backup local desatualizado</div>
-        <div style="font-size:12px;color:var(--ink-dim);margin-top:2px">${texto}</div>
-        <button class="btn btn-primary btn-block" style="margin-top:8px" onclick="App.exportarBackup()">${ic('download')} Exportar backup agora</button>
+        <div style="font-weight:800;font-size:13.5px">${protegido?'Backup local antigo':'Backup local desatualizado'}</div>
+        <div style="font-size:12px;color:var(--ink-dim);margin-top:2px">${quando} ${porque}</div>
+        <button class="btn ${protegido?'btn-secondary':'btn-primary'} btn-block" style="margin-top:8px" onclick="App.exportarBackup()">${ic('download')} Exportar backup agora</button>
       </div>
     </div>
   </div>`;
@@ -17876,6 +17980,17 @@ Devolver agora?`)) return;
     restaurarFocoBusca();
   },
   toggleContraste(){ STATE.contrasteAlto = !STATE.contrasteAlto; marcarAlterado(); render(); toast(STATE.contrasteAlto? "Alto contraste ativado" : "Alto contraste desativado"); },
+  toggleEnvioContinuo(){
+    STATE.envioContinuo = !envioContinuoLigado();
+    marcarAlterado(); render();
+    if(STATE.envioContinuo){
+      toast("O app vai continuar enviando enquanto estiver aberto");
+      envioContinuoTique().catch(()=>{});   // não espera os 20s para começar
+    }else{
+      toast("Envio contínuo desligado — a fila só anda a cada 2 minutos, com a tela acesa", false);
+      envioContinuoSoltarTela().catch(()=>{});
+    }
+  },
   trocarProjetoRelatorio(id){ __relatorioProjetoId = id; __relatorioAreaAberta = {}; __relatorioMaquinaAberta = {}; render(); },
   toggleRelatorioArea(id){ __relatorioAreaAberta[id] = !__relatorioAreaAberta[id]; render(); },
   toggleRelatorioMaquina(id){ __relatorioMaquinaAberta[id] = !__relatorioMaquinaAberta[id]; render(); },
@@ -20909,6 +21024,10 @@ function prepararTextareas(){
   avaliar();
 })();
 setInterval(()=>{ if(document.visibilityState==="visible"){ sincronizarIncrementalNaPasta(); sincronizarIncrementalOneDrive(); sincronizarDownloadOneDrive(); onedriveAtualizarStatusPendenteSeWifi(); criarPontoDeRestauracaoSeNecessario("periódico"); podarPontosDeRestauracaoAgora(); carregarStatusArmazenamentoNaTela(); } }, 120000);
+/* Envio contínuo: enquanto houver fila, sobe a cada 20s e segura a tela
+   acesa, em vez de depender do ciclo de 2 min que o iPhone congela assim que
+   a tela apaga. Ver o bloco de comentário em ENVIO_CONTINUO_INTERVALO_MS. */
+envioContinuoIniciar();
 document.addEventListener("visibilitychange", ()=>{
   if(document.visibilityState==="visible"){
     // Proteção extra específica para iPhone: se o aparelho foi para segundo
