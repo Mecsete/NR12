@@ -163,6 +163,11 @@ function novoAparelho(nome, nuvem){
   ["enderecoLogicoDaPasta","onedriveMesmoEnderecoLogico",
    "__arquivosNoNo","onedriveDuplicatasParaIgnorar",
    "onedriveEnvioEncolheDemais",
+   // Varredura ampla (ENSAIO 29): nao existe em versoes anteriores, entao
+   // entra na lista tolerante — rodar a bancada contra original.html
+   // continua funcionando, so pulando o ensaio que depende dela.
+   "onedriveListarArvore","__itemLocalDoCaminhoFotosNuvem",
+   "itemTemEspacoDeFotoVazio","recuperarFotosVarrendoNuvem",
    "__itemExisteAlgumLugar","riscoOrfaoConhecido","marcarRiscoOrfaoConhecido"].forEach(n=>{
     try{ vm.runInContext(funcao(n), ctx); }
     catch(e){ if(process.env.BANCO_DEBUG) console.log("  [extracao] " + n + " -> " + e.message); }
@@ -1505,6 +1510,88 @@ async function rodarAteParar(ap, maxCiclos, rotulo){
       vm.runInContext("aplicarAtualizacaoRemota(__local4, __remoto4)", A.ctx);
       checar("item sem foto dos dois lados continua funcionando normalmente",
         A.ctx.__local4.fotoGeral === null && Array.isArray(A.ctx.__local4.fotosOutras));
+    }
+  }
+
+  console.log("\n" + L + "\nENSAIO 29 - varredura ampla acha foto de item que NEM SABE que perdeu\n" + L);
+  if(typeof ctxTemVarredura === "undefined" && true){
+    /* O QUE ESTE ENSAIO COBRE. Todas as recuperacoes anteriores so olham para
+       item marcado com CAMPO_MARCA_FOTO_PERDIDA -- marca posta quando uma
+       REFERENCIA de foto existe e nao resolve neste aparelho. A perda causada
+       pela mesclagem da sincronizacao (ENSAIO 28) nao deixava marca nenhuma:
+       o campo recebia null e o item virava indistinguivel de um que nunca foi
+       fotografado. Em campo isso apareceu como dezenas de equipamentos com
+       "Pendente" na tela, foto ainda guardada na nuvem, e NENHUMA recuperacao
+       encontrando -- porque nenhuma tinha motivo para olhar para eles.
+       A varredura ampla usa outro sinal: o proprio pacote "fotos_*.json" que
+       existe na nuvem prova que aquele item TEVE foto. */
+    const nuvem = novaNuvem();
+    const A = novoAparelho("A", nuvem);
+    A.ctx.STATE.projetosSimples = [arvoreExemplo(1, 2, 1, 1, true)]; // 2 maquinas, cada uma com 1 tarefa/1 risco com foto
+    vm.runInContext(`STATE.projetosSimples[0].areas[0].maquinas.forEach(m=>{ m.fotoGeral = "data:image/jpeg;base64,"+"G".repeat(300); });`, A.ctx);
+    await rodarAteParar(A, 10);
+
+    const pacotesNaNuvem = [...nuvem.arquivos.keys()].filter(c=>c.includes("/fotos_"));
+    checar("preparacao: as fotos subiram e existem pacotes fotos_*.json na nuvem",
+      pacotesNaNuvem.length >= 2, "pacotes=" + pacotesNaNuvem.length);
+
+    /* Reproduz o estrago do ENSAIO 28 do jeito que ele acontecia de verdade:
+       a foto vira null SEM marca de dano nenhuma. E exatamente o estado em que
+       o aparelho do Luiz ficou. */
+    vm.runInContext(`(function(){
+      var maqs = STATE.projetosSimples[0].areas[0].maquinas;
+      maqs[0].fotoGeral = null;
+      maqs[0].tarefas[0].riscos[0].foto = null;
+    })()`, A.ctx);
+    const semMarca = vm.runInContext(`(function(){
+      var m = STATE.projetosSimples[0].areas[0].maquinas[0];
+      return (!m.__fotosPerdidas && !m.tarefas[0].riscos[0].__fotosPerdidas);
+    })()`, A.ctx);
+    checar("O ESTADO REAL: a foto sumiu SEM deixar marca de dano (por isso as outras recuperacoes nao achavam)",
+      semMarca === true);
+
+    // A recuperacao que existia antes olha so a marca -> nao encontra nada.
+    const rMarcados = await vm.runInContext("recuperarFotosPerdidasDaNuvem(null)", A.ctx);
+    checar("a recuperacao POR MARCA nao encontra nada neste caso (prova que faltava a varredura)",
+      rMarcados.itens === 0, "itens=" + rMarcados.itens);
+
+    // A varredura ampla encontra, porque olha o pacote que existe na nuvem.
+    const rv = await vm.runInContext("recuperarFotosVarrendoNuvem(null)", A.ctx);
+    checar("O CASO REAL: a varredura ampla encontra os itens sem foto que tem pacote na nuvem",
+      rv.candidatos >= 2, "candidatos=" + rv.candidatos);
+    checar("e devolve as fotos de verdade", rv.recuperados >= 2, "recuperados=" + rv.recuperados);
+
+    const voltou = vm.runInContext(`(function(){
+      var m = STATE.projetosSimples[0].areas[0].maquinas[0];
+      return { maq: typeof m.fotoGeral === "string" && m.fotoGeral.startsWith("data:image"),
+               risco: typeof m.tarefas[0].riscos[0].foto === "string" && m.tarefas[0].riscos[0].foto.startsWith("data:image") };
+    })()`, A.ctx);
+    checar("a foto da MAQUINA voltou de verdade", voltou.maq === true);
+    checar("a foto do RISCO voltou de verdade", voltou.risco === true);
+
+    /* Nao pode tocar em item que ja esta completo, nem em texto. */
+    {
+      const antes = vm.runInContext(`JSON.stringify({
+        nome: STATE.projetosSimples[0].areas[0].maquinas[1].nome,
+        foto: STATE.projetosSimples[0].areas[0].maquinas[1].fotoGeral })`, A.ctx);
+      const rv2 = await vm.runInContext("recuperarFotosVarrendoNuvem(null)", A.ctx);
+      const depois = vm.runInContext(`JSON.stringify({
+        nome: STATE.projetosSimples[0].areas[0].maquinas[1].nome,
+        foto: STATE.projetosSimples[0].areas[0].maquinas[1].fotoGeral })`, A.ctx);
+      checar("rodar de novo nao encontra mais nada (nada fica em laco eterno)",
+        rv2.recuperados === 0, "recuperados=" + rv2.recuperados);
+      checar("o equipamento que ja estava completo nao foi tocado (nem foto, nem texto)",
+        antes === depois);
+    }
+
+    /* Sem conexao, devolve erro em vez de fingir que conferiu tudo. */
+    {
+      const listarOriginal = A.ctx.onedriveListarFilhosEmLote;
+      A.ctx.onedriveListarFilhosEmLote = async ()=>{ throw new Error("sem rede"); };
+      const rv3 = await vm.runInContext("recuperarFotosVarrendoNuvem(null)", A.ctx);
+      checar("falha de rede vira erro explicito, nao 'conferido, nada encontrado'",
+        rv3.erro === true && rv3.recuperados === 0);
+      A.ctx.onedriveListarFilhosEmLote = listarOriginal;
     }
   }
 

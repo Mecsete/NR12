@@ -64,6 +64,36 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 26/08/2026 22:04
+
+**"Devolver fotos" agora acha também as fotos dos equipamentos que nem
+sabiam que tinham perdido.**
+
+A correção das 21:39 fechou a torneira (parou de perder), mas não trouxe
+de volta o que já tinha ido embora — e faltava uma peça para isso.
+
+Todas as recuperações que existiam só olhavam para itens **marcados como
+danificados**. Essa marca é posta quando o app encontra uma referência de
+foto que não abre. Só que a perda causada pela sincronização não deixava
+marca nenhuma: o campo simplesmente recebia vazio, e o equipamento ficava
+idêntico a um que nunca tinha sido fotografado — com o quadro cinza de
+"Pendente" na tela. Nenhuma recuperação tinha motivo para olhar para ele,
+mesmo com a foto ainda guardada na nuvem. Era por isso que rodar "Devolver
+fotos" trazia centenas de fotos de volta e mesmo assim sobravam dezenas de
+equipamentos vazios.
+
+Agora, o mesmo botão de sempre ganhou uma terceira etapa: em vez de
+depender da marca, ele lê a lista de arquivos da nuvem **uma vez só** e
+procura os pacotes de foto que existem lá. Um pacote na nuvem é a prova de
+que aquele equipamento teve foto. Achando um pacote cujo item aqui está
+com espaço vazio, a foto é baixada e encaixada.
+
+Continua valendo a regra de sempre: **só preenche espaço vazio**. Foto que
+já está boa nunca é substituída, e texto, medidas, HRN e decisões do laudo
+não são tocados. Dá para parar no meio — o que já voltou fica salvo.
+
+---
+
 ## 26/08/2026 21:39
 
 **Correção crítica: um aparelho SEM a foto apagava a foto boa de quem

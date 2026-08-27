@@ -1987,7 +1987,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "26/08/2026 21:39";
+const APP_BUILD = "26/08/2026 22:04";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -4402,6 +4402,150 @@ async function recuperarFotosPerdidasDaNuvem(onProgresso){
           alvo.dados.__fotoNuvemVerificadaEm = Date.now();
         }
       }
+      feito++;
+      if(onProgresso) onProgresso(feito, alvos.length);
+      await gravarSePassouTempo();
+    });
+  } finally{
+    if(res.recuperados > 0){ marcarAlterado(); await dbSet(STATE); }
+    await liberarTelaAcesa();
+  }
+  return res;
+}
+
+/* =========================================================================
+   VARREDURA AMPLA — RECUPERAR FOTO DE ITEM QUE NEM SABE QUE PERDEU
+
+   POR QUE ISTO PRECISOU EXISTIR. Todas as recuperações acima só olham para
+   item marcado com CAMPO_MARCA_FOTO_PERDIDA. Essa marca é posta quando uma
+   REFERÊNCIA de foto existe e não resolve neste aparelho (dbGet →
+   marcarItensComFotoPerdida). Só que a perda causada pela mesclagem da
+   sincronização (corrigida em 26/08/2026 21:39: um aparelho sem a foto
+   sobrescrevia a foto boa de quem recebia) NÃO deixava marca nenhuma: o
+   campo simplesmente recebia null, e o item passava a ser, para todos os
+   efeitos, idêntico a um item que nunca foi fotografado. Resultado prático
+   em campo: dezenas de equipamentos com o quadro cinza de "Pendente", cuja
+   foto continuava guardada na nuvem, e que NENHUMA das recuperações
+   encontrava — porque nenhuma delas tinha motivo para olhar para eles.
+
+   COMO ESTA FUNCIONA, SEM TORRAR REDE. Em vez de perguntar à nuvem item por
+   item (milhares de chamadas num projeto grande), lista a árvore de pastas
+   UMA vez — a mesma listagem em lote que a sincronização já usa — e procura
+   os pacotes "fotos_*.json" que existem lá. Cada pacote encontrado é a prova
+   de que aquele item TEVE foto. Aí, e só aí, confere o item local: se ele
+   está com espaço de foto vazio, o pacote é baixado e encaixado.
+
+   SEGURANÇA: só preenche vazio. Reaproveita a mesma regra das outras
+   recuperações — campo de foto única só é preenchido se estiver vazio, e a
+   lista de fotos só é trocada por uma que traga MAIS fotos reais. Texto,
+   medidas, HRN e decisões do laudo não são tocados em nenhum momento. */
+function __itemLocalDoCaminhoFotosNuvem(caminho){
+  /* Espelha deliberadamente o passo a passo de onedriveDescritorDeCaminho,
+     mas com outra REGRA DE DECISÃO: lá o objetivo é decidir se vale baixar
+     numa sincronização; aqui é só localizar o objeto local, custe o que
+     custar, para a recuperação decidir por conta própria. */
+  const prefixo = `${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado/`;
+  if(!caminho || caminho.length <= prefixo.length) return null;
+  const seg = caminho.slice(prefixo.length).split("/");
+  const arq = seg[seg.length-1];
+  const pastas = seg.slice(0,-1);
+  if(!arq.startsWith("fotos_")) return null;
+  const nomeAlvo = arq.slice("fotos_".length);
+  const proj = (STATE.projetosSimples||[]).find(p=>idBateComSufixo(p.id, extrairSufixoDoNome(pastas[0])));
+  if(!proj) return null;
+  if(pastas.length===1 && nomeAlvo==="_projeto.json") return { obj:proj, tipo:"projeto", id:"projeto:"+proj.id };
+  const area = (proj.areas||[]).find(a=>idBateComSufixo(a.id, extrairSufixoDoNome(pastas[1])));
+  if(!area) return null;
+  if(pastas.length===2 && nomeAlvo==="_area.json") return { obj:area, tipo:"area", id:"area:"+area.id };
+  const maq = (area.maquinas||[]).find(m=>idBateComSufixo(m.id, extrairSufixoDoNome(pastas[2])));
+  if(!maq) return null;
+  if(pastas.length===3 && nomeAlvo==="_maquina.json") return { obj:maq, tipo:"maquina", id:"maquina:"+maq.id };
+  const tar = (maq.tarefas||[]).find(t=>idBateComSufixo(t.id, extrairSufixoDoNome(pastas[3])));
+  if(!tar) return null;
+  if(pastas.length===4 && nomeAlvo==="_tarefa.json") return { obj:tar, tipo:"tarefa", id:"tarefa:"+tar.id };
+  const m = /^risco_(.+)\.json$/.exec(nomeAlvo);
+  if(pastas.length===4 && m){
+    const risco = (tar.riscos||[]).find(r=>r.id===m[1]);
+    if(risco) return { obj:risco, tipo:"risco", id:"risco:"+risco.id };
+  }
+  return null;
+}
+/* Tem espaço de foto vazio? É o gatilho da varredura ampla: só faz sentido
+   baixar um pacote da nuvem para um item que tenha onde encaixar. */
+function itemTemEspacoDeFotoVazio(obj){
+  if(!obj) return false;
+  for(const campo of CAMPOS_FOTO_UNICA){
+    if(campo in obj && !__ehFotoEmbutida(obj[campo])) return true;
+  }
+  const lista = obj[CAMPO_FOTOS_LISTA];
+  if(Array.isArray(lista) && lista.some(f=>!__ehFotoEmbutida(f))) return true; // quadro vermelho: referência que não resolve
+  return false;
+}
+async function recuperarFotosVarrendoNuvem(onProgresso){
+  const res = { candidatos:0, recuperados:0, semNadaNaNuvem:0, erro:false };
+  let arvore;
+  try{
+    arvore = await onedriveListarArvore(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`, 4);
+  }catch(e){ res.erro = true; return res; }
+  if(!arvore){ res.erro = true; return res; }
+  /* Achata a árvore atrás dos pacotes de foto. Um pacote na nuvem é a prova
+     de que o item TEVE foto — é esse o sinal que substitui a marca de dano
+     que a perda por mesclagem nunca chegou a deixar. */
+  const pacotes = [];
+  const varrer = (nos) => {
+    (nos||[]).forEach(no=>{
+      if(no.pasta){ varrer(no.filhos); return; }
+      if(typeof no.nome === "string" && no.nome.startsWith("fotos_")) pacotes.push(no);
+    });
+  };
+  varrer(arvore);
+  const idsJaAlvo = new Set();
+  const alvos = [];
+  pacotes.forEach(p=>{
+    const local = __itemLocalDoCaminhoFotosNuvem(p.caminho);
+    if(!local) return;                                   // item não existe mais aqui — não é assunto desta função
+    if(idsJaAlvo.has(local.id)) return;                   // mesmo item em duas pastas (renomeação antiga): um alvo só
+    if(!itemTemEspacoDeFotoVazio(local.obj)) return;      // já está completo aqui — não se toca
+    idsJaAlvo.add(local.id);
+    alvos.push({ ...local, caminho:p.caminho });
+  });
+  res.candidatos = alvos.length;
+  if(alvos.length === 0) return res;
+  await manterTelaAcesa();
+  let feito = 0, ultimaGravacao = Date.now();
+  const gravarSePassouTempo = async () => {
+    if(Date.now() - ultimaGravacao < 4000) return;
+    ultimaGravacao = Date.now();
+    marcarAlterado();
+    await dbSet(STATE);
+  };
+  try{
+    await executarComConcorrencia(alvos, 3, async (alvo) => {
+      if(progressoCancelado()) return;
+      const texto = await onedriveBaixarTexto(alvo.caminho);
+      let pacote = null;
+      if(texto){ try{ pacote = JSON.parse(texto); }catch(e){ pacote = null; } }
+      if(pacote){
+        /* MESMA regra de preenchimento das outras recuperações: só entra em
+           espaço vazio, e a lista só é trocada por uma que traga MAIS fotos
+           reais. Nunca reduz, nunca sobrescreve foto boa. */
+        let mexeu = false;
+        for(const campo of CAMPOS_FOTO_UNICA){
+          if(__ehFotoEmbutida(alvo.obj[campo])) continue;
+          if(__ehFotoEmbutida(pacote[campo])){ alvo.obj[campo] = pacote[campo]; mexeu = true; }
+        }
+        if(Array.isArray(pacote[CAMPO_FOTOS_LISTA])){
+          const chegaram = pacote[CAMPO_FOTOS_LISTA].filter(__ehFotoEmbutida);
+          const aqui = Array.isArray(alvo.obj[CAMPO_FOTOS_LISTA]) ? alvo.obj[CAMPO_FOTOS_LISTA].filter(__ehFotoEmbutida) : [];
+          if(chegaram.length > aqui.length){ alvo.obj[CAMPO_FOTOS_LISTA] = chegaram; mexeu = true; }
+        }
+        if(mexeu){
+          res.recuperados++;
+          delete alvo.obj[CAMPO_MARCA_FOTO_PERDIDA];
+          delete alvo.obj.__fotoNuvemVerificadaEm;
+          marcarFotosPendentesParaEnvio(alvo.id);
+        } else res.semNadaNaNuvem++;
+      } else res.semNadaNaNuvem++;
       feito++;
       if(onProgresso) onProgresso(feito, alvos.length);
       await gravarSePassouTempo();
@@ -17386,13 +17530,33 @@ Devolver agora?`)) return;
         });
       }
       devolvidas += rn.recuperados;
+      /* TERCEIRA FONTE, AINDA NO MESMO BOTÃO — a varredura ampla. As duas
+         etapas acima só enxergam item MARCADO como danificado; a perda
+         causada pela mesclagem da sincronização (corrigida em 26/08 21:39)
+         não deixava marca nenhuma, então dezenas de equipamentos ficavam
+         com "Pendente" na tela e foto guardada na nuvem, sem ninguém nunca
+         ir buscar. Esta etapa não depende de marca: lista a nuvem uma vez e
+         devolve para qualquer espaço vazio cujo pacote ainda exista lá. */
+      let rv = { candidatos:0, recuperados:0, semNadaNaNuvem:0, erro:false };
+      if(!progressoCancelado() && getOneDriveConta()){
+        if(progressoAbrir("Procurando na nuvem fotos de itens sem marca", 0)) souDono = true;
+        progressoAtualizar(0, 0, "lendo a lista de arquivos da nuvem…");
+        rv = await recuperarFotosVarrendoNuvem((feitos, total)=>{
+          progressoAtualizar(feitos, total, feitos + " de " + total + " itens conferidos");
+        });
+      }
+      devolvidas += rv.recuperados;
+      const msgVarredura = rv.erro
+        ? " Não foi possível ler a lista de arquivos da nuvem agora — tente de novo com a conexão estável."
+        : (rv.candidatos === 0 ? "" :
+           ` Varredura ampla da nuvem: ${rv.recuperados} de ${rv.candidatos} equipamento(s)/risco(s) que estavam sem foto e nem marcados como danificados foram recuperados.`);
       const msgNuvem = (rn.itens === 0 ? "" :
         ` Direto na nuvem: ${rn.recuperados} de ${rn.itens} item${rn.itens===1?'':'s'} ainda danificado${rn.itens===1?'':'s'} recuperado${rn.recuperados===1?'':'s'}` +
         (rn.semNadaNaNuvem ? `, ${rn.semNadaNaNuvem} sem nada na nuvem — essa(s) é perda de verdade, só refotografando.` : ".") +
         (rn.duplicadosIgnorados ? ` (${rn.duplicadosIgnorados} não entraram na conta por serem duplicata do mesmo item — resolva com "Juntar duplicatas" e tente de novo.)` : "")) +
         (rn.jaVerificadosRecentemente ? ` (${rn.jaVerificadosRecentemente} não foram checados de novo — já tinham sido conferidos na nuvem nas últimas 24h, sem nada lá.)` : "");
       const msgParado = progressoCancelado() ? " Parado a seu pedido — o que já tinha voltado continua salvo; toque de novo para continuar." : "";
-      __ultimaRecuperacaoFotos = { erro:false, mensagem: msgLocal + msgNuvem + msgParado };
+      __ultimaRecuperacaoFotos = { erro:false, mensagem: msgLocal + msgNuvem + msgVarredura + msgParado };
       toast(devolvidas + " foto(s) devolvida(s) no total");
     }catch(e){
       __ultimaRecuperacaoFotos = { erro:true, mensagem:"Não foi possível concluir: " + (e && e.message ? e.message : "erro desconhecido") };

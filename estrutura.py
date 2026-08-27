@@ -2503,6 +2503,40 @@ chk("o caminho legitimo (__fotosOmitidas) continua marcando o item para reconfer
 chk("o TEXTO comum continua sendo atualizado normalmente -- a correcao nao virou um bloqueio geral",
     "    local[k] = v;\n  }" in novo)
 
+print("\n=== 91. VARREDURA AMPLA: RECUPERA FOTO DE ITEM SEM MARCA DE DANO ===")
+# A perda causada pela mesclagem (secao 90) nao deixava marca nenhuma -- o campo
+# so recebia null. Todas as recuperacoes anteriores so olham item marcado com
+# CAMPO_MARCA_FOTO_PERDIDA, entao esses itens ficavam invisiveis para elas.
+# A varredura usa outro sinal: o pacote "fotos_*.json" que existe na nuvem
+# prova que aquele item TEVE foto. Prova de comportamento no ENSAIO 29.
+chk("a varredura ampla existe e nao depende da marca de dano",
+    "async function recuperarFotosVarrendoNuvem(onProgresso){" in novo
+    and "function itemTemEspacoDeFotoVazio(obj){" in novo
+    and "function __itemLocalDoCaminhoFotosNuvem(caminho){" in novo)
+chk("usa UMA listagem da arvore, nao uma chamada de rede por item",
+    # +1 em relacao ao original: a varredura reaproveita a MESMA listagem em
+    # lote que a sincronizacao ja usava, em vez de perguntar item a item.
+    novo.count("await onedriveListarArvore(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`, 4)")
+        == orig.count("await onedriveListarArvore(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`, 4)") + 1
+    and "arvore = await onedriveListarArvore(" in novo)
+chk("o gatilho e o pacote fotos_* que existe na nuvem (prova de que o item TEVE foto)",
+    'if(typeof no.nome === "string" && no.nome.startsWith("fotos_")) pacotes.push(no);' in novo)
+chk("so preenche espaco vazio -- nunca sobrescreve foto boa que ja esta aqui",
+    "if(__ehFotoEmbutida(alvo.obj[campo])) continue;" in novo
+    and "if(chegaram.length > aqui.length){ alvo.obj[CAMPO_FOTOS_LISTA] = chegaram; mexeu = true; }" in novo)
+chk("o mesmo item em duas pastas (renomeacao antiga) vira UM alvo so, nao dois",
+    "if(idsJaAlvo.has(local.id)) return;" in novo)
+chk("respeita o Parar do painel de progresso, igual as outras recuperacoes",
+    novo.count("if(progressoCancelado()) return;") >= 2)
+chk("falha de rede vira erro explicito, nao 'conferi tudo e nao achei nada'",
+    "}catch(e){ res.erro = true; return res; }" in novo
+    and "if(!arvore){ res.erro = true; return res; }" in novo)
+chk("entra no MESMO botao de sempre, como terceira etapa -- nenhum botao novo foi criado",
+    "rv = await recuperarFotosVarrendoNuvem((feitos, total)=>{" in novo
+    and novo.count('onclick="App.recuperarFotosPerdidas(') == orig.count('onclick="App.recuperarFotosPerdidas('))
+chk("grava de tempos em tempos -- interrupcao no meio nao perde o que ja voltou",
+    novo.count("const gravarSePassouTempo = async () => {") == 2)  # recuperarFotosPerdidasDaNuvem + a varredura
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
