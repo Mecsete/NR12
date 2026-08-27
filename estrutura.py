@@ -2024,8 +2024,12 @@ chk("a limpeza continua sendo disparada pela gravacao, como antes",
     novo.count("fotosLimparOrfasSeForHora();") == orig.count("fotosLimparOrfasSeForHora();"))
 chk("a trava de 10 minutos continua no lugar",
     "if(Date.now() - __ultimaLimpezaFotosEm < 10*60*1000) return;" in novo)
+# A remocao em si continua sendo um delete simples por fid; ganhou so a limpeza
+# da quarentena junto (secao 96), na MESMA transacao -- sem isso, uma foto
+# apagada continuaria listada como orfa para sempre.
 chk("a remocao em si nao mudou -- so a lista de quem pode ser removido",
-    "remover.forEach(fid => store.delete(FOTO_KEY_PREFIXO + fid));" in novo)
+    "remover.forEach(fid => { store.delete(FOTO_KEY_PREFIXO + fid); delete orfasDesde[fid]; });" in novo
+    and "store.put(orfasDesde, DB_KEY_FOTOS_ORFAS);" in novo)
 
 print("\n=== 74. FOTO SOBE SOZINHA TAMBEM NO IPHONE ===")
 # onedriveEstaEmWifi() pergunta ao navegador o tipo de rede. O Safari do
@@ -2613,6 +2617,38 @@ chk("CLAUDE.md manda escrever ensaio que prova o estrago, nao so o conserto",
 chk("a auditoria existe e cobre os eixos principais",
     all(t in _audit for t in ["Sincroniza", "Armazenamento local", "Riscos aceitos", "divida"] )
     or all(t in _audit for t in ["Sincroniza", "Armazenamento local", "Riscos aceitos"]))
+
+print("\n=== 96. QUARENTENA: FOTO SEM DONO NAO E APAGADA NA HORA ===")
+# A faxina apagava na hora toda foto nao referenciada. Isso transformava
+# QUALQUER defeito que soltasse uma foto do item em perda definitiva em ate 10
+# minutos -- e era o que fazia um app OFFLINE depender da nuvem para nao perder
+# foto. O disjuntor de 60% nunca protegeu o caso real: UMA foto solta.
+# Aplicacao do mesmo principio da secao 93 ("so se apaga o que o usuario mandou
+# apagar") na camada LOCAL, que tinha ficado de fora. Prova em t116.
+chk("existe quarentena com prazo, e ela mora fora do STATE (nao viaja em backup nem para a nuvem)",
+    'const DB_KEY_FOTOS_ORFAS = "fotosOrfasDesde";' in novo
+    and "const FOTO_ORFA_CARENCIA_MS" in novo
+    and "async function fotosLerMapaOrfas(db){" in novo
+    and "async function fotosGravarMapaOrfas(db, mapa){" in novo)
+chk("a chave da quarentena NAO e confundida com foto pelo indice (nao comeca com 'foto:')",
+    not "fotosOrfasDesde".startswith("foto:"))
+chk("foto sem dono pela 1a vez e MARCADA, nunca apagada na mesma passada",
+    "if(orfasDesde[fid] === undefined){" in novo
+    and "orfasDesde[fid] = agora; mudouMapa = true;" in novo)
+chk("foto que volta a ter dono sai da quarentena (perdoada)",
+    "if(orfasDesde[fid] !== undefined){ delete orfasDesde[fid]; mudouMapa = true; }" in novo)
+chk("so apaga depois de vencido o prazo",
+    "if(agora - orfasDesde[fid] > carencia) remover.push(fid);" in novo)
+chk("aparelho sem espaco encurta o prazo, mas nao volta a apagar na hora",
+    "const carencia = apertado ? FOTO_ORFA_CARENCIA_APERTADA_MS : FOTO_ORFA_CARENCIA_MS;" in novo
+    and "espaco.livre < FOLGA_CRITICA_BYTES" in novo)
+chk("o disjuntor de massa continua valendo por cima da quarentena",
+    "if(remover.length >= 30 && remover.length > indice.size * 0.6){" in novo
+    and novo.index("if(agora - orfasDesde[fid] > carencia)")
+        < novo.index("if(remover.length >= 30 && remover.length > indice.size * 0.6){"))
+chk("a linha antiga, que apagava sem carencia nenhuma, saiu",
+    "indice.forEach(fid => { if(!referenciadas.has(fid)) remover.push(fid); });" in orig
+    and "indice.forEach(fid => { if(!referenciadas.has(fid)) remover.push(fid); });" not in novo)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")

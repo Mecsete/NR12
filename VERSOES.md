@@ -64,6 +64,47 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 27/08/2026 00:09
+
+**Foto que se solta de um equipamento não é mais apagada na hora — fica
+guardada 30 dias. É a correção que faz o app parar de depender da nuvem
+para não perder foto.**
+
+O app guarda as fotos separadas do resto, e tinha uma rotina de limpeza que
+rodava a cada 10 minutos e apagava do aparelho toda foto que naquele
+instante não estivesse ligada a nenhum equipamento ou risco. A ideia
+parecia certa: item excluído, foto vai junto.
+
+O problema é o que acontecia quando uma foto se soltava **sem ninguém ter
+excluído nada** — por um defeito. E isso aconteceu várias vezes esta
+semana: a sincronização sobrescrevendo com vazio, o rascunho descartado ao
+tocar fora do formulário, a junção de duplicatas. Em todos esses casos a
+sequência era a mesma:
+
+1. o defeito solta a foto do item;
+2. em até 10 minutos a limpeza vê a foto "sem dono" e apaga os bytes;
+3. se ela ainda não tinha subido para o OneDrive, acabou — nem os pontos de
+   restauração alcançavam.
+
+Ou seja: a limpeza transformava **qualquer** defeito em perda definitiva, e
+era ela que fazia um aplicativo feito para trabalhar sem internet depender
+da nuvem para não perder foto.
+
+Agora foto sem dono entra em **quarentena**: fica guardada com a data em que
+se soltou, e só sai do aparelho depois de 30 dias (1 dia se o celular
+estiver realmente sem espaço). Se ela voltar a ser usada nesse período — por
+uma correção, uma restauração ou o "Devolver fotos" —, sai da quarentena
+sozinha e nada se perde.
+
+Efeito prático: aquele **quadro vermelho listrado** (a foto que existe mas
+não abre) deixa de acontecer dentro do prazo, porque os bytes continuam no
+aparelho e o app volta a encontrá-los sozinho, sem internet nenhuma.
+
+A trava que impede uma limpeza gigante de uma vez continua valendo por
+cima disso.
+
+---
+
 ## 26/08/2026 23:00
 
 **Duas travas contra perda de dados, encontradas numa auditoria completa —

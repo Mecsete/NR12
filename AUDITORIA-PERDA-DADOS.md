@@ -55,10 +55,56 @@ potencialmente irreversível.
 | # | Caminho | Estado | Proteção |
 |---|---|---|---|
 | 2.1 | Leitura do banco falha → app abre com cópia velha do `localStorage` → **primeira gravação destrói o registro bom** | 🟢 | **Corrigido 26/08 23:00.** `__leituraDegradada` faz `dbSet` reler o banco antes de gravar por cima; se o banco responde, a gravação é recusada e o chip mostra erro |
-| 2.2 | Faxina de fotos órfãs apaga foto viva | 🟢 | Lê o registro **gravado** (não o STATE em memória, que é trocado inteiro na abertura), soma pontos de restauração e rascunho, e tem disjuntor: desiste se >60% parecer órfã |
+| 2.2 | Faxina de fotos órfãs apaga foto viva | 🟢 | **Corrigido 26/08 23:40 — este item estava marcado como protegido e ESTAVA ERRADO.** Ver 2.2-bis abaixo |
 | 2.3 | Gravação falha em silêncio e a sessão inteira roda sem salvar | 🟢 | `dbSet` tenta o caminho completo a cada chamada; erro aparece no chip de status |
 | 2.4 | Foto perdida vira indistinguível de "nunca fotografado" | 🟢 | `__fotosPerdidas` + quadro vermelho hachurado na tela |
 | 2.5 | Foto perdida **sem** marca (perda por mesclagem) | 🟢 | **Corrigido 26/08 22:04.** Varredura ampla usa o pacote na nuvem como prova. ENSAIO 29 |
+
+### 2.2-bis — o erro de auditoria que quase repetiu a perda
+
+Na primeira versão deste documento a faxina de fotos foi marcada como
+protegida, citando o disjuntor de 60% e as várias fontes de referência que
+ela consulta. **A classificação estava errada**, e vale registrar por quê,
+porque o erro de raciocínio é mais perigoso que o defeito.
+
+A faxina apagava **na hora** toda foto que não estivesse referenciada
+naquele instante. Isso parece correto — item excluído, foto vai junto — mas
+transformava qualquer defeito que soltasse uma foto do item em perda
+definitiva, em até 10 minutos:
+
+1. um defeito solta a foto do item (mesclagem que sobrescreve com vazio,
+   rascunho descartado, junção de duplicata);
+2. a faxina vê a foto sem dono e apaga os bytes;
+3. se ela ainda não tinha subido, acabou — nem os pontos de restauração
+   alcançam.
+
+**Era isto que fazia um app OFFLINE depender da nuvem para não perder foto.**
+
+Por que passou na auditoria:
+
+- Foi classificada como "limpeza do que já foi apagado" — consequência de
+  exclusão, não causa de perda. Rótulo herdado, não re-derivado.
+- O disjuntor protege contra perder MUITA coisa de uma vez. **Uma foto
+  nunca dispara um disjuntor de 60%** — e uma foto é exatamente o caso que
+  acontece de verdade.
+- O princípio "só excluir o que for apagado pelo usuário" foi aplicado à
+  nuvem e **não** ao banco de fotos local, no mesmo dia. A faxina apagava
+  por inferência ("ninguém referencia isto"), o mesmo padrão condenado no
+  motor de sincronização.
+
+**Correção (26/08 23:40):** foto sem dono entra em **quarentena** — fica
+guardada com a data em que ficou órfã e só sai do banco depois de 30 dias
+(1 dia se o aparelho estiver sem espaço). Voltando a ser referenciada, sai
+da quarentena sozinha. Ganho direto: item com referência viva e bytes
+apagados — o quadro vermelho hachurado — deixa de existir dentro do prazo,
+porque os bytes continuam lá e `dbGet` volta a encontrá-los. Provado em
+t116 (5 testes novos, incluindo o caso de voltar a ter dono e o de vencer o
+prazo).
+
+**Regra que fica:** nenhum 🟢 deste documento pode ser herdado. Todo item
+marcado como protegido tem de ser re-derivado das sete perguntas da REGRA
+ZERO. A pergunta que faltou aqui foi a mais simples de todas: *"isto impede
+UMA foto de sumir?"*
 
 ---
 
@@ -156,3 +202,16 @@ Ordem de prioridade para quando houver tempo:
    massa" era 30% do total — inofensivo em projeto pequeno, e liberava 516
    exclusões silenciosas em projeto real. Limite proporcional precisa sempre
    ser conferido no tamanho REAL do cliente, não no do teste.
+7. **Disjuntor de massa não protege o caso comum.** O caso que acontece de
+   verdade é UM item, UMA foto — nunca 60% de uma vez. Um limite que só
+   dispara no desastre grande deixa passar todos os pequenos, que somados
+   são o desastre.
+8. **Rótulo herdado não é auditoria.** A faxina de fotos passou porque foi
+   lida como "limpeza", e não re-derivada do princípio. Um subsistema
+   chamado "limpeza", "garbage collection" ou "poda" é, por definição, um
+   subsistema que apaga — tem de responder às sete perguntas como qualquer
+   outro.
+9. **O princípio vale em TODAS as camadas, não só onde foi descoberto.**
+   "Só excluir o que for apagado pelo usuário" foi aplicado à nuvem e
+   esquecido no banco local, no mesmo dia. Ao fechar um furo, procurar o
+   mesmo padrão nas outras camadas antes de dar por encerrado.

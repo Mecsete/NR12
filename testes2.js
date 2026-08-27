@@ -5872,6 +5872,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
             get(k){ const rq = { onsuccess:null, onerror:null, result: dados.get(k) };
                     setTimeout(()=>{ rq.onsuccess && rq.onsuccess(); }, 0); return rq; },
             delete(k){ dados.delete(k); },
+            put(v, k){ dados.set(k, v); },
             getAllKeys(){ const rq = { onsuccess:null, onerror:null, result: Array.from(dados.keys()) };
                     setTimeout(()=>{ rq.onsuccess && rq.onsuccess(); }, 0); return rq; }
           };
@@ -5895,12 +5896,36 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       async function dbOpen(){ return __db; }
       async function listarPontosDeRestauracao(){ return __pontos; }
       async function lerDraftPersistente(){ return __rascunho; }
+      /* Espaco livre do aparelho: a quarentena encurta o prazo quando o
+         aparelho esta sem espaco de verdade. Controlavel pelo teste. */
+      var __espacoLivre = 999999999999;
+      async function checarEspacoDisponivel(){ return { livre: __espacoLivre }; }
     `, ctx);
     // console.error da funcao vai para a lista de erros, para poder conferir
     ctx.console = { error: (m)=>vm.runInContext("__erros", ctx).push(m), log: ()=>{} };
+    /* Constantes ESCALARES (numero/string): o extrator constante() so sabe
+       delimitar array/objeto, entao estas sao lidas por regex — mas do
+       proprio index.html entregue, nao reescritas a mao, para o teste
+       continuar valendo se os prazos mudarem. */
+    const escalar = (nome)=>{
+      const m = new RegExp("\\nconst " + nome + "\\s*=\\s*([^;]+);").exec(HTML);
+      if(!m) throw new Error("const escalar nao encontrada: " + nome);
+      return "const " + nome + " = " + m[1].trim() + ";";
+    };
+    ["DB_KEY_FOTOS_ORFAS","FOTO_ORFA_CARENCIA_MS","FOTO_ORFA_CARENCIA_APERTADA_MS","FOLGA_CRITICA_BYTES"]
+      .forEach(n=> vm.runInContext(escalar(n), ctx));
     ["ehFotoDataUrlPersist","ehFotoRefPersist","fotoCalcularId","fotosColetarRefs",
-     "fotosColetarIdsEmbutidas","fotosCarregarIndice","fotosLimparOrfasSeForHora"]
+     "fotosColetarIdsEmbutidas","fotosCarregarIndice",
+     "fotosLerMapaOrfas","fotosGravarMapaOrfas","fotosLimparOrfasSeForHora"]
       .forEach(n=> vm.runInContext(funcao(n), ctx));
+    /* Empurra o relogio da quarentena para tras: simula "esta foto ficou sem
+       dono ha mais de 30 dias", que e a unica condicao que autoriza apagar. */
+    const envelhecerQuarentena = (db, ms)=>{
+      const m = db.dados.get("fotosOrfasDesde") || {};
+      for(const k in m) m[k] = m[k] - ms;
+      db.dados.set("fotosOrfasDesde", m);
+    };
+    const emQuarentena = (db, f)=> Object.prototype.hasOwnProperty.call(db.dados.get("fotosOrfasDesde")||{}, idDe(f));
 
     const FOTO_A = "data:image/jpeg;base64," + "A".repeat(500);
     const FOTO_B = "data:image/jpeg;base64," + "B".repeat(500);
@@ -5910,7 +5935,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       (fotosNoBanco || []).forEach(f => { registros["foto:" + idDe(f)] = f; });
       if(gravado !== undefined) registros["estado"] = gravado;
       ctx.__db = bancoFalso(registros);
-      vm.runInContext("__fotosNoBanco = null; __ultimaLimpezaFotosEm = 0; __erros = [];", ctx);
+      vm.runInContext("__fotosNoBanco = null; __ultimaLimpezaFotosEm = 0; __erros = []; __espacoLivre = 999999999999;", ctx);
       ctx.STATE = estadoMemoria;
       ctx.__pontos = pontos || [];
       ctx.__rascunho = rascunho || null;
@@ -5933,14 +5958,65 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(sobreviveu(db, FOTO_B), "apagou a foto do risco com o STATE ainda vazio");
     });
 
-    await ta("foto realmente orfa continua sendo apagada (a limpeza nao virou enfeite)", async ()=>{
+    await ta("O CASO REAL 2: foto solta por um defeito NAO e apagada na hora — entra em quarentena", async ()=>{
+      /* Era esta a cadeia que fazia um app OFFLINE perder foto e depender da
+         nuvem: um defeito soltava a foto do item, e em ate 10 minutos a
+         faxina apagava os bytes. Se ela ainda nao tinha subido, acabou.
+         Agora a foto solta fica guardada com a data em que ficou sem dono. */
       const gravado = { projetosSimples: [ { areas: [ { maquinas: [
         { fotoGeral: "idbfoto:" + idDe(FOTO_A) }
       ] } ] } ] };
       const db = preparar({ estadoMemoria: gravado, gravado, pontos: [], fotosNoBanco: [FOTO_A, FOTO_B] });
       await vm.runInContext("fotosLimparOrfasSeForHora()", ctx);
       ok(sobreviveu(db, FOTO_A), "apagou uma foto que estava referenciada");
-      ok(!sobreviveu(db, FOTO_B), "a foto orfa de verdade deveria ter sido apagada");
+      ok(sobreviveu(db, FOTO_B), "a foto sem dono foi apagada na hora, sem carencia nenhuma");
+      ok(emQuarentena(db, FOTO_B), "a foto sem dono deveria ter entrado na quarentena, com data");
+    });
+
+    await ta("foto que VOLTA a ter dono sai da quarentena e nunca e apagada", async ()=>{
+      const semDono = { projetosSimples: [] };
+      const db = preparar({ estadoMemoria: semDono, gravado: semDono, pontos: [], fotosNoBanco: [FOTO_A] });
+      await vm.runInContext("fotosLimparOrfasSeForHora()", ctx);
+      ok(emQuarentena(db, FOTO_A), "deveria ter entrado na quarentena");
+      // O item volta a referenciar a foto (correcao, restauracao, recuperacao)
+      const comDono = { projetosSimples: [ { areas: [ { maquinas: [
+        { fotoGeral: "idbfoto:" + idDe(FOTO_A) } ] } ] } ] };
+      db.dados.set("estado", comDono);
+      ctx.STATE = comDono;
+      vm.runInContext("__ultimaLimpezaFotosEm = 0;", ctx);
+      await vm.runInContext("fotosLimparOrfasSeForHora()", ctx);
+      ok(!emQuarentena(db, FOTO_A), "voltou a ter dono e continuou marcada como orfa");
+      // Mesmo passado MUITO tempo, nao pode ser apagada: ela tem dono.
+      envelhecerQuarentena(db, 400*24*60*60*1000);
+      vm.runInContext("__ultimaLimpezaFotosEm = 0;", ctx);
+      await vm.runInContext("fotosLimparOrfasSeForHora()", ctx);
+      ok(sobreviveu(db, FOTO_A), "apagou uma foto que tinha voltado a ter dono");
+    });
+
+    await ta("passado o prazo de carencia, a foto sem dono e finalmente apagada (nao vira lixo eterno)", async ()=>{
+      const gravado = { projetosSimples: [ { areas: [ { maquinas: [
+        { fotoGeral: "idbfoto:" + idDe(FOTO_A) }
+      ] } ] } ] };
+      const db = preparar({ estadoMemoria: gravado, gravado, pontos: [], fotosNoBanco: [FOTO_A, FOTO_B] });
+      await vm.runInContext("fotosLimparOrfasSeForHora()", ctx);
+      ok(sobreviveu(db, FOTO_B), "nao podia apagar na primeira passada");
+      envelhecerQuarentena(db, 31*24*60*60*1000); // 31 dias sem dono
+      vm.runInContext("__ultimaLimpezaFotosEm = 0;", ctx);
+      await vm.runInContext("fotosLimparOrfasSeForHora()", ctx);
+      ok(!sobreviveu(db, FOTO_B), "passados 31 dias a foto sem dono deveria sair do banco");
+      ok(sobreviveu(db, FOTO_A), "levou junto a foto que tem dono");
+    });
+
+    await ta("aparelho SEM espaco encurta a carencia, mas ainda assim nao apaga na hora", async ()=>{
+      const gravado = { projetosSimples: [] };
+      const db = preparar({ estadoMemoria: gravado, gravado, pontos: [], fotosNoBanco: [FOTO_A] });
+      vm.runInContext("__espacoLivre = 1000;", ctx); // praticamente sem espaco
+      await vm.runInContext("fotosLimparOrfasSeForHora()", ctx);
+      ok(sobreviveu(db, FOTO_A), "mesmo sem espaco, a primeira passada nao pode apagar");
+      envelhecerQuarentena(db, 2*24*60*60*1000); // 2 dias
+      vm.runInContext("__ultimaLimpezaFotosEm = 0; __espacoLivre = 1000;", ctx);
+      await vm.runInContext("fotosLimparOrfasSeForHora()", ctx);
+      ok(!sobreviveu(db, FOTO_A), "com o aparelho apertado, 2 dias sem dono ja autorizam apagar");
     });
 
     await ta("sem conseguir ler o registro gravado, nao apaga NADA", async ()=>{
@@ -5985,27 +6061,34 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       const gravado = { projetosSimples: [] }; // nao referencia nenhuma: 40 de 40 pareceriam orfas
       const db = preparar({ estadoMemoria: {}, gravado, pontos: [], fotosNoBanco: muitas });
       await vm.runInContext("fotosLimparOrfasSeForHora()", ctx);
-      eq(db.dados.size, 41, "o disjuntor deixou passar uma limpeza em massa");
+      envelhecerQuarentena(db, 31*24*60*60*1000); // mesmo vencidas, o disjuntor tem de segurar
+      vm.runInContext("__ultimaLimpezaFotosEm = 0; __erros = [];", ctx);
+      await vm.runInContext("fotosLimparOrfasSeForHora()", ctx);
+      eq(muitas.filter(f=>sobreviveu(db, f)).length, 40, "o disjuntor deixou passar uma limpeza em massa");
       ok(vm.runInContext("__erros.length", ctx) > 0, "o disjuntor disparou em silencio, sem deixar rastro");
     });
 
-    await ta("abaixo do disjuntor, a limpeza normal segue funcionando", async ()=>{
+    await ta("abaixo do disjuntor, a limpeza normal segue funcionando (depois da carencia)", async ()=>{
       const poucas = [];
       for(let i = 0; i < 10; i++) poucas.push("data:image/jpeg;base64," + String(i) + "y".repeat(300));
       const gravado = { projetosSimples: [] };
       const db = preparar({ estadoMemoria: {}, gravado, pontos: [], fotosNoBanco: poucas });
       await vm.runInContext("fotosLimparOrfasSeForHora()", ctx);
-      eq(db.dados.size, 1, "10 orfas de verdade deveriam ter saido (sobra so o registro gravado)");
+      eq(poucas.filter(f=>sobreviveu(db, f)).length, 10, "nao podia apagar nada na primeira passada");
+      envelhecerQuarentena(db, 31*24*60*60*1000);
+      vm.runInContext("__ultimaLimpezaFotosEm = 0;", ctx);
+      await vm.runInContext("fotosLimparOrfasSeForHora()", ctx);
+      eq(poucas.filter(f=>sobreviveu(db, f)).length, 0, "10 orfas vencidas deveriam ter saido");
     });
 
     await ta("a trava de 10 minutos continua valendo", async ()=>{
       const gravado = { projetosSimples: [] };
       const db = preparar({ estadoMemoria: {}, gravado, pontos: [], fotosNoBanco: [FOTO_A] });
       await vm.runInContext("fotosLimparOrfasSeForHora()", ctx);
-      eq(db.dados.size, 1, "a primeira passada deveria ter limpado a orfa");
+      ok(emQuarentena(db, FOTO_A), "a primeira passada deveria ter posto a orfa em quarentena");
       db.dados.set("foto:" + idDe(FOTO_B), FOTO_B);
       await vm.runInContext("fotosLimparOrfasSeForHora()", ctx); // segunda chamada seguida
-      ok(sobreviveu(db, FOTO_B), "rodou de novo dentro dos 10 minutos, sem respeitar a trava");
+      ok(!emQuarentena(db, FOTO_B), "rodou de novo dentro dos 10 minutos, sem respeitar a trava");
     });
   }
 

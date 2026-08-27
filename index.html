@@ -1419,6 +1419,38 @@ function diaBRCurto(diaChave){
    primeira gravação, sem passo de migração. */
 const FOTO_REF_PREFIXO = "idbfoto:";
 const FOTO_KEY_PREFIXO = "foto:";
+/* =========================================================================
+   QUARENTENA DE FOTO SEM DONO — A TRAVA QUE FALTAVA NO APARELHO
+
+   Até 26/08/2026, a faxina apagava do banco, na hora, toda foto que não
+   estivesse referenciada naquele instante. Parecia correto: item excluído,
+   foto vai junto. Só que isso transformava QUALQUER defeito que soltasse
+   uma foto do item em perda definitiva — e em até 10 minutos, que é o
+   intervalo da faxina.
+
+   A cadeia que aconteceu de verdade em campo:
+     1. um defeito solta a foto do item (mesclagem que sobrescreve com
+        vazio, rascunho descartado ao tocar fora, junção de duplicata);
+     2. a faxina vê a foto "sem dono" e apaga os bytes;
+     3. se ela ainda não tinha subido para a nuvem, acabou — não existe em
+        lugar nenhum, nem para os pontos de restauração.
+
+   Ou seja: a faxina era o amplificador que convertia bug recuperável em
+   perda irreversível, e era ela que fazia um app OFFLINE depender da nuvem
+   para não perder foto. Isso está errado de origem.
+
+   Agora foto sem dono entra em QUARENTENA: fica guardada, com a data em que
+   ficou órfã, e só é apagada de verdade depois do prazo de carência. Se ela
+   voltar a ser referenciada nesse meio-tempo (correção, restauração de
+   ponto, recuperação), sai da quarentena sozinha e nada é perdido.
+
+   Ganho direto: item com a referência viva mas os bytes apagados — o quadro
+   vermelho hachurado — deixa de existir dentro do prazo, porque os bytes
+   ainda estão lá e dbGet volta a encontrá-los sozinho.
+   ========================================================================= */
+const DB_KEY_FOTOS_ORFAS = "fotosOrfasDesde";
+const FOTO_ORFA_CARENCIA_MS = 30 * 24 * 60 * 60 * 1000;      // 30 dias — cobre uma campanha de campo inteira
+const FOTO_ORFA_CARENCIA_APERTADA_MS = 24 * 60 * 60 * 1000;  // 1 dia — só quando o aparelho está sem espaço de verdade
 function ehFotoDataUrlPersist(v){ return typeof v === "string" && v.startsWith("data:image"); }
 function ehFotoRefPersist(v){ return typeof v === "string" && v.startsWith(FOTO_REF_PREFIXO); }
 /* Impressão digital do conteúdo: comprimento + hash de amostras do início,
@@ -1527,6 +1559,29 @@ async function fotosLerLote(db, refs){
    espaço é um problema pequeno e reversível; foto de campo apagada por
    engano não tem volta. */
 let __ultimaLimpezaFotosEm = 0;
+/* Mapa da quarentena: { "<fid>": timestampEmQueFicouSemDono }. Mora numa
+   chave própria do banco, fora do STATE — é controle de armazenamento, não
+   dado do usuário, e não deve viajar em backup nem para a nuvem. */
+async function fotosLerMapaOrfas(db){
+  return await new Promise((resolve)=>{
+    try{
+      const tx = db.transaction(DB_STORE,"readonly");
+      const rq = tx.objectStore(DB_STORE).get(DB_KEY_FOTOS_ORFAS);
+      rq.onsuccess = ()=>resolve((rq.result && typeof rq.result === "object") ? rq.result : {});
+      rq.onerror   = ()=>resolve({});
+    }catch(e){ resolve({}); }
+  });
+}
+async function fotosGravarMapaOrfas(db, mapa){
+  await new Promise((resolve)=>{
+    try{
+      const tx = db.transaction(DB_STORE,"readwrite");
+      tx.objectStore(DB_STORE).put(mapa, DB_KEY_FOTOS_ORFAS);
+      tx.oncomplete = ()=>resolve();
+      tx.onerror = ()=>resolve();
+    }catch(e){ resolve(); }
+  });
+}
 async function fotosLimparOrfasSeForHora(){
   if(!temIndexedDB()) return;
   if(Date.now() - __ultimaLimpezaFotosEm < 10*60*1000) return;
@@ -1555,8 +1610,32 @@ async function fotosLimparOrfasSeForHora(){
     const rascunho = await lerDraftPersistente();
     if(rascunho){ fotosColetarIdsEmbutidas(rascunho, referenciadas); fotosColetarRefs(rascunho, referenciadas); }
     const indice = await fotosCarregarIndice(db);
+    /* QUARENTENA (ver o bloco de comentário em DB_KEY_FOTOS_ORFAS). Foto sem
+       dono não é apagada na hora: ganha uma data de "ficou órfã em" e só sai
+       do banco depois do prazo. Voltando a ser referenciada, sai da
+       quarentena e nada se perde. */
+    const orfasDesde = await fotosLerMapaOrfas(db);
+    const agora = Date.now();
+    const espaco = await checarEspacoDisponivel();
+    const apertado = !!(espaco && typeof espaco.livre === "number" && espaco.livre < FOLGA_CRITICA_BYTES);
+    const carencia = apertado ? FOTO_ORFA_CARENCIA_APERTADA_MS : FOTO_ORFA_CARENCIA_MS;
     const remover = [];
-    indice.forEach(fid => { if(!referenciadas.has(fid)) remover.push(fid); });
+    let mudouMapa = false;
+    indice.forEach(fid => {
+      if(referenciadas.has(fid)){
+        // Voltou a ter dono (correção, restauração, recuperação): perdoa.
+        if(orfasDesde[fid] !== undefined){ delete orfasDesde[fid]; mudouMapa = true; }
+        return;
+      }
+      if(orfasDesde[fid] === undefined){
+        orfasDesde[fid] = agora; mudouMapa = true;   // primeira vez sem dono — começa a contar, NÃO apaga
+        return;
+      }
+      if(agora - orfasDesde[fid] > carencia) remover.push(fid);
+    });
+    // Limpa da lista quem já não está mais no banco (apagado em outra rodada).
+    for(const fid in orfasDesde){ if(!indice.has(fid)){ delete orfasDesde[fid]; mudouMapa = true; } }
+    if(mudouMapa) await fotosGravarMapaOrfas(db, orfasDesde);
     if(remover.length === 0) return;
     /* DISJUNTOR. Apagar uma ou outra foto de item excluído é rotina; querer
        apagar quase todo o banco de uma vez não é — isso só acontece quando a
@@ -1572,7 +1651,8 @@ async function fotosLimparOrfasSeForHora(){
     await new Promise((resolve)=>{
       const tx = db.transaction(DB_STORE, "readwrite");
       const store = tx.objectStore(DB_STORE);
-      remover.forEach(fid => store.delete(FOTO_KEY_PREFIXO + fid));
+      remover.forEach(fid => { store.delete(FOTO_KEY_PREFIXO + fid); delete orfasDesde[fid]; });
+      store.put(orfasDesde, DB_KEY_FOTOS_ORFAS);
       tx.oncomplete = ()=>{ remover.forEach(fid => indice.delete(fid)); resolve(); };
       tx.onerror = ()=>resolve();
     });
@@ -2038,7 +2118,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "26/08/2026 23:00";
+const APP_BUILD = "27/08/2026 00:09";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
