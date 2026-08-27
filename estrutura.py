@@ -2682,6 +2682,86 @@ chk("tem chave para desligar (custo de bateria e escolha do usuario), com padrao
     and "toggleEnvioContinuo(){" in novo
     and 'onchange="App.toggleEnvioContinuo()"' in novo)
 
+print("\n=== 98. CATEGORIA 1 DA VARREDURA: DUPLICACAO, ID DA FOTO E IMPORTACAO ===")
+# 1.2/1.3 — duplicar copiava o objeto inteiro: os textos do laudo JA APROVADOS
+# iam junto para outra maquina e seguiam direto para o laudo assinado, sem
+# passar pela revisao. Junto vinham as marcas locais de dano e o carimbo de
+# data do original. Prova em t126.
+chk("existe UMA funcao de preparar copia, e todos os pontos do Simplificado a usam",
+    "function prepararCopiaDuplicada(novo, tipo){" in novo
+    and novo.count("prepararCopiaDuplicada(") >= 11)   # definicao + 10 pontos de duplicacao
+chk("nenhum ponto do Simplificado duplica mais na mao (so restam os do Modulo Completo, congelado)",
+    novo.count("novo.id = uid(); novo.criadoEm = Date.now();") == 4
+    and orig.count("novo.id = uid(); novo.criadoEm = Date.now();") > 4)
+chk("o laudo da copia volta para 'aguardando decisao', preservando o texto",
+    "function __laudoCopiaViraSugestao(l){" in novo
+    and 'l[base+"St"]  = texto ? "pend" : "";' in novo)
+chk("as marcas locais deste aparelho nao viajam para a copia",
+    'const CAMPOS_MARCA_LOCAL_COPIA = ["__fotosPerdidas", "__fotosOmitidas", "__fotosAtualizar", "__fotoNuvemVerificadaEm"];' in novo)
+chk("a copia recebe carimbo de agora, nao o do original",
+    "obj.criadoEm = Date.now();" in novo and "obj.atualizadoEm = agoraSync();" in novo)
+chk("o ponto de copia DENTRO da tela de laudo tambem passa pela mesma funcao",
+    'prepararCopiaDuplicada(JSON.parse(JSON.stringify(item.risco)), "risco")' in novo)
+
+# 1.1 — o id da foto lia so 3 janelas de 4KB (0,59% de uma foto de 2MB). Duas
+# fotos diferentes do mesmo tamanho colidiam, e a segunda nao era gravada:
+# apontava para os bytes da primeira. Amostrar melhor NAO resolveu (testado);
+# so a leitura completa resolve.
+chk("o id da foto le o conteudo INTEIRO, sem ponto cego",
+    "for(let i=0;i<n;i++){ const ch = s.charCodeAt(i); h1 = ((h1*33) ^ ch) >>> 0; h2 = ((h2*31) + ch) >>> 0; }" in novo
+    and "if(n > seg*3) amostrar((n>>1)-(seg>>1), (n>>1)+(seg>>1));" in orig
+    and "if(n > seg*3) amostrar((n>>1)-(seg>>1), (n>>1)+(seg>>1));" not in novo)
+chk("COMPATIBILIDADE: foto ja gravada mantem o id antigo -- nada e regravado em massa",
+    "const __fotoIdConhecido = new Map();" in novo
+    and "const jaGravada = __fotoIdConhecido.get(s);" in novo
+    and "__fotoIdConhecido.set(f, fid);" in novo)
+chk("o cache de ids comporta o projeto real (era 800 para mais de mil fotos)",
+    "if(__fotoIdCache.size > 4000) __fotoIdCache.clear();" in novo)
+
+# 1.4 — a importacao substituia o item local inteiro pelo mais novo do arquivo.
+# Backup sem fotos (de aparelho que nao as baixou, ou so de texto) apagava a
+# foto boa daqui. Mesma classe da secao 90, no caminho que substitui mais dado
+# de uma vez em todo o app. Prova em t127.
+chk("a importacao preserva foto boa quando o arquivo vem sem ela",
+    "function __preservarFotosNaSubstituicao(exLocal, nvRecebido){" in novo
+    and "if(chegaram.length < aqui.length) saida[CAMPO_FOTOS_LISTA] = exLocal[CAMPO_FOTOS_LISTA];" in novo)
+chk("os TRES niveis que substituem item na importacao usam a protecao",
+    novo.count("__preservarFotosNaSubstituicao(ex, nv)") == 3)
+chk("a substituicao crua, sem protecao, saiu dos tres niveis",
+    "atualArr[i]=nv; st.upd++;" in orig and "atualArr[i]=nv; st.upd++;" not in novo
+    and "atualArr[i]={...nv, tarefas:ex.tarefas}; st.upd++;" not in novo
+    and "atualArr[i]={...nv, maquinas:ex.maquinas}; st.upd++;" not in novo)
+
+print("\n=== 99. IOS: TEXTO DIGITADO E RETENTATIVA DE GRAVACAO ===")
+# A) setDraftField (31 campos de texto: nome do equipamento, descricao, empresa,
+# ART...) so escrevia na MEMORIA. Escolher item de lista e tirar foto gravavam o
+# rascunho; digitar nao gravava nada. No iPhone, tocar na camera manda o app
+# para segundo plano e o iOS pode encerrar a aba ali -- e a sequencia mais comum
+# do dia e digitar nome/descricao e tocar na camera. Prova em t128.
+chk("digitar tambem grava o rascunho, com atraso para nao gravar a cada tecla",
+    "setDraftField(field, value){ if(__draftEntity){ __draftEntity[field]=value; agendarGravacaoDraft(); } }" in novo
+    and "function agendarGravacaoDraft(){" in novo
+    and "setDraftField(field, value){ if(__draftEntity) __draftEntity[field]=value; }" in orig)
+chk("o atraso e descarregado ao sair de foco -- senao o buraco voltava dentro dele",
+    "function flushDraftPendente(){" in novo
+    and "function flushTudoAntesDeSair(){" in novo
+    and 'window.addEventListener("pagehide", flushTudoAntesDeSair);' in novo)
+chk("o STATE continua sendo descarregado nos mesmos eventos (nada foi trocado por isto)",
+    "flushSalvamentoPendente();" in novo.split("function flushTudoAntesDeSair(){",1)[1][:220])
+
+# B) Falha de gravacao (comum no iOS sob pressao de memoria) so era retentada
+# pela PROXIMA edicao ou pela saida de foco. Com o app aberto e parado, ninguem
+# retentava -- e o envio continuo (27/08 00:18) ALARGOU essa janela ao manter o
+# app em primeiro plano por muito mais tempo.
+chk("existe retentativa automatica de gravacao pendente",
+    "function tentarSalvarSePendente(){" in novo
+    and "if(!__salvamentoPendente) return;" in novo)
+chk("a retentativa entra nos DOIS ritmos: o de 2 min e o de 20s do envio continuo",
+    'if(document.visibilityState==="visible"){ tentarSalvarSePendente(); sincronizarIncrementalNaPasta();' in novo
+    and novo.count("tentarSalvarSePendente();") == 2)   # os dois pontos de chamada (a definicao nao usa esta forma)
+chk("no tique de 20s a retentativa vem ANTES das travas -- funciona sem OneDrive e com a chave desligada",
+    novo.index("  tentarSalvarSePendente();\n  if(!envioContinuoLigado()") > 0)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

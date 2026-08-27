@@ -5889,6 +5889,9 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       const FOTO_KEY_PREFIXO = "foto:"; const FOTO_REF_PREFIXO = "idbfoto:";
       var __ultimaLimpezaFotosEm = 0; var __fotosNoBanco = null;
       var __fotoIdCache = new Map();
+      /* Ids que as fotos JA tem no banco — e o que impede uma foto antiga de
+         mudar de nome quando o calculo do id muda (ver fotoCalcularId). */
+      var __fotoIdConhecido = new Map();
       var STATE = {}; var __db = null; var __pontos = []; var __rascunho = null;
       var __erros = [];
       const console2 = { error: (m)=>__erros.push(m) };
@@ -7061,6 +7064,12 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       async function manterTelaAcesa(){ pedidosTela++; __wakeLock = { release: async function(){} }; }
       async function liberarTelaAcesa(){ soltouTela++; __wakeLock = null; }
       function atualizarChipSync(){}
+      /* Nova tentativa de gravacao que ficou pendente. O tique do envio
+         continuo chama isso a cada 20s — foi ele que alargou a janela em que
+         nada retentava (app em primeiro plano, tela acesa, sem edicao). */
+      var salvamentosRetentados = 0, __salvamentoPendente = false;
+      function persistir(){ salvamentosRetentados++; __salvamentoPendente = false; }
+      function tentarSalvarSePendente(){ if(__salvamentoPendente) persistir(); }
       async function sincronizarIncrementalOneDrive(){
         chamadasEnvio++;
         var envia = Math.min(porPassada, restantes);
@@ -7132,6 +7141,243 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
         ok(ler("__envioContinuoSegurandoTela") === false);
       });
     })();
+  }
+
+  console.log("\n=== t126 · categoria 1 da varredura: duplicacao e identidade da foto ===");
+  {
+    /* ---- 1.1 IDENTIDADE DA FOTO ---- */
+    const ctxF = vm.createContext({ Map, String, Math, console });
+    vm.runInContext("var __fotoIdCache = new Map(); var __fotoIdConhecido = new Map();", ctxF);
+    vm.runInContext(funcao("fotoCalcularId"), ctxF);
+    const idDeFoto = (str)=>{ ctxF.__s = str; return vm.runInContext("fotoCalcularId(__s)", ctxF); };
+
+    t("O CASO PROVADO: fotos diferentes fora das janelas antigas NAO colidem mais", ()=>{
+      /* A versao anterior lia so 3 janelas de 4KB (0,59% de uma foto de 2MB).
+         Duas fotos do mesmo tamanho que diferissem fora dessas janelas
+         recebiam o MESMO id — e a segunda simplesmente nao era gravada,
+         apontando para os bytes da primeira: foto errada na tela, foto certa
+         inexistente, sem marca nenhuma. Aqui, tamanho menor mas mesmo
+         principio: diferenca em varias posicoes ao longo do arquivo. */
+      const n = 300000;
+      const base = "data:image/jpeg;base64," + "A".repeat(n);
+      const arr = base.split("");
+      const idBase = idDeFoto(arr.join(""));
+      let colisoes = 0;
+      [0.05, 0.25, 0.33, 0.5, 0.66, 0.81, 0.97].forEach(f=>{
+        const c = arr.slice(); c[Math.floor(n*f)] = "B";
+        if(idDeFoto(c.join("")) === idBase) colisoes++;
+      });
+      eq(colisoes, 0, "ainda ha posicao do arquivo que nao entra no calculo do id");
+    });
+    t("a mesma foto continua produzindo sempre o mesmo id (dedup nao quebrou)", ()=>{
+      const f = "data:image/jpeg;base64," + "Q".repeat(5000);
+      eq(idDeFoto(f), idDeFoto(f.slice(0)), "a mesma foto gerou ids diferentes");
+    });
+    t("COMPATIBILIDADE: foto que JA esta no banco mantem o id antigo, sem regravar nada", ()=>{
+      /* Sem isto, mudar o calculo faria as mais de mil fotos do projeto real
+         ganharem nome novo e serem regravadas de uma vez — GB numa transacao
+         so. Seria trocar um risco baixo por um alto. */
+      const f = "data:image/jpeg;base64," + "R".repeat(5000);
+      const idNovo = idDeFoto(f);
+      ctxF.__f = f;
+      vm.runInContext("__fotoIdCache.delete(__f); __fotoIdConhecido.set(__f, 'idantigo-abc');", ctxF);
+      eq(idDeFoto(f), "idantigo-abc", "a foto ja gravada mudou de nome");
+      ok(idNovo !== "idantigo-abc", "o cenario nao testa nada se os dois ids forem iguais");
+    });
+
+    /* ---- 1.2 e 1.3 DUPLICACAO ---- */
+    const ctxD = vm.createContext({ Object, String, Date, Math, JSON, console });
+    vm.runInContext("var __relogio = 1750000000000; function uid(){ return 'novo'+(__relogio++); } function agoraSync(){ return 987654321; }", ctxD);
+    ["__laudoCopiaViraSugestao","__prepararItemCopiado","prepararCopiaDuplicada"]
+      .forEach(n=> vm.runInContext(funcao(n), ctxD));
+    vm.runInContext(constante("CAMPOS_MARCA_LOCAL_COPIA"), ctxD);
+
+    const maquinaOriginal = ()=>({
+      id:"m1", nome:"Classificadora SZ-5252", criadoEm:1, atualizadoEm:1,
+      fotoGeral:"data:image/jpeg;base64,AAA",
+      __fotosPerdidas:true, __fotosOmitidas:true, __fotoNuvemVerificadaEm:123,
+      laudoIA:{ escopoSug:"sugestao da IA", escopoFin:"ESCOPO APROVADO", escopoSt:"ok", duvEscopo:"", em:"x" },
+      tarefas:[{ id:"t1", tarefa:"Operacao", criadoEm:1, atualizadoEm:1,
+        laudoIA:{ tarefaSug:"s", tarefaFin:"TAREFA APROVADA", tarefaSt:"ok" },
+        riscos:[{ id:"r1", nome:"Agarramento", criadoEm:1, atualizadoEm:1,
+          foto:"data:image/jpeg;base64,BBB", __fotosPerdidas:true,
+          laudoIA:{ riscoSug:"s1", riscoFin:"RISCO APROVADO", riscoSt:"ok",
+                    solucaoSug:"s2", solucaoFin:"", solucaoSt:"",
+                    existenteSug:"", existenteFin:"", existenteSt:"" } }] }] });
+
+    t("O CASO REAL: a copia NAO nasce com os textos do laudo ja aprovados", ()=>{
+      ctxD.__o = maquinaOriginal();
+      const c = vm.runInContext('prepararCopiaDuplicada(JSON.parse(JSON.stringify(__o)), "maquina")', ctxD);
+      eq(c.laudoIA.escopoSt, "pend", "o escopo da copia continuou aprovado");
+      eq(c.tarefas[0].laudoIA.tarefaSt, "pend", "a tarefa da copia continuou aprovada");
+      eq(c.tarefas[0].riscos[0].laudoIA.riscoSt, "pend", "o risco da copia continuou aprovado");
+    });
+    t("mas o TEXTO e preservado como sugestao — ninguem perde trabalho escrito", ()=>{
+      ctxD.__o = maquinaOriginal();
+      const c = vm.runInContext('prepararCopiaDuplicada(JSON.parse(JSON.stringify(__o)), "maquina")', ctxD);
+      eq(c.laudoIA.escopoSug, "ESCOPO APROVADO", "o texto aprovado se perdeu na copia");
+      eq(c.laudoIA.escopoFin, "", "a copia manteve um texto final aplicado");
+      eq(c.tarefas[0].riscos[0].laudoIA.riscoSug, "RISCO APROVADO");
+    });
+    t("campo do laudo que estava VAZIO continua vazio, nao vira pendencia falsa", ()=>{
+      ctxD.__o = maquinaOriginal();
+      const c = vm.runInContext('prepararCopiaDuplicada(JSON.parse(JSON.stringify(__o)), "maquina")', ctxD);
+      eq(c.tarefas[0].riscos[0].laudoIA.existenteSt, "", "campo vazio virou pendencia do nada");
+      eq(c.tarefas[0].riscos[0].laudoIA.solucaoSug, "s2", "sugestao sem aprovacao devia ser mantida");
+      eq(c.tarefas[0].riscos[0].laudoIA.solucaoSt, "pend");
+    });
+    t("as marcas internas deste aparelho nao viajam para a copia", ()=>{
+      ctxD.__o = maquinaOriginal();
+      const c = vm.runInContext('prepararCopiaDuplicada(JSON.parse(JSON.stringify(__o)), "maquina")', ctxD);
+      ok(c.__fotosPerdidas === undefined && c.__fotosOmitidas === undefined
+         && c.__fotoNuvemVerificadaEm === undefined, "a copia nasceu marcada como danificada");
+      ok(c.tarefas[0].riscos[0].__fotosPerdidas === undefined, "a marca ficou no risco copiado");
+    });
+    t("a copia recebe ids novos em TODOS os niveis e carimbo de data de agora", ()=>{
+      ctxD.__o = maquinaOriginal();
+      const c = vm.runInContext('prepararCopiaDuplicada(JSON.parse(JSON.stringify(__o)), "maquina")', ctxD);
+      ok(c.id !== "m1" && c.tarefas[0].id !== "t1" && c.tarefas[0].riscos[0].id !== "r1", "id repetido na copia");
+      eq(c.atualizadoEm, 987654321, "a copia ficou com o carimbo do original");
+      eq(c.tarefas[0].riscos[0].atualizadoEm, 987654321);
+      ok(c.criadoEm > 1, "criadoEm nao foi atualizado");
+    });
+    t("a FOTO continua sendo copiada — e o motivo de duplicar", ()=>{
+      ctxD.__o = maquinaOriginal();
+      const c = vm.runInContext('prepararCopiaDuplicada(JSON.parse(JSON.stringify(__o)), "maquina")', ctxD);
+      eq(c.fotoGeral, "data:image/jpeg;base64,AAA");
+      eq(c.tarefas[0].riscos[0].foto, "data:image/jpeg;base64,BBB");
+    });
+    t("o original nao e tocado pela duplicacao", ()=>{
+      ctxD.__o = maquinaOriginal();
+      vm.runInContext('prepararCopiaDuplicada(JSON.parse(JSON.stringify(__o)), "maquina")', ctxD);
+      eq(ctxD.__o.laudoIA.escopoSt, "ok", "a duplicacao rebaixou o laudo do ORIGINAL");
+      eq(ctxD.__o.id, "m1");
+    });
+  }
+
+  console.log("\n=== t127 · importar backup nao pode apagar foto (1.4 da varredura) ===");
+  {
+    /* Quando o item do backup e mais novo, a importacao substituia o item
+       local INTEIRO. Backup gerado num aparelho que ainda nao baixou as
+       fotos — ou um backup so de texto — apagava a foto boa daqui, sem
+       aviso. Mesma classe do defeito ja corrigido na sincronizacao
+       (aplicarAtualizacaoRemota), mas no caminho que substitui MAIS dado de
+       uma vez em todo o app. */
+    const ctxI = vm.createContext({ Object, Array, String, JSON, console });
+    vm.runInContext('var CAMPO_FOTOS_LISTA = "fotosOutras";', ctxI);
+    vm.runInContext(constante("CAMPOS_FOTO_UNICA"), ctxI);
+    ["__ehFotoEmbutida","__preservarFotosNaSubstituicao"].forEach(n=> vm.runInContext(funcao(n), ctxI));
+    const FOTO = "data:image/jpeg;base64," + "F".repeat(80);
+    const OUTRA = "data:image/jpeg;base64," + "G".repeat(80);
+    const juntar = (ex, nv)=>{ ctxI.__ex = ex; ctxI.__nv = nv; return vm.runInContext("__preservarFotosNaSubstituicao(__ex, __nv)", ctxI); };
+
+    t("O CASO REAL: backup SEM foto, mais novo, nao apaga a foto que esta aqui", ()=>{
+      const local  = { id:"r1", nome:"velho", foto:FOTO, fotoGeral:FOTO, fotosOutras:[FOTO] };
+      const doArquivo = { id:"r1", nome:"NOVO", foto:null, fotoGeral:null, fotosOutras:[] };
+      const r = juntar(local, doArquivo);
+      eq(r.foto, FOTO, "a foto do risco foi apagada pela importacao");
+      eq(r.fotoGeral, FOTO, "a foto do equipamento foi apagada pela importacao");
+      eq(r.fotosOutras.length, 1, "a lista de fotos foi zerada pela importacao");
+      eq(r.nome, "NOVO", "o texto mais novo do backup precisa continuar entrando");
+    });
+    t("backup COM foto mais nova substitui normalmente (nao virou bloqueio geral)", ()=>{
+      const local  = { id:"r1", foto:FOTO, fotosOutras:[FOTO] };
+      const doArquivo = { id:"r1", foto:OUTRA, fotosOutras:[FOTO, OUTRA] };
+      const r = juntar(local, doArquivo);
+      eq(r.foto, OUTRA);
+      eq(r.fotosOutras.length, 2);
+    });
+    t("lista que chega MENOR nao reduz a de ca", ()=>{
+      const r = juntar({ id:"r1", fotosOutras:[FOTO, OUTRA] }, { id:"r1", fotosOutras:[FOTO] });
+      eq(r.fotosOutras.length, 2, "a importacao reduziu a lista de fotos");
+    });
+    t("item sem foto dos dois lados continua normal", ()=>{
+      const r = juntar({ id:"r1", foto:null, fotosOutras:[] }, { id:"r1", foto:null, fotosOutras:[], nome:"x" });
+      eq(r.nome, "x");
+      ok(r.foto === null);
+    });
+    t("o item local nao e alterado — a funcao devolve uma copia", ()=>{
+      const local = { id:"r1", foto:FOTO };
+      const r = juntar(local, { id:"r1", foto:null, nome:"n" });
+      eq(local.foto, FOTO);
+      ok(r !== local && r.nome === "n");
+    });
+    t("os TRES niveis que substituem item usam a protecao (risco, equipamento e area)", ()=>{
+      eq((HTML.match(/__preservarFotosNaSubstituicao\(ex, nv\)/g)||[]).length, 3,
+         "algum nivel da importacao continua substituindo sem proteger a foto");
+    });
+  }
+
+  console.log("\n=== t128 · iOS: texto digitado sai da memoria e gravacao que falha e retentada ===");
+  {
+    /* ---- A: texto digitado precisa ser gravado ---- */
+    const ctxA = vm.createContext({ console, setTimeout, clearTimeout, Date });
+    vm.runInContext(`
+      var __draftEntity = null, gravacoes = 0;
+      function gravarDraftPersistente(){ gravacoes++; }
+    `, ctxA);
+    ["agendarGravacaoDraft","flushDraftPendente"].forEach(n=> vm.runInContext(funcao(n), ctxA));
+    vm.runInContext("var __draftSaveTimer = null, __draftPendente = false;", ctxA);
+
+    t("O CASO REAL: digitar e ir para a camera antes do atraso NAO perde o texto", async ()=>{
+      /* Sequencia do dia de campo: digita nome/descricao e toca na camera.
+         No iPhone a camera manda o app para segundo plano e o sistema pode
+         encerrar a aba ali. Sem o descarregamento na saida de foco, o texto
+         digitado nunca teria saido da memoria. */
+      vm.runInContext("__draftEntity = {}; gravacoes = 0; __draftPendente = false;", ctxA);
+      vm.runInContext("agendarGravacaoDraft();", ctxA);       // digitou
+      eq(vm.runInContext("gravacoes", ctxA), 0, "gravou a cada tecla, sem o atraso");
+      vm.runInContext("flushDraftPendente();", ctxA);          // camera abriu / app saiu de foco
+      eq(vm.runInContext("gravacoes", ctxA), 1, "o texto digitado nao foi gravado ao sair de foco");
+    });
+    t("digitar varias teclas seguidas gera UMA gravacao, nao uma por tecla", ()=>{
+      vm.runInContext("__draftEntity = {}; gravacoes = 0; __draftPendente = false;", ctxA);
+      for(let i=0;i<20;i++) vm.runInContext("agendarGravacaoDraft();", ctxA);
+      vm.runInContext("flushDraftPendente();", ctxA);
+      eq(vm.runInContext("gravacoes", ctxA), 1, "gravou mais de uma vez para a mesma digitacao");
+    });
+    t("sair de foco sem nada digitado nao grava a toa", ()=>{
+      vm.runInContext("__draftEntity = {}; gravacoes = 0; __draftPendente = false;", ctxA);
+      vm.runInContext("flushDraftPendente();", ctxA);
+      eq(vm.runInContext("gravacoes", ctxA), 0);
+    });
+    t("sem formulario aberto, digitar nao agenda nada", ()=>{
+      vm.runInContext("__draftEntity = null; gravacoes = 0; __draftPendente = false;", ctxA);
+      vm.runInContext("agendarGravacaoDraft();", ctxA);
+      ok(vm.runInContext("__draftPendente", ctxA) === false);
+    });
+    t("os 31 campos de texto passaram a gravar o rascunho ao digitar", ()=>{
+      ok(HTML.indexOf("setDraftField(field, value){ if(__draftEntity){ __draftEntity[field]=value; agendarGravacaoDraft(); } }") > 0,
+         "setDraftField voltou a escrever so na memoria");
+    });
+    t("o rascunho sai junto com o STATE nos eventos de saida do app", ()=>{
+      ok(HTML.indexOf("function flushTudoAntesDeSair(){") > 0);
+      ok(HTML.indexOf('window.addEventListener("pagehide", flushTudoAntesDeSair);') > 0,
+         "pagehide nao descarrega o rascunho");
+      ok(HTML.indexOf('if(document.visibilityState==="hidden") flushTudoAntesDeSair();') > 0,
+         "sair de foco nao descarrega o rascunho");
+    });
+
+    /* ---- B: gravacao que falhou precisa ser retentada sozinha ---- */
+    t("O CASO REAL: gravacao que falhou e retentada sozinha, sem depender de o usuario reparar no selo", ()=>{
+      const ctxB = vm.createContext({ console });
+      vm.runInContext("var __salvamentoPendente = true, tentativas = 0; function persistir(){ tentativas++; __salvamentoPendente = false; }", ctxB);
+      vm.runInContext(funcao("tentarSalvarSePendente"), ctxB);
+      vm.runInContext("tentarSalvarSePendente();", ctxB);
+      eq(vm.runInContext("tentativas", ctxB), 1, "nao tentou gravar de novo com salvamento pendente");
+      vm.runInContext("tentarSalvarSePendente();", ctxB);
+      eq(vm.runInContext("tentativas", ctxB), 1, "ficou tentando gravar mesmo sem nada pendente");
+    });
+    t("a nova tentativa entra NOS DOIS ritmos — o de 2 min e o de 20s do envio continuo", ()=>{
+      /* O envio continuo alargou a janela sem retentativa (mantem o app em
+         primeiro plano por muito mais tempo), entao e ele que precisa cobri-la. */
+      ok(HTML.indexOf('if(document.visibilityState==="visible"){ tentarSalvarSePendente(); sincronizarIncrementalNaPasta();') > 0,
+         "o ciclo de 2 minutos nao retenta a gravacao");
+      const tique = funcao("envioContinuoTique");
+      ok(tique.indexOf("tentarSalvarSePendente();") > 0, "o tique de 20s nao retenta a gravacao");
+      ok(tique.indexOf("tentarSalvarSePendente();") < tique.indexOf("if(!envioContinuoLigado()"),
+         "a retentativa ficou DEPOIS das travas — nao roda sem OneDrive ou com a chave desligada");
+    });
   }
 
   console.log("\n---------------------------------------");

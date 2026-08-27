@@ -124,12 +124,21 @@ UMA foto de sumir?"*
 | # | Caminho | Estado | Proteção |
 |---|---|---|---|
 | 4.1 | Importar backup substitui dados mais novos | 🟡 | Prévia recalculada no momento de confirmar + ponto de restauração automático antes |
+| 4.6 | Importar backup **sem fotos** apaga a foto boa daqui | 🟢 | **Corrigido 27/08.** `__preservarFotosNaSubstituicao` nos 3 níveis que substituem item. Mesma classe do 1.4 da sincronização — o caminho da importação tinha ficado de fora. t127 |
 | 4.2 | Restaurar ponto descarta trabalho posterior | 🟡 | Confirmação explícita mostrando o que tem no ponto |
 | 4.3 | Importar textos do laudo por cima de decisão | 🟢 | Só preenche campo vazio e sem decisão. t113 |
 | 4.4 | Importar plaqueta sobrescreve inventário | 🟢 | Só preenche campo vazio. t115 |
 | 4.5 | Pontos de restauração apagados antes da hora | 🟢 | Só descarta ponto antigo depois que tudo está confirmado na nuvem |
 
 ---
+
+## 4-bis. Duplicação e identidade da foto (varredura de 27/08)
+
+| # | Caminho | Estado | Proteção |
+|---|---|---|---|
+| 4b.1 | Duplicar leva os textos do laudo **já aprovados** para outra máquina | 🟢 | **Corrigido 27/08.** `prepararCopiaDuplicada` devolve todo campo para "aguardando decisão", preservando o texto como sugestão. Era o único achado capaz de gerar **laudo assinado com texto de outra máquina**. t126 |
+| 4b.2 | Duplicar leva marcas locais de dano e o carimbo do original | 🟢 | **Corrigido 27/08.** Mesma função. t126 |
+| 4b.3 | Duas fotos diferentes recebendo a mesma identidade | 🟢 | **Corrigido 27/08.** O cálculo lia 3 janelas de 4 KB (0,59% de uma foto de 2 MB) e colidia — provado em teste. Amostrar melhor **não** resolveu (também provado): só a leitura completa resolve, a ~10 ms por foto nova. Fotos já gravadas mantêm o id antigo (`__fotoIdConhecido`), para nada ser regravado em massa. t126 |
 
 ## 5. Exclusões pedidas pelo usuário
 

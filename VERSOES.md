@@ -64,6 +64,68 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 27/08/2026 06:50
+
+**Cinco correções vindas de uma varredura completa do app — não de perda em
+campo. Duas delas são do dia a dia no iPhone.**
+
+**1. O texto que você digita agora é gravado na hora.**
+
+Os 31 campos de texto do formulário — nome do equipamento, descrição,
+empresa, ART, nº do documento — só existiam **na memória** até você tocar em
+Salvar. Escolher item de lista e tirar foto gravavam o rascunho; digitar
+não gravava nada.
+
+No iPhone isso é grave por um motivo específico: **tocar na câmera manda o
+app para segundo plano**, e o sistema pode encerrar a aba nesse momento
+(acontece sob pressão de memória, normal num aparelho com mais de mil
+fotos). E a sequência mais comum do dia de campo é exatamente essa: chegar
+no equipamento, digitar nome e descrição, tocar na câmera.
+
+Agora digitar também grava. E o rascunho é gravado no instante em que o app
+perde o foco — o mesmo instante em que a câmera abre.
+
+**2. Gravação que falha é tentada de novo sozinha.**
+
+Quando uma gravação falha, o selo fica vermelho ("Não foi possível salvar —
+toque aqui"). Antes, quem tentava de novo era só a próxima edição ou a saída
+do app. Com o app aberto e parado, ninguém tentava — e em campo, fotografando
+máquina, ninguém repara num selo pequeno no alto da tela. Agora o app tenta
+de novo sozinho, a cada 20 segundos.
+
+**3. Duplicar equipamento não leva mais o laudo já aprovado.**
+
+Ao duplicar, o app copiava o item inteiro — inclusive os textos do laudo
+**marcados como aprovados por você**. A cópia nascia com Escopo, Risco e
+Solução aprovados, escritos para outra máquina, e iam direto para o Excel e
+o Word sem passar pela revisão. Num laudo assinado com ART, é o tipo de erro
+que não dá para explicar depois.
+
+Agora a cópia nasce com todos os textos em "aguardando sua decisão" — **o
+texto é preservado**, você não perde o que foi escrito, mas precisa aprovar
+olhando para a máquina certa. As fotos continuam sendo copiadas
+normalmente, que é o motivo de duplicar.
+
+**4. Duas fotos diferentes não recebem mais a mesma identidade.**
+
+Cada foto recebe um nome calculado do conteúdo. Esse cálculo lia apenas três
+pedaços de 4 KB — 0,59% de uma foto de 2 MB. Duas fotos diferentes do mesmo
+tamanho podiam receber o mesmo nome, e aí a segunda simplesmente não era
+gravada: o equipamento passava a mostrar a foto do outro, e a foto certa
+deixava de existir. Sem aviso.
+
+Agora o cálculo lê a foto inteira. Custa 10 milésimos de segundo por foto
+nova, e **as fotos já guardadas mantêm o nome que têm** — nada é regravado.
+
+**5. Importar backup não apaga foto.**
+
+Quando o item do arquivo era mais novo, a importação substituía o item local
+inteiro. Um backup gerado num aparelho que ainda não tinha baixado as fotos
+apagaria a foto boa daqui, sem aviso. Mesma regra da sincronização agora
+vale na importação: foto boa nunca é trocada por vazio.
+
+---
+
 ## 27/08/2026 00:18
 
 **O app agora continua enviando enquanto estiver aberto, mantendo a tela

@@ -1453,21 +1453,64 @@ const FOTO_ORFA_CARENCIA_MS = 30 * 24 * 60 * 60 * 1000;      // 30 dias — cobr
 const FOTO_ORFA_CARENCIA_APERTADA_MS = 24 * 60 * 60 * 1000;  // 1 dia — só quando o aparelho está sem espaço de verdade
 function ehFotoDataUrlPersist(v){ return typeof v === "string" && v.startsWith("data:image"); }
 function ehFotoRefPersist(v){ return typeof v === "string" && v.startsWith(FOTO_REF_PREFIXO); }
-/* Impressão digital do conteúdo: comprimento + hash de amostras do início,
-   meio e fim. Rápido mesmo para fotos de vários MB (não percorre tudo) e
-   estável — a mesma foto sempre produz o mesmo id, em qualquer aparelho. */
+/* =========================================================================
+   IMPRESSÃO DIGITAL DA FOTO — comprimento + hash de amostras do conteúdo.
+   É ela que dá nome à chave no banco, e é por ela que a mesma foto é gravada
+   uma vez só.
+
+   O DEFEITO CORRIGIDO EM 27/08/2026. A versão anterior lia apenas TRÊS
+   janelas de 4 KB (início, meio e fim). Numa foto de 2 MB isso é 0,59% do
+   arquivo — 99,4% nunca era olhado. Duas fotos DIFERENTES do mesmo tamanho,
+   que só diferissem fora dessas três janelas, recebiam o MESMO id. Provado
+   em teste: ids idênticos para conteúdos distintos.
+   A consequência era silenciosa e sem conserto: ao gravar, o app via que
+   "essa foto já está no banco" e NÃO gravava a segunda. O segundo item
+   passava a apontar para a foto do primeiro — foto errada na tela, foto
+   certa inexistente, sem marca nenhuma de que algo deu errado.
+   POR QUE NÃO BASTOU "AMOSTRAR MELHOR". A primeira tentativa foi espalhar a
+   leitura por 32 janelas em vez de 3. Testado, a colisão CONTINUOU: com
+   0,78% do arquivo lido, o que muda é o tamanho do ponto cego, não a
+   existência dele — qualquer amostragem deixa faixas inteiras sem olhar, e a
+   diferença pode cair exatamente ali. Amostragem não resolve esta classe de
+   problema; só a leitura completa resolve.
+   Medido: uma foto de 2 MB leva ~10 ms para ser lida inteira. E esse custo
+   só existe para foto NOVA — foto já guardada nunca é recalculada (ver o
+   parágrafo seguinte). Um dia de campo com 100 fotos novas custa 1 segundo
+   no total, diluído. É barato demais para justificar um ponto cego.
+
+   POR QUE OS IDS ANTIGOS PRECISAM CONTINUAR VALENDO. fotosExtrairParaRefs
+   recalcula o id de TODAS as fotos a cada gravação. Trocar o cálculo sem
+   mais nada faria as fotos já guardadas ganharem nome novo e serem
+   regravadas todas de uma vez — no projeto real, mais de mil fotos e vários
+   GB numa única transação, com chance alta de falhar e deixar o app sem
+   conseguir salvar. Seria trocar um risco baixo por um alto.
+   Por isso: toda foto lida do banco tem seu id JÁ EXISTENTE memorizado em
+   __fotoIdConhecido (ver fotosReinserirDeMapa). Ela continua sendo gravada
+   sob o mesmo nome de sempre, e nada é reescrito. Só foto nova — tirada
+   agora, ou vinda da nuvem — recebe o id do cálculo novo. */
 const __fotoIdCache = new Map();
+/* dataURL → id com que a foto JÁ está gravada no banco. Preenchido na
+   leitura; nunca é esvaziado (é o que garante que uma foto antiga jamais
+   mude de nome no meio de uma sessão). Guarda referências a strings que já
+   estão no STATE, então o custo de memória é o das entradas do mapa. */
+const __fotoIdConhecido = new Map();
 function fotoCalcularId(s){
+  const jaGravada = __fotoIdConhecido.get(s);
+  if(jaGravada) return jaGravada;          // continua com o nome que já tem no banco
   const memo = __fotoIdCache.get(s);
   if(memo) return memo;
+  /* Conteúdo INTEIRO, sem ponto cego. Dois hashes independentes mais o
+     comprimento: qualquer caractere diferente, em qualquer posição, muda o
+     resultado. */
   let h1 = 5381, h2 = 52711;
-  const amostrar = (ini, fim) => { for(let i=ini;i<fim;i++){ const ch = s.charCodeAt(i); h1 = ((h1*33) ^ ch) >>> 0; h2 = ((h2*31) + ch) >>> 0; } };
-  const n = s.length, seg = 4096;
-  amostrar(0, Math.min(seg, n));
-  if(n > seg*3) amostrar((n>>1)-(seg>>1), (n>>1)+(seg>>1));
-  if(n > seg*2) amostrar(n-seg, n);
-  const fid = n.toString(36) + "-" + h1.toString(36) + h2.toString(36);
-  if(__fotoIdCache.size > 800) __fotoIdCache.clear();
+  const n = s.length;
+  for(let i=0;i<n;i++){ const ch = s.charCodeAt(i); h1 = ((h1*33) ^ ch) >>> 0; h2 = ((h2*31) + ch) >>> 0; }
+  const fid = "v2" + n.toString(36) + "-" + h1.toString(36) + h2.toString(36);
+  /* Limite alto de propósito: o projeto real tem mais de mil fotos, e um
+     cache de 800 se esvaziava no meio de cada gravação, obrigando a
+     recalcular tudo de novo — custo desnecessário justo no momento mais
+     pesado. */
+  if(__fotoIdCache.size > 4000) __fotoIdCache.clear();
   __fotoIdCache.set(s, fid);
   return fid;
 }
@@ -1494,7 +1537,19 @@ function fotosColetarIdsEmbutidas(valor, conjunto){
    Referência sem foto correspondente (corrupção improvável) vira null — o
    app segue funcionando, só aquela foto se perde, nunca o app inteiro. */
 function fotosReinserirDeMapa(valor, mapa){
-  if(ehFotoRefPersist(valor)){ const f = mapa.get(valor.slice(FOTO_REF_PREFIXO.length)); return f !== undefined ? f : null; }
+  if(ehFotoRefPersist(valor)){
+    const fid = valor.slice(FOTO_REF_PREFIXO.length);
+    const f = mapa.get(fid);
+    if(f === undefined) return null;
+    /* AQUI está a compatibilidade que evita reescrever o banco inteiro (ver
+       o bloco em fotoCalcularId): esta foto JÁ está gravada sob este nome.
+       Memorizando o par, a próxima gravação continua usando o mesmo nome,
+       mesmo com o cálculo do id tendo mudado. Sem isto, mudar o cálculo
+       faria as mais de mil fotos do projeto real serem regravadas de uma
+       só vez. */
+    __fotoIdConhecido.set(f, fid);
+    return f;
+  }
   if(Array.isArray(valor)) return valor.map(v => fotosReinserirDeMapa(v, mapa));
   if(valor && typeof valor === "object"){ const o = {}; for(const k in valor) o[k] = fotosReinserirDeMapa(valor[k], mapa); return o; }
   return valor;
@@ -2118,7 +2173,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "27/08/2026 00:18";
+const APP_BUILD = "27/08/2026 06:50";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -6631,6 +6686,11 @@ async function envioContinuoSoltarTela(){
   await liberarTelaAcesa();
 }
 async function envioContinuoTique(){
+  /* Antes de qualquer coisa, e independente de OneDrive/chave/visibilidade:
+     se ficou gravação pendente de uma tentativa que falhou, tenta de novo.
+     É este ciclo que mantém o app em primeiro plano por mais tempo, então é
+     ele que precisa cobrir a janela que criou (ver tentarSalvarSePendente). */
+  tentarSalvarSePendente();
   if(!envioContinuoLigado() || !getOneDriveConta() || document.visibilityState !== "visible"){
     __envioContinuoAtivo = false;
     await envioContinuoSoltarTela();
@@ -7364,6 +7424,72 @@ function novoRiscoSimples(){
            po:"", gpd:"", fe:"", np:"", // Avaliação HRN — os quatro fatores podem ser escolhidos por risco na aba Laudo (vazio = estimativa automática; FE e NP caem para o que está na Tarefa).
            criadoEm:Date.now(), atualizadoEm:Date.now() };
 }
+/* =========================================================================
+   PREPARAR UMA CÓPIA DUPLICADA — UM LUGAR SÓ
+
+   Duplicar era, em todos os ~10 pontos do app, um `JSON.parse(JSON.stringify)`
+   seguido de "troca os ids". Isso copiava o objeto INTEIRO, e junto vinham
+   três coisas que não deviam vir:
+
+   1. OS TEXTOS DO LAUDO JÁ APROVADOS. É o mais grave, e não é defeito de
+      software: é responsabilidade técnica. Ao duplicar a Classificadora
+      SZ-5252, a cópia nascia com Escopo, Descrição do Risco e Solução
+      marcados como APROVADOS POR VOCÊ — textos escritos para outra máquina.
+      Como já estavam aprovados, iam direto para o Excel e para o Word sem
+      passar pela tela de revisão, e terminariam num laudo assinado com ART.
+      Agora o texto é preservado (ninguém perde trabalho) mas volta ao estado
+      de SUGESTÃO aguardando decisão: aparece na revisão e só entra no laudo
+      depois que você aprovar, olhando para a máquina certa.
+
+   2. AS MARCAS INTERNAS DESTE APARELHO — "foto perdida", "fotos vêm no
+      pacote", "já conferi na nuvem". São diagnóstico local do item original;
+      na cópia nova só geravam alarme falso (equipamento recém-criado
+      nascendo marcado como danificado).
+
+   3. O CARIMBO DE DATA DO ORIGINAL. A cópia nascia com a data de alteração
+      do item copiado — às vezes de semanas atrás — em vez de agora.
+
+   Fica num lugar só de propósito: eram dez pontos repetindo a mesma lógica,
+   e é assim que um deles fica para trás numa correção futura. */
+const CAMPOS_MARCA_LOCAL_COPIA = ["__fotosPerdidas", "__fotosOmitidas", "__fotosAtualizar", "__fotoNuvemVerificadaEm"];
+/* Todo campo do laudo volta a ser sugestão. Preserva o texto que valia
+   (o final aprovado, ou a sugestão se não houve aprovação) e limpa a
+   decisão — o mesmo estado "pend" que a IA produz. Genérico de propósito:
+   varre os campos pelo sufixo, então máquina (escopo), tarefa (tarefa) e
+   risco (risco/existente/solucao) são tratados sem lista fixa que possa
+   ficar desatualizada quando um campo novo nascer. */
+function __laudoCopiaViraSugestao(l){
+  if(!l || typeof l !== "object") return;
+  Object.keys(l).forEach(k=>{
+    if(k.length <= 3 || k.slice(-3) !== "Sug") return;
+    const base = k.slice(0, -3);
+    const texto = String(l[base+"Fin"] || l[k] || "").trim();
+    l[k] = texto;
+    if((base+"Fin") in l) l[base+"Fin"] = "";
+    if((base+"St")  in l) l[base+"St"]  = texto ? "pend" : "";
+  });
+}
+function __prepararItemCopiado(obj){
+  if(!obj || typeof obj !== "object") return;
+  CAMPOS_MARCA_LOCAL_COPIA.forEach(k=>{ delete obj[k]; });
+  __laudoCopiaViraSugestao(obj.laudoIA);
+  obj.criadoEm = Date.now();
+  obj.atualizadoEm = agoraSync();
+}
+/* Recebe a cópia recém-clonada e o tipo dela; troca os ids da subárvore
+   inteira e aplica a limpeza acima em cada nível. Devolve o próprio objeto,
+   para poder ser usado direto no lugar do clone. */
+function prepararCopiaDuplicada(novo, tipo){
+  const risco   = r => { r.id = uid(); __prepararItemCopiado(r); };
+  const tarefa  = t => { t.id = uid(); __prepararItemCopiado(t); (t.riscos||[]).forEach(risco); };
+  const maquina = m => { m.id = uid(); __prepararItemCopiado(m); (m.tarefas||[]).forEach(tarefa); };
+  const area    = a => { a.id = uid(); __prepararItemCopiado(a); (a.maquinas||[]).forEach(maquina); };
+  if(tipo==="area") area(novo);
+  else if(tipo==="maquina") maquina(novo);
+  else if(tipo==="tarefa") tarefa(novo);
+  else if(tipo==="risco") risco(novo);
+  return novo;
+}
 function substituirOuAdicionar(array, entidade){
   const idx = array.findIndex(x=>x.id===entidade.id);
   if(idx>=0) array[idx] = entidade; else array.push(entidade);
@@ -7611,10 +7737,35 @@ function flushSalvamentoPendente(){
   clearTimeout(__saveTimer);
   persistir();
 }
+/* NOVA TENTATIVA AUTOMÁTICA DEPOIS DE UMA GRAVAÇÃO QUE FALHOU.
+
+   Falha de gravação é comum no iPhone sob pressão de memória. Quando
+   acontece, __salvamentoPendente continua ligado e o selo fica vermelho —
+   mas quem tentava de novo era só a PRÓXIMA edição ou a saída de foco. Com o
+   app aberto e parado, ninguém tentava, e o dado seguia sem gravar enquanto
+   a pessoa não reparasse num selo pequeno no alto da tela — em campo,
+   fotografando máquina, ninguém repara.
+
+   O envio contínuo (27/08 00:18) ALARGOU essa janela sem que eu percebesse:
+   ele mantém a tela acesa e o app em primeiro plano por muito mais tempo,
+   que é justamente a condição em que a nova tentativa não acontecia. Por
+   isso esta função é chamada dos dois ritmos: o ciclo de 2 minutos e o tique
+   de 20 segundos do envio contínuo. */
+function tentarSalvarSePendente(){
+  if(!__salvamentoPendente) return;
+  persistir();
+}
+/* O rascunho sai junto com o STATE: é o texto digitado que ainda não passou
+   pelo Salvar, e sair de foco no iPhone inclui o momento em que a câmera
+   abre — o instante exato em que a aba pode ser encerrada pelo sistema. */
+function flushTudoAntesDeSair(){
+  flushSalvamentoPendente();
+  flushDraftPendente();
+}
 document.addEventListener("visibilitychange", ()=>{
-  if(document.visibilityState==="hidden") flushSalvamentoPendente();
+  if(document.visibilityState==="hidden") flushTudoAntesDeSair();
 });
-window.addEventListener("pagehide", flushSalvamentoPendente);
+window.addEventListener("pagehide", flushTudoAntesDeSair);
 function setSaveChip(estado){
   const el = document.getElementById("saveChip");
   if(!el) return;
@@ -7926,6 +8077,41 @@ async function gravarDraftPersistente(){
       tx.onerror=()=>reject(tx.error);
     });
   }catch(e){ /* rede de segurança extra falhou nesta vez — o fluxo normal segue */ }
+}
+/* =========================================================================
+   TEXTO DIGITADO TAMBÉM PRECISA SAIR DA MEMÓRIA
+
+   setDraftField (os 31 campos de texto do formulário: nome do equipamento,
+   descrição, empresa, ART, nº do documento…) apenas escrevia no objeto em
+   memória. Escolher item de lista e tirar foto gravavam o rascunho; DIGITAR
+   não gravava nada.
+
+   No iPhone isso é grave por um motivo específico: tocar na câmera manda o
+   app para SEGUNDO PLANO, e o iOS mata a aba sob pressão de memória — que é
+   a condição normal de um aparelho com mais de mil fotos guardadas. A
+   sequência mais comum do dia de campo é exatamente esta: chegar no
+   equipamento, digitar nome e descrição, tocar na câmera. Se a aba morresse
+   ali, o texto digitado nunca tinha existido fora da memória.
+
+   Agora digitar também grava, com um pequeno atraso para não gravar a cada
+   tecla. O atraso é a parte perigosa: se o app fechasse dentro dele, o
+   problema voltava. Por isso o rascunho é descarregado na hora sempre que a
+   tela sai de foco — mesma proteção que o STATE já tinha. */
+let __draftSaveTimer = null;
+let __draftPendente = false;
+function agendarGravacaoDraft(){
+  if(!__draftEntity) return;
+  __draftPendente = true;
+  clearTimeout(__draftSaveTimer);
+  __draftSaveTimer = setTimeout(()=>{ __draftPendente = false; gravarDraftPersistente(); }, 400);
+}
+/* Grava JÁ, sem esperar o atraso — chamado quando o app sai de foco (troca de
+   app, câmera abrindo, tela apagando, aba fechando). */
+function flushDraftPendente(){
+  if(!__draftPendente) return;
+  clearTimeout(__draftSaveTimer);
+  __draftPendente = false;
+  gravarDraftPersistente();
 }
 async function limparDraftPersistente(){
   if(!temIndexedDB()) return;
@@ -18306,7 +18492,10 @@ Devolver agora?`)) return;
   },
 
   /* ---------- Módulo Simplificado: campos do rascunho ---------- */
-  setDraftField(field, value){ if(__draftEntity) __draftEntity[field]=value; },
+  /* Grava o rascunho também ao DIGITAR — antes só escolher item de lista e
+     tirar foto gravavam, e o texto ficava só na memória até o Salvar. Ver o
+     bloco em agendarGravacaoDraft. */
+  setDraftField(field, value){ if(__draftEntity){ __draftEntity[field]=value; agendarGravacaoDraft(); } },
   onDraftTarefaChange(value){ __draftEntity.tarefa=value; if(value!==OUTRO) __draftEntity.tarefaOutro=""; renderModalEntidade(); },
   async gerarDescricaoTarefaIA(){
     if(!getIAApiKey()){ toast("Configure a IA em Configurações primeiro", false); return; }
@@ -18792,9 +18981,7 @@ Devolver agora?`)) return;
     const p = getCurrentProjetoSimples();
     const a = p.areas.find(x=>x.id===idArea); if(!a) return;
     const destino = STATE.projetosSimples.find(x=>x.id===idProjetoDestino); if(!destino) return;
-    const novo = JSON.parse(JSON.stringify(a));
-    novo.id = uid(); novo.criadoEm = Date.now();
-    novo.maquinas.forEach(m=>{ m.id=uid(); m.tarefas.forEach(t=>{ t.id=uid(); t.riscos.forEach(r=>r.id=uid()); }); });
+    const novo = prepararCopiaDuplicada(JSON.parse(JSON.stringify(a)), "area");
     destino.areas.push(novo);
     marcarAlterado();
     toast(`Área duplicada para "${destino.empresa||'Sem nome'}"`);
@@ -18802,9 +18989,7 @@ Devolver agora?`)) return;
   duplicarAreaS(id){
     const p = getCurrentProjetoSimples();
     const a = p.areas.find(x=>x.id===id); if(!a) return;
-    const novo = JSON.parse(JSON.stringify(a));
-    novo.id = uid(); novo.criadoEm = Date.now();
-    novo.maquinas.forEach(m=>{ m.id=uid(); m.tarefas.forEach(t=>{ t.id=uid(); t.riscos.forEach(r=>r.id=uid()); }); });
+    const novo = prepararCopiaDuplicada(JSON.parse(JSON.stringify(a)), "area");
     p.areas.push(novo);
     marcarAlterado();
     App.abrirModalAreaS(novo.id, p.id);
@@ -18846,9 +19031,7 @@ Devolver agora?`)) return;
   duplicarMaquinaS(id){
     const a = getCurrentAreaSimples();
     const m = a.maquinas.find(x=>x.id===id); if(!m) return;
-    const novo = JSON.parse(JSON.stringify(m));
-    novo.id = uid(); novo.criadoEm = Date.now();
-    novo.tarefas.forEach(t=>{ t.id=uid(); t.riscos.forEach(r=>r.id=uid()); });
+    const novo = prepararCopiaDuplicada(JSON.parse(JSON.stringify(m)), "maquina");
     a.maquinas.push(novo);
     marcarAlterado();
     App.abrirModalMaquinaS(novo.id, a.id);
@@ -18859,9 +19042,7 @@ Devolver agora?`)) return;
       const origem = buscarAreaSimplesPorId(areaOrigemId);
       const m = origem.maquinas.find(x=>x.id===id); if(!m) return;
       const destino = buscarAreaSimplesPorId(escolha.areaId);
-      const novo = JSON.parse(JSON.stringify(m));
-      novo.id = uid(); novo.criadoEm = Date.now();
-      novo.tarefas.forEach(t=>{ t.id=uid(); t.riscos.forEach(r=>r.id=uid()); });
+      const novo = prepararCopiaDuplicada(JSON.parse(JSON.stringify(m)), "maquina");
       destino.maquinas.push(novo);
       marcarAlterado();
       go("simples-maquinas",{areaSId:destino.id});
@@ -18912,9 +19093,7 @@ Devolver agora?`)) return;
   duplicarTarefaS(id){
     const m = getCurrentMaquinaSimples();
     const t = m.tarefas.find(x=>x.id===id); if(!t) return;
-    const novo = JSON.parse(JSON.stringify(t));
-    novo.id = uid(); novo.criadoEm = Date.now();
-    novo.riscos.forEach(r=>r.id=uid());
+    const novo = prepararCopiaDuplicada(JSON.parse(JSON.stringify(t)), "tarefa");
     m.tarefas.push(novo);
     marcarAlterado();
     App.abrirModalTarefaS(novo.id, m.id);
@@ -18928,9 +19107,7 @@ Devolver agora?`)) return;
       const origem = buscarMaquinaSimplesPorId(maquinaOrigemId);
       const t = origem.tarefas.find(x=>x.id===id); if(!t) return;
       const destino = buscarMaquinaSimplesPorId(escolha.maquinaId);
-      const novo = JSON.parse(JSON.stringify(t));
-      novo.id = uid(); novo.criadoEm = Date.now();
-      novo.riscos.forEach(r=>r.id=uid());
+      const novo = prepararCopiaDuplicada(JSON.parse(JSON.stringify(t)), "tarefa");
       destino.tarefas.push(novo);
       marcarAlterado();
       go("simples-tarefas",{maquinaSId:destino.id});
@@ -18981,8 +19158,7 @@ Devolver agora?`)) return;
   duplicarRiscoS(id, tarefaId){
     const t = buscarTarefaSimplesPorId(tarefaId);
     const r = t.riscos.find(x=>x.id===id); if(!r) return;
-    const novo = JSON.parse(JSON.stringify(r));
-    novo.id = uid(); novo.criadoEm = Date.now();
+    const novo = prepararCopiaDuplicada(JSON.parse(JSON.stringify(r)), "risco");
     t.riscos.push(novo);
     marcarAlterado();
     App.abrirModalRiscoS(novo.id, tarefaId);
@@ -18996,8 +19172,7 @@ Devolver agora?`)) return;
       const origem = buscarTarefaSimplesPorId(tarefaOrigemId);
       const r = origem.riscos.find(x=>x.id===id); if(!r) return;
       const destino = buscarTarefaSimplesPorId(escolha.tarefaId);
-      const novo = JSON.parse(JSON.stringify(r));
-      novo.id = uid(); novo.criadoEm = Date.now();
+      const novo = prepararCopiaDuplicada(JSON.parse(JSON.stringify(r)), "risco");
       destino.riscos.push(novo);
       marcarAlterado();
       go("simples-riscos",{tarefaSId:destino.id});
@@ -19155,10 +19330,8 @@ Devolver agora?`)) return;
     else return;
     const selecionados = origemArr.filter(x=>sm.ids.has(x.id));
     selecionados.forEach(item=>{
-      const novo = JSON.parse(JSON.stringify(item));
-      novo.id = uid(); novo.criadoEm = Date.now();
-      if(sm.tipo==="maquinaS") novo.tarefas.forEach(t=>{ t.id=uid(); t.riscos.forEach(r=>r.id=uid()); });
-      if(sm.tipo==="tarefaS") novo.riscos.forEach(r=>r.id=uid());
+      const tipoCopia = sm.tipo==="maquinaS" ? "maquina" : sm.tipo==="tarefaS" ? "tarefa" : "risco";
+      const novo = prepararCopiaDuplicada(JSON.parse(JSON.stringify(item)), tipoCopia);
       destinoArr.push(novo);
     });
     marcarAlterado();
@@ -19176,16 +19349,15 @@ Devolver agora?`)) return;
     const selecionados = arr.filter(x=>sm.ids.has(x.id));
     selecionados.forEach(item=>{
       const novo = JSON.parse(JSON.stringify(item));
-      novo.id = uid(); novo.criadoEm = Date.now();
-      if(comFilhos){
-        if(sm.tipo==="areaS") novo.maquinas.forEach(m=>{ m.id=uid(); m.tarefas.forEach(t=>{ t.id=uid(); t.riscos.forEach(r=>r.id=uid()); }); });
-        if(sm.tipo==="maquinaS") novo.tarefas.forEach(t=>{ t.id=uid(); t.riscos.forEach(r=>r.id=uid()); });
-        if(sm.tipo==="tarefaS") novo.riscos.forEach(r=>r.id=uid());
-      } else {
+      /* "Sem filhos": esvazia ANTES de preparar, para a limpeza não percorrer
+         (nem carimbar) uma subárvore que não vai existir na cópia. */
+      if(!comFilhos){
         if(sm.tipo==="areaS") novo.maquinas=[];
         if(sm.tipo==="maquinaS") novo.tarefas=[];
         if(sm.tipo==="tarefaS") novo.riscos=[];
       }
+      const tipoCopia = sm.tipo==="areaS" ? "area" : sm.tipo==="maquinaS" ? "maquina" : sm.tipo==="tarefaS" ? "tarefa" : "risco";
+      prepararCopiaDuplicada(novo, tipoCopia);
       arr.push(novo);
     });
     marcarAlterado();
@@ -19760,12 +19932,15 @@ Devolver agora?`)) return;
     // igual ao resto da tela de Laudo.
     const item = laudoItemPorId(rid);
     if(!item) return;
-    const novo = JSON.parse(JSON.stringify(item.risco));
-    novo.id = uid(); novo.criadoEm = Date.now();
+    /* Este é o ponto de cópia MAIS sensível dos que existem: fica dentro da
+       própria tela de revisão do laudo, onde os textos estão sendo aprovados.
+       Sem prepararCopiaDuplicada, a cópia nascia com os textos já aprovados
+       do risco original e seguia direto para o laudo assinado. */
+    const novo = prepararCopiaDuplicada(JSON.parse(JSON.stringify(item.risco)), "risco");
     item.tarefa.riscos.push(novo);
     marcarAlterado();
     App.laudoAbrirItem(novo.id);
-    toast("Risco copiado");
+    toast("Risco copiado — os textos do laudo voltaram para 'aguardando sua decisão'");
   },
   laudoAbrirItem(id){ STATE.ui.laudoRiscoId = id; STATE.ui.laudoEditandoCampo = null; __laudoRascunho = null; __laudoInfoHrn = { po:false, fe:false, gpd:false, np:false }; __laudoGrupoExistenteAberto = {}; STATE.ui.screen = "simples-laudo-item"; render(); window.scrollTo(0,0); },
   laudoIrPara(pos){
@@ -20229,6 +20404,34 @@ function __semMetaSimples(obj, campoFilhos){
 function __noRelatorioImportacao(tipo, nome, status, contexto, filhos){
   return { tipo, nome: (nome && String(nome).trim()) ? String(nome).trim() : "(sem nome)", status, contexto: contexto||"", filhos: filhos||[] };
 }
+/* =========================================================================
+   IMPORTAÇÃO NÃO PODE APAGAR FOTO — mesma regra da sincronização.
+
+   Quando o item que chega no backup é mais novo, a importação substituía o
+   item local INTEIRO por ele. Se o arquivo importado não tivesse as fotos —
+   backup gerado num aparelho que ainda não as baixou, ou um backup só de
+   texto — a foto boa daqui era descartada junto, sem aviso.
+
+   É exatamente a mesma classe do defeito corrigido em aplicarAtualizacaoRemota
+   (26/08 21:39), só que no caminho da importação, que é o que substitui MAIS
+   dado de uma vez em todo o app.
+
+   Regra, idêntica à de lá e sem depender de marca nenhuma de quem gerou o
+   arquivo: campo de foto só aceita foto DE VERDADE; a lista de fotos só é
+   trocada por uma que não REDUZA o que já existe aqui. Todo o resto do item
+   (texto, medidas, HRN, laudo) é substituído normalmente — quem é mais novo
+   vence, como sempre foi. */
+function __preservarFotosNaSubstituicao(exLocal, nvRecebido){
+  if(!exLocal || !nvRecebido) return nvRecebido;
+  const saida = { ...nvRecebido };
+  CAMPOS_FOTO_UNICA.forEach(campo=>{
+    if(!__ehFotoEmbutida(saida[campo]) && __ehFotoEmbutida(exLocal[campo])) saida[campo] = exLocal[campo];
+  });
+  const chegaram = Array.isArray(saida[CAMPO_FOTOS_LISTA]) ? saida[CAMPO_FOTOS_LISTA].filter(__ehFotoEmbutida) : [];
+  const aqui     = Array.isArray(exLocal[CAMPO_FOTOS_LISTA]) ? exLocal[CAMPO_FOTOS_LISTA].filter(__ehFotoEmbutida) : [];
+  if(chegaram.length < aqui.length) saida[CAMPO_FOTOS_LISTA] = exLocal[CAMPO_FOTOS_LISTA];
+  return saida;
+}
 function previewRiscosSimples(atualArr, novosArr, st, ctx){
   const rel = [];
   novosArr.forEach(nv=>{
@@ -20242,7 +20445,7 @@ function previewRiscosSimples(atualArr, novosArr, st, ctx){
     if(JSON.stringify(__semMetaSimples(ex))===JSON.stringify(__semMetaSimples(nv))){
       st.igual++; rel.push(__noRelatorioImportacao("risco", ex.nome, "igual", ctx));
     } else if(__metaTsSimples(nv) > __metaTsSimples(ex)){
-      atualArr[i]=nv; st.upd++; rel.push(__noRelatorioImportacao("risco", nv.nome, "atualizado", ctx));
+      atualArr[i]=__preservarFotosNaSubstituicao(ex, nv); st.upd++; rel.push(__noRelatorioImportacao("risco", nv.nome, "atualizado", ctx));
     } else {
       st.mant++; rel.push(__noRelatorioImportacao("risco", ex.nome, "mais-recente-local", ctx));
     }
@@ -20295,7 +20498,7 @@ function previewMaquinasSimples(atualArr, novosArr, st, ctxPai){
     if(JSON.stringify(__semMetaSimples(ex,"tarefas"))===JSON.stringify(__semMetaSimples(nv,"tarefas"))){
       st.igual++; rel.push(__noRelatorioImportacao("maquina", nomeMaquinaS(ex), "igual", ctxPai, filhos));
     } else if(__metaTsSimples(nv) > __metaTsSimples(ex)){
-      atualArr[i]={...nv, tarefas:ex.tarefas}; st.upd++; rel.push(__noRelatorioImportacao("maquina", nomeNv, "atualizado", ctxPai, filhos));
+      atualArr[i]={...__preservarFotosNaSubstituicao(ex, nv), tarefas:ex.tarefas}; st.upd++; rel.push(__noRelatorioImportacao("maquina", nomeNv, "atualizado", ctxPai, filhos));
     } else {
       st.mant++; rel.push(__noRelatorioImportacao("maquina", nomeMaquinaS(ex), "mais-recente-local", ctxPai, filhos));
     }
@@ -20320,7 +20523,7 @@ function previewAreasSimples(atualArr, novosArr, st, ctxPai){
     if(JSON.stringify(__semMetaSimples(ex,"maquinas"))===JSON.stringify(__semMetaSimples(nv,"maquinas"))){
       st.igual++; rel.push(__noRelatorioImportacao("area", ex.nome, "igual", ctxPai, filhos));
     } else if(__metaTsSimples(nv) > __metaTsSimples(ex)){
-      atualArr[i]={...nv, maquinas:ex.maquinas}; st.upd++; rel.push(__noRelatorioImportacao("area", nomeNv, "atualizado", ctxPai, filhos));
+      atualArr[i]={...__preservarFotosNaSubstituicao(ex, nv), maquinas:ex.maquinas}; st.upd++; rel.push(__noRelatorioImportacao("area", nomeNv, "atualizado", ctxPai, filhos));
     } else {
       st.mant++; rel.push(__noRelatorioImportacao("area", ex.nome, "mais-recente-local", ctxPai, filhos));
     }
@@ -21023,7 +21226,7 @@ function prepararTextareas(){
   vv.addEventListener("scroll", avaliar);
   avaliar();
 })();
-setInterval(()=>{ if(document.visibilityState==="visible"){ sincronizarIncrementalNaPasta(); sincronizarIncrementalOneDrive(); sincronizarDownloadOneDrive(); onedriveAtualizarStatusPendenteSeWifi(); criarPontoDeRestauracaoSeNecessario("periódico"); podarPontosDeRestauracaoAgora(); carregarStatusArmazenamentoNaTela(); } }, 120000);
+setInterval(()=>{ if(document.visibilityState==="visible"){ tentarSalvarSePendente(); sincronizarIncrementalNaPasta(); sincronizarIncrementalOneDrive(); sincronizarDownloadOneDrive(); onedriveAtualizarStatusPendenteSeWifi(); criarPontoDeRestauracaoSeNecessario("periódico"); podarPontosDeRestauracaoAgora(); carregarStatusArmazenamentoNaTela(); } }, 120000);
 /* Envio contínuo: enquanto houver fila, sobe a cada 20s e segura a tela
    acesa, em vez de depender do ciclo de 2 min que o iPhone congela assim que
    a tela apaga. Ver o bloco de comentário em ENVIO_CONTINUO_INTERVALO_MS. */
