@@ -1443,19 +1443,45 @@ async function rodarAteParar(ap, maxCiclos, rotulo){
         r5a.itens === 1 && r5a.semNadaNaNuvem === 1, "itens=" + r5a.itens + " semNadaNaNuvem=" + r5a.semNadaNaNuvem);
       checar("primeira rodada: chamou a nuvem UMA vez", chamadasReais === 1, "chamadas=" + chamadasReais);
 
+      /* CONTRATO NOVO (27/08/2026): a trava de 24h foi REMOVIDA.
+         Ela existia para nao repetir chamadas de rede entre um toque e outro
+         do botao. Estava errada por dois motivos:
+         1. esta funcao e chamada de UM lugar so -- o proprio botao. Nao ha
+            rotina automatica nenhuma, entao a trava nunca economizou chamada
+            de rotina: so bloqueava o usuario quando ele pedia para tentar de
+            novo;
+         2. ela apostava que a nuvem nao muda entre um toque e outro. Muda: o
+            envio continuo sobe fotos o tempo todo. Depois de uma noite
+            enviando, a nuvem TEM o que nao tinha ontem -- e a trava garantia
+            que o app nao fosse olhar justamente ai.
+         Em campo apareceu como "30 nao foram checados de novo", com zero
+         recuperados, num dia em que as fotos tinham acabado de subir. */
       const r5b = await vm.runInContext("recuperarFotosPerdidasDaNuvem(null)", A5.ctx);
-      checar("SEGUNDA RODADA LOGO EM SEGUIDA: nao entra na lista de novo (ja foi conferido)",
-        r5b.itens === 0 && r5b.jaVerificadosRecentemente === 1,
-        "itens=" + r5b.itens + " jaVerificadosRecentemente=" + r5b.jaVerificadosRecentemente);
-      checar("O CASO REAL: a segunda rodada NAO gastou outra chamada de rede para o mesmo item",
-        chamadasReais === 1, "chamadas depois da segunda rodada=" + chamadasReais);
+      checar("O CASO REAL: tocar de novo CONFERE de novo -- nada e pulado por ter sido visto antes",
+        r5b.itens === 1, "itens=" + r5b.itens);
+      checar("e gasta a chamada de rede de verdade (a trava nao voltou disfarcada)",
+        chamadasReais === 2, "chamadas depois da segunda rodada=" + chamadasReais);
 
-      // Passado tempo suficiente (aqui simulado), volta a conferir.
-      vm.runInContext(`STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos[0].__fotoNuvemVerificadaEm = Date.now() - 25*60*60*1000;`, A5.ctx);
+      /* E o mais importante: se a nuvem GANHOU a foto entre um toque e outro
+         -- exatamente o que o envio continuo faz durante a noite --, a
+         segunda rodada precisa encontrar e devolver. Era este o caso que a
+         trava de 24h impedia. */
+      const idRisco = vm.runInContext("STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos[0].id", A5.ctx);
+      const caminhoFotos = [...nuvem5.arquivos.keys()].find(c=>c.includes("risco_"+idRisco))
+        || [...nuvem5.arquivos.keys()].find(c=>c.includes(idRisco));
+      const destino = caminhoFotos ? caminhoFotos.replace(/([^/]+)$/, "fotos_$1") : null;
+      if(destino){
+        const conteudo = JSON.stringify({ id:idRisco, foto:"data:image/jpeg;base64,"+"K".repeat(200) });
+        nuvem5.arquivos.set(destino, { tamanho: conteudo.length, texto: conteudo });
+      }
       const r5c = await vm.runInContext("recuperarFotosPerdidasDaNuvem(null)", A5.ctx);
-      checar("passadas 24h, volta a conferir normalmente (nao fica preso para sempre)",
-        r5c.itens === 1, "itens=" + r5c.itens);
-      checar("essa terceira rodada gastou uma nova chamada de rede", chamadasReais === 2, "chamadas=" + chamadasReais);
+      checar("a foto que CHEGOU na nuvem depois da 1a rodada e encontrada e devolvida",
+        r5c.recuperados === 1, "recuperados=" + r5c.recuperados + " (destino=" + destino + ")");
+      const voltou = vm.runInContext(`(function(){
+        var r = STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos[0];
+        return typeof r.foto === "string" && r.foto.indexOf("data:image") === 0;
+      })()`, A5.ctx);
+      checar("a foto esta de volta no risco, de verdade", voltou === true);
     }
   }
 

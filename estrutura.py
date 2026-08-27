@@ -2361,23 +2361,33 @@ chk("o botao copia para a area de transferencia, com o mesmo padrao do diagnosti
     and "async copiarListaFotoPerdida(){" in novo
     and novo.count("await navigator.clipboard.writeText(txt);") == 2)
 
-print("\n=== 85. NAO RECONFERE NA NUVEM UM ITEM JA CHECADO HA POUCO ===")
-# Achado em campo: projeto com 218 itens marcados continuava em 218 a cada
-# nova rodada -- nada registrava "isto ja foi conferido", entao cada toque
-# em "Devolver fotos" refazia as MESMAS chamadas de rede para itens que a
-# rodada anterior ja tinha confirmado sem nada na nuvem. A marca de dano
-# (CAMPO_MARCA_FOTO_PERDIDA) continua de pe -- ela protege contra reenvio,
-# nao e sobre "ja conferi" -- ganhou uma companheira com validade de 24h.
-chk("guarda quando um item foi conferido na nuvem sem achar nada",
-    "alvo.dados.__fotoNuvemVerificadaEm = Date.now();" in novo
-    and novo.count("alvo.dados.__fotoNuvemVerificadaEm") >= 2)
-chk("pula quem foi conferido ha menos de 24h, sem gastar chamada de rede",
-    "const VERIFICACAO_NUVEM_VALIDADE_MS = 24*60*60*1000;" in novo
-    and "if(foiVerificadoRecentemente(alvo.dados)){ jaVerificadosRecentemente++; return; }" in novo)
-chk("quando acha algo, tira o carimbo de verificacao (nao faz mais sentido)",
-    "delete alvo.dados.__fotoNuvemVerificadaEm;" in novo)
-chk("o carimbo local nunca viaja para a nuvem, mesma regra dos outros marcadores locais",
-    "delete semFotos.__fotoNuvemVerificadaEm; // carimbo local de \"já conferi a nuvem\" — idem" in novo)
+print("\n=== 85. TOCAR EM 'DEVOLVER FOTOS' SEMPRE RECONFERE (TRAVA DE 24H REMOVIDA) ===")
+# Esta secao testava o OPOSTO ate 27/08/2026: havia uma trava que nao
+# reconferia na nuvem um item ja checado nas ultimas 24h. Estava errada:
+# 1. recuperarFotosPerdidasDaNuvem e chamada de UM lugar so -- o proprio
+#    botao. Nao existe rotina automatica, entao a trava nunca economizou
+#    chamada de rotina nenhuma: so bloqueava o usuario, exatamente quando ele
+#    pedia para tentar de novo.
+# 2. Ela apostava que a nuvem nao muda entre um toque e outro. Muda: o envio
+#    continuo sobe fotos o tempo todo; depois de uma noite enviando, a nuvem
+#    TEM o que nao tinha ontem -- e a trava garantia que o app nao olhasse.
+# Em campo: "30 nao foram checados de novo", zero recuperados, num dia em que
+# as fotos tinham acabado de subir. Prova de comportamento no ENSAIO 27.
+chk("a trava de 24h saiu do codigo",
+    "const VERIFICACAO_NUVEM_VALIDADE_MS = 24*60*60*1000;" in orig
+    and "VERIFICACAO_NUVEM_VALIDADE_MS" not in novo
+    and "foiVerificadoRecentemente" not in novo)
+chk("nao existe mais carimbo de 'ja conferi' sendo GRAVADO",
+    "alvo.dados.__fotoNuvemVerificadaEm = Date.now();" in orig
+    and "__fotoNuvemVerificadaEm = Date.now();" not in novo)
+chk("mas o carimbo antigo continua sendo APAGADO (limpa o que ja esta nos aparelhos)",
+    novo.count("delete alvo.dados.__fotoNuvemVerificadaEm") == 1
+    and novo.count("delete alvo.obj.__fotoNuvemVerificadaEm") == 1
+    and "delete semFotos.__fotoNuvemVerificadaEm;" in novo)
+chk("a contagem 'ja verificados' sumiu tambem da mensagem de resultado",
+    "jaVerificadosRecentemente" not in novo)
+chk("a protecao contra duplicata (id repetido) continua de pe",
+    "if(idsJaAlvo.has(alvo.id)){ duplicadosIgnorados++; return; }" in novo)
 
 print("\n=== 86. TOCAR FORA DO FORMULARIO NAO DESCARTA FOTO EM SILENCIO ===")
 # Achado em campo em 26/08/2026: maquinas recem-criadas perderam foto sem

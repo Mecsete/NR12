@@ -64,6 +64,40 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 27/08/2026 07:17
+
+**"Devolver fotos" voltou a conferir tudo. Havia uma trava minha que
+impedia justamente o que você estava pedindo.**
+
+Ontem eu acrescentei uma "otimização": item que já tinha sido conferido na
+nuvem nas últimas 24 horas, sem resultado, não era conferido de novo. A
+ideia era não repetir centenas de chamadas de rede a cada toque no botão.
+
+Estava errada, por dois motivos:
+
+1. **Essa busca só é feita pelo botão.** Não existe nenhuma rotina
+   automática chamando ela. Ou seja, a trava nunca economizou nada de
+   rotina — ela só bloqueava você, exatamente quando você tocava no botão
+   para tentar de novo.
+
+2. **Ela apostava que a nuvem não muda entre um toque e outro.** Muda. O
+   envio contínuo sobe fotos o tempo todo. Depois de uma noite enviando, a
+   nuvem tem o que não tinha ontem — e a trava garantia que o app não fosse
+   olhar justamente aí.
+
+Foi isso que apareceu na tela como *"30 não foram checados de novo — já
+tinham sido conferidos na nuvem nas últimas 24h"*, com zero recuperados,
+num dia em que as fotos tinham acabado de subir.
+
+A trava foi removida. Agora cada toque em "Devolver fotos" confere tudo de
+novo, do zero. Custa alguns segundos a mais de rede — e é uma ação que você
+pediu e está esperando na tela.
+
+O app também apaga sozinho os carimbos que essa trava já deixou gravados no
+aparelho, então o primeiro toque depois desta atualização já vem limpo.
+
+---
+
 ## 27/08/2026 06:50
 
 **Cinco correções vindas de uma varredura completa do app — não de perda em

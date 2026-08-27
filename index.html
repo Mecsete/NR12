@@ -2173,7 +2173,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "27/08/2026 06:50";
+const APP_BUILD = "27/08/2026 07:17";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -4542,24 +4542,31 @@ async function recuperarFotosPerdidasDaNuvem(onProgresso){
      a segunda fica esperando "Juntar duplicatas" (que já preserva foto no
      merge) resolver de vez, em vez de tentar as duas pela metade aqui. */
   const idsJaAlvo = new Set();
-  let duplicadosIgnorados = 0, jaVerificadosRecentemente = 0;
-  /* JÁ FOI CHECADO NA NUVEM RECENTEMENTE, E NÃO TINHA NADA — não repete a
-     mesma chamada de rede à toa a cada vez que o botão é tocado de novo.
-     Achado em campo: um projeto com 218 itens marcados ficava do mesmo
-     tamanho a cada rodada, porque nada registrava "isto aqui já foi
-     conferido" — cada toque em "Devolver fotos" refazia as MESMAS 218
-     chamadas, mesmo para os itens que a rodada anterior já tinha confirmado
-     sem nada na nuvem. A marca de dano (CAMPO_MARCA_FOTO_PERDIDA) continua
-     de pé — ela protege contra reenvio, não é sobre "já conferi" — só
-     ganhou uma companheira, com validade curta, que existe só para isto. */
-  const VERIFICACAO_NUVEM_VALIDADE_MS = 24*60*60*1000;
-  const foiVerificadoRecentemente = (obj) => {
-    const ts = obj.__fotoNuvemVerificadaEm;
-    return typeof ts === "number" && (Date.now() - ts) < VERIFICACAO_NUVEM_VALIDADE_MS;
-  };
+  let duplicadosIgnorados = 0;
+  /* A TRAVA DE 24 HORAS FOI REMOVIDA EM 27/08/2026 — ela só atrapalhava.
+
+     O que existia: item conferido na nuvem sem resultado ganhava um carimbo
+     e não era reconferido por 24 h. A intenção era não repetir as mesmas
+     centenas de chamadas de rede a cada toque do botão.
+
+     Por que estava errado, e o erro é meu:
+     1. Esta função é chamada de UM lugar só — o botão "Devolver fotos".
+        Não existe rotina automática. Ou seja, a trava nunca economizou
+        chamada de rotina nenhuma: ela só bloqueava o usuário, exatamente
+        quando ele pedia para tentar de novo.
+     2. Pior, ela apostava que a nuvem não muda entre um toque e outro. Muda:
+        o envio contínuo sobe fotos o tempo todo. Depois de uma noite
+        enviando, a nuvem TEM o que não tinha ontem — e a trava garantia que
+        o app não fosse olhar justamente aí.
+
+     Em campo isso apareceu assim: "30 não foram checados de novo — já tinham
+     sido conferidos nas últimas 24h", com zero itens recuperados, num dia em
+     que as fotos tinham acabado de subir.
+
+     Custo de tirar: alguns segundos a mais de rede por toque. É explícito,
+     foi pedido, e a pessoa está esperando o resultado na tela. */
   const adicionar = (alvo) => {
     if(idsJaAlvo.has(alvo.id)){ duplicadosIgnorados++; return; }
-    if(foiVerificadoRecentemente(alvo.dados)){ jaVerificadosRecentemente++; return; }
     idsJaAlvo.add(alvo.id);
     alvos.push(alvo);
   };
@@ -4585,7 +4592,7 @@ async function recuperarFotosPerdidasDaNuvem(onProgresso){
       });
     });
   });
-  const res = { itens: alvos.length, recuperados: 0, semNadaNaNuvem: 0, duplicadosIgnorados, jaVerificadosRecentemente };
+  const res = { itens: alvos.length, recuperados: 0, semNadaNaNuvem: 0, duplicadosIgnorados };
   if(alvos.length === 0) return res;
   /* PROJETO GRANDE PODE TER CENTENAS DE ITENS MARCADOS — cada um é uma
      chamada de rede. Sem isto, uma interrupção no meio (tela apagou, app foi
@@ -4617,7 +4624,7 @@ async function recuperarFotosPerdidasDaNuvem(onProgresso){
       const texto = await onedriveBaixarTexto(caminho);
       let pacote = null;
       if(texto){ try{ pacote = JSON.parse(texto); }catch(e){ pacote = null; } }
-      if(!pacote){ res.semNadaNaNuvem++; alvo.dados.__fotoNuvemVerificadaEm = Date.now(); }
+      if(!pacote){ res.semNadaNaNuvem++; }
       else{
         let mexeu = false;
         for(const campo of CAMPOS_FOTO_UNICA){
@@ -4635,11 +4642,10 @@ async function recuperarFotosPerdidasDaNuvem(onProgresso){
              risco em liberar o envio de novo: subir agora não apaga nada que
              a própria nuvem já não soubesse. */
           delete alvo.dados[CAMPO_MARCA_FOTO_PERDIDA];
-          delete alvo.dados.__fotoNuvemVerificadaEm;
+          delete alvo.dados.__fotoNuvemVerificadaEm; // limpa o carimbo da trava de 24h, que existiu ate 27/08 e nao e mais usada
           marcarFotosPendentesParaEnvio(alvo.id);
         } else {
           res.semNadaNaNuvem++;
-          alvo.dados.__fotoNuvemVerificadaEm = Date.now();
         }
       }
       feito++;
@@ -18044,7 +18050,7 @@ Devolver agora?`)) return;
         ` Direto na nuvem: ${rn.recuperados} de ${rn.itens} item${rn.itens===1?'':'s'} ainda danificado${rn.itens===1?'':'s'} recuperado${rn.recuperados===1?'':'s'}` +
         (rn.semNadaNaNuvem ? `, ${rn.semNadaNaNuvem} sem nada na nuvem — essa(s) é perda de verdade, só refotografando.` : ".") +
         (rn.duplicadosIgnorados ? ` (${rn.duplicadosIgnorados} não entraram na conta por serem duplicata do mesmo item — resolva com "Juntar duplicatas" e tente de novo.)` : "")) +
-        (rn.jaVerificadosRecentemente ? ` (${rn.jaVerificadosRecentemente} não foram checados de novo — já tinham sido conferidos na nuvem nas últimas 24h, sem nada lá.)` : "");
+        "";
       const msgParado = progressoCancelado() ? " Parado a seu pedido — o que já tinha voltado continua salvo; toque de novo para continuar." : "";
       __ultimaRecuperacaoFotos = { erro:false, mensagem: msgLocal + msgNuvem + msgVarredura + msgParado };
       toast(devolvidas + " foto(s) devolvida(s) no total");
