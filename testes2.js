@@ -7452,6 +7452,51 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  console.log("\n=== t130 · a busca de fotos na nuvem so confere quem pode ter perdido algo ===");
+  {
+    /* Relatado em campo: a busca ficava lenta, travava e nao recuperava nada
+       ("0 de 185"). Causa: o filtro considerava candidato todo item com
+       QUALQUER campo de foto vazio — e todo equipamento nasce com
+       fotoPlaqueta:null, que quase nunca e preenchida. Resultado: quase todo
+       equipamento virava candidato, baixava seu pacote de fotos (varios MB)
+       da nuvem, e nao tinha nada para receber. */
+    const ctxC = vm.createContext({ Array, Object, String, console });
+    vm.runInContext('var CAMPO_FOTOS_LISTA = "fotosOutras"; var CAMPO_MARCA_FOTO_PERDIDA = "__fotosPerdidas";', ctxC);
+    vm.runInContext(constante("CAMPOS_FOTO_UNICA"), ctxC);
+    ["__ehFotoEmbutida","itemTemEspacoDeFotoVazio"].forEach(n=> vm.runInContext(funcao(n), ctxC));
+    const F = "data:image/jpeg;base64,AAAA";
+    const entra = (item)=>{ ctxC.__i = item; return vm.runInContext("itemTemEspacoDeFotoVazio(__i)", ctxC); };
+
+    t("O CASO REAL: equipamento COM foto e sem plaqueta NAO entra mais na busca", ()=>{
+      ok(entra({ fotoGeral:F, fotoPlaqueta:null, fotosOutras:[] }) === false,
+         "voltou a marcar todo equipamento sem plaqueta como candidato");
+      ok(entra({ foto:F, fotosOutras:[] }) === false, "risco com foto virou candidato a toa");
+    });
+    t("item MARCADO como danificado entra", ()=>{
+      ok(entra({ fotoGeral:F, fotoPlaqueta:null, fotosOutras:[], __fotosPerdidas:true }) === true);
+    });
+    t("lista com referencia quebrada (o quadro vermelho) entra", ()=>{
+      ok(entra({ fotoGeral:F, fotoPlaqueta:F, fotosOutras:[null] }) === true);
+      ok(entra({ fotoGeral:F, fotosOutras:[F, null] }) === true, "lista com uma boa e uma quebrada tem de entrar");
+    });
+    t("item SEM nenhuma foto de verdade entra (a nuvem tem pacote para ele)", ()=>{
+      ok(entra({ fotoGeral:null, fotoPlaqueta:null, fotosOutras:[] }) === true);
+      ok(entra({ foto:null, fotosOutras:[] }) === true);
+    });
+    t("ESCALA: no tamanho do projeto real, a lista de candidatos encolhe varias vezes", ()=>{
+      /* 382 equipamentos, 90% com foto geral, 5% com plaqueta, 30 danificados.
+         Criterio antigo: 382 (todos). Criterio novo: so os que faltam algo. */
+      let agora = 0;
+      for(let i=0;i<382;i++){
+        const m = { fotoGeral: (i%10!==0)?F:null, fotoPlaqueta: (i%20===0)?F:null, fotosOutras:[] };
+        if(i<30) m.__fotosPerdidas = true;
+        if(entra(m)) agora++;
+      }
+      ok(agora < 100, "a lista de candidatos continua inflada (" + agora + " de 382)");
+      ok(agora >= 30, "encolheu demais: os itens danificados precisam continuar entrando (" + agora + ")");
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

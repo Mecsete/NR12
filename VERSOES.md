@@ -64,6 +64,40 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 27/08/2026 19:06
+
+**A busca de fotos na nuvem estava conferindo praticamente todos os
+equipamentos — por isso era lenta, travava e não recuperava nada.**
+
+O filtro que decide quais itens vale a pena conferir na nuvem considerava
+candidato **todo item com qualquer campo de foto vazio**. Só que todo
+equipamento nasce com o campo de **plaqueta** vazio, e a grande maioria nunca
+recebe foto de plaqueta — em campo se fotografa a máquina, não a placa.
+
+Resultado: quase todo equipamento entrava na lista, o app baixava o pacote de
+fotos dele da nuvem (vários MB cada), descobria que também não havia plaqueta
+lá, e não preenchia nada. Os três sintomas que você relatou vinham todos
+desse mesmo erro: **lento** (centenas de MB baixados à toa), **travava** (esse
+volume estourava a memória) e **não recuperava** (aqueles itens não tinham
+nada a receber). Era a explicação do "0 de 185".
+
+Agora só é conferido quem tem indício real de ter perdido algo:
+
+- o item está **marcado como danificado** (a foto existia e não abre mais);
+- a lista de fotos tem um **espaço que não resolve** — o quadro vermelho;
+- o item **não tem nenhuma foto de verdade**, e a nuvem tem um pacote para
+  ele (então há algo a trazer).
+
+Ficou de fora, de propósito, o caso que inflava tudo: equipamento que tem a
+foto principal e apenas nunca teve plaqueta. Ele não perdeu nada.
+
+Medido no tamanho do seu projeto: dos 382 equipamentos, o critério antigo
+conferia **382**; o novo confere **48**. A busca fica cerca de oito vezes mais
+curta, e o que sobra são justamente os itens que podem render alguma foto de
+volta.
+
+---
+
 ## 27/08/2026 17:43
 
 **ENCONTRADA a causa das fotos que sumiam: duplicar equipamento derrubava o

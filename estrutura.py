@@ -2557,6 +2557,25 @@ chk("usa UMA listagem da arvore, nao uma chamada de rede por item",
     "arvore = await onedriveListarArvore(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`, 4," in novo
     and novo.count("onedriveListarArvore(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`, 4")
         == orig.count("onedriveListarArvore(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`, 4") + 1)
+# 27/08/2026 — relatado em campo: a busca ficava lenta, travava e nao
+# recuperava nada ("0 de 185"). O filtro considerava candidato todo item com
+# QUALQUER campo de foto vazio, e todo equipamento nasce com fotoPlaqueta:null,
+# que quase nunca e preenchida -> quase todo equipamento virava candidato e
+# baixava seu pacote de varios MB para nada. Medido: 382 de 382 no criterio
+# antigo, 48 de 382 no novo. Prova de comportamento em t130.
+chk("so entra na busca quem tem indicio REAL de perda (nao mais 'falta a plaqueta')",
+    "if(obj[CAMPO_MARCA_FOTO_PERDIDA]) return true;" in novo
+    and "const temAlgumaFotoDeVerdade = CAMPOS_FOTO_UNICA.some(c=>__ehFotoEmbutida(obj[c]))" in novo
+    and "return !temAlgumaFotoDeVerdade;" in novo)
+# A linha antiga ainda aparece no arquivo, mas SO dentro do comentario que
+# documenta o defeito. A checagem olha o CORPO da funcao.
+_ites = novo[novo.find("function itemTemEspacoDeFotoVazio(obj){"):]
+_ites = _ites[:_ites.find(chr(10) + "}")]
+chk("o criterio antigo, que marcava todo equipamento sem plaqueta, saiu do corpo da funcao",
+    "if(campo in obj && !__ehFotoEmbutida(obj[campo])) return true;" not in _ites
+    and "for(const campo of CAMPOS_FOTO_UNICA){" not in _ites)
+chk("referencia quebrada na lista (quadro vermelho) continua entrando",
+    "if(Array.isArray(lista) && lista.some(f=>!__ehFotoEmbutida(f))) return true;" in novo)
 chk("o gatilho e o pacote fotos_* que existe na nuvem (prova de que o item TEVE foto)",
     'if(typeof no.nome === "string" && no.nome.startsWith("fotos_")) pacotes.push(no);' in novo)
 chk("so preenche espaco vazio -- nunca sobrescreve foto boa que ja esta aqui",

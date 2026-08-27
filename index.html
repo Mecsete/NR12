@@ -2145,7 +2145,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "27/08/2026 17:43";
+const APP_BUILD = "27/08/2026 19:06";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -4690,14 +4690,43 @@ function __itemLocalDoCaminhoFotosNuvem(caminho){
 }
 /* Tem espaço de foto vazio? É o gatilho da varredura ampla: só faz sentido
    baixar um pacote da nuvem para um item que tenha onde encaixar. */
+/* QUEM VALE A PENA CONFERIR NA NUVEM — e por que o critério anterior era
+   inútil.
+
+   A primeira versão (22:04 de 26/08) considerava candidato todo item com
+   QUALQUER campo de foto vazio:
+
+     for(const campo of CAMPOS_FOTO_UNICA)              // foto, fotoGeral, fotoPlaqueta
+       if(campo in obj && !__ehFotoEmbutida(obj[campo])) return true;
+
+   Só que todo equipamento nasce com `fotoPlaqueta: null`, e a grande maioria
+   nunca recebe foto de plaqueta — fotografa-se a máquina, não a placa. O
+   critério, então, marcava quase TODO equipamento como candidato.
+
+   O estrago era triplo, e foi exatamente o relatado em campo:
+     · LENTO   — baixava o pacote de fotos (vários MB) de centenas de itens
+                 que não tinham nada a receber;
+     · TRAVA   — esse volume de download acumulado estourava a memória;
+     · NÃO RECUPERA — os itens baixados não tinham plaqueta na nuvem também,
+                 então nada era preenchido: o famoso "0 de 185".
+
+   Agora só entra quem tem indício REAL de que falta algo:
+     1. marca de dano — havia foto e ela não abre mais neste aparelho;
+     2. lista de fotos com espaço que não resolve ([null] significa que
+        existia uma foto ali);
+     3. nenhuma foto de verdade no item — e, como só chegam aqui itens que
+        TÊM pacote na nuvem, é certo que há algo para trazer.
+
+   Ficou de fora, de propósito, o caso que inflava tudo: item que tem a foto
+   principal e apenas nunca teve plaqueta. Ele não perdeu nada. */
 function itemTemEspacoDeFotoVazio(obj){
   if(!obj) return false;
-  for(const campo of CAMPOS_FOTO_UNICA){
-    if(campo in obj && !__ehFotoEmbutida(obj[campo])) return true;
-  }
+  if(obj[CAMPO_MARCA_FOTO_PERDIDA]) return true;                      // 1
   const lista = obj[CAMPO_FOTOS_LISTA];
-  if(Array.isArray(lista) && lista.some(f=>!__ehFotoEmbutida(f))) return true; // quadro vermelho: referência que não resolve
-  return false;
+  if(Array.isArray(lista) && lista.some(f=>!__ehFotoEmbutida(f))) return true;   // 2
+  const temAlgumaFotoDeVerdade = CAMPOS_FOTO_UNICA.some(c=>__ehFotoEmbutida(obj[c]))
+    || (Array.isArray(lista) && lista.some(__ehFotoEmbutida));
+  return !temAlgumaFotoDeVerdade;                                     // 3
 }
 async function recuperarFotosVarrendoNuvem(onProgresso, onLendoNuvem){
   const res = { candidatos:0, recuperados:0, semNadaNaNuvem:0, erro:false };
