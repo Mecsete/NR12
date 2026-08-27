@@ -7380,6 +7380,70 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  console.log("\n=== t129 · rascunho guarda REFERENCIA de foto, nao a foto (app fechava ao digitar) ===");
+  {
+    /* Reportado em campo: o app fechava sozinho DURANTE A DIGITACAO, poucas
+       horas depois de eu fazer o texto digitado ser gravado. A correcao era
+       certa; o efeito colateral nao: cada pausa na digitacao regravava o
+       rascunho INTEIRO, e o rascunho levava as fotos embutidas — varios MB.
+       No iPhone, gravacao de varios MB repetida a cada pausa estoura a
+       memoria e o sistema encerra a aba. */
+    const FOTO = "data:image/jpeg;base64," + "A".repeat(200000);   // ~200 KB
+    const FOTO2 = "data:image/jpeg;base64," + "B".repeat(200000);
+    const ctxR = vm.createContext({ Map, Set, Array, Object, String, JSON, console });
+    vm.runInContext('var FOTO_REF_PREFIXO = "idbfoto:"; var __fotoIdCache = new Map(); var __fotoIdConhecido = new Map();', ctxR);
+    ["ehFotoDataUrlPersist","ehFotoRefPersist","fotoCalcularId","fotosExtrairParaRefs",
+     "fotosColetarRefs","fotosReinserirDeMapa"].forEach(n=> vm.runInContext(funcao(n), ctxR));
+
+    t("O CASO REAL: o que vai para o disco a cada digitacao encolhe de MB para KB", ()=>{
+      ctxR.__e = { id:"m1", nome:"Classificadora", descricao:"x",
+                   fotoGeral:FOTO, fotoPlaqueta:FOTO2, fotosOutras:[FOTO], tarefas:[] };
+      const antes = vm.runInContext("JSON.stringify(__e).length", ctxR);
+      const depois = vm.runInContext(`(function(){
+        var m = new Map();
+        return JSON.stringify(fotosExtrairParaRefs(__e, m)).length;
+      })()`, ctxR);
+      ok(antes > 400000, "o cenario precisa ter fotos de verdade (antes=" + antes + ")");
+      ok(depois < 2000, "o rascunho continua levando as fotos inteiras (depois=" + depois + ")");
+      ok(antes / depois > 100, "a reducao foi pequena demais para explicar o fim das quedas");
+    });
+    t("a foto vira referencia curta, nao some", ()=>{
+      ctxR.__e = { id:"m1", fotoGeral:FOTO, fotosOutras:[FOTO2] };
+      const enxuta = vm.runInContext(`(function(){ __m = new Map(); return fotosExtrairParaRefs(__e, __m); })()`, ctxR);
+      ok(String(enxuta.fotoGeral).indexOf("idbfoto:") === 0, "a foto unica nao virou referencia");
+      ok(String(enxuta.fotosOutras[0]).indexOf("idbfoto:") === 0, "a lista de fotos nao virou referencia");
+      eq(vm.runInContext("__m.size", ctxR), 2, "as duas fotos deveriam ir para o mapa de bytes");
+    });
+    t("ida e volta devolve a foto IDENTICA — o rascunho recuperado nao perde nada", ()=>{
+      ctxR.__e = { id:"m1", nome:"Nome digitado", fotoGeral:FOTO, fotosOutras:[FOTO2] };
+      const volta = vm.runInContext(`(function(){
+        var m = new Map();
+        var enxuta = fotosExtrairParaRefs(__e, m);
+        return fotosReinserirDeMapa(enxuta, m);
+      })()`, ctxR);
+      eq(volta.fotoGeral, FOTO, "a foto do equipamento nao voltou igual");
+      eq(volta.fotosOutras[0], FOTO2, "a foto da lista nao voltou igual");
+      eq(volta.nome, "Nome digitado", "o texto digitado se perdeu na ida e volta");
+    });
+    t("gravar e ler o rascunho usam a mesma camada de fotos do STATE", ()=>{
+      const g = funcao("gravarDraftPersistente");
+      ok(g.indexOf("fotosExtrairParaRefs(__draftEntity, mapaFotos)") > 0, "o rascunho nao passa mais pela camada de fotos");
+      ok(g.indexOf("if(!indice.has(fid)) novas.push") > 0, "esta regravando foto que o banco ja tem");
+      const l = funcao("lerDraftPersistente");
+      ok(l.indexOf("fotosReinserirDeMapa(bruto, mapa)") > 0, "a leitura nao reencaixa as fotos");
+      ok(l.indexOf("if(refs.size === 0) return bruto;") > 0,
+         "rascunho de versao antiga (fotos embutidas) precisa passar reto, sem quebrar");
+    });
+    t("digitar nao regrava foto nenhuma que o banco ja tenha", ()=>{
+      const g = funcao("gravarDraftPersistente");
+      ok(g.indexOf("for(const [fid, dataUrl] of novas) tx.objectStore(DB_STORE).put(dataUrl, FOTO_KEY_PREFIXO + fid);") > 0);
+    });
+    t("o atraso da digitacao subiu para 900ms, e o descarregamento na saida continua", ()=>{
+      ok(HTML.indexOf("}, 900);") > 0, "o atraso continua curto demais");
+      ok(HTML.indexOf("function flushDraftPendente(){") > 0, "sumiu o descarregamento imediato ao sair de foco");
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

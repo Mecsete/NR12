@@ -15,9 +15,17 @@ def chk(nome, cond, detalhe=""):
     print(("  ok   " if cond else "  ERRO ") + nome + ((" -> " + detalhe) if detalhe and not cond else ""))
 
 print("=== 3. ARQUITETURA DE FOTOS (CAMADA_FOTOS) ===")
+# +1 em "idbfoto:" e "foto:" a partir de 27/08/2026, de proposito: o RASCUNHO
+# passou a usar a mesma camada (ver secao 100). Antes ele gravava as fotos
+# embutidas e, com o texto digitado passando a ser salvo, cada pausa da
+# digitacao regravava varios MB -- o app fechava sozinho ao digitar no iPhone.
+# Ampliar o uso da camada e o oposto de burlar a arquitetura: e aplica-la onde
+# faltava. O que a checagem protege e a camada nao ser CONTORNADA (foto voltar
+# a ser gravada embutida), entao o piso nunca pode cair.
+_extra_fotos = {"idbfoto:": 1, "foto:": 1}
 for marca in ["idbfoto:", "foto:", "CAMADA_FOTOS"]:
-    a, b = orig.count(marca), novo.count(marca)
-    chk("ocorrencias de '%s' inalteradas (%d)" % (marca, a), a == b, "orig=%d novo=%d" % (a, b))
+    a, b = orig.count(marca) + _extra_fotos.get(marca, 0), novo.count(marca)
+    chk("ocorrencias de '%s' inalteradas (%d)" % (marca, a), a == b, "orig+extra=%d novo=%d" % (a, b))
 
 print("\n=== 4. MOTOR DE SINCRONIZACAO ===")
 # oneDriveDeltaFila ganhou +3 ocorrencias de proposito:
@@ -2771,6 +2779,31 @@ chk("a retentativa entra nos DOIS ritmos: o de 2 min e o de 20s do envio continu
     and novo.count("tentarSalvarSePendente();") == 2)   # os dois pontos de chamada (a definicao nao usa esta forma)
 chk("no tique de 20s a retentativa vem ANTES das travas -- funciona sem OneDrive e com a chave desligada",
     novo.index("  tentarSalvarSePendente();\n  if(!envioContinuoLigado()") > 0)
+
+print("\n=== 100. RASCUNHO GUARDA REFERENCIA DE FOTO (APP FECHAVA AO DIGITAR) ===")
+# Reportado em campo: o app fechava sozinho DURANTE A DIGITACAO, poucas horas
+# depois de a secao 99 fazer o texto digitado ser gravado. A correcao era certa;
+# o efeito colateral nao: cada pausa na digitacao regravava o rascunho INTEIRO,
+# e o rascunho levava as fotos embutidas (varios MB). No iPhone, gravacao de
+# varios MB repetida assim estoura a memoria e o sistema encerra a aba.
+# Medido no navegador: 4,29 MB -> 0,22 KB por gravacao. Prova em t129.
+chk("o rascunho passa pela mesma camada de fotos do STATE, em vez de levar os bytes",
+    "const entityEnxuta = fotosExtrairParaRefs(__draftEntity, mapaFotos);" in novo
+    and "entity: entityEnxuta" in novo
+    and "entity: __draftEntity" in orig)
+chk("foto que o banco ja tem NAO e regravada a cada digitacao",
+    "mapaFotos.forEach((dataUrl, fid)=>{ if(!indice.has(fid)) novas.push([fid, dataUrl]); });" in novo
+    and "for(const [fid, dataUrl] of novas) tx.objectStore(DB_STORE).put(dataUrl, FOTO_KEY_PREFIXO + fid);" in novo)
+chk("a leitura reencaixa as fotos, e rascunho de versao antiga passa reto",
+    "fotosReinserirDeMapa(bruto, mapa)" in novo
+    and "if(refs.size === 0) return bruto;" in novo)
+chk("o atraso da digitacao subiu de 400ms para 900ms",
+    "}, 900);" in novo)
+chk("mas o descarregamento imediato ao sair de foco continua -- e ele que garante nada perdido",
+    "function flushDraftPendente(){" in novo
+    and "function flushTudoAntesDeSair(){" in novo)
+chk("a limpeza de fotos orfas continua lendo o rascunho (agora com referencias)",
+    "if(rascunho){ fotosColetarIdsEmbutidas(rascunho, referenciadas); fotosColetarRefs(rascunho, referenciadas); }" in novo)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")

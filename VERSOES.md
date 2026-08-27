@@ -64,6 +64,40 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 27/08/2026 10:28
+
+**Correção urgente: o app estava fechando sozinho durante a digitação.**
+
+A causa foi uma correção minha, publicada poucas horas antes, na mesma
+manhã.
+
+Às 06:50 eu fiz o texto digitado passar a ser gravado — o que estava certo e
+era necessário, porque antes ele vivia só na memória e se perdia quando a
+câmera abria. O problema foi **como** ficou gravado: o app guarda o
+formulário em andamento num único pacote, e esse pacote levava **as fotos
+inteiras dentro dele**.
+
+Antes isso acontecia poucas vezes por formulário (ao escolher item de lista,
+ao tirar foto). Depois da correção, passou a acontecer a cada pausa da
+digitação — gravando vários MB de novo, e de novo. No iPhone, isso estoura a
+memória e o sistema encerra a aba: é literalmente "o app fecha sozinho
+enquanto eu digito".
+
+Agora o formulário em andamento guarda apenas uma **referência curta** para
+cada foto, exatamente como o app já fazia com o resto dos dados — os bytes
+da foto vão para o lugar próprio deles, gravados uma única vez. Medido:
+**4,29 MB caíram para 0,22 KB** por gravação. Digitar voltou a não custar
+praticamente nada.
+
+Nada se perde nisso: ao recuperar um formulário não salvo, as fotos são
+reencaixadas inteiras (testado ida e volta), e a proteção contra apagar foto
+de rascunho continua valendo. O intervalo entre gravações também subiu de
+0,4 s para 0,9 s — o que garante que nada se perde não é a frequência, e sim
+a gravação imediata no instante em que o app sai de foco, inclusive quando a
+câmera abre.
+
+---
+
 ## 27/08/2026 07:17
 
 **"Devolver fotos" voltou a conferir tudo. Havia uma trava minha que

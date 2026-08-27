@@ -2173,7 +2173,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "27/08/2026 07:17";
+const APP_BUILD = "27/08/2026 10:28";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -8071,15 +8071,42 @@ function dragHandleHtml(tipo, id){
    ao reabrir o app, se houver um rascunho não salvo, ele é oferecido de
    volta. Salvar ou Cancelar o formulário limpa o rascunho guardado. */
 const DB_KEY_DRAFT = "draftEmAndamento";
+/* O RASCUNHO GUARDA REFERÊNCIA DE FOTO, NÃO A FOTO INTEIRA.
+
+   Reportado em campo em 27/08/2026: o app fechava sozinho DURANTE A
+   DIGITAÇÃO. Causa, e ela é minha, da entrega de poucas horas antes: ao
+   fazer o texto digitado ser gravado (correção certa e necessária), cada
+   pausa na digitação passou a regravar o rascunho INTEIRO — e o rascunho
+   levava as fotos embutidas dentro dele, vários MB. Antes isso acontecia
+   umas poucas vezes por formulário; virou uma vez a cada pausa de digitação.
+   No iPhone, uma gravação de vários MB repetida assim estoura a memória e o
+   sistema encerra a aba: exatamente "o app fecha sozinho ao digitar".
+
+   A correção reaproveita a camada de fotos que o STATE já usa: as fotos saem
+   do pacote e viram referência curta ("idbfoto:<id>"); os bytes vão para a
+   chave própria de cada foto, gravados UMA vez (o índice diz quais já estão
+   lá). O pacote do rascunho passa de vários MB para alguns KB, e digitar
+   volta a custar quase nada.
+
+   As fotos do rascunho não ficam desprotegidas: a limpeza de fotos órfãs já
+   lê o rascunho e conta as referências dele como "em uso" (ver
+   fotosLimparOrfasSeForHora), e a quarentena de 30 dias cobre o resto. */
 async function gravarDraftPersistente(){
   if(!__draftEntity || !temIndexedDB()) return;
   try{
     const db = await dbOpen();
-    const pacote = { tipo: __draftTipo, parent: __draftParent, entity: __draftEntity, ts: Date.now() };
+    const mapaFotos = new Map();
+    const entityEnxuta = fotosExtrairParaRefs(__draftEntity, mapaFotos);
+    const indice = await fotosCarregarIndice(db);
+    const novas = [];
+    mapaFotos.forEach((dataUrl, fid)=>{ if(!indice.has(fid)) novas.push([fid, dataUrl]); });
+    const pacote = { tipo: __draftTipo, parent: __draftParent, entity: entityEnxuta, ts: Date.now() };
     await new Promise((resolve,reject)=>{
       const tx = db.transaction(DB_STORE,"readwrite");
+      // Só as fotos que o banco ainda não tem — digitar não regrava foto nenhuma.
+      for(const [fid, dataUrl] of novas) tx.objectStore(DB_STORE).put(dataUrl, FOTO_KEY_PREFIXO + fid);
       tx.objectStore(DB_STORE).put(pacote, DB_KEY_DRAFT);
-      tx.oncomplete=()=>resolve(true);
+      tx.oncomplete=()=>{ for(const [fid] of novas) indice.add(fid); resolve(true); };
       tx.onerror=()=>reject(tx.error);
     });
   }catch(e){ /* rede de segurança extra falhou nesta vez — o fluxo normal segue */ }
@@ -8109,7 +8136,11 @@ function agendarGravacaoDraft(){
   if(!__draftEntity) return;
   __draftPendente = true;
   clearTimeout(__draftSaveTimer);
-  __draftSaveTimer = setTimeout(()=>{ __draftPendente = false; gravarDraftPersistente(); }, 400);
+  /* 900ms, não 400: mesmo com o pacote enxuto, gravar a cada pequena pausa
+     da digitação é trabalho repetido à toa. O que garante que nada se perde
+     não é a frequência e sim o descarregamento imediato quando a tela sai de
+     foco (flushDraftPendente) — inclusive no instante em que a câmera abre. */
+  __draftSaveTimer = setTimeout(()=>{ __draftPendente = false; gravarDraftPersistente(); }, 900);
 }
 /* Grava JÁ, sem esperar o atraso — chamado quando o app sai de foco (troca de
    app, câmera abrindo, tela apagando, aba fechando). */
@@ -8135,12 +8166,23 @@ async function lerDraftPersistente(){
   if(!temIndexedDB()) return null;
   try{
     const db = await dbOpen();
-    return await new Promise((resolve)=>{
+    const bruto = await new Promise((resolve)=>{
       const tx = db.transaction(DB_STORE,"readonly");
       const rq = tx.objectStore(DB_STORE).get(DB_KEY_DRAFT);
       rq.onsuccess=()=>resolve(rq.result||null);
       rq.onerror=()=>resolve(null);
     });
+    if(!bruto) return null;
+    /* O rascunho guarda referência de foto, não a foto (ver
+       gravarDraftPersistente). Reencaixa os bytes, exatamente como dbGet faz
+       com o STATE. Rascunho gravado por uma versão anterior vem com as fotos
+       embutidas e não tem referência nenhuma — passa reto por aqui, sem
+       custo e sem quebrar. */
+    const refs = new Set();
+    fotosColetarRefs(bruto, refs);
+    if(refs.size === 0) return bruto;
+    const mapa = await fotosLerLote(db, refs);
+    return fotosReinserirDeMapa(bruto, mapa);
   }catch(e){ return null; }
 }
 async function oferecerRecuperacaoDraft(){
