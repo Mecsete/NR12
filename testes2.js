@@ -219,6 +219,10 @@ const BLOCO_B = trecho("/* =====================================================
    condicao nenhuma dentro do render — sem isto, qualquer teste que desenhe
    laudoBlocoCampo ou laudoBlocoHRN quebra com ReferenceError. */
 vm.runInContext("let __laudoRascunho = null; let __laudoInfoHrn = { po:false, fe:false, gpd:false, np:false }; let __laudoRefazendo = null; let __laudoGrupoExistenteAberto = {};", ctx);
+/* diaLocalBR é usada por registrarAplicacaoLaudo, dentro do BLOCO_A — precisa
+   existir no contexto antes dele rodar. diaBRCurto só é usada pela tela do
+   relatório (fora dos blocos), mas é extraída junto por ser a mesma dupla. */
+[ "diaLocalBR", "diaBRCurto" ].forEach(n=> vm.runInContext(funcao(n), ctx));
 vm.runInContext(BLOCO_A, ctx);
 vm.runInContext(BLOCO_B, ctx);
 /* laudoBlocoPlaqueta (dentro de BLOCO_B) passou a usar selectOptions/opt
@@ -6823,6 +6827,88 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
         }
       }
       ok(total > 0, "o comportamento SEM a correcao deveria continuar propondo o orfao (prova que o teste anterior testa algo de verdade)");
+    });
+  }
+
+  console.log("\n=== t123 · relatório de progresso — quantidades por dia (criação e aplicação do laudo) ===");
+  {
+    t("diaLocalBR usa o fuso de Brasília, não UTC — perto da meia-noite os dois dias divergem", ()=>{
+      // 27/08/2026 02:30 UTC = 26/08/2026 23:30 em Brasília (UTC-3)
+      const ts = Date.UTC(2026,7,27,2,30);
+      eq(C.diaLocalBR(ts), "2026-08-26", "caiu no dia UTC em vez do dia de Brasília");
+    });
+    t("diaBRCurto converte a chave AAAA-MM-DD para DD/MM/AAAA", ()=>{
+      eq(C.diaBRCurto("2026-08-26"), "26/08/2026");
+    });
+
+    // Fixture isolada (ids próprios, fora da árvore usada pelo resto da suíte)
+    // para as contagens não dependerem de nada que outros testes já tenham
+    // aplicado nos riscos/máquinas compartilhados.
+    const proj = { id:"pRelat1", empresa:"Projeto Relatório Teste", areas:[] };
+    const area = { id:"aRelat1", nome:"Área Relatório Teste", maquinas:[] };
+    const maquina = { id:"mRelat1", nome:"Máquina Relatório Teste", tarefas:[], criadoEm: Date.UTC(2026,7,20,15,0) };
+    const tarefa = { id:"tRelat1", tarefa:"Tarefa Relatório Teste", riscos:[] };
+    const risco1 = { id:"rRelat1", nome:"Risco 1", criadoEm: Date.UTC(2026,7,21,15,0) };
+    const risco2 = { id:"rRelat2", nome:"Risco 2", criadoEm: Date.UTC(2026,7,21,18,0) };
+    tarefa.riscos.push(risco1, risco2);
+    maquina.tarefas.push(tarefa);
+    area.maquinas.push(maquina);
+    proj.areas.push(area);
+    C.STATE.projetosSimples.push(proj);
+
+    t("relatorioProgressoDados conta equipamento e riscos criados no dia certo, nos 3 níveis", ()=>{
+      const dados = C.relatorioProgressoDados("pRelat1");
+      eq(dados.length, 1);
+      const p = dados[0];
+      eq(p.porDia["2026-08-20"].equip, 1, "equipamento criado em 20/08 não contou no projeto");
+      eq(p.porDia["2026-08-21"].risco, 2, "os dois riscos de 21/08 não contaram no projeto");
+      const a = p.areas[0];
+      eq(a.porDia["2026-08-20"].equip, 1, "não contou no nível área");
+      eq(a.porDia["2026-08-21"].risco, 2, "não contou no nível área");
+      const m = a.maquinas[0];
+      eq(m.porDia["2026-08-20"].equip, 1, "não contou no nível equipamento");
+      eq(m.porDia["2026-08-21"].risco, 2, "não contou no nível equipamento");
+    });
+
+    t("aplicar um campo do laudo pela 1ª vez registra o dia; reeditar depois não duplica", ()=>{
+      const item = { proj, area, maquina, tarefa, risco:risco1 };
+      const antes = C.STATE.logLaudoAplicacoes.length;
+      C.laudoSet(item, "risco", { fin:"Texto aprovado", st:"ok" });
+      const depoisAplicar = C.STATE.logLaudoAplicacoes.length;
+      eq(depoisAplicar, antes+1, "a 1ª aplicação deveria logar uma entrada");
+      C.laudoSet(item, "risco", { fin:"Texto reeditado", st:"edit" });
+      eq(C.STATE.logLaudoAplicacoes.length, depoisAplicar, "editar um campo já aplicado não pode logar de novo");
+    });
+
+    t("recusar e depois aplicar de novo conta como uma nova aplicação", ()=>{
+      const item = { proj, area, maquina, tarefa, risco:risco2 };
+      C.laudoSet(item, "solucao", { st:"ok", fin:"x" });
+      const antes = C.STATE.logLaudoAplicacoes.length;
+      C.laudoSet(item, "solucao", { st:"no", fin:"" });
+      eq(C.STATE.logLaudoAplicacoes.length, antes, "recusar não loga aplicação");
+      C.laudoSet(item, "solucao", { st:"ok", fin:"y" });
+      eq(C.STATE.logLaudoAplicacoes.length, antes+1, "voltar a aplicar depois de recusado deveria logar de novo");
+    });
+
+    t("diaAplicacaoCampo usa o registro novo quando existe, e cai para o carimbo antigo (em) quando não existe", ()=>{
+      const item = { proj, area, maquina, tarefa, risco:risco1 };
+      const hojeChave = C.diaLocalBR(Date.now());
+      eq(C.diaAplicacaoCampo(item, "risco"), hojeChave, "deveria ter vindo do log novo, aplicado agora no teste anterior");
+      // simula uma decisão ANTIGA, de antes deste registro existir: campo
+      // aplicado direto no objeto, sem passar por laudoSet — não fica no log.
+      const lt = C.getLaudoTarefa(tarefa);
+      lt.tarefaSt = "ok"; lt.tarefaFin = "Texto antigo da tarefa"; lt.em = "2026-08-10T12:00:00.000Z";
+      eq(C.diaAplicacaoCampo(item, "tarefa"), "2026-08-10", "sem registro no log, deveria cair para o carimbo 'em' do campo");
+    });
+
+    t("relatorioProgressoDados conta os textos de laudo aplicados no dia certo (log novo + carimbo antigo)", ()=>{
+      const dados = C.relatorioProgressoDados("pRelat1")[0];
+      const hojeChave = C.diaLocalBR(Date.now());
+      eq(dados.porDia[hojeChave].campos, 2, "risco (r1) e solução (r2) aplicados agora deveriam contar hoje");
+      // campo "tarefa" é compartilhado pelas 2 linhas de risco desta tarefa —
+      // as duas contam o carimbo antigo, mesma convenção já usada em
+      // laudoResumoLista (contagem por LINHA, não por entidade única).
+      eq(dados.porDia["2026-08-10"].campos, 2, "o carimbo antigo da tarefa deveria valer para as 2 linhas de risco dela");
     });
   }
 

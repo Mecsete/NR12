@@ -64,6 +64,54 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 26/08/2026 21:07
+
+**Correção: a "fila da nuvem" no diagnóstico de sincronização podia ficar
+presa para sempre, mesmo com o dado já certo no aparelho.**
+
+O app tem duas formas de descobrir o que mudou na nuvem: uma rápida (a
+Microsoft avisa só o que mudou) e uma varredura completa, que roda sozinha
+a cada 30 minutos como reforço e também é o que o botão "Sincronizar
+agora" sempre usou. Só que a lista de avisos da forma rápida
+(`STATE.oneDriveDeltaFila`, é ela que aparece como "FILA DA NUVEM" no
+diagnóstico) só era esvaziada por uma função específica — e essa função
+nunca era chamada depois da varredura completa, nem automática nem pelo
+botão manual.
+
+Na prática: um item avisado pela forma rápida, mas que acabava chegando de
+qualquer jeito pela varredura completa (o dado certo, no lugar certo),
+continuava aparecendo como "ainda não processado" no diagnóstico para
+sempre — não porque algo estivesse faltando, mas porque nada nunca voltava
+para limpar aquele aviso da lista. Foi assim que a "fila da nuvem" foi
+ficando cada vez maior mesmo com a sincronização funcionando.
+
+A correção é só isso: depois de qualquer varredura completa (automática ou
+pelo botão), o app agora também limpa essa lista, conferindo item por item
+se o conteúdo já chegou (a maioria já chegou, e sai da lista na hora) ou
+se ainda falta mesmo (esses continuam aparecendo, agora de verdade). Nada
+na lógica de sincronizar foi alterado — só passou a limpar depois.
+
+---
+
+## 26/08/2026 17:11
+
+**Relatório de progresso — quantidades por dia.**
+
+Nova tela em Configurações → "Relatório de progresso": mostra, por dia,
+quantos equipamentos e riscos foram criados em campo e quantos textos do
+laudo (Escopo, Tarefa, Risco, Solução) foram aplicados. Dá para conferir no
+nível do projeto inteiro, de cada área, e de cada equipamento — basta tocar
+para abrir o detalhe.
+
+A criação usa a data em que cada equipamento/risco foi cadastrado, que o
+app já guardava desde sempre — histórico completo e exato. A aplicação do
+laudo passou a ser registrada a partir desta versão, no momento em que
+cada texto é aprovado ou editado; decisões tomadas antes desta versão
+existir aparecem no relatório pela última data em que aquele campo foi
+mexido (é o único dado que existia para elas antes de hoje).
+
+---
+
 ## 26/08/2026 14:16
 
 **Zoom com pinça ao visualizar fotos.**

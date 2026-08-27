@@ -1380,6 +1380,23 @@ function formatarDataHoraBR(timestamp){
     return f.format(new Date(timestamp)).replace(",","");
   }catch(e){ return ""; }
 }
+/* Dia local (fuso de Brasília) em AAAA-MM-DD, usado para agrupar contagens
+   por dia (relatório de progresso). Não usa toISOString(): perto da meia-
+   noite em Brasília isso já é o dia seguinte em UTC e classificaria o item
+   no dia errado. */
+function diaLocalBR(timestamp){
+  if(!timestamp) return "";
+  try{
+    const f = new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"});
+    return f.format(new Date(timestamp));
+  }catch(e){ return ""; }
+}
+/* "AAAA-MM-DD" (chave de agrupamento) -> "DD/MM/AAAA" (exibição). */
+function diaBRCurto(diaChave){
+  if(!diaChave) return "";
+  const partes = diaChave.split("-");
+  return partes.length===3 ? `${partes[2]}/${partes[1]}/${partes[0]}` : diaChave;
+}
 /* =========================================================================
    FOTOS FORA DO STATE (camada de persistência) — cada foto vira uma chave
    própria no IndexedDB ("foto:<id do conteúdo>") e o STATE gravado passa a
@@ -1970,7 +1987,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "26/08/2026 14:16";
+const APP_BUILD = "26/08/2026 21:07";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -5056,6 +5073,14 @@ async function sincronizarDownloadOneDrive(){
       }
       mesclados = r.mesclados;
       usouVarreduraCompleta = true;
+      // A varredura completa acima resolve tudo por conta própria, sem olhar
+      // para STATE.oneDriveDeltaFila — mas quem esvazia essa fila é só
+      // onedriveDeltaProcessarFila. Sem chamar isso aqui, um item anunciado
+      // antes desta varredura (e já coberto por ela) ficava "esperando
+      // processar" no diagnóstico PARA SEMPRE, mesmo com o dado já correto no
+      // aparelho. A maioria resolve na hora como "já existe" (mesmo conteúdo
+      // que a varredura acabou de confirmar); o que sobrar continua na fila.
+      if((STATE.oneDriveDeltaFila||[]).length>0) mesclados += await onedriveDeltaProcessarFila();
     }else{
       const r = await onedriveDeltaBuscarMudancas(link);
       if(r.erro){
@@ -5072,6 +5097,9 @@ async function sincronizarDownloadOneDrive(){
         }
         mesclados = rf.mesclados;
         usouVarreduraCompleta = true;
+        // Mesmo motivo do outro ramo de varredura completa, logo acima:
+        // drena o que sobrou anunciado de antes do recomeço.
+        if((STATE.oneDriveDeltaFila||[]).length>0) mesclados += await onedriveDeltaProcessarFila();
       }else{
         // Caminho rápido. REGRA 1 do protocolo: primeiro a fila persistente
         // recebe tudo que foi anunciado e é gravada NO MESMO dbSet que
@@ -6477,6 +6505,17 @@ async function onedriveSincronizarAgora(){
       passadas++;
       if(r.erro || r.mesclados===0) break; // parou de progredir (ou deu erro) — nada mais a fazer agora
     }
+    /* "Sincronizar agora" sempre usou a varredura completa acima (por
+       passadas), nunca a fila de anúncios do delta (STATE.oneDriveDeltaFila)
+       — só o ciclo automático de fundo chamava onedriveDeltaProcessarFila.
+       Resultado: um item anunciado pelo delta ficava em "FILA DA NUVEM,
+       ainda não processado" no diagnóstico PARA SEMPRE depois de tocar este
+       botão, mesmo com a varredura acima já tendo trazido o mesmo conteúdo
+       por outro caminho. Drenar aqui também deixa esse número confiável
+       logo depois de qualquer sincronização manual, não só do automático. */
+    if(!ultimaPassadaComErro && (STATE.oneDriveDeltaFila||[]).length>0){
+      totalRecebidoTexto += await onedriveDeltaProcessarFila();
+    }
     await dbSet(STATE); // STATE completo gravado com sucesso — o diário virou redundância
     journalLimpar();
 
@@ -6932,6 +6971,7 @@ let STATE = {
   ultimaSincronizacaoEm: null, // timestamp da última vez que a sincronização com a pasta terminou com sucesso
   projetos: [],
   projetosSimples: [],
+  logLaudoAplicacoes: [], // {dia, nivel, entidadeId, campo, projetoId, areaId, maquinaId} — 1ª vez que cada campo do laudo foi aplicado/editado, para o relatório de progresso por dia
   ui:{ screen:"projetos", projetoId:null, areaId:null, maquinaId:null, tarefaId:null, perigoId:null, tabelaScope:"aqui",
        projetoSId:null, areaSId:null, maquinaSId:null, tarefaSId:null, tabelaScopeSimples:null },
 };
@@ -9267,6 +9307,7 @@ function renderSimplificado(){
     else if(s==="simples-config-backup") body = screenSimplesConfigBackup();
     else if(s==="simples-config-exportacoes") body = screenSimplesConfigExportacoes();
     else if(s==="simples-config-empresa") body = screenSimplesConfigEmpresa();
+    else if(s==="simples-config-relatorio") body = screenSimplesConfigRelatorio();
     else if(s==="simples-config-ia") body = screenSimplesConfigIA();
     else if(s==="simples-config-modelo") body = screenSimplesConfigModelo();
     else if(s==="simples-config-modelo-excel") body = screenSimplesConfigModeloExcel();
@@ -9440,6 +9481,7 @@ function topBarS(){
   if(s==="simples-config-backup"){ title="Backup"; sub="Configurações"; }
   if(s==="simples-config-exportacoes"){ title="Exportações"; sub="Configurações"; }
   if(s==="simples-config-empresa"){ title="Empresa e Responsáveis"; sub="Configurações"; }
+  if(s==="simples-config-relatorio"){ title="Relatório de progresso"; sub="Configurações"; }
   if(s==="simples-config-ia"){ title="Inteligência Artificial"; sub="Configurações"; }
   if(s==="simples-config-modelo"){ title="Modelo do Laudo"; sub="Configurações"; }
   if(s==="simples-config-modelo-excel"){ title="Modelo Excel (Corteva)"; sub="Configurações"; }
@@ -9448,7 +9490,7 @@ function topBarS(){
   if(s==="simples-maquinas") { backTarget="simples-areas"; backParams={projetoSId:STATE.ui.projetoSId, areaSId:null, maquinaSId:null, tarefaSId:null}; }
   if(s==="simples-tarefas") { backTarget="simples-maquinas"; backParams={areaSId:STATE.ui.areaSId, maquinaSId:null, tarefaSId:null}; }
   if(s==="simples-riscos") { backTarget="simples-tarefas"; backParams={maquinaSId:STATE.ui.maquinaSId, tarefaSId:null}; }
-  if(s==="simples-config-backup" || s==="simples-config-exportacoes" || s==="simples-config-ia" || s==="simples-config-empresa") { backTarget="simples-config"; backParams={}; }
+  if(s==="simples-config-backup" || s==="simples-config-exportacoes" || s==="simples-config-ia" || s==="simples-config-empresa" || s==="simples-config-relatorio") { backTarget="simples-config"; backParams={}; }
   if(s==="simples-config-modelo-excel") { backTarget="simples-laudo"; backParams={}; }
   if(s==="simples-laudo-item") { backTarget="simples-laudo"; backParams={}; }
   return `<div class="topbar"><div class="topbar-row">
@@ -9461,7 +9503,7 @@ function topBarS(){
 }
 function crumbBarS(){
   const s = STATE.ui.screen;
-  if(s==="simples-projetos" || s==="simples-backup" || s==="simples-config" || s==="simples-config-backup" || s==="simples-config-exportacoes" || s==="simples-config-ia" || s==="simples-config-empresa" || s==="simples-tabela" || s==="simples-laudo" || s==="simples-laudo-item") return "";
+  if(s==="simples-projetos" || s==="simples-backup" || s==="simples-config" || s==="simples-config-backup" || s==="simples-config-exportacoes" || s==="simples-config-ia" || s==="simples-config-empresa" || s==="simples-config-relatorio" || s==="simples-tabela" || s==="simples-laudo" || s==="simples-laudo-item") return "";
   const p = getCurrentProjetoSimples(); if(!p) return "";
   const a = getCurrentAreaSimples(), m = getCurrentMaquinaSimples(), t = getCurrentTarefaSimples();
   const parts=[{label:"Projetos", icon:"home", go:["simples-projetos",{}]}];
@@ -9483,7 +9525,7 @@ function crumbBarS(){
 }
 function bottomNavS(){
   const s = STATE.ui.screen;
-  const telasConfig = (s==="simples-backup" || s==="simples-config" || s==="simples-config-backup" || s==="simples-config-exportacoes" || s==="simples-config-ia" || s==="simples-config-empresa");
+  const telasConfig = (s==="simples-backup" || s==="simples-config" || s==="simples-config-backup" || s==="simples-config-exportacoes" || s==="simples-config-ia" || s==="simples-config-empresa" || s==="simples-config-relatorio");
   const telasLaudo = (s==="simples-laudo" || s==="simples-laudo-item");
   const podeAdicionarRisco = !!STATE.ui.projetoSId && s!=="simples-projetos" && !telasConfig && !telasLaudo;
   return `<div class="bottomnav">
@@ -12560,8 +12602,29 @@ function laudoCarimbarParaSincronizar(item, campo){
              : item.risco;
   if(alvo) alvo.atualizadoEm = agoraSync();
 }
+/* "Aplicado" no sentido de progresso/relatório: sugestão aceita como está
+   OU editada por você — as duas formas em que o texto realmente entra no
+   laudo (ver LAUDO_ST_ROTULO). "Recusado" e "aguardando" não contam. */
+function laudoCampoAplicado(st){ return st==="ok" || st==="edit"; }
+/* Registra a PRIMEIRA vez que um campo do laudo entra em estado aplicado —
+   é o dado que falta para o relatório de progresso saber EM QUE DIA cada
+   equipamento/tarefa/risco teve seu texto aplicado (o app já sabia quando
+   cada um foi CRIADO via criadoEm, mas não guardava histórico de quando
+   foi decidido). Reaplicar/editar um campo que já estava aplicado não gera
+   segundo registro — só a transição de "não aplicado" para "aplicado". */
+function registrarAplicacaoLaudo(item, campo){
+  const nivel = campo==="escopo" ? "maquina" : campo==="tarefa" ? "tarefa" : "risco";
+  const entidadeId = nivel==="maquina" ? item.maquina.id : nivel==="tarefa" ? item.tarefa.id : item.risco.id;
+  if(!Array.isArray(STATE.logLaudoAplicacoes)) STATE.logLaudoAplicacoes = [];
+  // proj/area podem faltar (chamadas fora do fluxo normal de tela, ex.: testes
+  // isolados de laudoSet) — o registro em si (dia/nivel/entidade/campo) não
+  // pode depender disso, só o agrupamento por projeto/área fica vazio nesse caso.
+  STATE.logLaudoAplicacoes.push({ dia:diaLocalBR(Date.now()), nivel, entidadeId, campo,
+    projetoId:(item.proj && item.proj.id) || "", areaId:(item.area && item.area.id) || "", maquinaId:(item.maquina && item.maquina.id) || "" });
+}
 function laudoSet(item, campo, patch){
   const agora = new Date().toISOString();
+  const estavaAplicado = laudoCampoAplicado(laudoGet(item, campo).st);
   laudoCarimbarParaSincronizar(item, campo);
   if(campo==="escopo"){
     const l = getLaudoMaquina(item.maquina);
@@ -12570,7 +12633,9 @@ function laudoSet(item, campo, patch){
     if(patch.st !==undefined) l.escopoSt  = patch.st;
     if(patch.duv!==undefined) l.duvEscopo = patch.duv;
     if(patch.refs!==undefined) l.escopoRefs = patch.refs;
-    l.em = agora; return;
+    l.em = agora;
+    if(patch.st!==undefined && !estavaAplicado && laudoCampoAplicado(patch.st)) registrarAplicacaoLaudo(item, campo);
+    return;
   }
   if(campo==="tarefa"){
     const l = getLaudoTarefa(item.tarefa);
@@ -12579,7 +12644,9 @@ function laudoSet(item, campo, patch){
     if(patch.st !==undefined) l.tarefaSt  = patch.st;
     if(patch.duv!==undefined) l.duvTarefa = patch.duv;
     if(patch.refs!==undefined) l.tarefaRefs = patch.refs;
-    l.em = agora; return;
+    l.em = agora;
+    if(patch.st!==undefined && !estavaAplicado && laudoCampoAplicado(patch.st)) registrarAplicacaoLaudo(item, campo);
+    return;
   }
   const l = getLaudoRisco(item.risco);
   if(campo==="risco"){
@@ -12602,6 +12669,7 @@ function laudoSet(item, campo, patch){
     if(patch.refs!==undefined) l.solucaoRefs = patch.refs;
   }
   l.em = agora;
+  if(patch.st!==undefined && !estavaAplicado && laudoCampoAplicado(patch.st)) registrarAplicacaoLaudo(item, campo);
 }
 /* O texto que o INSPETOR escreveu em campo — nunca é alterado por nada
    daqui; serve de referência na tela e de reserva quando a sugestão é
@@ -12738,6 +12806,69 @@ function laudoPrecisaGerar(item, campo, refazer){
    geração "preencher o que falta" precisa visitar. */
 function laudoLinhasComPendencia(itens){
   return itens.filter(it=> LAUDO_CAMPOS.some(c=> laudoPrecisaGerar(it, c.k, false)) );
+}
+/* =========================================================================
+   RELATÓRIO DE PROGRESSO — quantidades por dia (equipamentos e riscos
+   criados em campo, textos de laudo aplicados), nos três níveis em que o
+   trabalho é organizado: projeto, área e equipamento.
+
+   Criação usa criadoEm, que já existe em máquina e risco desde sempre —
+   histórico completo e exato. Aplicação usa STATE.logLaudoAplicacoes
+   (gravado por registrarAplicacaoLaudo, chamado de dentro de laudoSet a
+   partir desta versão): decisões tomadas ANTES deste registro existir não
+   têm um dia próprio gravado, então caem de volta no "em" do campo (o
+   único carimbo que já existia) — aproximação sujeita a juntar no mesmo
+   dia decisões antigas de datas diferentes dentro do mesmo campo, mas é o
+   único dado disponível para elas. Dali em diante o dia é exato. */
+function diaAplicacaoCampo(item, campo){
+  const g = laudoGet(item, campo);
+  if(!laudoCampoAplicado(g.st)) return "";
+  const nivel = campo==="escopo" ? "maquina" : campo==="tarefa" ? "tarefa" : "risco";
+  const entidadeId = nivel==="maquina" ? item.maquina.id : nivel==="tarefa" ? item.tarefa.id : item.risco.id;
+  const log = (STATE.logLaudoAplicacoes||[]).find(x=>x.nivel===nivel && x.entidadeId===entidadeId && x.campo===campo);
+  if(log) return log.dia;
+  const l = nivel==="maquina" ? getLaudoMaquina(item.maquina) : nivel==="tarefa" ? getLaudoTarefa(item.tarefa) : getLaudoRisco(item.risco);
+  return l.em ? diaLocalBR(l.em) : "";
+}
+function relatorioProgressoSomar(balde, dia, chave){
+  if(!dia) return;
+  if(!balde[dia]) balde[dia] = { equip:0, risco:0, campos:0 };
+  balde[dia][chave]++;
+}
+/* projetoId vazio/omitido = todos os projetos, cada um com seu próprio bloco. */
+function relatorioProgressoDados(projetoId){
+  const projetos = projetoId ? STATE.projetosSimples.filter(p=>p.id===projetoId) : STATE.projetosSimples;
+  return projetos.map(proj=>{
+    const projBalde = {};
+    const areas = proj.areas.map(area=>{
+      const areaBalde = {};
+      const maquinas = area.maquinas.map(maquina=>{
+        const maqBalde = {};
+        const diaEquip = diaLocalBR(maquina.criadoEm);
+        relatorioProgressoSomar(maqBalde, diaEquip, "equip");
+        relatorioProgressoSomar(areaBalde, diaEquip, "equip");
+        relatorioProgressoSomar(projBalde, diaEquip, "equip");
+        maquina.tarefas.forEach(tarefa=>{
+          tarefa.riscos.forEach(risco=>{
+            const diaRisco = diaLocalBR(risco.criadoEm);
+            relatorioProgressoSomar(maqBalde, diaRisco, "risco");
+            relatorioProgressoSomar(areaBalde, diaRisco, "risco");
+            relatorioProgressoSomar(projBalde, diaRisco, "risco");
+            const item = {proj, area, maquina, tarefa, risco};
+            LAUDO_CAMPOS.forEach(c=>{
+              const diaAplic = diaAplicacaoCampo(item, c.k);
+              relatorioProgressoSomar(maqBalde, diaAplic, "campos");
+              relatorioProgressoSomar(areaBalde, diaAplic, "campos");
+              relatorioProgressoSomar(projBalde, diaAplic, "campos");
+            });
+          });
+        });
+        return { id:maquina.id, nome:nomeMaquinaS(maquina)||"Máquina sem nome", porDia:maqBalde };
+      });
+      return { id:area.id, nome:area.nome||"Área sem nome", porDia:areaBalde, maquinas };
+    });
+    return { id:proj.id, nome:proj.empresa||"Projeto sem nome", porDia:projBalde, areas };
+  });
 }
 /* Biblioteca de reuso: risco/solução com EXATAMENTE o mesmo texto de origem
    já respondido antes reaproveitam a resposta, em vez de gastar uma nova
@@ -14760,6 +14891,9 @@ function screenSimplesConfig(){
   <button class="btn btn-secondary btn-block" style="display:flex;align-items:center;gap:10px;justify-content:flex-start;padding:14px 16px;margin-top:10px" onclick="App.go('simples-config-empresa')">
     ${ic('briefcase')}<span style="flex:1;text-align:left"><b>Empresa e Responsáveis</b><br><span style="font-size:12px;color:var(--ink-dim);font-weight:400">Dados fixos do laudo e lista de inspetores</span></span>${ic('chevR')}
   </button>
+  <button class="btn btn-secondary btn-block" style="display:flex;align-items:center;gap:10px;justify-content:flex-start;padding:14px 16px;margin-top:10px" onclick="App.go('simples-config-relatorio')">
+    ${ic('table')}<span style="flex:1;text-align:left"><b>Relatório de progresso</b><br><span style="font-size:12px;color:var(--ink-dim);font-weight:400">Equipamentos e riscos criados, textos de laudo aplicados — por dia</span></span>${ic('chevR')}
+  </button>
   <button class="btn btn-secondary btn-block" style="display:flex;align-items:center;gap:10px;justify-content:flex-start;padding:14px 16px;margin-top:10px" onclick="App.trocarModulo()">
     ${ic('layers')}<span style="flex:1;text-align:left"><b>Trocar de módulo</b><br><span style="font-size:12px;color:var(--ink-dim);font-weight:400">Voltar para o Módulo Completo</span></span>${ic('chevR')}
   </button>
@@ -14772,6 +14906,76 @@ function screenSimplesConfig(){
     <label class="switch"><input type="checkbox" ${STATE.contrasteAlto?'checked':''} onchange="App.toggleContraste()"><span class="switch-track"></span></label>
   </div>
   <p style="text-align:center;font-size:11px;color:var(--ink-faint);margin-top:22px">Versão ${APP_BUILD}</p>
+  `;
+}
+/* Estado da tela (não persiste — some ao trocar de tela, igual ao padrão já
+   usado em __laudoGrupoExistenteAberto). */
+let __relatorioProjetoId = "";
+let __relatorioAreaAberta = {};
+let __relatorioMaquinaAberta = {};
+function relatorioTabelaHtml(porDia){
+  const dias = Object.keys(porDia).sort((a,b)=> b.localeCompare(a));
+  if(dias.length===0) return `<p style="font-size:12px;color:var(--ink-dim);margin:6px 0 2px">Nada registrado neste nível ainda.</p>`;
+  return `<div style="overflow-x:auto;margin-top:6px"><table style="width:100%;border-collapse:collapse;font-size:12.5px">
+    <thead><tr style="border-bottom:1px solid var(--bg-soft)">
+      <th style="text-align:left;padding:4px 6px">Dia</th>
+      <th style="text-align:right;padding:4px 6px">Equip. criados</th>
+      <th style="text-align:right;padding:4px 6px">Riscos criados</th>
+      <th style="text-align:right;padding:4px 6px">Textos de laudo aplicados</th>
+    </tr></thead>
+    <tbody>${dias.map(d=>`<tr style="border-bottom:1px solid var(--bg-soft)">
+      <td style="padding:4px 6px">${diaBRCurto(d)}</td>
+      <td style="text-align:right;padding:4px 6px">${porDia[d].equip||0}</td>
+      <td style="text-align:right;padding:4px 6px">${porDia[d].risco||0}</td>
+      <td style="text-align:right;padding:4px 6px">${porDia[d].campos||0}</td>
+    </tr>`).join("")}</tbody>
+  </table></div>`;
+}
+function screenSimplesConfigRelatorio(){
+  const projetos = STATE.projetosSimples;
+  if(projetos.length===0) return `
+    <div class="card card-pad">
+      <div style="font-weight:800;font-size:14.5px;margin-bottom:4px">Relatório de progresso</div>
+      <p style="font-size:13px;color:var(--ink-dim)">Nenhum projeto cadastrado ainda.</p>
+    </div>`;
+  if(!projetos.find(p=>p.id===__relatorioProjetoId)) __relatorioProjetoId = projetos[0].id;
+  const dados = relatorioProgressoDados(__relatorioProjetoId);
+  return `
+  <div class="card card-pad">
+    <div style="font-weight:800;font-size:14.5px;margin-bottom:4px">Relatório de progresso</div>
+    <p style="font-size:13px;color:var(--ink-dim)">Quantidades por dia: equipamentos e riscos criados em campo, e textos de laudo (Escopo/Tarefa/Risco/Solução) aplicados. Toque numa área ou equipamento para abrir o detalhe.</p>
+  </div>
+  ${projetos.length>1 ? `
+  <div class="card card-pad">
+    <label style="font-size:12.5px;color:var(--ink-dim)">Projeto</label><br>
+    <select style="width:100%;margin-top:4px;padding:8px;border-radius:8px" onchange="App.trocarProjetoRelatorio(this.value)">
+      ${projetos.map(p=>`<option value="${p.id}" ${p.id===__relatorioProjetoId?'selected':''}>${escapeHtml(p.empresa||"Projeto sem nome")}</option>`).join("")}
+    </select>
+  </div>` : ""}
+  ${dados.map(proj=>`
+    <div class="section-title">Projeto — ${escapeHtml(proj.nome)}</div>
+    ${relatorioTabelaHtml(proj.porDia)}
+    ${proj.areas.length===0 ? `<p style="font-size:12.5px;color:var(--ink-dim);margin-top:8px">Sem áreas cadastradas.</p>` :
+      proj.areas.map(area=>`
+      <div class="card card-pad" style="margin-top:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="App.toggleRelatorioArea('${area.id}')">
+          <b style="font-size:13.5px">${escapeHtml(area.nome)}</b>
+          <span>${__relatorioAreaAberta[area.id]?'▲':'▼'}</span>
+        </div>
+        ${__relatorioAreaAberta[area.id] ? `
+          ${relatorioTabelaHtml(area.porDia)}
+          ${area.maquinas.length===0 ? `<p style="font-size:12px;color:var(--ink-dim);margin-top:8px">Sem equipamentos cadastrados.</p>` :
+            area.maquinas.map(maq=>`
+            <div style="margin-top:8px;padding:6px 0 2px 12px;border-left:2px solid var(--bg-soft)">
+              <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="App.toggleRelatorioMaquina('${maq.id}')">
+                <span style="font-size:13px">${escapeHtml(maq.nome)}</span>
+                <span>${__relatorioMaquinaAberta[maq.id]?'▲':'▼'}</span>
+              </div>
+              ${__relatorioMaquinaAberta[maq.id] ? relatorioTabelaHtml(maq.porDia) : ""}
+            </div>`).join("")}
+        ` : ""}
+      </div>`).join("")}
+  `).join("")}
   `;
 }
 function screenSimplesConfigExportacoes(){
@@ -17274,6 +17478,9 @@ Devolver agora?`)) return;
     restaurarFocoBusca();
   },
   toggleContraste(){ STATE.contrasteAlto = !STATE.contrasteAlto; marcarAlterado(); render(); toast(STATE.contrasteAlto? "Alto contraste ativado" : "Alto contraste desativado"); },
+  trocarProjetoRelatorio(id){ __relatorioProjetoId = id; __relatorioAreaAberta = {}; __relatorioMaquinaAberta = {}; render(); },
+  toggleRelatorioArea(id){ __relatorioAreaAberta[id] = !__relatorioAreaAberta[id]; render(); },
+  toggleRelatorioMaquina(id){ __relatorioMaquinaAberta[id] = !__relatorioMaquinaAberta[id]; render(); },
   onMecseteConfigInput(campo, v){
     getMecseteConfig()[campo] = v;
     STATE.ui.mecseteEm = agoraSync(); // faz os dados da MecSete viajarem para os outros aparelhos

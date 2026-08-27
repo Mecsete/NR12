@@ -39,7 +39,17 @@ print("\n=== 4. MOTOR DE SINCRONIZACAO ===")
 # referencia (original.html) JA vem daquele commit, entao contar de novo
 # somaria duas vezes -- exatamente o que ja tinha acontecido com
 # oneDriveDeltaFila logo acima. Zerado pelo mesmo motivo.
-_extra = {"oneDriveDeltaFila": 0, "exclusoesConfirmadas": 0}
+# oneDriveDeltaFila +5 (entrega do dreno da fila no scan completo): a fila do
+# delta so era esvaziada por onedriveDeltaProcessarFila, chamado so no
+# caminho rapido do ciclo automatico -- nem a varredura completa (automatica
+# ou pelo botao "Sincronizar agora") nem o caminho de resync a tocavam. Um
+# item anunciado ficava "esperando processar" no diagnostico para sempre
+# mesmo com o mesmo dado ja tendo chegado por fora. +3 chamadas novas a
+# onedriveDeltaProcessarFila (2 no ciclo automatico, 1 no botao manual) +2
+# ocorrencias em comentarios explicando o motivo -- por isso e o codigo
+# comentado que soma 5, nao so as chamadas. Some ao ORIGINAL na proxima
+# geracao de original.html (mesmo padrao do oneDriveDeltaFila/exclusoesConfirmadas acima).
+_extra = {"oneDriveDeltaFila": 5, "exclusoesConfirmadas": 0}
 for marca in ["oneDriveDeltaFila", "tombstone", "exclusoesConfirmadas", "__backupV2AplicarLinha"]:
     a, b = orig.count(marca) + _extra.get(marca, 0), novo.count(marca)
     chk("'%s' inalterado (%d)" % (marca, a), a == b, "orig+extra=%d novo=%d" % (a, b))
@@ -2411,6 +2421,56 @@ chk("fechar tocando fora so conta o toque na propria caixa, nunca um toque na fo
 chk("a foto nunca foge da tela quando ampliada e arrastada (translacao com limite)",
     "const limitarTranslacao = () => {" in novo
     and novo.count("limitarTranslacao();") == 2)  # depois da pinca e depois do arrasto
+
+print("\n=== 88. RELATORIO DE PROGRESSO (CRIACAO E APLICACAO DO LAUDO, POR DIA) ===")
+chk("dia local usa Intl com fuso de Brasilia -- nao pode usar toISOString (vira dia errado perto da meia-noite)",
+    "function diaLocalBR(timestamp){" in novo
+    and 'new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo"' in novo)
+chk("STATE ganhou o log de aplicacoes do laudo, com valor padrao seguro para backups antigos",
+    "logLaudoAplicacoes: []," in novo)
+chk("laudoSet registra a 1a vez que um campo passa a aplicado (ok/edit) -- reeditar nao duplica",
+    "function laudoCampoAplicado(st){ return st===\"ok\" || st===\"edit\"; }" in novo
+    and "function registrarAplicacaoLaudo(item, campo){" in novo
+    and novo.count("registrarAplicacaoLaudo(item, campo);") == 3)  # escopo, tarefa, e o fallthrough risco/existente/solucao
+chk("a decisao de logar compara o estado ANTES da mutacao, nao depois (senao nunca detectaria a 1a vez)",
+    "const estavaAplicado = laudoCampoAplicado(laudoGet(item, campo).st);" in novo)
+chk("decisao antiga (de antes deste registro existir) cai para o carimbo 'em' do proprio campo, sem quebrar",
+    "function diaAplicacaoCampo(item, campo){" in novo
+    and "return l.em ? diaLocalBR(l.em) : \"\";" in novo)
+chk("o relatorio existe nos 3 niveis (projeto/area/equipamento) e aceita filtrar por projeto",
+    "function relatorioProgressoDados(projetoId){" in novo
+    and novo.count("relatorioProgressoSomar(maqBalde,") == 3   # equip, risco, campos
+    and novo.count("relatorioProgressoSomar(areaBalde,") == 3
+    and novo.count("relatorioProgressoSomar(projBalde,") == 3)
+chk("a tela do relatorio existe, esta ligada no roteador e tem botao de entrada em Configuracoes",
+    "function screenSimplesConfigRelatorio(){" in novo
+    and 'else if(s==="simples-config-relatorio") body = screenSimplesConfigRelatorio();' in novo
+    and "App.go('simples-config-relatorio')" in novo)
+
+print("\n=== 89. FILA DO DELTA (ONEDRIVE) NAO FICA PRESA PARA SEMPRE ===")
+# Antes: onedriveDeltaProcessarFila (unica funcao que esvazia
+# STATE.oneDriveDeltaFila) so era chamada no caminho rapido do ciclo
+# automatico de fundo. Nem a varredura completa automatica (sem link/a cada
+# 30 min), nem o recomeco por resync (410), nem o botao manual "Sincronizar
+# agora" chamavam essa funcao -- um item anunciado pelo delta e ja coberto
+# por uma dessas varreduras completas ficava "esperando processar" no
+# diagnostico para sempre, mesmo com o dado certo ja no aparelho.
+_linha_dreno = "if((STATE.oneDriveDeltaFila||[]).length>0) mesclados += await onedriveDeltaProcessarFila();"
+chk("a varredura completa automatica (sem link ainda / 30 min de seguranca) e o recomeco por resync -- os DOIS agora drenam a fila do delta",
+    orig.count(_linha_dreno) == 0 and novo.count(_linha_dreno) == 2)
+_pos_resync = novo.find("Marcador invalidado pela Microsoft")
+chk("o dreno do resync fica DEPOIS do 'Marcador invalidado', ou seja, dentro do proprio ramo de resync -- nao so duplicado no ramo errado",
+    _pos_resync >= 0 and novo.find(_linha_dreno, _pos_resync) >= 0)
+chk("o botao manual 'Sincronizar agora' passa a drenar a fila do delta tambem, nao so o ciclo automatico",
+    "if(!ultimaPassadaComErro && (STATE.oneDriveDeltaFila||[]).length>0){" in novo
+    and "totalRecebidoTexto += await onedriveDeltaProcessarFila();" in novo)
+chk("o dreno manual so roda quando a passada de recebimento nao deu erro -- nao mascara falha de rede como sucesso",
+    "if(!ultimaPassadaComErro && (STATE.oneDriveDeltaFila||[]).length>0){" in novo)
+chk("onedriveDeltaProcessarFila em si nao foi alterado -- so ganhou pontos novos de chamada (mudanca aditiva)",
+    orig.count("async function onedriveDeltaProcessarFila(){") == 1
+    and novo.count("async function onedriveDeltaProcessarFila(){") == 1
+    and orig.count("if(d===null || d.jaExiste) continue;") == novo.count("if(d===null || d.jaExiste) continue;")
+    and orig.count("STATE.oneDriveDeltaFila = fila;\n  return mesclados;\n}") == novo.count("STATE.oneDriveDeltaFila = fila;\n  return mesclados;\n}"))
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
