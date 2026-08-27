@@ -80,6 +80,13 @@ aplica" — mas responder.
 4. **O que acontece se esta operação for interrompida no meio?** (app
    fechado, tela apagada, bateria, aba morta, rede caindo). O que já foi
    feito continua salvo? O que faltava se perde ou fica na fila?
+   **E a pergunta gêmea, que faltou em 27/08/2026:** esta operação pode
+   CAUSAR a interrupção? Pico de memória, cópia de estrutura grande, laço
+   longo — tudo que pode fazer o sistema encerrar a aba é caminho de perda
+   de dados, porque leva embora o que ainda não foi gravado. Travamento
+   nunca é "só desempenho": duplicar equipamento alocava 120 MB, derrubava
+   o app e apagava as fotos recém-tiradas, e passou uma varredura inteira
+   classificado como problema de escala.
 5. **O que acontece se a leitura do banco falhar e o app abrir com uma
    cópia antiga?** A gravação seguinte destrói o registro bom? (Foi
    exatamente esse o furo do `dbGet` → `localStorage` → `dbSet`.)

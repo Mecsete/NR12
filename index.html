@@ -2145,7 +2145,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "27/08/2026 11:00";
+const APP_BUILD = "27/08/2026 17:43";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -7429,6 +7429,37 @@ function novoRiscoSimples(){
 
    Fica num lugar só de propósito: eram dez pontos repetindo a mesma lógica,
    e é assim que um deles fica para trás numa correção futura. */
+/* CÓPIA QUE NÃO DUPLICA OS BYTES DAS FOTOS.
+
+   Relatado em campo em 27/08/2026: duplicar um equipamento fechava o app
+   quase sempre. A causa estava em `JSON.parse(JSON.stringify(item))`, usado
+   em todos os pontos de duplicação: ele copia TUDO, inclusive os bytes de
+   cada foto. Um equipamento com 5 riscos fotografados passa de 30 MB, e a
+   operação usa o triplo disso de pico (o objeto original, o texto
+   intermediário e o objeto novo, os três vivos ao mesmo tempo). Num iPhone
+   que já mantém mais de mil fotos em memória, isso basta para o sistema
+   encerrar a aba.
+
+   Em JavaScript, texto é imutável: duas variáveis podem apontar para a MESMA
+   foto sem risco de uma alterar a outra. Então a cópia compartilha as fotos
+   em vez de duplicá-las — o custo de memória cai para o tamanho da estrutura
+   (alguns KB), sem os bytes.
+
+   E no disco também não duplica: a foto compartilhada produz o mesmo
+   identificador, então continua sendo gravada uma vez só no banco (ver
+   fotoCalcularId e fotosExtrairParaRefs). Este é o mesmo princípio que
+   fotosExtrairParaRefs já usava — aqui ele passa a valer também para
+   duplicar. */
+function clonarCompartilhandoFotos(valor){
+  if(ehFotoDataUrlPersist(valor)) return valor;   // mesma string: nenhum byte é copiado
+  if(Array.isArray(valor)) return valor.map(clonarCompartilhandoFotos);
+  if(valor && typeof valor === "object"){
+    const o = {};
+    for(const k in valor) o[k] = clonarCompartilhandoFotos(valor[k]);
+    return o;
+  }
+  return valor;
+}
 const CAMPOS_MARCA_LOCAL_COPIA = ["__fotosPerdidas", "__fotosOmitidas", "__fotosAtualizar", "__fotoNuvemVerificadaEm"];
 /* Todo campo do laudo volta a ser sugestão. Preserva o texto que valia
    (o final aprovado, ou a sugestão se não houve aprovação) e limpa a
@@ -19001,7 +19032,7 @@ Devolver agora?`)) return;
     const p = getCurrentProjetoSimples();
     const a = p.areas.find(x=>x.id===idArea); if(!a) return;
     const destino = STATE.projetosSimples.find(x=>x.id===idProjetoDestino); if(!destino) return;
-    const novo = prepararCopiaDuplicada(JSON.parse(JSON.stringify(a)), "area");
+    const novo = prepararCopiaDuplicada(clonarCompartilhandoFotos(a), "area");
     destino.areas.push(novo);
     marcarAlterado();
     toast(`Área duplicada para "${destino.empresa||'Sem nome'}"`);
@@ -19009,7 +19040,7 @@ Devolver agora?`)) return;
   duplicarAreaS(id){
     const p = getCurrentProjetoSimples();
     const a = p.areas.find(x=>x.id===id); if(!a) return;
-    const novo = prepararCopiaDuplicada(JSON.parse(JSON.stringify(a)), "area");
+    const novo = prepararCopiaDuplicada(clonarCompartilhandoFotos(a), "area");
     p.areas.push(novo);
     marcarAlterado();
     App.abrirModalAreaS(novo.id, p.id);
@@ -19051,7 +19082,7 @@ Devolver agora?`)) return;
   duplicarMaquinaS(id){
     const a = getCurrentAreaSimples();
     const m = a.maquinas.find(x=>x.id===id); if(!m) return;
-    const novo = prepararCopiaDuplicada(JSON.parse(JSON.stringify(m)), "maquina");
+    const novo = prepararCopiaDuplicada(clonarCompartilhandoFotos(m), "maquina");
     a.maquinas.push(novo);
     marcarAlterado();
     App.abrirModalMaquinaS(novo.id, a.id);
@@ -19062,7 +19093,7 @@ Devolver agora?`)) return;
       const origem = buscarAreaSimplesPorId(areaOrigemId);
       const m = origem.maquinas.find(x=>x.id===id); if(!m) return;
       const destino = buscarAreaSimplesPorId(escolha.areaId);
-      const novo = prepararCopiaDuplicada(JSON.parse(JSON.stringify(m)), "maquina");
+      const novo = prepararCopiaDuplicada(clonarCompartilhandoFotos(m), "maquina");
       destino.maquinas.push(novo);
       marcarAlterado();
       go("simples-maquinas",{areaSId:destino.id});
@@ -19113,7 +19144,7 @@ Devolver agora?`)) return;
   duplicarTarefaS(id){
     const m = getCurrentMaquinaSimples();
     const t = m.tarefas.find(x=>x.id===id); if(!t) return;
-    const novo = prepararCopiaDuplicada(JSON.parse(JSON.stringify(t)), "tarefa");
+    const novo = prepararCopiaDuplicada(clonarCompartilhandoFotos(t), "tarefa");
     m.tarefas.push(novo);
     marcarAlterado();
     App.abrirModalTarefaS(novo.id, m.id);
@@ -19127,7 +19158,7 @@ Devolver agora?`)) return;
       const origem = buscarMaquinaSimplesPorId(maquinaOrigemId);
       const t = origem.tarefas.find(x=>x.id===id); if(!t) return;
       const destino = buscarMaquinaSimplesPorId(escolha.maquinaId);
-      const novo = prepararCopiaDuplicada(JSON.parse(JSON.stringify(t)), "tarefa");
+      const novo = prepararCopiaDuplicada(clonarCompartilhandoFotos(t), "tarefa");
       destino.tarefas.push(novo);
       marcarAlterado();
       go("simples-tarefas",{maquinaSId:destino.id});
@@ -19178,7 +19209,7 @@ Devolver agora?`)) return;
   duplicarRiscoS(id, tarefaId){
     const t = buscarTarefaSimplesPorId(tarefaId);
     const r = t.riscos.find(x=>x.id===id); if(!r) return;
-    const novo = prepararCopiaDuplicada(JSON.parse(JSON.stringify(r)), "risco");
+    const novo = prepararCopiaDuplicada(clonarCompartilhandoFotos(r), "risco");
     t.riscos.push(novo);
     marcarAlterado();
     App.abrirModalRiscoS(novo.id, tarefaId);
@@ -19192,7 +19223,7 @@ Devolver agora?`)) return;
       const origem = buscarTarefaSimplesPorId(tarefaOrigemId);
       const r = origem.riscos.find(x=>x.id===id); if(!r) return;
       const destino = buscarTarefaSimplesPorId(escolha.tarefaId);
-      const novo = prepararCopiaDuplicada(JSON.parse(JSON.stringify(r)), "risco");
+      const novo = prepararCopiaDuplicada(clonarCompartilhandoFotos(r), "risco");
       destino.riscos.push(novo);
       marcarAlterado();
       go("simples-riscos",{tarefaSId:destino.id});
@@ -19351,7 +19382,7 @@ Devolver agora?`)) return;
     const selecionados = origemArr.filter(x=>sm.ids.has(x.id));
     selecionados.forEach(item=>{
       const tipoCopia = sm.tipo==="maquinaS" ? "maquina" : sm.tipo==="tarefaS" ? "tarefa" : "risco";
-      const novo = prepararCopiaDuplicada(JSON.parse(JSON.stringify(item)), tipoCopia);
+      const novo = prepararCopiaDuplicada(clonarCompartilhandoFotos(item), tipoCopia);
       destinoArr.push(novo);
     });
     marcarAlterado();
@@ -19368,7 +19399,7 @@ Devolver agora?`)) return;
     const arr = arrayDoSelMode(); if(!arr) return;
     const selecionados = arr.filter(x=>sm.ids.has(x.id));
     selecionados.forEach(item=>{
-      const novo = JSON.parse(JSON.stringify(item));
+      const novo = clonarCompartilhandoFotos(item);
       /* "Sem filhos": esvazia ANTES de preparar, para a limpeza não percorrer
          (nem carimbar) uma subárvore que não vai existir na cópia. */
       if(!comFilhos){
@@ -19956,7 +19987,7 @@ Devolver agora?`)) return;
        própria tela de revisão do laudo, onde os textos estão sendo aprovados.
        Sem prepararCopiaDuplicada, a cópia nascia com os textos já aprovados
        do risco original e seguia direto para o laudo assinado. */
-    const novo = prepararCopiaDuplicada(JSON.parse(JSON.stringify(item.risco)), "risco");
+    const novo = prepararCopiaDuplicada(clonarCompartilhandoFotos(item.risco), "risco");
     item.tarefa.riscos.push(novo);
     marcarAlterado();
     App.laudoAbrirItem(novo.id);
@@ -21232,18 +21263,63 @@ function prepararTextareas(){
   prepararTextareas();
 })();
 
+/* =========================================================================
+   TECLADO ABERTO — ESCONDER A BARRA DE BAIXO SEM ELA SUMIR PARA SEMPRE
+
+   A barra inferior (Projetos / Riscos / Laudo / Configurações) e o botão "+"
+   são escondidos de propósito enquanto o teclado está aberto, para não
+   cobrirem o campo em edição.
+
+   Relatado em campo em 27/08/2026: os botões sumindo e não voltando. A
+   detecção anterior tinha duas fragilidades:
+
+   1. DECIDIA SÓ PELA ALTURA da área visível. No iPhone essa altura muda por
+      outros motivos além do teclado — rolagem, barras do sistema, giro da
+      tela. Qualquer um deles podia ser lido como "teclado aberto".
+   2. GUARDAVA O ESTADO e só reavaliava quando chegasse um evento novo de
+      redimensionamento. Se o evento de "teclado fechou" fosse perdido, ou
+      medido no instante errado, a barra ficava escondida INDEFINIDAMENTE —
+      sem nada para trazê-la de volta. O app ficou bem mais ocupado nesta
+      semana (painel de progresso redesenhando a cada segundo, envio a cada
+      20 s, rascunho gravando ao digitar), o que aumenta a chance de perder
+      ou atrasar exatamente esse evento.
+
+   Agora o sinal decisivo é o FOCO: sem um campo de texto em edição, não há
+   teclado — não importa o que a altura diga. E uma reavaliação de segurança
+   roda de segundo em segundo, de modo que um evento perdido custa no máximo
+   um segundo, nunca a barra sumida de vez. A reavaliação é barata: lê duas
+   medidas e o elemento em foco, e só mexe no HTML quando o estado muda.
+
+   Sem suporte a visualViewport (navegador antigo), o resultado é sempre
+   "teclado fechado" — a barra fica sempre visível, que é o lado seguro. */
 (function vigiarTeclado(){
   const vv = window.visualViewport;
-  if(!vv) return;
   let aberto = null;
+  const campoEmEdicao = ()=>{
+    const el = document.activeElement;
+    if(!el) return false;
+    const tag = (el.tagName || "").toLowerCase();
+    return tag === "input" || tag === "textarea" || el.isContentEditable === true;
+  };
   const avaliar = ()=>{
-    const agora = (window.innerHeight - vv.height) > 140;
+    const encolheu = vv ? (window.innerHeight - vv.height) > 140 : false;
+    const agora = encolheu && campoEmEdicao();
     if(agora === aberto) return;
     aberto = agora;
     document.documentElement.classList.toggle("teclado-aberto", agora);
   };
-  vv.addEventListener("resize", avaliar);
-  vv.addEventListener("scroll", avaliar);
+  if(vv){
+    vv.addEventListener("resize", avaliar);
+    vv.addEventListener("scroll", avaliar);
+  }
+  window.addEventListener("resize", avaliar);
+  window.addEventListener("orientationchange", ()=>setTimeout(avaliar, 250));
+  document.addEventListener("focusin", avaliar);
+  /* Pequeno atraso: ao pular de um campo para outro, o foco sai e volta em
+     sequência — sem isto a barra piscaria no meio da digitação. */
+  document.addEventListener("focusout", ()=>setTimeout(avaliar, 60));
+  document.addEventListener("visibilitychange", avaliar);
+  setInterval(avaliar, 1000); // rede de segurança: evento perdido custa 1s, não a barra sumida
   avaliar();
 })();
 setInterval(()=>{ if(document.visibilityState==="visible"){ tentarSalvarSePendente(); sincronizarIncrementalNaPasta(); sincronizarIncrementalOneDrive(); sincronizarDownloadOneDrive(); onedriveAtualizarStatusPendenteSeWifi(); criarPontoDeRestauracaoSeNecessario("periódico"); podarPontosDeRestauracaoAgora(); carregarStatusArmazenamentoNaTela(); } }, 120000);

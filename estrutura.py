@@ -629,8 +629,24 @@ chk("a barra e os botoes flutuantes somem com o teclado",
     "html.teclado-aberto .bottomnav," in novo
     and "html.teclado-aberto .fab-wrap," in novo
     and "html.teclado-aberto .laudo-fab{display:none!important;}" in novo)
-chk("sem visualViewport (computador/navegador antigo) nada muda",
-    "if(!vv) return;" in novo[novo.find("function vigiarTeclado(){"):novo.find("function vigiarTeclado(){")+300])
+# Ate 27/08/2026 esta checagem exigia "if(!vv) return;" no inicio de
+# vigiarTeclado. Isso saiu de proposito: com a saida antecipada, os OUTROS
+# sinais (foco num campo, giro da tela, volta ao app) tambem eram descartados.
+# Agora, sem visualViewport, "encolheu" e sempre false -> a barra fica sempre
+# visivel, que e o MESMO desfecho seguro, mas sem desligar o resto.
+_vt = novo[novo.find("function vigiarTeclado(){"):]
+_vt = _vt[:_vt.find(chr(10) + "})();")]
+chk("sem visualViewport (computador/navegador antigo) a barra fica SEMPRE visivel",
+    "const encolheu = vv ? (window.innerHeight - vv.height) > 140 : false;" in _vt
+    and "if(!vv) return;" not in _vt)
+chk("a barra so some quando ha DE FATO um campo em edicao -- nao so pela altura da tela",
+    "const agora = encolheu && campoEmEdicao();" in _vt
+    and "function vigiarTeclado" in novo)
+chk("existe rede de seguranca: evento perdido custa 1s, nunca a barra sumida de vez",
+    "setInterval(avaliar, 1000);" in _vt)
+chk("o foco entrando e saindo tambem reavalia (o sinal que realmente importa)",
+    'document.addEventListener("focusin", avaliar);' in _vt
+    and 'document.addEventListener("focusout", ()=>setTimeout(avaliar, 60));' in _vt)
 
 print("\n=== 29. MONTAGEM DO RISCO (BLOCO 2a) ===")
 chk("o nome do risco usa os quatro itens",
@@ -2719,7 +2735,27 @@ chk("as marcas locais deste aparelho nao viajam para a copia",
 chk("a copia recebe carimbo de agora, nao o do original",
     "obj.criadoEm = Date.now();" in novo and "obj.atualizadoEm = agoraSync();" in novo)
 chk("o ponto de copia DENTRO da tela de laudo tambem passa pela mesma funcao",
-    'prepararCopiaDuplicada(JSON.parse(JSON.stringify(item.risco)), "risco")' in novo)
+    'prepararCopiaDuplicada(clonarCompartilhandoFotos(item.risco), "risco")' in novo)
+
+# 27/08/2026 — relatado em campo: duplicar equipamento fechava o app quase
+# sempre. JSON.parse(JSON.stringify(item)) copiava os BYTES de cada foto; um
+# equipamento com 5 riscos fotografados passa de 17 MB e a operacao usa o
+# triplo de pico. Medido no navegador: 3 duplicacoes = 120,2 MB no metodo
+# antigo contra 0,0 MB no novo. E o travamento nao era so incomodo: aba morta
+# perde tudo que ainda nao foi gravado, inclusive fotos recem-tiradas.
+chk("duplicar NAO copia mais os bytes das fotos -- compartilha a mesma foto",
+    "function clonarCompartilhandoFotos(valor){" in novo
+    and "if(ehFotoDataUrlPersist(valor)) return valor;" in novo)
+# (original.html e anterior a prepararCopiaDuplicada existir, entao a
+# comparacao aqui e sobre o estado ATUAL, nao sobre o delta.)
+chk("nenhum ponto de duplicacao do Simplificado usa mais JSON.parse(JSON.stringify)",
+    "prepararCopiaDuplicada(JSON.parse(JSON.stringify(" not in novo
+    and novo.count("clonarCompartilhandoFotos(") >= 8
+    # os 4 que sobram sao do Modulo Completo (congelado), que nao e tocado
+    and novo.count("JSON.parse(JSON.stringify(") <= orig.count("JSON.parse(JSON.stringify("))
+chk("a estrutura copiada continua INDEPENDENTE (so as fotos sao compartilhadas)",
+    "if(Array.isArray(valor)) return valor.map(clonarCompartilhandoFotos);" in novo
+    and "for(const k in valor) o[k] = clonarCompartilhandoFotos(valor[k]);" in novo)
 
 # 1.1 — o id da foto lia so 3 janelas de 4KB (0,59% de uma foto de 2MB). Duas
 # fotos diferentes do mesmo tamanho colidiam, e a segunda nao era gravada:

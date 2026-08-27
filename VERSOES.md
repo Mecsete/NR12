@@ -64,6 +64,51 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 27/08/2026 17:43
+
+**ENCONTRADA a causa das fotos que sumiam: duplicar equipamento derrubava o
+app, e app derrubado perde o que ainda não foi gravado.**
+
+Confirmado em campo: as fotos que sumiam eram de equipamentos duplicados.
+
+O mecanismo, do começo ao fim:
+
+1. Duplicar um equipamento copiava **os bytes de todas as fotos** dele. Um
+   equipamento com 5 riscos fotografados tem cerca de 17 MB, e a operação
+   usava o triplo disso de pico — o item original, um texto intermediário e
+   o item novo, os três na memória ao mesmo tempo.
+2. Num iPhone que já mantém mais de mil fotos abertas, isso basta para o
+   sistema encerrar a aba.
+3. **Aba encerrada perde tudo que ainda não tinha sido gravado** — inclusive
+   as fotos tiradas desde o último salvamento.
+
+Medido: três duplicações usavam **120,2 MB**. Agora usam **0,0 MB**.
+
+A correção não copia mais foto nenhuma. Em vez de duplicar os bytes, a cópia
+passa a **apontar para a mesma foto** — em JavaScript, imagem guardada como
+texto não pode ser alterada, então compartilhar é seguro: mexer na cópia não
+afeta o original (testado). No banco também não duplica: a foto compartilhada
+continua sendo gravada uma vez só.
+
+Isso explica por que as perdas se concentravam em Mesas de gravidade e
+Classificação — as áreas com equipamentos idênticos, que são justamente os
+que se duplica — e por que continuavam depois de cada correção anterior:
+nenhuma delas tocava nesse caminho.
+
+**Também nesta versão: a barra inferior não some mais.**
+
+Os botões Projetos / Riscos / Laudo / Configurações são escondidos de
+propósito enquanto o teclado está aberto, para não cobrirem o campo. Só que
+a detecção usava **apenas a altura da tela**, que no iPhone muda por rolagem
+e barras do sistema — e, se o aviso de "teclado fechou" fosse perdido, a
+barra ficava escondida para sempre.
+
+Agora a barra só some quando existe **de fato** um campo em edição, e a
+situação é reavaliada a cada segundo: um aviso perdido custa um segundo, e
+nunca mais a barra sumida de vez.
+
+---
+
 ## 27/08/2026 11:00
 
 **Desfeita a mudança na identidade das fotos, por decisão em campo.**

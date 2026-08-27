@@ -194,6 +194,42 @@ Ordem de prioridade para quando houver tempo:
 
 ---
 
+## 7-bis. O erro de classificação que custou um dia de campo (27/08)
+
+Na varredura de 26/08 eu encontrei este item e o coloquei na **Categoria 2 —
+Escala/desempenho**:
+
+> *2.2 Duplicar uma área copia a árvore inteira com as fotos na memória —
+> centenas de MB alocados de uma vez, com risco real de derrubar a aba no
+> meio da operação.*
+
+Descrevi o defeito corretamente e **não o tratei como perda de dados**. O
+engenheiro, seguindo minha própria ordem de prioridade, mandou implementar só
+a Categoria 1.
+
+No dia seguinte, ele relatou que duplicar equipamento fechava o app "quase
+sempre", e confirmou que **as fotos que sumiam eram justamente dos
+equipamentos duplicados**. A cadeia era:
+
+duplicar → 120 MB alocados → iOS encerra a aba → perde tudo que ainda não
+tinha sido gravado, inclusive as fotos recém-tiradas.
+
+**O que eu errei:** tratei "o app pode fechar" como incômodo de desempenho.
+Aba encerrada **é** um mecanismo de perda de dados — talvez o mais direto de
+todos, porque leva embora exatamente o que ainda não teve tempo de ser
+salvo. Se eu tivesse feito a pergunta 4 da REGRA ZERO ("o que acontece se
+esta operação for interrompida no meio?") sobre a duplicação, teria visto.
+
+**É o segundo erro de classificação do mesmo tipo em dois dias.** O primeiro
+foi a faxina de fotos (item 2.2-bis): classificada como "limpeza", quando era
+um caminho de exclusão. Os dois seguem o mesmo padrão — o rótulo do
+subsistema decidiu a análise, em vez do que ele faz com o dado.
+
+**Regra que fica:** travamento, estouro de memória e qualquer coisa que possa
+encerrar o app entram nesta auditoria como **perda de dados**, não como
+desempenho. A pergunta não é "isto é lento?", é "se isto morrer no meio, o
+que o usuário perde?".
+
 ## 8. Lições que valem para toda mudança futura
 
 1. **Ausência não é intenção.** O app não pode concluir que algo foi
@@ -220,7 +256,10 @@ Ordem de prioridade para quando houver tempo:
    chamado "limpeza", "garbage collection" ou "poda" é, por definição, um
    subsistema que apaga — tem de responder às sete perguntas como qualquer
    outro.
-9. **O princípio vale em TODAS as camadas, não só onde foi descoberto.**
+9. **Travamento é perda de dados, não desempenho.** Qualquer coisa que possa
+   encerrar o app leva embora o que ainda não foi gravado. Classificar isso
+   como "lentidão" foi o erro que custou um dia de campo (ver 7-bis).
+10. **O princípio vale em TODAS as camadas, não só onde foi descoberto.**
    "Só excluir o que for apagado pelo usuário" foi aplicado à nuvem e
    esquecido no banco local, no mesmo dia. Ao fechar um furo, procurar o
    mesmo padrão nas outras camadas antes de dar por encerrado.
