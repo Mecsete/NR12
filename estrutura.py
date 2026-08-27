@@ -2725,16 +2725,25 @@ chk("o ponto de copia DENTRO da tela de laudo tambem passa pela mesma funcao",
 # fotos diferentes do mesmo tamanho colidiam, e a segunda nao era gravada:
 # apontava para os bytes da primeira. Amostrar melhor NAO resolveu (testado);
 # so a leitura completa resolve.
-chk("o id da foto le o conteudo INTEIRO, sem ponto cego",
-    "for(let i=0;i<n;i++){ const ch = s.charCodeAt(i); h1 = ((h1*33) ^ ch) >>> 0; h2 = ((h2*31) + ch) >>> 0; }" in novo
-    and "if(n > seg*3) amostrar((n>>1)-(seg>>1), (n>>1)+(seg>>1));" in orig
-    and "if(n > seg*3) amostrar((n>>1)-(seg>>1), (n>>1)+(seg>>1));" not in novo)
-chk("COMPATIBILIDADE: foto ja gravada mantem o id antigo -- nada e regravado em massa",
-    "const __fotoIdConhecido = new Map();" in novo
-    and "const jaGravada = __fotoIdConhecido.get(s);" in novo
-    and "__fotoIdConhecido.set(f, fid);" in novo)
-chk("o cache de ids comporta o projeto real (era 800 para mais de mil fotos)",
-    "if(__fotoIdCache.size > 4000) __fotoIdCache.clear();" in novo)
+# DESFEITO EM 27/08/2026, POR DECISAO EM CAMPO. A leitura do conteudo inteiro
+# corrigia um defeito real e provado (duas fotos diferentes do mesmo tamanho
+# recebendo o mesmo id). Foi desfeita horas depois: houve relato de perda de
+# fotos espalhada por projetos que o usuario nem abrira naquele dia, e esta era
+# a UNICA mudanca do dia que mexe em COMO cada foto e encontrada no banco.
+# Entre um risco raro e conhecido (a colisao) e um risco possivelmente ativo,
+# ficou o conhecido. As checagens abaixo agora garantem o inverso: que a versao
+# com amostragem esta mesmo de volta, e que o motivo ficou registrado.
+chk("o calculo do id voltou a ser IDENTICO ao de antes da mudanca",
+    "if(n > seg*3) amostrar((n>>1)-(seg>>1), (n>>1)+(seg>>1));" in novo
+    and 'const fid = n.toString(36) + "-" + h1.toString(36) + h2.toString(36);' in novo
+    and "for(let i=0;i<n;i++){ const ch = s.charCodeAt(i); h1 = ((h1*33) ^ ch) >>> 0; h2 = ((h2*31) + ch) >>> 0; }" not in novo)
+chk("o andaime da mudanca desfeita saiu por completo (nada meio-desfeito)",
+    "__fotoIdConhecido" not in novo
+    and '"v2" + n.toString(36)' not in novo
+    and "if(__fotoIdCache.size > 800) __fotoIdCache.clear();" in novo)
+chk("o motivo de ter sido desfeito, e a condicao para tentar de novo, ficaram no codigo",
+    "DESFEITO EM 27/08/2026" in novo
+    and "REINTRODUZIR a leitura completa sem antes" in novo)
 
 # 1.4 — a importacao substituia o item local inteiro pelo mais novo do arquivo.
 # Backup sem fotos (de aparelho que nao as baixou, ou so de texto) apagava a

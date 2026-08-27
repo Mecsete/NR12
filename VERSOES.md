@@ -64,6 +64,45 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 27/08/2026 11:00
+
+**Desfeita a mudança na identidade das fotos, por decisão em campo.**
+
+Às 06:50 desta manhã eu troquei a forma como cada foto é identificada dentro
+do aparelho. A mudança corrigia um defeito real e comprovado: com o cálculo
+antigo, duas fotos diferentes do mesmo tamanho podiam receber o mesmo nome, e
+aí a segunda não era guardada.
+
+Poucas horas depois veio o relato de campo: fotos sumindo em projetos
+inteiros que o engenheiro nem tinha aberto naquele dia. Havia duas
+explicações possíveis — esta mudança, ou dano anterior sendo descoberto aos
+poucos — e nenhuma forma de decidir entre elas com o app em uso, com dado
+real de cliente em risco.
+
+Esta era a **única** mudança do dia que mexe em como cada foto é encontrada
+no banco. Então é ela que volta atrás, inteira, exatamente como estava.
+
+O que continua valendo, das outras correções de hoje:
+
+- o texto que você digita continua sendo gravado;
+- gravação que falha continua sendo tentada de novo sozinha;
+- duplicar equipamento continua não levando o laudo já aprovado;
+- importar backup continua não apagando foto;
+- o formulário em andamento continua leve (não fecha mais o app ao digitar);
+- "Devolver fotos" continua conferindo tudo a cada toque.
+
+O que se aceita de volta: a chance — rara, e nunca observada em campo — de
+duas fotos receberem o mesmo nome. Entre um risco raro e conhecido e um risco
+possivelmente ativo, fica o conhecido.
+
+O motivo e as condições para tentar de novo ficaram registrados dentro do
+próprio código, para ninguém reintroduzir a mudança sem antes descobrir a
+causa real e escrever um teste do ciclo completo — abrir, gravar, fechar,
+reabrir — sobre um banco com centenas de fotos. Foi essa lacuna que deixou a
+mudança passar pelos cinco scripts de validação.
+
+---
+
 ## 27/08/2026 10:28
 
 **Correção urgente: o app estava fechando sozinho durante a digitação.**

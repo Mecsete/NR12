@@ -7147,42 +7147,50 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   {
     /* ---- 1.1 IDENTIDADE DA FOTO ---- */
     const ctxF = vm.createContext({ Map, String, Math, console });
-    vm.runInContext("var __fotoIdCache = new Map(); var __fotoIdConhecido = new Map();", ctxF);
+    vm.runInContext("var __fotoIdCache = new Map();", ctxF);
     vm.runInContext(funcao("fotoCalcularId"), ctxF);
     const idDeFoto = (str)=>{ ctxF.__s = str; return vm.runInContext("fotoCalcularId(__s)", ctxF); };
 
-    t("O CASO PROVADO: fotos diferentes fora das janelas antigas NAO colidem mais", ()=>{
-      /* A versao anterior lia so 3 janelas de 4KB (0,59% de uma foto de 2MB).
-         Duas fotos do mesmo tamanho que diferissem fora dessas janelas
-         recebiam o MESMO id — e a segunda simplesmente nao era gravada,
-         apontando para os bytes da primeira: foto errada na tela, foto certa
-         inexistente, sem marca nenhuma. Aqui, tamanho menor mas mesmo
-         principio: diferenca em varias posicoes ao longo do arquivo. */
+    /* DESFEITO EM 27/08/2026, POR DECISAO EM CAMPO. A leitura do conteudo
+       inteiro corrigia um defeito real e provado (duas fotos diferentes do
+       mesmo tamanho recebendo o mesmo id), mas foi desfeita horas depois:
+       houve relato de perda de fotos espalhada, e esta era a unica mudanca do
+       dia que mexe em COMO cada foto e encontrada no banco. Entre um risco
+       raro e conhecido (a colisao) e um risco possivelmente ativo, ficou o
+       conhecido. Os testes abaixo passaram a cobrir o que a versao com
+       amostragem PRECISA garantir; a checagem da colisao volta junto com a
+       leitura completa, quando houver ensaio do ciclo completo (gravar,
+       fechar, reabrir, gravar de novo) sobre um banco com centenas de fotos —
+       foi a falta dele que deixou a mudanca passar nos cinco scripts. */
+    t("a mesma foto produz sempre o mesmo id — e o que faz a foto ser gravada uma vez so", ()=>{
+      const f = "data:image/jpeg;base64," + "Q".repeat(5000);
+      eq(idDeFoto(f), idDeFoto(f.slice(0)), "a mesma foto gerou ids diferentes");
+    });
+    t("fotos de TAMANHOS diferentes nunca colidem (o comprimento entra no id)", ()=>{
+      const a = idDeFoto("data:image/jpeg;base64," + "Z".repeat(5000));
+      const b = idDeFoto("data:image/jpeg;base64," + "Z".repeat(5001));
+      ok(a !== b, "duas fotos de tamanhos diferentes receberam o mesmo id");
+    });
+    t("diferenca DENTRO das janelas amostradas e detectada (inicio, meio e fim)", ()=>{
       const n = 300000;
       const base = "data:image/jpeg;base64," + "A".repeat(n);
       const arr = base.split("");
       const idBase = idDeFoto(arr.join(""));
-      let colisoes = 0;
-      [0.05, 0.25, 0.33, 0.5, 0.66, 0.81, 0.97].forEach(f=>{
-        const c = arr.slice(); c[Math.floor(n*f)] = "B";
-        if(idDeFoto(c.join("")) === idBase) colisoes++;
+      // Posicoes dentro das tres janelas de 4KB que a amostragem le
+      [10, Math.floor(n/2), n-10].forEach(pos=>{
+        const c = arr.slice(); c[pos] = "B";
+        ok(idDeFoto(c.join("")) !== idBase, "diferenca na posicao " + pos + " passou despercebida");
       });
-      eq(colisoes, 0, "ainda ha posicao do arquivo que nao entra no calculo do id");
     });
-    t("a mesma foto continua produzindo sempre o mesmo id (dedup nao quebrou)", ()=>{
-      const f = "data:image/jpeg;base64," + "Q".repeat(5000);
-      eq(idDeFoto(f), idDeFoto(f.slice(0)), "a mesma foto gerou ids diferentes");
-    });
-    t("COMPATIBILIDADE: foto que JA esta no banco mantem o id antigo, sem regravar nada", ()=>{
-      /* Sem isto, mudar o calculo faria as mais de mil fotos do projeto real
-         ganharem nome novo e serem regravadas de uma vez — GB numa transacao
-         so. Seria trocar um risco baixo por um alto. */
-      const f = "data:image/jpeg;base64," + "R".repeat(5000);
-      const idNovo = idDeFoto(f);
-      ctxF.__f = f;
-      vm.runInContext("__fotoIdCache.delete(__f); __fotoIdConhecido.set(__f, 'idantigo-abc');", ctxF);
-      eq(idDeFoto(f), "idantigo-abc", "a foto ja gravada mudou de nome");
-      ok(idNovo !== "idantigo-abc", "o cenario nao testa nada se os dois ids forem iguais");
+    t("o id NAO usa o prefixo v2 — a versao com leitura completa foi mesmo desfeita",
+      ()=>{ ok(idDeFoto("data:image/jpeg;base64," + "W".repeat(9000)).indexOf("v2") !== 0); });
+    t("o ponto cego da amostragem esta DOCUMENTADO no codigo, para nao ser reintroduzido as cegas", ()=>{
+      ok(HTML.indexOf("DESFEITO EM 27/08/2026") > 0, "sumiu o registro de que isto foi desfeito e por que");
+      ok(HTML.indexOf("REINTRODUZIR a leitura completa sem antes") > 0,
+         "sumiu a condicao que precisa ser cumprida antes de tentar de novo");
+      ok(HTML.indexOf("gravar → fechar → reabrir → gravar de novo") > 0
+         || HTML.indexOf("reabrir") > 0,
+         "a condicao precisa citar o ensaio do ciclo completo, que foi a lacuna real");
     });
 
     /* ---- 1.2 e 1.3 DUPLICACAO ---- */

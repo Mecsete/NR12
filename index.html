@@ -1458,59 +1458,43 @@ function ehFotoRefPersist(v){ return typeof v === "string" && v.startsWith(FOTO_
    É ela que dá nome à chave no banco, e é por ela que a mesma foto é gravada
    uma vez só.
 
-   O DEFEITO CORRIGIDO EM 27/08/2026. A versão anterior lia apenas TRÊS
-   janelas de 4 KB (início, meio e fim). Numa foto de 2 MB isso é 0,59% do
-   arquivo — 99,4% nunca era olhado. Duas fotos DIFERENTES do mesmo tamanho,
-   que só diferissem fora dessas três janelas, recebiam o MESMO id. Provado
-   em teste: ids idênticos para conteúdos distintos.
-   A consequência era silenciosa e sem conserto: ao gravar, o app via que
-   "essa foto já está no banco" e NÃO gravava a segunda. O segundo item
-   passava a apontar para a foto do primeiro — foto errada na tela, foto
-   certa inexistente, sem marca nenhuma de que algo deu errado.
-   POR QUE NÃO BASTOU "AMOSTRAR MELHOR". A primeira tentativa foi espalhar a
-   leitura por 32 janelas em vez de 3. Testado, a colisão CONTINUOU: com
-   0,78% do arquivo lido, o que muda é o tamanho do ponto cego, não a
-   existência dele — qualquer amostragem deixa faixas inteiras sem olhar, e a
-   diferença pode cair exatamente ali. Amostragem não resolve esta classe de
-   problema; só a leitura completa resolve.
-   Medido: uma foto de 2 MB leva ~10 ms para ser lida inteira. E esse custo
-   só existe para foto NOVA — foto já guardada nunca é recalculada (ver o
-   parágrafo seguinte). Um dia de campo com 100 fotos novas custa 1 segundo
-   no total, diluído. É barato demais para justificar um ponto cego.
+   DESFEITO EM 27/08/2026, POR DECISÃO EM CAMPO. Na manhã deste dia esta
+   função foi trocada por uma leitura do conteúdo INTEIRO, para eliminar um
+   defeito real e provado: com a amostragem abaixo (três janelas de 4 KB, ou
+   0,59% de uma foto de 2 MB), duas fotos diferentes do mesmo tamanho podem
+   receber o mesmo id — e aí a segunda não é gravada e o item aponta para os
+   bytes da primeira.
 
-   POR QUE OS IDS ANTIGOS PRECISAM CONTINUAR VALENDO. fotosExtrairParaRefs
-   recalcula o id de TODAS as fotos a cada gravação. Trocar o cálculo sem
-   mais nada faria as fotos já guardadas ganharem nome novo e serem
-   regravadas todas de uma vez — no projeto real, mais de mil fotos e vários
-   GB numa única transação, com chance alta de falhar e deixar o app sem
-   conseguir salvar. Seria trocar um risco baixo por um alto.
-   Por isso: toda foto lida do banco tem seu id JÁ EXISTENTE memorizado em
-   __fotoIdConhecido (ver fotosReinserirDeMapa). Ela continua sendo gravada
-   sob o mesmo nome de sempre, e nada é reescrito. Só foto nova — tirada
-   agora, ou vinda da nuvem — recebe o id do cálculo novo. */
+   Poucas horas depois, o engenheiro em campo relatou perda de fotos
+   espalhada por projetos inteiros que ele nem tinha aberto naquele dia. Havia
+   duas explicações possíveis (esta mudança, ou dano anterior sendo descoberto
+   a cada abertura do app) e nenhuma forma de decidir entre elas com o app em
+   uso, com dado real de cliente. Esta era a única mudança do dia que mexe em
+   COMO cada foto é encontrada no banco, então é a que volta atrás.
+
+   O que se aceita ao voltar: o ponto cego da amostragem, e com ele a chance
+   — rara, nunca observada em campo — de duas fotos colidirem. O que se evita:
+   continuar num caminho que pode estar desconectando fotos boas a cada
+   gravação. Entre um risco raro e conhecido e um risco possivelmente ativo, a
+   escolha é o conhecido.
+
+   NÃO REINTRODUZIR a leitura completa sem antes: (1) descobrir a causa real
+   da perda relatada em 27/08; (2) ter um ensaio que rode o ciclo COMPLETO
+   (gravar → fechar → reabrir → gravar de novo) sobre um banco com centenas de
+   fotos, não a função isolada — foi exatamente essa lacuna que deixou a
+   mudança passar nos cinco scripts de validação. */
 const __fotoIdCache = new Map();
-/* dataURL → id com que a foto JÁ está gravada no banco. Preenchido na
-   leitura; nunca é esvaziado (é o que garante que uma foto antiga jamais
-   mude de nome no meio de uma sessão). Guarda referências a strings que já
-   estão no STATE, então o custo de memória é o das entradas do mapa. */
-const __fotoIdConhecido = new Map();
 function fotoCalcularId(s){
-  const jaGravada = __fotoIdConhecido.get(s);
-  if(jaGravada) return jaGravada;          // continua com o nome que já tem no banco
   const memo = __fotoIdCache.get(s);
   if(memo) return memo;
-  /* Conteúdo INTEIRO, sem ponto cego. Dois hashes independentes mais o
-     comprimento: qualquer caractere diferente, em qualquer posição, muda o
-     resultado. */
   let h1 = 5381, h2 = 52711;
-  const n = s.length;
-  for(let i=0;i<n;i++){ const ch = s.charCodeAt(i); h1 = ((h1*33) ^ ch) >>> 0; h2 = ((h2*31) + ch) >>> 0; }
-  const fid = "v2" + n.toString(36) + "-" + h1.toString(36) + h2.toString(36);
-  /* Limite alto de propósito: o projeto real tem mais de mil fotos, e um
-     cache de 800 se esvaziava no meio de cada gravação, obrigando a
-     recalcular tudo de novo — custo desnecessário justo no momento mais
-     pesado. */
-  if(__fotoIdCache.size > 4000) __fotoIdCache.clear();
+  const amostrar = (ini, fim) => { for(let i=ini;i<fim;i++){ const ch = s.charCodeAt(i); h1 = ((h1*33) ^ ch) >>> 0; h2 = ((h2*31) + ch) >>> 0; } };
+  const n = s.length, seg = 4096;
+  amostrar(0, Math.min(seg, n));
+  if(n > seg*3) amostrar((n>>1)-(seg>>1), (n>>1)+(seg>>1));
+  if(n > seg*2) amostrar(n-seg, n);
+  const fid = n.toString(36) + "-" + h1.toString(36) + h2.toString(36);
+  if(__fotoIdCache.size > 800) __fotoIdCache.clear();
   __fotoIdCache.set(s, fid);
   return fid;
 }
@@ -1537,19 +1521,7 @@ function fotosColetarIdsEmbutidas(valor, conjunto){
    Referência sem foto correspondente (corrupção improvável) vira null — o
    app segue funcionando, só aquela foto se perde, nunca o app inteiro. */
 function fotosReinserirDeMapa(valor, mapa){
-  if(ehFotoRefPersist(valor)){
-    const fid = valor.slice(FOTO_REF_PREFIXO.length);
-    const f = mapa.get(fid);
-    if(f === undefined) return null;
-    /* AQUI está a compatibilidade que evita reescrever o banco inteiro (ver
-       o bloco em fotoCalcularId): esta foto JÁ está gravada sob este nome.
-       Memorizando o par, a próxima gravação continua usando o mesmo nome,
-       mesmo com o cálculo do id tendo mudado. Sem isto, mudar o cálculo
-       faria as mais de mil fotos do projeto real serem regravadas de uma
-       só vez. */
-    __fotoIdConhecido.set(f, fid);
-    return f;
-  }
+  if(ehFotoRefPersist(valor)){ const f = mapa.get(valor.slice(FOTO_REF_PREFIXO.length)); return f !== undefined ? f : null; }
   if(Array.isArray(valor)) return valor.map(v => fotosReinserirDeMapa(v, mapa));
   if(valor && typeof valor === "object"){ const o = {}; for(const k in valor) o[k] = fotosReinserirDeMapa(valor[k], mapa); return o; }
   return valor;
@@ -2173,7 +2145,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "27/08/2026 10:28";
+const APP_BUILD = "27/08/2026 11:00";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
