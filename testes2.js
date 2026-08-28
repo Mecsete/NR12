@@ -3670,7 +3670,9 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
 
   console.log("\n=== t80 · cartão do risco no laudo (opção 3) ===");
   t("a linha de tabela virou cartão", ()=>{
-    ok(HTML.indexOf('<div class="lp-rc">') > 0, "sem o cartão");
+    // Desde 27/08/2026 a div ganhou uma classe condicional (lp-oculto, ver
+    // t131) -- por isso o fechamento '">' saiu do literal exato do código-fonte.
+    ok(HTML.indexOf('<div class="lp-rc') > 0, "sem o cartão");
     ok(HTML.indexOf('<th style="width:196px">HRN</th>') < 0, "sobrou o cabeçalho de colunas da tabela antiga");
     ok(HTML.indexOf('.lp-rc-cab{display:flex;') > 0 && HTML.indexOf('.lp-rc-corpo{display:flex;') > 0);
   });
@@ -7494,6 +7496,91 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       }
       ok(agora < 100, "a lista de candidatos continua inflada (" + agora + " de 382)");
       ok(agora >= 30, "encolheu demais: os itens danificados precisam continuar entrando (" + agora + ")");
+    });
+  }
+
+  console.log("\n=== t131 · seleção de itens do laudo (ocultar equipamento/risco na impressão) ===");
+  {
+    /* Pedido em campo: escolher o que entra no laudo impresso sem apagar
+       cadastro nenhum. Ferramenta some por padrão, só aparece no "modo de
+       seleção" (botão junto do zoom); desmarcar só grava um booleano
+       (ocultoLaudo) e recarrega a montagem — REGRA ZERO continua valendo:
+       nada é excluído, só deixa de entrar NESTE laudo. */
+    const linhaFiltro = trecho(
+      "const itensLaudo = STATE.ui.lpModoOcultar ? alvo.itens",
+      "alvo.itens.filter(it=> !it.maquina.ocultoLaudo && !it.risco.ocultoLaudo);"
+    ) + "alvo.itens.filter(it=> !it.maquina.ocultoLaudo && !it.risco.ocultoLaudo);";
+
+    t("a linha do filtro é exatamente a que o teste vai executar (evita testar cópia divergente do real)", ()=>{
+      ok(linhaFiltro.indexOf("STATE.ui.lpModoOcultar ? alvo.itens") > 0);
+      ok(linhaFiltro.indexOf("!it.maquina.ocultoLaudo && !it.risco.ocultoLaudo") > 0);
+    });
+
+    const montarFiltro = (modo)=>{
+      const ctx = vm.createContext({ STATE:{ ui:{ lpModoOcultar: modo } }, alvo:null, __r:null });
+      vm.runInContext("function calcular(alvo){ " + linhaFiltro + " return itensLaudo; }", ctx);
+      return (itens)=>{ ctx.alvo = { itens }; return vm.runInContext("calcular(alvo)", ctx); };
+    };
+
+    t("FORA do modo de seleção: risco oculto some, equipamento oculto some (com todos os riscos dele)", ()=>{
+      const calcular = montarFiltro(false);
+      const visivel   = { maquina:{ id:"m1" }, risco:{ id:"r1" } };
+      const rOculto   = { maquina:{ id:"m1" }, risco:{ id:"r2", ocultoLaudo:true } };
+      const mOculta1  = { maquina:{ id:"m2", ocultoLaudo:true }, risco:{ id:"r3" } };
+      const mOculta2  = { maquina:{ id:"m2", ocultoLaudo:true }, risco:{ id:"r4" } };
+      const r = calcular([visivel, rOculto, mOculta1, mOculta2]);
+      eq(r.length, 1, "só o item visível deveria sobrar");
+      ok(r[0] === visivel);
+    });
+    t("DENTRO do modo de seleção: tudo entra (oculto inclusive) — senão não dá para remarcar de volta", ()=>{
+      const calcular = montarFiltro(true);
+      const itens = [
+        { maquina:{ id:"m1" }, risco:{ id:"r1" } },
+        { maquina:{ id:"m1" }, risco:{ id:"r2", ocultoLaudo:true } },
+        { maquina:{ id:"m2", ocultoLaudo:true }, risco:{ id:"r3" } },
+      ];
+      eq(calcular(itens).length, 3, "modo de seleção precisa mostrar também o que está oculto");
+    });
+    t("máquina oculta some do inventário mesmo com outro risco dela ainda visível na mesma máquina",()=>{
+      // Caso limite: só o RISCO está marcado, a máquina não -- a máquina continua
+      // no inventário (ainda tem item visível dela). Já com a MÁQUINA marcada,
+      // nenhum risco dela sobra, então ela não pode aparecer em lugar nenhum.
+      const calcular = montarFiltro(false);
+      const r1 = { maquina:{ id:"m1" }, risco:{ id:"r1", ocultoLaudo:true } };
+      const r2 = { maquina:{ id:"m1" }, risco:{ id:"r2" } };
+      const restou = calcular([r1, r2]);
+      eq(restou.length, 1);
+      ok(restou[0] === r2, "a máquina precisa continuar no inventário via o risco r2, que segue visível");
+    });
+
+    t("o botão do modo de seleção mora junto do zoom (mesmo grupo flutuante, sempre visível ao rolar)", ()=>{
+      const barra = trecho('<div class="lp-flut">', "</div>\n      </div>");
+      ok(barra.indexOf("App.lpZoom(1)") > 0 && barra.indexOf("App.lpToggleModoOcultar()") > 0,
+         "o botão de seleção saiu do mesmo grupo flutuante dos botões de zoom");
+    });
+    t("a ferramenta de desmarcar fica escondida até o usuário ligar o modo de seleção", ()=>{
+      ok(HTML.indexOf(".lp-oculta-toggle{display:none;") > 0);
+      ok(HTML.indexOf(".lp-modo-ocultar .lp-oculta-toggle{display:flex}") > 0);
+    });
+    t("a ferramenta nunca aparece no PDF (guarda dentro do @media print)", ()=>{
+      const i = HTML.lastIndexOf("@media print{");
+      ok(i > 0 && HTML.indexOf(".lp-oculta-toggle{display:none !important}", i) > i);
+    });
+    t("desmarcar não apaga o cadastro — só troca ocultoLaudo e recarimba para sincronizar", ()=>{
+      ok(HTML.indexOf("m.ocultoLaudo = !m.ocultoLaudo;") > 0);
+      ok(HTML.indexOf("m.atualizadoEm = agoraSync();") > 0);
+      ok(HTML.indexOf("it.risco.ocultoLaudo = !it.risco.ocultoLaudo;") > 0);
+      ok(HTML.indexOf("it.risco.atualizadoEm = agoraSync();") > 0);
+      ["lpToggleMaquina","lpToggleRisco"].forEach(m=>{
+        ok(HTML.indexOf(m + "(") > 0, "método " + m + " não encontrado");
+      });
+    });
+    t("o campo novo (ocultoLaudo) inicializa indefinido, não força valor em cadastro antigo", ()=>{
+      // Comportamento assumido em toda a lógica: item sem o campo é tratado
+      // como visível (!undefined === true). Confirma que nada no código
+      // inicializa ocultoLaudo:false em massa (isso obrigaria reescrever
+      // cadastro antigo inteiro à toa).
+      ok(HTML.indexOf("ocultoLaudo:false") < 0 && HTML.indexOf("ocultoLaudo: false") < 0);
     });
   }
 

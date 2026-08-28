@@ -960,7 +960,12 @@ chk("a tabela registra a procedencia de cada coluna e o aviso saiu",
     and "NÃO derive uma coluna da outra" in novo
     and "ATENÇÃO: TABELA A CONFERIR CONTRA AS NORMAS ANTES DE ASSINAR" not in novo)
 chk("o risco virou cartao e o cabecalho de colunas saiu",
-    '<div class="lp-rc">' in novo
+    # A partir de 27/08/2026 a div do risco ganhou uma classe condicional
+    # (lp-oculto, ferramenta de selecao do laudo) -- por isso o literal exato
+    # '<div class="lp-rc">' saiu do codigo-fonte (so aparece assim RENDERIZADO,
+    # quando r.ocultoLaudo e falso). O que importa aqui continua provado: e
+    # cartao (classe lp-rc, com ou sem sufixo), nao mais a tabela antiga.
+    re.search(r'<div class="lp-rc\$?\{?', novo) is not None
     and '<th style="width:196px">HRN</th>' not in novo)
 chk("o PLr fica a direita da tabela do HRN",
     novo.find('<div class="lp-rc-hrn">') < novo.find('<div class="lp-rc-plr">')
@@ -2868,6 +2873,38 @@ chk("mas o descarregamento imediato ao sair de foco continua -- e ele que garant
     and "function flushTudoAntesDeSair(){" in novo)
 chk("a limpeza de fotos orfas continua lendo o rascunho (agora com referencias)",
     "if(rascunho){ fotosColetarIdsEmbutidas(rascunho, referenciadas); fotosColetarRefs(rascunho, referenciadas); }" in novo)
+
+print("\n=== 101. SELECAO DE ITENS DO LAUDO (OCULTAR EQUIPAMENTO/RISCO NA IMPRESSAO) ===")
+# Pedido em campo: poder tirar um equipamento ou um risco do laudo impresso
+# sem apagar o cadastro. A ferramenta fica ESCONDIDA por padrao (so aparece
+# no "modo de selecao", ligado por um botao junto do zoom) e NUNCA apaga
+# nada -- so tira da MONTAGEM deste laudo (REGRA ZERO: nada some do cadastro).
+chk("existe o botao de ligar/desligar o modo de selecao, junto do zoom",
+    novo.find("App.lpToggleModoOcultar()") > novo.find('onclick="App.lpZoom(1)"') > 0
+    and 'onclick="App.lpZoom(1)"' in novo and 'onclick="App.lpToggleModoOcultar()"' in novo)
+chk("fora do backup antigo, o campo novo (ocultoLaudo) nao existia -- e so daqui pra frente",
+    "ocultoLaudo" not in orig and "ocultoLaudo" in novo)
+chk("fora do modo de selecao, item oculto NAO entra na montagem (nem corpo nem inventario)",
+    "const itensLaudo = STATE.ui.lpModoOcultar ? alvo.itens" in novo
+    and "alvo.itens.filter(it=> !it.maquina.ocultoLaudo && !it.risco.ocultoLaudo)" in novo)
+chk("inventario e equipamentos usam a MESMA lista filtrada -- nao ha fonte paralela de maquina",
+    "(await blocosInventario(itensLaudo, d))" in novo
+    and "(await blocosEquipamentos(itensLaudo))" in novo
+    and "blocosInventario(alvo.itens" not in novo and "blocosEquipamentos(alvo.itens)" not in novo)
+chk("desmarcar so troca um booleano e carimba para sincronizar -- nunca faz splice/delete no cadastro",
+    "m.ocultoLaudo = !m.ocultoLaudo;" in novo and "m.atualizadoEm = agoraSync();" in novo
+    and "it.risco.ocultoLaudo = !it.risco.ocultoLaudo;" in novo and "it.risco.atualizadoEm = agoraSync();" in novo
+    and re.search(r"lpToggle(Maquina|Risco)[\s\S]{0,220}?(splice|delete )", novo) is None)
+chk("a ferramenta (checkbox) fica escondida por padrao, so aparece no modo de selecao",
+    ".lp-oculta-toggle{display:none;" in novo and ".lp-modo-ocultar .lp-oculta-toggle{display:flex}" in novo)
+chk("a ferramenta nunca vai para o PDF, mesmo que o modo fique ligado sem querer",
+    re.search(r"@media print\{.*?\.lp-oculta-toggle\{display:none !important\}", novo, re.S) is not None)
+chk("equipamento oculto some do inventario -- nao ha caminho que force ele a aparecer mesmo assim",
+    'class="lp-inv-oculto"' in novo
+    and "itens.forEach(it=>{ if(!vistos.has(it.maquina.id)){ vistos.add(it.maquina.id); maqs.push(it); } });" in novo)
+chk("religar o modo de selecao remonta o laudo (senao item desmarcado antes nao voltaria a aparecer p/ remarcar)",
+    "lpToggleModoOcultar(){" in novo
+    and re.search(r"lpToggleModoOcultar\(\)\{[^}]*App\.lpGerar\(\)", novo, re.S) is not None)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")

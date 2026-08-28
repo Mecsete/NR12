@@ -786,6 +786,7 @@ const ICON = {
   zoomMais:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21M10.5 7.5v6M7.5 10.5h6"/></svg>',
   zoomMenos:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21M7.5 10.5h6"/></svg>',
   encolher:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h5V4M20 15h-5v5M15 4v5h5M9 20v-5H4"/></svg>',
+  selecionarItens:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="6" height="6" rx="1.2"/><path d="M5 7l1 1 2-2"/><path d="M12 7h9"/><rect x="3" y="14" width="6" height="6" rx="1.2"/><path d="M12 17h9"/></svg>',
 };
 function ic(name){return ICON[name]||'';}
 const OUTRO = "__outro__";
@@ -2145,7 +2146,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "27/08/2026 19:06";
+const APP_BUILD = "27/08/2026 22:14";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -21493,6 +21494,8 @@ window.addEventListener("pageshow", (event) => {
 .lp-flut-btn:focus-visible{outline:2px solid #fff;outline-offset:2px}
 .lp-flut-pct{font-size:10.5px;font-weight:800;color:#fff;letter-spacing:.03em;
   font-variant-numeric:tabular-nums;padding-bottom:1px}
+.lp-flut-btn.ativo{background:#1E2148;color:#fff}
+.lp-flut-sep{width:22px;height:1px;background:rgba(255,255,255,.25);margin:1px 0}
 /* Ficha do logotipo: uma linha discreta, no lugar do cartão que ocupava meia
    tela toda vez que se abria a aba. */
 .lp-logo-linha{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:-4px 0 10px;
@@ -21582,7 +21585,19 @@ window.addEventListener("pageshow", (event) => {
 .lp-contra h2{font-size:14px;font-weight:800;text-align:center;margin:0 0 ${Math.round(14*MM)}px}
 .lp-contra ul{align-self:flex-start;font-size:11.5px;font-weight:800;padding-left:16px;line-height:2}
 /* --- APR por equipamento --- */
-.lp-apr{border:1px solid #8A8CA3;border-top:none}
+.lp-apr{border:1px solid #8A8CA3;border-top:none;position:relative}
+/* Ferramenta de ocultar equipamento/risco do laudo — fica oculta por padrão;
+   só aparece quando "modo de seleção" está ligado (botão junto do zoom, ver
+   .lp-flut). Não apaga nada: só tira da montagem deste laudo (ver lpGerar). */
+.lp-oculta-toggle{display:none;align-items:center;gap:4px;cursor:pointer;user-select:none;
+  background:#fff;border:1px solid #8A8CA3;border-radius:99px;padding:2px 8px 2px 6px;
+  font-size:8.5px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:#5B5F7A}
+.lp-modo-ocultar .lp-oculta-toggle{display:flex}
+.lp-oculta-toggle input{width:13px;height:13px;accent-color:#1E2148;cursor:pointer;margin:0}
+.lp-apr>.lp-oculta-toggle{position:absolute;top:5px;right:6px;z-index:2;box-shadow:0 1px 3px rgba(0,0,0,.18)}
+.lp-rc-cab .lp-oculta-toggle{margin-left:auto}
+.lp-modo-ocultar .lp-apr.lp-oculto,.lp-modo-ocultar .lp-rc.lp-oculto{opacity:.42}
+.lp-modo-ocultar tr.lp-inv-oculto{opacity:.42}
 .lp-apr-cab{display:flex;border-top:1px solid #8A8CA3}
 .lp-apr-cab .f{width:150px;flex:0 0 150px;border-right:1px solid #8A8CA3;background:#EEE}
 .lp-apr-cab .f img{width:100%;height:100%;object-fit:cover;display:block}
@@ -21664,6 +21679,7 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
   body.lp-imprimindo > #lpPrintRoot{display:block !important}
   #lpPrintRoot .lp-pagina{box-shadow:none !important;margin:0 !important;break-after:page;page-break-after:always}
   #lpPrintRoot .lp-pagina:last-child{break-after:auto;page-break-after:auto}
+  .lp-oculta-toggle{display:none !important}
 }`;
 
   const st = document.createElement("style");
@@ -21917,7 +21933,7 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
     for(let i=0;i<maqs.length;i++){
       const it = maqs[i], m = it.maquina;
       const foto = await reduzirFoto(m.fotoGeral || m.fotoPlaqueta, 380);
-      blocos.push({ paisagem:true, html:`<table class="lp-inv">${invColgroup}<tr>
+      blocos.push({ paisagem:true, html:`<table class="lp-inv">${invColgroup}<tr${m.ocultoLaudo?' class="lp-inv-oculto"':''}>
         <td class="foto">${foto? `<img src="${foto}">` : ""}</td>
         <td>${i+1}</td><td class="nome">${esc(nomeMaquinaS(m))}</td><td>${esc(tipoEquipamento(m))}</td>
         <td>${esc(it.area.nome||"")}</td><td>${esc(m.local||it.area.local||"")}</td>
@@ -21956,7 +21972,10 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
       const escopo = laudoTextoFinal(primeiro, "escopo") || m.descricao || "";
       blocos.push({ quebrarAntes:true, html:`
         <div class="lp-faixa-c">Análise de Risco pelo método HRN com Mapeamento e Diagnóstico</div>
-        <div class="lp-apr">
+        <div class="lp-apr${m.ocultoLaudo?' lp-oculto':''}">
+          <label class="lp-oculta-toggle" title="Não incluir este equipamento no laudo (nem no inventário)">
+            <input type="checkbox" ${m.ocultoLaudo?'':'checked'} onchange="App.lpToggleMaquina('${m.id}')"><span>Incluir equipamento</span>
+          </label>
           <div class="lp-apr-cab">
             <div class="f">${foto? `<img src="${foto}">` : ""}</div>
             <div class="d">
@@ -21999,11 +22018,14 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
           const existente = laudoTextoFinal(it, "existente");
           const sitDef = MEDIDA_SITUACOES.find(x=>x.k===(r.medidaExistenteSituacao||"ok")) || MEDIDA_SITUACOES[0];
           const plr = plrExigido(r, it.tarefa);
-          blocos.push({ html:`<div class="lp-rc">
+          blocos.push({ html:`<div class="lp-rc${r.ocultoLaudo?' lp-oculto':''}">
             <div class="lp-rc-cab">
               <span class="lp-rc-num">${i+1}</span>
               <span class="lp-rc-nome">${esc(nomeRisco)}</span>
               ${evsOk.length? `<span class="lp-rc-evrot">Evidência do risco</span>`:""}
+              <label class="lp-oculta-toggle" title="Não incluir este risco no laudo">
+                <input type="checkbox" ${r.ocultoLaudo?'':'checked'} onchange="App.lpToggleRisco('${r.id}')"><span>Incluir</span>
+              </label>
             </div>
             <div class="lp-rc-corpo">
               <div class="lp-rc-col">
@@ -22197,14 +22219,20 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
     ${""}
     ${__lpPaginas.length? `
       <div class="lp-visor-wrap">
-        <div class="lp-visor"><div class="lp-doc" id="lpDoc" style="transform:scale(${zoom});width:${PAG_A}px;margin-bottom:${Math.round(-PAG_A*(1-zoom))}px">${__lpHtml}</div></div>
+        <div class="lp-visor"><div class="lp-doc${STATE.ui.lpModoOcultar?' lp-modo-ocultar':''}" id="lpDoc" style="transform:scale(${zoom});width:${PAG_A}px;margin-bottom:${Math.round(-PAG_A*(1-zoom))}px">${__lpHtml}</div></div>
         <div class="lp-flut">
           <button class="lp-flut-btn" title="Imprimir / Salvar PDF" aria-label="Imprimir ou salvar em PDF" onclick="App.lpImprimir()">${ic('print')}</button>
           <button class="lp-flut-btn" title="Aumentar" aria-label="Aumentar o zoom" onclick="App.lpZoom(1)">${ic('zoomMais')}</button>
           <button class="lp-flut-btn" title="Diminuir" aria-label="Diminuir o zoom" onclick="App.lpZoom(-1)">${ic('zoomMenos')}</button>
           <span class="lp-flut-pct">${Math.round(zoom*100)}%</span>
+          <span class="lp-flut-sep"></span>
+          <button class="lp-flut-btn${STATE.ui.lpModoOcultar?' ativo':''}" title="${STATE.ui.lpModoOcultar?'Sair da seleção de itens':'Escolher o que entra no laudo'}" aria-label="Escolher equipamentos e riscos que entram no laudo" onclick="App.lpToggleModoOcultar()">${ic('selecionarItens')}</button>
         </div>
       </div>
+      ${STATE.ui.lpModoOcultar? `<div class="card card-pad" style="margin-top:10px;background:var(--bg-soft)">
+        <div style="font-weight:800;font-size:13px;margin-bottom:5px">Seleção de itens do laudo</div>
+        <div style="font-size:12.5px;color:var(--ink-dim);line-height:1.6">Desmarque a caixinha de um equipamento ou de um risco, dentro da prévia acima, para ele não entrar neste laudo — nem no corpo, nem no inventário. Nada é apagado: é só uma escolha de impressão, pode marcar de volta a qualquer momento.</div>
+      </div>` : ""}
       <div class="card card-pad" style="margin-top:10px;background:var(--bg-soft)">
         <div style="font-weight:800;font-size:13px;margin-bottom:5px">Ao abrir a janela de impressão</div>
         <div style="font-size:12.5px;color:var(--ink-dim);line-height:1.6">
@@ -22241,6 +22269,31 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
       STATE.ui.lpZoom = passos[i];
       render();
     },
+    /* Liga/desliga o modo de seleção (botão junto do zoom). Precisa remontar
+       o laudo ao trocar: fora do modo, item oculto nem entra na montagem;
+       dentro do modo, ele entra de volta (esmaecido) para dar pra remarcar. */
+    lpToggleModoOcultar(){
+      STATE.ui.lpModoOcultar = !STATE.ui.lpModoOcultar;
+      if(__lpPaginas.length) App.lpGerar(); else render();
+    },
+    /* Desmarcar não apaga nada — só tira este equipamento (e seus riscos,
+       via a mesma checagem) da montagem deste laudo. Ver REGRA ZERO. */
+    async lpToggleMaquina(maquinaId){
+      const m = buscarMaquinaSimplesPorId(maquinaId);
+      if(!m) return;
+      m.ocultoLaudo = !m.ocultoLaudo;
+      m.atualizadoEm = agoraSync();
+      marcarAlterado();
+      await App.lpGerar();
+    },
+    async lpToggleRisco(riscoId){
+      const it = laudoItemPorId(riscoId);
+      if(!it || !it.risco) return;
+      it.risco.ocultoLaudo = !it.risco.ocultoLaudo;
+      it.risco.atualizadoEm = agoraSync();
+      marcarAlterado();
+      await App.lpGerar();
+    },
     async lpGerar(){
       if(__lpGerando) return;
       const areas = areasDoEscopo();
@@ -22250,13 +22303,19 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
       toast("Montando o laudo…");
       try{
         const d = dadosDoc(alvo.proj, alvo.area);
+        // Em modo de seleção mostra TUDO (item oculto entra apagado/marcável,
+        // para dar para desmarcar E remarcar); fora do modo, o que está
+        // oculto simplesmente não entra na montagem — nem no corpo, nem no
+        // inventário (blocosInventario só lista máquina que tenha item aqui).
+        const itensLaudo = STATE.ui.lpModoOcultar ? alvo.itens
+          : alvo.itens.filter(it=> !it.maquina.ocultoLaudo && !it.risco.ocultoLaudo);
         const blocos = [];
         blocos.push(blocoCapa(d));
         blocosInformacoes(d).forEach(b=>blocos.push(b));
         fatiarMetodologia(blocosMetodologia()).forEach(b=>blocos.push(b));
-        (await blocosInventario(alvo.itens, d)).forEach(b=>blocos.push(b));
+        (await blocosInventario(itensLaudo, d)).forEach(b=>blocos.push(b));
         blocos.push(blocoContraCapa());
-        (await blocosEquipamentos(alvo.itens)).forEach(b=>blocos.push(b));
+        (await blocosEquipamentos(itensLaudo)).forEach(b=>blocos.push(b));
         blocos.push(blocoConclusao(d));
         __lpPaginas = await paginar(blocos);
         __lpHtml = montarDoc(__lpPaginas, d);

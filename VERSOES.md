@@ -64,6 +64,29 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 27/08/2026 22:14
+
+**Novo: dá para escolher o que entra no laudo impresso, sem apagar nada do
+cadastro.**
+
+Na aba Laudo → Imprimir, junto dos botões de zoom, tem um botão novo (ícone
+de lista com check) que liga o **modo de seleção**. Com ele ligado, aparece
+uma caixinha "Incluir" em cada equipamento e em cada risco da prévia — pode
+desmarcar o que não deve entrar neste laudo. Equipamento desmarcado some do
+corpo do laudo **e** do inventário de máquinas; risco desmarcado some só
+daquele risco.
+
+Nada é apagado: é só uma escolha de impressão. O item continua no cadastro
+normalmente, e pode ser remarcado a qualquer momento — inclusive depois de
+fechar e reabrir o app, porque a escolha é salva e sincroniza como qualquer
+outro dado do laudo.
+
+A ferramenta fica escondida por padrão (só aparece depois de tocar no botão)
+e nunca vai para o PDF, mesmo que o modo fique ligado sem querer na hora de
+imprimir.
+
+---
+
 ## 27/08/2026 19:06
 
 **A busca de fotos na nuvem estava conferindo praticamente todos os
