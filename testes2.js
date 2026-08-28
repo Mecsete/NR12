@@ -3477,7 +3477,9 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   });
   t("não sobrou largura em linha brigando com o colgroup", ()=>{
     ok(HTML.indexOf('<th style="width:96px">Imagem</th>') < 0, "os width antigos do cabeçalho continuariam mandando");
-    ok(HTML.indexOf(".lp-inv td.foto{padding:2px}") > 0);
+    // Desde 27/08/2026 ganhou "position:relative" (ancora do checkbox de
+    // ocultar equipamento, ver t132) -- o padding em si continua intacto.
+    ok(HTML.indexOf(".lp-inv td.foto{padding:2px") > 0);
   });
   t("a coluna Descrição passa a ser o tipo, não o parágrafo", ()=>{
     ok(HTML.indexOf("<td>${esc(tipoEquipamento(m))}</td>") > 0, "o laudo impresso ainda usaria o parágrafo");
@@ -7582,6 +7584,95 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       // cadastro antigo inteiro à toa).
       ok(HTML.indexOf("ocultoLaudo:false") < 0 && HTML.indexOf("ocultoLaudo: false") < 0);
     });
+  }
+
+  console.log("\n=== t132 · seleção do laudo: cascata para os riscos e checkbox no inventário ===");
+  {
+    /* Pedido em campo, no dia seguinte ao t131: desmarcar o equipamento tem
+       que levar os riscos dele junto (senão o checkbox de um risco fica
+       "marcado" mentindo, mesmo o item não aparecendo por causa do pai
+       oculto) — e o mesmo campo de desmarcar precisa existir no inventário
+       também, escrevendo no MESMO m.ocultoLaudo (não um campo paralelo). */
+    const linhaCascata = trecho(
+      "(m.tarefas||[]).forEach(t=> (t.riscos||[]).forEach(r=>{",
+      "}));"
+    ) + "}));";
+    t("a linha da cascata é exatamente a que o teste vai executar", ()=>{
+      ok(linhaCascata.indexOf("r.ocultoLaudo = m.ocultoLaudo;") > 0);
+      ok(linhaCascata.indexOf("r.atualizadoEm = agoraSync();") > 0);
+    });
+
+    const ctxCasc = vm.createContext({ agoraSync: ()=>999999 });
+    vm.runInContext("function cascata(m){ " + linhaCascata + " }", ctxCasc);
+    const rodarCascata = (m)=>{ ctxCasc.m = m; vm.runInContext("cascata(m)", ctxCasc); return m; };
+
+    t("O CASO REAL: desmarcar o equipamento desmarca TODOS os riscos, em todas as tarefas dele", ()=>{
+      const m = { ocultoLaudo:true, tarefas:[
+        { riscos:[{id:"r1"},{id:"r2"}] },
+        { riscos:[{id:"r3"}] },
+        { riscos:[] },
+      ]};
+      rodarCascata(m);
+      const todos = m.tarefas.flatMap(t=>t.riscos);
+      eq(todos.length, 3);
+      todos.forEach(r=> ok(r.ocultoLaudo === true && r.atualizadoEm === 999999, "risco " + r.id + " não foi cascateado"));
+    });
+    t("remarcar o equipamento (ocultoLaudo:false) também remarca os riscos — não fica preso escondido", ()=>{
+      const m = { ocultoLaudo:false, tarefas:[{ riscos:[{id:"r1", ocultoLaudo:true}] }] };
+      rodarCascata(m);
+      ok(m.tarefas[0].riscos[0].ocultoLaudo === false);
+    });
+    t("máquina sem tarefas ou tarefa sem riscos não estoura (tarefas/riscos podem faltar)", ()=>{
+      rodarCascata({ ocultoLaudo:true });               // sem tarefas nenhuma
+      rodarCascata({ ocultoLaudo:true, tarefas:[] });    // tarefas vazia
+      rodarCascata({ ocultoLaudo:true, tarefas:[{}] });  // tarefa sem riscos
+    });
+
+    t("o inventário tem o MESMO campo de desmarcar equipamento — chama App.lpToggleMaquina, não um método próprio", ()=>{
+      eq((HTML.match(/onchange="App\.lpToggleMaquina\('\$\{m\.id\}'\)"/g)||[]).length, 2,
+         "tem que existir exatamente em dois lugares: o inventário e o bloco do equipamento no corpo do laudo");
+    });
+    t("o checkbox do inventário mora dentro da célula da foto, sem coluna nova (INV_COLS não mudou)", ()=>{
+      ok(HTML.indexOf('class="lp-oculta-toggle lp-oculta-toggle-inv"') > 0);
+      ok(HTML.indexOf('<td class="foto">${foto? `<img src="${foto}">` : ""}<label class="lp-oculta-toggle lp-oculta-toggle-inv"') > 0,
+         "o checkbox precisa estar DENTRO de <td class=\"foto\">, não numa coluna própria");
+    });
+    t("o overlay do inventário tem âncora própria e não herda o tamanho grande do checkbox padrão", ()=>{
+      ok(HTML.indexOf(".lp-inv td.foto{padding:2px;position:relative}") > 0);
+      ok(HTML.indexOf(".lp-inv .lp-oculta-toggle-inv input{width:11px;height:11px") > 0);
+    });
+  }
+
+  console.log("\n=== t133 · nome sugerido ao salvar o PDF do laudo ===");
+  {
+    /* Pedido em campo: "Salvar como PDF" sugeria o título genérico da aba.
+       Agora sugere "Laudo NR-12 - Empresa - Área", trocando document.title
+       só durante a impressão (não existe outro jeito de sugerir nome de
+       arquivo num window.print() comum). */
+    const ctxN = vm.createContext({ String });
+    vm.runInContext(funcao("nomeArquivoLaudo"), ctxN);
+    const nome = (proj, area)=>{ ctxN.__p = proj; ctxN.__a = area; return vm.runInContext("nomeArquivoLaudo(__p, __a)", ctxN); };
+
+    t("O CASO REAL: junta Laudo NR-12, empresa e área com hífen", ()=>{
+      eq(nome({empresa:"Corteva Agriscience"}, {nome:"Debulha"}), "Laudo NR-12 - Corteva Agriscience - Debulha");
+    });
+    t("tira barra, dois-pontos e outros caracteres que quebrariam nome de arquivo no Windows", ()=>{
+      eq(nome({empresa:'Cliente/Teste: "A" <B> *?|'}, {nome:"Área 1"}), "Laudo NR-12 - ClienteTeste A B - Área 1");
+    });
+    t("empresa ou área vazia some do nome, em vez de deixar hífen sobrando", ()=>{
+      eq(nome({empresa:""}, {nome:"Área X"}), "Laudo NR-12 - Área X");
+      eq(nome({empresa:"Cliente Y"}, {nome:""}), "Laudo NR-12 - Cliente Y");
+      eq(nome(null, null), "Laudo NR-12");
+    });
+    t("espaços repetidos (de caractere removido no meio) viram um só", ()=>{
+      eq(nome({empresa:"A/B Ltda"}, {nome:"X"}), "Laudo NR-12 - AB Ltda - X");
+    });
+
+    t("o título muda para o nome do arquivo só na hora do print, e a função usa a área selecionada na tela",
+      ()=>{
+        ok(HTML.indexOf("document.title = nomeArquivoLaudo(alvo.proj, alvo.area);") > 0);
+        ok(HTML.indexOf("document.title = tituloAntigo;") > 0, "não devolve o título original depois de imprimir");
+      });
   }
 
   console.log("\n---------------------------------------");

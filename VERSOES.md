@@ -64,6 +64,37 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 27/08/2026 22:46
+
+**Novo: o "Salvar como PDF" do laudo já sugere um nome de arquivo, em vez do
+título genérico da aba.**
+
+Ao tocar em Imprimir na aba Laudo → Imprimir, o nome sugerido para o PDF
+passa a ser **"Laudo NR-12 - Empresa - Área"** (com os dados do projeto
+selecionado). Caracteres que quebrariam o nome de um arquivo no Windows
+(barra, dois-pontos, aspas etc.) são removidos automaticamente. Se empresa
+ou área estiverem vazias no cadastro, esse pedaço simplesmente não aparece.
+
+---
+
+## 27/08/2026 22:40
+
+**Ajuste no modo de seleção do laudo: desmarcar um equipamento agora leva os
+riscos dele junto, e o mesmo campo de desmarcar apareceu no inventário.**
+
+Duas melhorias no recurso lançado hoje mais cedo:
+
+- Desmarcar um equipamento agora desmarca **todos os riscos dele** também —
+  antes o equipamento sumia do laudo, mas os checkboxes dos riscos dele
+  continuavam mostrando "incluído", o que confundia.
+- A caixinha de incluir/excluir equipamento apareceu também no **inventário
+  de máquinas** (sobre a foto de cada linha) — como lá os equipamentos ficam
+  mais próximos uns dos outros, fica mais fácil desmarcar vários. É o mesmo
+  campo de sempre: desmarcar no inventário desmarca o mesmo equipamento no
+  corpo do laudo, e vice-versa.
+
+---
+
 ## 27/08/2026 22:14
 
 **Novo: dá para escolher o que entra no laudo impresso, sem apagar nada do

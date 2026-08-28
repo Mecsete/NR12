@@ -843,7 +843,10 @@ chk("as larguras somam a area util da pagina deitada (1123 - 2x53)",
     bool(_m_cols) and sum(int(x.strip()) for x in _m_cols.group(1).split(",")) == 1017)
 chk("nao sobrou largura em linha brigando com o colgroup",
     '<th style="width:96px">Imagem</th>' not in novo
-    and ".lp-inv td.foto{padding:2px}" in novo)
+    # Desde 27/08/2026 esta regra ganhou "position:relative" (ancora do
+    # checkbox de ocultar equipamento, ver secao 101/102) -- o padding em si,
+    # que e o que esta checagem prova, continua intacto.
+    and ".lp-inv td.foto{padding:2px" in novo)
 chk("a coluna Descricao passou a ser o TIPO nos dois lugares",
     "<td>${esc(tipoEquipamento(m))}</td>" in novo
     and "xlsmCellTexto(`D${rowNum}`,S.D, tipoEquipamento(maquina))" in novo
@@ -2905,6 +2908,49 @@ chk("equipamento oculto some do inventario -- nao ha caminho que force ele a apa
 chk("religar o modo de selecao remonta o laudo (senao item desmarcado antes nao voltaria a aparecer p/ remarcar)",
     "lpToggleModoOcultar(){" in novo
     and re.search(r"lpToggleModoOcultar\(\)\{[^}]*App\.lpGerar\(\)", novo, re.S) is not None)
+
+print("\n=== 102. SELECAO DO LAUDO: CASCATA PARA OS RISCOS E CHECKBOX NO INVENTARIO ===")
+# Pedido em campo, no dia seguinte ao 101: desmarcar o equipamento tem que
+# desmarcar os riscos dele junto (senao o checkbox do risco fica mentindo,
+# marcado, mesmo o risco nao aparecendo por causa do pai oculto) -- e o
+# mesmo campo de desmarcar equipamento precisa existir tambem no inventario,
+# escrevendo no MESMO m.ocultoLaudo (nao um campo paralelo por tela).
+chk("desmarcar o equipamento cascateia ocultoLaudo para TODOS os riscos dele",
+    re.search(
+        r"lpToggleMaquina\(maquinaId\)\{[\s\S]{0,700}?"
+        r"\(m\.tarefas\|\|\[\]\)\.forEach\(t=> \(t\.riscos\|\|\[\]\)\.forEach\(r=>\{\s*"
+        r"r\.ocultoLaudo = m\.ocultoLaudo;",
+        novo) is not None)
+chk("a cascata tambem carimba o risco para sincronizar (senao a mudanca nao viaja)",
+    re.search(r"r\.ocultoLaudo = m\.ocultoLaudo;\s*r\.atualizadoEm = agoraSync\(\);", novo) is not None)
+chk("o inventario tem o MESMO campo de desmarcar equipamento, chamando lpToggleMaquina",
+    novo.count("onchange=\"App.lpToggleMaquina('${m.id}')\"") == 2)
+chk("o checkbox do inventario fica dentro da celula da foto -- nao mexeu na largura das colunas (INV_COLS)",
+    'class="lp-oculta-toggle lp-oculta-toggle-inv"' in novo
+    and '<td class="foto">${foto? `<img src="${foto}">` : ""}<label class="lp-oculta-toggle lp-oculta-toggle-inv"' in novo)
+chk("o overlay do inventario tem ancora (position:relative) e nao herda o tamanho grande do checkbox padrao",
+    ".lp-inv td.foto{padding:2px;position:relative}" in novo
+    and ".lp-inv .lp-oculta-toggle-inv input{width:11px;height:11px" in novo)
+
+print("\n=== 103. NOME SUGERIDO AO SALVAR O PDF DO LAUDO ===")
+# Pedido em campo: o "Salvar como PDF" do navegador sugeria o titulo generico
+# da aba. Agora sugere "Laudo NR-12 - Empresa - Area". Nao existe parametro
+# de nome de arquivo num window.print() comum -- o unico gancho e o
+# document.title no momento do print, por isso a troca e temporaria.
+chk("existe a funcao que monta o nome, tirando caractere que quebraria arquivo no Windows",
+    novo.count("function nomeArquivoLaudo(proj, area){") == 1
+    # \x22 no lugar do caractere de aspas literal DENTRO do regex e de
+    # proposito: o extrator de funcoes de testes2.js (usado por t133) rastreia
+    # aspas ingenuamente e se perde com uma aspa solta dentro de [...]. Nao e
+    # frescura -- sem isso t133 nao consegue nem carregar a funcao para testar.
+    and "replace(/[\\\\/:*?<>|\\x22]/g, \"\")" in novo
+    and '["Laudo NR-12", limpo(proj && proj.empresa), limpo(area && area.nome)].filter(Boolean).join(" - ")' in novo)
+chk("o titulo da aba muda so durante o print e volta ao normal depois",
+    "const tituloAntigo = document.title;" in novo
+    and "document.title = nomeArquivoLaudo(alvo.proj, alvo.area);" in novo
+    and 'const limpar = ()=>{ try{ raiz.remove(); }catch(e){} document.body.classList.remove("lp-imprimindo"); document.title = tituloAntigo; };' in novo)
+chk("a troca de titulo usa a MESMA area que esta selecionada para montar o laudo (nao uma area qualquer)",
+    re.search(r"lpImprimir\(\)\{[\s\S]{0,900}?const alvo = areas\.find\(a=> a\.area\.id === STATE\.ui\.lpAreaId\) \|\| areas\[0\];[\s\S]{0,120}?nomeArquivoLaudo\(alvo\.proj, alvo\.area\)", novo) is not None)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")

@@ -2146,7 +2146,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "27/08/2026 22:14";
+const APP_BUILD = "27/08/2026 22:46";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -21576,7 +21576,9 @@ window.addEventListener("pageshow", (event) => {
 .lp-inv{width:100%;table-layout:fixed;border-collapse:collapse;font-size:8.5px}
 .lp-inv th,.lp-inv td{border:1px solid #8A8CA3;padding:3px;text-align:center;vertical-align:middle;overflow-wrap:break-word;word-break:break-word}
 .lp-inv th{background:${NAVY};color:#fff;font-weight:800;font-size:8.5px}
-.lp-inv td.foto{padding:2px}
+.lp-inv td.foto{padding:2px;position:relative}
+.lp-inv .lp-oculta-toggle-inv{position:absolute;top:2px;left:2px;padding:1px 3px;gap:0}
+.lp-inv .lp-oculta-toggle-inv input{width:11px;height:11px;margin:0}
 .lp-inv td.nome{font-weight:700}
 .lp-inv img{width:100%;height:62px;object-fit:cover;display:block}
 /* --- contra capa --- */
@@ -21934,7 +21936,9 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
       const it = maqs[i], m = it.maquina;
       const foto = await reduzirFoto(m.fotoGeral || m.fotoPlaqueta, 380);
       blocos.push({ paisagem:true, html:`<table class="lp-inv">${invColgroup}<tr${m.ocultoLaudo?' class="lp-inv-oculto"':''}>
-        <td class="foto">${foto? `<img src="${foto}">` : ""}</td>
+        <td class="foto">${foto? `<img src="${foto}">` : ""}<label class="lp-oculta-toggle lp-oculta-toggle-inv" title="Não incluir este equipamento (e os riscos dele) no laudo, nem no inventário">
+          <input type="checkbox" ${m.ocultoLaudo?'':'checked'} onchange="App.lpToggleMaquina('${m.id}')">
+        </label></td>
         <td>${i+1}</td><td class="nome">${esc(nomeMaquinaS(m))}</td><td>${esc(tipoEquipamento(m))}</td>
         <td>${esc(it.area.nome||"")}</td><td>${esc(m.local||it.area.local||"")}</td>
         <td>${esc(m.modelo||"")}</td><td>${esc(m.marca||"")}</td><td>${esc(m.numeroSerie||"")}</td>
@@ -21973,7 +21977,7 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
       blocos.push({ quebrarAntes:true, html:`
         <div class="lp-faixa-c">Análise de Risco pelo método HRN com Mapeamento e Diagnóstico</div>
         <div class="lp-apr${m.ocultoLaudo?' lp-oculto':''}">
-          <label class="lp-oculta-toggle" title="Não incluir este equipamento no laudo (nem no inventário)">
+          <label class="lp-oculta-toggle" title="Não incluir este equipamento (e os riscos dele) no laudo, nem no inventário">
             <input type="checkbox" ${m.ocultoLaudo?'':'checked'} onchange="App.lpToggleMaquina('${m.id}')"><span>Incluir equipamento</span>
           </label>
           <div class="lp-apr-cab">
@@ -22159,6 +22163,14 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
     itens.forEach(it=>{ if(!mapa.has(it.area.id)) mapa.set(it.area.id, { area:it.area, proj:it.proj, itens:[] }); mapa.get(it.area.id).itens.push(it); });
     return Array.from(mapa.values()).sort((a,b)=> (a.area.nome||"").localeCompare(b.area.nome||"","pt-BR"));
   }
+  /* Nome sugerido ao "Salvar como PDF": "Laudo NR-12 - Empresa - Área".
+     Sem barra/dois-pontos/etc (quebrariam nome de arquivo no Windows); sem
+     empresa ou área (campo vazio no cadastro), o pedaço correspondente some
+     em vez de aparecer como "Laudo NR-12 -  - Área". */
+  function nomeArquivoLaudo(proj, area){
+    const limpo = (s)=> String(s||"").replace(/[\\/:*?<>|\x22]/g, "").replace(/\s+/g, " ").trim();
+    return ["Laudo NR-12", limpo(proj && proj.empresa), limpo(area && area.nome)].filter(Boolean).join(" - ");
+  }
   function tamanhoLegivel(b){
     if(!b) return "";
     return b < 1024 ? b + " B"
@@ -22283,6 +22295,14 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
       if(!m) return;
       m.ocultoLaudo = !m.ocultoLaudo;
       m.atualizadoEm = agoraSync();
+      // Cascata: desmarcar o equipamento leva junto todos os riscos dele
+      // (senão o checkbox de um risco ficaria "marcado" mentindo, já que o
+      // item não aparece mesmo assim -- ver filtro em lpGerar). Remarcar o
+      // equipamento também remarca os riscos, pelo mesmo motivo, dos dois lados.
+      (m.tarefas||[]).forEach(t=> (t.riscos||[]).forEach(r=>{
+        r.ocultoLaudo = m.ocultoLaudo;
+        r.atualizadoEm = agoraSync();
+      }));
       marcarAlterado();
       await App.lpGerar();
     },
@@ -22333,7 +22353,15 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
       raiz.innerHTML = doc.innerHTML;
       document.body.appendChild(raiz);
       document.body.classList.add("lp-imprimindo");
-      const limpar = ()=>{ try{ raiz.remove(); }catch(e){} document.body.classList.remove("lp-imprimindo"); };
+      // "Salvar como PDF" sugere o nome do arquivo a partir do <title> da aba
+      // no momento do print -- não existe outro jeito de sugerir nome de
+      // arquivo num window.print() comum. Troca só durante a impressão e
+      // devolve o título de sempre em seguida.
+      const tituloAntigo = document.title;
+      const areas = areasDoEscopo();
+      const alvo = areas.find(a=> a.area.id === STATE.ui.lpAreaId) || areas[0];
+      if(alvo) document.title = nomeArquivoLaudo(alvo.proj, alvo.area);
+      const limpar = ()=>{ try{ raiz.remove(); }catch(e){} document.body.classList.remove("lp-imprimindo"); document.title = tituloAntigo; };
       window.addEventListener("afterprint", limpar, { once:true });
       setTimeout(()=>{ try{ window.print(); }catch(e){ toast("Impressão não suportada neste navegador", false); } }, 80);
       setTimeout(limpar, 60000);
