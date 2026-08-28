@@ -64,6 +64,45 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 28/08/2026 00:01
+
+**RESOLVIDO: o backup que não importava. O arquivo sempre esteve bom — o app
+é que não conseguia abri-lo.**
+
+Investigação feita com o arquivo real de 1,3 GB, dentro do navegador, e não
+por suposição. O resultado é o contrário do que a mensagem de erro dizia:
+
+- **Ler o arquivo funcionava perfeitamente** — 17 segundos, 3 projetos, zero
+  erro. O backup estava íntegro o tempo todo.
+- O que estourava era a **tela de revisão da importação**. Para preparar a
+  tela, o app copiava os dados transformando tudo em texto — e um texto com
+  1,3 GB de fotos dentro não cabe: o navegador trava em cerca de 512 MB.
+- A mensagem então acusava "arquivo inválido", **culpando um backup que
+  estava perfeito**.
+
+O que mudou:
+
+- A cópia passou a ser feita sem transformar as fotos em texto (a mesma
+  técnica que resolveu o fechamento do app ao duplicar equipamento). Testado
+  com o **mesmo arquivo de 1,3 GB**: agora importa em 16 segundos, com os
+  1.707 itens prontos para revisão.
+- O mesmo problema foi corrigido em outros 6 lugares que tinham a mesma
+  falha e ainda não tinham dado as caras: **restaurar um ponto de
+  restauração antigo**, e **abrir projeto, área, máquina, tarefa ou risco
+  para editar** — que num projeto grande podiam falhar do mesmo jeito.
+- **As mensagens de erro deixaram de mentir.** Ler o arquivo e preparar a
+  tela agora são etapas separadas. Se a segunda falhar, o app diz com todas
+  as letras que *o backup está bom* e que *não é para apagá-lo* — além de
+  mostrar o erro técnico real em vez de escondê-lo.
+
+**Sobre o ponto de restauração:** auditado nesta mesma investigação e está
+confiável. Foi testado o ciclo completo — salvar, apagar tudo, restaurar — e
+a estrutura voltou idêntica, com as fotos byte a byte. Confirmado também, no
+código, que a limpeza automática de fotos nunca apaga uma foto que algum
+ponto de restauração ainda usa.
+
+---
+
 ## 27/08/2026 23:10
 
 **Corrigido: risco desmarcado no laudo estava saindo no PDF mesmo assim.**

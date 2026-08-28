@@ -7707,6 +7707,88 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  console.log("\n=== t135 · BUG DE CAMPO: backup válido não importava (teto de string do navegador) ===");
+  {
+    /* Relatado em campo em 27/08/2026: backup de 1,3 GB exportado pelo próprio
+       app não importava — a mensagem acusava "arquivo inválido", culpando o
+       backup. Investigado ao vivo no navegador com o arquivo REAL: a LEITURA
+       do arquivo funcionava perfeitamente (17 s, 3 projetos). Quem estourava
+       era a tela de revisão, em JSON.parse(JSON.stringify(...)): para virar
+       texto, o backup inteiro teria de caber numa única string, e o navegador
+       para em ~512 MB → RangeError: Invalid string length. Como a chamada
+       estava dentro do mesmo try do seletor de arquivo, o catch genérico
+       acusava o arquivo. */
+    const ctxC = vm.createContext({ Array, Object, String, JSON, console });
+    vm.runInContext(funcao("ehFotoDataUrlPersist"), ctxC);
+    vm.runInContext(funcao("clonarCompartilhandoFotos"), ctxC);
+
+    t("O CASO REAL: a estrutura estoura JSON.stringify, e o clone seguro passa", ()=>{
+      /* Barato de montar e decisivo: UMA foto de 8 MB, referenciada por 100
+         riscos. Em memória são 8 MB (a mesma string), mas como TEXTO seriam
+         ~800 MB — acima do teto do motor JS, exatamente como o backup real. */
+      const foto = "data:image/jpeg;base64," + "A".repeat(8 * 1024 * 1024);
+      const arvore = { areas: [{ maquinas: [{ tarefas: [{ riscos: [] }] }] }] };
+      const riscos = arvore.areas[0].maquinas[0].tarefas[0].riscos;
+      for(let i=0;i<100;i++) riscos.push({ id:"r"+i, nome:"Risco "+i, foto: foto });
+
+      let erroDoJeitoAntigo = null;
+      try{ JSON.stringify(arvore); }catch(e){ erroDoJeitoAntigo = e; }
+      ok(erroDoJeitoAntigo !== null,
+         "o teste não reproduziu o defeito: JSON.stringify precisava estourar aqui");
+      eq(erroDoJeitoAntigo.name, "RangeError", "o estouro tem de ser o mesmo do campo");
+
+      ctxC.__a = arvore;
+      const clone = vm.runInContext("clonarCompartilhandoFotos(__a)", ctxC);
+      eq(clone.areas[0].maquinas[0].tarefas[0].riscos.length, 100, "o clone seguro precisa dar conta");
+    });
+    t("o clone COMPARTILHA a foto (nenhum byte copiado) mas a estrutura fica independente", ()=>{
+      const foto = "data:image/jpeg;base64,AAAA";
+      const orig = { areas:[{ id:"a1", maquinas:[{ id:"m1", foto: foto }] }] };
+      ctxC.__o = orig;
+      const c = vm.runInContext("clonarCompartilhandoFotos(__o)", ctxC);
+      ok(c.areas[0].maquinas[0].foto === foto, "a foto tem de ser a MESMA string — é isso que evita o estouro");
+      c.areas[0].id = "OUTRO";
+      eq(orig.areas[0].id, "a1", "mexer no clone não pode mexer no original (a importação remapeia ids no clone)");
+    });
+
+    /* Tira comentários antes de checar: as duas funções EXPLICAM o defeito
+       antigo no próprio comentário (citando JSON.stringify), e isso não pode
+       ser confundido com o defeito ainda estar lá. */
+    const semComentarios = (txt)=> txt.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+
+    t("os DOIS clones da tela de revisão de importação usam o clone seguro", ()=>{
+      const corpo = semComentarios(funcao("recalcularPreviewImportacao"));
+      ok(corpo.indexOf("clonarCompartilhandoFotos(pv.dadosOriginais.projetosSimples || [])") > 0,
+         "o clone dos dados VINDOS DO ARQUIVO voltou a ser por texto");
+      ok(corpo.indexOf("clonarCompartilhandoFotos(STATE.projetosSimples)") > 0,
+         "o clone dos dados LOCAIS voltou a ser por texto");
+      ok(corpo.indexOf("JSON.stringify") < 0, "sobrou clone por texto na tela de revisão de importação");
+    });
+    t("restaurar um ponto de restauração ANTIGO também não estoura mais", ()=>{
+      const corpo = semComentarios(funcao("restaurarPontoDeRestauracao"));
+      ok(corpo.indexOf("STATE = clonarCompartilhandoFotos(ponto.dados);") > 0,
+         "o caminho do ponto em formato antigo (fotos embutidas) voltou a clonar por texto");
+      ok(corpo.indexOf("JSON.stringify") < 0);
+    });
+    t("abrir projeto/área/máquina/tarefa/risco para editar não clona os bytes das fotos", ()=>{
+      ["abrirModalProjetoS","abrirModalAreaS","abrirModalMaquinaS","abrirModalTarefaS","abrirModalRiscoS"]
+        .forEach(m=>{
+          const i = HTML.indexOf(m + "(id");
+          ok(i > 0, "método " + m + " não encontrado");
+          const trechoM = HTML.slice(i, i + 700);
+          ok(trechoM.indexOf("clonarCompartilhandoFotos") > 0, m + " ainda clona por texto");
+        });
+    });
+    t("os pontos que sobraram com clone por texto são só os do Módulo Completo (congelado)", ()=>{
+      const ocorrencias = (HTML.match(/JSON\.parse\(JSON\.stringify\(/g)||[]).length;
+      // 4 reais (duplicar projeto/área/máquina/tarefa do Módulo Completo) + 2 em comentários
+      eq(ocorrencias, 6, "mudou o número de clones por texto — confira se algum voltou no Simplificado");
+      ["duplicarProjeto","duplicarArea","duplicarMaquina","duplicarTarefa"].forEach(m=>{
+        ok(HTML.indexOf(m + "(id){") > 0, "método congelado " + m + " sumiu");
+      });
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

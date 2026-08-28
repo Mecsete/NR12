@@ -2103,7 +2103,11 @@ async function restaurarPontoDeRestauracao(ts){
     const mapa = await fotosLerLote(db, refsPonto);
     STATE = fotosReinserirDeMapa(ponto.dados, mapa);
   } else {
-    STATE = JSON.parse(JSON.stringify(ponto.dados));
+    /* Ponto no formato ANTIGO guarda as fotos embutidas. O clone por texto
+       que existia aqui tinha o mesmo teto de ~512 MB do resto do app: num
+       projeto grande, restaurar um ponto antigo falharia justamente na
+       hora em que a pessoa mais precisa que funcione. */
+    STATE = clonarCompartilhandoFotos(ponto.dados);
   }
   marcarAlterado();
   render();
@@ -2146,7 +2150,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "27/08/2026 23:10";
+const APP_BUILD = "28/08/2026 00:01";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -18536,7 +18540,7 @@ Devolver agora?`)) return;
     if(!id){ abrirModalEntidade("projetoS", novoProjetoSimplesExtra(), {}, null); return; }
     const achado = STATE.projetosSimples.find(p=>p.id===id);
     if(!achado){ toast("Não foi possível localizar esse projeto — pode ter sido removido. Feche esta janela e tente de novo.", false); return; }
-    abrirModalEntidade("projetoS", JSON.parse(JSON.stringify(achado)), {}, null);
+    abrirModalEntidade("projetoS", clonarCompartilhandoFotos(achado), {}, null);
   },
   abrirModalAreaS(id, projetoSId, onSaved){
     const proj = STATE.projetosSimples.find(p=>p.id===projetoSId);
@@ -18544,7 +18548,7 @@ Devolver agora?`)) return;
     if(!id){ abrirModalEntidade("areaS", novaAreaSimples(), {projetoSId}, onSaved); return; }
     const achada = proj.areas.find(a=>a.id===id);
     if(!achada){ toast("Não foi possível localizar essa área — pode ter sido removida.", false); return; }
-    abrirModalEntidade("areaS", JSON.parse(JSON.stringify(achada)), {projetoSId}, onSaved);
+    abrirModalEntidade("areaS", clonarCompartilhandoFotos(achada), {projetoSId}, onSaved);
   },
   abrirModalMaquinaS(id, areaSId, onSaved){
     const area = buscarAreaSimplesPorId(areaSId);
@@ -18552,7 +18556,7 @@ Devolver agora?`)) return;
     if(!id){ abrirModalEntidade("maquinaS", novaMaquinaSimples(), {areaSId}, onSaved); return; }
     const achada = area.maquinas.find(m=>m.id===id);
     if(!achada){ toast("Não foi possível localizar essa máquina — pode ter sido removida.", false); return; }
-    abrirModalEntidade("maquinaS", migrarInventarioMaquinaSimples(migrarNomeMaquinaSimples(JSON.parse(JSON.stringify(achada)))), {areaSId}, onSaved);
+    abrirModalEntidade("maquinaS", migrarInventarioMaquinaSimples(migrarNomeMaquinaSimples(clonarCompartilhandoFotos(achada))), {areaSId}, onSaved);
   },
   abrirModalTarefaS(id, maquinaSId, onSaved){
     const maquina = buscarMaquinaSimplesPorId(maquinaSId);
@@ -18560,7 +18564,7 @@ Devolver agora?`)) return;
     if(!id){ abrirModalEntidade("tarefaS", novaTarefaSimples(), {maquinaSId}, onSaved); return; }
     const achada = maquina.tarefas.find(t=>t.id===id);
     if(!achada){ toast("Não foi possível localizar essa tarefa — pode ter sido removida.", false); return; }
-    abrirModalEntidade("tarefaS", JSON.parse(JSON.stringify(achada)), {maquinaSId}, onSaved);
+    abrirModalEntidade("tarefaS", clonarCompartilhandoFotos(achada), {maquinaSId}, onSaved);
   },
   abrirModalRiscoS(id, tarefaSId, onSaved){
     if(id && __selMode && __selMode.tipo==="riscoS"){ App.toggleSelecao(id); return; }
@@ -18569,7 +18573,7 @@ Devolver agora?`)) return;
     if(!id){ abrirModalEntidade("riscoS", novoRiscoSimples(), {tarefaSId}, onSaved); return; }
     const achado = tarefa.riscos.find(r=>r.id===id);
     if(!achado){ toast("Não foi possível localizar esse risco — pode ter sido removido.", false); return; }
-    abrirModalEntidade("riscoS", JSON.parse(JSON.stringify(achado)), {tarefaSId}, onSaved);
+    abrirModalEntidade("riscoS", clonarCompartilhandoFotos(achado), {tarefaSId}, onSaved);
   },
 
   /* ---------- Módulo Simplificado: campos do rascunho ---------- */
@@ -20764,7 +20768,18 @@ function __detectarCandidatosMaquinaImportacao(areaExistenteAlvo, maquinasIncomi
 function recalcularPreviewImportacao(){
   const pv = __importPreview;
   if(!pv) return;
-  const dadosAjustados = JSON.parse(JSON.stringify(pv.dadosOriginais.projetosSimples || []));
+  /* CLONE SEM COPIAR OS BYTES DAS FOTOS.
+     Ate 27/08/2026 estas duas linhas usavam JSON.parse(JSON.stringify(...)).
+     Para virar texto, isso exige UMA string com o backup inteiro dentro --
+     e o navegador nao consegue passar de ~512 MB numa string so. Com um
+     projeto grande (1,3 GB de backup, medido em campo) estourava com
+     RangeError: Invalid string length, e o erro caia no catch generico do
+     seletor de arquivo, que acusava "arquivo invalido" -- culpando o
+     backup, que estava perfeito. clonarCompartilhandoFotos copia a
+     estrutura e COMPARTILHA a mesma string de cada foto (string em JS e
+     imutavel, entao compartilhar e seguro): nenhuma string gigante e
+     construida, e o que muda aqui e so campo `id`, nunca foto. */
+  const dadosAjustados = clonarCompartilhandoFotos(pv.dadosOriginais.projetosSimples || []);
   const candidatos = [];
 
   dadosAjustados.forEach(projInc=>{
@@ -20791,7 +20806,7 @@ function recalcularPreviewImportacao(){
   });
 
   const stats = {add:0, igual:0, upd:0, mant:0};
-  const clone = JSON.parse(JSON.stringify(STATE.projetosSimples));
+  const clone = clonarCompartilhandoFotos(STATE.projetosSimples);
   const relatorio = previewProjetosSimples(clone, dadosAjustados, stats);
   pv.candidatos = candidatos;
   pv.novoArrayProjetosSimples = clone;
@@ -20933,16 +20948,33 @@ document.getElementById("fileImport").addEventListener("change", async function(
       : `Este arquivo tem ${mb} MB e está no formato antigo de backup — grande demais para abrir de uma vez. Exporte um backup novo no aparelho de origem (o formato novo não tem esse limite no computador), ou use "Sincronizar agora" com o OneDrive conectado.`);
     return;
   }
+  /* DUAS ETAPAS, DOIS ERROS DIFERENTES — e isso importa mais do que parece.
+     Até 27/08/2026 as duas etapas viviam no MESMO try, e o catch dizia
+     sempre "ou não é um backup válido, ou ficou grande demais". Em campo
+     isso levou a pessoa a achar, por horas, que o backup estava corrompido:
+     o arquivo era perfeito (1,3 GB, lido em 17 s sem um erro) e quem
+     estourava era a MONTAGEM DA TELA de revisão. Mensagem que aponta a
+     causa errada não é um detalhe de texto: leva a jogar fora um backup bom
+     e a desconfiar da única cópia que existia. Agora cada etapa tem o seu
+     try, e o erro real vai junto. */
+  let data;
   try{
     if(ehV2 && file.size > 30*1024*1024) toast("Lendo o backup aos poucos — arquivos grandes podem levar alguns instantes…");
-    const data = await lerArquivoBackup(file);
-    if(!data || (!Array.isArray(data.projetos) && !Array.isArray(data.projetosSimples))){
-      alert("Não foi possível importar este arquivo. Verifique se é um backup válido (.json) gerado por este aplicativo.");
-      return;
-    }
+    data = await lerArquivoBackup(file);
+  }catch(e){
+    console.error("Falha ao LER o arquivo de backup", e);
+    alert("Não foi possível ler este arquivo. Ou ele não é um backup válido (.json) gerado por este aplicativo, ou ficou grande demais para este aparelho processar — nesse caso, tente pelo computador, ou use \"Sincronizar agora\" com o OneDrive conectado.\n\nDetalhe técnico: " + ((e && e.message) || e));
+    return;
+  }
+  if(!data || (!Array.isArray(data.projetos) && !Array.isArray(data.projetosSimples))){
+    alert("Não foi possível importar este arquivo. Verifique se é um backup válido (.json) gerado por este aplicativo.");
+    return;
+  }
+  try{
     abrirRevisaoImportacao(data, file.name);
   }catch(e){
-    alert("Não foi possível abrir este arquivo. Ou ele não é um backup válido (.json) gerado por este aplicativo, ou ficou grande demais para este aparelho processar — nesse caso, tente pelo computador, ou use \"Sincronizar agora\" com o OneDrive conectado.");
+    console.error("Arquivo lido, mas falhou ao preparar a tela de revisão", e);
+    alert("O arquivo foi lido corretamente — o backup está bom. O que falhou foi preparar a tela de revisão neste aparelho, por falta de memória para um projeto deste tamanho.\n\nTente pelo computador. Não apague este backup: o problema não é ele.\n\nDetalhe técnico: " + ((e && e.message) || e));
   }
 });
 

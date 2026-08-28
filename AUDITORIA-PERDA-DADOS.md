@@ -263,3 +263,21 @@ que o usuário perde?".
    "Só excluir o que for apagado pelo usuário" foi aplicado à nuvem e
    esquecido no banco local, no mesmo dia. Ao fechar um furo, procurar o
    mesmo padrão nas outras camadas antes de dar por encerrado.
+11. **Backup que não abre é backup que não existe.** Em 27/08/2026 o app
+   recusou o próprio backup de 1,3 GB. O arquivo estava perfeito: a leitura
+   levava 17 s e devolvia os 3 projetos. Quem estourava era a tela de
+   revisão, copiando os dados via texto (`JSON.parse(JSON.stringify)`) —
+   o mesmo teto de ~512 MB por string que derrubava a duplicação (7-bis).
+   Nenhum dado foi destruído, e mesmo assim isso é perda de dados no
+   sentido que importa: no dia em que precisasse restaurar, não daria.
+   **Rede de segurança precisa ser testada com o volume real do cliente,
+   não com o do teste** — os dois furos irmãos (restaurar ponto antigo,
+   abrir projeto/área para editar) estavam lá havia tempo, sem nunca ter
+   aparecido, porque só falham no tamanho grande.
+12. **Mensagem de erro que acusa a causa errada é um defeito, não um
+   detalhe de texto.** A mensagem dizia "não é um backup válido" para um
+   backup válido, e mandou o engenheiro desconfiar da única cópia que
+   tinha. Duas regras que saíram daí: etapas diferentes (ler o arquivo /
+   preparar a tela) têm de ter erros diferentes, nunca um `try` só; e
+   quando o app sabe que o arquivo está bom, ele tem de **dizer isso**, com
+   todas as letras, e mandar não apagar.

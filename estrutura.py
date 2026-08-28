@@ -2980,6 +2980,45 @@ chk("a ordem e a certa: desliga o modo -> espera montagem em andamento -> remont
     _i_lpimp > 0 and _i_desliga > _i_lpimp and _i_espera > _i_desliga
     and _i_remonta > _i_espera and _i_clona > _i_remonta)
 
+print("\n=== 105. BUG DE CAMPO: BACKUP VALIDO NAO IMPORTAVA (TETO DE STRING) ===")
+# Relatado em campo em 27/08/2026: backup de 1,3 GB gerado pelo proprio app
+# nao importava, e a mensagem acusava "arquivo invalido". Reproduzido ao vivo
+# no navegador com o arquivo REAL: a LEITURA funcionava (17 s, 3 projetos, 0
+# erro) -- quem estourava era a tela de revisao, em
+# JSON.parse(JSON.stringify(...)): virar texto exige o backup inteiro numa
+# unica string, e o motor JS para em ~512 MB (RangeError: Invalid string
+# length). Depois da correcao, o MESMO arquivo importou: 16 s, 1707 itens.
+_sem_com = lambda t: re.sub(r"/\*[\s\S]*?\*/", "", re.sub(r"^\s*//.*$", "", t, flags=re.M))
+_corpo_prev = _sem_com(novo[novo.find("function recalcularPreviewImportacao(){"):][:3000])
+chk("os DOIS clones da tela de revisao de importacao usam o clone que compartilha fotos",
+    "clonarCompartilhandoFotos(pv.dadosOriginais.projetosSimples || [])" in _corpo_prev
+    and "clonarCompartilhandoFotos(STATE.projetosSimples)" in _corpo_prev
+    and "JSON.stringify" not in _corpo_prev)
+_corpo_rest = _sem_com(novo[novo.find("async function restaurarPontoDeRestauracao(ts){"):][:2000])
+chk("restaurar ponto de restauracao ANTIGO (fotos embutidas) nao clona mais por texto",
+    "STATE = clonarCompartilhandoFotos(ponto.dados);" in _corpo_rest
+    and "JSON.stringify" not in _corpo_rest)
+chk("abrir projeto/area/maquina/tarefa/risco para editar nao clona os bytes das fotos",
+    all(("clonarCompartilhandoFotos" in novo[novo.find(m + "(id"): novo.find(m + "(id") + 700])
+        for m in ["abrirModalProjetoS", "abrirModalAreaS", "abrirModalMaquinaS",
+                  "abrirModalTarefaS", "abrirModalRiscoS"]))
+chk("o clone por texto so sobrou no Modulo Completo (congelado) -- e diminuiu, nunca aumentou",
+    novo.count("JSON.parse(JSON.stringify(") == 6
+    and novo.count("JSON.parse(JSON.stringify(") < orig.count("JSON.parse(JSON.stringify("))
+# A mensagem que mentia e parte do defeito: mandou a pessoa desconfiar de um
+# backup bom. Ler e preparar a tela agora sao etapas separadas, com erros
+# proprios, e o erro tecnico real vai junto em vez de sumir.
+chk("ler o arquivo e preparar a tela viraram etapas separadas, cada uma com seu erro",
+    "console.error(\"Falha ao LER o arquivo de backup\", e);" in novo
+    and "console.error(\"Arquivo lido, mas falhou ao preparar a tela de revisão\", e);" in novo
+    # o catch unico que confundia as duas etapas nao pode voltar
+    and "Não foi possível abrir este arquivo. Ou ele não é um backup válido" not in novo)
+chk("a mensagem do segundo caso AFIRMA que o backup esta bom (nao manda desconfiar dele)",
+    "O arquivo foi lido corretamente — o backup está bom." in novo
+    and "Não apague este backup: o problema não é ele." in novo)
+chk("o erro tecnico real aparece para o usuario, em vez de sumir no catch",
+    novo.count("Detalhe técnico: \" + ((e && e.message) || e)") == 2)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
