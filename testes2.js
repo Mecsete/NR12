@@ -7675,6 +7675,38 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       });
   }
 
+  console.log("\n=== t134 · BUG DE CAMPO: risco desmarcado saía no PDF ===");
+  {
+    /* Relatado em campo em 27/08/2026, em DUAS rodadas:
+       1ª causa: o modo de seleção mostra TUDO na tela (inclusive o que está
+         desmarcado, esmaecido, para dar pra remarcar) — e Imprimir só
+         clonava o que já estava desenhado ali.
+       2ª causa (achada testando a correção da 1ª, ao vivo no navegador):
+         lpGerar() se recusa a rodar em paralelo consigo mesma
+         (if(__lpGerando) return) — desmarcar um item (que já dispara uma
+         montagem) e mandar Imprimir logo em seguida podia fazer a correção
+         da 1ª rodar em cima de uma montagem ainda no meio do caminho e não
+         fazer nada, reproduzindo o MESMO bug por outro caminho. */
+    t("Imprimir virou async, desliga o modo de seleção incondicionalmente e espera montagem em andamento ANTES de remontar e clonar #lpDoc", ()=>{
+      ok(HTML.indexOf("async lpImprimir(){") > 0, "Imprimir precisa poder esperar o laudo remontar antes de continuar");
+      const iImp = HTML.indexOf("async lpImprimir(){");
+      const iDesliga = HTML.indexOf("STATE.ui.lpModoOcultar = false;", iImp);
+      const iEspera = HTML.indexOf("while(__lpGerando)", iImp);
+      const iRemonta = HTML.indexOf("await App.lpGerar();", iImp);
+      const iClona = HTML.indexOf("raiz.innerHTML = doc.innerHTML;", iImp);
+      ok(iDesliga > iImp, "precisa desligar o modo de seleção incondicionalmente, não só \"se estiver ligado\"");
+      ok(iEspera > iDesliga, "sem esperar uma montagem em andamento, chamar lpGerar() por cima não faz nada (guarda __lpGerando)");
+      ok(iRemonta > iEspera, "só remonta DEPOIS de garantir que nada mais está no meio do caminho");
+      ok(iClona > iRemonta, "só clona #lpDoc DEPOIS da remontagem garantida, senão pegaria a versão velha com o oculto dentro");
+    });
+    t("a garantia é a MESMA função lpGerar já testada (t131/t132) — não é uma montagem de PDF paralela", ()=>{
+      const corpoImprimir = trecho("async lpImprimir(){", "lpEnviarLogo(){");
+      ok(corpoImprimir.indexOf("await App.lpGerar();") > 0);
+      ok(corpoImprimir.indexOf("blocosEquipamentos") < 0 && corpoImprimir.indexOf("blocosInventario") < 0,
+         "Imprimir não pode ter lógica própria de montar página — reaproveita o lpGerar, que já filtra oculto (t131)");
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

@@ -64,6 +64,22 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 27/08/2026 23:10
+
+**Corrigido: risco desmarcado no laudo estava saindo no PDF mesmo assim.**
+
+O botão Imprimir só clonava o que já estava desenhado na tela — e o modo de
+seleção mostra tudo, inclusive o que está desmarcado (esmaecido, para dar
+para remarcar). Imprimir sem sair do modo de seleção antes levava o item
+desmarcado junto para o PDF.
+
+Corrigido: **Imprimir agora sempre garante a versão limpa** (sem nada do
+que foi desmarcado) antes de continuar, independente do que a tela estava
+mostrando — inclusive no caso de imprimir logo depois de desmarcar algo,
+sem esperar a tela terminar de atualizar.
+
+---
+
 ## 27/08/2026 22:46
 
 **Novo: o "Salvar como PDF" do laudo já sugere um nome de arquivo, em vez do

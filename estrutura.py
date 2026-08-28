@@ -2949,8 +2949,36 @@ chk("o titulo da aba muda so durante o print e volta ao normal depois",
     "const tituloAntigo = document.title;" in novo
     and "document.title = nomeArquivoLaudo(alvo.proj, alvo.area);" in novo
     and 'const limpar = ()=>{ try{ raiz.remove(); }catch(e){} document.body.classList.remove("lp-imprimindo"); document.title = tituloAntigo; };' in novo)
+_i_lpimp103 = novo.find("lpImprimir(){")
+_i_alvo103 = novo.find("const alvo = areas.find(a=> a.area.id === STATE.ui.lpAreaId) || areas[0];", _i_lpimp103)
+_i_nome103 = novo.find("nomeArquivoLaudo(alvo.proj, alvo.area)", _i_alvo103 if _i_alvo103 > 0 else 0)
 chk("a troca de titulo usa a MESMA area que esta selecionada para montar o laudo (nao uma area qualquer)",
-    re.search(r"lpImprimir\(\)\{[\s\S]{0,900}?const alvo = areas\.find\(a=> a\.area\.id === STATE\.ui\.lpAreaId\) \|\| areas\[0\];[\s\S]{0,120}?nomeArquivoLaudo\(alvo\.proj, alvo\.area\)", novo) is not None)
+    _i_lpimp103 > 0 and _i_alvo103 > _i_lpimp103 and _i_nome103 > _i_alvo103)
+
+print("\n=== 104. BUG DE CAMPO: RISCO DESMARCADO SAIA NO PDF ===")
+# Relatado em campo em 27/08/2026, em DUAS rodadas:
+# 1a causa: o modo de selecao mostra TUDO na tela (inclusive oculto,
+#   esmaecido, para dar pra remarcar) -- e Imprimir so clonava o que ja
+#   estava desenhado ali. Imprimir sem sair do modo de selecao antes levava
+#   o item desmarcado junto para o PDF.
+# 2a causa (achada testando a correcao da 1a, ao vivo no navegador): lpGerar()
+#   se recusa a rodar em paralelo consigo mesma (if(__lpGerando) return) --
+#   entao desmarcar um item (que ja dispara uma montagem) e mandar Imprimir
+#   logo em seguida podia fazer a "garantia" da correcao rodar em cima de
+#   uma montagem ainda no meio do caminho e nao fazer nada, reproduzindo o
+#   MESMO bug por outro caminho.
+chk("Imprimir virou async e SEMPRE garante a versao sem oculto antes de continuar",
+    novo.count("async lpImprimir(){") == 1)
+chk("desliga o modo de selecao incondicionalmente (nao so 'se estiver ligado')",
+    "STATE.ui.lpModoOcultar = false;\n      while(__lpGerando) await new Promise(r=>setTimeout(r, 30));\n      await App.lpGerar();" in novo)
+_i_lpimp = novo.find("async lpImprimir(){")
+_i_desliga = novo.find("STATE.ui.lpModoOcultar = false;", _i_lpimp)
+_i_espera = novo.find("while(__lpGerando)", _i_lpimp)
+_i_remonta = novo.find("await App.lpGerar();", _i_lpimp)
+_i_clona = novo.find('raiz.innerHTML = doc.innerHTML;', _i_lpimp)
+chk("a ordem e a certa: desliga o modo -> espera montagem em andamento -> remonta -> so entao clona o #lpDoc",
+    _i_lpimp > 0 and _i_desliga > _i_lpimp and _i_espera > _i_desliga
+    and _i_remonta > _i_espera and _i_clona > _i_remonta)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
