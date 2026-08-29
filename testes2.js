@@ -7789,6 +7789,58 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  console.log("\n=== t136 · diagnóstico das fotos guardadas no aparelho (somente leitura) ===");
+  {
+    /* Caso de campo em 28/08/2026: nem "Devolver fotos" (que olha a nuvem)
+       nem restaurar um ponto (que busca por REFERÊNCIA) trouxeram as fotos.
+       Faltava distinguir três estados que a tela não separava:
+         com dono · ÓRFÃ (bytes existem, ninguém aponta) · referência quebrada.
+       A órfã é exatamente a que restaurar não acha — e é recuperável. */
+    const corpo = funcao("diagnosticarFotosDoAparelho");
+
+    t("O CASO REAL: separa órfã de referência quebrada — são coisas opostas", ()=>{
+      // órfã: está no índice e ninguém referencia
+      ok(corpo.indexOf("indice.forEach(fid=>{ if(!referenciadas.has(fid)) orfas.push(fid); });") > 0,
+         "a regra da órfã mudou: tem de ser 'está no banco E ninguém aponta'");
+      // quebrada: alguém referencia e não está no índice
+      ok(corpo.indexOf("referenciadas.forEach(fid=>{ if(!indice.has(fid)) quebradas.push(fid); });") > 0,
+         "a regra da quebrada mudou: tem de ser 'alguém aponta E não está no banco'");
+    });
+    t("é SOMENTE LEITURA — não grava, não apaga, não abre transação de escrita", ()=>{
+      [".put(", ".delete(", "readwrite", "marcarAlterado", "dbSet"].forEach(p=>{
+        ok(corpo.indexOf(p) < 0, "apareceu operação de escrita no diagnóstico: " + p);
+      });
+      ok(corpo.indexOf('"readonly"') > 0, "a transação precisa ser explicitamente readonly");
+    });
+    t("olha as MESMAS fontes que a limpeza de órfãs — senão chamaria de órfã o que ela preserva", ()=>{
+      const limpeza = funcao("fotosLimparOrfasSeForHora");
+      ["listarPontosDeRestauracao", "lerDraftPersistente", "fotosColetarRefs", "fotosColetarIdsEmbutidas"]
+        .forEach(fonte=>{
+          ok(limpeza.indexOf(fonte) > 0, "fonte sumiu da limpeza: " + fonte);
+          ok(corpo.indexOf(fonte) > 0, "o diagnóstico não consulta " + fonte +
+             " — chamaria de órfã uma foto que a limpeza protege");
+        });
+    });
+    t("mede o peso das órfãs em blocos — não traz todas à memória de uma vez", ()=>{
+      // o aparelho ja carrega as fotos do STATE inteiro; somar um lote grande
+      // aqui seria derrubar o app durante um diagnostico.
+      ok(corpo.indexOf("for(let i=0;i<orfas.length;i+=25)") > 0);
+      ok(corpo.indexOf("orfas.slice(i, i+25)") > 0);
+    });
+    t("informa há quantos dias a órfã mais antiga está sem dono (a quarentena apaga aos 30)", ()=>{
+      ok(corpo.indexOf("fotosLerMapaOrfas(db)") > 0);
+      ok(corpo.indexOf("maisAntigaDias") > 0);
+      ok(HTML.indexOf("a quarentena as guarda por 30") > 0, "a tela não explica o prazo");
+    });
+    t("o botão chama o método, e o método não altera nada além do cache de exibição", ()=>{
+      ok(HTML.indexOf('onclick="App.verDiagnosticoFotos()"') > 0);
+      const met = HTML.slice(HTML.indexOf("async verDiagnosticoFotos(){"), HTML.indexOf("async copiarListaFotoPerdida(){"));
+      ok(met.indexOf("__diagFotosCache = await diagnosticarFotosDoAparelho();") > 0);
+      ok(met.indexOf("marcarAlterado") < 0 && met.indexOf("dbSet") < 0,
+         "o método de exibição não pode gravar nada");
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

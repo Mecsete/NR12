@@ -3019,6 +3019,37 @@ chk("a mensagem do segundo caso AFIRMA que o backup esta bom (nao manda desconfi
 chk("o erro tecnico real aparece para o usuario, em vez de sumir no catch",
     novo.count("Detalhe técnico: \" + ((e && e.message) || e)") == 2)
 
+print("\n=== 106. DIAGNOSTICO DAS FOTOS DO APARELHO (SOMENTE LEITURA) ===")
+# Caso de campo em 28/08/2026: nem "Devolver fotos" nem restaurar um ponto
+# trouxeram as fotos. Faltava saber o mais basico: os bytes ainda estao no
+# aparelho? Foto ORFA (bytes presentes, sem ninguem apontando) e justamente
+# o que restaurar um ponto NAO acha, porque restaurar busca por referencia.
+_corpo_diag = novo[novo.find("async function diagnosticarFotosDoAparelho(){"):]
+_corpo_diag = _corpo_diag[:_corpo_diag.find("\nasync function recuperarFotosVarrendoNuvem(")]
+chk("a funcao existe e e chamada de UM lugar so (o botao da tela)",
+    novo.count("async function diagnosticarFotosDoAparelho(){") == 1
+    and novo.count("diagnosticarFotosDoAparelho()") == 2)
+chk("E SOMENTE LEITURA: nenhuma escrita, exclusao ou transacao readwrite",
+    ".put(" not in _corpo_diag and ".delete(" not in _corpo_diag
+    and "readwrite" not in _corpo_diag and "marcarAlterado" not in _corpo_diag
+    and "dbSet" not in _corpo_diag)
+chk("conta as MESMAS fontes de referencia que a limpeza de orfas consulta",
+    all(x in _corpo_diag for x in
+        ["fotosColetarRefs(gravado, referenciadas)", "fotosColetarIdsEmbutidas(gravado, referenciadas)",
+         "fotosColetarRefs(STATE, referenciadas)", "listarPontosDeRestauracao()",
+         "lerDraftPersistente()"]))
+chk("separa os tres estados: com dono, orfa e referencia quebrada",
+    "if(!referenciadas.has(fid)) orfas.push(fid)" in _corpo_diag
+    and "if(!indice.has(fid)) quebradas.push(fid)" in _corpo_diag
+    and "comDono: indice.size - orfas.length" in _corpo_diag)
+chk("mede o peso das orfas em BLOCOS -- nao traz todas a memoria de uma vez",
+    "for(let i=0;i<orfas.length;i+=25)" in _corpo_diag
+    and "orfas.slice(i, i+25)" in _corpo_diag)
+chk("o botao e o painel existem na tela de backup",
+    'onclick="App.verDiagnosticoFotos()"' in novo
+    and "Fotos guardadas neste aparelho" in novo
+    and novo.count("let __diagFotosCache = null;") == 1)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

@@ -312,6 +312,47 @@ Também não estão aqui — e **não devem** ser commitados:
   Para todo o resto (interface, sincronização, impressão, layout,
   exportação), os PDFs não fazem falta.
 
+## ⚠️ Textos do laudo: a fonte é o CAMPO, nunca o `laudoIA`
+
+Constatado em 27/08/2026 e confirmado pelo engenheiro responsável: os textos
+gravados em `laudoIA` **estão trocados entre equipamentos**. 52 máquinas
+(26 em "Corteva Agriscience", 26 em "Teste do Onedrive", área Debulha)
+receberam o mesmo texto de escopo — a descrição de um *silo de armazenagem* —
+aplicada a debulhadores, trippers, esteiras, correias, mesa e máquinas de
+pré-limpeza. **Todas com `st:"ok"`**, isto é, prontas para sair no laudo
+impresso exatamente assim.
+
+Em qualquer tarefa de gerar, revisar ou conferir texto de laudo, ler apenas
+os campos de campo. O mapeamento oficial já existe no código, em
+`laudoTextoOriginal`:
+
+| Campo do laudo | Origem |
+|---|---|
+| escopo | `nomeMaquinaS(maquina)` + `maquina.descricao` |
+| tarefa | `tarefa.descricao`, ou o nome da tarefa |
+| risco | `risco.descricao` |
+| existente | `risco.descMedida` |
+| solucao | `risco.sugestaoMitigacao`, caindo para `descMedida` |
+
+**Também não confiar em `maquina.tipoEquip`**: está errado em vários itens
+(QD-NDC-01 marcado "Debulhador" quando é máquina de pré-limpeza; Silo 2107
+marcado "Esteira transportadora") e vazio em 33 de 48. Agrupar por nome e
+descrição reais — e **quando a descrição de campo disser o tipo, ela manda
+sobre o nome** (ex.: "Correia CNV-002" tem descrição "Mesa que alimenta a
+CV-3404": é uma mesa).
+
+### O import não conserta isso
+
+`importarTextosLaudo` pula todo campo que já tenha `sug`, `fin` ou `st` — é a
+proteção correta contra sobrescrever decisão, mas impede corrigir o que está
+errado. Medido na Debulha/Corteva (75 riscos): escopo 35/35 decididos, tarefa
+39/39, risco 75/75, solução 75/75; só os 49 campos vazios de "mitigação
+existente" aceitariam importação.
+
+**Não existe hoje ação de "devolver campo para pendente".** Se for preciso
+criá-la, ela é destrutiva de decisão: tem de ser explícita, listar antes o
+que vai mudar, e nunca rodar em massa sem confirmação (REGRA ZERO).
+
 ## `PLR_GRAFICO` — conferido em 11/08/2026
 
 A coluna **Categoria** foi conferida contra a **ABNT NBR 14153:2022, Figura

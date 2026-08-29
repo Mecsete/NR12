@@ -64,6 +64,33 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 29/08/2026 20:37
+
+**Novo: conferir as fotos guardadas neste aparelho.**
+
+Em Configurações → Backup, um botão novo — **"Conferir as fotos guardadas
+neste aparelho"** — responde uma pergunta que até agora não tinha resposta:
+os arquivos das fotos ainda estão no aparelho?
+
+Ele separa três situações que a tela não distinguia:
+
+- **Com dono** — a foto está guardada e em uso, tudo certo.
+- **Órfã** — os arquivos estão no aparelho, mas nenhum risco ou equipamento
+  aponta para eles. **É recuperável**, e é justamente o caso que restaurar um
+  ponto *não* encontra: restaurar procura pela referência, e a referência é o
+  que se perdeu. A quarentena guarda foto órfã por 30 dias.
+- **Referência quebrada** — alguém aponta para arquivos que não existem mais.
+  É o quadro vermelho hachurado. Aí a foto só volta da nuvem ou de um backup.
+
+Mostra também quantos pontos de restauração o aparelho guarda e há quantos
+dias a órfã mais antiga está sem dono.
+
+**Não altera nada.** Só conta e mede — nenhuma gravação, nenhuma exclusão,
+nenhuma transação de escrita no banco. Isso é verificado automaticamente a
+cada entrega, para nunca deixar de ser verdade.
+
+---
+
 ## 28/08/2026 00:01
 
 **RESOLVIDO: o backup que não importava. O arquivo sempre esteve bom — o app

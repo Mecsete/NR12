@@ -2150,7 +2150,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "28/08/2026 00:01";
+const APP_BUILD = "29/08/2026 20:37";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -4732,6 +4732,91 @@ function itemTemEspacoDeFotoVazio(obj){
   const temAlgumaFotoDeVerdade = CAMPOS_FOTO_UNICA.some(c=>__ehFotoEmbutida(obj[c]))
     || (Array.isArray(lista) && lista.some(__ehFotoEmbutida));
   return !temAlgumaFotoDeVerdade;                                     // 3
+}
+/* =========================================================================
+   DIAGNÓSTICO DAS FOTOS GUARDADAS NESTE APARELHO — SOMENTE LEITURA
+
+   Criado em 28/08/2026, depois de um caso em campo onde nem "Devolver fotos"
+   nem restaurar um ponto trouxeram as fotos de volta. Faltava a informação
+   mais básica de todas: os bytes ainda ESTÃO no aparelho?
+
+   Três situações diferentes, que a tela hoje não distingue:
+     • foto com dono ....... tudo certo
+     • foto ÓRFÃ ........... os bytes estão no banco, mas nenhuma referência
+                             aponta para eles. É recuperável, e é justamente
+                             o que restaurar um ponto NÃO acha (restaurar
+                             busca por referência — e a referência é o que
+                             se perdeu). A quarentena guarda órfã por 30 dias.
+     • referência quebrada . alguém aponta para bytes que não existem mais.
+                             É o quadro vermelho hachurado. Perda de verdade,
+                             a menos que a foto esteja na nuvem ou num backup.
+
+   Esta função não grava nada. Só conta e mede. */
+async function diagnosticarFotosDoAparelho(){
+  if(!temIndexedDB()) return { erro:"Este aparelho não tem o banco de dados local disponível." };
+  const db = await dbOpen();
+
+  /* O que EXISTE no banco. */
+  const indice = await fotosCarregarIndice(db);
+
+  /* Quem APONTA para foto. Mesmas fontes que a limpeza de órfãs consulta —
+     de propósito: se aqui olhasse menos lugares que ela, este diagnóstico
+     chamaria de "órfã" uma foto que a limpeza (corretamente) preserva. */
+  const referenciadas = new Set();
+  const gravado = await new Promise((resolve)=>{
+    try{
+      const tx = db.transaction(DB_STORE,"readonly");
+      const rq = tx.objectStore(DB_STORE).get(DB_KEY);
+      rq.onsuccess = ()=>resolve(rq.result || null);
+      rq.onerror   = ()=>resolve(null);
+    }catch(e){ resolve(null); }
+  });
+  if(gravado){ fotosColetarRefs(gravado, referenciadas); fotosColetarIdsEmbutidas(gravado, referenciadas); }
+  fotosColetarRefs(STATE, referenciadas);
+  fotosColetarIdsEmbutidas(STATE, referenciadas);
+  const pontos = await listarPontosDeRestauracao();
+  for(const p of pontos) fotosColetarRefs(p, referenciadas);
+  const rascunho = await lerDraftPersistente();
+  if(rascunho){ fotosColetarIdsEmbutidas(rascunho, referenciadas); fotosColetarRefs(rascunho, referenciadas); }
+
+  const orfas = [];
+  indice.forEach(fid=>{ if(!referenciadas.has(fid)) orfas.push(fid); });
+  const quebradas = [];
+  referenciadas.forEach(fid=>{ if(!indice.has(fid)) quebradas.push(fid); });
+
+  /* Peso das órfãs — é o que dá para recuperar. Lê em blocos para não
+     trazer tudo de uma vez à memória (o aparelho já carrega as fotos do
+     STATE inteiro; somar mais um lote grande aqui seria o tipo de coisa
+     que derruba o app justamente durante um diagnóstico). */
+  let bytesOrfas = 0;
+  for(let i=0;i<orfas.length;i+=25){
+    const lote = new Set(orfas.slice(i, i+25));
+    const mapa = await fotosLerLote(db, lote);
+    mapa.forEach(v=>{ bytesOrfas += (v && v.length) || 0; });
+  }
+
+  /* Há quanto tempo cada órfã está sem dono (a quarentena apaga aos 30 dias). */
+  const orfasDesde = await fotosLerMapaOrfas(db);
+  const agora = Date.now();
+  let maisAntigaDias = null;
+  orfas.forEach(fid=>{
+    const t = orfasDesde[fid];
+    if(typeof t === "number"){
+      const d = Math.floor((agora - t)/(24*60*60*1000));
+      if(maisAntigaDias === null || d > maisAntigaDias) maisAntigaDias = d;
+    }
+  });
+
+  return {
+    noBanco: indice.size,
+    comDono: indice.size - orfas.length,
+    orfas: orfas.length,
+    bytesOrfas,
+    quebradas: quebradas.length,
+    pontosRestauracao: pontos.length,
+    maisAntigaDias,
+    orfasIds: orfas.slice(0, 400)
+  };
 }
 async function recuperarFotosVarrendoNuvem(onProgresso, onLendoNuvem){
   const res = { candidatos:0, recuperados:0, semNadaNaNuvem:0, erro:false };
@@ -15866,6 +15951,20 @@ function screenSimplesConfigBackup(){
   <button class="btn btn-primary btn-block" style="margin-top:8px" onclick="App.recuperarFotosPerdidas(7)">${ic('shield')} Devolver fotos — só o que foi criado nos últimos 7 dias</button>
   <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.recuperarFotosPerdidas(0)">${ic('shield')} Devolver fotos — o projeto inteiro</button>
   <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.copiarListaFotoPerdida()">${ic('copy')} Copiar lista dos itens que ainda precisam de foto</button>
+  <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.verDiagnosticoFotos()">${ic('info')} Conferir as fotos guardadas neste aparelho</button>
+  ${__diagFotosCache ? `<div class="card card-pad" style="margin-top:8px">
+    <div style="font-weight:800;font-size:13px;margin-bottom:6px">Fotos guardadas neste aparelho</div>
+    <div style="font-size:12.5px;color:var(--ink-dim);line-height:1.9">
+      Arquivos de foto no aparelho: <b>${__diagFotosCache.noBanco}</b><br>
+      Com dono (em uso): <b>${__diagFotosCache.comDono}</b><br>
+      <span style="color:${__diagFotosCache.orfas>0?'#2e7d32':'inherit'}">Órfãs — existem, mas ninguém aponta para elas: <b>${__diagFotosCache.orfas}</b>${__diagFotosCache.orfas>0?` (${(__diagFotosCache.bytesOrfas/1024/1024).toFixed(1)} MB)`:''}</span><br>
+      <span style="color:${__diagFotosCache.quebradas>0?'#B26A00':'inherit'}">Referências quebradas — os quadros vermelhos: <b>${__diagFotosCache.quebradas}</b></span><br>
+      Pontos de restauração guardados: <b>${__diagFotosCache.pontosRestauracao}</b>
+    </div>
+    <div class="field-hint" style="margin-top:8px">${__diagFotosCache.orfas>0
+      ? `Há <b>${__diagFotosCache.orfas} foto(s) recuperável(is)</b> guardada(s) aqui sem dono${__diagFotosCache.maisAntigaDias!==null?` — a mais antiga há ${__diagFotosCache.maisAntigaDias} dia(s), e a quarentena as guarda por 30`:''}. Avise o suporte com estes números.`
+      : `Nenhuma foto órfã: tudo que está guardado neste aparelho já tem dono. As referências quebradas, se houver, precisam vir da nuvem ou de um backup.`}</div>
+  </div>` : ""}
   <div class="section-title">Backup · Reescrever as frases dos riscos</div>
   <div class="card card-pad">
     <p style="font-size:12.5px;color:var(--ink-dim)">O nome e a descrição do risco são montados a partir de <b>Evento, Componente, Local e Parte do corpo</b>. A redação foi melhorada: a parte do corpo passou a ligar-se ao evento ("Amputação <b>da mão</b> na lâmina da tampa de inspeção", em vez de "Amputação na lâmina, na tampa de inspeção, com lesão na mão"). Isto reescreve os riscos que já existem.<br><br><b>Frase que você digitou por cima nunca é tocada</b> — só as que o próprio app tinha montado.<br><br>Se houver outra pessoa trabalhando no mesmo projeto, <b>sincronize antes</b>: recompor altera o carimbo de data, e edições que ainda não chegaram aqui seriam passadas por cima.</p>
@@ -18184,6 +18283,18 @@ Devolver agora?`)) return;
     toast(n>0
       ? `${n} cópia(s) duplicada(s) removida(s)${resta? " · ainda restam "+resta : ""} — sincronize agora para concluir`
       : "Nada a juntar", n>0);
+  },
+  /* SOMENTE LEITURA — conta o que existe, não muda nada. */
+  async verDiagnosticoFotos(){
+    toast("Conferindo as fotos guardadas…");
+    try{
+      __diagFotosCache = await diagnosticarFotosDoAparelho();
+      render();
+      if(__diagFotosCache && __diagFotosCache.erro) toast(__diagFotosCache.erro, false);
+      else toast("Conferência concluída");
+    }catch(e){
+      toast("Não foi possível conferir: " + ((e && e.message) || e), false);
+    }
   },
   async copiarListaFotoPerdida(){
     const linhas = listarItensFotoPerdidaTexto();
@@ -20910,6 +21021,8 @@ document.getElementById("fileTextosLaudo").addEventListener("change", async func
 let __ultimoImportePlaqueta = null;
 /* Resultado da última recuperação de fotos, mostrado na tela de Backup. */
 let __ultimaRecuperacaoFotos = null;
+/* Resultado do último diagnóstico de fotos guardadas (somente leitura). */
+let __diagFotosCache = null;
 /* Resultado da última recomposição de frases, mostrado na tela de Backup. */
 let __ultimaRecomposicaoFrases = null;
 document.getElementById("fileDadosPlaqueta").addEventListener("change", async function(){
