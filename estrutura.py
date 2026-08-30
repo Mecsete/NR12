@@ -3050,6 +3050,50 @@ chk("o botao e o painel existem na tela de backup",
     and "Fotos guardadas neste aparelho" in novo
     and novo.count("let __diagFotosCache = null;") == 1)
 
+print("\n=== 107. DEVOLVER FOTOS A PARTIR DE UM ARQUIVO DE BACKUP ===")
+# Em 29/08/2026, em campo: 43 campos de foto faltando em 42 itens, e nem os
+# pontos de restauracao nem a nuvem tinham as fotos — mas os .json de backup
+# guardados no computador tinham (102 fotos, 47 MB). Nenhum caminho do app
+# sabia ler dali para esse fim. So ACRESCENTA em espaco vazio.
+_imp = novo[novo.find("function importarFotosRecuperadas(pacote){"):]
+_imp = _imp[:_imp.find('\nconst PLAQUETA_FORMATO')]
+chk("existe o formato proprio e a funcao de importar",
+    'const FOTOS_RECUPERADAS_FORMATO = "apr-fotos-recuperadas-v1";' in novo
+    and novo.count("function importarFotosRecuperadas(pacote){") == 1
+    and "pacote.formato !== FOTOS_RECUPERADAS_FORMATO" in _imp)
+chk("SO ACRESCENTA: nao substitui foto boa, nao remove e nao reordena",
+    "item[CAMPO_FOTOS_LISTA].push(f);" in _imp
+    and ".splice(" not in _imp and ".shift(" not in _imp
+    and ".sort(" not in _imp and ".reverse(" not in _imp
+    # a UNICA atribuicao a lista inteira e a inicializacao quando ela nem existe
+    and _imp.count("item[CAMPO_FOTOS_LISTA] =") == 1
+    and "if(!Array.isArray(item[CAMPO_FOTOS_LISTA])) item[CAMPO_FOTOS_LISTA] = [];" in _imp)
+chk("devolve a foto PARA DENTRO do espaco vazio (o quadro vermelho), e nunca apaga um espaco",
+    "const vago = item[CAMPO_FOTOS_LISTA].findIndex(x=>!ehFotoDataUrlPersist(x));" in _imp
+    and "if(vago >= 0) item[CAMPO_FOTOS_LISTA][vago] = f;" in _imp
+    # apagar o espaco apagaria a unica pista de que aquela foto falta
+    and "filter(ehFotoDataUrlPersist);" not in _imp)
+chk("nao encosta nas fotos UNICAS (foto principal, geral, plaqueta) -- so as usa para nao duplicar",
+    "CAMPOS_FOTO_UNICA.forEach(c=>{ if(ehFotoDataUrlPersist(item[c])) jaTem.add(fotoCalcularId(item[c])); });" in _imp
+    and "item[c] =" not in _imp)
+chk("nao repete foto: compara pela identidade de CONTEUDO, a mesma do banco",
+    "const fid = fotoCalcularId(f);" in _imp
+    and "if(jaTem.has(fid)){ res.jaTinham++; return; }" in _imp)
+chk("segue a regra da marca de dano: so sai quando nao sobrou espaco vazio",
+    "if(vazios === 0) delete item[CAMPO_MARCA_FOTO_PERDIDA];" in _imp)
+chk("carimba para sincronizar, senao a foto devolvida nunca subiria",
+    "item.atualizadoEm = agoraSync();" in _imp
+    and "marcarFotosPendentesParaEnvio(" in _imp)
+chk("nao encosta em texto, medida, HRN nem decisao de laudo",
+    all(x not in _imp for x in ["laudoIA", "laudoSet", "descricao =", "descMedida", "sugestaoMitigacao", "nome ="]))
+chk("existe o botao e o input de arquivo na tela de backup",
+    'id="fileFotosRecuperadas"' in novo
+    and "Devolver fotos a partir de um arquivo de backup" in novo
+    and novo.count('document.getElementById("fileFotosRecuperadas").addEventListener') == 1)
+chk("acha risco em qualquer lugar da arvore (o irmao de maquinaSimplesGlobalPorId, que faltava)",
+    novo.count("function riscoSimplesGlobalPorId(id){") == 1
+    and "function riscoSimplesGlobalPorId" not in orig)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

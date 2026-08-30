@@ -64,6 +64,44 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 29/08/2026 21:21
+
+**Novo: devolver fotos a partir de um arquivo de backup (.json).**
+
+Até agora o "Devolver fotos" procurava em dois lugares — os pontos de
+restauração do aparelho e a nuvem. Em campo apareceu um caso em que nenhum
+dos dois tinha as fotos, mas os arquivos `.json` de backup guardados no
+computador tinham. Faltava um caminho que soubesse ler dali.
+
+Em Configurações → Backup: **"Devolver fotos a partir de um arquivo de
+backup (.json)"**.
+
+O que ele faz, e só isso:
+
+- **Devolve a foto para dentro do espaço vazio** — o quadro vermelho
+  hachurado existe porque ali havia uma foto, e é lá que ela volta. Quando
+  não há espaço vago, entra no fim da lista.
+- **Nunca substitui** foto que o item já tenha, e **nunca apaga** um espaço
+  vazio: se sobrar vazio, é porque aquela foto ainda falta, e apagar o
+  espaço apagaria a única pista disso.
+- **Nunca encosta** na foto principal, na foto geral, na plaqueta, nem em
+  texto, medida, HRN ou decisão de laudo.
+- **Não repete foto**: compara pelo conteúdo, então a mesma foto vinda de
+  dois backups diferentes entra uma vez só.
+- Marca as fotos devolvidas para subirem na próxima sincronização.
+
+A marca de dano do item só é removida quando não sobra nenhum espaço vazio —
+enquanto sobrar, o item segue protegido contra regravar por cima do arquivo
+da nuvem que ainda pode ter a foto que falta.
+
+Também nesta versão: o painel de conferência passou a separar **"itens
+mostrando quadro vermelho"** de **"referências apontando para arquivo
+ausente"**. Eram tratados como a mesma coisa e não são — em campo o segundo
+número deu zero com a tela cheia de quadros vermelhos, porque na abertura o
+app troca a referência que não resolve por vazio e deixa só a marca.
+
+---
+
 ## 29/08/2026 20:37
 
 **Novo: conferir as fotos guardadas neste aparelho.**

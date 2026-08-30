@@ -7841,6 +7841,98 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  console.log("\n=== t137 · devolver fotos a partir de um arquivo de backup ===");
+  {
+    /* Caso de campo em 29/08/2026: 43 campos de foto faltando em 42 itens.
+       "Devolver fotos" procura em pontos de restauração e na nuvem — e
+       nenhum dos dois tinha. Os .json de backup no computador tinham (102
+       fotos). Faltava um caminho que lesse dali. Só ACRESCENTA. */
+    const ctxF = vm.createContext({ Array, Object, String, Set, Date, console, JSON });
+    vm.runInContext('var CAMPO_FOTOS_LISTA="fotosOutras"; var CAMPO_MARCA_FOTO_PERDIDA="__fotosPerdidas";' +
+                    ' var CAMPOS_FOTO_UNICA=["foto","fotoGeral","fotoPlaqueta"];' +
+                    ' var STATE={projetosSimples:[]};' +
+                    ' function agoraSync(){ return 777; }' +
+                    ' function marcarAlterado(){ globalThis.__salvou=true; }' +
+                    ' function marcarFotosPendentesParaEnvio(k){ (globalThis.__envio=globalThis.__envio||[]).push(k); }' +
+                    ' function ehFotoDataUrlPersist(v){ return typeof v==="string" && v.startsWith("data:image"); }' +
+                    ' function fotoCalcularId(s){ return "id" + s.length + ":" + s.slice(-12); }', ctxF);
+    vm.runInContext(funcao("maquinaSimplesGlobalPorId"), ctxF);
+    vm.runInContext(funcao("riscoSimplesGlobalPorId"), ctxF);
+    vm.runInContext('var FOTOS_RECUPERADAS_FORMATO="apr-fotos-recuperadas-v1";', ctxF);
+    vm.runInContext(funcao("importarFotosRecuperadas"), ctxF);
+
+    const F = n => "data:image/jpeg;base64," + "A".repeat(20) + n;
+    const montar = ()=>{
+      const m = { id:"m1", nome:"Maq", fotoGeral:F("PRINCIPAL"), fotosOutras:[F(1)],
+                  __fotosPerdidas:true, tarefas:[{ id:"t1", riscos:[
+                    { id:"r1", nome:"Risco", foto:null, fotosOutras:[] }]}] };
+      ctxF.STATE.projetosSimples = [{ id:"p1", areas:[{ id:"a1", maquinas:[m] }] }];
+      globalThis.__envio = null;
+      vm.runInContext("globalThis.__envio=[]; globalThis.__salvou=false;", ctxF);
+      return m;
+    };
+    const importar = (pac)=>{ ctxF.__p = pac; return vm.runInContext("importarFotosRecuperadas(__p)", ctxF); };
+
+    t("O CASO REAL: devolve só o que falta e ignora o que o item já tem", ()=>{
+      const m = montar();
+      const r = importar({ formato:"apr-fotos-recuperadas-v1", itens:[
+        { id:"m1", tipo:"maquina", fotos:[F(1), F(2), F(3)] },   // F(1) já está lá
+        { id:"r1", tipo:"risco",   fotos:[F(9)] },
+      ]});
+      eq(r.fotosAplicadas, 3, "deveria entrar F2, F3 e F9");
+      eq(r.jaTinham, 1, "F1 já estava e tinha de ser ignorada");
+      eq(r.itensAtualizados, 2);
+      eq(m.fotosOutras.length, 3);
+      eq(m.fotosOutras[0], F(1), "a foto que já estava tem de continuar onde estava");
+    });
+    t("NUNCA substitui a foto principal, a geral nem a plaqueta", ()=>{
+      const m = montar();
+      importar({ formato:"apr-fotos-recuperadas-v1", itens:[
+        { id:"m1", tipo:"maquina", fotos:[F(2)] }]});
+      eq(m.fotoGeral, F("PRINCIPAL"), "a foto geral foi trocada — não pode");
+      const r1 = m.tarefas[0].riscos[0];
+      eq(r1.foto, null, "a foto principal do risco foi mexida — não pode");
+    });
+    t("a mesma foto vinda de dois backups entra uma vez só", ()=>{
+      const m = montar();
+      const r = importar({ formato:"apr-fotos-recuperadas-v1", itens:[
+        { id:"m1", tipo:"maquina", fotos:[F(7), F(7), F(7)] }]});
+      eq(r.fotosAplicadas, 1);
+      eq(m.fotosOutras.length, 2);
+    });
+    t("a marca de dano só sai quando não sobrou espaço vazio na lista", ()=>{
+      const m = montar();
+      m.fotosOutras = [F(1), null];                 // um espaço vazio
+      importar({ formato:"apr-fotos-recuperadas-v1", itens:[
+        { id:"m1", tipo:"maquina", fotos:[F(2)] }]});
+      ok(m.fotosOutras.every(x=>typeof x === "string"), "o espaço vazio tinha de ser limpo depois de preencher");
+      eq(m.__fotosPerdidas, undefined, "com a lista completa, a marca sai");
+    });
+    t("carimba para sincronizar — senão a foto devolvida nunca subiria", ()=>{
+      montar();
+      importar({ formato:"apr-fotos-recuperadas-v1", itens:[
+        { id:"m1", tipo:"maquina", fotos:[F(5)] }]});
+      const env = vm.runInContext("globalThis.__envio", ctxF);
+      ok(env.indexOf("maquina:m1") >= 0, "não marcou as fotos para envio");
+      ok(vm.runInContext("globalThis.__salvou", ctxF) === true, "não pediu para salvar");
+    });
+    t("item que não existe aqui é contado, não inventado", ()=>{
+      montar();
+      const r = importar({ formato:"apr-fotos-recuperadas-v1", itens:[
+        { id:"nao_existe", tipo:"risco", fotos:[F(4)] }]});
+      eq(r.naoAchados, 1);
+      eq(r.fotosAplicadas, 0);
+    });
+    t("recusa arquivo de outro formato e linha sem foto de verdade", ()=>{
+      montar();
+      eq(importar({ formato:"outra-coisa", itens:[] }), null);
+      const r = importar({ formato:"apr-fotos-recuperadas-v1", itens:[
+        { id:"m1", tipo:"maquina", fotos:["nao é foto", null, 42] }]});
+      eq(r.invalidos, 1, "linha sem nenhuma foto válida tem de ser recusada");
+      eq(r.fotosAplicadas, 0);
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

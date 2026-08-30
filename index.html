@@ -685,6 +685,7 @@ var st,ct,ut,lt,dt,ht,pt,gt,ft,mt=function(){function t(e,t,r){this.networkInter
 <input type="file" id="fileImport" accept="application/json" hidden>
 <input type="file" id="fileTextosLaudo" accept="application/json,.json" hidden>
 <input type="file" id="fileDadosPlaqueta" accept="application/json,.json" hidden>
+<input type="file" id="fileFotosRecuperadas" accept="application/json,.json" hidden>
 <div id="toast" class="toast"></div>
 
 <script>/* PizZip (biblioteca para ler/escrever arquivos .docx como zip) */
@@ -2150,7 +2151,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "29/08/2026 20:37";
+const APP_BUILD = "29/08/2026 21:21";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -4807,12 +4808,22 @@ async function diagnosticarFotosDoAparelho(){
     }
   });
 
+  /* OS QUADROS VERMELHOS SAO OUTRA CONTA, e precisam ser medidos aqui.
+     "quebradas" acima conta referencia que aponta para bytes ausentes — e
+     esse numero e quase sempre ZERO, porque na abertura o app troca a
+     referencia que nao resolve por vazio e deixa apenas a MARCA de foto
+     perdida. E a marca que desenha o quadro vermelho. Rotular "quebradas"
+     como "os quadros vermelhos" era enganoso: em campo, em 29/08/2026, deu
+     0 quebradas com varios quadros visiveis na tela. */
+  const marcados = contarItensComFotoPerdida();
+
   return {
     noBanco: indice.size,
     comDono: indice.size - orfas.length,
     orfas: orfas.length,
     bytesOrfas,
     quebradas: quebradas.length,
+    marcados,
     pontosRestauracao: pontos.length,
     maisAntigaDias,
     orfasIds: orfas.slice(0, 400)
@@ -13364,6 +13375,89 @@ function importarTextosLaudo(pacote){
    cima do que já existe.
    ========================================================================= */
 const PLAQUETA_CAMPOS_IMPORTAVEIS = ["modelo", "marca", "numeroSerie", "anoFabricacao", "capacidade", "tensao"];
+const FOTOS_RECUPERADAS_FORMATO = "apr-fotos-recuperadas-v1";
+/* Acha um risco em qualquer lugar da árvore do Simplificado. O irmão para
+   máquina (maquinaSimplesGlobalPorId) já existia; este faltava. */
+function riscoSimplesGlobalPorId(id){
+  for(const p of (STATE.projetosSimples||[])){
+    for(const a of (p.areas||[])){
+      for(const m of (a.maquinas||[])){
+        for(const t of (m.tarefas||[])){
+          const r = (t.riscos||[]).find(x=>x.id===id);
+          if(r) return r;
+        }
+      }
+    }
+  }
+  return null;
+}
+/* IMPORTAR FOTOS RECUPERADAS DE UM BACKUP ANTIGO.
+
+   O caminho "Devolver fotos" procura em dois lugares: os pontos de
+   restauração deste aparelho e a nuvem. Em 29/08/2026, em campo, nenhum dos
+   dois tinha as fotos — mas os arquivos .json de backup guardados no
+   computador tinham. Faltava um caminho que soubesse ler dali.
+
+   O que esta função NÃO faz, e é o que importa:
+     • não substitui foto nenhuma que o item já tenha;
+     • não remove nem reordena o que está lá;
+     • não toca em texto, medida, HRN ou decisão de laudo;
+     • não acrescenta foto repetida — compara pela identidade de conteúdo,
+       a mesma que dá nome ao arquivo no banco, então a mesma foto vinda de
+       dois backups diferentes entra uma vez só.
+   Ela só ACRESCENTA, no fim da lista de outras fotos, o que falta. */
+function importarFotosRecuperadas(pacote){
+  if(!pacote || typeof pacote !== "object") return null;
+  if(pacote.formato !== FOTOS_RECUPERADAS_FORMATO || !Array.isArray(pacote.itens)) return null;
+  const res = { fotosAplicadas:0, itensAtualizados:0, naoAchados:0, jaTinham:0, invalidos:0 };
+  pacote.itens.forEach(linha=>{
+    if(!linha || typeof linha !== "object"){ res.invalidos++; return; }
+    const id = linha.id || "";
+    const fotos = Array.isArray(linha.fotos) ? linha.fotos.filter(ehFotoDataUrlPersist) : [];
+    if(!id || fotos.length === 0){ res.invalidos++; return; }
+    const item = (linha.tipo === "maquina") ? maquinaSimplesGlobalPorId(id) : riscoSimplesGlobalPorId(id);
+    if(!item){ res.naoAchados++; return; }
+
+    if(!Array.isArray(item[CAMPO_FOTOS_LISTA])) item[CAMPO_FOTOS_LISTA] = [];
+    /* Identidade por CONTEÚDO, não por posição: é assim que o banco nomeia
+       cada foto, então duas cópias do mesmo arquivo são reconhecidas mesmo
+       vindo de backups diferentes. */
+    const jaTem = new Set();
+    item[CAMPO_FOTOS_LISTA].forEach(f=>{ if(ehFotoDataUrlPersist(f)) jaTem.add(fotoCalcularId(f)); });
+    CAMPOS_FOTO_UNICA.forEach(c=>{ if(ehFotoDataUrlPersist(item[c])) jaTem.add(fotoCalcularId(item[c])); });
+
+    let novas = 0;
+    fotos.forEach(f=>{
+      const fid = fotoCalcularId(f);
+      if(jaTem.has(fid)){ res.jaTinham++; return; }
+      jaTem.add(fid);
+      /* PREFERE OCUPAR UM ESPAÇO VAZIO a acrescentar no fim. O espaço vazio
+         na lista existe justamente porque ali HAVIA uma foto — é o quadro
+         vermelho hachurado. Devolver a foto para dentro dele é o que a
+         pessoa espera ver. Só quando não há espaço vago é que entra no fim.
+         Nunca REMOVE um espaço: se sobrar vazio, é porque aquela foto
+         continua faltando, e apagar o espaço apagaria a única pista disso. */
+      const vago = item[CAMPO_FOTOS_LISTA].findIndex(x=>!ehFotoDataUrlPersist(x));
+      if(vago >= 0) item[CAMPO_FOTOS_LISTA][vago] = f;
+      else item[CAMPO_FOTOS_LISTA].push(f);
+      novas++;
+    });
+    if(novas > 0){
+      res.fotosAplicadas += novas;
+      res.itensAtualizados++;
+      /* Mesma regra da recuperação que já existia: a marca de dano só sai
+         quando não sobrou espaço vazio na lista. Enquanto sobrar, o item
+         continua parado, sem regravar por cima do arquivo da nuvem que
+         ainda pode ter a foto que falta. */
+      const vazios = item[CAMPO_FOTOS_LISTA].filter(x=>!ehFotoDataUrlPersist(x)).length;
+      if(vazios === 0) delete item[CAMPO_MARCA_FOTO_PERDIDA];
+      item.atualizadoEm = agoraSync();
+      marcarFotosPendentesParaEnvio((linha.tipo === "maquina" ? "maquina:" : "risco:") + id);
+    }
+  });
+  if(res.itensAtualizados > 0) marcarAlterado();
+  return res;
+}
 const PLAQUETA_FORMATO = "apr-plaqueta-v1";
 function maquinaSimplesGlobalPorId(id){
   for(const p of (STATE.projetosSimples||[])){
@@ -15952,13 +16046,16 @@ function screenSimplesConfigBackup(){
   <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.recuperarFotosPerdidas(0)">${ic('shield')} Devolver fotos — o projeto inteiro</button>
   <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.copiarListaFotoPerdida()">${ic('copy')} Copiar lista dos itens que ainda precisam de foto</button>
   <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.verDiagnosticoFotos()">${ic('info')} Conferir as fotos guardadas neste aparelho</button>
+  <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="document.getElementById('fileFotosRecuperadas').click()">${ic('upload')} Devolver fotos a partir de um arquivo de backup (.json)</button>
+  ${__ultimoImporteFotos ? `<div class="field-hint" style="margin-top:6px;color:${__ultimoImporteFotos.erro?'var(--danger, #c0392b)':'var(--ok, #2e7d32)'}">${escapeHtml(__ultimoImporteFotos.mensagem)}</div>` : ""}
   ${__diagFotosCache ? `<div class="card card-pad" style="margin-top:8px">
     <div style="font-weight:800;font-size:13px;margin-bottom:6px">Fotos guardadas neste aparelho</div>
     <div style="font-size:12.5px;color:var(--ink-dim);line-height:1.9">
       Arquivos de foto no aparelho: <b>${__diagFotosCache.noBanco}</b><br>
       Com dono (em uso): <b>${__diagFotosCache.comDono}</b><br>
       <span style="color:${__diagFotosCache.orfas>0?'#2e7d32':'inherit'}">Órfãs — existem, mas ninguém aponta para elas: <b>${__diagFotosCache.orfas}</b>${__diagFotosCache.orfas>0?` (${(__diagFotosCache.bytesOrfas/1024/1024).toFixed(1)} MB)`:''}</span><br>
-      <span style="color:${__diagFotosCache.quebradas>0?'#B26A00':'inherit'}">Referências quebradas — os quadros vermelhos: <b>${__diagFotosCache.quebradas}</b></span><br>
+      <span style="color:${__diagFotosCache.marcados>0?'#B26A00':'inherit'}">Itens mostrando quadro vermelho: <b>${__diagFotosCache.marcados}</b></span><br>
+      Referências apontando para arquivo ausente: <b>${__diagFotosCache.quebradas}</b> <span style="font-size:11px;color:var(--ink-faint)">(costuma ser 0: na abertura o app troca a referência que não resolve por vazio e deixa só a marca)</span><br>
       Pontos de restauração guardados: <b>${__diagFotosCache.pontosRestauracao}</b>
     </div>
     <div class="field-hint" style="margin-top:8px">${__diagFotosCache.orfas>0
@@ -21025,6 +21122,32 @@ let __ultimaRecuperacaoFotos = null;
 let __diagFotosCache = null;
 /* Resultado da última recomposição de frases, mostrado na tela de Backup. */
 let __ultimaRecomposicaoFrases = null;
+let __ultimoImporteFotos = null;
+document.getElementById("fileFotosRecuperadas").addEventListener("change", async function(){
+  const file = this.files[0]; if(!file) return;
+  this.value = "";
+  try{
+    toast("Lendo o arquivo de fotos…");
+    const pacote = JSON.parse(await file.text());
+    const r = importarFotosRecuperadas(pacote);
+    if(!r){
+      __ultimoImporteFotos = { erro:true, mensagem:"Arquivo não reconhecido. Esperado um .json de fotos recuperadas (apr-fotos-recuperadas-v1)." };
+      toast("Arquivo não reconhecido", false);
+    }else{
+      let msg = r.fotosAplicadas + " foto(s) devolvida(s) em " + r.itensAtualizados + " item(ns).";
+      if(r.jaTinham)   msg += " " + r.jaTinham + " já estavam aqui e foram ignoradas.";
+      if(r.naoAchados) msg += " " + r.naoAchados + " item(ns) não existem neste aparelho.";
+      if(r.invalidos)  msg += " " + r.invalidos + " linha(s) inválida(s).";
+      __ultimoImporteFotos = { erro:false, mensagem: msg };
+      toast(r.fotosAplicadas > 0 ? "Fotos devolvidas" : "Nenhuma foto nova a devolver");
+      await dbSet(STATE);
+    }
+  }catch(e){
+    __ultimoImporteFotos = { erro:true, mensagem:"Não foi possível ler o arquivo: " + ((e && e.message) || "erro desconhecido") };
+    toast("Não foi possível ler o arquivo", false);
+  }
+  render();
+});
 document.getElementById("fileDadosPlaqueta").addEventListener("change", async function(){
   const file = this.files[0]; if(!file) return;
   this.value = "";
