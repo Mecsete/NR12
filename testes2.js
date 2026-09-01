@@ -8108,6 +8108,26 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(HTML.indexOf('const alvo = tipo === "maquina" ? maquinaSimplesGlobalPorId(id) : riscoSimplesGlobalPorId(id);') > 0,
          "o nome tem de ser resolvido pelo id, do lado de dentro");
     });
+    t("A PLAQUETA pode receber foto — era impossível e foi relatado em campo", ()=>{
+      /* 01/09/2026: "não consigo colocar a imagem da Plaqueta". A galeria só
+         preenchia fotoGeral (máquina) ou foto (risco); a plaqueta não tinha
+         como ser alcançada. Agora o destino é escolhido antes. */
+      ok(HTML.indexOf('["fotoPlaqueta","Plaqueta"]') > 0, "a plaqueta voltou a não ser oferecida");
+      ok(HTML.indexOf('["fotoGeral","Foto Geral"]') > 0);
+      ok(HTML.indexOf('["lista","Outras fotos"]') > 0);
+      ok(HTML.indexOf("orfasDestinoCampo(campo){") > 0);
+      ok(corpoAnexar.indexOf('d.campo === "fotoPlaqueta"') > 0,
+         "anexar não trata a plaqueta como destino possível");
+    });
+    t("destino escolhido nunca substitui foto boa — recusa e avisa", ()=>{
+      ok(corpoAnexar.indexOf("if(ehFotoDataUrlPersist(item[d.campo])){") > 0);
+      ok(corpoAnexar.indexOf('toast("Esse espaço já tem foto — escolha outro destino", false);') > 0);
+    });
+    t("o padrão continua sendo o comportamento de sempre", ()=>{
+      ok(HTML.indexOf('campo:"auto"') > 0, "o destino padrão deixou de ser automático");
+      ok(corpoAnexar.indexOf("}else if(!ehFotoDataUrlPersist(item[campoPrincipal])){") > 0,
+         "o caminho automático de antes sumiu");
+    });
     t("nenhum outro item de menu interpola texto livre no onclick", ()=>{
       // a mesma classe de defeito em qualquer outro botão de menu
       ok(/onclick:\s*`[^`]*JSON\.stringify/.test(HTML) === false,

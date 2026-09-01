@@ -64,6 +64,27 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 01/09/2026 11:56
+
+**Agora dá para devolver foto para a Plaqueta.**
+
+Relatado em campo: *"não consigo colocar a imagem da Plaqueta"*. A galeria de
+fotos soltas só sabia preencher a Foto Geral (do equipamento) ou a foto
+principal (do risco) — a plaqueta não tinha como ser alcançada por ali.
+
+Na galeria apareceu uma linha de escolha: **Automático · Foto Geral ·
+Plaqueta · Outras fotos**. Escolha onde a foto vai antes de tocar nela.
+
+- **Automático** é o padrão e mantém o comportamento de sempre: preenche o
+  espaço principal se estiver vazio, senão vai para as outras fotos.
+- Escolhendo um espaço específico, ele **só aceita se estiver vazio** — se já
+  houver foto ali, o app avisa e não troca. Nem quando você escolheu aquele
+  espaço de propósito.
+
+No risco as opções são Automático · Foto principal · Outras fotos.
+
+---
+
 ## 01/09/2026 11:22
 
 **Corrigido: o botão "Procurar foto solta no aparelho" não fazia nada.**

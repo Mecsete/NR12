@@ -2151,7 +2151,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "01/09/2026 11:22";
+const APP_BUILD = "01/09/2026 11:56";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -19367,10 +19367,19 @@ Devolver agora?`)) return;
       const nome = tipo === "maquina" ? (nomeMaquinaS(alvo) || "esta máquina") : ((alvo && alvo.nome) || "este risco");
       const ids = await orfasListarIds();
       if(ids.length === 0){ toast("Nenhuma foto solta neste aparelho", false); return; }
-      __orfas = { ids, pagina:0, fotos:new Map(), destino:{ tipo, id, nome } };
+      /* "auto" = o comportamento de sempre: preenche o espaço principal
+         se estiver vazio, senão vai para as outras fotos. A escolha
+         explícita existe para a PLAQUETA, que não tinha como ser
+         preenchida por aqui (relatado em campo em 01/09/2026). */
+      __orfas = { ids, pagina:0, fotos:new Map(), destino:{ tipo, id, nome, campo:"auto" } };
       await orfasCarregarPagina(0);
       abrirOverlay(screenModalOrfas());
     }catch(e){ toast("Não foi possível listar as fotos soltas", false); }
+  },
+  orfasDestinoCampo(campo){
+    if(!__orfas) return;
+    __orfas.destino.campo = campo;
+    abrirOverlay(screenModalOrfas());
   },
   async orfasPagina(n){
     if(!__orfas) return;
@@ -19389,7 +19398,22 @@ Devolver agora?`)) return;
     const item = d.tipo === "maquina" ? maquinaSimplesGlobalPorId(d.id) : riscoSimplesGlobalPorId(d.id);
     if(!item){ toast("O item não foi encontrado", false); return; }
     const campoPrincipal = d.tipo === "maquina" ? "fotoGeral" : "foto";
-    if(!ehFotoDataUrlPersist(item[campoPrincipal])){
+    /* Destino escolhido na tela. "auto" mantém o comportamento de sempre.
+       Um campo único escolhido de propósito (Foto Geral ou Plaqueta) só
+       aceita a foto se estiver VAZIO — nunca substitui foto boa, nem
+       mesmo quando a pessoa escolheu aquele campo. */
+    if(d.campo === "fotoGeral" || d.campo === "fotoPlaqueta" || d.campo === "foto"){
+      if(ehFotoDataUrlPersist(item[d.campo])){
+        toast("Esse espaço já tem foto — escolha outro destino", false);
+        return;
+      }
+      item[d.campo] = dataUrl;
+    }else if(d.campo === "lista"){
+      if(!Array.isArray(item[CAMPO_FOTOS_LISTA])) item[CAMPO_FOTOS_LISTA] = [];
+      const vagoL = item[CAMPO_FOTOS_LISTA].findIndex(x=>!ehFotoDataUrlPersist(x));
+      if(vagoL >= 0) item[CAMPO_FOTOS_LISTA][vagoL] = dataUrl;
+      else item[CAMPO_FOTOS_LISTA].push(dataUrl);
+    }else if(!ehFotoDataUrlPersist(item[campoPrincipal])){
       item[campoPrincipal] = dataUrl;
     }else{
       if(!Array.isArray(item[CAMPO_FOTOS_LISTA])) item[CAMPO_FOTOS_LISTA] = [];
@@ -21236,6 +21260,16 @@ function screenModalOrfas(){
   return `<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card" style="max-width:560px">
     <h3>Fotos soltas neste aparelho</h3>
     <div class="sheet-sub">Estas fotos estão guardadas no aparelho mas não pertencem a nenhum item — normalmente porque o app foi encerrado antes de salvar. Toque na que for de <b>${escapeHtml(d.nome)}</b>.<br>As mais recentes aparecem primeiro. Nada é apagado: o que você não usar continua guardado.</div>
+    ${(()=>{
+      const opcoes = d.tipo === "maquina"
+        ? [["auto","Automático"],["fotoGeral","Foto Geral"],["fotoPlaqueta","Plaqueta"],["lista","Outras fotos"]]
+        : [["auto","Automático"],["foto","Foto principal"],["lista","Outras fotos"]];
+      return `<div style="margin:10px 0">
+        <div style="font-size:11.5px;color:var(--ink-faint);margin-bottom:5px">Onde colocar a foto escolhida:</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">${opcoes.map(([k,rot])=>
+          `<button class="btn ${d.campo===k?'btn-primary':'btn-secondary'}" style="flex:1;min-width:96px;font-size:11.5px;padding:7px 4px" onclick="App.orfasDestinoCampo('${k}')">${rot}</button>`).join("")}</div>
+      </div>`;
+    })()}
     <div style="font-size:12px;color:var(--ink-dim);margin:8px 0">${total} foto(s) solta(s) · página ${__orfas.pagina+1} de ${paginas}</div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">${grade || '<div style="grid-column:1/-1;color:var(--ink-dim);font-size:12.5px">Nenhuma foto nesta página.</div>'}</div>
     <div style="display:flex;gap:8px;margin-top:12px">

@@ -3185,6 +3185,20 @@ chk("o nome do destino e resolvido DENTRO da funcao, a partir do id",
     and "async abrirOrfasPara(tipo, id, nome){" not in novo)
 chk("a tela avisa que nada e apagado",
     "Nada é apagado: o que você não usar continua guardado." in novo)
+# BUG DE CAMPO (01/09/2026): "nao consigo colocar a imagem da Plaqueta".
+# A galeria so preenchia fotoGeral (maquina) ou foto (risco) — a plaqueta
+# nao tinha como ser alcancada por aqui.
+chk("da para escolher o destino, inclusive a PLAQUETA",
+    '["fotoPlaqueta","Plaqueta"]' in novo
+    and '["fotoGeral","Foto Geral"]' in novo
+    and '["lista","Outras fotos"]' in novo
+    and "orfasDestinoCampo(campo){" in novo)
+chk("destino escolhido NUNCA substitui foto boa -- recusa e avisa",
+    'if(ehFotoDataUrlPersist(item[d.campo])){' in novo
+    and 'toast("Esse espaço já tem foto — escolha outro destino", false);' in novo)
+chk("o comportamento de sempre continua sendo o padrao (auto)",
+    'campo:"auto"' in novo
+    and '["auto","Automático"]' in novo)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
