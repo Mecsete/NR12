@@ -3094,6 +3094,86 @@ chk("acha risco em qualquer lugar da arvore (o irmao de maquinaSimplesGlobalPorI
     novo.count("function riscoSimplesGlobalPorId(id){") == 1
     and "function riscoSimplesGlobalPorId" not in orig)
 
+print("\n=== 108. EXPORTAR SO UMA AREA ===")
+# Em 31/08/2026 o diagnostico do iPhone mostrou 1.436 de 1.831 itens que
+# NUNCA subiram. O backup completo (1,4 GB) nao cabe no aparelho, e esperar a
+# fila chegar na area certa levaria muitas rodadas. Um recorte de uma area
+# tem poucas dezenas de MB e sai sem esforco.
+_ba = novo[novo.find("function backupV2AreaEmPartes(partes, proj, area){"):]
+_ba = _ba[:_ba.find("\nfunction contarItensDaArea")]
+chk("existe a funcao de recorte por area e ela e chamada de UM lugar so",
+    novo.count("function backupV2AreaEmPartes(partes, proj, area){") == 1
+    and novo.count("backupV2AreaEmPartes(partes, p, a);") == 1)
+chk("usa o MESMO formato do backup completo -- nenhum leitor novo",
+    '__formatoBackup:"apr-v2"' in _ba
+    and all(('t:"%s"' % t) in _ba for t in ["pS", "aS", "mS", "tS", "rS"]))
+chk("leva SO a area escolhida: o projeto vai sem as outras areas",
+    'linha({t:"pS", d:sem(proj,"areas")});' in _ba
+    and 'linha({t:"aS", pj:proj.id, d:sem(area,"maquinas")});' in _ba
+    and "for(const m of (area.maquinas||[])){" in _ba)
+chk("a configuracao do aparelho NAO viaja no recorte (resto vazio)",
+    'recorte:"area", resto:{}' in _ba
+    # o backup completo continua levando o resto, como sempre levou
+    and "for(const k in STATE){ if(!__BACKUP_CAMPOS_EXCLUIR.has(k)) resto[k] = STATE[k]; }" in novo)
+chk("o botao esta no menu da area, e nao substituiu nenhuma acao existente",
+    '{label:"Exportar só esta área (.json)", icon:"download", onclick:`App.exportarAreaS(\'${id}\')`},' in novo
+    and '{label:"Excluir área", icon:"trash", onclick:`App.removerAreaS(\'${id}\')`, danger:true},' in novo
+    and '{label:"Duplicar área", icon:"copy", onclick:`App.duplicarAreaS(\'${id}\')`},' in novo)
+chk("o nome do arquivo tira caractere que quebraria arquivo no Windows",
+    'const nome = "area_" + String(a.nome||"area").replace(' in novo
+    and "x22" in novo[novo.find('const nome = "area_"'):][:200])
+# O `partes.push` aqui e a montagem do ARQUIVO de saida, nao alteracao de
+# cadastro — por isso a checagem olha o que mexeria nos DADOS.
+chk("e SO LEITURA: exportar nao altera nada do cadastro",
+    all(x not in _ba for x in ["marcarAlterado", "dbSet", "atualizadoEm =",
+                               "delete ", "STATE.", ".splice("])
+    and _ba.count("push(") == _ba.count("partes.push("))
+
+print("\n=== 109. GALERIA DE FOTOS ORFAS (RELIGAR AO DONO) ===")
+# 31/08/2026: 723 fotos orfas (412 MB) neste aparelho. Bytes no banco, sem
+# ninguem apontando — a foto foi tirada (o rascunho grava os bytes) e o app
+# foi encerrado antes de salvar o vinculo. Nenhuma recuperacao existente
+# alcanca: todas trabalham POR REFERENCIA, e a referencia e o que sumiu.
+_ol = novo[novo.find("async function orfasListarIds(){"):]
+_ol = _ol[:_ol.find("\nasync function orfasCarregarPagina")]
+_oa = novo[novo.find("  async orfaAnexar(fid){"):]
+_oa = _oa[:_oa.find("\n  menuMaquinaS(ev,id){")]
+chk("existe a listagem de orfas e ela usa as MESMAS fontes da limpeza",
+    novo.count("async function orfasListarIds(){") == 1
+    and all(x in _ol for x in ["fotosColetarRefs(gravado, referenciadas)", "listarPontosDeRestauracao()",
+                               "lerDraftPersistente()", "fotosColetarIdsEmbutidas(STATE, referenciadas)"]))
+chk("mostra as mais RECENTES primeiro -- e onde esta o trabalho procurado",
+    "ids.sort((a,b)=> (orfasDesde[b]||0) - (orfasDesde[a]||0));" in novo
+    and "fotosLerMapaOrfas(db)" in _ol)
+chk("carrega de 12 em 12 e SOLTA a pagina anterior (sao 412 MB no aparelho real)",
+    "const ORFAS_POR_PAGINA = 12;" in novo
+    and "if(__orfas.fotos) __orfas.fotos.clear();" in novo
+    and "__orfas.fotos = await fotosLerLote(db, desta);" in novo
+    # nunca pode ler o conjunto inteiro de uma vez
+    and "fotosLerLote(db, new Set(__orfas.ids))" not in novo)
+chk("anexar SO ACRESCENTA: nunca substitui foto boa",
+    "if(!ehFotoDataUrlPersist(item[campoPrincipal])){" in _oa
+    and "item[campoPrincipal] = dataUrl;" in _oa
+    and "else item[CAMPO_FOTOS_LISTA].push(dataUrl);" in _oa
+    and ".splice(" not in _oa)
+chk("preenche o espaco vazio (o quadro vermelho) antes de acrescentar no fim",
+    "const vago = item[CAMPO_FOTOS_LISTA].findIndex(x=>!ehFotoDataUrlPersist(x));" in _oa
+    and "if(vago >= 0) item[CAMPO_FOTOS_LISTA][vago] = dataUrl;" in _oa)
+chk("grava, carimba para sincronizar e tira a marca so quando nao sobra vazio",
+    "if(vazios === 0) delete item[CAMPO_MARCA_FOTO_PERDIDA];" in _oa
+    and "item.atualizadoEm = agoraSync();" in _oa
+    and "marcarFotosPendentesParaEnvio(" in _oa
+    and "await dbSet(STATE);" in _oa)
+chk("a foto usada sai da lista de orfas, para nao reaparecer na grade",
+    "__orfas.ids = __orfas.ids.filter(x=>x!==fid);" in _oa
+    and "__orfas.fotos.delete(fid);" in _oa)
+chk("o destino ja vem do item de origem -- entra pelo menu da maquina E do risco",
+    "App.abrirOrfasPara('maquina','${id}'" in novo
+    and "App.abrirOrfasPara('risco','${id}'" in novo
+    and novo.count("Procurar foto solta no aparelho") == 2)
+chk("a tela avisa que nada e apagado",
+    "Nada é apagado: o que você não usar continua guardado." in novo)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

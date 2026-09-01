@@ -2151,7 +2151,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "29/08/2026 21:21";
+const APP_BUILD = "01/09/2026 11:02";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -16483,6 +16483,46 @@ async function lerArquivoBackup(file, onProgresso){
   if(!estado) throw new Error("backup v2 vazio");
   return estado.data;
 }
+/* EXPORTAR UMA ÁREA — mesmo formato v2 do backup completo.
+
+   O backup completo é tudo-ou-nada. Num projeto grande ele passa de 1,4 GB,
+   e o iPhone não consegue montar um arquivo desse tamanho — justamente o
+   aparelho onde o trabalho de campo está. Uma área sozinha tem poucas
+   dezenas de MB e sai sem esforço.
+
+   Não é um formato novo: sai exatamente no mesmo `apr-v2` que "Importar
+   backup" já lê, com as mesmas regras de mesclagem por id e a mesma
+   proteção de fotos. O que muda é só o que entra no arquivo — o projeto
+   (sem as outras áreas), esta área, e a subárvore dela.
+
+   O cabeçalho vai com `resto` VAZIO de propósito: a configuração do
+   aparelho (chaves de IA, conta, preferências) não tem por que viajar num
+   recorte de uma área. A importação não aplica `resto` de qualquer forma
+   (ver confirmarImportacaoBackup, que só mexe nos projetos), mas não
+   mandar é melhor que mandar e confiar que ninguém vai usar. */
+function backupV2AreaEmPartes(partes, proj, area){
+  jsonEmPartes({ __formatoBackup:"apr-v2", geradoEm: Date.now(), recorte:"area", resto:{} }, partes);
+  partes.push("\n");
+  const linha = (obj) => { jsonEmPartes(obj, partes); partes.push("\n"); };
+  const sem = (obj, chave) => { const o={}; for(const k in obj){ if(k!==chave) o[k]=obj[k]; } return o; };
+  linha({t:"pS", d:sem(proj,"areas")});
+  linha({t:"aS", pj:proj.id, d:sem(area,"maquinas")});
+  for(const m of (area.maquinas||[])){
+    linha({t:"mS", pj:proj.id, ar:area.id, d:sem(m,"tarefas")});
+    for(const tf of (m.tarefas||[])){
+      linha({t:"tS", pj:proj.id, ar:area.id, mq:m.id, d:sem(tf,"riscos")});
+      for(const r of (tf.riscos||[])) linha({t:"rS", pj:proj.id, ar:area.id, mq:m.id, tf:tf.id, d:r});
+    }
+  }
+}
+function contarItensDaArea(area){
+  let maquinas=0, tarefas=0, riscos=0;
+  for(const m of (area.maquinas||[])){
+    maquinas++;
+    for(const t of (m.tarefas||[])){ tarefas++; riscos += (t.riscos||[]).length; }
+  }
+  return { maquinas, tarefas, riscos };
+}
 function exportarBackup(){
   const filename = `backup_apr_${hoje()}.json`;
   const partes = [];
@@ -18704,6 +18744,19 @@ Devolver agora?`)) return;
   removerPastaBase,
   reconectarPastaBase,
   irParaConfigBackup,
+  /* Exporta só esta área, para tirar do aparelho um trabalho que ainda
+     não subiu sem depender do backup completo (que no iPhone não cabe). */
+  exportarAreaS(id){
+    const p = getCurrentProjetoSimples(); if(!p) return;
+    const a = (p.areas||[]).find(x=>x.id===id); if(!a) return;
+    const c = contarItensDaArea(a);
+    const partes = [];
+    backupV2AreaEmPartes(partes, p, a);
+    const blob = new Blob(partes, {type:"application/json"});
+    const nome = "area_" + String(a.nome||"area").replace(/[\\/:*?<>|\x22]/g,"").replace(/\s+/g," ").trim() + "_" + hoje() + ".json";
+    downloadBlobDireto(blob, nome);
+    toast(c.maquinas + " máquina(s), " + c.riscos + " risco(s) — " + (blob.size/1024/1024).toFixed(1) + " MB");
+  },
   confirmarImportacaoBackup(){
     const pv = __importPreview;
     if(!pv) return;
@@ -19226,6 +19279,7 @@ Devolver agora?`)) return;
       {label:"Duplicar área", icon:"copy", onclick:`App.duplicarAreaS('${id}')`},
       {label:"Mover para outro projeto", icon:"folder", onclick:`App.menuMoverAreaS('${id}')`},
       {label:"Duplicar para outro projeto", icon:"folder", onclick:`App.menuDuplicarAreaSOutroProjeto('${id}')`},
+      {label:"Exportar só esta área (.json)", icon:"download", onclick:`App.exportarAreaS('${id}')`},
       {label:"Excluir área", icon:"trash", onclick:`App.removerAreaS('${id}')`, danger:true},
     ]);
   },
@@ -19296,6 +19350,60 @@ Devolver agora?`)) return;
     p.areas = p.areas.filter(x=>x.id!==id);
     marcarAlterado(); go("simples-areas",{projetoSId:p.id}); toast("Área excluída");
   },
+  /* Abre a galeria de órfãs já sabendo o destino — o item de onde a
+     pessoa veio. Sem isso ela teria de navegar projeto/área/máquina de
+     novo só para dizer onde a foto vai. */
+  async abrirOrfasPara(tipo, id, nome){
+    toast("Procurando fotos soltas…");
+    try{
+      const ids = await orfasListarIds();
+      if(ids.length === 0){ toast("Nenhuma foto solta neste aparelho", false); return; }
+      __orfas = { ids, pagina:0, fotos:new Map(), destino:{ tipo, id, nome:nome||"este item" } };
+      await orfasCarregarPagina(0);
+      abrirOverlay(screenModalOrfas());
+    }catch(e){ toast("Não foi possível listar as fotos soltas", false); }
+  },
+  async orfasPagina(n){
+    if(!__orfas) return;
+    if(n < 0 || n >= orfasTotalPaginas()) return;
+    await orfasCarregarPagina(n);
+    abrirOverlay(screenModalOrfas());
+  },
+  /* Anexa a foto escolhida ao item de destino. SÓ ACRESCENTA: se o espaço
+     principal estiver vazio ela vai para lá; senão entra na lista de outras
+     fotos. Nunca substitui foto boa. */
+  async orfaAnexar(fid){
+    if(!__orfas) return;
+    const dataUrl = __orfas.fotos.get(fid);
+    if(!dataUrl){ toast("Foto não carregada — tente de novo", false); return; }
+    const d = __orfas.destino;
+    const item = d.tipo === "maquina" ? maquinaSimplesGlobalPorId(d.id) : riscoSimplesGlobalPorId(d.id);
+    if(!item){ toast("O item não foi encontrado", false); return; }
+    const campoPrincipal = d.tipo === "maquina" ? "fotoGeral" : "foto";
+    if(!ehFotoDataUrlPersist(item[campoPrincipal])){
+      item[campoPrincipal] = dataUrl;
+    }else{
+      if(!Array.isArray(item[CAMPO_FOTOS_LISTA])) item[CAMPO_FOTOS_LISTA] = [];
+      const vago = item[CAMPO_FOTOS_LISTA].findIndex(x=>!ehFotoDataUrlPersist(x));
+      if(vago >= 0) item[CAMPO_FOTOS_LISTA][vago] = dataUrl;
+      else item[CAMPO_FOTOS_LISTA].push(dataUrl);
+    }
+    const vazios = (item[CAMPO_FOTOS_LISTA]||[]).filter(x=>!ehFotoDataUrlPersist(x)).length;
+    if(vazios === 0) delete item[CAMPO_MARCA_FOTO_PERDIDA];
+    item.atualizadoEm = agoraSync();
+    marcarFotosPendentesParaEnvio((d.tipo === "maquina" ? "maquina:" : "risco:") + d.id);
+    marcarAlterado();
+    await dbSet(STATE);
+    // A foto deixou de ser órfã: sai da lista para não reaparecer na grade.
+    __orfas.ids = __orfas.ids.filter(x=>x!==fid);
+    __orfas.fotos.delete(fid);
+    toast("Foto devolvida a " + d.nome);
+    if(__orfas.ids.length === 0){ App.fecharModal(); render(); return; }
+    const paginas = orfasTotalPaginas();
+    await orfasCarregarPagina(Math.min(__orfas.pagina, paginas-1));
+    abrirOverlay(screenModalOrfas());
+    render();
+  },
   menuMaquinaS(ev,id){
     ev.stopPropagation();
     const a = getCurrentAreaSimples(); const m = a.maquinas.find(x=>x.id===id);
@@ -19304,6 +19412,7 @@ Devolver agora?`)) return;
       {label:"Duplicar aqui", icon:"copy", onclick:`App.duplicarMaquinaS('${id}')`},
       {label:"Duplicar para outro local", icon:"copy", onclick:`App.duplicarMaquinaSParaOutroLocal('${id}','${a.id}')`},
       {label:"Mover para outra área", icon:"arrowR", onclick:`App.abrirModalMoverMaquinaS('${id}','${a.id}')`},
+      {label:"Procurar foto solta no aparelho", icon:"gallery", onclick:`App.abrirOrfasPara('maquina','${id}',${JSON.stringify(nomeMaquinaS(m)||"esta máquina")})`},
       {label:"Excluir máquina", icon:"trash", onclick:`App.removerMaquinaS('${id}')`, danger:true},
     ]);
   },
@@ -19445,6 +19554,7 @@ Devolver agora?`)) return;
       {label:"Duplicar aqui", icon:"copy", onclick:`App.duplicarRiscoS('${id}','${tarefaId}')`},
       {label:"Duplicar para outro local", icon:"copy", onclick:`App.duplicarRiscoSParaOutroLocal('${id}','${tarefaId}')`},
       {label:"Mover para outra tarefa", icon:"arrowR", onclick:`App.abrirModalMoverRiscoS('${id}','${tarefaId}')`},
+      {label:"Procurar foto solta no aparelho", icon:"gallery", onclick:`App.abrirOrfasPara('risco','${id}',${JSON.stringify(r.nome||"este risco")})`},
       {label:"Excluir risco", icon:"trash", onclick:`App.removerRiscoS('${id}','${tarefaId}')`, danger:true},
     ]);
   },
@@ -21036,6 +21146,96 @@ function __linhaCandidatoDuplicataImportacao(c){
   </div>`;
 }
 let __importPreview = null;
+/* =========================================================================
+   GALERIA DE FOTOS ÓRFÃS — religar ao dono
+
+   Foto órfã é aquela cujos BYTES estão no banco mas que nenhuma referência
+   aponta. Acontece quando a foto é tirada (o rascunho já grava os bytes) e
+   o app é encerrado antes de salvar o vínculo. A foto não se perdeu: ficou
+   desligada.
+
+   Nenhuma outra recuperação do app alcança essas: "Devolver fotos" e
+   restaurar um ponto trabalham POR REFERÊNCIA, e a referência é justamente
+   o que se perdeu. Só quem tirou a foto sabe de quem ela é — por isso esta
+   tela mostra e deixa escolher, em vez de tentar adivinhar.
+
+   CARREGA DE 12 EM 12, SEMPRE. Neste aparelho são 412 MB de órfãs; trazer
+   tudo de uma vez repetiria exatamente o estouro de memória que criou o
+   problema. A página atual é liberada antes de carregar a próxima.
+
+   Ordem: as que ficaram órfãs há MENOS tempo primeiro — é onde está o
+   trabalho recente que a pessoa está procurando. */
+const ORFAS_POR_PAGINA = 12;
+let __orfas = null;   // { ids:[], pagina:0, fotos:Map, destino:{tipo,id,nome} }
+
+async function orfasListarIds(){
+  const db = await dbOpen();
+  const indice = await fotosCarregarIndice(db);
+  const referenciadas = new Set();
+  const gravado = await new Promise((resolve)=>{
+    try{
+      const tx = db.transaction(DB_STORE,"readonly");
+      const rq = tx.objectStore(DB_STORE).get(DB_KEY);
+      rq.onsuccess = ()=>resolve(rq.result || null);
+      rq.onerror   = ()=>resolve(null);
+    }catch(e){ resolve(null); }
+  });
+  if(gravado){ fotosColetarRefs(gravado, referenciadas); fotosColetarIdsEmbutidas(gravado, referenciadas); }
+  fotosColetarRefs(STATE, referenciadas);
+  fotosColetarIdsEmbutidas(STATE, referenciadas);
+  const pontos = await listarPontosDeRestauracao();
+  for(const p of pontos) fotosColetarRefs(p, referenciadas);
+  const rascunho = await lerDraftPersistente();
+  if(rascunho){ fotosColetarIdsEmbutidas(rascunho, referenciadas); fotosColetarRefs(rascunho, referenciadas); }
+  const orfasDesde = await fotosLerMapaOrfas(db);
+  const ids = [];
+  indice.forEach(fid=>{ if(!referenciadas.has(fid)) ids.push(fid); });
+  // Mais recentes primeiro: é onde está o trabalho que a pessoa procura.
+  ids.sort((a,b)=> (orfasDesde[b]||0) - (orfasDesde[a]||0));
+  return ids;
+}
+/* Carrega SÓ a página pedida. Solta a anterior antes — é isto que mantém a
+   tela leve num aparelho que já carrega o projeto inteiro na memória. */
+async function orfasCarregarPagina(n){
+  if(!__orfas) return;
+  const db = await dbOpen();
+  const inicio = n * ORFAS_POR_PAGINA;
+  const desta = new Set(__orfas.ids.slice(inicio, inicio + ORFAS_POR_PAGINA));
+  if(__orfas.fotos) __orfas.fotos.clear();
+  __orfas.fotos = await fotosLerLote(db, desta);
+  __orfas.pagina = n;
+}
+function orfasTotalPaginas(){
+  if(!__orfas || !__orfas.ids.length) return 0;
+  return Math.ceil(__orfas.ids.length / ORFAS_POR_PAGINA);
+}
+function screenModalOrfas(){
+  if(!__orfas) return "";
+  const total = __orfas.ids.length;
+  const paginas = orfasTotalPaginas();
+  const inicio = __orfas.pagina * ORFAS_POR_PAGINA;
+  const daPagina = __orfas.ids.slice(inicio, inicio + ORFAS_POR_PAGINA);
+  const d = __orfas.destino;
+  const grade = daPagina.map(fid=>{
+    const dataUrl = __orfas.fotos.get(fid);
+    if(!dataUrl) return "";
+    return `<div style="position:relative;border:1px solid var(--line);border-radius:8px;overflow:hidden">
+      <img src="${dataUrl}" style="width:100%;height:96px;object-fit:cover;display:block" onclick="App.orfaAnexar('${fid}')">
+      <button class="btn btn-primary" style="width:100%;border-radius:0;font-size:11.5px;padding:6px" onclick="App.orfaAnexar('${fid}')">É esta</button>
+    </div>`;
+  }).join("");
+  return `<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card" style="max-width:560px">
+    <h3>Fotos soltas neste aparelho</h3>
+    <div class="sheet-sub">Estas fotos estão guardadas no aparelho mas não pertencem a nenhum item — normalmente porque o app foi encerrado antes de salvar. Toque na que for de <b>${escapeHtml(d.nome)}</b>.<br>As mais recentes aparecem primeiro. Nada é apagado: o que você não usar continua guardado.</div>
+    <div style="font-size:12px;color:var(--ink-dim);margin:8px 0">${total} foto(s) solta(s) · página ${__orfas.pagina+1} de ${paginas}</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">${grade || '<div style="grid-column:1/-1;color:var(--ink-dim);font-size:12.5px">Nenhuma foto nesta página.</div>'}</div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-secondary" style="flex:1" ${__orfas.pagina<=0?"disabled":""} onclick="App.orfasPagina(${__orfas.pagina-1})">Anteriores</button>
+      <button class="btn btn-secondary" style="flex:1" ${__orfas.pagina>=paginas-1?"disabled":""} onclick="App.orfasPagina(${__orfas.pagina+1})">Próximas</button>
+    </div>
+    <button class="btn btn-ghost btn-block" style="margin-top:8px" onclick="App.fecharModal()">Fechar</button>
+  </div></div>`;
+}
 function screenModalImportacaoRevisao(){
   const pv = __importPreview;
   if(!pv) return "";

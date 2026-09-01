@@ -7933,6 +7933,163 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  console.log("\n=== t138 · exportar só uma área ===");
+  {
+    /* Em 31/08/2026 o diagnóstico do iPhone mostrou 1.436 de 1.831 itens que
+       NUNCA subiram — 78% do trabalho existia num aparelho só. O backup
+       completo (1,4 GB) não cabe no iPhone e a fila levaria muitas rodadas
+       até chegar na área certa. O recorte de uma área tem poucas dezenas de
+       MB e sai na hora. Mesmo formato do backup completo: nenhum leitor novo. */
+    const ctxA = vm.createContext({ Array, Object, String, Date, JSON, console });
+    vm.runInContext(funcao("jsonEmPartes"), ctxA);
+    vm.runInContext(funcao("backupV2AreaEmPartes"), ctxA);
+    vm.runInContext(funcao("contarItensDaArea"), ctxA);
+
+    const montar = ()=>{
+      const risco = (i)=>({ id:"r"+i, nome:"Risco "+i, foto:"data:image/jpeg;base64,FOTO"+i });
+      const maq = (i)=>({ id:"m"+i, nome:"Maq "+i, fotoGeral:"data:image/jpeg;base64,MG"+i,
+                          tarefas:[{ id:"t"+i, tarefa:"Operação normal (todos os modos)", riscos:[risco(i)] }] });
+      const alvo = { id:"aAlvo", nome:"Paletização", maquinas:[maq(1), maq(2)] };
+      const vizinha = { id:"aViz", nome:"Outra", maquinas:[{ id:"mX", nome:"NAO_PODE_SAIR", tarefas:[] }] };
+      return { proj:{ id:"p1", empresa:"Cliente", areas:[alvo, vizinha] }, alvo };
+    };
+    const exportar = (proj, area)=>{
+      ctxA.__proj = proj; ctxA.__area = area;
+      return vm.runInContext("(function(){ const partes=[]; backupV2AreaEmPartes(partes, __proj, __area); return partes.join(''); })()", ctxA);
+    };
+
+    t("O CASO REAL: leva a área escolhida e NADA da área vizinha", ()=>{
+      const { proj, alvo } = montar();
+      const txt = exportar(proj, alvo);
+      ok(txt.indexOf("NAO_PODE_SAIR") < 0, "a área vizinha vazou para o recorte");
+      ok(txt.indexOf("Paletização") > 0, "a área escolhida não saiu");
+      ok(txt.indexOf('"aViz"') < 0, "o id da área vizinha vazou");
+    });
+    t("sai no MESMO formato do backup completo — o leitor de sempre dá conta", ()=>{
+      const { proj, alvo } = montar();
+      const linhas = exportar(proj, alvo).trim().split("\n");
+      const cab = JSON.parse(linhas[0]);
+      eq(cab.__formatoBackup, "apr-v2", "formato diferente exigiria um leitor novo");
+      const tipos = linhas.slice(1).map(l=>JSON.parse(l).t);
+      eq(tipos.filter(x=>x==="pS").length, 1);
+      eq(tipos.filter(x=>x==="aS").length, 1);
+      eq(tipos.filter(x=>x==="mS").length, 2);
+      eq(tipos.filter(x=>x==="rS").length, 2);
+    });
+    t("o projeto vai SEM as outras áreas e a área SEM as máquinas embutidas", ()=>{
+      const { proj, alvo } = montar();
+      const linhas = exportar(proj, alvo).trim().split("\n").slice(1).map(l=>JSON.parse(l));
+      const pS = linhas.find(l=>l.t==="pS"), aS = linhas.find(l=>l.t==="aS");
+      eq(pS.d.areas, undefined, "o projeto levou as áreas embutidas — duplicaria tudo");
+      eq(aS.d.maquinas, undefined, "a área levou as máquinas embutidas — duplicaria tudo");
+      eq(pS.d.empresa, "Cliente", "o resto do projeto tem de vir junto");
+    });
+    t("a configuração do aparelho NÃO viaja no recorte", ()=>{
+      const { proj, alvo } = montar();
+      const cab = JSON.parse(exportar(proj, alvo).trim().split("\n")[0]);
+      eq(JSON.stringify(cab.resto), "{}", "recorte de área não pode levar configuração do aparelho");
+      eq(cab.recorte, "area");
+    });
+    t("as fotos vão inteiras — o recorte serve para tirar o trabalho do aparelho", ()=>{
+      const { proj, alvo } = montar();
+      const linhas = exportar(proj, alvo).trim().split("\n").slice(1).map(l=>JSON.parse(l));
+      ok(linhas.find(l=>l.t==="mS").d.fotoGeral.startsWith("data:image"), "foto da máquina não saiu");
+      ok(linhas.find(l=>l.t==="rS").d.foto.startsWith("data:image"), "foto do risco não saiu");
+    });
+    t("a contagem mostrada é a da área, não a do projeto", ()=>{
+      const { alvo } = montar();
+      ctxA.__a = alvo;
+      const c = vm.runInContext("contarItensDaArea(__a)", ctxA);
+      eq(c.maquinas, 2); eq(c.tarefas, 2); eq(c.riscos, 2);
+    });
+    t("área vazia não quebra", ()=>{
+      const txt = exportar({ id:"p", empresa:"X", areas:[] }, { id:"a", nome:"Vazia" });
+      const linhas = txt.trim().split("\n");
+      eq(linhas.length, 3, "deve sair só cabeçalho + projeto + área");
+    });
+  }
+
+  console.log("\n=== t139 · galeria de fotos órfãs (religar ao dono) ===");
+  {
+    /* 31/08/2026: 723 fotos órfãs (412 MB) no aparelho — bytes no banco, sem
+       ninguém apontando. A foto foi tirada (o rascunho já grava os bytes) e o
+       app foi encerrado antes de salvar o vínculo. Nenhuma recuperação
+       existente alcança: todas trabalham POR REFERÊNCIA, e a referência é
+       exatamente o que sumiu. Só o usuário sabe de quem é cada foto. */
+    const ctxO = vm.createContext({ Array, Object, Set, Map, String, Math, console });
+    vm.runInContext('var CAMPO_FOTOS_LISTA="fotosOutras"; var CAMPO_MARCA_FOTO_PERDIDA="__fotosPerdidas";' +
+                    ' var STATE={projetosSimples:[]}; var __orfas=null;' +
+                    ' function agoraSync(){ return 555; }' +
+                    ' function ehFotoDataUrlPersist(v){ return typeof v==="string" && v.startsWith("data:image"); }', ctxO);
+    vm.runInContext(funcao("maquinaSimplesGlobalPorId"), ctxO);
+    vm.runInContext(funcao("riscoSimplesGlobalPorId"), ctxO);
+    vm.runInContext(funcao("orfasTotalPaginas"), ctxO);
+    vm.runInContext("var ORFAS_POR_PAGINA = 12;", ctxO);
+
+    t("a paginação é de 12 e o número de páginas fecha", ()=>{
+      const paginas = (n)=>{ vm.runInContext("__orfas={ids:new Array("+n+").fill('x')};", ctxO);
+                             return vm.runInContext("orfasTotalPaginas()", ctxO); };
+      eq(paginas(0), 0);
+      eq(paginas(12), 1);
+      eq(paginas(13), 2);
+      eq(paginas(723), 61, "no tamanho real do aparelho (723 órfãs)");
+    });
+
+    /* A regra de anexar é o coração: extraída do método e executada. */
+    const corpoAnexar = HTML.slice(HTML.indexOf("  async orfaAnexar(fid){"),
+                                   HTML.indexOf("  menuMaquinaS(ev,id){"));
+    t("O CASO REAL: espaço principal vazio recebe a foto; ocupado, ela vai para a lista", ()=>{
+      ok(corpoAnexar.indexOf("if(!ehFotoDataUrlPersist(item[campoPrincipal])){") > 0,
+         "sumiu a checagem que impede substituir a foto principal");
+      ok(corpoAnexar.indexOf("item[campoPrincipal] = dataUrl;") > 0);
+      ok(corpoAnexar.indexOf("else item[CAMPO_FOTOS_LISTA].push(dataUrl);") > 0);
+    });
+    t("preenche primeiro o espaço vazio — é o quadro vermelho que a pessoa quer resolver", ()=>{
+      ok(corpoAnexar.indexOf("const vago = item[CAMPO_FOTOS_LISTA].findIndex(x=>!ehFotoDataUrlPersist(x));") > 0);
+      ok(corpoAnexar.indexOf("if(vago >= 0) item[CAMPO_FOTOS_LISTA][vago] = dataUrl;") > 0);
+    });
+    t("nunca remove nada do item", ()=>{
+      [".splice(", ".shift(", ".pop(", "= []"].forEach(p=>{
+        ok(corpoAnexar.indexOf(p) < 0 || p === "= []", "operação destrutiva no anexar: " + p);
+      });
+    });
+    t("grava de verdade e carimba para sincronizar", ()=>{
+      ["item.atualizadoEm = agoraSync();", "marcarFotosPendentesParaEnvio(",
+       "marcarAlterado();", "await dbSet(STATE);"].forEach(x=>{
+        ok(corpoAnexar.indexOf(x) > 0, "faltou: " + x);
+      });
+    });
+    t("a foto usada sai da lista — não reaparece para ser anexada duas vezes", ()=>{
+      ok(corpoAnexar.indexOf("__orfas.ids = __orfas.ids.filter(x=>x!==fid);") > 0);
+      ok(corpoAnexar.indexOf("__orfas.fotos.delete(fid);") > 0);
+    });
+
+    const corpoPagina = funcao("orfasCarregarPagina");
+    t("carrega só a página pedida e SOLTA a anterior (são 412 MB no aparelho real)", ()=>{
+      ok(corpoPagina.indexOf("if(__orfas.fotos) __orfas.fotos.clear();") > 0,
+         "sem soltar a página anterior, a galeria acumula até derrubar o app");
+      ok(corpoPagina.indexOf("__orfas.ids.slice(inicio, inicio + ORFAS_POR_PAGINA)") > 0);
+    });
+    const corpoListar = funcao("orfasListarIds");
+    t("órfã é definida pelas MESMAS fontes que a limpeza protege", ()=>{
+      const limpeza = funcao("fotosLimparOrfasSeForHora");
+      ["listarPontosDeRestauracao", "lerDraftPersistente", "fotosColetarRefs", "fotosColetarIdsEmbutidas"]
+        .forEach(f=>{
+          ok(limpeza.indexOf(f) > 0, "fonte sumiu da limpeza: " + f);
+          ok(corpoListar.indexOf(f) > 0,
+             "a galeria não consulta " + f + " — ofereceria como órfã uma foto que a limpeza preserva");
+        });
+    });
+    t("mostra as mais recentes primeiro", ()=>{
+      ok(corpoListar.indexOf("ids.sort((a,b)=> (orfasDesde[b]||0) - (orfasDesde[a]||0));") > 0);
+    });
+    t("entra pelo menu da máquina e do risco, com o destino já definido", ()=>{
+      eq((HTML.match(/Procurar foto solta no aparelho/g)||[]).length, 2);
+      ok(HTML.indexOf("App.abrirOrfasPara('maquina'") > 0);
+      ok(HTML.indexOf("App.abrirOrfasPara('risco'") > 0);
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

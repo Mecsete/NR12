@@ -64,6 +64,70 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 01/09/2026 11:02
+
+**Novo: procurar foto solta no aparelho — a recuperação que faltava.**
+
+No menu de um equipamento ou de um risco (os três pontinhos) →
+**"Procurar foto solta no aparelho"**.
+
+**O que é uma foto solta.** Quando você tira uma foto, o aparelho guarda a
+imagem na hora; o vínculo com o risco só é gravado quando o formulário é
+salvo. Se o app for encerrado nesse meio (o travamento por memória), a
+imagem **fica guardada, mas desligada de tudo**. Ela não se perdeu — ficou
+sem dono.
+
+**Por que nenhuma recuperação anterior achava essas fotos.** Tanto "Devolver
+fotos" quanto restaurar um ponto trabalham *pela referência* — vão até onde
+o risco aponta e buscam a imagem. Numa foto solta é justamente a referência
+que sumiu, então não há por onde chegar nela. A informação de a quem ela
+pertencia se perdeu junto, e só quem tirou a foto pode dizer.
+
+**Como funciona.** Abrindo pelo menu do equipamento ou risco, o destino já
+está definido — você só escolhe a foto:
+
+- As imagens aparecem em **páginas de 12**, com as **mais recentes primeiro**
+  (é onde está o trabalho que você está procurando).
+- Toque em "É esta" e ela volta para aquele item.
+- Se o espaço principal estiver vazio, ela vai para lá; se já houver foto,
+  ela entra no espaço vazio da lista — o quadro vermelho — ou no fim.
+- **Nunca substitui foto boa** e **nunca apaga nada**: o que você não usar
+  continua guardado.
+
+Só uma página é carregada por vez, e a anterior é liberada antes da próxima.
+Neste aparelho são centenas de MB de fotos soltas — carregar tudo de uma vez
+seria repetir o estouro de memória que criou o problema.
+
+---
+
+## 31/08/2026 20:12
+
+**Novo: exportar só uma área.**
+
+No menu da área (os três pontinhos) → **"Exportar só esta área (.json)"**.
+
+Existe por um motivo concreto: o backup completo é tudo ou nada. Num projeto
+grande ele passa de 1,4 GB, e o celular não consegue montar um arquivo desse
+tamanho — justamente o aparelho onde o trabalho de campo está. Uma área
+sozinha tem poucas dezenas de MB e sai sem esforço.
+
+Serve para tirar de um aparelho um trabalho que ainda não subiu para a nuvem,
+sem depender da fila de sincronização chegar naquela área.
+
+Detalhes que importam:
+
+- **Não é um formato novo.** Sai no mesmo `.json` que "Importar backup" já
+  lê, com as mesmas regras de mesclagem por identificador e a mesma proteção
+  de fotos. Importar um recorte **acrescenta** ao que já existe: máquina que
+  só existe no aparelho de destino continua lá, e nada é duplicado.
+- **Leva só a área escolhida.** As outras áreas do projeto não entram.
+- **As fotos vão inteiras** — é para isso que serve.
+- **A configuração do aparelho não viaja** no recorte (chaves de IA, conta,
+  preferências ficam onde estão).
+- **Exportar não altera nada.** É leitura pura.
+
+---
+
 ## 29/08/2026 21:21
 
 **Novo: devolver fotos a partir de um arquivo de backup (.json).**
