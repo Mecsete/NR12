@@ -3200,6 +3200,41 @@ chk("o comportamento de sempre continua sendo o padrao (auto)",
     'campo:"auto"' in novo
     and '["auto","Automático"]' in novo)
 
+print("\n=== 110. BAIXAR AS FOTOS SOLTAS COMO .ZIP ===")
+# Pedido em campo em 01/09/2026. Foto solta nao viaja em backup nem em
+# sincronizacao (nao pertence a nada), entao so existe dentro do navegador
+# daquele aparelho — e e esse armazenamento que o iOS limpa. Um .zip no
+# computador tira a dependencia.
+_bz = novo[novo.find("async function baixarOrfasLote("):]
+_bz = _bz[:_bz.find("\nfunction screenModalImportacaoRevisao")]
+chk("existe o download das orfas em zip, e ele sai EM LOTES",
+    novo.count("async function baixarOrfasLote(") == 1
+    and "const ORFAS_POR_LOTE_ZIP = 30;" in novo
+    and "Math.ceil(ids.length / ORFAS_POR_LOTE_ZIP)" in novo)
+chk("cada lote e liberado antes do proximo -- nunca monta tudo de uma vez",
+    "mapa.clear();" in _bz
+    and "arquivos.length = 0;" in _bz
+    and "fotosLerLote(db, conjunto)" in _bz)
+chk("usa o zip que o app ja tem, sem biblioteca nova",
+    "buildZip(arquivos)" in _bz
+    and "dataUrlToBytes(dataUrl)" in _bz)
+chk("o nome do arquivo leva a data em que a foto ficou orfa (pista de quando foi tirada)",
+    "new Date(t).toISOString().slice(0,10)" in _bz
+    and '`${quando}_${String(n).padStart(3,"0")}_${fid.slice(0,10)}.jpg`' in _bz)
+chk("o zip tem nome inconfundivel: data, hora e a posicao no total",
+    "const carimbo = `${ag.getFullYear()}-${dois(ag.getMonth()+1)}-${dois(ag.getDate())}_${dois(ag.getHours())}h${dois(ag.getMinutes())}`;" in _bz
+    and "String(numero).padStart(largura" in _bz
+    and "_de_${totalLotes}.zip`" in _bz)
+chk("o lote cabe no teto de compartilhamento do iPhone",
+    "const ORFAS_POR_LOTE_ZIP = 30;" in novo
+    and "const LIMITE_COMPARTILHAMENTO_BYTES = 25 * 1024 * 1024;" in novo)
+chk("e SO LEITURA: baixar nao altera nem apaga foto nenhuma",
+    all(x not in _bz for x in ["dbSet", "marcarAlterado", ".delete(", "readwrite", "delete "]))
+chk("o botao existe e mostra em que lote esta",
+    'onclick="App.baixarOrfasZip()"' in novo
+    and "Baixar as fotos soltas (.zip)" in novo
+    and "orfasZipReiniciar()" in novo)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

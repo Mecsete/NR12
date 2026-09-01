@@ -8128,6 +8128,28 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(corpoAnexar.indexOf("}else if(!ehFotoDataUrlPersist(item[campoPrincipal])){") > 0,
          "o caminho automático de antes sumiu");
     });
+    t("baixar as fotos soltas sai EM LOTES e libera cada um antes do próximo", ()=>{
+      /* Foto solta não viaja em backup nem em sincronização — só existe no
+         navegador daquele aparelho, que é o que o iOS limpa. O .zip tira
+         essa dependência. Mas são centenas de MB: montar um zip único
+         estouraria a memória, o mesmo defeito que criou as órfãs. */
+      const corpo = funcao("baixarOrfasLote");
+      ok(HTML.indexOf("const ORFAS_POR_LOTE_ZIP = 30;") > 0, "sumiu o tamanho do lote");
+      ok(corpo.indexOf("mapa.clear();") > 0, "não libera as fotos do lote");
+      ok(corpo.indexOf("arquivos.length = 0;") > 0, "não libera os bytes montados");
+      ok(corpo.indexOf("buildZip(arquivos)") > 0, "deve usar o zip que o app já tem");
+    });
+    t("o nome de cada foto leva a data em que ficou solta", ()=>{
+      const corpo = funcao("baixarOrfasLote");
+      ok(corpo.indexOf("new Date(t).toISOString().slice(0,10)") > 0);
+      ok(corpo.indexOf('.jpg`') > 0, "os arquivos precisam sair como imagem");
+    });
+    t("baixar é SÓ LEITURA — não altera nem apaga foto nenhuma", ()=>{
+      const corpo = funcao("baixarOrfasLote");
+      ["dbSet", "marcarAlterado", ".delete(", "readwrite"].forEach(p=>{
+        ok(corpo.indexOf(p) < 0, "operação de escrita ao baixar: " + p);
+      });
+    });
     t("nenhum outro item de menu interpola texto livre no onclick", ()=>{
       // a mesma classe de defeito em qualquer outro botão de menu
       ok(/onclick:\s*`[^`]*JSON\.stringify/.test(HTML) === false,

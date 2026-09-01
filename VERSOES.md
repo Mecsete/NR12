@@ -64,6 +64,36 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 01/09/2026 16:45
+
+**Novo: baixar as fotos soltas como .zip.**
+
+Em Configurações → Backup: **"Baixar as fotos soltas (.zip)"**.
+
+**Por que isso importa.** Foto solta não viaja em backup nem em
+sincronização — ela não pertence a nenhum item, e nenhum dos dois caminhos
+sabe o que fazer com ela. Ou seja: hoje ela existe **só dentro do navegador
+daquele aparelho**, que é justamente o armazenamento que o iOS pode limpar.
+Um `.zip` guardado no computador tira essa dependência de uma vez.
+
+Assim você não precisa decidir agora de quem é cada foto: guarda todas, e
+vasculha depois com calma, no computador.
+
+- Sai **em lotes de 30**, um por toque — o botão mostra em que lote está.
+  São centenas de MB; montar um arquivo único estouraria a memória, que é o
+  mesmo defeito que deixou as fotos soltas em primeiro lugar. Com as 707
+  fotos deste aparelho dá 24 lotes, de uns 17 MB cada.
+- O nome não deixa dúvida: `fotos_soltas_2026-09-01_17h06_lote_03_de_24.zip`
+  — data, hora e posição no total, com zero à esquerda para ordenar certo.
+- Cada arquivo também é **enviado ao OneDrive automaticamente**, na subpasta
+  de downloads, então ele aparece no computador sem você fazer nada.
+- Cada imagem sai com **a data em que ficou solta** no nome, o que dá uma
+  pista de quando foi tirada.
+- **Não altera nem apaga nada** — as fotos continuam no aparelho depois de
+  baixadas.
+
+---
+
 ## 01/09/2026 11:56
 
 **Agora dá para devolver foto para a Plaqueta.**
