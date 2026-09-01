@@ -2151,7 +2151,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "01/09/2026 11:02";
+const APP_BUILD = "01/09/2026 11:22";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -19353,12 +19353,21 @@ Devolver agora?`)) return;
   /* Abre a galeria de órfãs já sabendo o destino — o item de onde a
      pessoa veio. Sem isso ela teria de navegar projeto/área/máquina de
      novo só para dizer onde a foto vai. */
-  async abrirOrfasPara(tipo, id, nome){
+  /* O NOME NAO VEM POR PARAMETRO, DE PROPOSITO.
+     Ate 01/09/2026 vinha, montado com JSON.stringify — que produz aspas
+     DUPLAS, dentro de um onclick que ja e delimitado por aspas duplas. O
+     atributo terminava no meio do nome e o botao nao fazia absolutamente
+     nada (relatado em campo no mesmo dia). Nome de maquina/risco e texto
+     livre digitado pelo usuario: nunca deve ser interpolado dentro de um
+     atributo. Aqui ele e buscado a partir do id, ja do lado de dentro. */
+  async abrirOrfasPara(tipo, id){
     toast("Procurando fotos soltas…");
     try{
+      const alvo = tipo === "maquina" ? maquinaSimplesGlobalPorId(id) : riscoSimplesGlobalPorId(id);
+      const nome = tipo === "maquina" ? (nomeMaquinaS(alvo) || "esta máquina") : ((alvo && alvo.nome) || "este risco");
       const ids = await orfasListarIds();
       if(ids.length === 0){ toast("Nenhuma foto solta neste aparelho", false); return; }
-      __orfas = { ids, pagina:0, fotos:new Map(), destino:{ tipo, id, nome:nome||"este item" } };
+      __orfas = { ids, pagina:0, fotos:new Map(), destino:{ tipo, id, nome } };
       await orfasCarregarPagina(0);
       abrirOverlay(screenModalOrfas());
     }catch(e){ toast("Não foi possível listar as fotos soltas", false); }
@@ -19412,7 +19421,7 @@ Devolver agora?`)) return;
       {label:"Duplicar aqui", icon:"copy", onclick:`App.duplicarMaquinaS('${id}')`},
       {label:"Duplicar para outro local", icon:"copy", onclick:`App.duplicarMaquinaSParaOutroLocal('${id}','${a.id}')`},
       {label:"Mover para outra área", icon:"arrowR", onclick:`App.abrirModalMoverMaquinaS('${id}','${a.id}')`},
-      {label:"Procurar foto solta no aparelho", icon:"gallery", onclick:`App.abrirOrfasPara('maquina','${id}',${JSON.stringify(nomeMaquinaS(m)||"esta máquina")})`},
+      {label:"Procurar foto solta no aparelho", icon:"gallery", onclick:`App.abrirOrfasPara('maquina','${id}')`},
       {label:"Excluir máquina", icon:"trash", onclick:`App.removerMaquinaS('${id}')`, danger:true},
     ]);
   },
@@ -19554,7 +19563,7 @@ Devolver agora?`)) return;
       {label:"Duplicar aqui", icon:"copy", onclick:`App.duplicarRiscoS('${id}','${tarefaId}')`},
       {label:"Duplicar para outro local", icon:"copy", onclick:`App.duplicarRiscoSParaOutroLocal('${id}','${tarefaId}')`},
       {label:"Mover para outra tarefa", icon:"arrowR", onclick:`App.abrirModalMoverRiscoS('${id}','${tarefaId}')`},
-      {label:"Procurar foto solta no aparelho", icon:"gallery", onclick:`App.abrirOrfasPara('risco','${id}',${JSON.stringify(r.nome||"este risco")})`},
+      {label:"Procurar foto solta no aparelho", icon:"gallery", onclick:`App.abrirOrfasPara('risco','${id}')`},
       {label:"Excluir risco", icon:"trash", onclick:`App.removerRiscoS('${id}','${tarefaId}')`, danger:true},
     ]);
   },

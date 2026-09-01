@@ -3168,9 +3168,21 @@ chk("a foto usada sai da lista de orfas, para nao reaparecer na grade",
     "__orfas.ids = __orfas.ids.filter(x=>x!==fid);" in _oa
     and "__orfas.fotos.delete(fid);" in _oa)
 chk("o destino ja vem do item de origem -- entra pelo menu da maquina E do risco",
-    "App.abrirOrfasPara('maquina','${id}'" in novo
-    and "App.abrirOrfasPara('risco','${id}'" in novo
+    "App.abrirOrfasPara('maquina','${id}')" in novo
+    and "App.abrirOrfasPara('risco','${id}')" in novo
     and novo.count("Procurar foto solta no aparelho") == 2)
+# BUG DE CAMPO (01/09/2026): o botao nao fazia NADA. O nome da maquina era
+# interpolado no onclick com JSON.stringify, que produz aspas DUPLAS — dentro
+# de um atributo onclick que abrirMenuAcoes ja delimita com aspas duplas. O
+# atributo terminava no meio do nome e o JS virava lixo. Nome de item e texto
+# livre digitado pelo usuario: nunca pode ser interpolado dentro de atributo.
+chk("nenhum onclick de menu interpola texto livre (foi o que quebrou o botao)",
+    re.search(r"onclick:\s*`[^`]*JSON\.stringify", novo) is None
+    and re.search(r"onclick:\s*`[^`]*\$\{[^}]*\b(nomeMaquinaS|\.nome|\.empresa)\b[^}]*\}", novo) is None)
+chk("o nome do destino e resolvido DENTRO da funcao, a partir do id",
+    'const alvo = tipo === "maquina" ? maquinaSimplesGlobalPorId(id) : riscoSimplesGlobalPorId(id);' in novo
+    and "async abrirOrfasPara(tipo, id){" in novo
+    and "async abrirOrfasPara(tipo, id, nome){" not in novo)
 chk("a tela avisa que nada e apagado",
     "Nada é apagado: o que você não usar continua guardado." in novo)
 

@@ -64,6 +64,27 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 01/09/2026 11:22
+
+**Corrigido: o botão "Procurar foto solta no aparelho" não fazia nada.**
+
+Relatado em campo minutos depois de publicado. O nome do equipamento era
+inserido dentro do comando do botão entre aspas duplas — e o próprio comando
+já é delimitado por aspas duplas. O texto terminava no meio do nome e o botão
+virava letra morta.
+
+Corrigido tirando o nome do comando: agora ele é buscado pelo identificador,
+já dentro da função. Nome de equipamento e de risco é texto livre digitado
+por você, e texto livre nunca deve ser colado dentro de um comando.
+
+Verificado com um equipamento chamado `Magazine "papelão" da área` — o caso
+que quebrava. Passou a abrir normalmente, nos dois menus.
+
+Ficou travado por teste automático, inclusive contra a mesma classe de erro
+em qualquer outro botão de menu do app.
+
+---
+
 ## 01/09/2026 11:02
 
 **Novo: procurar foto solta no aparelho — a recuperação que faltava.**

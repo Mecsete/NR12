@@ -8085,8 +8085,33 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
     t("entra pelo menu da máquina e do risco, com o destino já definido", ()=>{
       eq((HTML.match(/Procurar foto solta no aparelho/g)||[]).length, 2);
-      ok(HTML.indexOf("App.abrirOrfasPara('maquina'") > 0);
-      ok(HTML.indexOf("App.abrirOrfasPara('risco'") > 0);
+      ok(HTML.indexOf("App.abrirOrfasPara('maquina','${id}')") > 0);
+      ok(HTML.indexOf("App.abrirOrfasPara('risco','${id}')") > 0);
+    });
+    t("O BOTÃO NÃO PODE QUEBRAR COM NOME QUE TEM ASPAS — foi o que o matou em campo", ()=>{
+      /* 01/09/2026: o botão não fazia NADA. O nome do item era interpolado no
+         onclick com JSON.stringify, que produz aspas DUPLAS, dentro de um
+         atributo onclick que abrirMenuAcoes delimita com aspas duplas. O
+         atributo terminava no meio do nome e o JS virava lixo.
+         Reproduz o defeito montando o atributo do jeito antigo e do novo. */
+      const comoEra = `App.abrirOrfasPara('maquina','m1',${JSON.stringify('Magazine "papelão"')})`;
+      const atribAntigo = `onclick="App.fecharModal();${comoEra}"`;
+      // o atributo antigo fecha cedo: existe aspa dupla ANTES do fim
+      const corpoAntigo = atribAntigo.slice('onclick="'.length, -1);
+      ok(corpoAntigo.indexOf('"') >= 0, "o teste não reproduziu o defeito");
+
+      // o jeito novo não interpola texto livre nenhum
+      ok(HTML.indexOf("JSON.stringify(nomeMaquinaS(m)") < 0, "voltou a interpolar o nome da máquina");
+      ok(HTML.indexOf("JSON.stringify(r.nome") < 0, "voltou a interpolar o nome do risco");
+      ok(HTML.indexOf("async abrirOrfasPara(tipo, id){") > 0,
+         "a assinatura precisa ser só tipo+id — o nome vem de dentro");
+      ok(HTML.indexOf('const alvo = tipo === "maquina" ? maquinaSimplesGlobalPorId(id) : riscoSimplesGlobalPorId(id);') > 0,
+         "o nome tem de ser resolvido pelo id, do lado de dentro");
+    });
+    t("nenhum outro item de menu interpola texto livre no onclick", ()=>{
+      // a mesma classe de defeito em qualquer outro botão de menu
+      ok(/onclick:\s*`[^`]*JSON\.stringify/.test(HTML) === false,
+         "algum item de menu voltou a interpolar via JSON.stringify");
     });
   }
 
