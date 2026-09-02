@@ -843,10 +843,13 @@ chk("remover deixa vazio (a uniao com a nuvem traria de volta uma chave ausente)
     'getMecseteConfig().logoLaudo = "";' in novo
     and "delete getMecseteConfig().logoLaudo" not in novo)
 chk("trocar e remover carimbam para sincronizar e forcam remontar",
-    # Cinco: logotipo (enviar/remover), figura do processo (enviar/remover) e o
-    # texto do rodape. Quatro deles tambem invalidam o laudo ja montado.
+    # Cinco carimbos de sincronizacao: logotipo (enviar/remover), figura do
+    # processo (enviar/remover) e o texto do rodape. A ASSINATURA nao entra
+    # nesta conta de proposito -- ela nao sincroniza (secao 121).
+    # Seis invalidacoes do laudo montado: as quatro imagens acima mais as duas
+    # da assinatura, que aparece no documento como as outras.
     len(re.findall(r"STATE\.ui\.mecseteEm = agoraSync\(\);\s*\n\s*marcarEquipeAlterada\(\);", novo)) == 5
-    and novo.count('cacheFoto.clear(); __lpPaginas = []; __lpHtml = "";') == 4)
+    and novo.count('cacheFoto.clear(); __lpPaginas = []; __lpHtml = "";') == 6)
 
 print("\n=== 33. INVENTARIO DE MAQUINAS: COLUNAS FIXAS E TIPO DO EQUIPAMENTO ===")
 # O inventario sai em varias tabelas (uma por maquina, para poder paginar).
@@ -3748,6 +3751,61 @@ chk("os rotulos antigos, que se confundiam, sairam",
     and "Usar meu texto</button>" not in novo)
 chk("o botao de replicar continua distinto do de aplicar",
     "Aplicar este texto em vários itens" in novo)
+
+print("\n=== 121. ASSINATURA DO RESPONSAVEL — SO NESTE APARELHO ===")
+# Pedida em campo em 02/09/2026, com a escolha explicita de NAO sincronizar:
+# uma assinatura digitalizada que viajasse no backup e na sincronizacao estaria
+# em todo arquivo que sai daqui, e quem tivesse um desses arquivos teria a
+# assinatura do engenheiro em imagem.
+# A garantia nao vem de lista de exclusao (que alguem esquece de atualizar) e
+# sim da ESTRUTURA: chave propria do banco, que o STATE nao referencia.
+chk("mora em chave propria do banco, fora do STATE",
+    'const DB_KEY_ASSINATURA = "assinaturaResponsavel";' in novo
+    and "STATE.assinatura" not in novo
+    and "mecseteConfig.assinatura" not in novo)
+_al = novo[novo.find("async function assinaturaLer(){"):]
+_al = _al[:_al.find("async function fotosLerMapaOrfas(")]
+chk("ler e gravar nao encostam no STATE",
+    "get(DB_KEY_ASSINATURA)" in _al
+    and "put(dataUrl, DB_KEY_ASSINATURA)" in _al
+    and "store.delete(DB_KEY_ASSINATURA)" in _al
+    and "STATE" not in _al)
+# Os tres caminhos que tirariam a assinatura deste aparelho leem o STATE — e e
+# por isso que a chave separada basta. Se um dia algum deles passar a varrer o
+# banco inteiro, a assinatura sairia junto sem ninguem notar.
+_bk = novo[novo.find("function backupV2EmPartes(partes){"):]
+_bk = _bk[:_bk.find("\nfunction backupV2AreaEmPartes(")]
+chk("o backup continua saindo do STATE, e nao encosta na assinatura",
+    "STATE.projetosSimples" in _bk and "assinatura" not in _bk)
+chk("a sincronizacao tambem nao a leva (item nem pacote da equipe)",
+    "assinatura" not in novo[novo.find("function listarItensSincronizaveisSimples("):][:4000]
+    and "assinatura" not in novo[novo.find("function montarPacoteEquipe("):][:2500])
+chk("o ponto de restauracao clona o STATE, entao tambem nao a leva",
+    "fotosExtrairParaRefs(STATE" in novo)
+# No documento: sobre a linha, so do lado do responsavel, com a caixa existindo
+# nos dois lados para as linhas ficarem no mesmo nivel da folha.
+_bc = novo[novo.find("  function blocoConclusao(d){"):]
+_bc = _bc[:_bc.find("/* ---------- paginador ---------- */")]
+chk("sai sobre a linha e SO do lado do responsavel tecnico",
+    '<div class="assin">${assinaturaLaudo()? `<img src="${assinaturaLaudo()}" alt="">` : ""}</div><div class="linha"></div>${esc(d.m.respNome' in _bc
+    and '<div class="assin"></div><div class="linha"></div>${esc(d.proj.responsavel' in _bc)
+chk("a caixa existe nos DOIS lados, para as linhas ficarem no mesmo nivel",
+    _bc.count('class="assin"') == 2
+    and ".lp-assin .assin{height:" in novo
+    and "align-items:flex-end" in novo)
+chk("a assinatura vem da chave propria, nunca da configuracao que sincroniza",
+    novo.count("function assinaturaLaudo(){") == 1
+    and "getMecseteConfig" not in novo[novo.find("function assinaturaLaudo(){"):][:320])
+chk("carrega sozinha na abertura, junto das outras imagens do app",
+    "__assinaturaLaudo = await assinaturaLer();" in novo)
+chk("tem botao na barra, e o modal avisa que fica so neste aparelho",
+    'onclick="App.lpAbrirAssinatura()"' in novo
+    and "Fica só neste aparelho" in novo
+    and "é preciso enviá-la de novo" in novo)
+chk("PNG, para a assinatura nao sair com fundo branco tapando a linha",
+    "comprimirLogoPNG(" in novo[novo.find("    lpEnviarAssinatura(){"):][:1200])
+chk("remover pergunta antes e apaga do aparelho",
+    "assinaturaGravar(null)" in novo and "__assinaturaLaudo = null;" in novo)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")

@@ -64,6 +64,33 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 02/09/2026 18:24
+
+**Novo: sua assinatura no laudo.** Na aba Imprimir, ao lado de Logotipo, Rodapé,
+Figura e Conclusão, entrou o botão **Assinatura**.
+
+Você envia a imagem uma vez e ela sai na última página, **pousada sobre a linha
+do seu nome**. O lado do cliente continua em branco, para assinar à mão. As duas
+linhas ficam no mesmo nível da folha — o espaço da assinatura existe nos dois
+lados, mesmo vazio, justamente para isso.
+
+**Ela fica só neste aparelho.** Foi a sua escolha, e o app a cumpre pela
+estrutura, não por uma lista de exceções: a assinatura é guardada numa gaveta
+própria do aparelho, que o resto do app não enxerga. O backup lê o estado do
+app; a sincronização lê o estado do app; os pontos de restauração copiam o
+estado do app. Nenhum dos três alcança essa gaveta.
+
+Na prática: **a assinatura não vai no backup, não sobe para a nuvem, não aparece
+em outro aparelho seu e não entra em ponto de restauração.** Trocando de celular
+ou reinstalando o app, é preciso enviá-la de novo — o modal avisa isso na hora
+de enviar.
+
+**Envie em PNG com fundo transparente.** Uma assinatura em JPEG vem com fundo
+branco e tapa a linha. A prévia mostra o quadriculado onde a imagem é
+transparente, como já faz com o logotipo.
+
+Tem "Remover" quando quiser voltar à linha em branco.
+
 ## 02/09/2026 18:09
 
 **Os botões de aplicar texto, na revisão do laudo, estavam confusos.** Corrigido.

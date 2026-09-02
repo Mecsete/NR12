@@ -3501,9 +3501,12 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(HTML.indexOf(".lp-logo-previa{") > 0);
     ok(HTML.indexOf("linear-gradient(45deg,#D9DCE6 25%,transparent 25%)") > 0, "sem quadriculado não dá para ver o fundo");
   });
-  t("trocar o logotipo obriga a remontar o laudo", ()=>{
-    eq((HTML.match(/cacheFoto\.clear\(\); __lpPaginas = \[\]; __lpHtml = "";/g)||[]).length, 4,
-       "trocar logotipo ou figura precisa invalidar o laudo já montado");
+  t("trocar imagem do laudo obriga a remontar o documento", ()=>{
+    /* 6 desde 02/09/2026: logotipo (enviar/remover), figura (enviar/remover) e
+       assinatura (enviar/remover). Qualquer uma delas aparece no documento —
+       trocar sem invalidar deixaria a prévia mostrando a imagem antiga. */
+    eq((HTML.match(/cacheFoto\.clear\(\); __lpPaginas = \[\]; __lpHtml = "";/g)||[]).length, 6,
+       "trocar logotipo, figura ou assinatura precisa invalidar o laudo já montado");
   });
 
   console.log("\n=== t76 · inventário de máquinas: colunas e tipo do equipamento ===");
@@ -9589,6 +9592,110 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
     t("sem texto nenhum, nao ha o que aplicar", ()=>{
       eq(primarios(lista("", "", "")).length, 0);
+    });
+  }
+
+  /* ---------- t148: assinatura do responsavel — SO NESTE APARELHO ----------
+     Pedida em campo em 02/09/2026, com a escolha explicita de NAO sincronizar:
+     uma assinatura digitalizada que viajasse no backup e na sincronizacao
+     estaria em todo arquivo que sai daqui, e qualquer pessoa com um desses
+     arquivos teria a assinatura do engenheiro em imagem.
+
+     A garantia nao vem de uma lista de exclusao (que alguem esquece de
+     atualizar) e sim da ESTRUTURA: a assinatura mora numa chave propria do
+     banco, e o STATE nao a referencia. O backup le o STATE. A sincronizacao le
+     o STATE. Os pontos de restauracao clonam o STATE. Nenhum deles a alcanca. */
+  {
+    console.log("\n[t148] assinatura do responsavel: fica so no aparelho");
+
+    t("A GARANTIA: a assinatura mora fora do STATE, em chave propria do banco", ()=>{
+      ok(HTML.indexOf('const DB_KEY_ASSINATURA = "assinaturaResponsavel";') > 0,
+         "sumiu a chave propria — a assinatura passaria a viajar");
+      /* Se ela fosse guardada no STATE, bastaria alguem esquecer de uma lista
+         de exclusao para ela ir junto. Estes testes travam a estrutura. */
+      ok(HTML.indexOf("STATE.assinatura") < 0 && HTML.indexOf("mecseteConfig.assinatura") < 0,
+         "a assinatura foi parar no STATE — ela viajaria no backup e na nuvem");
+    });
+    t("le e grava direto na chave, sem passar pelo STATE", ()=>{
+      const ler = funcao("assinaturaLer"), gravar = funcao("assinaturaGravar");
+      ok(ler.indexOf("get(DB_KEY_ASSINATURA)") > 0, "a leitura precisa vir da chave propria");
+      ok(gravar.indexOf("put(dataUrl, DB_KEY_ASSINATURA)") > 0, "a gravacao precisa ir para a chave propria");
+      ok(gravar.indexOf("store.delete(DB_KEY_ASSINATURA)") > 0, "remover precisa apagar de verdade");
+      [ler, gravar].forEach(f=> ok(f.indexOf("STATE") < 0, "a assinatura encostou no STATE"));
+    });
+    /* O BACKUP LE O STATE — e por isso que a chave separada basta. Este teste
+       guarda que o backup continue lendo so o STATE: se um dia ele passar a
+       varrer o banco inteiro, a assinatura sairia junto sem ninguem notar. */
+    t("o backup continua saindo do STATE, e so dele", ()=>{
+      const f = funcao("backupV2EmPartes");
+      ok(f.indexOf("STATE.projetosSimples") > 0);
+      ok(f.indexOf("DB_KEY_ASSINATURA") < 0 && f.indexOf("assinatura") < 0,
+         "o backup encostou na assinatura");
+    });
+    t("a sincronizacao tambem — nem no item, nem no pacote da equipe", ()=>{
+      ok(funcao("listarItensSincronizaveisSimples").indexOf("assinatura") < 0,
+         "a assinatura entrou no que sobe de cada item");
+      ok(funcao("montarPacoteEquipe").indexOf("assinatura") < 0,
+         "a assinatura entrou no pacote da configuracao, que sincroniza");
+    });
+    t("e o ponto de restauracao clona o STATE, entao tambem nao a leva", ()=>{
+      const f = funcao("salvarPontoDeRestauracao");
+      ok(f.indexOf("fotosExtrairParaRefs(STATE") > 0, "o ponto precisa continuar saindo do STATE");
+      ok(f.indexOf("assinatura") < 0);
+    });
+
+    /* ---- no documento ---- */
+    t("a assinatura sai sobre a linha, e SO do lado do responsavel", ()=>{
+      const b = funcao("blocoConclusao");
+      ok(b.indexOf('<div class="assin">${assinaturaLaudo()? `<img src="${assinaturaLaudo()}" alt="">` : ""}</div><div class="linha"></div>${esc(d.m.respNome') > 0,
+         "a assinatura saiu do lado do responsavel tecnico");
+      ok(b.indexOf('<div class="assin"></div><div class="linha"></div>${esc(d.proj.responsavel') > 0,
+         "o lado do cliente precisa continuar em branco, para assinar a mao");
+    });
+    /* A CAIXA EXISTE NOS DOIS LADOS mesmo vazia: com ela so de um lado, a
+       linha da Mecsete desceria a altura da imagem e as duas assinaturas
+       sairiam desalinhadas na folha. */
+    t("a caixa existe nos DOIS lados, para as linhas ficarem no mesmo nivel", ()=>{
+      const b = funcao("blocoConclusao");
+      eq((b.match(/class="assin"/g)||[]).length, 2, "a caixa precisa existir nas duas colunas");
+      ok(HTML.indexOf(".lp-assin .assin{height:") > 0, "sem altura fixa a caixa vazia nao reserva espaco");
+      ok(HTML.indexOf("align-items:flex-end") > 0, "a imagem precisa pousar SOBRE a linha, nao flutuar");
+    });
+    t("a assinatura vem da chave propria, nunca da configuracao", ()=>{
+      const f = funcao("assinaturaLaudo");
+      ok(f.indexOf("__assinaturaLaudo") > 0);
+      ok(f.indexOf("getMecseteConfig") < 0, "voltou a sair da configuracao, que sincroniza");
+    });
+    t("carrega sozinha na abertura, junto das outras imagens do app", ()=>{
+      ok(funcao("carregarImagensDoApp").indexOf("__assinaturaLaudo = await assinaturaLer();") > 0,
+         "sem isto a assinatura some do laudo a cada abertura");
+    });
+
+    /* ---- a tela ---- */
+    t("tem botao na barra, com marca quando ja ha assinatura", ()=>{
+      ok(HTML.indexOf('onclick="App.lpAbrirAssinatura()"') > 0, "sem botao nao adianta existir");
+      ok(HTML.indexOf('Assinatura${assinaturaLaudo() ? " ·" : ""}') > 0,
+         "o botao precisa mostrar que este aparelho ja tem assinatura");
+    });
+    t("o modal AVISA que fica so neste aparelho", ()=>{
+      const m = HTML.slice(HTML.indexOf("    async lpAbrirAssinatura(){"), HTML.indexOf("    lpEnviarAssinatura(){"));
+      ok(m.indexOf("Fica só neste aparelho") > 0, "a pessoa precisa saber que nao sincroniza");
+      ok(m.indexOf("é preciso enviá-la de novo") > 0,
+         "trocar de aparelho exige reenviar — dizer isso evita a surpresa");
+    });
+    t("PNG, para a assinatura nao sair com fundo branco tapando a linha", ()=>{
+      const e = HTML.slice(HTML.indexOf("    lpEnviarAssinatura(){"), HTML.indexOf("    async lpRemoverAssinatura(){"));
+      ok(e.indexOf("comprimirLogoPNG(") > 0, "em JPEG a assinatura vem com fundo branco e tapa a linha");
+    });
+    t("enviar e remover invalidam o laudo ja montado", ()=>{
+      const e = HTML.slice(HTML.indexOf("    lpEnviarAssinatura(){"), HTML.indexOf("    lpAbrirRodape(){"));
+      eq((e.match(/cacheFoto\.clear\(\); __lpPaginas = \[\]; __lpHtml = "";/g)||[]).length, 2,
+         "sem invalidar, a previa continuaria mostrando a assinatura antiga");
+    });
+    t("remover pergunta antes, e apaga do aparelho", ()=>{
+      const r = HTML.slice(HTML.indexOf("    async lpRemoverAssinatura(){"), HTML.indexOf("    lpAbrirRodape(){"));
+      ok(r.indexOf("confirm(") > 0, "apagar assinatura sem perguntar e apagar trabalho");
+      ok(r.indexOf("assinaturaGravar(null)") > 0 && r.indexOf("__assinaturaLaudo = null;") > 0);
     });
   }
 
