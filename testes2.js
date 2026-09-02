@@ -156,12 +156,25 @@ const ctx = { OUTRO, STATE, linhasEscopoSimples, nomeMaquinaS, valOuOutro, escap
 vm.createContext(ctx);
 
 /* tabelas e utilitarios HRN, extraidos do arquivo entregue */
-[ "GPD_POR_RISCO", "HRN_PO_TABELA", "HRN_GPD_TABELA", "HRN_FE_TABELA", "HRN_NP_TABELA", "NIVEL_HRN_META" ]
+[ "GPD_POR_RISCO", "HRN_PO_TABELA", "HRN_GPD_TABELA", "HRN_FE_TABELA", "HRN_NP_TABELA", "HRN_FAIXAS" ]
   .forEach(n=> vm.runInContext(constante(n), ctx));
+/* NIVEL_HRN_META deixou de ser objeto escrito a mao: desde 02/09/2026 ele e
+   DERIVADO de HRN_FAIXAS, para a cor de cada faixa nascer no mesmo lugar que
+   o nivel e o texto de acao. constante() so sabe delimitar array/objeto, entao
+   este trecho e lido do arquivo ate o fecha-parenteses da funcao. */
+{
+  const i = HTML.indexOf("const NIVEL_HRN_META = (function(){");
+  if(i < 0) throw new Error("sumiu NIVEL_HRN_META derivado de HRN_FAIXAS");
+  const f = HTML.indexOf("})();", i);
+  vm.runInContext(HTML.slice(i, f + 5), ctx);
+}
 vm.runInContext("const HRN_PO_OPTS=HRN_PO_TABELA.map(x=>x.classificacao);const HRN_GPD_OPTS=HRN_GPD_TABELA.map(x=>x.classificacao);const HRN_FE_OPTS=HRN_FE_TABELA.map(x=>x.classificacao);const HRN_NP_OPTS=HRN_NP_TABELA.map(x=>x.classificacao);", ctx);
 vm.runInContext(constante("GPD_RENOMEADOS"), ctx);
-[ "sugerirGPD","sugerirFE","sugerirNP","sugerirPO","calcHRN","nivelHRN","acaoHRN","gpdCanonico","valorPorClassificacaoHRN","labelHRN","hrnDoItem" ]
+[ "sugerirGPD","sugerirFE","sugerirNP","sugerirPO","calcHRN","nivelHRN","faixaHRN","acaoHRN","hrnNumeroBR","gpdCanonico","valorPorClassificacaoHRN","labelHRN","hrnDoItem" ]
   .forEach(n=> vm.runInContext(funcao(n), ctx));
+/* A formula de Excel do nivel e montada a partir de HRN_FAIXAS desde
+   02/09/2026 — carregada aqui para o teste comparar as duas reguas. */
+vm.runInContext(funcao("formulaNivelHrnDeRef"), ctx);
 vm.runInContext(constante("CAMPOS_ADMIN_PROJETO"), ctx);
 [ "camposFaltandoProjeto", "projetosComCamposFaltando" ].forEach(n=> vm.runInContext(funcao(n), ctx));
 
@@ -306,7 +319,11 @@ t("PO e GPD continuam por risco; FE/NP do cálculo vêm só da tarefa", ()=>{
   eq(h.fe, 2.5, "fe precisa continuar vindo da tarefa mesmo com po/gpd escolhidos no risco");
   eq(h.np, 1, "np precisa continuar vindo da tarefa mesmo com po/gpd escolhidos no risco");
   eq(h.hrn, C.calcHRN(15,2.5,15,1));
-  eq(h.nivel, "INACEITÁVEL");
+  /* 562,5. Na regua de 4 faixas isto era INACEITAVEL (>=500); na de 8, de
+     02/09/2026, a faixa 500-1.000 e EXTREMO e INACEITAVEL comeca em 1.000.
+     O CALCULO nao mudou -- so a leitura do resultado. */
+  eq(h.hrn, 562.5);
+  eq(h.nivel, "EXTREMO");
 });
 t("as 4 tabelas do HRN batem com a metodologia enviada", ()=>{
   const esperado = [
@@ -9128,6 +9145,156 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
         const p = HTML.indexOf(m);
         ok(p > ini && p < fim, m + " ficou FORA do bloco removível");
       });
+    });
+  }
+
+  /* ---------- t144: a regua do HRN, de 4 para 8 faixas --------------------
+     Pedido em campo em 02/09/2026. O CALCULO NAO MUDA -- HRN continua sendo
+     PO x FE x GPD x NP com os mesmos valores das quatro tabelas. Muda so a
+     leitura do resultado. E como o nivel nunca foi GRAVADO (hrnDoItem sempre
+     o calcula a partir do numero), todo risco ja lancado se reclassifica
+     sozinho, sem migrar dado nenhum. */
+  {
+    console.log("\n[t144] HRN: regua de 8 faixas, numero no quadro, e as tabelas do laudo");
+    /* `const` declarado dentro do vm nao vira propriedade do contexto; le-se
+       pelo proprio contexto. (As funcoes, sim, viram.) */
+    const F = vm.runInContext("HRN_FAIXAS", ctx);
+
+    t("O CALCULO NAO MUDOU — continua PO x FE x GPD x NP", ()=>{
+      eq(C.calcHRN(2, 2.5, 15, 1), 75);
+      eq(C.calcHRN(0.033, 0.5, 0.1, 1), 0);
+      eq(C.calcHRN(15, 4, 15, 12), 10800);
+      ok(String(funcao("calcHRN")).indexOf("po*fe*gpd*np") > 0, "a formula do HRN mudou");
+    });
+    t("as 8 faixas estao na ordem e com os limites pedidos", ()=>{
+      eq(F.length, 8, "a regua tem que ter 8 faixas");
+      eq(F.map(f=>f.min).join(","), "1000,500,100,50,10,5,1,0");
+      eq(F.map(f=>f.nivel).join("|"),
+         "INACEITÁVEL|EXTREMO|MUITO ALTO|ALTO|SIGNIFICATIVO|BAIXO|MUITO BAIXO|DESPREZÍVEL");
+    });
+    /* O LIMITE E INCLUSIVO NO PISO. As faixas escritas "5 - 10", "10 - 50"
+       compartilham os extremos; esta e a unica leitura que nao deixa um numero
+       em duas faixas ao mesmo tempo. */
+    t("cada numero cai na faixa certa, com o piso incluido", ()=>{
+      const casos = [
+        [0, "DESPREZÍVEL"], [0.5, "DESPREZÍVEL"], [0.99, "DESPREZÍVEL"],
+        [1, "MUITO BAIXO"], [4.99, "MUITO BAIXO"],
+        [5, "BAIXO"], [9.99, "BAIXO"],
+        [10, "SIGNIFICATIVO"], [49.99, "SIGNIFICATIVO"],
+        [50, "ALTO"], [99.99, "ALTO"],
+        [100, "MUITO ALTO"], [499.99, "MUITO ALTO"],
+        [500, "EXTREMO"], [999.99, "EXTREMO"],
+        [1000, "INACEITÁVEL"], [10800, "INACEITÁVEL"],
+      ];
+      casos.forEach(([n, esperado])=> eq(C.nivelHRN(n), esperado, "HRN " + n));
+    });
+    t("o que mudou de faixa em relacao a regua antiga", ()=>{
+      /* A regua antiga: <5 DESPREZIVEL, 5-50 BAIXO, 50-500 ALTO, >=500
+         INACEITAVEL. Estes sao os casos em que a leitura muda -- e o motivo
+         de o laudo ficar mais fino, nao mais severo. */
+      eq(C.nivelHRN(0.5), "DESPREZÍVEL");   // antes DESPREZIVEL — igual
+      eq(C.nivelHRN(3),   "MUITO BAIXO");   // antes DESPREZIVEL
+      eq(C.nivelHRN(30),  "SIGNIFICATIVO"); // antes BAIXO
+      eq(C.nivelHRN(300), "MUITO ALTO");    // antes ALTO
+      eq(C.nivelHRN(700), "EXTREMO");       // antes INACEITAVEL
+      eq(C.nivelHRN(2000),"INACEITÁVEL");   // antes INACEITAVEL — igual
+    });
+    t("valor estranho nao quebra a classificacao", ()=>{
+      eq(C.nivelHRN(null), "DESPREZÍVEL");
+      eq(C.nivelHRN(undefined), "DESPREZÍVEL");
+      eq(C.nivelHRN("abc"), "DESPREZÍVEL");
+      eq(C.nivelHRN(-5), "DESPREZÍVEL", "negativo nao pode virar INACEITAVEL");
+    });
+    t("toda faixa tem cor propria, e nenhuma repete", ()=>{
+      F.forEach(f=> ok(/^#[0-9A-F]{6}$/i.test(f.cor), "cor invalida em " + f.nivel));
+      eq(new Set(F.map(f=>f.cor)).size, 8, "duas faixas com a mesma cor ficam indistinguiveis no laudo");
+      // a cor de cada nivel sai da mesma tabela, nao de um objeto a parte
+      const meta = vm.runInContext("NIVEL_HRN_META", ctx);
+      F.forEach(f=> eq(meta[f.nivel].cor, f.cor));
+      eq(Object.keys(meta).length, 8);
+    });
+    t("o texto de acao traz o algarismo romano, o nome e o prazo", ()=>{
+      const a = C.acaoHRN("INACEITÁVEL");
+      ok(a.indexOf("I – Inaceitável") === 0, "faltou o numero da tabela: " + a);
+      ok(a.indexOf("interrupção da atividade") > 0, "o texto de acao nao e o pedido");
+      ok(C.acaoHRN("EXTREMO").indexOf("II – Extremo") === 0);
+      ok(C.acaoHRN("DESPREZÍVEL").indexOf("VIII – Desprezível") === 0);
+      ok(C.acaoHRN("SIGNIFICATIVO").indexOf("12 meses") > 0);
+      eq(C.acaoHRN("NAO EXISTE"), "", "nivel desconhecido nao pode inventar acao");
+    });
+    t("os romanos vao de I a VIII, sem buraco nem repeticao", ()=>{
+      eq(F.map(f=>f.ord).join(","), "I,II,III,IV,V,VI,VII,VIII");
+    });
+    t("o NUMERO do HRN sai escrito em portugues", ()=>{
+      eq(C.hrnNumeroBR(12), "12");
+      eq(C.hrnNumeroBR(12.5), "12,5");
+      eq(C.hrnNumeroBR(0.75), "0,75");
+      eq(C.hrnNumeroBR(562.5), "562,5");
+      eq(C.hrnNumeroBR(10800), "10.800");
+      eq(C.hrnNumeroBR("abc"), "", "valor invalido nao pode virar numero");
+    });
+
+    /* ---- a formula do Excel sai da MESMA tabela ---- */
+    t("a formula do Excel e montada da regua, nao escrita a mao", ()=>{
+      const f = C.formulaNivelHrnDeRef("Z9");
+      // uma condicao por faixa, menos a ultima (que e o senao)
+      eq((f.match(/IF\(/g)||[]).length, 7, "a cascata precisa cobrir as 8 faixas");
+      F.slice(0, 7).forEach(x=> ok(f.indexOf('Z9>=' + x.min + ',"' + x.nivel + '"') > 0,
+        "faltou a faixa " + x.nivel + " na formula: " + f));
+      ok(f.indexOf('"DESPREZÍVEL"') > 0, "faltou o senao da ultima faixa");
+    });
+    t("a formula do Excel concorda com o JS, faixa por faixa", ()=>{
+      /* Le a cascata de IFs pela propria semantica dela: testes em ordem, o
+         primeiro que bate vence, e o ultimo valor e o senao. E o que garante
+         que a planilha entregue ao cliente classifica igual ao laudo -- ate
+         hoje eram duas reguas escritas a mao, cada uma num canto. */
+      const excel = C.formulaNivelHrnDeRef("X");
+      const pares = [];
+      const re = /X>=([0-9.]+),"([^"]+)"/g;
+      let m;
+      while((m = re.exec(excel))) pares.push([Number(m[1]), m[2]]);
+      const senao = /,"([^"]+)"\)+$/.exec(excel);
+      ok(pares.length === 7 && senao, "nao consegui ler a cascata: " + excel);
+      const peloExcel = (n)=>{
+        for(const [min, niv] of pares) if(n >= min) return niv;
+        return senao[1];
+      };
+      [0, 0.99, 1, 4.9, 5, 9.9, 10, 49, 50, 99, 100, 499, 500, 999, 1000, 5000, 562.5]
+        .forEach(n=> eq(peloExcel(n), C.nivelHRN(n), "Excel e JS discordam em HRN " + n));
+    });
+    t("as tres copias da formula sumiram — todas passam pela fonte unica", ()=>{
+      eq((HTML.match(/IF\(Z\$\{rowNum\}>=500/g)||[]).length, 0, "sobrou formula escrita a mao");
+      ok(HTML.indexOf('formulaNivelHrnDeRef(`Z${rowNum}`)') > 0, "a planilha da Corteva nao usa a fonte unica");
+      ok(HTML.indexOf('formulaNivelHrnDeRef(`L${rowNum}`)') > 0, "a segunda aba nao usa a fonte unica");
+      ok(funcao("formulaNivelHrn").indexOf("formulaNivelHrnDeRef") > 0, "a terceira nao usa");
+    });
+
+    /* ---- as duas tabelas do laudo saem da MESMA regua ---- */
+    t("as duas tabelas do laudo sao montadas da regua, nao escritas a mao", ()=>{
+      ok(HTML.indexOf("${HRN_FAIXAS.map(f=>`<tr><td class=\"c\" style=\"width:30px\">${f.ord}</td>") > 0,
+         "a tabela de ACOES voltou a ser escrita a mao");
+      ok(HTML.indexOf("${[...HRN_FAIXAS].reverse().map(f=>`<tr><td class=\"c\" style=\"width:96px\">${esc(f.faixa)}</td>") > 0,
+         "a regua de CLASSIFICACAO voltou a ser escrita a mao");
+      // e as faixas antigas nao podem ter sobrado em lugar nenhum
+      ["0 – 5</td><td>Desprezível", "5 – 50</td><td>Baixo", "50 – 500</td><td>Alto",
+       "500 ou +</td><td>Inaceitável", "Mitigar em até 6 meses"].forEach(velho=>
+        ok(HTML.indexOf(velho) < 0, "sobrou a regua antiga no laudo: " + velho));
+    });
+    t("o texto de cada faixa tem a propria faixa escrita junto", ()=>{
+      eq(F.map(f=>f.faixa).join("|"),
+         "acima de 1.000|500 – 1.000|100 – 500|50 – 100|10 – 50|5 – 10|1 – 5|0 – 1");
+    });
+    t("o quadro de cada risco mostra o NUMERO alem do nivel", ()=>{
+      ok(HTML.indexOf('<div class="lp-hrn-n">${esc(hrnNumeroBR(h.hrn))}</div>') > 0,
+         "o numero do HRN nao aparece no quadro do risco");
+      ok(HTML.indexOf('<div class="lp-hrn-c">${esc(h.nivel)}</div>') > 0,
+         "a classificacao sumiu do quadro do risco");
+      ok(HTML.indexOf(".lp-hrn-n{font-weight:800") > 0, "sem estilo o numero nao cabe na celula");
+    });
+    t("o nivel continua sendo CALCULADO, nunca gravado (por isso nao ha migracao)", ()=>{
+      const f = funcao("hrnDoItem");
+      ok(f.indexOf("nivel:nivelHRN(hrn)") > 0, "o nivel passou a vir de outro lugar");
+      ok(HTML.indexOf("risco.nivel =") < 0, "alguem passou a gravar o nivel no risco");
     });
   }
 

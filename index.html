@@ -966,24 +966,77 @@ function sugerirNP(numPessoas){
   if(n<=2) return 1; if(n<=7) return 2; if(n<=15) return 4; if(n<=50) return 8; return 12;
 }
 function sugerirPO(temMedida){ return temMedida==="Sim"?1:2; }
+/* ===================== A RÉGUA DO HRN — FONTE ÚNICA =====================
+
+   O CÁLCULO NÃO MUDA: HRN continua sendo PO × FE × GPD × NP, com os mesmos
+   valores das quatro tabelas da metodologia. O que esta tabela define é só a
+   LEITURA do resultado — em que faixa cada número cai.
+
+   Como o nível nunca é gravado (hrnDoItem sempre o calcula a partir do
+   número), trocar a régua reclassifica todo risco já lançado sozinho, sem
+   migração de dado nenhuma.
+
+   TUDO SAI DAQUI: o nível na tela, a cor, o texto de ação, as duas tabelas do
+   laudo e a fórmula do Excel. Até 02/09/2026 a mesma cascata de quatro faixas
+   estava copiada à mão em quatro lugares (o JS e três fórmulas de Excel) — é
+   assim que duas réguas do mesmo laudo passam a discordar sem ninguém ver.
+
+   LIMITE DE CADA FAIXA: `min` é INCLUSIVO e o topo é o `min` da faixa de
+   cima. Um HRN de exatamente 5 é BAIXO (não MUITO BAIXO), 50 é ALTO, 1000 é
+   INACEITÁVEL. As faixas escritas como "5 – 10", "10 – 50" compartilham os
+   extremos, e esta é a única leitura que não deixa um número em duas faixas
+   ao mesmo tempo. */
+const HRN_FAIXAS = [
+  { min:1000, nivel:"INACEITÁVEL",   rot:"Inaceitável",   faixa:"acima de 1.000", ord:"I",
+    cor:"#7030A0", texto:"#FFFFFF", textoClaro:"#5A1880",
+    acao:"Deve ser mitigado imediatamente, com interrupção da atividade e implementação de controles de engenharia, até se chegar a um risco do tipo baixo ou desprezível." },
+  { min:500,  nivel:"EXTREMO",       rot:"Extremo",       faixa:"500 – 1.000",    ord:"II",
+    cor:"#C00000", texto:"#FFFFFF", textoClaro:"#A00000",
+    acao:"Deve ser mitigado com controles de engenharia até se chegar a um risco do tipo baixo ou desprezível, dentro de um prazo específico ao redor de 1 mês (recomendação)." },
+  { min:100,  nivel:"MUITO ALTO",    rot:"Muito alto",    faixa:"100 – 500",      ord:"III",
+    cor:"#FF0000", texto:"#FFFFFF", textoClaro:"#D32F2F",
+    acao:"Deve ser mitigado com controles de engenharia e/ou administrativos até se chegar a um risco baixo ou desprezível, dentro de um prazo específico ao redor de 3 meses (recomendação)." },
+  { min:50,   nivel:"ALTO",          rot:"Alto",          faixa:"50 – 100",       ord:"IV",
+    cor:"#FF6600", texto:"#FFFFFF", textoClaro:"#C25400",
+    acao:"Deve ser mitigado com controles de engenharia e/ou administrativos até se chegar a um risco baixo ou desprezível, dentro de um prazo específico ao redor de 6 meses (recomendação)." },
+  { min:10,   nivel:"SIGNIFICATIVO", rot:"Significativo", faixa:"10 – 50",        ord:"V",
+    cor:"#FFC000", texto:"#1E2148", textoClaro:"#9A7300",
+    acao:"Deve ser mitigado com controles de emergência e/ou administrativos, até chegar a um risco baixo ou desprezível ao redor de um período de 12 meses (recomendação)." },
+  { min:5,    nivel:"BAIXO",         rot:"Baixo",         faixa:"5 – 10",         ord:"VI",
+    cor:"#FFFF00", texto:"#1E2148", textoClaro:"#8A7A00",
+    acao:"Devem ser verificados os procedimentos e controles estabelecidos e garantir que sejam mantidos. Avaliação caso a caso e avaliação dos controles existentes." },
+  { min:1,    nivel:"MUITO BAIXO",   rot:"Muito baixo",   faixa:"1 – 5",          ord:"VII",
+    cor:"#92D050", texto:"#1E2148", textoClaro:"#4A7A00",
+    acao:"Não requer ações imediatas de mitigação. Manter monitoramento periódico e considerar melhorias quando viável." },
+  { min:0,    nivel:"DESPREZÍVEL",   rot:"Desprezível",   faixa:"0 – 1",          ord:"VIII",
+    cor:"#C6E0B4", texto:"#1E2148", textoClaro:"#3E6B1F",
+    acao:"Não requer ações de mitigação. Considerar oportunidades de melhoria no caso em que se aplique." },
+];
 function calcHRN(po,fe,gpd,np){ return +(po*fe*gpd*np).toFixed(2); }
 function nivelHRN(hrn){
-  if(hrn>=500) return "INACEITÁVEL";
-  if(hrn>=50)  return "ALTO";
-  if(hrn>=5)   return "BAIXO";
-  return "DESPREZÍVEL";
+  const n = Number(hrn) || 0;
+  for(const f of HRN_FAIXAS) if(n >= f.min) return f.nivel;
+  return HRN_FAIXAS[HRN_FAIXAS.length-1].nivel;
 }
+function faixaHRN(nivel){ return HRN_FAIXAS.find(f=>f.nivel===nivel) || null; }
+/* O texto de ação do laudo, com o algarismo romano que a tabela usa. */
 function acaoHRN(nivel){
-  const m={"INACEITÁVEL":"I – Mitigar em até 6 meses.","ALTO":"II – Mitigar em até 12 meses.",
-            "BAIXO":"III – Verificar controles existentes.","DESPREZÍVEL":"IV – Sem ação necessária."};
-  return m[nivel]||"";
+  const f = faixaHRN(nivel);
+  return f ? (f.ord + " – " + f.rot + " — " + f.acao) : "";
 }
-const NIVEL_HRN_META={
-  "DESPREZÍVEL":{cor:"#92D050",texto:"#1E2148",textoClaro:"#4A7A00"},
-  "BAIXO":      {cor:"#FFFF00",texto:"#1E2148",textoClaro:"#8A7A00"},
-  "ALTO":       {cor:"#FF0000",texto:"#FFFFFF",textoClaro:"#D32F2F"},
-  "INACEITÁVEL":{cor:"#7030A0",texto:"#FFFFFF",textoClaro:"#5A1880"},
-};
+/* O NÚMERO do HRN como ele se escreve em português: vírgula decimal, e sem
+   casas quando não há. Pedido em campo — o quadro de cada risco mostrava só a
+   palavra, e é o número que diz de quanto se está falando dentro da faixa. */
+function hrnNumeroBR(hrn){
+  const n = Number(hrn);
+  if(!isFinite(n)) return "";
+  return (Math.round(n*100)/100).toLocaleString("pt-BR", {maximumFractionDigits:2});
+}
+const NIVEL_HRN_META = (function(){
+  const m = {};
+  HRN_FAIXAS.forEach(f=>{ m[f.nivel] = { cor:f.cor, texto:f.texto, textoClaro:f.textoClaro }; });
+  return m;
+})();
 // Tabelas oficiais da metodologia HRN — Classificação/Valor/Descrição. A
 // descrição é só texto de ajuda na tela (ícone de informação); não entra no
 // laudo impresso nem em citação de norma.
@@ -2318,7 +2371,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "02/09/2026 12:03";
+const APP_BUILD = "02/09/2026 16:06";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -14647,7 +14700,7 @@ function xlsmLinhaBaseCompleta(rowNum, item){
   c.push(xlsmCellTexto(`X${rowNum}`,S.X, labelHRN(HRN_GPD_OPTS,hrn.gpd,HRN_GPD_TABELA)));
   c.push(xlsmCellTexto(`Y${rowNum}`,S.Y, labelHRN(HRN_NP_OPTS,hrn.np,HRN_NP_TABELA)));
   c.push(xlsmCellFormulaNum(`Z${rowNum}`,S.Z, `VLOOKUP(V${rowNum},TabelaPO[],2)*VLOOKUP(W${rowNum},TabelaFE[],2,0)*VLOOKUP(X${rowNum},TabelaGPD[],2,0)*VLOOKUP(Y${rowNum},TabelaNP[],2,0)`, hrn.hrn));
-  c.push(xlsmCellFormulaStr(`AA${rowNum}`,S.AA, `IF(Z${rowNum}>=500,"INACEITÁVEL",IF(Z${rowNum}>=50,"ALTO",IF(Z${rowNum}>=5,"BAIXO","DESPREZÍVEL")))`, hrn.nivel));
+  c.push(xlsmCellFormulaStr(`AA${rowNum}`,S.AA, formulaNivelHrnDeRef(`Z${rowNum}`), hrn.nivel));
   ["AB","AC","AD","AE","AF","AG","AH","AI","AJ","AK"].forEach(col=> c.push(`<c r="${col}${rowNum}" s="${S[col]}"/>`));
   c.push(xlsmCellTexto(`AL${rowNum}`,S.AL, d.equipamento));
   c.push(xlsmCellTexto(`AM${rowNum}`,S.AM, d.escopo));
@@ -14688,7 +14741,7 @@ function xlsmLinhaResumo(rowNum, item){
   c.push(xlsmCellTexto(`J${rowNum}`,S.J, labelHRN(HRN_GPD_OPTS,hrn.gpd,HRN_GPD_TABELA)));
   c.push(xlsmCellTexto(`K${rowNum}`,S.K, labelHRN(HRN_NP_OPTS,hrn.np,HRN_NP_TABELA)));
   c.push(xlsmCellFormulaNum(`L${rowNum}`,S.L, `VLOOKUP(H${rowNum},TabelaPO[],2)*VLOOKUP(I${rowNum},TabelaFE[],2,0)*VLOOKUP(J${rowNum},TabelaGPD[],2,0)*VLOOKUP(K${rowNum},TabelaNP[],2,0)`, hrn.hrn));
-  c.push(xlsmCellFormulaStr(`M${rowNum}`,S.M, `IF(L${rowNum}>=500,"INACEITÁVEL",IF(L${rowNum}>=50,"ALTO",IF(L${rowNum}>=5,"BAIXO","DESPREZÍVEL")))`, hrn.nivel));
+  c.push(xlsmCellFormulaStr(`M${rowNum}`,S.M, formulaNivelHrnDeRef(`L${rowNum}`), hrn.nivel));
   return `<row r="${rowNum}" spans="1:13" ht="69.95" customHeight="1">${c.join("")}</row>`;
 }
 const XLSM_INV_STYLES = {A:65,B:66,C:66,D:66,E:66,F:66,G:66,H:66,I:66,J:66,K:67,L:46};
@@ -15868,7 +15921,8 @@ function laudoBlocoHRN(item){
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px">
       <div style="font-weight:800;font-size:14.5px">Avaliação HRN</div>
       <div style="text-align:right">
-        <div style="font-size:21px;font-weight:800;line-height:1">${escapeHtml(String(h.hrn))}</div>
+        <!-- Mesma escrita do laudo: vírgula decimal e ponto de milhar. -->
+        <div style="font-size:21px;font-weight:800;line-height:1">${escapeHtml(hrnNumeroBR(h.hrn))}</div>
         <span style="display:inline-block;font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;background:${meta.cor};color:${meta.texto}">${escapeHtml(h.nivel)}</span>
       </div>
     </div>
@@ -17650,11 +17704,20 @@ function formulaHrn(colPO,colFE,colGPD,colNP,rn){
   const vlk=(col,range)=>`VLOOKUP(${colLetter(col)}${rn},_MatrizHRN!${range},2,0)`;
   return `${vlk(colPO,"$A$2:$B$9")}*${vlk(colFE,"$C$2:$D$7")}*${vlk(colGPD,"$E$2:$F$8")}*${vlk(colNP,"$G$2:$H$6")}`;
 }
-/* Fórmula de Excel para o Nível de Risco, replicando nivelHRN() em JS:
-   >=500 INACEITÁVEL, >=50 ALTO, >=5 BAIXO, senão DESPREZÍVEL. */
+/* Fórmula de Excel para o Nível de Risco — MONTADA a partir de HRN_FAIXAS,
+   não escrita à mão. Era exatamente esta cascata que estava copiada em três
+   lugares do arquivo: mudar a régua exigia lembrar dos três, e esquecer um
+   fazia a planilha discordar do laudo sem ninguém perceber. Agora a régua
+   muda num lugar só e a fórmula acompanha. */
+function formulaNivelHrnDeRef(ref){
+  // Da faixa mais alta para a mais baixa; a última não precisa de teste.
+  let f = `"${HRN_FAIXAS[HRN_FAIXAS.length-1].nivel}"`;
+  for(let i = HRN_FAIXAS.length-2; i >= 0; i--)
+    f = `IF(${ref}>=${HRN_FAIXAS[i].min},"${HRN_FAIXAS[i].nivel}",${f})`;
+  return f;
+}
 function formulaNivelHrn(colHrn,rn){
-  const ref=`${colLetter(colHrn)}${rn}`;
-  return `IF(${ref}>=500,"INACEITÁVEL",IF(${ref}>=50,"ALTO",IF(${ref}>=5,"BAIXO","DESPREZÍVEL")))`;
+  return formulaNivelHrnDeRef(`${colLetter(colHrn)}${rn}`);
 }
 
 /* ── Sheet HRN: Resumo e Base Completa — fotos como objeto real (twoCellAnchor) ─ */
@@ -22915,6 +22978,10 @@ window.addEventListener("pageshow", (event) => {
 .lp-rc-fotos img{width:100%;display:block;border:1px solid #8A8CA3}
 .lp-rc-rodape{display:flex;align-items:stretch;border-top:1px solid #8A8CA3;background:#F6F7FB}
 .lp-rc-hrn{flex:1;min-width:0}
+/* O número em cima, grande; a classificação embaixo, menor. Cabe na mesma
+   célula estreita da tabela e mantém a cor da faixa como fundo. */
+.lp-hrn-n{font-weight:800;font-size:13px;line-height:1.1}
+.lp-hrn-c{font-size:8.5px;line-height:1.15;letter-spacing:.02em;margin-top:1px}
 /* Largura suficiente para "Função de segurança (PLr)" caber numa linha só. O
    espaco sai das cinco colunas do HRN, que continuam sem quebrar porque o
    maior rotulo delas ("Grau do Dano (GPD)") e bem mais curto. */
@@ -23132,11 +23199,13 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
         <p class="lp-par">A estimativa do risco foi realizada mediante a atribuição dos valores correspondentes à Probabilidade de Ocorrência (PO), Frequência de Exposição (FE), Grau do Possível Dano (GPD) e Número de Pessoas Expostas (NP), conforme os critérios estabelecidos pela metodologia HRN.</p>
         <p class="lp-par">O índice HRN obtido permitiu classificar e priorizar os riscos identificados, subsidiando a definição das medidas de redução de riscos necessárias.</p>
         <p class="lp-par">Após a implementação das medidas propostas, foi realizada uma nova estimativa dos riscos para determinação do risco residual. Quando o risco residual permaneceu acima do nível considerado aceitável, foram propostas medidas adicionais de redução de riscos, seguidas de nova avaliação até a obtenção do resultado pretendido.</p>
+        <!-- Montada a partir de HRN_FAIXAS: a régua muda num lugar só e as duas
+             tabelas do laudo, o quadro de cada risco e a fórmula do Excel
+             acompanham juntos. Escrita à mão, esta tabela seria o lugar mais
+             fácil de esquecer — e num laudo assinado a régua impressa tem de
+             ser a mesma que classificou os riscos. -->
         <table class="lp-tab"><tr><th colspan="2">AÇÕES EM FUNÇÃO DO RISCO</th></tr>
-          <tr><td class="c" style="width:26px">I</td><td><b>Inaceitável</b> — Deve ser mitigado com controles de engenharia e/ou administrativos até que se chegue a um risco do tipo baixo ou desprezível, dentro de um prazo específico ao redor de 6 meses (recomendação).</td></tr>
-          <tr><td class="c">II</td><td><b>Alto</b> — Deve ser mitigado com controles de emergência e/ou administrativos, até chegar a um risco baixo ou desprezível ao redor de um período de 12 meses (recomendação).</td></tr>
-          <tr><td class="c">III</td><td><b>Baixo</b> — Devem ser verificados os procedimentos e controles estabelecidos e garantir que sejam mantidos. Avaliação caso a caso e avaliação dos controles existentes.</td></tr>
-          <tr><td class="c">IV</td><td><b>Desprezível</b> — Não requer ações de mitigação. Considerar oportunidades de melhoria no caso em que se aplique.</td></tr></table>
+          ${HRN_FAIXAS.map(f=>`<tr><td class="c" style="width:30px">${f.ord}</td><td><b>${esc(f.rot)}</b> (${esc(f.faixa)}) — ${esc(f.acao)}</td></tr>`).join("")}</table>
         <div class="lp-formula">FÓRMULA PARA ENCONTRAR O HRN<div style="font-size:14px;margin-top:4px">HRN = PO × FE × GPD × NP</div></div>` },
       { html:(function(){
           const tb = (tit, linhas, cor)=> `<table class="lp-tab"><tr><th colspan="2" style="background:${cor}">${tit}</th></tr>${
@@ -23146,11 +23215,8 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
               <div>${tb("PO (Probabilidade de Ocorrência)", HRN_PO_TABELA, "#CFEFF2")}${tb("FE (Frequência de Exposição)", HRN_FE_TABELA, "#CDE6C0")}</div>
               <div>${tb("GPD (Grau de Possíveis Danos)", HRN_GPD_TABELA, "#F5B183")}${tb("NP (Número de Pessoas)", HRN_NP_TABELA, "#E8C4DC")}</div>
             </div>
-            <table class="lp-tab" style="width:52%"><tr><th colspan="2" style="background:#FFF200">HRN — Classificação do risco</th></tr>
-              <tr><td class="c">0 – 5</td><td>Desprezível</td></tr>
-              <tr><td class="c">5 – 50</td><td>Baixo</td></tr>
-              <tr><td class="c">50 – 500</td><td>Alto</td></tr>
-              <tr><td class="c">500 ou +</td><td>Inaceitável</td></tr></table>`;
+            <table class="lp-tab" style="width:62%"><tr><th colspan="2" style="background:#FFF200">HRN — Classificação do risco</th></tr>
+              ${[...HRN_FAIXAS].reverse().map(f=>`<tr><td class="c" style="width:96px">${esc(f.faixa)}</td><td style="background:${f.cor};color:${f.texto}">${esc(f.rot)}</td></tr>`).join("")}</table>`;
         })() },
       { html:`<div class="lp-sub">O processo de apreciação de riscos</div>
         <ul class="lp-lista lp-lista-solta">
@@ -23328,7 +23394,14 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
                   <td>${esc(labelHRN(HRN_FE_OPTS, h.fe, HRN_FE_TABELA))}</td>
                   <td>${esc(labelHRN(HRN_GPD_OPTS, h.gpd, HRN_GPD_TABELA))}</td>
                   <td>${esc(labelHRN(HRN_NP_OPTS, h.np, HRN_NP_TABELA))}</td>
-                  <td style="background:${meta.cor};color:${meta.texto}">${esc(h.nivel)}</td>
+                  <!-- O NÚMERO junto do nível. A palavra sozinha não diz de
+                       quanto se está falando dentro da faixa: "Significativo"
+                       cobre de 10 a 50, e 11 e 49 pedem urgências diferentes.
+                       Pedido em campo em 02/09/2026. -->
+                  <td style="background:${meta.cor};color:${meta.texto}">
+                    <div class="lp-hrn-n">${esc(hrnNumeroBR(h.hrn))}</div>
+                    <div class="lp-hrn-c">${esc(h.nivel)}</div>
+                  </td>
                 </tr>
               </table></div>
               <div class="lp-rc-plr">

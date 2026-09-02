@@ -3569,6 +3569,64 @@ chk("tudo isto vive DENTRO do bloco removivel de impressao",
             ["const LAUDO_CONCLUSAO_PADRAO =", "function lpPeneirarRico(", "function conclusaoDaArea(",
              "lpAbrirConclusao(){", "lpSalvarConclusao(){", "function areaAtual("]))
 
+print("\n=== 116. HRN: A REGUA DE LEITURA PASSA DE 4 PARA 8 FAIXAS ===")
+# Pedido em campo em 02/09/2026. O CALCULO NAO MUDA -- HRN continua sendo
+# PO x FE x GPD x NP com os mesmos valores das quatro tabelas. Muda so a faixa
+# em que cada resultado cai. E como o nivel nunca foi GRAVADO (hrnDoItem sempre
+# o calcula), todo risco ja lancado se reclassifica sozinho, sem migrar dado.
+chk("o calculo do HRN continua o mesmo",
+    "function calcHRN(po,fe,gpd,np){ return +(po*fe*gpd*np).toFixed(2); }" in novo)
+# Contado dentro do PROPRIO bloco da tabela, e por regex: "min:1," e "min:0,"
+# sao pedacos de "min:100," e "min:1000," -- contar no arquivo inteiro daria
+# numero errado sem nada estar errado.
+_fx = novo[novo.find("const HRN_FAIXAS = ["):]
+_fx = _fx[:_fx.find("];") + 2]
+_mins = re.findall(r"\{ min:(\d+),", _fx)
+_nivs = re.findall(r'nivel:"([^"]+)"', _fx)
+chk("existe UMA tabela com as 8 faixas, na ordem e com os limites pedidos",
+    novo.count("const HRN_FAIXAS = [") == 1
+    and _mins == ["1000","500","100","50","10","5","1","0"]
+    and _nivs == ["INACEITÁVEL","EXTREMO","MUITO ALTO","ALTO","SIGNIFICATIVO","BAIXO","MUITO BAIXO","DESPREZÍVEL"])
+chk("a cor de cada faixa nasce na mesma tabela do nivel",
+    "const NIVEL_HRN_META = (function(){" in novo
+    and "HRN_FAIXAS.forEach(f=>{ m[f.nivel] = { cor:f.cor, texto:f.texto, textoClaro:f.textoClaro }; });" in novo)
+chk("o texto de acao tambem sai da tabela, com o algarismo romano",
+    "function acaoHRN(nivel){" in novo
+    and 'return f ? (f.ord + " – " + f.rot + " — " + f.acao) : "";' in novo)
+chk("a regua ANTIGA de 4 faixas nao sobrou em lugar nenhum",
+    all(v not in novo for v in
+        ['if(hrn>=500) return "INACEITÁVEL";',
+         "Mitigar em até 6 meses", "Mitigar em até 12 meses",
+         "0 – 5</td><td>Desprezível", "500 ou +</td><td>Inaceitável"]))
+# A MESMA cascata estava copiada a mao em tres formulas de Excel. Copia a mao e
+# como a planilha entregue ao cliente passa a discordar do laudo sem ninguem ver.
+chk("a formula do Excel e MONTADA da tabela, nao escrita a mao",
+    novo.count("function formulaNivelHrnDeRef(ref){") == 1
+    and "HRN_FAIXAS[HRN_FAIXAS.length-1].nivel" in novo)
+chk("as tres copias da formula passaram a usar a fonte unica",
+    "formulaNivelHrnDeRef(`Z${rowNum}`)" in novo
+    and "formulaNivelHrnDeRef(`L${rowNum}`)" in novo
+    and "return formulaNivelHrnDeRef(`${colLetter(colHrn)}${rn}`);" in novo
+    and 'IF(Z${rowNum}>=500' not in novo
+    and 'IF(L${rowNum}>=500' not in novo)
+# As duas tabelas do laudo tambem: escritas a mao, seriam o lugar mais facil de
+# esquecer -- e num laudo assinado a regua impressa tem de ser a que classificou.
+chk("as duas tabelas do laudo sao montadas da mesma regua",
+    "${HRN_FAIXAS.map(f=>`<tr><td class=\"c\" style=\"width:30px\">${f.ord}</td>" in novo
+    and "${[...HRN_FAIXAS].reverse().map(f=>`<tr><td class=\"c\" style=\"width:96px\">${esc(f.faixa)}</td>" in novo)
+# Pedido: o numero, alem do nivel, no quadro de cada risco.
+chk("o quadro de cada risco mostra o NUMERO do HRN alem do nivel",
+    '<div class="lp-hrn-n">${esc(hrnNumeroBR(h.hrn))}</div>' in novo
+    and '<div class="lp-hrn-c">${esc(h.nivel)}</div>' in novo
+    and ".lp-hrn-n{font-weight:800" in novo)
+chk("o numero sai escrito em portugues, na tela e no laudo",
+    novo.count("function hrnNumeroBR(hrn){") == 1
+    and 'toLocaleString("pt-BR"' in novo
+    and "escapeHtml(hrnNumeroBR(h.hrn))" in novo)
+chk("o nivel continua CALCULADO, nunca gravado (por isso nao ha migracao)",
+    "nivel:nivelHRN(hrn)" in novo
+    and "risco.nivel =" not in novo)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

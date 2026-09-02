@@ -64,6 +64,54 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 02/09/2026 16:06
+
+**A régua do HRN passou de 4 para 8 faixas, e o número agora aparece no quadro
+de cada risco.**
+
+**O cálculo não mudou.** HRN continua sendo PO × FE × GPD × NP, com os mesmos
+valores das quatro tabelas da metodologia. O que mudou é só a leitura do
+resultado. E como o nível nunca foi guardado — o app sempre o calcula a partir
+do número —, **todo risco já lançado se reclassifica sozinho**, sem refazer
+conta nem migrar nada.
+
+A régua nova:
+
+| Faixa HRN | Classificação |
+|---|---|
+| 0 – 1 | Desprezível |
+| 1 – 5 | Muito baixo |
+| 5 – 10 | Baixo |
+| 10 – 50 | Significativo |
+| 50 – 100 | Alto |
+| 100 – 500 | Muito alto |
+| 500 – 1.000 | Extremo |
+| acima de 1.000 | Inaceitável |
+
+O piso de cada faixa é inclusivo: um HRN de exatamente 5 é Baixo, 50 é Alto,
+1.000 é Inaceitável. As faixas compartilham os extremos na escrita, e essa é a
+única leitura que não deixa um número em duas faixas ao mesmo tempo.
+
+**O número no quadro do risco.** Onde antes aparecia só a palavra, agora vem o
+número em destaque com a classificação embaixo, no fundo colorido da faixa —
+"Significativo" cobre de 10 a 50, e 11 e 49 pedem urgências diferentes.
+
+**O que muda no laudo.** As duas tabelas da introdução — "Ações em Função do
+Risco" (agora I a VIII, com os prazos que você definiu) e "HRN — Classificação
+do risco" — passaram a ser **montadas a partir da mesma régua** que classifica
+os riscos. Não são mais escritas à mão, então não há como a tabela impressa
+discordar do que foi calculado.
+
+**O que muda no Excel.** A fórmula que classifica cada linha também sai da
+mesma régua. Ela estava **copiada à mão em três lugares** do app; agora é uma
+só. Um teste compara, faixa por faixa, o que a planilha diz com o que o laudo
+diz — eram duas réguas independentes até aqui.
+
+**Atenção ao mandar para a Corteva:** a planilha passa a escrever quatro
+palavras novas — *Muito baixo, Significativo, Muito alto, Extremo*. Se o modelo
+`.xlsm` do cliente tiver formatação condicional presa aos quatro nomes antigos,
+essas linhas sairão sem a cor dele. Vale conferir uma vez com o cliente.
+
 ## 02/09/2026 12:03
 
 **A conclusão do laudo agora é sua.** Na aba Imprimir, ao lado de Logotipo,
