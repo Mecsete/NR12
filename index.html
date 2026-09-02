@@ -2151,7 +2151,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "01/09/2026 21:51";
+const APP_BUILD = "02/09/2026 07:42";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -3319,7 +3319,10 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
        duplicata apaga a cópia da outra na nuvem, mesmo quando ela tem a
        foto boa. Este item só volta a ser enviado depois que a duplicata for
        resolvida (a árvore local tiver só uma cópia daquele id). */
-    if(idsDuplicadosNaArvore.has(it.id)) return false;
+    /* As duas travas abaixo vivem em onedriveMotivoSegurado — ver o bloco
+       de comentário lá. Aqui só se obedece; quem conta e quem explica leem
+       a mesma função, e é isso que impede o número da tela de mentir. */
+    if(onedriveMotivoSegurado(it, idsDuplicadosNaArvore)) return false;
     /* TRAVA: ITEM COM FOTO PERDIDA NÃO SOBE.
        A foto sumiu do aparelho, mas o arquivo que está na nuvem ainda tem a
        foto embutida dentro dele — é a última cópia que existe. Subir a versão
@@ -3332,7 +3335,6 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
        fila normalmente.
        O preço é uma edição de texto que demora a chegar ao outro aparelho.
        O preço do contrário é foto de campo apagada para sempre. */
-    if(it.dados && it.dados[CAMPO_MARCA_FOTO_PERDIDA]) return false;
     const registro = assinaturas.get(it.id);
     if(!registro) return true;                              // nunca subiu
     if(registro.atualizadoEm !== it.atualizadoEm) return true; // mudou desde a última subida
@@ -3725,9 +3727,18 @@ let __arvoreNuvemIncompleta = false;
    nunca roda. Guardando os caminhos, cada área que listou inteira pode ser
    curada normalmente. */
 let __pastasNuvemFalhadas = new Set();
+/* Houve falha sem pasta conhecida nesta varredura? É o caso do token que
+   expira no meio: a chamada devolve lista vazia para TODAS as pastas daquele
+   nível de uma vez, e não há um caminho para culpar. Sem esta marca, o
+   conjunto acima ficava vazio, cada área parecia ter sido lida inteira, e a
+   reconciliação apagava assinatura de item que está salvo na nuvem — o
+   reenvio em massa que a trava existe para impedir. Falha sem caminho
+   derruba a confiança na varredura INTEIRA. */
+let __falhaNuvemSemCaminho = false;
 function onedriveMarcarArvoreIncompleta(motivo, caminho){
   __arvoreNuvemIncompleta = true;
   if(caminho) __pastasNuvemFalhadas.add(String(caminho).toLowerCase());
+  else __falhaNuvemSemCaminho = true;
   console.warn("Listagem da nuvem incompleta —", motivo);
 }
 /* Prefixo da ÁREA de um item: projeto/área. É a unidade em que a verificação
@@ -3739,6 +3750,9 @@ function __areaDoItemNuvem(item, prefixo){
 /* Alguma pasta DESTA área falhou ao listar? Só nesse caso o item fica de
    fora — o resto da árvore segue sendo verificado normalmente. */
 function __areaTeveFalhaNaListagem(caminhoArea){
+  /* Não se sabe o que ficou de fora — então nada nesta varredura pode ser
+     usado para concluir "faltava na nuvem". */
+  if(__falhaNuvemSemCaminho) return true;
   if(__pastasNuvemFalhadas.size === 0) return false;
   for(const f of __pastasNuvemFalhadas){
     if(f.indexOf(caminhoArea) === 0 || caminhoArea.indexOf(f) === 0) return true;
@@ -3832,6 +3846,7 @@ async function onedriveListarArvore(caminhoPasta, profundidadeRestante, onPasta)
   });
   __arvoreNuvemIncompleta = false; // cada varredura começa limpa; qualquer falha no caminho levanta a marca
   __pastasNuvemFalhadas = new Set();
+  __falhaNuvemSemCaminho = false;
   const filhosRaiz = (await onedriveListarFilhosEmLote([caminhoPasta])).get(caminhoPasta) || [];
   const nivelRaiz = construirNos(caminhoPasta, filhosRaiz);
   let nivelAtual = nivelRaiz.filter(n=>n.pasta);
@@ -5995,13 +6010,54 @@ function onedriveCarregarAssinaturas(mapaRef){
   }
   return mapaRef.mapa;
 }
+/* POR QUE ESTE ITEM NÃO SOBE — fonte única.
+
+   O envio tem duas travas deliberadas, e as duas estão certas:
+
+     · duplicado — o mesmo id existe duas vezes na árvore local. Subir uma
+       cópia faz a outra enxergar o endereço dela como "endereço antigo" e
+       apagá-la na nuvem, mesmo quando é a cópia que tem a foto boa. Foi
+       assim que as fotos do Abacus 02 sumiram em 26/08/2026.
+     · foto perdida — a foto sumiu daqui, mas o arquivo da nuvem ainda tem
+       a foto embutida: é a última cópia que existe. Subir o texto daqui
+       regrava aquele arquivo sem a foto e apaga essa cópia em silêncio.
+
+   O defeito nunca foi a trava — foi ela morar só dentro do filtro do envio,
+   onde mais ninguém enxerga. A conta de "para enviar" não as conhecia:
+   somava os itens, o envio os pulava calado, e o número na tela nunca
+   chegava a zero. Em campo isso apareceu como "6 Equipamentos para enviar —
+   0/6 · 0.0 de 2.0 MB", parado no zero para sempre.
+
+   Agora as duas travas moram AQUI, e o envio, a conta e o diagnóstico
+   consultam a mesma função. Trava nova tem que entrar aqui — se voltar a
+   nascer dentro do filtro do envio, o número volta a mentir e ninguém
+   percebe. Existe um teste guardando exatamente isso. */
+function onedriveMotivoSegurado(item, idsDuplicados){
+  if(!item) return null;
+  if(idsDuplicados && idsDuplicados.has(item.id))
+    return "o mesmo item existe em dois lugares da árvore — enviar apagaria a outra cópia na nuvem (use \"Juntar duplicatas\")";
+  if(item.dados && item.dados[CAMPO_MARCA_FOTO_PERDIDA])
+    return "a foto se perdeu aqui e a cópia da nuvem é a última que existe — o texto não sobe para não apagá-la";
+  return null;
+}
+/* Ids que aparecem mais de uma vez na lista sincronizável — a mesma contagem
+   que o envio faz, para a conta e o envio nunca discordarem. */
+function onedriveIdsDuplicadosNaLista(itens){
+  const n = new Map();
+  (itens||[]).forEach(it=> n.set(it.id, (n.get(it.id)||0) + 1));
+  const dup = new Set();
+  n.forEach((q, id)=>{ if(q > 1) dup.add(id); });
+  return dup;
+}
 function onedriveEstimarPendentesUpload(){
   let totalBytes = 0, totalItens = 0;
   const porTipo = {};          // itens que a nuvem ainda não tem (novos)
   const porTipoAlterado = {};  // itens que já estão lá e foram editados aqui
+  const segurando = { qtd:0, bytes:0 };  // têm mudança, mas o envio segura até a foto voltar
   const contar = (listarItens, mapaRef, ehSimplificado) => {
     const itensAtuais = listarItens();
     const assinaturas = onedriveCarregarAssinaturas(mapaRef);
+    const dupDoModulo = onedriveIdsDuplicadosNaLista(itensAtuais);
     for(const item of itensAtuais){
       let registro = assinaturas.get(item.id);
       // Antes de contar como "falta enviar", confere se o arquivo idêntico já
@@ -6022,6 +6078,14 @@ function onedriveEstimarPendentesUpload(){
         // em bytes de cada item (fotos = vários MB) só para medir o tamanho —
         // base64 é ASCII, então o comprimento do texto já é a medida certa.
         const bytes = JSON.stringify(item.dados||{}).length;
+        /* SEGURADO — fora da conta de "para enviar", porque o envio não vai
+           mandá-lo. Contar aqui era o que fazia o número nunca chegar a zero
+           e a barra de progresso ficar em "0 de 6". */
+        if(onedriveMotivoSegurado(item, dupDoModulo)){
+          segurando.qtd++;
+          segurando.bytes += bytes;
+          continue;
+        }
         totalBytes += bytes;
         totalItens++;
         // Já existe assinatura = a nuvem já tem este item e o que muda é uma
@@ -6035,7 +6099,7 @@ function onedriveEstimarPendentesUpload(){
   };
   contar(listarItensSincronizaveisSimples, __assinaturasOneDriveSimples, true);
   contar(listarItensSincronizaveisCompleto, __assinaturasOneDriveCompleto, false);
-  return { totalBytes, totalItens, porTipo, porTipoAlterado };
+  return { totalBytes, totalItens, porTipo, porTipoAlterado, segurando };
 }
 /* Mesma checagem leve (só metadados) usada pela sincronização automática de
    download, mas chamada isoladamente para poder mostrar a estimativa ANTES
@@ -6198,6 +6262,8 @@ function onedriveDiagnosticoDados(){
   const itens = listarItensSincronizaveisSimples();
   const assinaturas = onedriveCarregarAssinaturas(__assinaturasOneDriveSimples);
   const enviar = [];
+  const segurados = [];
+  const dupParaDiag = onedriveIdsDuplicadosNaLista(itens);
   let mudancaEndereco = 0, carimboRegrediu = 0;
   const dataCurta = (ts)=>{ try{ return ts ? new Date(ts).toLocaleString("pt-BR") : "—"; }catch(e){ return "—"; } };
   itens.forEach(it=>{
@@ -6205,8 +6271,21 @@ function onedriveDiagnosticoDados(){
     let motivo = "";
     if(!reg) motivo = "nunca subiu";
     else if(reg.atualizadoEm !== it.atualizadoEm) motivo = "editado aqui depois do último envio";
-    else if(reg.fotosPendentes) motivo = "faltam as fotos (esperando Wi-Fi)";
+    // O texto já subiu; faltam as fotos. Elas sobem em QUALQUER conexão
+    // desde a correção do Wi-Fi que o iPhone nunca confirmava — dizer
+    // "esperando Wi-Fi" aqui era um rótulo velho, que mandava a pessoa
+    // procurar um Wi-Fi que não era o problema.
+    else if(reg.fotosPendentes) motivo = "o texto subiu; as fotos sobem na próxima sincronização";
     if(!motivo) return;
+    /* SEGURADO. Dizer só "nunca subiu" era verdade e enganava: soa como "está
+       na fila, já vai", quando na verdade é "está parado de propósito e não
+       sai daí até a foto voltar". É a diferença entre esperar e agir. */
+    const travado = onedriveMotivoSegurado(it, dupParaDiag);
+    if(travado){
+      segurados.push({ tipo:it.tipo, nome:(it.pasta||[]).join(" / ") + " / " + it.arquivo,
+                       motivo:"SEGURADO — " + travado + " (seria pendente por: " + motivo + ")" });
+      return;
+    }
     /* OS DOIS CARIMBOS lado a lado. É a comparação entre eles que decide se o
        item está pendente — mostrar só um esconde justamente o caso em que o
        registro do envio anterior está desatualizado ou andou para trás. */
@@ -6280,7 +6359,7 @@ function onedriveDiagnosticoDados(){
     quandoRot: "em", tamanho: fmtBytes(e.bytes||0) }));
   const enviosOk = log.filter(e=> e && e.dir==="up" && e.ok !== false && !ehReparo(e)).length;
   const enviosFalha = log.filter(e=> e && e.dir==="up" && e.ok === false && !ehReparo(e)).length;
-  return { enviar, receber, nuvem, fila, quarentena, falhas, reparos, ultimos, enviosOk, enviosFalha,
+  return { enviar, segurados, receber, nuvem, fila, quarentena, falhas, reparos, ultimos, enviosOk, enviosFalha,
            mudancaEndereco, carimboRegrediu, duplicadas, totalDuplicadas: dups.length,
            eventosNoLog: log.length,
            ultimaSync: STATE.ultimaSincronizacaoOneDriveEm ? fmtQuando(STATE.ultimaSincronizacaoOneDriveEm) : "nunca",
@@ -6304,6 +6383,20 @@ function onedriveDiagnosticoTexto(){
     if(x.detalhe) l.push("      " + x.detalhe);
   });
   if(d.enviar.length>60) l.push("  … e mais " + (d.enviar.length-60));
+  l.push("");
+  /* Secao propria: estes itens NAO estao na fila. Misturados com "para
+     enviar", faziam a pessoa esperar por algo que nunca ia acontecer. */
+  l.push("SEGURADOS ATE A FOTO VOLTAR (" + d.segurados.length + ")");
+  l.push("  A foto destes itens se perdeu NESTE aparelho e a copia da nuvem e a ultima que existe.");
+  l.push("  O texto daqui nao sobe: subir regravaria o arquivo de la sem a foto e apagaria essa copia.");
+  l.push("  Eles NAO estao na fila de envio e nao saem dai sozinhos — traga a foto de volta");
+  l.push("  (Recuperar fotos da nuvem, ou a galeria de fotos soltas) e eles sobem no ciclo seguinte.");
+  if(d.segurados.length===0) l.push("  (nenhum)");
+  d.segurados.slice(0,60).forEach(x=>{
+    l.push("  · [" + x.tipo + "] " + x.nome);
+    l.push("      " + x.motivo);
+  });
+  if(d.segurados.length>60) l.push("  … e mais " + (d.segurados.length-60));
   l.push("");
   l.push("ENCONTRADO NA NUVEM, AINDA NAO RECEBIDO: " + d.nuvem.itens + " item(ns) · " + d.nuvem.fotos + " foto(s)"
          + (d.nuvem.verificadoEm ? " (verificado em " + d.nuvem.verificadoEm + ")" : " (nuvem ainda nao verificada)"));
@@ -6429,7 +6522,11 @@ function onedriveStatusPendenteHtml(){
   const fotosAgora = __memoEnvio.fotos;
   const fe = { qtd: fotosAgora.totalItens, bytes: fotosAgora.totalBytes };
   const fr = s.fotosReceber || {qtd:0, bytes:0};
-  if(upAgora.totalItens===0 && s.totalReceber===0 && fe.qtd===0 && fr.qtd===0){
+  /* Os segurados entram nesta condição de propósito: se ficassem de fora, a
+     tela diria "Tudo sincronizado" com itens parados esperando a foto voltar —
+     trocar um número que não zera por uma frase que mente é pior. */
+  const seg = upAgora.segurando || {qtd:0, bytes:0};
+  if(upAgora.totalItens===0 && s.totalReceber===0 && fe.qtd===0 && fr.qtd===0 && seg.qtd===0){
     return `<p style="font-size:11.5px;color:var(--ink-dim);margin:6px 2px 0">Tudo sincronizado · nenhuma foto pendente · nuvem verificada ${carimbo}</p>`;
   }
   // As duas linhas de fotos aparecem SEMPRE (mesmo com zero) — pedido de campo:
@@ -6445,8 +6542,15 @@ function onedriveStatusPendenteHtml(){
     linhaFoto('Fotos para enviar', fe),
     linhaFoto('Fotos para receber', fr),
   ].filter(Boolean);
+  /* Linha separada, com o motivo escrito. Estes itens NÃO estão na fila: eles
+     estão parados de propósito, e vão continuar parados até a foto voltar. */
+  const linhaSeg = seg.qtd>0
+    ? `<div style="font-size:11.5px;color:var(--aviso,#b26b00);margin-top:3px">${seg.qtd} ${seg.qtd===1?'item segurado':'itens segurados'}: a foto se perdeu aqui e a cópia da nuvem é a última que existe — o texto não sobe para não apagá-la.</div>
+       <div style="font-size:10.5px;color:var(--ink-faint)">Use "Recuperar fotos da nuvem" ou a galeria de fotos soltas; assim que a foto voltar, eles sobem sozinhos.</div>`
+    : "";
   return `<div style="margin:6px 2px 0">
     ${linhas.map(l=>`<div style="font-size:11.5px;color:var(--ink-dim)">${l}</div>`).join('')}
+    ${linhaSeg}
     <div style="font-size:10.5px;color:var(--ink-faint);margin-top:2px">envio conferido agora · nuvem verificada ${carimbo}</div>
   </div>`;
 }
@@ -16086,7 +16190,7 @@ function screenSimplesConfigBackup(){
       ? `<button class="btn btn-secondary btn-block" style="margin-top:6px" onclick="App.orfasZipParar()">Parar depois do lote atual</button>`
       : `<button class="btn btn-secondary btn-block" style="margin-top:6px" onclick="App.baixarOrfasZipTudo()">${ic('download')} Baixar todos os lotes seguidos (no computador)</button>`}
   ${__orfasZipProximoLote>0 && !__orfasZipRodando? `<button class="btn btn-ghost btn-block" style="margin-top:6px;font-size:12px" onclick="App.orfasZipReiniciar()">Recomeçar do lote 1</button>` : ""}
-  <div class="muted" style="font-size:11px;margin-top:6px">As fotos vêm agrupadas em pastas por data, com hora no nome. A data é a de quando o app percebeu que a foto tinha ficado sem dono — não a do disparo, que a foto não guarda.</div>
+  <div class="muted" style="font-size:11px;margin-top:6px">As fotos vêm em pastas <b>sem_dono_desde_AAAA-MM-DD</b>, com hora no nome. Essa data é a de quando o app percebeu que a foto ficou sem dono — <b>não</b> é o dia em que a foto foi tirada: a foto é redimensionada antes de ser guardada e isso apaga a data da câmera, que não existe mais no aparelho. Os lotes saem do mais recente para o mais antigo, então o lote 1 traz sempre as datas de agora.</div>
   ${__ultimoImporteFotos ? `<div class="field-hint" style="margin-top:6px;color:${__ultimoImporteFotos.erro?'var(--danger, #c0392b)':'var(--ok, #2e7d32)'}">${escapeHtml(__ultimoImporteFotos.mensagem)}</div>` : ""}
   ${__diagFotosCache ? `<div class="card card-pad" style="margin-top:8px">
     <div style="font-weight:800;font-size:13px;margin-bottom:6px">Fotos guardadas neste aparelho</div>
@@ -21472,11 +21576,21 @@ function orfasNomesNoZip(ids, orfasDesde){
     const t = (orfasDesde||{})[fid];
     const temData = typeof t === "number" && isFinite(t) && t > 0;
     const d = temData ? new Date(t) : null;
-    const dia = d ? `${d.getFullYear()}-${dois(d.getMonth()+1)}-${dois(d.getDate())}` : "sem-data";
+    const dia = d ? `${d.getFullYear()}-${dois(d.getMonth()+1)}-${dois(d.getDate())}` : "data-desconhecida";
     const jaNoDia = contagem[dia] || 0;
     contagem[dia] = jaNoDia + 1;
     const parte = Math.floor(jaNoDia / ORFAS_POR_PASTA_ZIP) + 1;
-    const pasta = parte > 1 ? `${dia}_p${parte}` : dia;
+    /* O NOME DA PASTA DIZ O QUE A DATA É. Antes a pasta se chamava só
+       "2026-09-02", e qualquer um lê isso como o dia em que a foto foi
+       tirada — que é justamente o que esta data NÃO é. A foto passa por um
+       redimensionamento antes de ser guardada, e isso apaga o EXIF, que é
+       onde a câmera grava a hora do disparo: esse dado não existe mais em
+       lugar nenhum do aparelho. O que existe é o dia em que o app percebeu
+       que a foto tinha ficado sem dono. Continua valendo para agrupar (fotos
+       perdidas no mesmo episódio caem juntas) e para ordenar — só não pode
+       se passar pelo que não é. */
+    const base = temData ? `sem_dono_desde_${dia}` : dia;
+    const pasta = parte > 1 ? `${base}_p${parte}` : base;
     const hora = d ? `${dois(d.getHours())}h${dois(d.getMinutes())}m${dois(d.getSeconds())}_` : "";
     nomes.set(fid, `${pasta}/${hora}${String(i+1).padStart(largura,"0")}_${fid.slice(0,10)}.jpg`);
   });
@@ -21491,7 +21605,7 @@ async function baixarOrfasLote(ids, orfasDesde, numero, totalLotes, nomes){
   mapa.forEach((dataUrl, fid)=>{
     n++;
     const t = orfasDesde[fid];
-    const nome = (nomes && nomes.get(fid)) || `sem-data/${String(n).padStart(3,"0")}_${fid.slice(0,10)}.jpg`;
+    const nome = (nomes && nomes.get(fid)) || `data-desconhecida/${String(n).padStart(3,"0")}_${fid.slice(0,10)}.jpg`;
     const arq = { name: nome, data: dataUrlToBytes(dataUrl) };
     // Com data de verdade no arquivo, o Windows ordena a pasta por data.
     if(typeof t === "number" && isFinite(t) && t > 0) arq.mtime = t;

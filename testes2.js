@@ -2562,7 +2562,8 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ["function onedriveDiagnosticoDados(","function onedriveDiagnosticoTexto(",
      "function onedriveDiagnosticoInlineHtml(","toggleDiagnosticoSync(){","async copiarDiagnosticoSync(){"].forEach(m=>
       ok(HTML.indexOf(m) > 0, "faltou " + m));
-    ["nunca subiu","editado aqui depois do último envio","faltam as fotos (esperando Wi-Fi)",
+    ["nunca subiu","editado aqui depois do último envio",
+     "o texto subiu; as fotos sobem na próxima sincronização",
      "arquivo ilegível na nuvem — ignorado"].forEach(m=>
       ok(HTML.indexOf(m) > 0, "faltou o motivo: " + m));
   });
@@ -5016,7 +5017,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       onedriveGuardarIndiceNuvem: ()=>{},
     };
     vm.createContext(ctxR);
-    vm.runInContext("var __arvoreSimplesCache=null; var __arvoreNuvemIncompleta=false; var __pastasNuvemFalhadas=new Set();", ctxR);
+    vm.runInContext("var __arvoreSimplesCache=null; var __arvoreNuvemIncompleta=false; var __pastasNuvemFalhadas=new Set(); var __falhaNuvemSemCaminho=false;", ctxR);
     vm.runInContext("var __assinaturasOneDriveSimples = { mapa:null, chaveEstado:'oneDriveAssinaturasSimples' };", ctxR);
     vm.runInContext(constante("LAPIDE_VALIDADE_MS"), ctxR);
     ["onedriveCarregarAssinaturas","onedriveColetarArquivosDaArvore","onedriveReconciliarComArvore",
@@ -5127,8 +5128,57 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
          pre + "proj/areaok/");
     });
     t("sem falha nenhuma registrada, ninguém é pulado", ()=>{
-      vm.runInContext("__pastasNuvemFalhadas = new Set();", ctxR);
+      vm.runInContext("__pastasNuvemFalhadas = new Set(); __falhaNuvemSemCaminho = false;", ctxR);
       eq(vm.runInContext('__areaTeveFalhaNaListagem("apr-campo/backup/simplificado/proj/areaok/")', ctxR), false);
+    });
+    /* O FURO QUE ISTO FECHA (01/09/2026, achado em campo). Existe uma falha
+       que nao tem pasta: "sem token". Quando o token expira NO MEIO da
+       varredura -- o que acontece justamente nas varreduras longas, de
+       celular -- a chamada devolve lista vazia para todas as pastas daquele
+       nivel de uma vez, e nao ha caminho para culpar. Com o conjunto vazio,
+       cada area parecia ter sido lida inteira: a reconciliacao concluia
+       "faltava na nuvem" para item que esta salvo, apagava a assinatura e
+       agendava reenvio. E o reenvio em massa que a trava existe para impedir,
+       e foi o que o Luiz viu -- o aparelho enviando item que ele tinha
+       RECEBIDO de outro aparelho e nunca tocou.
+       A protecao antiga (existentes.size===0) so pega quando a falha acontece
+       na primeira chamada e NADA e listado; falhando no meio, o que ja foi
+       lido segura o tamanho acima de zero e o furo passa. */
+    t("falha SEM pasta conhecida (token expirado no meio) poupa TODAS as áreas", ()=>{
+      vm.runInContext("__pastasNuvemFalhadas = new Set(); __falhaNuvemSemCaminho = true;", ctxR);
+      eq(vm.runInContext('__areaTeveFalhaNaListagem("apr-campo/backup/simplificado/proj/areaok/")', ctxR), true,
+         "sem saber o que ficou de fora, nada pode virar 'faltava na nuvem'");
+      eq(vm.runInContext('__areaTeveFalhaNaListagem("apr-campo/backup/simplificado/outro/area/")', ctxR), true);
+    });
+    t("com token expirado no meio, NENHUMA assinatura é apagada", ()=>{
+      ctxR.STATE.exclusoesConfirmadas = {};
+      ctxR.STATE.oneDriveAssinaturasSimples = {
+        "risco:r1": { atualizadoEm:1, pasta:["Proj","AreaOk","Maq","Tar"], arquivo:"risco_r1.json", tamanho:500 },
+        "risco:r2": { atualizadoEm:1, pasta:["Proj","AreaFalhou","Maq","Tar"], arquivo:"risco_r2.json", tamanho:500 },
+        "risco:r3": { atualizadoEm:1, pasta:["Proj","AreaFalhou","Maq","Tar"], arquivo:"risco_r3.json", tamanho:500 } };
+      ctxR.__assinaturasOneDriveSimples.mapa = null;
+      reparosLog.length = 0;
+      // Arvore com CONTEUDO (existentes.size > 0, entao a protecao antiga nao
+      // salva) e a falha sem caminho levantada -- o cenario real do token.
+      vm.runInContext("__arvoreNuvemIncompleta = true; __pastasNuvemFalhadas = new Set(); __falhaNuvemSemCaminho = true;", ctxR);
+      ctxR.__arv = arvore();
+      const n = vm.runInContext("onedriveReconciliarComArvore(__arv)", ctxR);
+      eq(n, 0, "reparou a partir de uma varredura sem token — e o reenvio em massa voltando");
+      eq(Object.keys(ctxR.STATE.oneDriveAssinaturasSimples).length, 3,
+         "apagou assinatura de item que esta salvo na nuvem");
+      eq(reparosLog.length, 0, "registrou 'faltava na nuvem' sem ter lido a nuvem");
+      vm.runInContext("__falhaNuvemSemCaminho = false;", ctxR);
+    });
+    t("a marca sem-caminho e zerada a cada varredura", ()=>{
+      const f = funcao("onedriveListarArvore");
+      ok(f.indexOf("__falhaNuvemSemCaminho = false;") > 0,
+         "sem zerar, uma falha de token travaria a cura para sempre");
+    });
+    t("quem falha SEM caminho levanta a marca certa", ()=>{
+      const f = funcao("onedriveMarcarArvoreIncompleta");
+      ok(f.indexOf("else __falhaNuvemSemCaminho = true;") > 0);
+      ok(funcao("onedriveListarFilhosEmLote").indexOf('onedriveMarcarArvoreIncompleta("sem token")') > 0,
+         "o caso do token e justamente o que nao tem pasta para culpar");
     });
     t("falha numa pasta FUNDO da área (uma máquina) também poupa a área toda", ()=>{
       ctxR.__f = ["apr-campo/backup/simplificado/proj/areafalhou/maq"];
@@ -6317,8 +6367,14 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       eq(r.semFotos.__fotosOmitidas, true);
     });
     t("item marcado como danificado nao entra na fila de envio", ()=>{
-      ok(HTML.indexOf("if(it.dados && it.dados[CAMPO_MARCA_FOTO_PERDIDA]) return false;") > 0,
+      /* A trava mudou de lugar em 02/09/2026: saiu de dentro do filtro do
+         envio e virou onedriveMotivoSegurado, consultada tambem pela conta e
+         pelo diagnostico. Enquanto ela morava so no filtro, a conta somava
+         esses itens e o numero na tela nunca chegava a zero. */
+      ok(HTML.indexOf("if(item.dados && item.dados[CAMPO_MARCA_FOTO_PERDIDA])") > 0,
          "a trava do envio sumiu — item sem foto voltaria a regravar a nuvem");
+      ok(funcao("onedriveSincronizarModulo").indexOf("if(onedriveMotivoSegurado(it, idsDuplicadosNaArvore)) return false;") > 0,
+         "o envio precisa consultar a fonte unica");
     });
     t("a marca nao se apaga sozinha na leitura seguinte", ()=>{
       ok(HTML.indexOf("else if(obj[CAMPO_MARCA_FOTO_PERDIDA]) delete obj[CAMPO_MARCA_FOTO_PERDIDA]") < 0,
@@ -8218,11 +8274,24 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     // 30/08/2026, hora local do aparelho — e a local que tem que aparecer.
     const dia = (d,h,mi,se) => new Date(2026, 7, d, h, mi, se).getTime();
 
+    /* A PASTA NAO PODE CARREGAR UMA DATA QUE NAO E A DA FOTO. Reclamado em
+       campo em 02/09/2026: "a pasta nao tem a data das fotos, esta a data de
+       hoje". A data do disparo NAO EXISTE no aparelho -- a foto passa por um
+       canvas antes de ser guardada e isso apaga o EXIF. O que existe e o dia
+       em que o app percebeu que a foto ficou sem dono, e a pasta tem que
+       dizer isso no proprio nome, senao qualquer um le como data da foto. */
+    t("o nome da pasta diz que a data e a de quando ficou sem dono", ()=>{
+      const n = nomear(["a"], { a: dia(30,14,7,22) });
+      ok(n.get("a").indexOf("sem_dono_desde_") === 0,
+         "pasta com data nua e lida como data do disparo: " + n.get("a"));
+      ok(/^\d{4}-\d{2}-\d{2}\//.test(n.get("a")) === false,
+         "a pasta nao pode comecar direto com uma data");
+    });
     t("agrupa por data: cada dia vira uma pasta dentro do zip", ()=>{
       const n = nomear(["a","b","c"], { a: dia(30,14,7,22), b: dia(30,9,1,2), c: dia(29,17,45,0) });
-      ok(n.get("a").indexOf("2026-08-30/") === 0, "a -> " + n.get("a"));
-      ok(n.get("b").indexOf("2026-08-30/") === 0, "b -> " + n.get("b"));
-      ok(n.get("c").indexOf("2026-08-29/") === 0, "c -> " + n.get("c"));
+      ok(n.get("a").indexOf("sem_dono_desde_2026-08-30/") === 0, "a -> " + n.get("a"));
+      ok(n.get("b").indexOf("sem_dono_desde_2026-08-30/") === 0, "b -> " + n.get("b"));
+      ok(n.get("c").indexOf("sem_dono_desde_2026-08-29/") === 0, "c -> " + n.get("c"));
     });
     t("a HORA entra no nome do arquivo (era o que faltava)", ()=>{
       const n = nomear(["a"], { a: dia(30,14,7,22) });
@@ -8231,20 +8300,20 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     t("usa a data LOCAL, nao a UTC (senao foto do fim do dia cai no dia seguinte)", ()=>{
       // 22h local no Brasil ja e o dia seguinte em UTC
       const n = nomear(["a"], { a: new Date(2026, 7, 30, 22, 30, 0).getTime() });
-      eq(n.get("a").slice(0,11), "2026-08-30/", "a data da pasta saiu em UTC");
+      eq(n.get("a").slice(0,26), "sem_dono_desde_2026-08-30/", "a data da pasta saiu em UTC");
     });
     t("respeita o teto por pasta: passando do limite, o mesmo dia continua em _p2", ()=>{
       const ids = [], desde = {};
       for(let i=0;i<TETO+3;i++){ ids.push("f"+i); desde["f"+i] = dia(30,10,0,0); }
       const n = nomear(ids, desde);
-      eq(n.get("f0").slice(0,11), "2026-08-30/");
-      eq(n.get("f"+(TETO-1)).slice(0,11), "2026-08-30/");
-      eq(n.get("f"+TETO).slice(0,14), "2026-08-30_p2/", "a pasta nao virou _p2 ao passar do teto");
-      eq(n.get("f"+(TETO+2)).slice(0,14), "2026-08-30_p2/");
+      eq(n.get("f0").slice(0,26), "sem_dono_desde_2026-08-30/");
+      eq(n.get("f"+(TETO-1)).slice(0,26), "sem_dono_desde_2026-08-30/");
+      eq(n.get("f"+TETO).slice(0,29), "sem_dono_desde_2026-08-30_p2/", "a pasta nao virou _p2 ao passar do teto");
+      eq(n.get("f"+(TETO+2)).slice(0,29), "sem_dono_desde_2026-08-30_p2/");
     });
     t("foto sem carimbo nenhum vai para a pasta sem-data, e nao some", ()=>{
       const n = nomear(["a","b"], { a: dia(30,10,0,0) });
-      eq(n.get("b").slice(0,9), "sem-data/");
+      eq(n.get("b").slice(0,18), "data-desconhecida/");
       ok(n.get("b").indexOf(".jpg") > 0);
       eq(n.size, 2, "toda foto precisa de um nome");
     });
@@ -8315,6 +8384,128 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ["dbSet", "readwrite", "fotosGravarMapaOrfas", ".delete("].forEach(p=>{
         ok(seguido.indexOf(p) < 0, "operacao de escrita no modo seguido: " + p);
       });
+    });
+  }
+
+  /* ------------- t141: a fila que nunca zerava (itens SEGURADOS) ----------
+     Achado no diagnostico do aparelho do Luiz em 02/09/2026 06:57: "6
+     Equipamentos para enviar (2.0 MB) -- 0/6 - 0.0 de 2.0 MB", parado no zero
+     enquanto os riscos avancavam (2/7). Os 6 nunca saiam.
+
+     O envio tem uma protecao deliberada e correta: item cuja foto se perdeu
+     AQUI nao sobe, porque subir regravaria o arquivo da nuvem sem a foto e
+     apagaria a ultima copia que existe dela. A protecao esta certa.
+
+     O defeito era que a CONTA nao conhecia essa protecao: a estimativa somava
+     esses itens em "para enviar", o envio os pulava em silencio, e o numero
+     na tela nunca chegava a zero. A pessoa ficava esperando por algo que
+     nunca ia acontecer. */
+  {
+    console.log("\n[t141] itens segurados por foto perdida saem da conta de enviar");
+    const c = vm.createContext({ console, JSON, Math, Date, Object, Array, String, Number, Map, Set,
+      STATE:{ ui:{} },
+      onedriveCarregarAssinaturas:(ref)=>ref.mapa,
+      onedriveConteudoJaEnviado:()=>false,
+      onedriveJaExisteNaNuvem:()=>false,
+      onedriveFotosJaExistemNaNuvem:()=>false,
+      onedriveCurarAssinatura:()=>{},
+      separarFotosDoItem:(d)=>({ soFotos:{}, tinhaFotos:false, semFotos:d }),
+      listarItensSincronizaveisCompleto:()=>[] });
+    vm.runInContext('var CAMPO_MARCA_FOTO_PERDIDA = "__fotosPerdidas";', c);
+    vm.runInContext("var __assinaturasOneDriveSimples = { mapa:new Map(), chaveEstado:'a' };", c);
+    vm.runInContext("var __assinaturasOneDriveCompleto = { mapa:new Map(), chaveEstado:'b' };", c);
+    vm.runInContext(funcao("onedriveMotivoSegurado"), c);
+    vm.runInContext(funcao("onedriveIdsDuplicadosNaLista"), c);
+    vm.runInContext(funcao("onedriveEstimarPendentesUpload"), c);
+
+    const montar = (marcados) => {
+      c.__itens = [
+        { id:"maquina:m1", tipo:"maquina", atualizadoEm:2, pasta:["P","A","M1"], arquivo:"_maquina.json",
+          dados: marcados ? { id:"m1", nome:"Magazine papelão", __fotosPerdidas:true } : { id:"m1", nome:"Magazine papelão" } },
+        { id:"risco:r1", tipo:"risco", atualizadoEm:2, pasta:["P","A","M1","T"], arquivo:"risco_r1.json",
+          dados:{ id:"r1", nome:"Risco normal" } },
+      ];
+      vm.runInContext("listarItensSincronizaveisSimples = function(){ return __itens; };", c);
+      return vm.runInContext("onedriveEstimarPendentesUpload()", c);
+    };
+
+    t("sem marca de foto perdida, os dois itens contam como 'para enviar' (comportamento de sempre)", ()=>{
+      const r = montar(false);
+      eq(r.totalItens, 2);
+      eq(r.segurando.qtd, 0);
+    });
+    t("O DEFEITO REAL: item com foto perdida sai da conta de 'para enviar'", ()=>{
+      const r = montar(true);
+      eq(r.totalItens, 1, "o item segurado continua sendo contado — o numero nunca chegaria a zero");
+      eq(r.segurando.qtd, 1, "e some sem deixar rastro — pior ainda");
+    });
+    t("o item segurado nao entra nos grupos que desenham a barra de progresso", ()=>{
+      const r = montar(true);
+      eq((r.porTipo.maquina||{qtd:0}).qtd, 0, "era isto que mostrava '0 de 6' parado no zero");
+      eq(r.porTipo.risco.qtd, 1, "o item normal tem que continuar aparecendo");
+    });
+    t("os bytes do segurado tambem saem da conta (senao os MB nunca fecham)", ()=>{
+      const r = montar(true);
+      ok(r.segurando.bytes > 0, "o tamanho do segurado precisa ser conhecido");
+      eq(r.totalBytes, JSON.stringify({ id:"r1", nome:"Risco normal" }).length);
+    });
+    t("nada e escondido: o segurado volta num grupo proprio", ()=>{
+      const r = montar(true);
+      ok(r.segurando && typeof r.segurando.qtd === "number");
+    });
+
+    /* A conta e uma coisa; a tela e outra. Se o segurado sumisse da conta E da
+       tela, o app diria "Tudo sincronizado" com item parado esperando foto —
+       trocar um numero que nao zera por uma frase que mente e pior. */
+    t("a tela NAO diz 'Tudo sincronizado' havendo item segurado", ()=>{
+      const f = funcao("onedriveStatusPendenteHtml");
+      ok(f.indexOf("&& seg.qtd===0") > 0, "o segurado tem que entrar na condicao de 'tudo sincronizado'");
+      ok(f.indexOf("itens segurados") > 0, "a tela precisa dizer que existem itens segurados");
+      ok(f.indexOf("Recuperar fotos da nuvem") > 0, "e precisa dizer o que fazer");
+    });
+    /* A GARANTIA CONTRA A REINCIDENCIA. O defeito nao foi a trava existir --
+       foi ela morar so dentro do filtro do envio, onde a conta nao enxergava.
+       Se uma trava nova nascer la de novo, o numero da tela volta a mentir e
+       ninguem percebe. Este teste existe para reprovar exatamente isso. */
+    t("o filtro do envio NAO tem regra propria — so consulta a fonte unica", ()=>{
+      const f = funcao("onedriveSincronizarModulo");
+      const i = f.indexOf("const pendentes = itensAtuais.filter(it => {");
+      ok(i > 0, "nao achei o filtro de envio");
+      const filtro = f.slice(i, f.indexOf("});", i));
+      ok(filtro.indexOf("onedriveMotivoSegurado(it, idsDuplicadosNaArvore)") > 0,
+         "o filtro precisa consultar a fonte unica");
+      ok(filtro.indexOf("CAMPO_MARCA_FOTO_PERDIDA") < 0,
+         "trava de foto voltou a viver dentro do filtro — a conta nao a enxerga");
+      ok(filtro.indexOf("idsDuplicadosNaArvore.has(") < 0,
+         "trava de duplicata voltou a viver dentro do filtro — a conta nao a enxerga");
+    });
+    t("as DUAS travas do envio estao na fonte unica", ()=>{
+      const f = funcao("onedriveMotivoSegurado");
+      ok(f.indexOf("CAMPO_MARCA_FOTO_PERDIDA") > 0, "falta a trava da foto perdida");
+      ok(f.indexOf("idsDuplicados") > 0, "falta a trava da duplicata");
+    });
+    t("a trava da DUPLICATA tambem sai da conta de enviar (era a outra metade)", ()=>{
+      c.__itens = [
+        { id:"maquina:m1", tipo:"maquina", atualizadoEm:2, pasta:["P","A","M1"], arquivo:"_maquina.json", dados:{ id:"m1" } },
+        { id:"maquina:m1", tipo:"maquina", atualizadoEm:2, pasta:["P","B","M1"], arquivo:"_maquina.json", dados:{ id:"m1" } },
+        { id:"risco:r1", tipo:"risco", atualizadoEm:2, pasta:["P","A","M1","T"], arquivo:"risco_r1.json", dados:{ id:"r1" } },
+      ];
+      vm.runInContext("listarItensSincronizaveisSimples = function(){ return __itens; };", c);
+      const r = vm.runInContext("onedriveEstimarPendentesUpload()", c);
+      eq(r.segurando.qtd, 2, "as duas copias da duplicata tem que sair da conta");
+      eq(r.totalItens, 1, "so o item sadio conta como 'para enviar'");
+    });
+    t("o diagnostico diz SEGURADO em vez de 'nunca subiu'", ()=>{
+      const f = funcao("onedriveDiagnosticoDados");
+      ok(f.indexOf("onedriveMotivoSegurado(it, dupParaDiag)") > 0, "o diagnostico precisa separar os dois casos");
+      ok(f.indexOf("segurados.push(") > 0);
+      const txt = funcao("onedriveDiagnosticoTexto");
+      ok(txt.indexOf("SEGURADOS ATE A FOTO VOLTAR") > 0, "sem secao propria, continua parecendo fila");
+      ok(txt.indexOf("nao saem dai sozinhos") > 0, "tem que dizer que nao adianta esperar");
+    });
+    t("a marca some sozinha quando a foto volta (o item destrava sem intervencao)", ()=>{
+      ok(HTML.indexOf("if(faltou === 0) delete item[CAMPO_MARCA_FOTO_PERDIDA];") > 0,
+         "sem isto o item ficaria segurado para sempre, mesmo com a foto de volta");
     });
   }
 

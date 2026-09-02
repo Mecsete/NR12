@@ -117,7 +117,7 @@ function novoAparelho(nome, nuvem){
   try{ vm.runInContext(constante("CAMPO_MARCA_FOTO_PERDIDA"), ctx); }
   catch(e){ vm.runInContext('var CAMPO_MARCA_FOTO_PERDIDA = "__fotosPerdidas";', ctx); }
   vm.runInContext(constante("LAPIDE_VALIDADE_MS"),ctx);
-  vm.runInContext("var __ultimoCarimboVisto=0; var __arvoreSimplesCache=null; var __indiceNuvemMapa=null; var __indiceNuvemMapaEm=0; var __arvoreNuvemIncompleta=false; var __pastasNuvemFalhadas=new Set();", ctx);
+  vm.runInContext("var __ultimoCarimboVisto=0; var __arvoreSimplesCache=null; var __indiceNuvemMapa=null; var __indiceNuvemMapaEm=0; var __arvoreNuvemIncompleta=false; var __pastasNuvemFalhadas=new Set(); var __falhaNuvemSemCaminho=false;", ctx);
   // __progresso fica sempre null nos ensaios: progressoCancelado() (usada por
   // recuperarFotosPerdidasDaNuvem) so retorna true se algum dia um teste
   // simular o toque em "Parar" atribuindo a ele.
@@ -149,7 +149,7 @@ function novoAparelho(nome, nuvem){
     "onedriveJaExisteNaNuvem","onedriveFotosJaExistemNaNuvem","onedriveReconciliarComArvore",
     "onedriveClassificarNovosSimples","onedriveMarcarJaExistente","arquivoJaExistente",
     "arquivoEstaEmQuarentena","executarComConcorrencia","exclusaoEmMassaSuspeita",
-    "rotuloCaminhoSync","onedriveSincronizarModulo","marcarSubarvoreMaquinaAlterada","onedriveBaixarPendentes",
+    "rotuloCaminhoSync","onedriveMotivoSegurado","onedriveIdsDuplicadosNaLista","onedriveSincronizarModulo","marcarSubarvoreMaquinaAlterada","onedriveBaixarPendentes",
     "sincDuplicatasNaArvore","sincJuntarDuplicata",
     "marcarFotosPendentesParaEnvio","recuperarFotosPerdidasDaNuvem","manterTelaAcesa","liberarTelaAcesa",
     "progressoCancelado",
@@ -1288,10 +1288,16 @@ async function rodarAteParar(ap, maxCiclos, rotulo){
       const B = novoAparelho("B", nuvemSemCorrecao);
       B.ctx.STATE.projetosSimples = JSON.parse(JSON.stringify(A.ctx.STATE.projetosSimples));
       B.ctx.STATE.oneDriveAssinaturasSimples = JSON.parse(JSON.stringify(A.ctx.STATE.oneDriveAssinaturasSimples));
-      const fonteSemTrava = funcao("onedriveSincronizarModulo")
-        .replace("if(idsDuplicadosNaArvore.has(it.id)) return false;\n    ", "");
-      checar("a fonte SEM a trava realmente ficou sem a linha da trava",
-        fonteSemTrava.indexOf("idsDuplicadosNaArvore.has(it.id)) return false") < 0);
+      /* As duas travas do envio moram em onedriveMotivoSegurado desde
+         02/09/2026. Para reproduzir a versao SEM a trava de duplicata, o
+         jeito honesto e trocar essa funcao por uma que so conhece a OUTRA
+         trava -- em vez de recortar texto do envio, que muda de forma a cada
+         refatoracao e faria este ensaio passar sem testar nada. */
+      const fonteSemTrava = funcao("onedriveSincronizarModulo");
+      checar("o envio consulta a fonte unica das travas (senao este ensaio nao testa nada)",
+        fonteSemTrava.indexOf("onedriveMotivoSegurado(it, idsDuplicadosNaArvore)") > 0);
+      B.ctx.onedriveMotivoSegurado = (item) =>
+        (item && item.dados && item.dados[B.ctx.CAMPO_MARCA_FOTO_PERDIDA]) ? "foto perdida" : null;
       vm.runInContext(fonteSemTrava.replace("function onedriveSincronizarModulo", "function onedriveSincronizarModulo_SEM_CORRECAO"), B.ctx);
       await vm.runInContext(`onedriveSincronizarModulo_SEM_CORRECAO("Simplificado", listarItensSincronizaveisSimples, __assinaturasOneDriveSimples, null)`, B.ctx);
       const sumiuSemCorrecao = arqFotoOriginal && !nuvemSemCorrecao.arquivos.has(arqFotoOriginal);

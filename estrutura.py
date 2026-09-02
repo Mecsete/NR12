@@ -457,7 +457,8 @@ for marca in ["function onedriveDiagnosticoDados(", "function onedriveDiagnostic
     chk("'%s' x1" % marca, novo.count(marca) == 1, "achei %d" % novo.count(marca))
 chk("o diagnostico explica o motivo de cada pendencia",
     all(m in novo for m in ["nunca subiu", "editado aqui depois do último envio",
-                            "faltam as fotos (esperando Wi-Fi)", "arquivo ilegível na nuvem — ignorado"]))
+                            "o texto subiu; as fotos sobem na próxima sincronização",
+                            "arquivo ilegível na nuvem — ignorado"]))
 _j = novo.find("function onedriveDiagnosticoDados(")
 _diag = novo[_j:novo.find("function onedriveDiagnosticoTexto(", _j)]
 _diag2 = _diag
@@ -2105,8 +2106,12 @@ chk("so os campos PROPRIOS marcam o item (risco nao marca a maquina inteira)",
     and "if(k === campoFilhos) continue;" in novo)
 chk("a marca NAO se apaga sozinha na leitura seguinte",
     "else if(obj[CAMPO_MARCA_FOTO_PERDIDA]) delete obj[CAMPO_MARCA_FOTO_PERDIDA]" not in novo)
+# 02/09/2026: a trava saiu de dentro do filtro do envio e virou
+# onedriveMotivoSegurado, consultada tambem pela conta e pelo diagnostico
+# (secao 113). O que ela impede continua exatamente o mesmo.
 chk("item marcado NAO entra na fila de envio",
-    "if(it.dados && it.dados[CAMPO_MARCA_FOTO_PERDIDA]) return false;" in novo)
+    "if(item.dados && item.dados[CAMPO_MARCA_FOTO_PERDIDA])" in novo
+    and "if(onedriveMotivoSegurado(it, idsDuplicadosNaArvore)) return false;" in novo)
 chk("a marca de dano nunca viaja para a nuvem",
     "delete semFotos.__fotosPerdidas;" in novo)
 chk("pacote de fotos so entra quando traz MAIS fotos reais do que ja existe",
@@ -2354,7 +2359,8 @@ print("\n=== 82. ID DUPLICADO NA ARVORE LOCAL NAO APAGA FOTO BOA DA NUVEM ===")
 # duplicatas") passa a preservar foto da copia descartada, nao so a dos
 # filhos (tarefas/riscos).
 chk("o envio automatico ignora id duplicado na arvore antes de decidir o que subir",
-    "if(idsDuplicadosNaArvore.has(it.id)) return false;" in novo)
+    "if(idsDuplicados && idsDuplicados.has(item.id))" in novo
+    and "if(onedriveMotivoSegurado(it, idsDuplicadosNaArvore)) return false;" in novo)
 chk("a deteccao de duplicata conta ocorrencias por id na propria listagem do ciclo",
     "__contagemPorId.set(it.id, (__contagemPorId.get(it.id)||0) + 1)" in novo)
 chk("juntar duplicatas preserva foto EMBUTIDA da copia descartada",
@@ -3270,6 +3276,20 @@ chk("a garantia antiga continua: indice da nuvem nao e guardado de varredura fur
 chk("a marca global continua existindo (quem depende dela nao ficou orfao)",
     "let __arvoreNuvemIncompleta = false;" in novo
     and "__arvoreNuvemIncompleta = true;" in novo)
+# Furo achado em campo horas depois da 21:51: existe uma falha que NAO tem
+# pasta -- "sem token", quando o token expira no meio da varredura. Com o
+# conjunto de pastas vazio, cada area parecia lida inteira e a reconciliacao
+# apagava assinatura de item salvo, agendando reenvio em massa. A protecao
+# antiga (existentes.size===0) so pega quando NADA foi listado.
+chk("falha SEM pasta conhecida derruba a confianca na varredura inteira",
+    "let __falhaNuvemSemCaminho = false;" in novo
+    and "else __falhaNuvemSemCaminho = true;" in novo
+    and "if(__falhaNuvemSemCaminho) return true;" in novo)
+chk("e essa marca tambem e zerada a cada varredura",
+    "__falhaNuvemSemCaminho = false;" in novo[novo.find("async function onedriveListarArvore("):])
+chk("o caso do token continua sendo o unico sem caminho",
+    'onedriveMarcarArvoreIncompleta("sem token")' in novo
+    and novo.count("onedriveMarcarArvoreIncompleta(") == 3)
 
 print("\n=== 112. FOTOS SOLTAS AGRUPADAS POR DATA DENTRO DO ZIP ===")
 # Pedido em campo em 01/09/2026, depois de abrir o primeiro zip: agrupar por
@@ -3281,14 +3301,23 @@ chk("existe a funcao que decide os nomes, e ela e pura (testavel)",
 _nz = novo[novo.find("function orfasNomesNoZip("):]
 _nz = _nz[:_nz.find("\nasync function baixarOrfasLote(")]
 chk("agrupa por dia, com teto por pasta e continuacao em _p2",
-    "`${dia}_p${parte}`" in _nz
+    "`${base}_p${parte}`" in _nz
     and "Math.floor(jaNoDia / ORFAS_POR_PASTA_ZIP) + 1" in _nz)
+# A pasta nao pode carregar uma data que nao e a da foto (reclamado em campo
+# em 02/09/2026). A data do disparo nao existe: o canvas apaga o EXIF.
+chk("o nome da pasta diz que a data e a de quando ficou sem dono",
+    "sem_dono_desde_${dia}" in _nz
+    and "const base = temData ?" in _nz)
+chk("a tela avisa que essa data nao e a do disparo",
+    "sem_dono_desde_AAAA-MM-DD" in novo
+    and "não</b> é o dia em que a foto foi tirada" in novo)
 chk("a hora entra no nome do arquivo",
     'dois(d.getHours())}h${dois(d.getMinutes())}m${dois(d.getSeconds())}' in _nz)
 chk("usa a data LOCAL, nao a UTC (foto do fim do dia cairia no dia seguinte)",
     "d.getFullYear()" in _nz and "toISOString" not in _nz)
-chk("foto sem carimbo nao some -- vai para a pasta sem-data",
-    '"sem-data"' in _nz)
+chk("foto sem carimbo nao some -- e nao herda uma data que ela nao tem",
+    '"data-desconhecida"' in _nz
+    and "const base = temData ? `sem_dono_desde_${dia}` : dia;" in _nz)
 chk("o zip carrega a data de cada foto (o Windows consegue ordenar a pasta)",
     novo.count("function zipDataHora(ms){") == 1
     and "arq.mtime = t" in novo
@@ -3317,7 +3346,52 @@ chk("no celular avisa em vez de empilhar menus de compartilhar",
 chk("o modo seguido tambem e SO LEITURA",
     all(x not in _seg for x in ["dbSet", "readwrite", "fotosGravarMapaOrfas", ".delete("]))
 chk("a tela explica de onde vem a data (nao e a hora do disparo)",
-    "n\u00e3o a do disparo" in novo)
+    "sem_dono_desde_AAAA-MM-DD" in novo
+    and "o dia em que a foto foi tirada" in novo)
+
+print("\n=== 113. A FILA QUE NUNCA ZERAVA: ITENS SEGURADOS POR FOTO PERDIDA ===")
+# Achado no diagnostico do aparelho em 02/09/2026 06:57: "6 Equipamentos para
+# enviar -- 0/6 - 0.0 de 2.0 MB", parado no zero. O envio tem uma protecao
+# correta (item cuja foto se perdeu aqui nao sobe, senao regravaria o arquivo
+# da nuvem sem a foto e apagaria a ultima copia). A conta e a tela nao conheciam
+# essa protecao: contavam esses itens como "para enviar", o envio os pulava em
+# silencio, e o numero nunca chegava a zero.
+chk("as DUAS travas do envio moram numa fonte unica",
+    novo.count("function onedriveMotivoSegurado(item, idsDuplicados){") == 1
+    and novo.count("function onedriveIdsDuplicadosNaLista(itens){") == 1)
+# A GARANTIA CONTRA A REINCIDENCIA: o filtro do envio nao pode ter regra
+# propria. Foi assim que o defeito nasceu -- a trava morava so la, a conta nao
+# a enxergava, e o numero da tela nunca chegava a zero.
+_filtro = novo[novo.find("const pendentes = itensAtuais.filter(it => {", novo.find("async function onedriveSincronizarModulo")):]
+_filtro = _filtro[:_filtro.find("});")]
+chk("o filtro do envio so consulta a fonte unica, sem regra propria",
+    "onedriveMotivoSegurado(it, idsDuplicadosNaArvore)" in _filtro
+    and "CAMPO_MARCA_FOTO_PERDIDA" not in _filtro
+    and "idsDuplicadosNaArvore.has(" not in _filtro)
+chk("a trava da foto perdida e a da duplicata continuam existindo",
+    "CAMPO_MARCA_FOTO_PERDIDA" in novo[novo.find("function onedriveMotivoSegurado"):][:900]
+    and "idsDuplicados" in novo[novo.find("function onedriveMotivoSegurado"):][:900])
+_est = novo[novo.find("function onedriveEstimarPendentesUpload(){"):]
+_est = _est[:_est.find("/* Mesma checagem leve")]
+chk("a estimativa tira o segurado da conta de 'para enviar'",
+    "if(onedriveMotivoSegurado(item, dupDoModulo)){" in _est
+    and "segurando.qtd++;" in _est
+    and "const dupDoModulo = onedriveIdsDuplicadosNaLista(itensAtuais);" in _est)
+chk("e devolve o grupo proprio, sem esconder nada",
+    "porTipoAlterado, segurando };" in _est
+    and "const segurando = { qtd:0, bytes:0 };" in _est)
+_tela = novo[novo.find("function onedriveStatusPendenteHtml(){"):]
+_tela = _tela[:_tela.find("async function onedriveEstimarPendentesDownload")]
+chk("a tela nao diz 'Tudo sincronizado' havendo item segurado",
+    "&& seg.qtd===0" in _tela)
+chk("a tela explica o motivo e o que fazer",
+    "itens segurados" in _tela and "Recuperar fotos da nuvem" in _tela)
+chk("o diagnostico separa SEGURADO de 'nunca subiu'",
+    "onedriveMotivoSegurado(it, dupParaDiag)" in novo
+    and "SEGURADOS ATE A FOTO VOLTAR" in novo
+    and "nao saem dai sozinhos" in novo)
+chk("a marca sai sozinha quando a foto volta (nao trava para sempre)",
+    "if(faltou === 0) delete item[CAMPO_MARCA_FOTO_PERDIDA];" in novo)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")

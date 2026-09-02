@@ -64,6 +64,120 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 02/09/2026 07:42
+
+**A fila de envio que nunca zerava — a causa completa.**
+
+O envio tem **duas** travas deliberadas, e as duas estão certas:
+
+- **duplicado** — o mesmo item existe em dois lugares da árvore. Subir uma
+  cópia faz a outra ser apagada na nuvem, mesmo quando é a que tem a foto boa.
+  Foi assim que as fotos do Abacus 02 sumiram em 26/08.
+- **foto perdida** — a foto sumiu daqui, mas o arquivo da nuvem ainda tem a
+  foto dentro dele: é a última cópia que existe. Subir o texto daqui regravaria
+  aquele arquivo sem a foto.
+
+**O defeito nunca foi a trava. Foi ela morar só dentro do envio.** A conta de
+"para enviar" não conhecia nenhuma das duas: somava os itens, o envio os pulava
+calado, e o número na tela nunca chegava a zero. No aparelho isso apareceu como
+**"6 Equipamentos para enviar — 0/6 · 0.0 de 2.0 MB"**, parado no zero enquanto
+os riscos avançavam. E o diagnóstico dizia "nunca subiu", que é verdade e
+engana: soa como "está na fila", quando é "está parado de propósito".
+
+**O que muda:**
+
+- As duas travas passam a morar numa função só, que o envio, a conta e o
+  diagnóstico consultam. Trava nova tem que nascer ali.
+- Itens segurados saem da conta de "para enviar" e da barra de progresso — é o
+  que deixa o número chegar a zero.
+- Ganham linha na tela e seção própria no diagnóstico, com o motivo de cada um.
+- A tela **não** diz "Tudo sincronizado" havendo item segurado.
+- Um teste reprova qualquer trava que volte a nascer dentro do envio — foi
+  assim que este defeito ficou escondido.
+
+**Também corrigido:** o diagnóstico dizia "faltam as fotos (esperando Wi-Fi)".
+Rótulo velho — as fotos sobem em qualquer conexão desde a correção do Wi-Fi que
+o iPhone nunca confirmava. Mandava procurar um Wi-Fi que não era o problema.
+
+**Para destravar os seus:** traga a foto de volta (Recuperar fotos da nuvem, ou
+a galeria de fotos soltas). A marca sai sozinha e o item sobe no ciclo seguinte.
+
+---
+
+**A data da pasta no zip de fotos soltas.** As pastas se chamavam
+`2026-09-02`, e qualquer um lê isso como o dia em que a foto foi tirada — que é
+justamente o que essa data **não** é. A hora do disparo não existe mais no
+aparelho: a foto passa por um redimensionamento antes de ser guardada, e isso
+apaga o dado que a câmera grava. Não há como recuperá-la.
+
+As pastas passam a se chamar **`sem_dono_desde_2026-09-02`**, que diz o que a
+data é. Foto sem carimbo nenhum vai para `data-desconhecida`. E os lotes saem
+do mais recente para o mais antigo — por isso o lote 1 traz sempre datas de
+agora; o lote 24 traz as mais antigas.
+
+## 02/09/2026 07:05
+
+**A fila de envio que nunca zerava.** Achado no diagnóstico do aparelho: "6
+Equipamentos para enviar — 0/6 · 0.0 de 2.0 MB", parado no zero enquanto os
+riscos avançavam. Os 6 nunca saíam.
+
+**O que estava acontecendo.** O envio tem uma proteção deliberada: quando a
+foto de um item se perdeu **neste** aparelho e a cópia da nuvem é a última que
+existe, o texto daqui **não sobe** — subir regravaria o arquivo lá sem a foto e
+apagaria essa última cópia. A proteção está certa e continua igual.
+
+O erro era ninguém contar essa história. A conta de "para enviar" não conhecia
+a proteção: somava esses itens normalmente. O envio conhecia e os pulava em
+silêncio. Resultado: o número na tela incluía itens que nunca iam subir. A
+sincronização rodava, mandava tudo que podia, terminava — e o contador voltava
+com o mesmo número. E o diagnóstico dizia "nunca subiu", que é verdade e
+engana: soa como "está na fila, já vai", quando na verdade é "está parado de
+propósito e não sai daí até a foto voltar".
+
+**O que muda.**
+
+- Esses itens saem da conta de "para enviar" e da barra de progresso — é o que
+  permite o número finalmente chegar a zero.
+- Ganham **linha própria na tela**, dizendo o motivo e o que fazer: "N itens
+  segurados: a foto se perdeu aqui e a cópia da nuvem é a última que existe".
+- Ganham **seção própria no diagnóstico**, com a lista item por item.
+- A tela **não** diz "Tudo sincronizado" enquanto houver item segurado —
+  trocar um número que não zera por uma frase que mente seria pior.
+
+**O que fazer com eles.** Traga a foto de volta (Recuperar fotos da nuvem, ou a
+galeria de fotos soltas). A marca sai sozinha assim que a foto voltar, e o item
+sobe no ciclo seguinte, sem você fazer mais nada.
+
+## 01/09/2026 23:00
+
+**Correção de um furo aberto na versão 21:51.** Se você instalou a 21:51,
+atualize.
+
+**O que aconteceu.** A 21:51 passou a conferir a nuvem por área: a marca de
+"esta pasta não pôde ser lida" guarda quais pastas falharam, e só os itens
+delas ficam de fora. Isso está certo para a falha de uma pasta, que é o caso
+comum.
+
+Só que existe uma falha que **não tem pasta**: quando a credencial do OneDrive
+expira no meio da varredura. Aí a leitura devolve "vazio" para todas as pastas
+daquele nível de uma vez, e não há um caminho para culpar. Com a lista de
+pastas culpadas vazia, cada área parecia ter sido lida inteira — quando na
+verdade não foi lido nada dali para baixo. O app então concluía "isto não está
+na nuvem" para itens que estão perfeitamente salvos, apagava o registro de
+"já enviei isto" e agendava reenvio.
+
+**O sintoma:** o aparelho aparecia enviando itens que ele tinha **recebido** de
+outro aparelho e que ninguém tinha tocado ali.
+
+Havia uma proteção antiga para isso, mas ela só cobre o caso em que a
+credencial falha logo na primeira chamada e **nada** é lido. Falhando no meio,
+o que já foi lido segura a conta acima de zero e o furo passava.
+
+**Correção:** falha sem pasta conhecida derruba a confiança na varredura
+inteira — volta ao tudo-ou-nada naquela rodada. A conferência por área
+continua valendo quando se sabe exatamente qual pasta falhou, que é o caso do
+429 do OneDrive e o motivo da mudança de 21:51.
+
 ## 01/09/2026 21:51
 
 **Sincronização passa a ser conferida por área.** É a correção da mensagem
