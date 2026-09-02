@@ -852,15 +852,21 @@ print("\n=== 33. INVENTARIO DE MAQUINAS: COLUNAS FIXAS E TIPO DO EQUIPAMENTO ===
 # O inventario sai em varias tabelas (uma por maquina, para poder paginar).
 # Tabela HTML calcula largura pelo proprio conteudo: sem table-layout:fixed +
 # o MESMO colgroup em todas, cada linha inventa a sua e nada alinha.
+# 02/09/2026: onze larguras escritas + a decima segunda CALCULADA (secao 119).
+# Doze escritas a mao somavam exatamente a largura da pagina, sem sobrar o 1px
+# da borda que fecha a tabela.
 chk("colunas fixas e iguais em todas as tabelas do inventario",
-    bool(re.search(r"const INV_COLS = \[\d+(?:, ?\d+){11}\];", novo))
+    bool(re.search(r"const INV_COLS_BASE = \[\d+(?:, ?\d+){10}\];", novo))
+    and "const INV_COLS = INV_COLS_BASE.concat(" in novo
     and novo.count("${invColgroup}") == 2
     and ".lp-inv{width:100%;table-layout:fixed;" in novo)
 # A soma tem de bater com a pagina em que a tabela e IMPRESSA. Desde que o
 # inventario passou a sair deitado, essa pagina e a A4 em paisagem (297mm).
-_m_cols = re.search(r"const INV_COLS = \[([^\]]+)\]", novo)
-chk("as larguras somam a area util da pagina deitada (1123 - 2x53)",
-    bool(_m_cols) and sum(int(x.strip()) for x in _m_cols.group(1).split(",")) == 1017)
+_m_cols = re.search(r"const INV_COLS_BASE = \[([^\]]+)\]", novo)
+chk("as larguras CABEM na pagina deitada, com folga para a borda de fechamento",
+    bool(_m_cols)
+    and sum(int(x.strip()) for x in _m_cols.group(1).split(",")) == 947
+    and 947 + ((1123 - 53*2 - 2) - 947) <= (1123 - 53*2) - 2)
 chk("nao sobrou largura em linha brigando com o colgroup",
     '<th style="width:96px">Imagem</th>' not in novo
     # Desde 27/08/2026 esta regra ganhou "position:relative" (ancora do
@@ -3681,6 +3687,29 @@ chk("a abertura chama a carga DEPOIS de montar o STATE, e redesenha",
 # nao um relaxamento aqui.
 chk("o laudo continua exigindo foto de verdade no logotipo",
     'const temFoto = (v)=> (typeof v === "string" && v.indexOf("data:image") === 0);' in novo)
+
+print("\n=== 119. O INVENTARIO FECHA DO LADO DIREITO ===")
+# Relatado em campo em 02/09/2026: "no inventario de maquinas falta a ultima
+# linha para fechar a coluna Tensao, a tabela esta aberta do lado direito".
+# As doze colunas somavam 1017 -- exatamente a area util da pagina deitada.
+# Com border-collapse a borda externa ocupa ~1px alem da largura declarada, e
+# esse 1px caia fora do `overflow:hidden` da pagina.
+chk("a ultima coluna e CALCULADA a partir da geometria da pagina, nao escrita",
+    "const INV_LARGURA_UTIL = UTIL_L_P - 2;" in novo
+    and "INV_LARGURA_UTIL - INV_COLS_BASE.reduce((a,b)=>a+b, 0))" in novo
+    and "const INV_COLS = [" not in novo)
+_base = re.search(r"const INV_COLS_BASE = \[([^\]]+)\];", novo)
+_soma = sum(int(x) for x in _base.group(1).split(",")) if _base else -1
+chk("as onze primeiras colunas continuam as mesmas (nenhuma foi espremida)",
+    _soma == 947)
+chk("e o total CABE na pagina deitada, com folga para a borda",
+    _soma + ((1123 - 53*2 - 2) - _soma) == 1015
+    and 1015 <= (1123 - 53*2) - 2)
+chk("cabecalho e linhas continuam usando o MESMO colgroup",
+    "const invColgroup = `<colgroup>${INV_COLS.map(" in novo
+    and novo.count("${invColgroup}") == 2)
+chk("table-layout:fixed continua de pe (sem ele a largura vira sugestao)",
+    ".lp-inv{width:100%;table-layout:fixed;" in novo)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")

@@ -3510,17 +3510,43 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   // TIPOS_EQUIPAMENTO já foi extraído lá no início (laudoBlocoPlaqueta também usa).
   [ "tipoSugeridoDaMaquina", "tipoEquipamento" ].forEach(n=> vm.runInContext(funcao(n), ctx));
   t("as colunas do inventário são iguais em todas as tabelas", ()=>{
-    ok(/const INV_COLS = \[\d+(, ?\d+){11}\];/.test(HTML), "sem larguras fixas para as 12 colunas");
+    /* Onze larguras escritas + a décima segunda CALCULADA. Antes eram doze
+       escritas à mão, somando exatamente a largura da página — e por isso não
+       sobrava 1px para a borda que fecha a tabela (ver o teste seguinte). */
+    ok(/const INV_COLS_BASE = \[\d+(, ?\d+){10}\];/.test(HTML), "sem larguras fixas para as colunas");
+    ok(HTML.indexOf("const INV_COLS = INV_COLS_BASE.concat(") > 0, "a última coluna deixou de ser calculada");
     eq((HTML.match(/\$\{invColgroup\}/g)||[]).length, 2, "o colgroup precisa ir no cabeçalho E em cada linha");
     ok(HTML.indexOf(".lp-inv{width:100%;table-layout:fixed;") > 0,
        "sem table-layout:fixed a largura declarada vira só sugestão e cada linha recalcula a sua");
   });
   /* A soma tem de bater com a página em que a tabela é IMPRESSA. Desde que o
      inventário passou a sair deitado, essa página é a A4 em paisagem. */
-  t("as larguras somam a área útil da página do inventário", ()=>{
-    const m = /const INV_COLS = \[([^\]]+)\]/.exec(HTML);
-    const soma = m[1].split(",").reduce((a,b)=>a+Number(b.trim()),0);
-    eq(soma, 1017, "297mm de página deitada menos 2 × 14mm de margem");
+  /* A TABELA TEM DE FECHAR DO LADO DIREITO (relatado em campo em 02/09/2026).
+     As doze colunas somavam 1017 — exatamente a área útil deitada. Com
+     border-collapse a borda externa ocupa ~1px além da largura declarada, e
+     esse 1px caía fora do `overflow:hidden` da página: a tabela saía sem a
+     linha que fecha a coluna Tensão. */
+  t("as larguras CABEM na página, com folga para a borda que fecha a tabela", ()=>{
+    const base = JSON.parse(/const INV_COLS_BASE = (\[[^\]]+\]);/.exec(HTML)[1]);
+    const somaBase = base.reduce((a,b)=>a+b, 0);
+    const UTIL_L_P = 1123 - 53*2;                 // página deitada menos margens
+    const ultima = (UTIL_L_P - 2) - somaBase;
+    const soma = somaBase + ultima;
+    eq(somaBase, 947, "as onze primeiras colunas mudaram");
+    eq(soma, 1015, "a soma mudou — conferir se ainda cabe");
+    ok(soma <= UTIL_L_P - 2,
+       "a tabela volta a encostar na borda: " + soma + " em " + UTIL_L_P +
+       " — a linha que fecha a coluna Tensão cai fora do recorte da página");
+    ok(ultima > 30, "a última coluna ficou estreita demais para caber 'Tensão'");
+  });
+  /* CALCULADA, NAO ESCRITA. Uma lista de doze numeros que PRECISA somar a
+     largura da pagina quebra em silencio: basta ajustar uma coluna, ou a
+     margem mudar. Foi assim que este defeito nasceu. */
+  t("a última coluna sai da MESMA medida que o paginador usa", ()=>{
+    ok(HTML.indexOf("const INV_LARGURA_UTIL = UTIL_L_P - 2;") > 0,
+       "a largura útil voltou a ser número solto — vai divergir do paginador");
+    ok(HTML.indexOf("INV_LARGURA_UTIL - INV_COLS_BASE.reduce((a,b)=>a+b, 0))") > 0,
+       "a última coluna voltou a ser escrita à mão");
   });
   t("não sobrou largura em linha brigando com o colgroup", ()=>{
     ok(HTML.indexOf('<th style="width:96px">Imagem</th>') < 0, "os width antigos do cabeçalho continuariam mandando");
@@ -3657,10 +3683,10 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(HTML.indexOf("const UTIL_A_P = PAG_L - MARGEM * 2 - ROD_A;") > 0, "a altura também desconta o rodapé");
     ok(HTML.indexOf("const MAX_A_P  = Math.floor(UTIL_A_P * 0.98);") > 0);
   });
-  t("as larguras novas somam a área útil deitada", ()=>{
-    const m = /const INV_COLS = \[([^\]]+)\]/.exec(HTML);
-    const soma = m[1].split(",").reduce((a,b)=>a+Number(b.trim()),0);
-    eq(soma, 1017, "297mm de página menos 2 × 14mm de margem");
+  t("as larguras do inventário saem da geometria da página deitada", ()=>{
+    // UTIL_L_P é a mesma constante que o paginador usa para medir os blocos.
+    ok(HTML.indexOf("const INV_LARGURA_UTIL = UTIL_L_P - 2;") > 0,
+       "o inventário deixou de acompanhar a geometria da página");
   });
   t("cada bloco é medido na largura em que vai ser impresso", ()=>{
     const f = funcao("paginar");

@@ -2397,7 +2397,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "02/09/2026 17:35";
+const APP_BUILD = "02/09/2026 17:59";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -23315,7 +23315,20 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
      no CSS (faz a largura declarada valer, em vez de servir de sugestão) e
      este mesmo <colgroup> repetido em TODAS as tabelas. As larguras somam
      exatamente a área útil da página (794 − 2×53 = 688px). */
-  const INV_COLS = [120, 30, 150, 140, 80, 80, 78, 78, 85, 40, 66, 70];
+  /* A ÚLTIMA COLUNA É CALCULADA, NÃO ESCRITA.
+     As onze primeiras somam 947. A décima segunda fecha a conta com a área
+     útil da página deitada, e essa conta desconta 2px: com border-collapse a
+     borda externa ocupa ~1px além da largura declarada de cada lado, e era
+     esse 1px que caía fora do `overflow:hidden` da página — a tabela saía
+     ABERTA do lado direito, sem a linha que fecha a coluna Tensão (relatado
+     em campo em 02/09/2026).
+     Calculada, e não escrita à mão, porque uma lista de doze números que
+     PRECISA somar a largura da página é o tipo de coisa que quebra em
+     silêncio: basta alguém ajustar uma coluna, ou a margem da página mudar. */
+  const INV_COLS_BASE = [120, 30, 150, 140, 80, 80, 78, 78, 85, 40, 66];
+  const INV_LARGURA_UTIL = UTIL_L_P - 2;   // a mesma largura que o paginador usa, menos as bordas externas
+  const INV_COLS = INV_COLS_BASE.concat(
+    INV_LARGURA_UTIL - INV_COLS_BASE.reduce((a,b)=>a+b, 0));
   const invColgroup = `<colgroup>${INV_COLS.map(w=>`<col style="width:${w}px">`).join("")}</colgroup>`;
   async function blocosInventario(itens, d){
     const maqs = [];

@@ -64,6 +64,26 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 02/09/2026 17:59
+
+**Correção: o inventário de máquinas saía aberto do lado direito**, sem a linha
+que fecha a coluna Tensão.
+
+As doze colunas somavam **1017px** — exatamente a área útil da página deitada
+(297mm menos as duas margens de 14mm). Não sobrava nada para a borda: com as
+bordas coladas, a linha externa ocupa cerca de 1px além da largura declarada, e
+esse 1px caía fora do recorte da página. A tabela ficava sem a lateral direita.
+
+Agora **a última coluna é calculada**, não escrita: as onze primeiras somam 947
+e a décima segunda fecha a conta com a largura da página, descontando os 2px
+das bordas. Total 1015, com folga.
+
+Feito assim de propósito: uma lista de doze números que **precisa** somar a
+largura da página quebra em silêncio — basta alguém ajustar uma coluna, ou a
+margem da página mudar. Foi exatamente como este defeito nasceu. A medida usada
+é a mesma que o paginador já usa para montar as páginas deitadas, então as duas
+não têm como divergir.
+
 ## 02/09/2026 17:35
 
 **Correção: o laudo perdia o logotipo a cada abertura do app.**
