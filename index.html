@@ -2371,7 +2371,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "02/09/2026 16:06";
+const APP_BUILD = "02/09/2026 16:38";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -6298,11 +6298,39 @@ function onedriveCarregarAssinaturas(mapaRef){
    consultam a mesma função. Trava nova tem que entrar aqui — se voltar a
    nascer dentro do filtro do envio, o número volta a mentir e ninguém
    percebe. Existe um teste guardando exatamente isso. */
+/* A NUVEM TEM ALGUMA CÓPIA DESTE ITEM?
+
+   A trava da foto perdida existe para proteger a cópia da nuvem. Faltava a
+   outra metade da pergunta: existe cópia? Em 02/09/2026 o aparelho do
+   levantamento tinha 14 itens presos, e 9 deles nunca chegaram a subir — a
+   pasta estava criada na nuvem e o arquivo, nunca enviado. A trava protegia
+   uma cópia que não existe e, em troca, prendia o trabalho de campo sem prazo
+   para acabar.
+
+   Na dúvida, SEGURA: sem índice da nuvem em mãos, ou numa área cuja listagem
+   falhou, esta função responde "não sei" e a trava continua valendo. Só libera
+   quando a área foi lida inteira e nem o texto nem o pacote de fotos estão lá.
+
+   Vale só para o Módulo Simplificado, que é o único que recebe a marca de foto
+   perdida (ver marcarItensComFotoPerdida, que percorre projetosSimples). */
+function onedriveNadaNaNuvemParaProteger(item){
+  if(!item || !Array.isArray(item.pasta) || !item.arquivo) return false;
+  const indice = onedriveIndiceNuvem();
+  if(!indice) return false;                       // sem foto da nuvem: não arrisca
+  const prefixo = `${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado/`.toLowerCase();
+  if(__areaTeveFalhaNaListagem(__areaDoItemNuvem(item, prefixo))) return false;
+  const base = prefixo + item.pasta.join("/").toLowerCase() + "/";
+  const arq = String(item.arquivo).toLowerCase();
+  return !indice.has(base + arq) && !indice.has(base + "fotos_" + arq);
+}
 function onedriveMotivoSegurado(item, idsDuplicados){
   if(!item) return null;
   if(idsDuplicados && idsDuplicados.has(item.id))
     return "o mesmo item existe em dois lugares da árvore — enviar apagaria a outra cópia na nuvem (use \"Juntar duplicatas\")";
-  if(item.dados && item.dados[CAMPO_MARCA_FOTO_PERDIDA])
+  /* Só segura quando há o que proteger. Se a nuvem não tem cópia nenhuma
+     deste item, subir não apaga foto de ninguém — e prender ali só mantém o
+     trabalho preso ao aparelho. */
+  if(item.dados && item.dados[CAMPO_MARCA_FOTO_PERDIDA] && !onedriveNadaNaNuvemParaProteger(item))
     return "a foto se perdeu aqui e a cópia da nuvem é a última que existe — o texto não sobe para não apagá-la";
   return null;
 }

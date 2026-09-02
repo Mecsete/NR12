@@ -6463,7 +6463,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
          envio e virou onedriveMotivoSegurado, consultada tambem pela conta e
          pelo diagnostico. Enquanto ela morava so no filtro, a conta somava
          esses itens e o numero na tela nunca chegava a zero. */
-      ok(HTML.indexOf("if(item.dados && item.dados[CAMPO_MARCA_FOTO_PERDIDA])") > 0,
+      ok(HTML.indexOf("if(item.dados && item.dados[CAMPO_MARCA_FOTO_PERDIDA] && !onedriveNadaNaNuvemParaProteger(item))") > 0,
          "a trava do envio sumiu — item sem foto voltaria a regravar a nuvem");
       ok(funcao("onedriveSincronizarModulo").indexOf("if(onedriveMotivoSegurado(it, idsDuplicadosNaArvore)) return false;") > 0,
          "o envio precisa consultar a fonte unica");
@@ -8574,6 +8574,14 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     vm.runInContext('var CAMPO_MARCA_FOTO_PERDIDA = "__fotosPerdidas";', c);
     vm.runInContext("var __assinaturasOneDriveSimples = { mapa:new Map(), chaveEstado:'a' };", c);
     vm.runInContext("var __assinaturasOneDriveCompleto = { mapa:new Map(), chaveEstado:'b' };", c);
+    /* A trava so segura quando HA copia na nuvem para proteger (02/09/2026).
+       Sem indice, esta funcao responde "nao sei" e a trava continua valendo --
+       que e o comportamento que estes testes esperam. */
+    vm.runInContext("function onedriveIndiceNuvem(){ return globalThis.__indiceFalso || null; }", c);
+    vm.runInContext('var ONEDRIVE_PASTA_APP = "APR-Campo"; var SUBPASTA_BACKUP = "Backup";', c);
+    vm.runInContext("var __pastasNuvemFalhadas = new Set(); var __falhaNuvemSemCaminho = false;", c);
+    ["__areaDoItemNuvem","__areaTeveFalhaNaListagem","onedriveNadaNaNuvemParaProteger"]
+      .forEach(n=> vm.runInContext(funcao(n), c));
     vm.runInContext(funcao("onedriveMotivoSegurado"), c);
     vm.runInContext(funcao("onedriveIdsDuplicadosNaLista"), c);
     vm.runInContext(funcao("onedriveEstimarPendentesUpload"), c);
@@ -8627,6 +8635,77 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
        foi ela morar so dentro do filtro do envio, onde a conta nao enxergava.
        Se uma trava nova nascer la de novo, o numero da tela volta a mentir e
        ninguem percebe. Este teste existe para reprovar exatamente isso. */
+    /* ---- A OUTRA METADE DA PERGUNTA (02/09/2026) ----
+       A trava da foto perdida existe para proteger a COPIA DA NUVEM. Faltava
+       perguntar se existe copia. No aparelho do levantamento, 14 itens presos
+       e 9 deles nunca chegaram a subir: pasta criada na nuvem, arquivo nunca
+       enviado. A trava protegia uma copia que nao existe e, em troca, prendia
+       o trabalho de campo sem prazo para acabar. */
+    const comIndice = (caminhos)=>{
+      c.__indiceFalso = new Map((caminhos||[]).map(k=>[k, 100]));
+      vm.runInContext("globalThis.__indiceFalso = __indiceFalso;", c);
+    };
+    const semIndice = ()=>{
+      c.__indiceFalso = null;
+      vm.runInContext("globalThis.__indiceFalso = null;", c);
+    };
+    const itemPerdido = ()=>({ id:"maquina:m9", tipo:"maquina", atualizadoEm:2,
+      pasta:["Corteva (c268c7)","Paletizacão (ahohvv)","Magazine papelão (hn2kp1)"],
+      arquivo:"_maquina.json", dados:{ id:"m9", __fotosPerdidas:true } });
+    const PRE = "apr-campo/backup/simplificado/";
+    const CAM_M = PRE + "corteva (c268c7)/paletizacão (ahohvv)/magazine papelão (hn2kp1)/_maquina.json";
+    const CAM_F = PRE + "corteva (c268c7)/paletizacão (ahohvv)/magazine papelão (hn2kp1)/fotos__maquina.json";
+    const segurado = (it)=>{ c.__it = it; return vm.runInContext("onedriveMotivoSegurado(__it, null)", c); };
+
+    t("O CASO REAL: pasta criada na nuvem e arquivo nunca enviado — nao segura", ()=>{
+      /* Magazine papelao, Esteira CNV-001, Distribuidor de produto, Tanque
+         calda TNK-016, Classificadora SZ-5254: todos assim no aparelho. */
+      comIndice([PRE + "corteva (c268c7)/outra area/outra maq/_maquina.json"]);
+      eq(segurado(itemPerdido()), null, "prendeu um item que a nuvem nem tem — nao ha o que proteger");
+    });
+    t("mas com o TEXTO na nuvem, continua segurando (e o caso que a trava existe para cobrir)", ()=>{
+      comIndice([CAM_M]);
+      ok(String(segurado(itemPerdido())).indexOf("a foto se perdeu aqui") === 0,
+         "deixou subir por cima do arquivo da nuvem — a foto de la seria apagada");
+    });
+    t("e com o PACOTE DE FOTOS na nuvem tambem, mesmo sem o texto", ()=>{
+      comIndice([CAM_F]);
+      ok(segurado(itemPerdido()) !== null, "o pacote de fotos de la seria perdido");
+    });
+    /* NA DUVIDA, SEGURA. Sem indice da nuvem em maos nao da para afirmar que
+       nao ha copia -- e afirmar errado apaga foto de campo. */
+    t("sem indice da nuvem, na duvida SEGURA", ()=>{
+      semIndice();
+      ok(segurado(itemPerdido()) !== null, "liberou o envio sem ter conferido a nuvem");
+    });
+    t("na area cuja listagem FALHOU, tambem segura", ()=>{
+      comIndice([]);   // indice vazio: pareceria "nada na nuvem"
+      c.__falhadas = [PRE + "corteva (c268c7)/paletizacão (ahohvv)"];
+      vm.runInContext("__pastasNuvemFalhadas = new Set(__falhadas);", c);
+      ok(segurado(itemPerdido()) !== null,
+         "usou uma listagem furada para concluir que a nuvem esta vazia");
+      vm.runInContext("__pastasNuvemFalhadas = new Set();", c);
+    });
+    t("item SEM a marca de foto perdida nunca e segurado, com ou sem nuvem", ()=>{
+      const sadio = itemPerdido(); delete sadio.dados.__fotosPerdidas;
+      comIndice([CAM_M]);
+      eq(segurado(sadio), null);
+      semIndice();
+      eq(segurado(sadio), null);
+    });
+    t("a checagem exige caminho completo — item malformado nao libera nada", ()=>{
+      comIndice([]);
+      const semPasta = itemPerdido(); semPasta.pasta = null;
+      ok(segurado(semPasta) !== null, "item sem caminho nao pode ser dado como ausente da nuvem");
+    });
+    t("a SEGUNDA linha de defesa continua de pe (arquivo de la muito maior nao e regravado)", ()=>{
+      /* Mesmo que o indice esteja velho e esta checagem erre, o envio recusa
+         quando o arquivo da nuvem e bem maior que o daqui — que e justamente a
+         assinatura de "tem foto embutida que este aparelho nao tem mais". */
+      ok(HTML.indexOf("if(onedriveEnvioEncolheDemais(item, tamTexto)){") > 0,
+         "a trava de encolhimento sumiu — era a rede de seguranca desta mudanca");
+    });
+
     t("o filtro do envio NAO tem regra propria — so consulta a fonte unica", ()=>{
       const f = funcao("onedriveSincronizarModulo");
       const i = f.indexOf("const pendentes = itensAtuais.filter(it => {");

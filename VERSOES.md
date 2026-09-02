@@ -64,6 +64,41 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 02/09/2026 16:38
+
+**Os equipamentos presos que a nuvem nem tem agora sobem.**
+
+O diagnóstico do aparelho mostrou a fila de envio zerada — a correção das 07:42
+funcionou — mas **14 itens segurados** pela trava da foto perdida.
+
+**A trava existe para proteger a cópia da nuvem:** se a foto se perdeu aqui e o
+arquivo de lá ainda a tem embutida, subir o texto daqui regravaria aquele
+arquivo sem a foto e apagaria a última cópia que existe. Isso está certo e não
+mudou.
+
+**O que faltava era a outra metade da pergunta: existe cópia lá?**
+
+Cruzando os 14 itens com a listagem da nuvem, **9 deles nunca chegaram a
+subir** — a pasta estava criada e o arquivo, nunca enviado. Esteira CNV-001,
+Distribuidor de produto, Tanque calda TNK-016, Classificadora SZ-5254 e
+Magazine papelão estão todos assim. A trava protegia uma cópia que **não
+existe** e, em troca, mantinha o trabalho de campo preso ao aparelho sem prazo
+para acabar. Era por isso que o Magazine papelão aparecia com foto na tela e
+continuava segurado.
+
+Agora a trava só segura quando há o que proteger. Os outros 5 — que têm arquivo
+de verdade na nuvem, como o Ventilador 2107 — continuam segurados, e para esses
+o caminho continua sendo "Recuperar fotos da nuvem".
+
+**Na dúvida, segura.** Sem o índice da nuvem em mãos, ou numa área cuja
+listagem falhou, o app responde "não sei" e mantém a trava. Só libera quando a
+área foi lida inteira e nem o texto nem o pacote de fotos estão lá.
+
+**E a segunda linha de defesa continua de pé:** mesmo que o índice esteja velho
+e essa checagem erre, o envio recusa gravar por cima de um arquivo da nuvem que
+seja bem maior que o daqui — que é justamente a assinatura de "tem foto
+embutida que este aparelho não tem mais".
+
 ## 02/09/2026 16:06
 
 **A régua do HRN passou de 4 para 8 faixas, e o número agora aparece no quadro

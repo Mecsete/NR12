@@ -2134,8 +2134,10 @@ chk("a marca NAO se apaga sozinha na leitura seguinte",
 # 02/09/2026: a trava saiu de dentro do filtro do envio e virou
 # onedriveMotivoSegurado, consultada tambem pela conta e pelo diagnostico
 # (secao 113). O que ela impede continua exatamente o mesmo.
+# 02/09/2026: a trava ganhou a outra metade da pergunta -- so segura quando ha
+# copia na nuvem para proteger (secao 117). O que ela impede continua o mesmo.
 chk("item marcado NAO entra na fila de envio",
-    "if(item.dados && item.dados[CAMPO_MARCA_FOTO_PERDIDA])" in novo
+    "if(item.dados && item.dados[CAMPO_MARCA_FOTO_PERDIDA] && !onedriveNadaNaNuvemParaProteger(item))" in novo
     and "if(onedriveMotivoSegurado(it, idsDuplicadosNaArvore)) return false;" in novo)
 chk("a marca de dano nunca viaja para a nuvem",
     "delete semFotos.__fotosPerdidas;" in novo)
@@ -3626,6 +3628,32 @@ chk("o numero sai escrito em portugues, na tela e no laudo",
 chk("o nivel continua CALCULADO, nunca gravado (por isso nao ha migracao)",
     "nivel:nivelHRN(hrn)" in novo
     and "risco.nivel =" not in novo)
+
+print("\n=== 117. A TRAVA SO SEGURA QUANDO HA COPIA NA NUVEM PARA PROTEGER ===")
+# Diagnostico do aparelho em 02/09/2026 16:31: a fila de envio zerou (a
+# correcao das 07:42 funcionou), mas 14 itens ficaram presos pela trava da foto
+# perdida. Cruzando com a listagem da nuvem, 9 deles NUNCA subiram: pasta
+# criada, arquivo nunca enviado. A trava protegia uma copia que nao existe e,
+# em troca, prendia o trabalho de campo sem prazo para acabar.
+chk("existe a checagem de 'ha copia na nuvem para proteger?'",
+    novo.count("function onedriveNadaNaNuvemParaProteger(item){") == 1)
+chk("e a trava da foto perdida passou a consulta-la",
+    "if(item.dados && item.dados[CAMPO_MARCA_FOTO_PERDIDA] && !onedriveNadaNaNuvemParaProteger(item))" in novo)
+_np = novo[novo.find("function onedriveNadaNaNuvemParaProteger(item){"):]
+_np = _np[:_np.find("function onedriveMotivoSegurado(")]
+chk("NA DUVIDA, SEGURA: sem indice da nuvem nao libera",
+    "if(!indice) return false;" in _np)
+chk("area cuja listagem falhou tambem nao libera (secao 111)",
+    "if(__areaTeveFalhaNaListagem(__areaDoItemNuvem(item, prefixo))) return false;" in _np)
+chk("confere o TEXTO e o pacote de FOTOS -- qualquer um dos dois e copia a proteger",
+    'return !indice.has(base + arq) && !indice.has(base + "fotos_" + arq);' in _np)
+chk("item sem caminho completo nao pode ser dado como ausente da nuvem",
+    "if(!item || !Array.isArray(item.pasta) || !item.arquivo) return false;" in _np)
+# SEGUNDA LINHA DE DEFESA, ja existente: mesmo que o indice esteja velho e a
+# checagem erre, o envio recusa quando o arquivo de la e bem maior que o daqui
+# -- a assinatura de "tem foto embutida que este aparelho nao tem mais".
+chk("a trava de encolhimento continua de pe (rede de seguranca desta mudanca)",
+    "if(onedriveEnvioEncolheDemais(item, tamTexto)){" in novo)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
