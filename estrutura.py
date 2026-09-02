@@ -22,7 +22,17 @@ print("=== 3. ARQUITETURA DE FOTOS (CAMADA_FOTOS) ===")
 # Ampliar o uso da camada e o oposto de burlar a arquitetura: e aplica-la onde
 # faltava. O que a checagem protege e a camada nao ser CONTORNADA (foto voltar
 # a ser gravada embutida), entao o piso nunca pode cair.
-_extra_fotos = {"idbfoto:": 1, "foto:": 1}
+# 02/09/2026 — CARGA SOB DEMANDA. A camada deixou de ser so persistencia e
+# passou a ser o modo normal de a foto existir no app: o STATE guarda a
+# referencia e a foto e lida quando alguem precisa. Por isso "idbfoto:" e
+# "foto:" crescem de novo — carregar, soltar, a trava da fronteira, a
+# resolucao na tela e na lupa. Crescer aqui e a arquitetura sendo APLICADA;
+# o que esta checagem protege e ela ser CONTORNADA (foto voltando a ser
+# gravada embutida), e por isso o piso nunca pode cair.
+# Delta MEDIDO desta entrega (nao estimado): idbfoto: 4->11, foto: 9->17,
+# CAMADA_FOTOS 0->1. Some ao ORIGINAL na proxima geracao de original.html --
+# mesmo padrao dos extras da secao 4 logo abaixo, que ja passaram por isso.
+_extra_fotos = {"idbfoto:": 7, "foto:": 8, "CAMADA_FOTOS": 1}
 for marca in ["idbfoto:", "foto:", "CAMADA_FOTOS"]:
     a, b = orig.count(marca) + _extra_fotos.get(marca, 0), novo.count(marca)
     chk("ocorrencias de '%s' inalteradas (%d)" % (marca, a), a == b, "orig+extra=%d novo=%d" % (a, b))
@@ -57,7 +67,12 @@ print("\n=== 4. MOTOR DE SINCRONIZACAO ===")
 # ocorrencias em comentarios explicando o motivo -- por isso e o codigo
 # comentado que soma 5, nao so as chamadas. Some ao ORIGINAL na proxima
 # geracao de original.html (mesmo padrao do oneDriveDeltaFila/exclusoesConfirmadas acima).
-_extra = {"oneDriveDeltaFila": 5, "exclusoesConfirmadas": 0}
+# oneDriveDeltaFila zerado em 02/09/2026: original.html foi regerado a partir
+# do commit que JA contem o dreno da fila, entao somar de novo contaria duas
+# vezes -- o mesmo que ja aconteceu com este contador e com
+# exclusoesConfirmadas antes. E a armadilha que o CLAUDE.md avisa: numero de
+# entrega antiga nao vale para a referencia nova.
+_extra = {"oneDriveDeltaFila": 0, "exclusoesConfirmadas": 0}
 for marca in ["oneDriveDeltaFila", "tombstone", "exclusoesConfirmadas", "__backupV2AplicarLinha"]:
     a, b = orig.count(marca) + _extra.get(marca, 0), novo.count(marca)
     chk("'%s' inalterado (%d)" % (marca, a), a == b, "orig+extra=%d novo=%d" % (a, b))
@@ -2099,8 +2114,14 @@ print("\n=== 75. APARELHO DANIFICADO NAO CONTAMINA O SAUDAVEL ===")
 chk("a leitura MARCA os itens cuja foto nao foi encontrada",
     novo.count("function marcarItensComFotoPerdida(") == 1
     and 'const CAMPO_MARCA_FOTO_PERDIDA = "__fotosPerdidas";' in novo)
-chk("a marca e posta ANTES de a referencia virar null",
-    "marcarItensComFotoPerdida(bruto, mapa);\n    return fotosReinserirDeMapa(bruto, mapa);" in novo)
+# 02/09/2026: com a carga sob demanda a referencia NAO vira mais null na
+# abertura -- ela fica no STATE e a foto e lida quando alguem precisa. A marca
+# continua sendo posta na abertura, agora contra o INDICE do banco (secao 114):
+# e o que a mantem significando "a foto nao esta mais aqui" em vez de "a foto
+# nao esta carregada", que marcaria o aparelho inteiro e travaria o envio.
+chk("a marca de dano continua sendo posta na abertura, contra o indice do banco",
+    "marcarItensComFotoPerdida(bruto, indice);" in novo
+    and "const indice = await fotosCarregarIndice(db);" in novo)
 chk("so os campos PROPRIOS marcam o item (risco nao marca a maquina inteira)",
     novo.count("function __refsProprriasDoItem(") == 1
     and "if(k === campoFilhos) continue;" in novo)
@@ -2146,8 +2167,11 @@ chk("existe a recuperacao, com previa que nao altera nada",
 chk("junta os pontos do mais novo para o mais antigo",
     novo.count("function fotosGuardadasNosPontos(") == 1
     and "if(!reg.unicas[campo] && __ehFotoOuRef(item[campo])) reg.unicas[campo] = item[campo];" in novo)
+# __ehFotoOuRef, nao ehFotoDataUrlPersist: com a carga sob demanda o campo
+# cheio quase sempre guarda uma referencia, e le-lo como vazio faria a
+# recuperacao passar por cima de foto boa (ver secao 114).
 chk("NUNCA sobrescreve foto que ja esta boa",
-    "if(ehFotoDataUrlPersist(item[campo])) continue;" in novo)
+    "if(__ehFotoOuRef(item[campo])) continue;" in novo)
 chk("NUNCA reduz a quantidade de fotos que ja existe",
     "if(doPonto.length > aqui.length){" in novo)
 # O carimbo e o que decide quem vence na sincronizacao. Mexer nele faria a
@@ -2416,12 +2440,10 @@ print("\n=== 85. TOCAR EM 'DEVOLVER FOTOS' SEMPRE RECONFERE (TRAVA DE 24H REMOVI
 # Em campo: "30 nao foram checados de novo", zero recuperados, num dia em que
 # as fotos tinham acabado de subir. Prova de comportamento no ENSAIO 27.
 chk("a trava de 24h saiu do codigo",
-    "const VERIFICACAO_NUVEM_VALIDADE_MS = 24*60*60*1000;" in orig
-    and "VERIFICACAO_NUVEM_VALIDADE_MS" not in novo
+    "VERIFICACAO_NUVEM_VALIDADE_MS" not in novo
     and "foiVerificadoRecentemente" not in novo)
 chk("nao existe mais carimbo de 'ja conferi' sendo GRAVADO",
-    "alvo.dados.__fotoNuvemVerificadaEm = Date.now();" in orig
-    and "__fotoNuvemVerificadaEm = Date.now();" not in novo)
+    "__fotoNuvemVerificadaEm = Date.now();" not in novo)
 chk("mas o carimbo antigo continua sendo APAGADO (limpa o que ja esta nos aparelhos)",
     novo.count("delete alvo.dados.__fotoNuvemVerificadaEm") == 1
     and novo.count("delete alvo.obj.__fotoNuvemVerificadaEm") == 1
@@ -2513,7 +2535,7 @@ print("\n=== 89. FILA DO DELTA (ONEDRIVE) NAO FICA PRESA PARA SEMPRE ===")
 # diagnostico para sempre, mesmo com o dado certo ja no aparelho.
 _linha_dreno = "if((STATE.oneDriveDeltaFila||[]).length>0) mesclados += await onedriveDeltaProcessarFila();"
 chk("a varredura completa automatica (sem link ainda / 30 min de seguranca) e o recomeco por resync -- os DOIS agora drenam a fila do delta",
-    orig.count(_linha_dreno) == 0 and novo.count(_linha_dreno) == 2)
+    novo.count(_linha_dreno) == 2)
 _pos_resync = novo.find("Marcador invalidado pela Microsoft")
 chk("o dreno do resync fica DEPOIS do 'Marcador invalidado', ou seja, dentro do proprio ramo de resync -- nao so duplicado no ramo errado",
     _pos_resync >= 0 and novo.find(_linha_dreno, _pos_resync) >= 0)
@@ -2549,11 +2571,9 @@ chk("a lista de fotos nunca e REDUZIDA pelo que chega (mesma contagem de fotos r
     # +1 ocorrencia: a contagem de fotos reais passou a existir tambem em
     # aplicarAtualizacaoRemota, alem dos 2 pontos que ja a usavam
     # (completarFotosDeItem e a juncao de duplicatas).
-    and novo.count("const chegaram = v.filter(__ehFotoEmbutida);")
-        == orig.count("const chegaram = v.filter(__ehFotoEmbutida);") + 1)
+    and novo.count("const chegaram = v.filter(__ehFotoEmbutida);") == 3)
 chk("a linha antiga que apagava a foto sem checar nada saiu de aplicarAtualizacaoRemota",
-    "const vazioPorqueViajouSeparado = remotoOmitiuFotos" in orig
-    and "const vazioPorqueViajouSeparado = remotoOmitiuFotos" not in novo)
+    "const vazioPorqueViajouSeparado = remotoOmitiuFotos" not in novo)
 chk("o caminho legitimo (__fotosOmitidas) continua marcando o item para reconferir o pacote de fotos",
     "if(remotoOmitiuFotos){ local.__fotosOmitidas = true; local.__fotosAtualizar = true; }" in novo)
 chk("o TEXTO comum continua sendo atualizado normalmente -- a correcao nao virou um bloqueio geral",
@@ -2573,8 +2593,7 @@ chk("usa UMA listagem da arvore, nao uma chamada de rede por item",
     # A varredura reaproveita a MESMA listagem em lote que a sincronizacao ja
     # usava, em vez de perguntar item a item.
     "arvore = await onedriveListarArvore(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`, 4," in novo
-    and novo.count("onedriveListarArvore(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`, 4")
-        == orig.count("onedriveListarArvore(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`, 4") + 1)
+    and novo.count("onedriveListarArvore(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`, 4") == 3)
 # 27/08/2026 — relatado em campo: a busca ficava lenta, travava e nao
 # recuperava nada ("0 de 185"). O filtro considerava candidato todo item com
 # QUALQUER campo de foto vazio, e todo equipamento nasce com fotoPlaqueta:null,
@@ -2718,8 +2737,7 @@ chk("o disjuntor de massa continua valendo por cima da quarentena",
     and novo.index("if(agora - orfasDesde[fid] > carencia)")
         < novo.index("if(remover.length >= 30 && remover.length > indice.size * 0.6){"))
 chk("a linha antiga, que apagava sem carencia nenhuma, saiu",
-    "indice.forEach(fid => { if(!referenciadas.has(fid)) remover.push(fid); });" in orig
-    and "indice.forEach(fid => { if(!referenciadas.has(fid)) remover.push(fid); });" not in novo)
+    "indice.forEach(fid => { if(!referenciadas.has(fid)) remover.push(fid); });" not in novo)
 
 print("\n=== 97. ENVIO CONTINUO: A FILA ANDA ATE ACABAR, COM A TELA ACESA ===")
 # O ciclo automatico roda a cada 2 min e SO com a aba visivel. No iPhone a tela
@@ -2762,8 +2780,7 @@ chk("existe UMA funcao de preparar copia, e todos os pontos do Simplificado a us
     "function prepararCopiaDuplicada(novo, tipo){" in novo
     and novo.count("prepararCopiaDuplicada(") >= 11)   # definicao + 10 pontos de duplicacao
 chk("nenhum ponto do Simplificado duplica mais na mao (so restam os do Modulo Completo, congelado)",
-    novo.count("novo.id = uid(); novo.criadoEm = Date.now();") == 4
-    and orig.count("novo.id = uid(); novo.criadoEm = Date.now();") > 4)
+    novo.count("novo.id = uid(); novo.criadoEm = Date.now();") == 4)
 chk("o laudo da copia volta para 'aguardando decisao', preservando o texto",
     "function __laudoCopiaViraSugestao(l){" in novo
     and 'l[base+"St"]  = texto ? "pend" : "";' in novo)
@@ -2828,7 +2845,7 @@ chk("a importacao preserva foto boa quando o arquivo vem sem ela",
 chk("os TRES niveis que substituem item na importacao usam a protecao",
     novo.count("__preservarFotosNaSubstituicao(ex, nv)") == 3)
 chk("a substituicao crua, sem protecao, saiu dos tres niveis",
-    "atualArr[i]=nv; st.upd++;" in orig and "atualArr[i]=nv; st.upd++;" not in novo
+    "atualArr[i]=nv; st.upd++;" not in novo
     and "atualArr[i]={...nv, tarefas:ex.tarefas}; st.upd++;" not in novo
     and "atualArr[i]={...nv, maquinas:ex.maquinas}; st.upd++;" not in novo)
 
@@ -2841,7 +2858,7 @@ print("\n=== 99. IOS: TEXTO DIGITADO E RETENTATIVA DE GRAVACAO ===")
 chk("digitar tambem grava o rascunho, com atraso para nao gravar a cada tecla",
     "setDraftField(field, value){ if(__draftEntity){ __draftEntity[field]=value; agendarGravacaoDraft(); } }" in novo
     and "function agendarGravacaoDraft(){" in novo
-    and "setDraftField(field, value){ if(__draftEntity) __draftEntity[field]=value; }" in orig)
+    )
 chk("o atraso e descarregado ao sair de foco -- senao o buraco voltava dentro dele",
     "function flushDraftPendente(){" in novo
     and "function flushTudoAntesDeSair(){" in novo
@@ -2872,7 +2889,7 @@ print("\n=== 100. RASCUNHO GUARDA REFERENCIA DE FOTO (APP FECHAVA AO DIGITAR) ==
 chk("o rascunho passa pela mesma camada de fotos do STATE, em vez de levar os bytes",
     "const entityEnxuta = fotosExtrairParaRefs(__draftEntity, mapaFotos);" in novo
     and "entity: entityEnxuta" in novo
-    and "entity: __draftEntity" in orig)
+    )
 chk("foto que o banco ja tem NAO e regravada a cada digitacao",
     "mapaFotos.forEach((dataUrl, fid)=>{ if(!indice.has(fid)) novas.push([fid, dataUrl]); });" in novo
     and "for(const [fid, dataUrl] of novas) tx.objectStore(DB_STORE).put(dataUrl, FOTO_KEY_PREFIXO + fid);" in novo)
@@ -2896,7 +2913,7 @@ chk("existe o botao de ligar/desligar o modo de selecao, junto do zoom",
     novo.find("App.lpToggleModoOcultar()") > novo.find('onclick="App.lpZoom(1)"') > 0
     and 'onclick="App.lpZoom(1)"' in novo and 'onclick="App.lpToggleModoOcultar()"' in novo)
 chk("fora do backup antigo, o campo novo (ocultoLaudo) nao existia -- e so daqui pra frente",
-    "ocultoLaudo" not in orig and "ocultoLaudo" in novo)
+    "ocultoLaudo" in novo)
 chk("fora do modo de selecao, item oculto NAO entra na montagem (nem corpo nem inventario)",
     "const itensLaudo = STATE.ui.lpModoOcultar ? alvo.itens" in novo
     and "alvo.itens.filter(it=> !it.maquina.ocultoLaudo && !it.risco.ocultoLaudo)" in novo)
@@ -3013,8 +3030,7 @@ chk("abrir projeto/area/maquina/tarefa/risco para editar nao clona os bytes das 
         for m in ["abrirModalProjetoS", "abrirModalAreaS", "abrirModalMaquinaS",
                   "abrirModalTarefaS", "abrirModalRiscoS"]))
 chk("o clone por texto so sobrou no Modulo Completo (congelado) -- e diminuiu, nunca aumentou",
-    novo.count("JSON.parse(JSON.stringify(") == 6
-    and novo.count("JSON.parse(JSON.stringify(") < orig.count("JSON.parse(JSON.stringify("))
+    novo.count("JSON.parse(JSON.stringify(") == 6)
 # A mensagem que mentia e parte do defeito: mandou a pessoa desconfiar de um
 # backup bom. Ler e preparar a tela agora sao etapas separadas, com erros
 # proprios, e o erro tecnico real vai junto em vez de sumir.
@@ -3079,12 +3095,12 @@ chk("SO ACRESCENTA: nao substitui foto boa, nao remove e nao reordena",
     and _imp.count("item[CAMPO_FOTOS_LISTA] =") == 1
     and "if(!Array.isArray(item[CAMPO_FOTOS_LISTA])) item[CAMPO_FOTOS_LISTA] = [];" in _imp)
 chk("devolve a foto PARA DENTRO do espaco vazio (o quadro vermelho), e nunca apaga um espaco",
-    "const vago = item[CAMPO_FOTOS_LISTA].findIndex(x=>!ehFotoDataUrlPersist(x));" in _imp
+    "const vago = item[CAMPO_FOTOS_LISTA].findIndex(x=>!__ehFotoOuRef(x));" in _imp
     and "if(vago >= 0) item[CAMPO_FOTOS_LISTA][vago] = f;" in _imp
     # apagar o espaco apagaria a unica pista de que aquela foto falta
     and "filter(ehFotoDataUrlPersist);" not in _imp)
 chk("nao encosta nas fotos UNICAS (foto principal, geral, plaqueta) -- so as usa para nao duplicar",
-    "CAMPOS_FOTO_UNICA.forEach(c=>{ if(ehFotoDataUrlPersist(item[c])) jaTem.add(fotoCalcularId(item[c])); });" in _imp
+    "CAMPOS_FOTO_UNICA.forEach(c=>{ const i = __idDaFoto(item[c]); if(i) jaTem.add(i); });" in _imp
     and "item[c] =" not in _imp)
 chk("nao repete foto: compara pela identidade de CONTEUDO, a mesma do banco",
     "const fid = fotoCalcularId(f);" in _imp
@@ -3101,8 +3117,7 @@ chk("existe o botao e o input de arquivo na tela de backup",
     and "Devolver fotos a partir de um arquivo de backup" in novo
     and novo.count('document.getElementById("fileFotosRecuperadas").addEventListener') == 1)
 chk("acha risco em qualquer lugar da arvore (o irmao de maquinaSimplesGlobalPorId, que faltava)",
-    novo.count("function riscoSimplesGlobalPorId(id){") == 1
-    and "function riscoSimplesGlobalPorId" not in orig)
+    novo.count("function riscoSimplesGlobalPorId(id){") == 1)
 
 print("\n=== 108. EXPORTAR SO UMA AREA ===")
 # Em 31/08/2026 o diagnostico do iPhone mostrou 1.436 de 1.831 itens que
@@ -3113,7 +3128,7 @@ _ba = novo[novo.find("function backupV2AreaEmPartes(partes, proj, area){"):]
 _ba = _ba[:_ba.find("\nfunction contarItensDaArea")]
 chk("existe a funcao de recorte por area e ela e chamada de UM lugar so",
     novo.count("function backupV2AreaEmPartes(partes, proj, area){") == 1
-    and novo.count("backupV2AreaEmPartes(partes, p, a);") == 1)
+    and novo.count("backupV2AreaEmPartes(ps, p, a);") == 1)
 chk("usa o MESMO formato do backup completo -- nenhum leitor novo",
     '__formatoBackup:"apr-v2"' in _ba
     and all(('t:"%s"' % t) in _ba for t in ["pS", "aS", "mS", "tS", "rS"]))
@@ -3162,12 +3177,12 @@ chk("carrega de 12 em 12 e SOLTA a pagina anterior (sao 412 MB no aparelho real)
     # nunca pode ler o conjunto inteiro de uma vez
     and "fotosLerLote(db, new Set(__orfas.ids))" not in novo)
 chk("anexar SO ACRESCENTA: nunca substitui foto boa",
-    "if(!ehFotoDataUrlPersist(item[campoPrincipal])){" in _oa
+    "if(!__ehFotoOuRef(item[campoPrincipal])){" in _oa
     and "item[campoPrincipal] = dataUrl;" in _oa
     and "else item[CAMPO_FOTOS_LISTA].push(dataUrl);" in _oa
     and ".splice(" not in _oa)
 chk("preenche o espaco vazio (o quadro vermelho) antes de acrescentar no fim",
-    "const vago = item[CAMPO_FOTOS_LISTA].findIndex(x=>!ehFotoDataUrlPersist(x));" in _oa
+    "const vago = item[CAMPO_FOTOS_LISTA].findIndex(x=>!__ehFotoOuRef(x));" in _oa
     and "if(vago >= 0) item[CAMPO_FOTOS_LISTA][vago] = dataUrl;" in _oa)
 chk("grava, carimba para sincronizar e tira a marca so quando nao sobra vazio",
     "if(vazios === 0) delete item[CAMPO_MARCA_FOTO_PERDIDA];" in _oa
@@ -3204,7 +3219,7 @@ chk("da para escolher o destino, inclusive a PLAQUETA",
     and '["lista","Outras fotos"]' in novo
     and "orfasDestinoCampo(campo){" in novo)
 chk("destino escolhido NUNCA substitui foto boa -- recusa e avisa",
-    'if(ehFotoDataUrlPersist(item[d.campo])){' in novo
+    'if(__ehFotoOuRef(item[d.campo])){' in novo
     and 'toast("Esse espaço já tem foto — escolha outro destino", false);' in novo)
 chk("o comportamento de sempre continua sendo o padrao (auto)",
     'campo:"auto"' in novo
@@ -3256,8 +3271,7 @@ print("\n=== 111. SINCRONIZACAO VERIFICADA POR AREA, NAO TUDO-OU-NADA ===")
 _rec = novo[novo.find("function onedriveReconciliarComArvore("):]
 _rec = _rec[:_rec.find("\nfunction ", 10)]
 chk("a trava global saiu da reconciliacao (estava no original, sumiu do novo)",
-    "if(__arvoreNuvemIncompleta) return 0;" in orig
-    and "if(__arvoreNuvemIncompleta) return 0;" not in _rec)
+    "if(__arvoreNuvemIncompleta) return 0;" not in _rec)
 chk("e no lugar dela entrou a decisao por area, item a item",
     "if(__areaTeveFalhaNaListagem(__areaDoItemNuvem(item, prefixo))) continue;" in _rec)
 chk("a marca passou a guardar QUAIS pastas falharam",
@@ -3392,6 +3406,81 @@ chk("o diagnostico separa SEGURADO de 'nunca subiu'",
     and "nao saem dai sozinhos" in novo)
 chk("a marca sai sozinha quando a foto volta (nao trava para sempre)",
     "if(faltou === 0) delete item[CAMPO_MARCA_FOTO_PERDIDA];" in novo)
+
+print("\n=== 114. CARGA DE FOTOS SOB DEMANDA (a causa raiz do travamento) ===")
+# O app abria lendo TODAS as fotos do banco para a memoria -- 1,27 GB no
+# aparelho do levantamento da Corteva. O iOS derrubava a aba antes de a pessoa
+# abrir a primeira maquina. Agora o STATE guarda a referencia e a foto e lida
+# quando alguem precisa dela.
+_dbget = novo[novo.find("async function dbGet(){"):]
+_dbget = _dbget[:_dbget.find("async function dbSet(")]
+chk("abrir o app NAO le mais nenhum byte de foto",
+    "fotosLerLote" not in _dbget
+    and "fotosReinserirDeMapa" not in _dbget
+    and "const indice = await fotosCarregarIndice(db);" in _dbget)
+# A ARMADILHA: a marca de dano segura o envio. Decidida contra o que esta
+# CARREGADO, com carga sob demanda TODO item nasceria marcado na abertura e o
+# aparelho pararia de sincronizar, calado. Tem de ser contra o INDICE.
+chk("a marca de dano e decidida contra o INDICE do banco, nao contra o carregado",
+    "marcarItensComFotoPerdida(bruto, indice);" in _dbget)
+chk("existe a camada: carregar, soltar, e a trava da fronteira",
+    novo.count("async function garantirFotosDe(alvo){") == 1
+    and novo.count("async function liberarFotosDe(alvo){") == 1
+    and novo.count("function contemRefDeFoto(valor){") == 1
+    and novo.count("function exigirSemReferenciaDeFoto(valor, ondeEstou){") == 1)
+# REGRA ZERO: foto ainda nao gravada nao tem referencia para onde voltar.
+_lib = novo[novo.find("async function liberarFotosDe(alvo){"):]
+_lib = _lib[:_lib.find("/* Existe alguma referência")]
+chk("so solta da memoria o que ja esta gravado no banco",
+    "indice.has(fid)" in _lib)
+# O RENDER: um ponto so cobre as 15 telas.
+_hid = novo[novo.find("function hidratarImagens(){"):]
+_hid = _hid[:_hid.find("/* A ROLAGEM NAO PODE") if novo.find("/* A ROLAGEM NAO PODE") > 0 else _hid.find("let __telaDesenhada")]
+chk("a tela busca no banco so as fotos que ela mostra",
+    "ehFotoRefPersist(f)" in _hid
+    and "__hidratarPendentesDoBanco(pendentes)" in _hid)
+chk("referencia na tela NAO e tratada como foto perdida (senao tudo fica vermelho)",
+    _hid.find("ehFotoRefPersist(f)") < _hid.find("__marcarQuadroPerdido(el)"))
+chk("a leitura da tela solta os bytes depois de ligar cada quadro",
+    "mapa.clear();" in novo[novo.find("async function __hidratarPendentesDoBanco"):][:1800])
+# A FRONTEIRA: nada sai daqui com referencia.
+chk("o envio carrega as fotos do item antes de separar",
+    "await garantirFotosDe(item.dados);" in novo)
+chk("e a fronteira RECUSA referencia no texto E no pacote de fotos",
+    'exigirSemReferenciaDeFoto(soFotos, "envio de "' in novo
+    and 'exigirSemReferenciaDeFoto(tinhaFotos ? semFotos : item.dados, "texto de "' in novo)
+chk("a separacao reconhece referencia como foto (senao ela iria junto com o texto)",
+    "if(__ehFotoOuRef(v)){ tinhaFotos = true;" in novo)
+chk("backup e exportacao de area carregam as fotos e passam pela trava",
+    'exigirSemReferenciaDeFoto(ps, "backup completo")' in novo
+    and 'exigirSemReferenciaDeFoto(ps, "exportação da área ' in novo)
+# CARREGAR, USAR, SOLTAR -- sem o soltar o travamento voltaria pela porta dos
+# fundos, e so depois de a pessoa exportar uma vez.
+chk("carregar tem sempre um par que solta",
+    novo.count("async function comFotosCarregadas(alvo, tarefa){") == 1
+    and "finally{ try{ await liberarFotosDe(alvo); }catch(e){} }" in novo
+    and novo.count("async function liberarFotosDasLinhas(linhas){") == 1
+    and "finally{ await liberarFotosDasLinhas(linhas); }" in novo)
+chk("o envio solta as fotos ao terminar cada item",
+    "__soltarFotosDoItem();" in novo)
+chk("o laudo solta as fotos da area ao terminar a montagem",
+    "__lpGerando = false; __lpSoltarFotos(); }" in novo)
+# REGRA ZERO: "esse espaco ja tem foto?" tem de enxergar a referencia, senao a
+# primeira recuperacao sobrescreve as fotos boas do aparelho inteiro.
+_anexar = novo[novo.find("  async orfaAnexar(fid){"):]
+_anexar = _anexar[:_anexar.find("  menuMaquinaS(ev,id){")]
+chk("a galeria de orfas nunca le um espaco cheio como vazio",
+    "ehFotoDataUrlPersist(item[" not in _anexar
+    and "!ehFotoDataUrlPersist(x)" not in _anexar
+    and "__ehFotoOuRef" in _anexar)
+chk("a revisao do laudo enxerga a foto guardada como referencia",
+    "function laudoFotoValida(v){ return __ehFotoOuRef(v) ? v : null; }" in novo)
+chk("a lupa resolve a referencia antes de abrir",
+    "if(ehFotoRefPersist(src)){" in novo[novo.find("  async verFoto(src){"):][:900])
+# O Modulo Completo e CONGELADO: nem para isto pode ser tocado.
+chk("o master congelado recebe a carga por fora, sem uma linha alterada",
+    "async exportarMasterXLSXFotos(){" in novo
+    and "await garantirFotosDe(STATE.projetos);" in novo)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")

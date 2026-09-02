@@ -64,6 +64,60 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 02/09/2026 08:56
+
+**O app não carrega mais as fotos ao abrir.** É a correção da causa raiz do
+travamento e do fechamento por memória no iPhone.
+
+**O que estava acontecendo.** Toda vez que o app abria, ele lia **todas** as
+fotos do aparelho para a memória — 1,27 GB no seu telefone. Isso acontecia
+antes de você tocar em qualquer coisa, e é por isso que o iOS derrubava o app
+sem aviso, às vezes antes mesmo de a primeira máquina aparecer. Nenhuma das
+correções de sincronização mexia nisso.
+
+**O que muda.** As fotos ficam guardadas e são buscadas quando alguém precisa
+delas de verdade:
+
+- **a tela** busca só as fotos que ela mostra — uma tela tem dezenas, o
+  aparelho tem milhares;
+- **a exportação e o laudo** carregam só a área que estão gerando, e devolvem
+  a memória quando terminam;
+- **o envio** carrega as fotos de um item por vez, e solta ao terminar aquele
+  item;
+- **o backup** carrega tudo, escreve o arquivo completo e libera em seguida.
+
+Na prática: o app abre praticamente sem gastar memória, e o pico deixa de
+existir.
+
+**As três proteções que seguram isso** (nenhuma delas é opcional):
+
+1. **Nada sai do aparelho sem a foto de verdade.** Se por qualquer caminho uma
+   foto não tiver sido carregada, o envio, o backup e a exportação **param com
+   um aviso** em vez de gravar um atalho no lugar da imagem. Erro na cara é
+   melhor que arquivo corrompido em silêncio.
+2. **"Esse espaço já tem foto?" continua sabendo a resposta.** Toda recuperação
+   (galeria de fotos soltas, devolver de backup, devolver de ponto de
+   restauração) só preenche espaço vazio. Essa pergunta foi ajustada para
+   enxergar a foto guardada — sem isso, a primeira recuperação teria passado
+   por cima das fotos boas do aparelho inteiro.
+3. **A marca de dano continua significando o que sempre significou.** Ela é
+   decidida contra o índice do banco, não contra o que está na memória — senão
+   todo item nasceria marcado como danificado na abertura e o aparelho pararia
+   de sincronizar, calado.
+
+**Como isto foi verificado.** O próprio código pedia, desde a perda de fotos de
+27/08, um ensaio de **ciclo completo** — gravar, fechar, reabrir, gravar de
+novo — sobre um banco com centenas de fotos, porque foi a falta dele que deixou
+aquela perda passar nos scripts de validação. Esse ensaio foi escrito **antes**
+desta mudança e passou no código antigo (provando que a bancada era válida)
+antes de passar no novo. Além dele: 1.003 testes, os ensaios de sincronização,
+e o app aberto num navegador de verdade — gravando, fechando, reabrindo,
+mostrando a foto na tela, gerando backup e simulando o envio.
+
+**Nada muda para você no uso.** As fotos aparecem como sempre; a diferença é
+que agora elas chegam quando a tela precisa delas, em vez de todas de uma vez
+na abertura.
+
 ## 02/09/2026 07:42
 
 **A fila de envio que nunca zerava — a causa completa.**

@@ -117,6 +117,10 @@ function novoAparelho(nome, nuvem){
   try{ vm.runInContext(constante("CAMPO_MARCA_FOTO_PERDIDA"), ctx); }
   catch(e){ vm.runInContext('var CAMPO_MARCA_FOTO_PERDIDA = "__fotosPerdidas";', ctx); }
   vm.runInContext(constante("LAPIDE_VALIDADE_MS"),ctx);
+  vm.runInContext("var FOTO_REF_PREFIXO='idbfoto:'; var FOTO_KEY_PREFIXO='foto:'; var __fotosNoBanco=null; var __fotoIdCache=new Map();", ctx);
+  // Sem IndexedDB na bancada: garantirFotosDe nao tem o que carregar e sai
+  // na primeira linha, que e o comportamento certo aqui.
+  vm.runInContext("function temIndexedDB(){ return false; }", ctx);
   vm.runInContext("var __ultimoCarimboVisto=0; var __arvoreSimplesCache=null; var __indiceNuvemMapa=null; var __indiceNuvemMapaEm=0; var __arvoreNuvemIncompleta=false; var __pastasNuvemFalhadas=new Set(); var __falhaNuvemSemCaminho=false;", ctx);
   // __progresso fica sempre null nos ensaios: progressoCancelado() (usada por
   // recuperarFotosPerdidasDaNuvem) so retorna true se algum dia um teste
@@ -136,7 +140,12 @@ function novoAparelho(nome, nuvem){
   };
   [ "__carregarUltimoCarimbo","registrarCarimboVisto","agoraSync",
     "segmentoPastaComId","extrairSufixoDoNome","idBateComSufixo",
-    "listarItensSincronizaveisSimples","separarFotosDoItem","__ehFotoEmbutida",
+    "listarItensSincronizaveisSimples","separarFotosDoItem","__ehFotoEmbutida","__ehFotoOuRef",
+    // Camada de carga sob demanda (02/09/2026): o envio carrega as fotos do
+    // item antes de separar, e a fronteira recusa referencia.
+    "garantirFotosDe","liberarFotosDe","contemRefDeFoto","exigirSemReferenciaDeFoto",
+    "__fotosTrocarNoLugar","fotosColetarRefs","ehFotoRefPersist","ehFotoDataUrlPersist",
+    "fotoCalcularId","fotosCarregarIndice","fotosLerLote",
     "itemTemFotosEmbutidas","tamanhoTextoLocalDoItem",
     "onedriveCarregarAssinaturas","onedriveAssinaturaDe","onedriveAnotarTamanho",
     "onedriveArquivoMudouNaNuvem","onedriveMesmaVersaoPeloTamanho","onedrivePrecisaBaixarFotos",

@@ -1528,6 +1528,157 @@ function fotosReinserirDeMapa(valor, mapa){
   if(valor && typeof valor === "object"){ const o = {}; for(const k in valor) o[k] = fotosReinserirDeMapa(valor[k], mapa); return o; }
   return valor;
 }
+/* =========================================================================
+   CARGA DE FOTOS SOB DEMANDA
+
+   O app abria lendo TODAS as fotos do banco para a memória — 1,27 GB no
+   aparelho do levantamento da Corteva. É a causa raiz do travamento e do
+   fechamento por falta de memória no iPhone: o iOS derruba a aba muito antes
+   de a pessoa abrir a primeira máquina.
+
+   Agora o STATE guarda a REFERÊNCIA (`idbfoto:<id>`) e a foto é lida quando
+   alguém precisa dela de verdade — a tela que a mostra, a exportação que a
+   escreve, o envio que a manda para a nuvem. Uma tela mostra dezenas de
+   fotos, não milhares.
+
+   AS DUAS REGRAS QUE MANTÊM ISSO SEGURO:
+
+   1. Nada sai daqui com referência. Arquivo da nuvem, backup e exportação
+      precisam da foto de verdade; uma referência que escapasse viraria a
+      string "idbfoto:abc" dentro do arquivo — lixo em qualquer outro
+      aparelho, e a foto perdida para todo mundo. Em vez de confiar em ter
+      achado todos os pontos de uso, a fronteira RECUSA (ver
+      exigirSemReferenciaDeFoto): erro na cara, nunca corrupção em silêncio.
+
+   2. Só se libera da memória o que está gravado no banco. Foto recém-tirada
+      que ainda não foi gravada não tem referência válida para voltar a
+      buscar — liberá-la seria apagá-la. */
+
+/* Troca, DENTRO do próprio objeto, cada referência pela foto lida do banco.
+   No lugar, de propósito: os consumidores que já existem leem `m.fotoGeral`
+   direto, e continuam funcionando sem saber que houve carga. */
+function __fotosTrocarNoLugar(alvo, mapa, contador){
+  if(!alvo || typeof alvo !== "object") return;
+  if(Array.isArray(alvo)){
+    for(let i=0;i<alvo.length;i++){
+      const v = alvo[i];
+      if(ehFotoRefPersist(v)){
+        const f = mapa.get(v.slice(FOTO_REF_PREFIXO.length));
+        if(f !== undefined){ alvo[i] = f; contador.n++; }
+      } else __fotosTrocarNoLugar(v, mapa, contador);
+    }
+    return;
+  }
+  for(const k in alvo){
+    const v = alvo[k];
+    if(ehFotoRefPersist(v)){
+      const f = mapa.get(v.slice(FOTO_REF_PREFIXO.length));
+      if(f !== undefined){ alvo[k] = f; contador.n++; }
+    } else __fotosTrocarNoLugar(v, mapa, contador);
+  }
+}
+/* Garante que TODAS as fotos referenciadas embaixo de `alvo` estejam
+   carregadas. Chamar antes de qualquer uso que precise dos bytes: exportar,
+   enviar, gerar laudo, abrir a foto em tela cheia.
+   Devolve quantas foram carregadas — zero significa que já estava tudo em
+   mãos, e é o caso comum depois da primeira vez. */
+async function garantirFotosDe(alvo){
+  if(!temIndexedDB()) return 0;
+  const refs = new Set();
+  fotosColetarRefs(alvo, refs);
+  if(refs.size === 0) return 0;
+  const db = await dbOpen();
+  const mapa = await fotosLerLote(db, refs);
+  const contador = { n: 0 };
+  __fotosTrocarNoLugar(alvo, mapa, contador);
+  mapa.clear();
+  return contador.n;
+}
+/* Devolve as fotos de `alvo` para a forma de referência, soltando os bytes da
+   memória. SÓ solta o que já está gravado no banco: uma foto recém-tirada,
+   ainda não gravada, não tem para onde voltar — soltá-la seria apagá-la.
+   Devolve quantas foram liberadas. */
+async function liberarFotosDe(alvo){
+  if(!temIndexedDB()) return 0;
+  const db = await dbOpen();
+  const indice = await fotosCarregarIndice(db);
+  let n = 0;
+  const anda = (o)=>{
+    if(!o || typeof o !== "object") return;
+    if(Array.isArray(o)){
+      for(let i=0;i<o.length;i++){
+        const v = o[i];
+        if(ehFotoDataUrlPersist(v)){
+          const fid = fotoCalcularId(v);
+          if(indice.has(fid)){ o[i] = FOTO_REF_PREFIXO + fid; n++; }
+        } else anda(v);
+      }
+      return;
+    }
+    for(const k in o){
+      const v = o[k];
+      if(ehFotoDataUrlPersist(v)){
+        const fid = fotoCalcularId(v);
+        if(indice.has(fid)){ o[k] = FOTO_REF_PREFIXO + fid; n++; }
+      } else anda(v);
+    }
+  };
+  anda(alvo);
+  return n;
+}
+/* CARREGAR, USAR, SOLTAR. Sem o soltar, a primeira exportação ou backup
+   traria as fotos todas de volta para a memória e as deixaria lá — o
+   travamento voltaria pela porta dos fundos, e só depois de a pessoa exportar
+   uma vez, que é o pior momento para descobrir. O `finally` garante que a
+   memória volte mesmo quando a operação falha no meio. */
+async function comFotosCarregadas(alvo, tarefa){
+  await garantirFotosDe(alvo);
+  try{ return await tarefa(); }
+  finally{ try{ await liberarFotosDe(alvo); }catch(e){} }
+}
+/* Carrega as fotos das ÁREAS que uma exportação vai percorrer — não do
+   projeto inteiro. As linhas de exportação apontam para dentro do STATE, e
+   cada uma traz a área a que pertence; juntando as áreas distintas, carrega-se
+   exatamente o necessário e nada além. */
+async function garantirFotosDasLinhas(linhas){
+  const areas = new Set();
+  (linhas||[]).forEach(l=>{ if(l && l.area) areas.add(l.area); });
+  let n = 0;
+  for(const a of areas) n += await garantirFotosDe(a);
+  return n;
+}
+/* Roda a exportação e devolve a memória no fim, dando certo ou não. */
+async function __comLiberacao(linhas, tarefa){
+  try{ return await tarefa(); }
+  finally{ await liberarFotosDasLinhas(linhas); }
+}
+/* O par de garantirFotosDasLinhas: devolve a memória depois que a exportação
+   já escreveu o que precisava. Sem isto, exportar uma vez deixaria as fotos
+   daquelas áreas carregadas pelo resto da sessão. */
+async function liberarFotosDasLinhas(linhas){
+  const areas = new Set();
+  (linhas||[]).forEach(l=>{ if(l && l.area) areas.add(l.area); });
+  let n = 0;
+  for(const a of areas){ try{ n += await liberarFotosDe(a); }catch(e){} }
+  return n;
+}
+/* Existe alguma referência não resolvida aqui dentro? */
+function contemRefDeFoto(valor){
+  const refs = new Set();
+  fotosColetarRefs(valor, refs);
+  return refs.size > 0;
+}
+/* A TRAVA DA FRONTEIRA. Chamada por tudo que escreve foto para fora deste
+   aparelho — nuvem, backup, exportação. Uma referência aqui significa que
+   algum caminho esqueceu de chamar garantirFotosDe; deixar passar gravaria
+   "idbfoto:abc" no lugar da foto, e essa foto estaria perdida para quem
+   recebesse o arquivo. Parar é o comportamento certo: o dado continua
+   íntegro no aparelho e o erro aparece para ser corrigido. */
+function exigirSemReferenciaDeFoto(valor, ondeEstou){
+  if(contemRefDeFoto(valor))
+    throw new Error("Foto ainda não carregada em " + (ondeEstou||"?") + " — a operação foi interrompida para não gravar uma referência no lugar da foto.");
+  return valor;
+}
 /* Índice em memória de quais fotos já estão no banco — evita regravar (e até
    consultar) fotos que já subiram em gravações anteriores. */
 let __fotosNoBanco = null;
@@ -1761,18 +1912,34 @@ async function dbGet(){
       rq.onerror=function(){ reject(rq.error); };
     });
     if(!bruto) return null;
-    // Formato novo: o STATE gravado contém referências ("idbfoto:...") no
-    // lugar das fotos — lê todas de volta em lote e reencaixa. Um STATE no
-    // formato antigo (fotos embutidas) não tem referência nenhuma e passa
-    // reto por aqui, sem custo extra.
+    /* AS FOTOS FICAM NO BANCO — abrir o app não lê mais nenhum byte de foto.
+
+       Até aqui, esta função lia TODAS as fotos referenciadas para a memória:
+       1,27 GB no aparelho do levantamento da Corteva. O iOS derrubava a aba
+       antes da pessoa abrir a primeira máquina, e era essa leitura, não a
+       sincronização, a causa raiz do travamento.
+
+       Agora o STATE fica com as referências e cada foto é buscada quando
+       alguém precisa dela: a tela que a mostra (ver hidratarImagens), a
+       exportação que a escreve, o envio que a manda para a nuvem — todos
+       passando por garantirFotosDe. Uma tela mostra dezenas de fotos; o
+       aparelho tem milhares.
+
+       O STATE no formato ANTIGO (fotos embutidas, de antes da CAMADA_FOTOS)
+       não tem referência nenhuma e passa reto por aqui, como sempre. */
     const refs = new Set();
     fotosColetarRefs(bruto, refs);
     if(refs.size === 0) return bruto;
-    const mapa = await fotosLerLote(db, refs);
-    // ANTES de reinserir: depois que a referência vira null, não há mais como
-    // saber que ali existia uma foto.
-    marcarItensComFotoPerdida(bruto, mapa);
-    return fotosReinserirDeMapa(bruto, mapa);
+    /* A MARCA DE DANO CONTINUA SENDO POSTA NA ABERTURA, e é aqui que a
+       diferença importa: ela é decidida contra o ÍNDICE do banco (só as
+       chaves, sem ler um byte de foto), não contra o que está carregado.
+       Contra o carregado, com carga sob demanda, TODO item seria marcado
+       como danificado na abertura — e a marca segura o envio, então o
+       aparelho inteiro pararia de sincronizar. Contra o índice, a marca
+       significa o que sempre significou: a foto não está mais no banco. */
+    const indice = await fotosCarregarIndice(db);
+    marcarItensComFotoPerdida(bruto, indice);
+    return bruto;
   }catch(e){
     // NÃO rebaixa __storageMode aqui: uma leitura com falha momentânea não
     // diz nada sobre a capacidade de GRAVAR daqui a pouco — e era esse
@@ -2151,7 +2318,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "02/09/2026 07:42";
+const APP_BUILD = "02/09/2026 08:56";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -2925,7 +3092,14 @@ function separarFotosDoItem(dados){
   let tinhaFotos = false;
   for(const k in dados){
     const v = dados[k];
-    if(__ehFotoEmbutida(v)){ tinhaFotos = true; semFotos[k] = null; soFotos[k] = v; continue; }
+    /* REFERENCIA TAMBÉM É FOTO AQUI. Com a carga sob demanda, o campo pode
+       conter "idbfoto:<id>" em vez da foto. Se a separação não reconhecesse
+       isso, a referência não seria tratada como foto: iria junto com o TEXTO
+       e o arquivo da nuvem receberia a string "idbfoto:abc" no lugar da
+       imagem — lixo em qualquer outro aparelho. Reconhecendo, ela vai para o
+       pacote de fotos, e é lá que a trava da fronteira confere se alguém
+       esqueceu de carregar (ver exigirSemReferenciaDeFoto no envio). */
+    if(__ehFotoOuRef(v)){ tinhaFotos = true; semFotos[k] = null; soFotos[k] = v; continue; }
     if(k===CAMPO_FOTOS_LISTA && Array.isArray(v) && v.length>0){ tinhaFotos = true; semFotos[k] = []; soFotos[k] = v; continue; }
     semFotos[k] = v;
   }
@@ -3354,6 +3528,16 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
     if(registroAnterior && onedriveMesmoEnderecoLogico(registroAnterior.pasta, item.pasta))
       item.pasta = registroAnterior.pasta;
     const subpasta = [SUBPASTA_BACKUP, raizModulo, ...item.pasta].join("/");
+    /* CARGA SOB DEMANDA: as fotos deste item podem estar só como referência
+       (o app não lê mais foto nenhuma ao abrir). Carrega ANTES de separar —
+       é o único momento em que os bytes são realmente necessários, e são só
+       os deste item, não os do aparelho inteiro. */
+    await garantirFotosDe(item.dados);
+    /* Soltas no fim deste item, aconteça o que acontecer: uma sincronização
+       grande passa por centenas de itens, e segurar as fotos de todos eles
+       seria carregar o aparelho inteiro na memória — exatamente o que esta
+       mudança veio evitar. */
+    const __soltarFotosDoItem = ()=>{ try{ liberarFotosDe(item.dados); }catch(e){} };
     const { semFotos, soFotos, tinhaFotos } = separarFotosDoItem(item.dados);
     // O texto só precisa subir de novo se o item mudou (se estamos aqui apenas
     // para completar as fotos de um texto já enviado, não repete o texto).
@@ -3373,6 +3557,9 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
     let tamFotos = registroAnterior && registroAnterior.tamanhoFotos;
     if(jaEstaLa) tamTexto = new Blob([JSON.stringify(tinhaFotos ? semFotos : item.dados, null, 0)]).size;
     if(textoPrecisaSubir){
+      /* O TEXTO também passa pela trava: se o item tinha foto e a separação
+         não a reconheceu, ela estaria aqui dentro como string. */
+      exigirSemReferenciaDeFoto(tinhaFotos ? semFotos : item.dados, "texto de " + item.arquivo);
       const blobTexto = new Blob([JSON.stringify(tinhaFotos ? semFotos : item.dados, null, 0)], {type:"application/json"});
       tamTexto = blobTexto.size;
       /* Ver onedriveEnvioEncolheDemais: o arquivo de lá é muito maior que o
@@ -3393,6 +3580,12 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
       fotosSubiram = true; // pacote de fotos idêntico já está na nuvem — nada a enviar
       tamFotos = new Blob([JSON.stringify(soFotos, null, 0)]).size;
     } else if(okTexto && tinhaFotos && podeSubirFotos){
+      /* A TRAVA DA FRONTEIRA. Se por qualquer caminho uma referência chegou
+         até aqui, gravá-la na nuvem escreveria "idbfoto:abc" no lugar da
+         foto — e essa foto estaria perdida para todo aparelho que baixasse o
+         arquivo. Parar é o certo: o dado continua íntegro aqui, e o erro
+         aparece em vez de virar corrupção calada. */
+      exigirSemReferenciaDeFoto(soFotos, "envio de " + item.arquivo);
       const blobFotos = new Blob([JSON.stringify(soFotos, null, 0)], {type:"application/json"});
       fotosSubiram = await onedriveEnviarBlob(subpasta, blobFotos, "fotos_"+item.arquivo);
       if(fotosSubiram) tamFotos = blobFotos.size;
@@ -3427,6 +3620,12 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
       // reenviado à toa na próxima sincronização.
       sigJournalGravar(mapaAssinaturasRef.chaveEstado, item.id, registroNovo);
     }
+    /* Fotos deste item soltas — a sincronização passa por centenas de itens, e
+       segurá-las carregaria o aparelho inteiro na memória. Fora do caminho de
+       erro de propósito: se o envio falhou, a próxima tentativa carrega de
+       novo, e uma foto a mais na memória é problema menor que uma foto a
+       menos no arquivo. */
+    __soltarFotosDoItem();
   });
 
   // Grava de volta no STATE (como objeto simples — Map não é serializável em
@@ -4455,7 +4654,13 @@ async function __recuperarFotosDosPontos(apenasContar, onProgresso, desde){
      barata mesmo num acervo de milhares de fotos. */
   const indice = await fotosCarregarIndice(db);
   const existeArquivo = (v)=>{
-    if(ehFotoDataUrlPersist(v)) return true;              // ponto antigo: a foto está dentro dele
+    /* ehFotoDataUrlPersist de propósito, NÃO __ehFotoOuRef: aqui a pergunta
+       não é "tem foto neste campo?", é "o arquivo desta foto ainda existe no
+       aparelho?". Uma referência precisa ser conferida contra o índice na
+       linha seguinte; aceitá-la de saída contaria como existente uma foto
+       cujo arquivo já sumiu — e a recuperação prometeria o que não pode
+       entregar. */
+    if(ehFotoDataUrlPersist(v)) return true;       // ponto antigo: a foto está dentro dele
     if(ehFotoRefPersist(v)) return indice.has(v.slice(FOTO_REF_PREFIXO.length));
     return false;
   };
@@ -4470,10 +4675,17 @@ async function __recuperarFotosDosPontos(apenasContar, onProgresso, desde){
     let ganhou = 0, faltou = 0;
     for(const campo of CAMPOS_FOTO_UNICA){
       if(!reg.unicas[campo]) continue;
-      if(ehFotoDataUrlPersist(item[campo])) continue;     // já tem foto boa aqui — não se toca
+      // __ehFotoOuRef, não só a foto carregada: com a carga sob demanda o
+      // campo cheio quase sempre é uma referência, e lê-lo como vazio faria a
+      // recuperação passar por cima de foto boa.
+      if(__ehFotoOuRef(item[campo])) continue;     // já tem foto boa aqui — não se toca
       if(existeArquivo(reg.unicas[campo])) ganhou++; else faltou++;
     }
-    const aqui = Array.isArray(item[CAMPO_FOTOS_LISTA]) ? item[CAMPO_FOTOS_LISTA].filter(ehFotoDataUrlPersist).length : 0;
+    /* QUANTAS FOTOS ESTE ITEM JÁ TEM. Conta referência também: com a carga
+       sob demanda a lista quase sempre guarda referências, e contá-las como
+       zero faria a recuperação concluir que o ponto tem mais fotos e
+       SUBSTITUIR a lista inteira — apagando fotos boas do item. */
+    const aqui = Array.isArray(item[CAMPO_FOTOS_LISTA]) ? item[CAMPO_FOTOS_LISTA].filter(__ehFotoOuRef).length : 0;
     let daLista = 0;
     reg.lista.forEach(v=>{ if(existeArquivo(v)) daLista++; else faltou++; });
     if(daLista > aqui) ganhou += (daLista - aqui);
@@ -4509,11 +4721,12 @@ async function __recuperarFotosDosPontos(apenasContar, onProgresso, desde){
       let mexeu = false;
       for(const campo of CAMPOS_FOTO_UNICA){
         if(!reg.unicas[campo]) continue;
-        if(ehFotoDataUrlPersist(item[campo])) continue;
+        if(__ehFotoOuRef(item[campo])) continue;
         const foto = resolver(reg.unicas[campo]);
         if(foto){ item[campo] = foto; mexeu = true; }
       }
-      const aqui = Array.isArray(item[CAMPO_FOTOS_LISTA]) ? item[CAMPO_FOTOS_LISTA].filter(ehFotoDataUrlPersist) : [];
+      // Mesmo motivo da prévia: referência conta como foto que já está aqui.
+      const aqui = Array.isArray(item[CAMPO_FOTOS_LISTA]) ? item[CAMPO_FOTOS_LISTA].filter(__ehFotoOuRef) : [];
       const doPonto = [];
       reg.lista.forEach(v=>{ const foto = resolver(v); if(foto) doPonto.push(foto); });
       if(doPonto.length > aqui.length){ item[CAMPO_FOTOS_LISTA] = doPonto; mexeu = true; }
@@ -10106,10 +10319,53 @@ function imgRegLimparSePossivel(){
   // índices antigos (as <img> já hidratadas não dependem mais do registro).
   if(__imgReg.length > 3000 && !document.getElementById("overlayRoot")) __imgReg = [];
 }
+/* Marca o quadro como "foto não encontrada" — vermelho listrado, para não se
+   confundir com "ainda não fotografei aqui". */
+function __marcarQuadroPerdido(el){
+  el.alt   = "Foto não encontrada neste aparelho";
+  el.title = "Foto não encontrada neste aparelho — refotografe";
+  el.setAttribute("data-foto-perdida", "1");
+  el.style.background = "repeating-linear-gradient(45deg,#f6d0d0,#f6d0d0 7px,#e9adad 7px,#e9adad 14px)";
+  el.style.border = "2px solid #c0392b";
+}
+/* Busca no banco só as fotos que ESTA tela precisa e liga cada uma ao seu
+   quadro. É aqui que a carga sob demanda encosta na tela: o STATE guarda
+   referências, e só o que está à vista vira bytes de verdade. Uma tela mostra
+   dezenas de fotos; o app inteiro tem milhares. */
+async function __hidratarPendentesDoBanco(pendentes){
+  try{
+    const db = await dbOpen();
+    const mapa = await fotosLerLote(db, new Set(pendentes.keys()));
+    pendentes.forEach((els, fid)=>{
+      const f = mapa.get(fid);
+      els.forEach(el=>{
+        // A tela pode ter sido trocada enquanto a leitura acontecia — um
+        // elemento que saiu da página não precisa mais da foto.
+        if(!el.isConnected) return;
+        if(f) el.src = f; else __marcarQuadroPerdido(el);
+      });
+    });
+    /* Solta o mapa: cada <img> que precisava já ficou com a sua própria
+       referência para a string. O que não está na tela não ocupa memória —
+       que é o ponto inteiro desta mudança. */
+    mapa.clear();
+  }catch(e){
+    pendentes.forEach(els=> els.forEach(el=>{ if(el.isConnected) __marcarQuadroPerdido(el); }));
+  }
+}
 function hidratarImagens(){
+  /* Fotos que ainda são referência: agrupadas por id para uma leitura só do
+     banco, mesmo quando a mesma foto aparece em vários quadros da tela. */
+  const pendentes = new Map();
   document.querySelectorAll("img[data-imgref]").forEach(el=>{
     const f = __imgReg[+el.dataset.imgref];
     el.removeAttribute("data-imgref");
+    if(ehFotoRefPersist(f)){
+      const fid = f.slice(FOTO_REF_PREFIXO.length);
+      if(!pendentes.has(fid)) pendentes.set(fid, []);
+      pendentes.get(fid).push(el);
+      return;
+    }
     if(f){ el.src = f; return; }
     /* FOTO QUE NÃO ABRE NÃO PODE PASSAR DESPERCEBIDA. Antes, quando a foto
        não era encontrada, o quadro ficava simplesmente cinza e vazio — em
@@ -10117,12 +10373,9 @@ function hidratarImagens(){
        só aparecia semanas depois, no escritório, quando já não havia como
        voltar ao local. Agora o quadro se identifica na hora, ainda em frente
        à máquina, enquanto refotografar custa dez segundos. */
-    el.alt   = "Foto não encontrada neste aparelho";
-    el.title = "Foto não encontrada neste aparelho — refotografe";
-    el.setAttribute("data-foto-perdida", "1");
-    el.style.background = "repeating-linear-gradient(45deg,#f6d0d0,#f6d0d0 7px,#e9adad 7px,#e9adad 14px)";
-    el.style.border = "2px solid #c0392b";
+    __marcarQuadroPerdido(el);
   });
+  if(pendentes.size > 0) __hidratarPendentesDoBanco(pendentes);
 }
 /* A ROLAGEM NÃO PODE VOLTAR AO TOPO SOZINHA.
    render() troca o innerHTML inteiro, e isso zera o scroll. Como a
@@ -13561,8 +13814,14 @@ function importarFotosRecuperadas(pacote){
        cada foto, então duas cópias do mesmo arquivo são reconhecidas mesmo
        vindo de backups diferentes. */
     const jaTem = new Set();
-    item[CAMPO_FOTOS_LISTA].forEach(f=>{ if(ehFotoDataUrlPersist(f)) jaTem.add(fotoCalcularId(f)); });
-    CAMPOS_FOTO_UNICA.forEach(c=>{ if(ehFotoDataUrlPersist(item[c])) jaTem.add(fotoCalcularId(item[c])); });
+    /* O id de uma foto que já está aqui — venha ela carregada (calcula) ou
+       como referência (o id já está escrito na própria string). Sem contar a
+       referência, uma foto que o aparelho JÁ TEM seria acrescentada de novo
+       como se fosse nova, duplicando a lista a cada importação. */
+    const __idDaFoto = (v)=> ehFotoRefPersist(v) ? v.slice(FOTO_REF_PREFIXO.length)
+                           : (ehFotoDataUrlPersist(v) ? fotoCalcularId(v) : null);
+    item[CAMPO_FOTOS_LISTA].forEach(f=>{ const i = __idDaFoto(f); if(i) jaTem.add(i); });
+    CAMPOS_FOTO_UNICA.forEach(c=>{ const i = __idDaFoto(item[c]); if(i) jaTem.add(i); });
 
     let novas = 0;
     fotos.forEach(f=>{
@@ -13575,7 +13834,7 @@ function importarFotosRecuperadas(pacote){
          pessoa espera ver. Só quando não há espaço vago é que entra no fim.
          Nunca REMOVE um espaço: se sobrar vazio, é porque aquela foto
          continua faltando, e apagar o espaço apagaria a única pista disso. */
-      const vago = item[CAMPO_FOTOS_LISTA].findIndex(x=>!ehFotoDataUrlPersist(x));
+      const vago = item[CAMPO_FOTOS_LISTA].findIndex(x=>!__ehFotoOuRef(x));
       if(vago >= 0) item[CAMPO_FOTOS_LISTA][vago] = f;
       else item[CAMPO_FOTOS_LISTA].push(f);
       novas++;
@@ -13587,7 +13846,7 @@ function importarFotosRecuperadas(pacote){
          quando não sobrou espaço vazio na lista. Enquanto sobrar, o item
          continua parado, sem regravar por cima do arquivo da nuvem que
          ainda pode ter a foto que falta. */
-      const vazios = item[CAMPO_FOTOS_LISTA].filter(x=>!ehFotoDataUrlPersist(x)).length;
+      const vazios = item[CAMPO_FOTOS_LISTA].filter(x=>!__ehFotoOuRef(x)).length;
       if(vazios === 0) delete item[CAMPO_MARCA_FOTO_PERDIDA];
       item.atualizadoEm = agoraSync();
       marcarFotosPendentesParaEnvio((linha.tipo === "maquina" ? "maquina:" : "risco:") + id);
@@ -14235,6 +14494,9 @@ function linhaSimplesComFotos(item, maxExtrasMaquina, maxExtrasRisco){
   return ["", "", ...comFotoRisco, ...extrasMaquinaPlaceholder, ...extrasRiscoPlaceholder];
 }
 async function gerarBytesXlsxSimples(linhasRaw, abas){
+  // Carga sob demanda: as fotos deste recorte precisam existir de verdade
+  // antes de virarem imagem dentro da planilha.
+  await garantirFotosDasLinhas(linhasRaw);
   const maxExtrasMaquina = linhasRaw.reduce((m,item)=>Math.max(m,(item.maquina.fotosOutras||[]).length), 0);
   const maxExtrasRisco = linhasRaw.reduce((m,item)=>Math.max(m,(item.risco.fotosOutras||[]).length), 0);
   const grupos = buildGruposSimplesFotos(maxExtrasMaquina, maxExtrasRisco);
@@ -14473,6 +14735,10 @@ function xlsmBuildDrawingRels(rels){
    tabela vinculada, e apagar aba de la pode quebrar macro que a referencie —
    risco que nao da para testar sem o modelo original em maos. */
 async function gerarBytesXlsmCorteva(modeloB64, linhasComIA, itensInventario, dadosInformacoes, opts){
+  // As fotos do recorte (e as do inventário, que vem das mesmas áreas)
+  // precisam estar carregadas antes de serem embutidas na planilha.
+  await garantirFotosDasLinhas(linhasComIA);
+  await garantirFotosDasLinhas(itensInventario);
   const zip = new window.PizZip(modeloB64, { base64: true });
 
   // ---------- fotos: um único mapa de imagens compartilhado entre as 3 abas ----------
@@ -14835,8 +15101,8 @@ async function _exportarSimplesXLSXFotosReal(){
         progressoAtualizar(i, grupos.length, g.area.nome||"");
         const dadosInformacoes = montarDadosInformacoes(g.proj);
         const itensInventario = montarItensInventario(g.linhas);
-        const bytes = await gerarBytesXlsmCorteva(modeloXlsmB64, g.linhas, itensInventario, dadosInformacoes,
-          { pularResumo: !!exportEscolha().conteudo.pularResumo });
+        const bytes = await __comLiberacao(g.linhas, ()=> gerarBytesXlsmCorteva(modeloXlsmB64, g.linhas, itensInventario, dadosInformacoes,
+          { pularResumo: !!exportEscolha().conteudo.pularResumo }));
         arquivos.push({ name: nomeArquivoArea(g.proj, g.area, "xlsm"), data: bytes });
       }
       if(progressoCancelado()){ toast("Exportação parada. Os textos que a IA já escreveu ficaram guardados no app.", false); return; }
@@ -14863,7 +15129,7 @@ async function _exportarSimplesXLSXFotosReal(){
       const g = grupos[i];
       if(progressoCancelado()) break;
       progressoAtualizar(i, grupos.length, g.area.nome||"");
-      const bytes = await gerarBytesXlsxSimples(g.linhas, exportEscolha().conteudo.abas);
+      const bytes = await __comLiberacao(g.linhas, ()=> gerarBytesXlsxSimples(g.linhas, exportEscolha().conteudo.abas));
       arquivos.push({ name: nomeArquivoArea(g.proj, g.area, "xlsx"), data: bytes });
     }
     if(progressoCancelado()){ toast("Exportação parada. Os textos que a IA já escreveu ficaram guardados no app.", false); return; }
@@ -15374,7 +15640,13 @@ function screenSimplesLaudo(){
 /* Miniatura do equipamento e do risco no cartão da lista — identificação
    visual rápida sem precisar abrir a linha. Tocar na miniatura abre a
    galeria de fotos daquela linha; tocar no resto do cartão abre a revisão. */
-function laudoFotoValida(v){ return (typeof v === "string" && v.indexOf("data:image") === 0) ? v : null; }
+/* "Existe foto aqui?" — para a lista de revisão, as miniaturas e a galeria.
+   Aceita a REFERÊNCIA além da foto carregada: com a carga sob demanda o campo
+   guarda "idbfoto:<id>" quase sempre, e recusá-la faria a aba de revisão
+   mostrar TODO equipamento como "sem foto". Quem desenha passa o valor por
+   imgReg, que resolve a referência; quem precisa dos bytes de verdade (a
+   leitura de plaqueta pela IA) carrega antes. */
+function laudoFotoValida(v){ return __ehFotoOuRef(v) ? v : null; }
 function laudoMiniatura(item, tipo){
   const foto = tipo==="equipamento"
     ? (laudoFotoValida(item.maquina.fotoGeral) || laudoFotoValida(item.maquina.fotoPlaqueta) || laudoFotoValida((item.maquina.fotosOutras||[])[0]))
@@ -16667,10 +16939,25 @@ function contarItensDaArea(area){
   }
   return { maquinas, tarefas, riscos };
 }
-function exportarBackup(){
+async function exportarBackup(){
+  try{ await __exportarBackupInterno(); }
+  catch(e){ toast("Não foi possível gerar o backup: " + ((e && e.message) || e), false); }
+}
+async function __exportarBackupInterno(){
   const filename = `backup_apr_${hoje()}.json`;
-  const partes = [];
-  backupV2EmPartes(partes); // formato v2 (uma linha por item) — importável em qualquer tamanho no computador
+  /* CARGA SOB DEMANDA: o app não lê mais foto nenhuma ao abrir, então o
+     STATE guarda referências. Um backup gerado assim sairia com
+     "idbfoto:abc" no lugar de cada foto — um arquivo que parece completo,
+     tem o tamanho errado e não devolve foto nenhuma na hora de restaurar.
+     Backup é a última linha de defesa: aqui as fotos são carregadas de
+     verdade, e a trava logo abaixo confere que não sobrou nenhuma. */
+  toast("Preparando o backup — carregando as fotos…");
+  const partes = await comFotosCarregadas(STATE.projetosSimples, async ()=>{
+    const ps = [];
+    backupV2EmPartes(ps); // formato v2 (uma linha por item) — importável em qualquer tamanho no computador
+    exigirSemReferenciaDeFoto(ps, "backup completo");
+    return ps;
+  });
   const blob = new Blob(partes, {type:"application/json"});
   salvarBlobNaPasta(SUBPASTA_BACKUP, blob, filename); // silencioso e em paralelo — já envia também ao OneDrive (o envio duplicado direto que existia aqui foi removido: mandava o mesmo backup duas vezes)
   downloadBlobDireto(blob, filename);
@@ -18160,6 +18447,7 @@ function montarDadosMaquinaDocx(area, maquina, fotosPreparadas){
 }
 
 async function gerarBytesDocxSimples(linhasRaw){
+  await garantirFotosDasLinhas(linhasRaw);
   const proj = linhasRaw[0].proj;
   const area = linhasRaw[0].area;
   const linhasNumeradas = numerarHierarquiaSimples(linhasRaw);
@@ -18289,7 +18577,7 @@ async function _exportarSimplesDOCXReal(){
       const g = grupos[i];
       if(progressoCancelado()) break;
       progressoAtualizar(i, grupos.length, g.area.nome||"");
-      const bytes = await gerarBytesDocxSimples(g.linhas);
+      const bytes = await __comLiberacao(g.linhas, ()=> gerarBytesDocxSimples(g.linhas));
       arquivos.push({ name: nomeArquivoArea(g.proj, g.area, "docx"), data: bytes });
     }
     if(progressoCancelado()){ toast("Exportação parada. Os textos que a IA já escreveu ficaram guardados no app.", false); return; }
@@ -18910,12 +19198,23 @@ Devolver agora?`)) return;
   irParaConfigBackup,
   /* Exporta só esta área, para tirar do aparelho um trabalho que ainda
      não subiu sem depender do backup completo (que no iPhone não cabe). */
-  exportarAreaS(id){
+  async exportarAreaS(id){
+    try{ await this.__exportarAreaSInterno(id); }
+    catch(e){ toast("Não foi possível exportar a área: " + ((e && e.message) || e), false); }
+  },
+  async __exportarAreaSInterno(id){
     const p = getCurrentProjetoSimples(); if(!p) return;
     const a = (p.areas||[]).find(x=>x.id===id); if(!a) return;
     const c = contarItensDaArea(a);
-    const partes = [];
-    backupV2AreaEmPartes(partes, p, a);
+    // Mesmo motivo do backup completo: sem carregar, o arquivo sairia com
+    // referências no lugar das fotos. Aqui é só uma área, então é rápido.
+    toast("Preparando — carregando as fotos da área…");
+    const partes = await comFotosCarregadas(a, async ()=>{
+      const ps = [];
+      backupV2AreaEmPartes(ps, p, a);
+      exigirSemReferenciaDeFoto(ps, "exportação da área " + (a.nome||""));
+      return ps;
+    });
     const blob = new Blob(partes, {type:"application/json"});
     const nome = "area_" + String(a.nome||"area").replace(/[\\/:*?<>|\x22]/g,"").replace(/\s+/g," ").trim() + "_" + hoje() + ".json";
     downloadBlobDireto(blob, nome);
@@ -19649,25 +19948,25 @@ Devolver agora?`)) return;
        aceita a foto se estiver VAZIO — nunca substitui foto boa, nem
        mesmo quando a pessoa escolheu aquele campo. */
     if(d.campo === "fotoGeral" || d.campo === "fotoPlaqueta" || d.campo === "foto"){
-      if(ehFotoDataUrlPersist(item[d.campo])){
+      if(__ehFotoOuRef(item[d.campo])){
         toast("Esse espaço já tem foto — escolha outro destino", false);
         return;
       }
       item[d.campo] = dataUrl;
     }else if(d.campo === "lista"){
       if(!Array.isArray(item[CAMPO_FOTOS_LISTA])) item[CAMPO_FOTOS_LISTA] = [];
-      const vagoL = item[CAMPO_FOTOS_LISTA].findIndex(x=>!ehFotoDataUrlPersist(x));
+      const vagoL = item[CAMPO_FOTOS_LISTA].findIndex(x=>!__ehFotoOuRef(x));
       if(vagoL >= 0) item[CAMPO_FOTOS_LISTA][vagoL] = dataUrl;
       else item[CAMPO_FOTOS_LISTA].push(dataUrl);
-    }else if(!ehFotoDataUrlPersist(item[campoPrincipal])){
+    }else if(!__ehFotoOuRef(item[campoPrincipal])){
       item[campoPrincipal] = dataUrl;
     }else{
       if(!Array.isArray(item[CAMPO_FOTOS_LISTA])) item[CAMPO_FOTOS_LISTA] = [];
-      const vago = item[CAMPO_FOTOS_LISTA].findIndex(x=>!ehFotoDataUrlPersist(x));
+      const vago = item[CAMPO_FOTOS_LISTA].findIndex(x=>!__ehFotoOuRef(x));
       if(vago >= 0) item[CAMPO_FOTOS_LISTA][vago] = dataUrl;
       else item[CAMPO_FOTOS_LISTA].push(dataUrl);
     }
-    const vazios = (item[CAMPO_FOTOS_LISTA]||[]).filter(x=>!ehFotoDataUrlPersist(x)).length;
+    const vazios = (item[CAMPO_FOTOS_LISTA]||[]).filter(x=>!__ehFotoOuRef(x)).length;
     if(vazios === 0) delete item[CAMPO_MARCA_FOTO_PERDIDA];
     item.atualizadoEm = agoraSync();
     marcarFotosPendentesParaEnvio((d.tipo === "maquina" ? "maquina:" : "risco:") + d.id);
@@ -20478,7 +20777,22 @@ Devolver agora?`)) return;
     hidratarImagens();
   },
   verFotoReg(el){ if(el && el.src) App.verFoto(el.src); },
-  verFoto(src){
+  async verFoto(src){
+    /* CARGA SOB DEMANDA: a foto pode chegar aqui como referência — é o caso
+       de quem toca num item cuja foto ainda não passou pela tela. Buscar
+       antes de abrir é o que faz a lupa continuar mostrando a foto, e não um
+       quadro quebrado. */
+    if(ehFotoRefPersist(src)){
+      try{
+        const db = await dbOpen();
+        const mapa = await fotosLerLote(db, new Set([src.slice(FOTO_REF_PREFIXO.length)]));
+        const f = mapa.get(src.slice(FOTO_REF_PREFIXO.length));
+        mapa.clear();
+        if(!f){ toast("Foto não encontrada neste aparelho", false); return; }
+        src = f;
+      }catch(e){ toast("Não foi possível abrir a foto", false); return; }
+    }
+    if(!src) return;
     const lb = document.createElement("div");
     lb.className = "lightbox";
     lb.innerHTML = `<button class="lb-close">${ic('close')}</button><img src="${src}">`;
@@ -20494,7 +20808,17 @@ Devolver agora?`)) return;
 
   setTabelaScope(scope){ STATE.ui.tabelaScope = scope; render(); },
   setTabelaScopeSimples(scope){ STATE.ui.tabelaScopeSimples = scope; render(); },
-  exportarObjetivaCSV, exportarObjetivaXLS, exportarMasterCSV, exportarMasterXLS, exportarMasterXLSXFotos, exportarBackup,
+  exportarObjetivaCSV, exportarObjetivaXLS, exportarMasterCSV, exportarMasterXLS, exportarBackup,
+  /* O Módulo Completo é CONGELADO: exportarMasterXLSXFotos não pode receber
+     nem uma linha, nem para a carga sob demanda. A carga acontece aqui, no
+     invólucro — a função congelada continua byte a byte a mesma e recebe o
+     STATE já com as fotos de verdade, exatamente como recebia antes. */
+  async exportarMasterXLSXFotos(){
+    try{
+      await garantirFotosDe(STATE.projetos);
+      await exportarMasterXLSXFotos();
+    }catch(e){ toast("Não foi possível exportar: " + ((e && e.message) || e), false); }
+  },
   exportarSimplesCSV, exportarSimplesXLS, exportarSimplesXLSXFotos,
 
   /* ---- Central do Laudo ---- */
@@ -20867,8 +21191,14 @@ Devolver agora?`)) return;
   async laudoLerPlaqueta(rid){
     if(__laudoLendoPlaqueta) return;
     const item = laudoItemPorId(rid); if(!item) return;
-    const foto = laudoFotoValida(item.maquina.fotoPlaqueta);
-    if(!foto){ toast("Fotografe a plaqueta primeiro", false); return; }
+    if(!laudoFotoValida(item.maquina.fotoPlaqueta)){ toast("Fotografe a plaqueta primeiro", false); return; }
+    /* A IA de visão recebe os BYTES da foto, não a referência — este é um dos
+       poucos lugares que precisam da foto de verdade em mãos. */
+    await garantirFotosDe(item.maquina);
+    const foto = item.maquina.fotoPlaqueta;
+    // A foto fica em mãos só o tempo da leitura.
+    setTimeout(()=>{ try{ liberarFotosDe(item.maquina); }catch(e){} }, 0);
+    if(!ehFotoDataUrlPersist(foto)){ toast("Foto da plaqueta não encontrada neste aparelho", false); return; }
     if(!getIAApiKey()){ toast("Configure a chave da IA na aba IA", false); return; }
     const m = item.maquina;
     const vazios = LAUDO_PLAQUETA_CAMPOS.filter(c=> !String(m[c.k]||"").trim());
@@ -23188,8 +23518,19 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
       const alvo = areas.find(a=> a.area.id === STATE.ui.lpAreaId) || areas[0];
       if(!alvo){ toast("Nenhuma área no escopo", false); return; }
       __lpGerando = true;
+      let __lpSoltarFotos = ()=>{};
       toast("Montando o laudo…");
       try{
+        /* CARGA SOB DEMANDA: o app não lê foto nenhuma ao abrir, então as
+           fotos desta área podem estar só como referência. O laudo é gerado
+           para UMA área de cada vez — carregar as dela é rápido e é
+           exatamente o recorte necessário. Sem isto o laudo sairia com os
+           quadros de foto vazios. */
+        await garantirFotosDe(alvo.area);
+        /* Soltas assim que o laudo estiver montado: o que a prévia mostra são
+           cópias reduzidas, feitas por reduzirFoto — segurar também as
+           originais na memória seria pagar duas vezes pela mesma foto. */
+        __lpSoltarFotos = ()=>{ try{ liberarFotosDe(alvo.area); }catch(e){} };
         const d = dadosDoc(alvo.proj, alvo.area);
         // Em modo de seleção mostra TUDO (item oculto entra apagado/marcável,
         // para dar para desmarcar E remarcar); fora do modo, o que está
@@ -23211,7 +23552,7 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
         toast(__lpPaginas.length + " página(s) montada(s)");
       }catch(e){
         toast("Não foi possível montar o laudo: " + (e && e.message ? e.message : e), false);
-      }finally{ __lpGerando = false; }
+      }finally{ __lpGerando = false; __lpSoltarFotos(); }
     },
     async lpImprimir(){
       // BUG relatado em campo (27/08/2026): risco desmarcado apareceu no PDF.

@@ -167,6 +167,12 @@ vm.runInContext(constante("CAMPOS_ADMIN_PROJETO"), ctx);
 
 /* motor de sincronizacao e equipe, extraidos do arquivo entregue */
 vm.runInContext('const CAMPO_FOTOS_LISTA = "fotosOutras";', ctx);
+/* Camada de carga sob demanda (02/09/2026): com o STATE guardando
+   "idbfoto:<id>", tudo que pergunta "tem foto aqui?" precisa enxergar a
+   referencia — inclusive a aba de revisao do laudo. */
+vm.runInContext('const FOTO_REF_PREFIXO = "idbfoto:";', ctx);
+[ "ehFotoDataUrlPersist", "ehFotoRefPersist", "__ehFotoOuRef" ]
+  .forEach(n=> vm.runInContext(funcao(n), ctx));
 vm.runInContext(constante("CAMPOS_FILHOS_SYNC"), ctx);
 /* aplicarAtualizacaoRemota passou a consultar os campos de foto unica para
    nunca deixar um null vindo de fora apagar foto boa daqui (ver ENSAIO 28
@@ -454,11 +460,19 @@ t("junta fotos da maquina e do risco", ()=>{
 t("linha sem foto de risco traz so as da maquina", ()=>{
   eq(C.laudoFotosDoItem(C.linhasEscopoSimples()[1]).length, 2);
 });
-t("valores nulos ou nao-imagem sao ignorados", ()=>{
+/* Mesma virada de 02/09/2026: referencia agora e o estado normal de uma foto
+   guardada, entao ela ENTRA na galeria. Quem confere se o arquivo existe e o
+   desenho (hidratarImagens), no lugar certo e na hora certa. */
+t("referencia entra na galeria; valor que nao e foto continua fora", ()=>{
   const it = C.linhasEscopoSimples()[1];
+  const bak = it.risco.foto;
   it.risco.foto = "idbfoto:abc";
-  eq(C.laudoFotosDoItem(it).length, 2, "referencia nao baixada nao pode virar foto");
+  eq(C.laudoFotosDoItem(it).length, 3, "a foto guardada como referencia sumiu da galeria");
+  it.risco.foto = "nao e foto nenhuma";
+  eq(C.laudoFotosDoItem(it).length, 2, "texto solto virou foto");
   it.risco.foto = null;
+  eq(C.laudoFotosDoItem(it).length, 2, "campo vazio virou foto");
+  it.risco.foto = bak;
 });
 t("galeria monta as miniaturas", ()=>{
   const h = C.laudoSheetGaleriaHtml(C.linhasEscopoSimples()[0]);
@@ -686,11 +700,26 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(h.indexOf("laudo-th vazia") > 0, "sem estado vazio");
     ok(h.indexOf("data-imgref") < 0, "não deveria ter imagem");
   });
-  t("referência de foto ainda não baixada não vira miniatura", ()=>{
+  /* MUDOU EM 02/09/2026, COM A CARGA SOB DEMANDA. Antes, uma referencia no
+     STATE so podia significar "esta foto nao existe neste aparelho" -- a
+     abertura resolvia todas as outras. Agora referencia e o estado NORMAL de
+     toda foto: recusa-la aqui faria a aba de revisao mostrar TODO equipamento
+     como "sem foto". A miniatura e montada com a referencia, e quem descobre
+     que o arquivo sumiu e o desenho (hidratarImagens marca o quadro em
+     vermelho, que e o aviso honesto e no lugar certo). */
+  t("referência de foto vira miniatura — quem confere o arquivo é o desenho", ()=>{
     const it = C.linhasEscopoSimples()[1];
     it.risco.foto = "idbfoto:abc123";
-    ok(C.laudoMiniatura(it, "risco").indexOf("laudo-th vazia") > 0);
+    const h = C.laudoMiniatura(it, "risco");
+    ok(h.indexOf("data-imgref") > 0, "referencia deixou de virar miniatura — a revisao diria 'sem foto' para tudo");
+    ok(h.indexOf("laudo-th vazia") < 0, "tratou foto existente como ausente");
     it.risco.foto = null;
+  });
+  t("campo realmente vazio continua mostrando a miniatura vazia", ()=>{
+    const it = C.linhasEscopoSimples()[1];
+    const bak = it.risco.foto; it.risco.foto = null;
+    ok(C.laudoMiniatura(it, "risco").indexOf("laudo-th vazia") > 0);
+    it.risco.foto = bak;
   });
   t("equipamento sem foto geral cai na plaqueta", ()=>{
     const it = C.linhasEscopoSimples()[0];
@@ -4716,6 +4745,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     [ "__carregarUltimoCarimbo","registrarCarimboVisto","agoraSync",
       "segmentoPastaComId","extrairSufixoDoNome","idBateComSufixo",
       "listarItensSincronizaveisSimples","separarFotosDoItem","__ehFotoEmbutida",
+      "__ehFotoOuRef","ehFotoRefPersist","ehFotoDataUrlPersist",
       "tamanhoTextoLocalDoItem","onedriveCarregarAssinaturas","onedriveAssinaturaDe",
       "onedriveAnotarTamanho","onedriveArquivoMudouNaNuvem","onedriveMesmaVersaoPeloTamanho",
       "onedrivePrecisaBaixarFotos","aplicarAtualizacaoRemota","__listasIrmasDe",
@@ -6199,19 +6229,25 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
      campo se confunde com "ainda nao fotografei" -- foi por isso que o
      problema so apareceu semanas depois, no escritorio. */
   {
-    const ctx = vm.createContext({ });
+    const ctx = vm.createContext({ console, Set, Map, Promise, Array, Object, String });
     vm.runInContext("var __imgReg = []; var __marcados = [];", ctx);
     vm.runInContext(`
       var document = { querySelectorAll: function(){ return __els; } };
       var __els = [];
+      const FOTO_REF_PREFIXO = "idbfoto:";
+      /* Registra o que a tela pediu ao banco, sem ir ao banco: o que importa
+         aqui e QUEM foi para a fila de busca, nao a leitura em si. */
+      var __pedidosAoBanco = [];
+      function __hidratarPendentesDoBanco(pendentes){ __pedidosAoBanco.push(pendentes); }
       function elFalso(ref){
         return { dataset: { imgref: String(ref) }, src: null, alt: null, title: null,
-                 style: {}, atributos: {},
+                 style: {}, atributos: {}, isConnected: true,
                  removeAttribute: function(){ delete this.dataset.imgref; },
                  setAttribute: function(k,v){ this.atributos[k] = v; } };
       }
     `, ctx);
-    vm.runInContext(funcao("hidratarImagens"), ctx);
+    ["ehFotoRefPersist","__marcarQuadroPerdido","hidratarImagens"]
+      .forEach(n=> vm.runInContext(funcao(n), ctx));
     t("foto presente entra pelo src, como sempre", ()=>{
       vm.runInContext(`
         __imgReg = ["data:image/jpeg;base64,AAA"];
@@ -6235,6 +6271,44 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
          "sem instrucao do que fazer em campo");
       ok(String(vm.runInContext("__els[0].style.border", ctx)).indexOf("#c0392b") >= 0,
          "sem destaque visual no quadro da foto perdida");
+    });
+    /* CARGA SOB DEMANDA (02/09/2026): o caso normal passou a ser a foto
+       chegar como REFERENCIA. O quadro nao pode ser marcado como perdido --
+       a foto existe, so nao esta na memoria ainda. Marcar aqui encheria a
+       tela de quadros vermelhos a cada abertura. */
+    t("foto que chega como referencia vai para a fila de busca, nao para 'perdida'", ()=>{
+      vm.runInContext(`
+        __imgReg = ["idbfoto:abc-123"];
+        __els = [elFalso(0)];
+        __pedidosAoBanco = [];
+        hidratarImagens();
+      `, ctx);
+      eq(vm.runInContext("__els[0].atributos['data-foto-perdida']", ctx), undefined,
+         "marcou como perdida uma foto que so nao estava carregada");
+      eq(vm.runInContext("__els[0].src", ctx), null, "pos uma referencia no src");
+      eq(vm.runInContext("__pedidosAoBanco.length", ctx), 1, "nao pediu a foto ao banco");
+      eq(vm.runInContext("[...__pedidosAoBanco[0].keys()][0]", ctx), "abc-123",
+         "pediu ao banco com o id errado");
+    });
+    t("a mesma foto em varios quadros vira UMA leitura so", ()=>{
+      vm.runInContext(`
+        __imgReg = ["idbfoto:abc-123", "idbfoto:abc-123", "idbfoto:zzz-9"];
+        __els = [elFalso(0), elFalso(1), elFalso(2)];
+        __pedidosAoBanco = [];
+        hidratarImagens();
+      `, ctx);
+      eq(vm.runInContext("__pedidosAoBanco[0].size", ctx), 2, "leu a mesma foto duas vezes");
+      eq(vm.runInContext("__pedidosAoBanco[0].get('abc-123').length", ctx), 2,
+         "os dois quadros da mesma foto precisam ser preenchidos");
+    });
+    t("tela sem referencia nenhuma nao encosta no banco", ()=>{
+      vm.runInContext(`
+        __imgReg = ["data:image/jpeg;base64,AAA"];
+        __els = [elFalso(0)];
+        __pedidosAoBanco = [];
+        hidratarImagens();
+      `, ctx);
+      eq(vm.runInContext("__pedidosAoBanco.length", ctx), 0, "foi ao banco sem precisar");
     });
   }
 
@@ -6322,8 +6396,9 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   console.log("\n=== t118 · aparelho danificado nao contamina o saudavel ===");
   {
     const ctx = vm.createContext({ Array, Object, String, JSON });
-    vm.runInContext('var CAMPO_FOTOS_LISTA = "fotosOutras";', ctx);
-    ["__ehFotoEmbutida","completarFotosDeItem","separarFotosDoItem"].forEach(n=> vm.runInContext(funcao(n), ctx));
+    vm.runInContext('var CAMPO_FOTOS_LISTA = "fotosOutras"; var FOTO_REF_PREFIXO = "idbfoto:";', ctx);
+    ["__ehFotoEmbutida","completarFotosDeItem","separarFotosDoItem",
+     "__ehFotoOuRef","ehFotoRefPersist","ehFotoDataUrlPersist"].forEach(n=> vm.runInContext(funcao(n), ctx));
     const F1 = "data:image/jpeg;base64,AAAA", F2 = "data:image/jpeg;base64,BBBB", F3 = "data:image/jpeg;base64,CCCC";
     const completar = (local, pacote)=>{ ctx.__l = local; ctx.__p = pacote;
       const r = vm.runInContext("completarFotosDeItem(__l, __p)", ctx); return { mudou:r, local:ctx.__l }; };
@@ -6907,6 +6982,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     `, ctx);
     ["CAMPOS_FILHOS_SYNC","CAMPO_FILHOS_POR_TIPO","CAMPOS_FOTO_UNICA"].forEach(n=>vm.runInContext(constante(n), ctx));
     ["segmentoPastaComId","extrairSufixoDoNome","idBateComSufixo","separarFotosDoItem","__ehFotoEmbutida",
+     "__ehFotoOuRef","ehFotoRefPersist","ehFotoDataUrlPersist",
      "tamanhoTextoLocalDoItem","onedriveCarregarAssinaturas","onedriveAssinaturaDe","onedriveAnotarTamanho",
      "onedriveArquivoMudouNaNuvem","onedriveMesmaVersaoPeloTamanho","aplicarAtualizacaoRemota",
      "__listasIrmasDe","__moverItemEntrePais","__onedriveMesclarItemNovoInterno","onedriveMesclarItemNovo",
@@ -7956,6 +8032,12 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
                     ' function marcarAlterado(){ globalThis.__salvou=true; }' +
                     ' function marcarFotosPendentesParaEnvio(k){ (globalThis.__envio=globalThis.__envio||[]).push(k); }' +
                     ' function ehFotoDataUrlPersist(v){ return typeof v==="string" && v.startsWith("data:image"); }' +
+                    /* Carga sob demanda: o campo pode conter "idbfoto:<id>" em vez da
+                       foto, e "esse espaco ja tem foto?" precisa enxergar isso —
+                       senao a importacao passa por cima de foto boa. */
+                    ' var FOTO_REF_PREFIXO="idbfoto:";' +
+                    ' function ehFotoRefPersist(v){ return typeof v==="string" && v.startsWith(FOTO_REF_PREFIXO); }' +
+                    ' function __ehFotoOuRef(v){ return ehFotoDataUrlPersist(v) || ehFotoRefPersist(v); }' +
                     ' function fotoCalcularId(s){ return "id" + s.length + ":" + s.slice(-12); }', ctxF);
     vm.runInContext(funcao("maquinaSimplesGlobalPorId"), ctxF);
     vm.runInContext(funcao("riscoSimplesGlobalPorId"), ctxF);
@@ -8140,19 +8222,30 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     const corpoAnexar = HTML.slice(HTML.indexOf("  async orfaAnexar(fid){"),
                                    HTML.indexOf("  menuMaquinaS(ev,id){"));
     t("O CASO REAL: espaço principal vazio recebe a foto; ocupado, ela vai para a lista", ()=>{
-      ok(corpoAnexar.indexOf("if(!ehFotoDataUrlPersist(item[campoPrincipal])){") > 0,
+      ok(corpoAnexar.indexOf("if(!__ehFotoOuRef(item[campoPrincipal])){") > 0,
          "sumiu a checagem que impede substituir a foto principal");
       ok(corpoAnexar.indexOf("item[campoPrincipal] = dataUrl;") > 0);
       ok(corpoAnexar.indexOf("else item[CAMPO_FOTOS_LISTA].push(dataUrl);") > 0);
     });
     t("preenche primeiro o espaço vazio — é o quadro vermelho que a pessoa quer resolver", ()=>{
-      ok(corpoAnexar.indexOf("const vago = item[CAMPO_FOTOS_LISTA].findIndex(x=>!ehFotoDataUrlPersist(x));") > 0);
+      ok(corpoAnexar.indexOf("const vago = item[CAMPO_FOTOS_LISTA].findIndex(x=>!__ehFotoOuRef(x));") > 0);
       ok(corpoAnexar.indexOf("if(vago >= 0) item[CAMPO_FOTOS_LISTA][vago] = dataUrl;") > 0);
     });
     t("nunca remove nada do item", ()=>{
       [".splice(", ".shift(", ".pop(", "= []"].forEach(p=>{
         ok(corpoAnexar.indexOf(p) < 0 || p === "= []", "operação destrutiva no anexar: " + p);
       });
+    });
+    /* CARGA SOB DEMANDA (02/09/2026). Com o STATE guardando referencia, a
+       pergunta "esse espaco ja tem foto?" tem de enxergar a referencia. Se
+       voltar a ser feita so com ehFotoDataUrlPersist, TODO espaco cheio
+       parece vazio e a primeira recuperacao sobrescreve as fotos boas do
+       aparelho inteiro -- calada. E o pior estrago possivel aqui. */
+    t("a pergunta 'ja tem foto?' enxerga a referencia, nunca so a foto carregada", ()=>{
+      ok(corpoAnexar.indexOf("ehFotoDataUrlPersist(item[") < 0,
+         "voltou a perguntar so pela foto carregada — sobrescreveria foto boa");
+      ok(corpoAnexar.indexOf("!ehFotoDataUrlPersist(x)") < 0,
+         "a busca por espaco vago voltou a ignorar a referencia");
     });
     t("grava de verdade e carimba para sincronizar", ()=>{
       ["item.atualizadoEm = agoraSync();", "marcarFotosPendentesParaEnvio(",
@@ -8221,12 +8314,12 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
          "anexar não trata a plaqueta como destino possível");
     });
     t("destino escolhido nunca substitui foto boa — recusa e avisa", ()=>{
-      ok(corpoAnexar.indexOf("if(ehFotoDataUrlPersist(item[d.campo])){") > 0);
+      ok(corpoAnexar.indexOf("if(__ehFotoOuRef(item[d.campo])){") > 0);
       ok(corpoAnexar.indexOf('toast("Esse espaço já tem foto — escolha outro destino", false);') > 0);
     });
     t("o padrão continua sendo o comportamento de sempre", ()=>{
       ok(HTML.indexOf('campo:"auto"') > 0, "o destino padrão deixou de ser automático");
-      ok(corpoAnexar.indexOf("}else if(!ehFotoDataUrlPersist(item[campoPrincipal])){") > 0,
+      ok(corpoAnexar.indexOf("}else if(!__ehFotoOuRef(item[campoPrincipal])){") > 0,
          "o caminho automático de antes sumiu");
     });
     t("baixar as fotos soltas sai EM LOTES e libera cada um antes do próximo", ()=>{
@@ -8506,6 +8599,277 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     t("a marca some sozinha quando a foto volta (o item destrava sem intervencao)", ()=>{
       ok(HTML.indexOf("if(faltou === 0) delete item[CAMPO_MARCA_FOTO_PERDIDA];") > 0,
          "sem isto o item ficaria segurado para sempre, mesmo com a foto de volta");
+    });
+  }
+
+  /* ---------- t142: CICLO COMPLETO da camada de fotos ----------------------
+     gravar -> fechar -> reabrir -> gravar de novo, sobre um banco com
+     centenas de fotos.
+
+     E o ensaio que o proprio index.html exige, em cima de fotoCalcularId,
+     depois da perda de fotos de 27/08/2026: "foi exatamente essa lacuna que
+     deixou a mudanca passar nos cinco scripts de validacao". Os testes que
+     existiam olhavam funcao isolada; o dano so aparece no ciclo, porque e na
+     SEGUNDA gravacao que uma referencia orfa vira null e some sem vestigio.
+
+     Este bloco existe para que qualquer mexida na camada de fotos -- inclusive
+     a carga por area -- tenha onde bater antes de chegar em campo. */
+  {
+    console.log("\n[t142] ciclo completo: gravar, reabrir, gravar de novo (centenas de fotos)");
+    const dbs = [];
+    function bancoCiclo(){
+      const dados = new Map();
+      /* O IndexedDB de verdade CLONA o que entra e o que sai (structured
+         clone) — quem grava nao fica com uma alca para o que esta no banco.
+         O banco de mentira precisa fazer o mesmo: sem isso, hidratar o objeto
+         devolvido pela leitura alterava o proprio registro gravado, e o
+         ensaio media uma realidade que nao existe no aparelho. */
+      const clonar = (v)=> (v && typeof v === "object") ? JSON.parse(JSON.stringify(v)) : v;
+      const db = { dados, transaction(){
+        const store = {
+          get(k){ const rq = { onsuccess:null, onerror:null, result: clonar(dados.get(k)) };
+                  setTimeout(()=>{ rq.onsuccess && rq.onsuccess(); }, 0); return rq; },
+          put(v, k){ dados.set(k, clonar(v)); },
+          delete(k){ dados.delete(k); },
+          getAllKeys(){ const rq = { onsuccess:null, onerror:null, result: Array.from(dados.keys()) };
+                  setTimeout(()=>{ rq.onsuccess && rq.onsuccess(); }, 0); return rq; }
+        };
+        const tx = { oncomplete:null, onerror:null, objectStore(){ return store; } };
+        setTimeout(()=>{ tx.oncomplete && tx.oncomplete(); }, 0);
+        return tx;
+      }};
+      dbs.push(db);
+      return db;
+    }
+    const cc = vm.createContext({ console, setTimeout, Date, Promise, Set, Map, Array, Object,
+                                  String, Number, JSON, isFinite });
+    vm.runInContext(`
+      const DB_STORE = "kv"; const DB_KEY = "estado";
+      const FOTO_KEY_PREFIXO = "foto:"; const FOTO_REF_PREFIXO = "idbfoto:";
+      var __fotosNoBanco = null; var __fotoIdCache = new Map();
+      var __storageMode = "indexeddb"; var __leituraDegradada = false;
+      var __memoryFallback = null; var __db = null;
+      var localStorage = { getItem(){ return null; }, setItem(){}, removeItem(){} };
+      const LS_KEY = "apr";
+      async function dbOpen(){ return __db; }
+      // A faxina de orfas tem ensaio proprio (t100+); aqui ela so nao pode
+      // atrapalhar o ciclo.
+      function fotosLimparOrfasSeForHora(){}
+      function temIndexedDB(){ return true; }
+    `, cc);
+    ["ehFotoDataUrlPersist","ehFotoRefPersist","fotoCalcularId","fotosExtrairParaRefs",
+     "fotosColetarRefs","fotosReinserirDeMapa","fotosCarregarIndice","fotosLerLote",
+     "__refsProprriasDoItem","__marcarSeTemRefPerdida","marcarItensComFotoPerdida",
+     "__fotosTrocarNoLugar","garantirFotosDe","liberarFotosDe","contemRefDeFoto",
+     "exigirSemReferenciaDeFoto","dbGet","dbSet"].forEach(n=> vm.runInContext(funcao(n), cc));
+    vm.runInContext('const CAMPO_MARCA_FOTO_PERDIDA = "__fotosPerdidas";', cc);
+
+    /* Um projeto com 300 fotos distintas, espalhadas nos quatro niveis --
+       area, maquina (geral e plaqueta), tarefa e risco -- e tambem em listas
+       de "outras fotos", que e onde a referencia vive dentro de um array. */
+    const N_MAQ = 30, N_TAR = 2, N_RISCO = 2;
+    let seq = 0;
+    const novaFoto = ()=> "data:image/jpeg;base64," + String(seq++).padStart(6,"0") + "Q".repeat(1200);
+    function montarProjeto(){
+      seq = 0;
+      const maquinas = [];
+      for(let m=0;m<N_MAQ;m++){
+        const tarefas = [];
+        for(let t=0;t<N_TAR;t++){
+          const riscos = [];
+          for(let r=0;r<N_RISCO;r++)
+            riscos.push({ id:`r${m}_${t}_${r}`, nome:"Risco", foto: novaFoto(),
+                          fotosOutras:[ novaFoto() ], atualizadoEm: 1 });
+          tarefas.push({ id:`t${m}_${t}`, tarefa:"Limpeza", riscos, fotosOutras:[], atualizadoEm: 1 });
+        }
+        maquinas.push({ id:`m${m}`, nome:"Maquina "+m, fotoGeral: novaFoto(),
+                        fotoPlaqueta: novaFoto(), fotosOutras:[], tarefas, atualizadoEm: 1 });
+      }
+      return { projetosSimples:[ { id:"p1", empresa:"Corteva",
+        areas:[ { id:"a1", nome:"Debulha", fotoGeral: novaFoto(), maquinas, fotosOutras:[], atualizadoEm:1 } ],
+        atualizadoEm:1 } ] };
+    }
+    const contarFotos = (v)=>{
+      let n = 0;
+      const anda = (x)=>{
+        if(typeof x === "string"){ if(x.startsWith("data:image")) n++; return; }
+        if(Array.isArray(x)){ x.forEach(anda); return; }
+        if(x && typeof x === "object") for(const k in x) anda(x[k]);
+      };
+      anda(v); return n;
+    };
+    const listarFotos = (v)=>{
+      const out = [];
+      const anda = (x)=>{
+        if(typeof x === "string"){ if(x.startsWith("data:image")) out.push(x); return; }
+        if(Array.isArray(x)){ x.forEach(anda); return; }
+        if(x && typeof x === "object") for(const k in x) anda(x[k]);
+      };
+      anda(v); return out;
+    };
+    const marcados = (v)=>{
+      let n = 0;
+      const anda = (x)=>{
+        if(Array.isArray(x)){ x.forEach(anda); return; }
+        if(x && typeof x === "object"){ if(x.__fotosPerdidas) n++; for(const k in x) anda(x[k]); }
+      };
+      anda(v); return n;
+    };
+
+    const ta = async (nome, fn)=>{ total++;
+      try{ await fn(); console.log("  ok  " + nome); }
+      catch(e){ falhas++; console.log("  ERRO " + nome + " -> " + (e && e.message ? e.message : e)); } };
+
+    await ta("preparacao: o projeto de ensaio tem centenas de fotos, em todos os niveis", async ()=>{
+      const p = montarProjeto();
+      const n = contarFotos(p);
+      ok(n >= 300, "o ensaio precisa de centenas de fotos, tem " + n);
+    });
+
+    let original, depois1, depois2;
+    await ta("1a GRAVACAO: as fotos saem do STATE e viram chaves proprias no banco", async ()=>{
+      original = montarProjeto();
+      cc.__db = bancoCiclo();
+      vm.runInContext("__fotosNoBanco = null; __fotoIdCache = new Map();", cc);
+      cc.__val = original;
+      const ok1 = await vm.runInContext("dbSet(__val)", cc);
+      eq(ok1, true, "a gravacao falhou");
+      const chaves = [...cc.__db.dados.keys()];
+      const chavesFoto = chaves.filter(k=>k.startsWith("foto:"));
+      eq(chavesFoto.length, contarFotos(original), "nem toda foto virou chave no banco");
+      const gravado = cc.__db.dados.get("estado");
+      eq(contarFotos(gravado), 0, "sobrou foto embutida dentro do registro gravado");
+    });
+
+    const contarRefs = (v)=>{
+      let n = 0;
+      const anda = (x)=>{
+        if(typeof x === "string"){ if(x.startsWith("idbfoto:")) n++; return; }
+        if(Array.isArray(x)){ x.forEach(anda); return; }
+        if(x && typeof x === "object") for(const k in x) anda(x[k]);
+      };
+      anda(v); return n;
+    };
+    /* O CONTRATO NOVO (02/09/2026): abrir o app NAO le nenhum byte de foto.
+       Era essa leitura -- 1,27 GB no aparelho do levantamento -- que fazia o
+       iOS derrubar a aba antes de a pessoa abrir a primeira maquina. O STATE
+       volta so com as referencias, e a foto vem quando alguem precisa. */
+    await ta("REABRIR: nao le NENHUM byte de foto (era a causa raiz do travamento)", async ()=>{
+      depois1 = await vm.runInContext("dbGet()", cc);
+      eq(contarFotos(depois1), 0, "ainda esta carregando foto na abertura — o travamento continua");
+      eq(contarRefs(depois1), contarFotos(original), "perdeu referencia de foto na abertura");
+    });
+    /* A ARMADILHA QUE ISTO GUARDA. A marca de dano segura o envio do item.
+       Se ela fosse decidida contra o que esta CARREGADO, com carga sob
+       demanda TODO item nasceria marcado na abertura -- e o aparelho inteiro
+       pararia de sincronizar, calado. Ela tem de ser decidida contra o
+       INDICE do banco, que diz o que existe sem ler byte nenhum. */
+    await ta("e NAO marca ninguem como danificado so por a foto nao estar carregada", async ()=>{
+      eq(marcados(depois1), 0, "marcou item danificado por foto nao carregada — travaria o envio inteiro");
+    });
+    await ta("com garantirFotosDe, toda foto volta byte a byte", async ()=>{
+      cc.__alvo = depois1;
+      const n = await vm.runInContext("garantirFotosDe(__alvo)", cc);
+      eq(n, contarFotos(original), "carregou menos fotos do que existiam");
+      eq(contarRefs(depois1), 0, "sobrou referencia sem resolver");
+      const a = listarFotos(original).sort(), b = listarFotos(depois1).sort();
+      eq(b.length, a.length, "voltou com menos fotos do que entrou");
+      for(let i=0;i<a.length;i++) if(a[i] !== b[i]) throw new Error("foto " + i + " voltou diferente");
+    });
+    await ta("liberarFotosDe devolve a memoria, e o ciclo carregar/soltar nao perde nada", async ()=>{
+      cc.__alvo = depois1;
+      const soltas = await vm.runInContext("liberarFotosDe(__alvo)", cc);
+      eq(soltas, contarFotos(original), "nao soltou tudo que dava");
+      eq(contarFotos(depois1), 0, "sobrou foto ocupando memoria");
+      await vm.runInContext("garantirFotosDe(__alvo)", cc);
+      const a = listarFotos(original).sort(), b = listarFotos(depois1).sort();
+      for(let i=0;i<a.length;i++) if(a[i] !== b[i]) throw new Error("foto " + i + " mudou no ciclo carregar/soltar");
+    });
+    /* REGRA ZERO: foto que ainda NAO foi gravada nao tem referencia para onde
+       voltar. Solta-la seria apaga-la. */
+    await ta("nunca solta foto que ainda nao esta gravada no banco (seria apaga-la)", async ()=>{
+      const nova = "data:image/jpeg;base64," + "NOVA".repeat(400);
+      const alvo = { projetosSimples:[{ areas:[{ maquinas:[{ fotoGeral: nova }] }] }] };
+      cc.__alvo = alvo;
+      const soltas = await vm.runInContext("liberarFotosDe(__alvo)", cc);
+      eq(soltas, 0, "soltou uma foto que nao esta no banco — a foto some");
+      eq(alvo.projetosSimples[0].areas[0].maquinas[0].fotoGeral, nova, "a foto nao gravada foi alterada");
+    });
+
+    await ta("2a GRAVACAO: regravar o que voltou nao perde nem duplica foto nenhuma", async ()=>{
+      const chavesAntes = [...cc.__db.dados.keys()].filter(k=>k.startsWith("foto:")).length;
+      cc.__val = depois1;
+      const ok2 = await vm.runInContext("dbSet(__val)", cc);
+      eq(ok2, true, "a segunda gravacao falhou");
+      const chavesDepois = [...cc.__db.dados.keys()].filter(k=>k.startsWith("foto:")).length;
+      eq(chavesDepois, chavesAntes, "a segunda gravacao mudou o numero de fotos no banco");
+      const gravado = cc.__db.dados.get("estado");
+      eq(contarFotos(gravado), 0, "a segunda gravacao embutiu foto no registro");
+    });
+
+    await ta("REABRIR DE NOVO: e o ponto onde o dano de 27/08 aparecia — nada se perdeu", async ()=>{
+      depois2 = await vm.runInContext("dbGet()", cc);
+      cc.__alvo = depois2;
+      await vm.runInContext("garantirFotosDe(__alvo)", cc);
+      eq(contarFotos(depois2), contarFotos(original), "a segunda volta trouxe menos fotos");
+      const a = listarFotos(original).sort(), b = listarFotos(depois2).sort();
+      for(let i=0;i<a.length;i++) if(a[i] !== b[i]) throw new Error("foto " + i + " mudou no segundo ciclo");
+      eq(marcados(depois2), 0, "marcou item como danificado no segundo ciclo");
+    });
+    /* A TRAVA DA FRONTEIRA. Referencia que escapasse para a nuvem ou para um
+       backup viraria a string "idbfoto:abc" dentro do arquivo -- lixo em
+       outro aparelho, e a foto perdida para quem recebesse. Em vez de confiar
+       em ter achado todos os pontos de uso, a fronteira RECUSA. */
+    await ta("a fronteira RECUSA referencia — erro na cara, nunca corrupcao calada", async ()=>{
+      cc.__x = { a: "idbfoto:abc-123" };
+      eq(vm.runInContext("contemRefDeFoto(__x)", cc), true);
+      let barrou = false;
+      try{ vm.runInContext('exigirSemReferenciaDeFoto(__x, "envio")', cc); }
+      catch(e){ barrou = (e.message || "").indexOf("carregada") > 0; }
+      ok(barrou, "deixou uma referencia passar para fora do aparelho");
+    });
+    await ta("e deixa passar o que ja esta com as fotos de verdade", async ()=>{
+      cc.__x = depois2;
+      eq(vm.runInContext("contemRefDeFoto(__x)", cc), false);
+      vm.runInContext('exigirSemReferenciaDeFoto(__x, "envio")', cc);
+    });
+
+    await ta("o TEXTO tambem atravessa o ciclo inteiro sem alteracao", async ()=>{
+      const semFoto = (v)=>{
+        const anda = (x)=>{
+          if(typeof x === "string") return x.startsWith("data:image") ? "<FOTO>" : x;
+          if(Array.isArray(x)) return x.map(anda);
+          if(x && typeof x === "object"){ const o={}; for(const k in x) o[k]=anda(x[k]); return o; }
+          return x;
+        };
+        return JSON.stringify(anda(v));
+      };
+      eq(semFoto(depois2), semFoto(original), "o texto mudou ao longo do ciclo");
+    });
+
+    /* A PROVA DE QUE O ENSAIO PEGA O DANO. Some com uma foto do banco entre
+       gravar e reabrir -- e o que acontece quando uma referencia perde o
+       arquivo. O item tem que ser MARCADO, nao passar batido: e a marca que
+       segura o envio e impede o aparelho danificado de regravar a nuvem sem
+       a foto. */
+    await ta("PROVA: foto que some do banco marca o item — nao passa em silencio", async ()=>{
+      const alvo = [...cc.__db.dados.keys()].find(k=>k.startsWith("foto:"));
+      cc.__db.dados.delete(alvo);
+      vm.runInContext("__fotosNoBanco = null;", cc);
+      const danificado = await vm.runInContext("dbGet()", cc);
+      ok(marcados(danificado) >= 1, "a perda passou sem marcar ninguem — o envio regravaria a nuvem sem a foto");
+      cc.__alvo = danificado;
+      await vm.runInContext("garantirFotosDe(__alvo)", cc);
+      eq(contarFotos(danificado), contarFotos(original) - 1, "a foto apagada nao sumiu do resultado");
+    });
+
+    await ta("e a marca atinge SO o item que perdeu, nao a arvore inteira", async ()=>{
+      const alvo = [...cc.__db.dados.keys()].find(k=>k.startsWith("foto:"));
+      cc.__db.dados.delete(alvo);
+      vm.runInContext("__fotosNoBanco = null;", cc);
+      const danificado = await vm.runInContext("dbGet()", cc);
+      const n = marcados(danificado);
+      ok(n <= 4, "marcou " + n + " itens por causa de poucas fotos — a marca esta subindo a arvore");
     });
   }
 
