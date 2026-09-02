@@ -9494,6 +9494,104 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  /* ---------- t147: os botoes do campo do laudo -----------------------------
+     Relatado em campo em 02/09/2026: "o botao de aplicar este texto esta
+     confuso, quando edita o texto ele muda de funcao".
+
+     Era verdade, por tres motivos que se somavam:
+       1. dois botoes com rotulo quase igual ("Aplicar sugestao" e "Aplicar
+          este texto") para acoes diferentes;
+       2. o segundo so NASCIA depois de editar -- sem edicao o quadro verde
+          mostra a propria sugestao, entao `fin === g.sug` e a condicao que o
+          mostrava era falsa. Ao salvar uma edicao ele aparecia do lado, e
+          parecia que o botao tinha trocado de papel;
+       3. o PRIMARIO continuava sendo "Aplicar sugestao" -- o botao em
+          destaque jogava fora o texto recem-escrito.
+
+     Agora: um primario so, com nome e funcao fixos, que aplica o que esta no
+     quadro verde. As alternativas sao secundarias e nomeadas pela ORIGEM do
+     texto, e so aparecem quando de fato mudariam o quadro. */
+  {
+    console.log("\n[t147] botoes do campo do laudo: um primario, nome e funcao fixos");
+    const bloco = funcao("laudoBlocoCampo");
+    /* Monta a lista de botoes rodando a MESMA logica do arquivo entregue,
+       recortada do bloco -- e nao uma copia escrita aqui. */
+    const i = bloco.indexOf("const btns = [];");
+    const f = bloco.indexOf("return `<div style=\"display:flex;gap:6px", i);
+    ok(i > 0 && f > i, "nao achei o montador de botoes dentro de laudoBlocoCampo");
+    const corpo = bloco.slice(i, f);
+    const montar = new Function("st","fin","g","orig","rid","campo","ic",
+      corpo + "\n return btns;");
+    const IC = ()=>"";
+    const SUG = "Sugestão da IA.";
+    const ORIG = "Texto de campo.";
+    const lista = (st, fin, sug)=> montar(st, fin, { sug }, ORIG, "r1", "escopo", IC)
+      .map(h=>({
+        rot: (h.match(/>([^<]*)<\/button>/)||["",""])[1].trim(),
+        primario: h.indexOf("btn-primary") > 0,
+      }));
+    const rotulos = (l)=> l.map(b=>(b.primario?"*":"") + b.rot);
+    const primarios = (l)=> l.filter(b=>b.primario).map(b=>b.rot);
+
+    t("NUNCA existe mais de um botao em destaque", ()=>{
+      [["", ORIG, ""], ["", SUG, SUG], ["edit", "Meu texto", SUG],
+       ["ok", "Final", SUG], ["no", ORIG, SUG]].forEach(([st,fin,sug])=>{
+        const p = primarios(lista(st, fin, sug));
+        ok(p.length <= 1, "estado " + (st||"(novo)") + " tem " + p.length + " botoes em destaque: " + p);
+      });
+    });
+    t("o botao em destaque tem SEMPRE o mesmo nome e a mesma funcao", ()=>{
+      [["", ORIG, ""], ["", SUG, SUG], ["edit", "Meu texto", SUG], ["no", ORIG, SUG]].forEach(([st,fin,sug])=>{
+        const p = primarios(lista(st, fin, sug));
+        eq(p.join(""), "Aplicar este texto", "estado " + (st||"(novo)") + " mudou o botao em destaque");
+      });
+      const h = lista("edit", "Meu texto", SUG).find(b=>b.primario);
+      ok(bloco.indexOf("App.laudoValidar('${rid}','${campo}')") > 0,
+         "o botao em destaque precisa aplicar o que esta no quadro verde");
+    });
+    /* O DEFEITO EXATO QUE FOI RELATADO: antes, editar fazia nascer um segundo
+       botao de aplicar, e o destaque continuava no que descartava a edicao. */
+    t("O CASO REAL: editar o texto NAO troca o botao em destaque", ()=>{
+      const antes  = primarios(lista("",     SUG,        SUG));
+      const depois = primarios(lista("edit", "Meu texto", SUG));
+      eq(antes.join(""), depois.join(""),
+         "o botao em destaque mudou ao editar — era exatamente a confusao relatada");
+    });
+    t("e depois de editar, o destaque aplica O SEU texto, nao a sugestao", ()=>{
+      const l = lista("edit", "Meu texto", SUG);
+      const p = l.find(b=>b.primario);
+      eq(p.rot, "Aplicar este texto");
+      const sugestao = l.find(b=>/sugestão da IA/i.test(b.rot));
+      ok(sugestao && !sugestao.primario,
+         "usar a sugestao voltou a ser o botao em destaque — descartaria a edicao recem-salva");
+    });
+    t("cada alternativa e nomeada pela ORIGEM do texto", ()=>{
+      const l = rotulos(lista("edit", "Meu texto", SUG));
+      ok(l.some(r=>/Usar a sugestão da IA/.test(r)), "faltou a alternativa da IA: " + l);
+      ok(l.some(r=>/Voltar ao texto de campo/.test(r)), "faltou a volta ao texto de campo: " + l);
+      ok(l.some(r=>/Copiar de outro/.test(r)));
+      ok(l.every(r=>!/^\*?Usar meu texto$/.test(r)),
+         "'Usar meu texto' voltou — o nome e ambiguo logo depois de editar a mao");
+    });
+    /* Alternativa que nao mudaria nada nao deve aparecer: botao que nao faz
+       diferenca e so mais uma coisa para a pessoa decidir. */
+    t("a alternativa so aparece quando mudaria o quadro verde", ()=>{
+      // quadro ja mostra a sugestao: nao oferece "usar a sugestao"
+      ok(!rotulos(lista("", SUG, SUG)).some(r=>/sugestão da IA/i.test(r)),
+         "ofereceu trocar pela sugestao que ja esta no quadro");
+      // quadro ja mostra o texto de campo: nao oferece "voltar ao texto de campo"
+      ok(!rotulos(lista("", ORIG, "")).some(r=>/texto de campo/i.test(r)),
+         "ofereceu voltar para o texto que ja esta no quadro");
+    });
+    t("item ja aplicado nao mostra botao de aplicar", ()=>{
+      eq(primarios(lista("ok", "Final", SUG)).length, 0,
+         "item validado nao precisa de botao de aplicar");
+    });
+    t("sem texto nenhum, nao ha o que aplicar", ()=>{
+      eq(primarios(lista("", "", "")).length, 0);
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

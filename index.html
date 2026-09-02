@@ -2397,7 +2397,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "02/09/2026 17:59";
+const APP_BUILD = "02/09/2026 18:09";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -15910,13 +15910,36 @@ function laudoBlocoCampo(item, campo){
            <button class="btn btn-secondary btn-sm" style="flex:1" onclick="App.laudoCancelarEdicao()">Cancelar</button>
          </div>`
       : `<div style="font-size:13.5px;color:var(--ink);background:#E3F4E4;border:1px solid #A5D6A7;border-radius:8px;padding:10px;white-space:pre-wrap;font-weight:600">${escapeHtml(fin || "(vazio)")}</div>
-         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
-           ${g.sug && st!=="ok"? `<button class="btn btn-primary btn-sm" onclick="App.laudoAplicar('${rid}','${campo}')">${ic('check')} Aplicar sugestão</button>`:""}
-           ${fin && st!=="ok" && fin!==g.sug? `<button class="btn ${g.sug ? "btn-secondary" : "btn-primary"} btn-sm" onclick="App.laudoValidar('${rid}','${campo}')">${ic('check')} Aplicar este texto</button>`:""}
-           <button class="btn btn-secondary btn-sm" onclick="App.laudoRecusar('${rid}','${campo}')">${ic('close')} Usar meu texto</button>
-           <button class="btn btn-secondary btn-sm" onclick="App.laudoEditar('${campo}')">${ic('edit')} Editar</button>
-           <button class="btn btn-secondary btn-sm" onclick="App.laudoAbrirCopiar('${rid}','${campo}')">${ic('copy')} Copiar de outro</button>
-         </div>
+         ${(()=>{
+           /* UM BOTÃO PRINCIPAL SÓ, COM NOME E FUNÇÃO FIXOS.
+
+              Antes eram dois com rótulo quase igual — "Aplicar sugestão" e
+              "Aplicar este texto" —, e o segundo só nascia DEPOIS de editar:
+              sem edição o quadro verde mostra a própria sugestão, então
+              `fin === g.sug` e a condição que o mostrava era falsa. Ao salvar
+              uma edição ele aparecia do lado, e parecia que o botão tinha
+              mudado de função. Pior: o primário continuava sendo "Aplicar
+              sugestão" — o botão em destaque jogava fora o texto recém-escrito.
+
+              Agora "Aplicar este texto" aplica SEMPRE o que está no quadro
+              verde, seja ele a sugestão, o texto de campo ou o editado. As
+              alternativas são secundárias e nomeadas pela ORIGEM do texto, e
+              cada uma só aparece quando de fato mudaria o quadro. */
+           const btns = [];
+           if(st!=="ok" && fin)
+             btns.push(`<button class="btn btn-primary btn-sm" onclick="App.laudoValidar('${rid}','${campo}')">${ic('check')} Aplicar este texto</button>`);
+           if(g.sug && fin!==g.sug)
+             btns.push(`<button class="btn btn-secondary btn-sm" onclick="App.laudoAplicar('${rid}','${campo}')">${ic('copy')} Usar a sugestão da IA</button>`);
+           btns.push(`<button class="btn btn-secondary btn-sm" onclick="App.laudoEditar('${campo}')">${ic('edit')} Editar</button>`);
+           btns.push(`<button class="btn btn-secondary btn-sm" onclick="App.laudoAbrirCopiar('${rid}','${campo}')">${ic('copy')} Copiar de outro</button>`);
+           /* "Voltar ao texto de campo" era "Usar meu texto" — nome ambíguo
+              logo depois de a pessoa editar à mão, porque o texto dela é
+              justamente o editado, e o botão descarta esse. Só aparece quando
+              há texto de campo diferente do que está no quadro. */
+           if(orig && fin!==orig)
+             btns.push(`<button class="btn btn-secondary btn-sm" onclick="App.laudoRecusar('${rid}','${campo}')">${ic('close')} Voltar ao texto de campo</button>`);
+           return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">${btns.join("")}</div>`;
+         })()}
          ${(st==="ok"||st==="edit") && fin? `<button class="btn btn-secondary btn-block btn-sm" style="margin-top:8px" onclick="App.laudoAbrirReplicar('${rid}','${campo}')">${ic('layers')} Aplicar este texto em vários itens</button>`:""}
          ${st==="ok"? `<div class="field-hint" style="margin-top:6px">${campo==="existente" ? "Item validado." : `Item validado — a letra <b>${escapeHtml(def.sigla)}</b> fica verde no cartão.`} Ao aplicar, a IA revisa o português sem mudar o que você escreveu.</div>`:""}`}
 

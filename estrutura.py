@@ -3711,6 +3711,44 @@ chk("cabecalho e linhas continuam usando o MESMO colgroup",
 chk("table-layout:fixed continua de pe (sem ele a largura vira sugestao)",
     ".lp-inv{width:100%;table-layout:fixed;" in novo)
 
+print("\n=== 120. OS BOTOES DO CAMPO DO LAUDO: UM PRIMARIO, NOME E FUNCAO FIXOS ===")
+# Relatado em campo em 02/09/2026: "o botao de aplicar este texto esta confuso,
+# quando edita o texto ele muda de funcao". Eram tres coisas somadas:
+#  1. dois botoes com rotulo quase igual ("Aplicar sugestao" / "Aplicar este
+#     texto") para acoes diferentes;
+#  2. o segundo so NASCIA depois de editar -- sem edicao o quadro verde mostra
+#     a propria sugestao, `fin === g.sug`, e a condicao que o mostrava era
+#     falsa. Ao salvar uma edicao ele aparecia do lado: parecia que o botao
+#     tinha trocado de papel;
+#  3. o PRIMARIO continuava sendo "Aplicar sugestao" -- o botao em destaque
+#     jogava fora o texto recem-escrito.
+_bc = novo[novo.find("function laudoBlocoCampo(item, campo){"):]
+_bc = _bc[:_bc.find("/* ---------- Bloco HRN")]
+chk("os botoes sao montados por estado, num lugar so",
+    "const btns = [];" in _bc
+    and 'return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">${btns.join("")}</div>`;' in _bc)
+# Contado dentro do montador de botoes, nao no bloco inteiro: o modo de edicao
+# tem o seu proprio primario ("Salvar meu texto"), que e outra tela e outro
+# assunto.
+_btns = _bc[_bc.find("const btns = [];"):]
+_btns = _btns[:_btns.find('return `<div style="display:flex;gap:6px')]
+chk("UM primario so na barra de acoes, e ele aplica o que esta no quadro verde",
+    _btns.count("btn-primary") == 1
+    and 'if(st!=="ok" && fin)' in _btns
+    and "App.laudoValidar('${rid}','${campo}')" in _btns)
+chk("as alternativas sao nomeadas pela ORIGEM do texto",
+    "Usar a sugestão da IA" in _bc
+    and "Voltar ao texto de campo" in _bc
+    and "Copiar de outro" in _bc)
+chk("e so aparecem quando mudariam o quadro verde",
+    "if(g.sug && fin!==g.sug)" in _bc
+    and "if(orig && fin!==orig)" in _bc)
+chk("os rotulos antigos, que se confundiam, sairam",
+    "Aplicar sugestão</button>" not in novo
+    and "Usar meu texto</button>" not in novo)
+chk("o botao de replicar continua distinto do de aplicar",
+    "Aplicar este texto em vários itens" in novo)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

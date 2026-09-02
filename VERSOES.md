@@ -64,6 +64,37 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 02/09/2026 18:09
+
+**Os botões de aplicar texto, na revisão do laudo, estavam confusos.** Corrigido.
+
+**O que acontecia.** Havia dois botões com nome quase igual — *Aplicar sugestão*
+e *Aplicar este texto* — para ações diferentes. E o segundo **só nascia depois
+que você editava**: sem edição, o quadro verde mostra a própria sugestão, então
+o app entendia que não havia nada distinto a aplicar e escondia o botão. Ao
+salvar uma edição, ele aparecia do lado do outro — dando exatamente a impressão
+de que o botão tinha trocado de função.
+
+Pior: depois de editar, o botão **em destaque** continuava sendo *Aplicar
+sugestão*. Ou seja, o botão mais visível jogava fora o texto que você acabara de
+escrever. E *Aplicar este texto* ainda mudava de cor conforme houvesse ou não
+sugestão — o mesmo botão com dois pesos diferentes.
+
+**Como ficou.** Um botão em destaque só, com nome e função fixos:
+
+- **Aplicar este texto** aplica sempre o que está no quadro verde — seja a
+  sugestão da IA, o seu texto de campo ou o que você editou. Nunca muda de nome
+  nem de função.
+- As alternativas viraram botões secundários, nomeados pela **origem** do texto:
+  *Usar a sugestão da IA*, *Voltar ao texto de campo*, *Editar*, *Copiar de
+  outro*. Cada um diz de onde o texto vem.
+- Cada alternativa só aparece quando de fato mudaria o quadro verde. Se o quadro
+  já mostra a sugestão, não há botão para "usar a sugestão".
+
+O antigo *Usar meu texto* virou **Voltar ao texto de campo** — o nome anterior
+era ambíguo justamente depois de você editar à mão, porque "meu texto" soava
+como o que você tinha acabado de escrever, mas o botão descartava essa edição.
+
 ## 02/09/2026 17:59
 
 **Correção: o inventário de máquinas saía aberto do lado direito**, sem a linha
