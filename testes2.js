@@ -5016,10 +5016,11 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       onedriveGuardarIndiceNuvem: ()=>{},
     };
     vm.createContext(ctxR);
-    vm.runInContext("var __arvoreSimplesCache=null; var __arvoreNuvemIncompleta=false;", ctxR);
+    vm.runInContext("var __arvoreSimplesCache=null; var __arvoreNuvemIncompleta=false; var __pastasNuvemFalhadas=new Set();", ctxR);
     vm.runInContext("var __assinaturasOneDriveSimples = { mapa:null, chaveEstado:'oneDriveAssinaturasSimples' };", ctxR);
     vm.runInContext(constante("LAPIDE_VALIDADE_MS"), ctxR);
     ["onedriveCarregarAssinaturas","onedriveColetarArquivosDaArvore","onedriveReconciliarComArvore",
+     "__areaDoItemNuvem","__areaTeveFalhaNaListagem",
      "lapideDe","lapideVenceDadosRemotos"]
       .forEach(n=> vm.runInContext(funcao(n), ctxR));
     vm.runInContext(`function listarItensSincronizaveisSimples(){ return [
@@ -5035,6 +5036,10 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
           { nome:"Tar", pasta:true, caminho:PREF+"/Proj/AreaOk/Maq/Tar", filhos:[
             { nome:"risco_r1.json", pasta:false, caminho:PREF+"/Proj/AreaOk/Maq/Tar/risco_r1.json", tamanho:500 } ]} ]} ]},
       { nome:"AreaFalhou", pasta:true, caminho:PREF+"/Proj/AreaFalhou", filhos:[] } ]}];
+    /* Caminho da area que "voltou vazia" porque a listagem falhou. Antes
+       bastava levantar a marca global; agora o app registra QUAL pasta
+       falhou, e e por isso que a AreaOk pode continuar sendo curada. */
+    const PASTA_FALHOU = (PREF + "/Proj/AreaFalhou").toLowerCase();
     const reconciliar = (incompleta)=>{
       ctxR.STATE.oneDriveAssinaturasSimples = {
         "risco:r1": { atualizadoEm:1, pasta:["Proj","AreaOk","Maq","Tar"], arquivo:"risco_r1.json", tamanho:500 },
@@ -5043,16 +5048,36 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ctxR.__assinaturasOneDriveSimples.mapa = null;
       reparosLog.length = 0;
       vm.runInContext("__arvoreNuvemIncompleta = " + (incompleta?"true":"false") + ";", ctxR);
+      ctxR.__falhadas = incompleta ? [PASTA_FALHOU] : [];
+      vm.runInContext("__pastasNuvemFalhadas = new Set(__falhadas);", ctxR);
       ctxR.__arv = arvore();
       const n = vm.runInContext("onedriveReconciliarComArvore(__arv)", ctxR);
       return { reparos:n, restantes:Object.keys(ctxR.STATE.oneDriveAssinaturasSimples) };
     };
 
-    t("com a foto da nuvem INCOMPLETA, nenhuma assinatura é apagada", ()=>{
+    t("assinatura da área que falhou ao listar NÃO é apagada", ()=>{
       const r = reconciliar(true);
-      eq(r.reparos, 0, "reparou a partir de uma foto furada — é o ciclo infinito voltando");
       eq(r.restantes.length, 3, "apagou assinatura de item que está salvo na nuvem");
       eq(reparosLog.length, 0, "registrou 'faltava na nuvem' para pasta que só não pôde ser lida");
+    });
+    /* O GANHO da verificação por área (01/09/2026). Antes, a marca era um
+       sim/não global: bastava UMA pasta falhar para a reconciliação inteira
+       desistir (`return 0`), e as outras 38 áreas do aparelho ficavam sem
+       cura. Na prática a cura quase nunca rodava e a fila de envio nunca
+       esvaziava — a "sincronização que não acaba" que o Luiz via a cada
+       tentativa. Agora só a área que falhou fica de fora. */
+    t("mas a área que listou INTEIRA continua sendo verificada normalmente", ()=>{
+      /* r1 está na AreaOk e o arquivo dele existe na nuvem: a prova de que a
+         rotina de fato percorreu a AreaOk é ela NÃO ter sido pulada, e r1
+         continuar com assinatura enquanto r2/r3 também continuam (esses por
+         estarem na área poupada). O contrário — pular tudo — é o defeito. */
+      const r = reconciliar(true);
+      ok(r.restantes.indexOf("risco:r1") >= 0, "mexeu no item que está certo na nuvem");
+      const pulados = vm.runInContext(`listarItensSincronizaveisSimples()
+        .filter(i=>__areaTeveFalhaNaListagem(__areaDoItemNuvem(i, "apr-campo/backup/simplificado/")))
+        .map(i=>i.id)`, ctxR);
+      eq(pulados.length, 2, "deveria pular só os dois itens da área que falhou");
+      ok(pulados.indexOf("risco:r1") < 0, "pulou o item da área que listou bem — é a trava global de volta");
     });
     t("com a foto COMPLETA, some de verdade da nuvem continua sendo reparado", ()=>{
       const r = reconciliar(false);
@@ -5085,13 +5110,33 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     t("toda falha de listagem levanta a marca — inclusive falta de token", ()=>{
       const f = funcao("onedriveListarFilhosEmLote");
       ok(f.indexOf('onedriveMarcarArvoreIncompleta("sem token")') > 0, "sem token, tudo voltaria 'vazio' em silêncio");
-      ok(f.indexOf('catch(e){ onedriveMarcarArvoreIncompleta("pasta " + caminho); resultado.set(caminho, []); }') > 0,
+      ok(f.indexOf('catch(e){ onedriveMarcarArvoreIncompleta("pasta " + caminho, caminho); resultado.set(caminho, []); }') > 0,
          "era exatamente aqui que a falha virava 'pasta vazia'");
     });
     t("cada varredura começa com a marca limpa", ()=>{
       const f = funcao("onedriveListarArvore");
       ok(f.indexOf("__arvoreNuvemIncompleta = false;") > 0,
          "sem zerar, uma falha antiga bloquearia a autocura para sempre");
+      ok(f.indexOf("__pastasNuvemFalhadas = new Set();") > 0,
+         "sem zerar a lista, pasta que falhou uma vez ficaria de castigo para sempre");
+    });
+    t("a área de um item é projeto/área — nem o arquivo, nem o projeto inteiro", ()=>{
+      const pre = "apr-campo/backup/simplificado/";
+      ctxR.__it = { pasta:["Proj","AreaOk","Maq","Tar"], arquivo:"risco_r1.json" };
+      eq(vm.runInContext("__areaDoItemNuvem(__it, " + JSON.stringify(pre) + ")", ctxR),
+         pre + "proj/areaok/");
+    });
+    t("sem falha nenhuma registrada, ninguém é pulado", ()=>{
+      vm.runInContext("__pastasNuvemFalhadas = new Set();", ctxR);
+      eq(vm.runInContext('__areaTeveFalhaNaListagem("apr-campo/backup/simplificado/proj/areaok/")', ctxR), false);
+    });
+    t("falha numa pasta FUNDO da área (uma máquina) também poupa a área toda", ()=>{
+      ctxR.__f = ["apr-campo/backup/simplificado/proj/areafalhou/maq"];
+      vm.runInContext("__pastasNuvemFalhadas = new Set(__f);", ctxR);
+      eq(vm.runInContext('__areaTeveFalhaNaListagem("apr-campo/backup/simplificado/proj/areafalhou/")', ctxR), true,
+         "falha dentro da área tem que poupar a área — a foto dela está furada");
+      eq(vm.runInContext('__areaTeveFalhaNaListagem("apr-campo/backup/simplificado/proj/areaok/")', ctxR), false,
+         "não pode respingar na área vizinha");
     });
     t("índice da nuvem não é guardado a partir de varredura furada", ()=>{
       const f = funcao("onedriveGuardarIndiceNuvem");
@@ -8139,9 +8184,9 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(corpo.indexOf("arquivos.length = 0;") > 0, "não libera os bytes montados");
       ok(corpo.indexOf("buildZip(arquivos)") > 0, "deve usar o zip que o app já tem");
     });
-    t("o nome de cada foto leva a data em que ficou solta", ()=>{
+    t("o nome de cada foto sai da tabela de nomes, e como imagem", ()=>{
       const corpo = funcao("baixarOrfasLote");
-      ok(corpo.indexOf("new Date(t).toISOString().slice(0,10)") > 0);
+      ok(corpo.indexOf("nomes.get(fid)") > 0, "o nome tem que vir da tabela calculada de uma vez");
       ok(corpo.indexOf('.jpg`') > 0, "os arquivos precisam sair como imagem");
     });
     t("baixar é SÓ LEITURA — não altera nem apaga foto nenhuma", ()=>{
@@ -8154,6 +8199,122 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       // a mesma classe de defeito em qualquer outro botão de menu
       ok(/onclick:\s*`[^`]*JSON\.stringify/.test(HTML) === false,
          "algum item de menu voltou a interpolar via JSON.stringify");
+    });
+  }
+
+  /* ---------------- t140: fotos soltas agrupadas por data no .zip ----------
+     Pedido em campo em 01/09/2026, depois de abrir o primeiro zip: "as
+     imagens tem uma data, um numero sequencial e um codigo; agrupa por data
+     em pastas com limite maximo, e poe a hora". */
+  {
+    console.log("\n[t140] fotos soltas: pastas por data, hora no nome, data real no zip");
+    const c = vm.createContext({ console, Math, Date, Object, Array, String, Number, Map, Set, isFinite, JSON });
+    vm.runInContext(HTML.match(/const ORFAS_POR_PASTA_ZIP = \d+;/)[0], c);
+    vm.runInContext(funcao("orfasNomesNoZip"), c);
+    vm.runInContext(funcao("zipDataHora"), c);
+    const TETO = vm.runInContext("ORFAS_POR_PASTA_ZIP", c);
+    const nomear = (ids, desde) => { c.__ids = ids; c.__desde = desde;
+      return vm.runInContext("orfasNomesNoZip(__ids, __desde)", c); };
+    // 30/08/2026, hora local do aparelho — e a local que tem que aparecer.
+    const dia = (d,h,mi,se) => new Date(2026, 7, d, h, mi, se).getTime();
+
+    t("agrupa por data: cada dia vira uma pasta dentro do zip", ()=>{
+      const n = nomear(["a","b","c"], { a: dia(30,14,7,22), b: dia(30,9,1,2), c: dia(29,17,45,0) });
+      ok(n.get("a").indexOf("2026-08-30/") === 0, "a -> " + n.get("a"));
+      ok(n.get("b").indexOf("2026-08-30/") === 0, "b -> " + n.get("b"));
+      ok(n.get("c").indexOf("2026-08-29/") === 0, "c -> " + n.get("c"));
+    });
+    t("a HORA entra no nome do arquivo (era o que faltava)", ()=>{
+      const n = nomear(["a"], { a: dia(30,14,7,22) });
+      ok(/\/14h07m22_/.test(n.get("a")), "sem hora no nome: " + n.get("a"));
+    });
+    t("usa a data LOCAL, nao a UTC (senao foto do fim do dia cai no dia seguinte)", ()=>{
+      // 22h local no Brasil ja e o dia seguinte em UTC
+      const n = nomear(["a"], { a: new Date(2026, 7, 30, 22, 30, 0).getTime() });
+      eq(n.get("a").slice(0,11), "2026-08-30/", "a data da pasta saiu em UTC");
+    });
+    t("respeita o teto por pasta: passando do limite, o mesmo dia continua em _p2", ()=>{
+      const ids = [], desde = {};
+      for(let i=0;i<TETO+3;i++){ ids.push("f"+i); desde["f"+i] = dia(30,10,0,0); }
+      const n = nomear(ids, desde);
+      eq(n.get("f0").slice(0,11), "2026-08-30/");
+      eq(n.get("f"+(TETO-1)).slice(0,11), "2026-08-30/");
+      eq(n.get("f"+TETO).slice(0,14), "2026-08-30_p2/", "a pasta nao virou _p2 ao passar do teto");
+      eq(n.get("f"+(TETO+2)).slice(0,14), "2026-08-30_p2/");
+    });
+    t("foto sem carimbo nenhum vai para a pasta sem-data, e nao some", ()=>{
+      const n = nomear(["a","b"], { a: dia(30,10,0,0) });
+      eq(n.get("b").slice(0,9), "sem-data/");
+      ok(n.get("b").indexOf(".jpg") > 0);
+      eq(n.size, 2, "toda foto precisa de um nome");
+    });
+    t("cada foto tem um nome unico dentro do zip (senao o zip perde arquivo)", ()=>{
+      const ids = [], desde = {};
+      for(let i=0;i<TETO*2+5;i++){ ids.push("f"+i); desde["f"+i] = dia(30,10,0,0); }
+      const n = nomear(ids, desde);
+      eq(new Set([...n.values()]).size, ids.length, "nomes repetidos no zip");
+    });
+    t("o numero de sequencia ordena certo mesmo com centenas de fotos", ()=>{
+      const ids = [], desde = {};
+      for(let i=0;i<120;i++){ ids.push("f"+i); desde["f"+i] = dia(30,10,0,0); }
+      const n = nomear(ids, desde);
+      ok(/_001_/.test(n.get("f0")), "sem zero a esquerda: " + n.get("f0"));
+      ok(/_120_/.test(n.get("f119")));
+    });
+    t("os nomes saem da lista INTEIRA, nao lote a lote (senao _p2 se repete)", ()=>{
+      ok(HTML.indexOf("const nomes = orfasNomesNoZip(ids, orfasDesde);") > 0,
+         "o calculo dos nomes tem que ver a lista toda");
+    });
+
+    t("zipDataHora converte para o formato do zip (MS-DOS)", ()=>{
+      c.__ms = new Date(2026, 7, 30, 14, 7, 22).getTime();
+      const r = vm.runInContext("zipDataHora(__ms)", c);
+      eq(r.data, ((2026-1980)<<9) | (8<<5) | 30, "data DOS errada");
+      eq(r.hora, (14<<11) | (7<<5) | (22>>1), "hora DOS errada");
+    });
+    t("data fora da faixa do formato nao vira data errada — devolve null", ()=>{
+      c.__ms = new Date(1970, 0, 1).getTime();
+      eq(vm.runInContext("zipDataHora(__ms) === null", c), true);
+    });
+    t("o zip so ganha data quando o chamador passa mtime (nao muda os outros exports)", ()=>{
+      const corpo = funcao("buildZip");
+      ok(corpo.indexOf('typeof f.mtime === "number"') > 0, "sumiu a checagem do mtime");
+      ok(corpo.indexOf("__dt ? __dt.data : 0x21") > 0, "sem mtime tem que ficar o valor de antes");
+      ok(corpo.indexOf("pushU16(lh,__zh)") > 0 && corpo.indexOf("pushU16(ch,__zh)") > 0,
+         "a data tem que ir nos dois cabecalhos, local e central");
+    });
+    t("baixarOrfasLote carimba a data de cada foto no zip", ()=>{
+      const corpo = funcao("baixarOrfasLote");
+      ok(corpo.indexOf("arq.mtime = t") > 0, "a data da foto nao vai para o arquivo");
+    });
+
+    /* ---- modo seguido ---- */
+    const seguido = HTML.slice(HTML.indexOf("async baixarOrfasZipTudo(){"), HTML.indexOf("orfasZipParar(){"));
+    t("existe o modo de baixar a sequencia inteira sem tocar lote a lote", ()=>{
+      ok(HTML.indexOf("async baixarOrfasZipTudo(){") > 0, "sumiu o modo seguido");
+      ok(HTML.indexOf('onclick="App.baixarOrfasZipTudo()"') > 0, "sem botao nao adianta existir");
+    });
+    t("o modo seguido continua baixando UM lote por vez (nao monta tudo junto)", ()=>{
+      ok(seguido.indexOf("await baixarOrfasLote(") > 0, "tem que reaproveitar o lote de sempre");
+      ok(seguido.indexOf("ORFAS_POR_LOTE_ZIP") > 0, "tem que fatiar pelo tamanho do lote");
+      ok(seguido.indexOf("buildZip") < 0, "nao pode montar um zip proprio, sem lote");
+    });
+    t("da para parar no meio, e continua de onde parou", ()=>{
+      ok(seguido.indexOf("if(__orfasZipCancelar) break;") > 0, "sem parada no meio");
+      ok(seguido.indexOf("__orfasZipProximoLote = i + 1;") > 0, "nao guarda onde parou");
+      ok(HTML.indexOf("orfasZipParar(){ __orfasZipCancelar = true;") > 0, "sem botao de parar");
+    });
+    t("dois toques nao rodam dois lacos no mesmo banco", ()=>{
+      ok(seguido.indexOf("if(__orfasZipRodando)") > 0, "sem trava de reentrada");
+    });
+    t("no celular o modo seguido avisa em vez de empilhar menus de compartilhar", ()=>{
+      ok(seguido.indexOf("navigator.canShare") > 0, "nao verifica o aparelho");
+      ok(seguido.indexOf("computador") > 0, "nao explica para onde ir");
+    });
+    t("o modo seguido tambem e SO LEITURA — nao apaga foto nenhuma", ()=>{
+      ["dbSet", "readwrite", "fotosGravarMapaOrfas", ".delete("].forEach(p=>{
+        ok(seguido.indexOf(p) < 0, "operacao de escrita no modo seguido: " + p);
+      });
     });
   }
 

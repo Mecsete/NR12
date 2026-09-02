@@ -117,7 +117,7 @@ function novoAparelho(nome, nuvem){
   try{ vm.runInContext(constante("CAMPO_MARCA_FOTO_PERDIDA"), ctx); }
   catch(e){ vm.runInContext('var CAMPO_MARCA_FOTO_PERDIDA = "__fotosPerdidas";', ctx); }
   vm.runInContext(constante("LAPIDE_VALIDADE_MS"),ctx);
-  vm.runInContext("var __ultimoCarimboVisto=0; var __arvoreSimplesCache=null; var __indiceNuvemMapa=null; var __indiceNuvemMapaEm=0; var __arvoreNuvemIncompleta=false;", ctx);
+  vm.runInContext("var __ultimoCarimboVisto=0; var __arvoreSimplesCache=null; var __indiceNuvemMapa=null; var __indiceNuvemMapaEm=0; var __arvoreNuvemIncompleta=false; var __pastasNuvemFalhadas=new Set();", ctx);
   // __progresso fica sempre null nos ensaios: progressoCancelado() (usada por
   // recuperarFotosPerdidasDaNuvem) so retorna true se algum dia um teste
   // simular o toque em "Parar" atribuindo a ele.
@@ -172,6 +172,10 @@ function novoAparelho(nome, nuvem){
    // Varredura ampla (ENSAIO 29): nao existe em versoes anteriores, entao
    // entra na lista tolerante — rodar a bancada contra original.html
    // continua funcionando, so pulando o ensaio que depende dela.
+   // Verificacao por area (ENSAIO 30): idem — nao existe em original.html.
+   // Sem elas, a reconciliacao extraida e a ANTIGA, que desiste inteira
+   // quando a listagem vem furada; e o ensaio 30 reprova, como tem que ser.
+   "onedriveMarcarArvoreIncompleta","__areaDoItemNuvem","__areaTeveFalhaNaListagem",
    "onedriveListarArvore","__itemLocalDoCaminhoFotosNuvem",
    "itemTemEspacoDeFotoVazio","recuperarFotosVarrendoNuvem",
    "__itemExisteAlgumLugar","riscoOrfaoConhecido","marcarRiscoOrfaoConhecido"].forEach(n=>{
@@ -184,6 +188,16 @@ function novoAparelho(nome, nuvem){
   if(typeof ctx.riscoOrfaoConhecido !== "function") ctx.riscoOrfaoConhecido = () => false;
   if(typeof ctx.marcarRiscoOrfaoConhecido !== "function") ctx.marcarRiscoOrfaoConhecido = () => {};
   if(typeof ctx.__itemExisteAlgumLugar !== "function") ctx.__itemExisteAlgumLugar = () => false;
+  /* Versao anterior a verificacao por area: os dois auxiliares nao existiam.
+     Definidos aqui so para nada estourar — o comportamento antigo continua
+     vindo de onde importa, a propria onedriveReconciliarComArvore extraida,
+     que naquela versao desiste inteira (`if(__arvoreNuvemIncompleta) return 0`).
+     E por isso que o ENSAIO 30 reprova contra original.html: e exatamente o
+     defeito que ele existe para pegar. */
+  if(typeof ctx.__areaDoItemNuvem !== "function")
+    ctx.__areaDoItemNuvem = (item, prefixo) => (prefixo + (item.pasta||[]).slice(0,2).join("/") + "/").toLowerCase();
+  if(typeof ctx.__areaTeveFalhaNaListagem !== "function")
+    ctx.__areaTeveFalhaNaListagem = () => false;
   /* Preenchidos aqui do lado do Node, e NÃO por um script rodado dentro do
      contexto: `function f(){}` dentro de um `if` é hasteada para o escopo do
      script e nasce como undefined, sobrescrevendo a função que a extração
@@ -231,15 +245,18 @@ function novoAparelho(nome, nuvem){
 /* Monta a árvore no formato que o app espera, a partir da nuvem de mentira. */
 function montarArvore(nuvem, ap){
   let incompleta = false;
+  const falhadas = [];
   const construir = (pasta, prof) => {
     const filhos = nuvem.filhos(pasta);
-    if(filhos === null){ incompleta = true; return []; }
+    if(filhos === null){ incompleta = true; falhadas.push(pasta.toLowerCase()); return []; }
     return filhos.map(f => f.pasta
       ? { nome:f.nome, pasta:true, caminho:pasta+"/"+f.nome, filhos: prof>0 ? construir(pasta+"/"+f.nome, prof-1) : [] }
       : { nome:f.nome, pasta:false, caminho:pasta+"/"+f.nome, tamanho:f.tamanho });
   };
   const raiz = construir(PREFIXO, 4);
   vm.runInContext("__arvoreNuvemIncompleta = " + (incompleta?"true":"false") + ";", ap.ctx);
+  ap.ctx.__falhadasParaTeste = falhadas;
+  vm.runInContext("__pastasNuvemFalhadas = new Set(__falhadasParaTeste);", ap.ctx);
   return raiz;
 }
 
@@ -1668,6 +1685,110 @@ async function rodarAteParar(ap, maxCiclos, rotulo){
         rv3.erro === true && rv3.recuperados === 0);
       A.ctx.onedriveListarFilhosEmLote = listarOriginal;
     }
+  }
+
+  console.log("\n" + L + "\nENSAIO 30 - uma pasta que falha nao pode mais travar a cura das OUTRAS areas\n" + L);
+  {
+    /* O QUE ESTE ENSAIO COBRE.
+       A reconciliacao e a rotina que confere, item por item, se o que a
+       assinatura local diz ("isto ja subiu") bate com o que existe de fato na
+       nuvem -- e conserta a assinatura quando nao bate. E ela que esvazia a
+       fila de envio.
+       Havia uma trava certa na intencao e cara demais no efeito: se QUALQUER
+       pasta falhasse ao listar (429 do OneDrive, coisa rotineira num celular
+       lendo milhares de arquivos), a rotina INTEIRA desistia -- `return 0`.
+       Uma pasta furada bloqueava a cura das outras 38 areas que tinham
+       listado perfeitamente. Em campo isso apareceu como "nao foi possivel
+       sincronizar" a cada tentativa, com a fila nunca esvaziando.
+       Agora a decisao e por AREA: area que listou inteira e curada; area que
+       falhou e pulada e tenta na proxima varredura. */
+    const nuvem = novaNuvem();
+    const A = novoAparelho("A", nuvem);
+    A.ctx.STATE.projetosSimples = [arvoreExemplo(2, 1, 1, 1, false)];
+    await rodarAteParar(A, 10);
+
+    // Descobre os caminhos reais das duas areas dentro da nuvem de mentira.
+    const chaves = [...nuvem.arquivos.keys()];
+    const pastaArea = n => {
+      const k = chaves.find(c => c.includes("Area " + n + " (") && c.endsWith("/_area.json"));
+      return k ? k.slice(0, k.lastIndexOf("/")) : null;
+    };
+    const areaRuim = pastaArea(0), areaBoa = pastaArea(1);
+    checar("preparacao: as duas areas subiram e tem pasta propria na nuvem",
+      !!areaRuim && !!areaBoa, "ruim=" + areaRuim + " boa=" + areaBoa);
+
+    const assinaturasDe = alvo => vm.runInContext(
+      "Object.keys(STATE.oneDriveAssinaturasSimples||{}).length", A.ctx);
+    const idsDaArea = trecho => vm.runInContext(
+      "listarItensSincronizaveisSimples().filter(i=>(i.pasta||[]).some(x=>x.indexOf(" +
+      JSON.stringify(trecho) + ")===0)).map(i=>i.id)", A.ctx);
+    const temAssinatura = id => vm.runInContext(
+      "!!(STATE.oneDriveAssinaturasSimples||{})[" + JSON.stringify(id) + "]", A.ctx);
+
+    const idsRuim = idsDaArea("Area 0 ");
+    const idsBoa  = idsDaArea("Area 1 ");
+    checar("preparacao: ha itens nas duas areas",
+      idsRuim.length >= 3 && idsBoa.length >= 3,
+      "ruim=" + idsRuim.length + " boa=" + idsBoa.length);
+
+    /* ---- O GANHO: area boa e curada mesmo com a outra falhando ---- */
+    // Apaga TODAS as assinaturas: e o estado de quem fechou o app e perdeu o
+    // registro do que ja tinha subido. Todo item vira "nunca subiu" e entra na
+    // fila -- mas os arquivos estao la, e a cura deveria reconhecer isso.
+    /* Apaga o registro salvo E o cache em memoria -- o app le o cache primeiro
+       (onedriveCarregarAssinaturas so monta o Map uma vez por sessao), entao
+       limpar so o STATE deixaria o ensaio testando o estado errado. */
+    vm.runInContext("STATE.oneDriveAssinaturasSimples = {}; __assinaturasOneDriveSimples.mapa = null;", A.ctx);
+    nuvem.falharPastas = new Set([areaRuim]);
+    const arvore = montarArvore(nuvem, A);
+
+    checar("preparacao: a listagem realmente voltou incompleta (a trava antiga teria desistido aqui)",
+      vm.runInContext("__arvoreNuvemIncompleta === true", A.ctx));
+    checar("e o app registrou QUAL pasta falhou (era isso que faltava para decidir por area)",
+      vm.runInContext("__pastasNuvemFalhadas.size", A.ctx) === 1,
+      "pastas=" + vm.runInContext("[...__pastasNuvemFalhadas].join(',')", A.ctx));
+
+    A.ctx.__arvoreParaEnsaio = arvore;
+    const reparos = vm.runInContext("onedriveReconciliarComArvore(__arvoreParaEnsaio)", A.ctx);
+
+    checar("O GANHO: com uma pasta falhando, a cura AINDA acontece (antes devolvia 0 sempre)",
+      reparos > 0, "reparos=" + reparos);
+    checar("os itens da area que listou bem recuperaram a assinatura (saem da fila de envio)",
+      idsBoa.every(temAssinatura), "sem assinatura: " + idsBoa.filter(i=>!temAssinatura(i)).length);
+    checar("os itens da area que FALHOU continuam sem assinatura (serao tentados na proxima varredura)",
+      idsRuim.every(id => !temAssinatura(id)),
+      "com assinatura indevida: " + idsRuim.filter(temAssinatura).length);
+
+    /* ---- A GARANTIA QUE NAO PODE SE PERDER ----
+       O motivo de a trava existir: nao apagar assinatura boa por causa de uma
+       listagem furada. Se isso acontecer, o item entra na fila, o reenvio
+       provoca mais 429, e a sincronizacao nunca termina. A trava por area
+       precisa manter essa garantia identica DENTRO da area que falhou. */
+    await rodarAteParar(A, 10);            // volta ao estado normal: tudo assinado
+    checar("preparacao: depois de sincronizar, todo mundo tem assinatura de novo",
+      idsRuim.concat(idsBoa).every(temAssinatura));
+
+    nuvem.falharPastas = new Set([areaRuim]);
+    const arvore2 = montarArvore(nuvem, A);
+    vm.runInContext("onedriveReconciliarComArvore(__arvoreParaEnsaio2)",
+      Object.assign(A.ctx, { __arvoreParaEnsaio2: arvore2 }));
+    checar("A GARANTIA: assinatura da area que falhou NAO e apagada (senao a fila nunca esvazia)",
+      idsRuim.every(temAssinatura),
+      "apagadas indevidamente: " + idsRuim.filter(id=>!temAssinatura(id)).length);
+    checar("e a area que listou bem tambem segue intacta (nada foi reenviado a toa)",
+      idsBoa.every(temAssinatura));
+
+    /* ---- Sem falha nenhuma, o comportamento e o de sempre ---- */
+    nuvem.falharPastas = new Set();
+    const arvore3 = montarArvore(nuvem, A);
+    checar("sem falha de listagem, nenhuma pasta fica marcada",
+      vm.runInContext("__pastasNuvemFalhadas.size === 0 && __arvoreNuvemIncompleta === false", A.ctx));
+    const reparos3 = vm.runInContext("onedriveReconciliarComArvore(__arvoreParaEnsaio3)",
+      Object.assign(A.ctx, { __arvoreParaEnsaio3: arvore3 }));
+    checar("com a nuvem inteira listada e tudo certo, nao ha nada a reparar",
+      reparos3 === 0, "reparos=" + reparos3);
+    checar("e ninguem perdeu assinatura no caminho",
+      idsRuim.concat(idsBoa).every(temAssinatura));
   }
 
   console.log("\n" + L);

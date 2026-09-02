@@ -2151,7 +2151,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "01/09/2026 16:45";
+const APP_BUILD = "01/09/2026 21:51";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -3719,9 +3719,31 @@ const ONEDRIVE_BATCH_TAMANHO = 20; // limite máximo de sub-pedidos por chamada 
    Agora toda falha de listagem levanta esta marca, e quem depende de uma foto
    COMPLETA da nuvem se recusa a agir enquanto ela estiver levantada. */
 let __arvoreNuvemIncompleta = false;
-function onedriveMarcarArvoreIncompleta(motivo){
+/* QUAIS pastas falharam nesta varredura. Sem isto a marca era só um
+   sim/não global: uma pasta que falhava bloqueava a cura de TODAS as áreas,
+   e numa árvore grande lida de um celular isso significa que a cura quase
+   nunca roda. Guardando os caminhos, cada área que listou inteira pode ser
+   curada normalmente. */
+let __pastasNuvemFalhadas = new Set();
+function onedriveMarcarArvoreIncompleta(motivo, caminho){
   __arvoreNuvemIncompleta = true;
+  if(caminho) __pastasNuvemFalhadas.add(String(caminho).toLowerCase());
   console.warn("Listagem da nuvem incompleta —", motivo);
+}
+/* Prefixo da ÁREA de um item: projeto/área. É a unidade em que a verificação
+   passa a acontecer — grande o bastante para valer a pena, pequena o
+   bastante para caber numa listagem que termina. */
+function __areaDoItemNuvem(item, prefixo){
+  return (prefixo + (item.pasta||[]).slice(0,2).join("/") + "/").toLowerCase();
+}
+/* Alguma pasta DESTA área falhou ao listar? Só nesse caso o item fica de
+   fora — o resto da árvore segue sendo verificado normalmente. */
+function __areaTeveFalhaNaListagem(caminhoArea){
+  if(__pastasNuvemFalhadas.size === 0) return false;
+  for(const f of __pastasNuvemFalhadas){
+    if(f.indexOf(caminhoArea) === 0 || caminhoArea.indexOf(f) === 0) return true;
+  }
+  return false;
 }
 /* onLote (opcional): chamado a cada lote respondido, com quantas pastas já
    foram lidas do conjunto pedido. Serve para uma operação longa poder dizer
@@ -3785,7 +3807,7 @@ async function onedriveListarFilhosEmLote(caminhos, onLote){
   }
   await executarComConcorrencia(precisamBuscaIndividual, 5, async (caminho) => {
     try{ resultado.set(caminho, await onedriveListarFilhos(caminho)); }
-    catch(e){ onedriveMarcarArvoreIncompleta("pasta " + caminho); resultado.set(caminho, []); }
+    catch(e){ onedriveMarcarArvoreIncompleta("pasta " + caminho, caminho); resultado.set(caminho, []); }
   });
   return resultado;
 }
@@ -3809,6 +3831,7 @@ async function onedriveListarArvore(caminhoPasta, profundidadeRestante, onPasta)
       : { nome: f.nome, pasta: false, caminho: caminhoFilho, tamanho: f.tamanho };
   });
   __arvoreNuvemIncompleta = false; // cada varredura começa limpa; qualquer falha no caminho levanta a marca
+  __pastasNuvemFalhadas = new Set();
   const filhosRaiz = (await onedriveListarFilhosEmLote([caminhoPasta])).get(caminhoPasta) || [];
   const nivelRaiz = construirNos(caminhoPasta, filhosRaiz);
   let nivelAtual = nivelRaiz.filter(n=>n.pasta);
@@ -6608,11 +6631,22 @@ function onedriveReconciliarComArvore(arvore){
        sincronização que nunca termina. Só se apaga assinatura com a foto
        COMPLETA na mão; incompleta, esta rodada não repara nada e a próxima
        varredura tenta de novo. */
-    if(__arvoreNuvemIncompleta) return 0;
+    /* ANTES: qualquer falha de listagem abortava a reconciliação INTEIRA
+       (`if(__arvoreNuvemIncompleta) return 0`). A intenção estava certa —
+       nunca apagar assinatura a partir de uma foto furada da nuvem — mas o
+       preço era alto demais: numa árvore de milhares de arquivos lida de um
+       celular, basta UMA pasta falhar para as outras 38 áreas, que listaram
+       perfeitamente, ficarem sem cura. Na prática a cura quase nunca rodava,
+       e a fila de envio nunca esvaziava: a "sincronização que não acaba".
+       AGORA a decisão é por ÁREA. Área que listou inteira é reconciliada
+       normalmente; área que teve falha é pulada e tenta na próxima varredura.
+       A garantia continua idêntica onde importa: nenhuma assinatura é apagada
+       com base numa listagem incompleta DAQUELA área. */
     const mapa = onedriveCarregarAssinaturas(__assinaturasOneDriveSimples);
     const prefixo = `${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado/`.toLowerCase();
     let reparos = 0;
     for(const item of listarItensSincronizaveisSimples()){
+      if(__areaTeveFalhaNaListagem(__areaDoItemNuvem(item, prefixo))) continue;
       const reg = mapa.get(item.id);
       if(!reg || !Array.isArray(reg.pasta) || !reg.arquivo){
         // Sem assinatura local (item "nunca subiu" nesta sessão — o caso
@@ -16048,7 +16082,11 @@ function screenSimplesConfigBackup(){
   <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.verDiagnosticoFotos()">${ic('info')} Conferir as fotos guardadas neste aparelho</button>
   <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="document.getElementById('fileFotosRecuperadas').click()">${ic('upload')} Devolver fotos a partir de um arquivo de backup (.json)</button>
   <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.baixarOrfasZip()">${ic('download')} Baixar as fotos soltas (.zip)${__orfasZipTotalLotes? ` — próximo: lote ${Math.min(__orfasZipProximoLote+1, __orfasZipTotalLotes)} de ${__orfasZipTotalLotes}`:""}</button>
-  ${__orfasZipProximoLote>0? `<button class="btn btn-ghost btn-block" style="margin-top:6px;font-size:12px" onclick="App.orfasZipReiniciar()">Recomeçar do lote 1</button>` : ""}
+  ${__orfasZipRodando
+      ? `<button class="btn btn-secondary btn-block" style="margin-top:6px" onclick="App.orfasZipParar()">Parar depois do lote atual</button>`
+      : `<button class="btn btn-secondary btn-block" style="margin-top:6px" onclick="App.baixarOrfasZipTudo()">${ic('download')} Baixar todos os lotes seguidos (no computador)</button>`}
+  ${__orfasZipProximoLote>0 && !__orfasZipRodando? `<button class="btn btn-ghost btn-block" style="margin-top:6px;font-size:12px" onclick="App.orfasZipReiniciar()">Recomeçar do lote 1</button>` : ""}
+  <div class="muted" style="font-size:11px;margin-top:6px">As fotos vêm agrupadas em pastas por data, com hora no nome. A data é a de quando o app percebeu que a foto tinha ficado sem dono — não a do disparo, que a foto não guarda.</div>
   ${__ultimoImporteFotos ? `<div class="field-hint" style="margin-top:6px;color:${__ultimoImporteFotos.erro?'var(--danger, #c0392b)':'var(--ok, #2e7d32)'}">${escapeHtml(__ultimoImporteFotos.mensagem)}</div>` : ""}
   ${__diagFotosCache ? `<div class="card card-pad" style="margin-top:8px">
     <div style="font-weight:800;font-size:13px;margin-bottom:6px">Fotos guardadas neste aparelho</div>
@@ -16603,16 +16641,36 @@ function crc32(bytes){
 function strToBytes(str){ return new TextEncoder().encode(str); }
 function pushU16(arr,v){ arr.push(v&0xFF,(v>>>8)&0xFF); }
 function pushU32(arr,v){ arr.push(v&0xFF,(v>>>8)&0xFF,(v>>>16)&0xFF,(v>>>24)&0xFF); }
+/* Data/hora de um arquivo dentro do .zip, no formato do MS-DOS que o
+   cabecalho do zip usa (segundos com resolucao de 2 em 2, ano a partir de
+   1980). Sem isto todo arquivo extraido nasce com 01/01/1980, e o Windows
+   nao consegue ordenar por data — que e justamente o que se procura numa
+   pasta com centenas de fotos. Fora da faixa que o formato aceita, devolve
+   null e o zip fica com o valor de antes: melhor sem data do que com uma
+   data errada. */
+function zipDataHora(ms){
+  const d = new Date(ms);
+  const ano = d.getFullYear();
+  if(!(ano >= 1980 && ano <= 2107)) return null;
+  return { hora: (d.getHours()<<11) | (d.getMinutes()<<5) | (d.getSeconds()>>1),
+           data: ((ano-1980)<<9) | ((d.getMonth()+1)<<5) | d.getDate() };
+}
 function buildZip(files){
   const localParts = [], central = [];
   let offset = 0;
   files.forEach(f=>{
     const nameBytes = strToBytes(f.name);
     const data = f.data;
+    /* Só quem passa `mtime` ganha data de verdade; sem ele o valor continua
+       exatamente o de antes (1º/1/1980), para não mexer em nenhum dos outros
+       arquivos .zip que o app já gerava. */
+    const __dt = (typeof f.mtime === "number") ? zipDataHora(f.mtime) : null;
+    const __zh = __dt ? __dt.hora : 0;
+    const __zd = __dt ? __dt.data : 0x21;
     const crc = crc32(data), size = data.length;
     const lh = [];
     pushU32(lh,0x04034b50); pushU16(lh,20); pushU16(lh,0); pushU16(lh,0);
-    pushU16(lh,0); pushU16(lh,0x21);
+    pushU16(lh,__zh); pushU16(lh,__zd);
     pushU32(lh,crc); pushU32(lh,size); pushU32(lh,size);
     pushU16(lh,nameBytes.length); pushU16(lh,0);
     const lhBytes = new Uint8Array(lh);
@@ -16622,7 +16680,7 @@ function buildZip(files){
 
     const ch = [];
     pushU32(ch,0x02014b50); pushU16(ch,20); pushU16(ch,20); pushU16(ch,0); pushU16(ch,0);
-    pushU16(ch,0); pushU16(ch,0x21);
+    pushU16(ch,__zh); pushU16(ch,__zd);
     pushU32(ch,crc); pushU32(ch,size); pushU32(ch,size);
     pushU16(ch,nameBytes.length); pushU16(ch,0); pushU16(ch,0);
     pushU16(ch,0); pushU16(ch,0); pushU32(ch,0); pushU32(ch,localOffset);
@@ -19391,14 +19449,74 @@ Devolver agora?`)) return;
       const totalLotes = Math.ceil(ids.length / ORFAS_POR_LOTE_ZIP);
       const inicio = (__orfasZipProximoLote || 0);
       if(inicio >= totalLotes){ __orfasZipProximoLote = 0; toast("Todos os lotes já foram baixados"); render(); return; }
+      /* Os nomes saem da lista INTEIRA, não da fatia: é o que mantém a
+         contagem por pasta contínua entre um lote e o seguinte. */
+      const nomes = orfasNomesNoZip(ids, orfasDesde);
       const fatia = ids.slice(inicio * ORFAS_POR_LOTE_ZIP, (inicio+1) * ORFAS_POR_LOTE_ZIP);
-      const qtd = await baixarOrfasLote(fatia, orfasDesde, inicio+1, totalLotes);
+      const qtd = await baixarOrfasLote(fatia, orfasDesde, inicio+1, totalLotes, nomes);
       __orfasZipProximoLote = inicio + 1;
       __orfasZipTotalLotes = totalLotes;
       if(qtd > 0 && __orfasZipProximoLote < totalLotes) toast("Toque de novo para o lote " + (__orfasZipProximoLote+1));
       render();
     }catch(e){ toast("Não foi possível montar o arquivo: " + ((e && e.message) || e), false); }
   },
+  /* BAIXAR A SEQUÊNCIA INTEIRA, sem um toque por lote.
+
+     São dezenas de lotes. Tocar em cada um, esperando o zip ficar pronto, é o
+     tipo de tarefa que se abandona no meio — e lote não baixado é foto que
+     continua existindo só dentro do navegador, exatamente o que este botão
+     veio resolver.
+
+     SÓ NO COMPUTADOR. No celular cada lote abre o menu nativo de
+     compartilhar, que fica esperando um toque; um laço empilharia dezenas de
+     menus abertos. Lá o caminho continua sendo um lote por vez — e cada lote
+     já é salvo em silêncio na pasta do OneDrive de qualquer jeito.
+
+     Um lote de cada vez, com a memória do anterior já liberada: montar tudo
+     junto estouraria o navegador, que é o defeito que criou as órfãs. */
+  async baixarOrfasZipTudo(){
+    if(__orfasZipRodando){ toast("Já está baixando — aguarde", false); return; }
+    try{
+      const amostra = new Blob(["x"], {type:"application/zip"});
+      const compartilha = !!(navigator.canShare && navigator.canShare({files:[new File([amostra], "t.zip", {type:"application/zip"})]}));
+      if(compartilha){
+        toast("Neste aparelho cada lote abre o menu de compartilhar — baixe um por vez, ou use o computador", false);
+        return;
+      }
+      toast("Reunindo as fotos soltas…");
+      const ids = await orfasListarIds();
+      if(ids.length === 0){ toast("Nenhuma foto solta neste aparelho", false); return; }
+      const db = await dbOpen();
+      const orfasDesde = await fotosLerMapaOrfas(db);
+      const nomes = orfasNomesNoZip(ids, orfasDesde);
+      const totalLotes = Math.ceil(ids.length / ORFAS_POR_LOTE_ZIP);
+      __orfasZipTotalLotes = totalLotes;
+      __orfasZipRodando = true;
+      __orfasZipCancelar = false;
+      let feitos = 0;
+      for(let i = (__orfasZipProximoLote || 0); i < totalLotes; i++){
+        if(__orfasZipCancelar) break;
+        const fatia = ids.slice(i * ORFAS_POR_LOTE_ZIP, (i+1) * ORFAS_POR_LOTE_ZIP);
+        await baixarOrfasLote(fatia, orfasDesde, i+1, totalLotes, nomes);
+        __orfasZipProximoLote = i + 1;
+        feitos++;
+        toast(`Lote ${i+1} de ${totalLotes} baixado`);
+        render();
+        // Respiro entre lotes: o navegador precisa de um instante para
+        // gravar o arquivo e soltar a memória do zip anterior.
+        await new Promise(r=>setTimeout(r, 600));
+      }
+      __orfasZipRodando = false;
+      if(__orfasZipCancelar) toast(`Interrompido — ${feitos} lote(s) baixado(s). O próximo toque continua de onde parou`, false);
+      else { __orfasZipProximoLote = 0; toast(`Pronto — ${feitos} lote(s) baixado(s)`); }
+      render();
+    }catch(e){
+      __orfasZipRodando = false;
+      render();
+      toast("Não foi possível montar o arquivo: " + ((e && e.message) || e), false);
+    }
+  },
+  orfasZipParar(){ __orfasZipCancelar = true; toast("Parando depois do lote atual…"); },
   orfasZipReiniciar(){ __orfasZipProximoLote = 0; render(); toast("Contagem reiniciada — o próximo toque baixa o lote 1"); },
   orfasDestinoCampo(campo){
     if(!__orfas) return;
@@ -21322,7 +21440,49 @@ function screenModalOrfas(){
    Passando disso o app baixa direto em vez de compartilhar — continua
    funcionando, so nao abre o menu nativo. */
 const ORFAS_POR_LOTE_ZIP = 30;
-async function baixarOrfasLote(ids, orfasDesde, numero, totalLotes){
+/* Teto de fotos por pasta dentro do zip. Um dia inteiro de levantamento pode
+   passar de duzentas fotos, e uma pasta com duzentas miniaturas trava a
+   visualização no Explorer do Windows tanto quanto a lista solta que ela veio
+   substituir. Passando do teto, o mesmo dia continua em `_p2`, `_p3`… — a
+   data segue na frente, então a ordem da pasta não se perde. */
+const ORFAS_POR_PASTA_ZIP = 60;
+/* Nome de cada foto dentro do zip: `AAAA-MM-DD/HHhMMmSS_seq_fid.jpg`.
+
+   O carimbo é o da QUARENTENA — o momento em que o app percebeu que aquela
+   foto tinha ficado sem dono. NÃO é a hora em que a foto foi tirada: a foto
+   passa por um canvas antes de ser guardada (redimensiona e recomprime), e
+   isso apaga o EXIF, que é onde a hora do disparo moraria. Na prática o
+   carimbo fica perto do trabalho daquele dia e serve para agrupar e ordenar,
+   que é para o que ele está aqui.
+
+   A data é a LOCAL do aparelho, não a UTC: no Brasil, foto tirada depois das
+   21h cai no dia seguinte em UTC, e a pasta apareceria com a data errada
+   justamente nas fotos do fim do expediente.
+
+   Função pura de propósito — os nomes são decididos de uma vez para a lista
+   inteira, e não lote a lote. Se fossem decididos dentro do lote, a contagem
+   por pasta recomeçaria a cada lote e o mesmo dia ganharia `_p2` repetido em
+   arquivos diferentes. */
+function orfasNomesNoZip(ids, orfasDesde){
+  const dois = v => String(v).padStart(2,"0");
+  const largura = String(ids.length).length;
+  const contagem = Object.create(null);
+  const nomes = new Map();
+  ids.forEach((fid, i)=>{
+    const t = (orfasDesde||{})[fid];
+    const temData = typeof t === "number" && isFinite(t) && t > 0;
+    const d = temData ? new Date(t) : null;
+    const dia = d ? `${d.getFullYear()}-${dois(d.getMonth()+1)}-${dois(d.getDate())}` : "sem-data";
+    const jaNoDia = contagem[dia] || 0;
+    contagem[dia] = jaNoDia + 1;
+    const parte = Math.floor(jaNoDia / ORFAS_POR_PASTA_ZIP) + 1;
+    const pasta = parte > 1 ? `${dia}_p${parte}` : dia;
+    const hora = d ? `${dois(d.getHours())}h${dois(d.getMinutes())}m${dois(d.getSeconds())}_` : "";
+    nomes.set(fid, `${pasta}/${hora}${String(i+1).padStart(largura,"0")}_${fid.slice(0,10)}.jpg`);
+  });
+  return nomes;
+}
+async function baixarOrfasLote(ids, orfasDesde, numero, totalLotes, nomes){
   const db = await dbOpen();
   const conjunto = new Set(ids);
   const mapa = await fotosLerLote(db, conjunto);
@@ -21331,11 +21491,11 @@ async function baixarOrfasLote(ids, orfasDesde, numero, totalLotes){
   mapa.forEach((dataUrl, fid)=>{
     n++;
     const t = orfasDesde[fid];
-    const quando = typeof t === "number"
-      ? new Date(t).toISOString().slice(0,10)
-      : "sem-data";
-    arquivos.push({ name: `${quando}_${String(n).padStart(3,"0")}_${fid.slice(0,10)}.jpg`,
-                    data: dataUrlToBytes(dataUrl) });
+    const nome = (nomes && nomes.get(fid)) || `sem-data/${String(n).padStart(3,"0")}_${fid.slice(0,10)}.jpg`;
+    const arq = { name: nome, data: dataUrlToBytes(dataUrl) };
+    // Com data de verdade no arquivo, o Windows ordena a pasta por data.
+    if(typeof t === "number" && isFinite(t) && t > 0) arq.mtime = t;
+    arquivos.push(arq);
   });
   mapa.clear();
   if(arquivos.length === 0) return 0;
@@ -21442,6 +21602,10 @@ let __diagFotosCache = null;
    lotes para não montar centenas de MB de uma vez). */
 let __orfasZipProximoLote = 0;
 let __orfasZipTotalLotes = 0;
+/* Modo seguido em andamento, e o pedido de parada. Sem a trava, dois toques
+   no botão rodariam dois laços em cima do mesmo banco. */
+let __orfasZipRodando = false;
+let __orfasZipCancelar = false;
 /* Resultado da última recomposição de frases, mostrado na tela de Backup. */
 let __ultimaRecomposicaoFrases = null;
 let __ultimoImporteFotos = null;

@@ -64,6 +64,58 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 01/09/2026 21:51
+
+**Sincronização passa a ser conferida por área.** É a correção da mensagem
+"não foi possível sincronizar" que aparecia a cada tentativa.
+
+**O que estava acontecendo.** Antes de enviar qualquer coisa, o app confere o
+que já existe na nuvem, pasta por pasta. Num aparelho com milhares de
+arquivos, o OneDrive recusa parte dos pedidos quando eles chegam rápido
+demais — é normal e passageiro. O problema é o que o app fazia em seguida:
+bastava **uma** pasta falhar para ele desistir da conferência **inteira**, e
+não apenas daquela pasta. A regra existia por um bom motivo (nunca concluir
+"isto não está na nuvem" a partir de uma leitura furada, porque isso agenda
+reenvio do que já estava salvo), mas o preço era alto demais: com 39 áreas,
+uma pasta furada bloqueava as outras 38 que tinham sido lidas perfeitamente.
+Na prática a conferência quase nunca terminava e a fila de envio nunca
+esvaziava.
+
+**O que muda.** A decisão agora é **por área**. Área lida inteira é conferida
+normalmente; área que teve falha fica de fora e é tentada na varredura
+seguinte. A garantia continua idêntica onde importa: nenhuma assinatura é
+apagada com base numa leitura incompleta daquela área. O que era uma tarefa
+que precisava dar certo de uma vez virou 39 tarefas pequenas, que vão sendo
+concluídas.
+
+**Nada muda no que você digitou ou fotografou.** A conferência só olha o que
+já está na nuvem e ajusta o controle interno de "isto já subiu". Não altera
+texto, foto, nem apaga item nenhum.
+
+---
+
+**Fotos soltas: agora agrupadas por data dentro do `.zip`.**
+
+Depois de abrir o primeiro arquivo, ficou claro que centenas de fotos numa
+lista única não ajudam a procurar nada. Mudou:
+
+- **Uma pasta por dia** dentro do zip (`2026-08-30/`), com teto de 60 fotos
+  por pasta — passando disso o mesmo dia continua em `2026-08-30_p2`.
+- **Hora no nome** do arquivo: `14h07m22_015_kf3a9b2c1x.jpg`.
+- **Data de verdade em cada arquivo**, então o Windows ordena a pasta por
+  data em vez de mostrar tudo como 01/01/1980.
+- **Botão "Baixar todos os lotes seguidos"** (no computador): percorre os
+  lotes que faltam sozinho, sem um toque por lote, e dá para parar no meio —
+  o próximo toque continua de onde parou. No celular cada lote abre o menu de
+  compartilhar, que espera um toque, então lá o caminho continua sendo um
+  lote por vez.
+
+**Sobre a data.** Ela é a de quando o app percebeu que a foto tinha ficado sem
+dono, **não** a hora em que a foto foi tirada. A foto passa por um
+redimensionamento antes de ser guardada, e isso apaga a informação de data
+que a câmera grava. O carimbo fica perto do trabalho daquele dia e serve para
+agrupar e ordenar, que é para o que ele está aqui.
+
 ## 01/09/2026 16:45
 
 **Novo: baixar as fotos soltas como .zip.**

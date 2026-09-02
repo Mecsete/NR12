@@ -1706,15 +1706,19 @@ print("\n=== 63. 'NAO CONSEGUI VER' DEIXA DE VIRAR 'ESTA VAZIO' NA NUVEM ===")
 # reenvio; o reenvio gerava mais requisicoes, mais 429, mais pastas
 # falsamente vazias. O diagnostico do usuario mostrava 17 dessas correcoes
 # no mesmo segundo e o mesmo arquivo enviado duas vezes em 18 s.
+# 01/09/2026: a marca deixou de ser um sim/nao global e passou a guardar QUAIS
+# pastas falharam (secao 111). O que ela protege continua o mesmo; o que mudou e
+# a granularidade da decisao.
 chk("existe uma marca de varredura incompleta, levantada por toda falha de listagem",
     novo.count("let __arvoreNuvemIncompleta = false;") == 1
-    and novo.count("function onedriveMarcarArvoreIncompleta(motivo){") == 1
+    and novo.count("function onedriveMarcarArvoreIncompleta(motivo, caminho){") == 1
     and 'onedriveMarcarArvoreIncompleta("sem token")' in novo
-    and 'catch(e){ onedriveMarcarArvoreIncompleta("pasta " + caminho); resultado.set(caminho, []); }' in novo)
+    and 'catch(e){ onedriveMarcarArvoreIncompleta("pasta " + caminho, caminho); resultado.set(caminho, []); }' in novo)
 chk("cada varredura comeca com a marca limpa (senao a autocura travaria para sempre)",
     "__arvoreNuvemIncompleta = false; // cada varredura começa limpa" in novo)
-chk("reconciliacao nao apaga assinatura a partir de foto furada",
-    "if(__arvoreNuvemIncompleta) return 0;" in novo)
+chk("reconciliacao nao apaga assinatura a partir de foto furada (agora por area)",
+    "if(__areaTeveFalhaNaListagem(__areaDoItemNuvem(item, prefixo))) continue;" in novo
+    and "function __areaTeveFalhaNaListagem(caminhoArea){" in novo)
 chk("a protecao antiga (nuvem TOTALMENTE vazia) continua de pe -- a nova cobre o caso parcial",
     "if(existentes.size===0 && temProjetosLocais) return 0;" in novo)
 chk("indice da nuvem nao e guardado a partir de varredura furada",
@@ -3218,9 +3222,9 @@ chk("cada lote e liberado antes do proximo -- nunca monta tudo de uma vez",
 chk("usa o zip que o app ja tem, sem biblioteca nova",
     "buildZip(arquivos)" in _bz
     and "dataUrlToBytes(dataUrl)" in _bz)
-chk("o nome do arquivo leva a data em que a foto ficou orfa (pista de quando foi tirada)",
-    "new Date(t).toISOString().slice(0,10)" in _bz
-    and '`${quando}_${String(n).padStart(3,"0")}_${fid.slice(0,10)}.jpg`' in _bz)
+chk("o nome de cada foto vem da tabela calculada de uma vez para a lista toda",
+    "nomes.get(fid)" in _bz
+    and "const nomes = orfasNomesNoZip(ids, orfasDesde);" in novo)
 chk("o zip tem nome inconfundivel: data, hora e a posicao no total",
     "const carimbo = `${ag.getFullYear()}-${dois(ag.getMonth()+1)}-${dois(ag.getDate())}_${dois(ag.getHours())}h${dois(ag.getMinutes())}`;" in _bz
     and "String(numero).padStart(largura" in _bz
@@ -3234,6 +3238,86 @@ chk("o botao existe e mostra em que lote esta",
     'onclick="App.baixarOrfasZip()"' in novo
     and "Baixar as fotos soltas (.zip)" in novo
     and "orfasZipReiniciar()" in novo)
+
+print("\n=== 111. SINCRONIZACAO VERIFICADA POR AREA, NAO TUDO-OU-NADA ===")
+# Ate 31/08/2026 qualquer pasta que falhasse ao listar (429 do OneDrive, coisa
+# rotineira num celular lendo milhares de arquivos) levantava uma marca GLOBAL,
+# e a reconciliacao inteira desistia: `if(__arvoreNuvemIncompleta) return 0`. A
+# intencao era certa -- nunca apagar assinatura a partir de uma foto furada da
+# nuvem -- mas o preco era alto demais: uma pasta furada bloqueava a cura das
+# outras 38 areas que tinham listado bem. Na pratica a cura quase nunca rodava e
+# a fila de envio nunca esvaziava. Agora a decisao e por AREA.
+_rec = novo[novo.find("function onedriveReconciliarComArvore("):]
+_rec = _rec[:_rec.find("\nfunction ", 10)]
+chk("a trava global saiu da reconciliacao (estava no original, sumiu do novo)",
+    "if(__arvoreNuvemIncompleta) return 0;" in orig
+    and "if(__arvoreNuvemIncompleta) return 0;" not in _rec)
+chk("e no lugar dela entrou a decisao por area, item a item",
+    "if(__areaTeveFalhaNaListagem(__areaDoItemNuvem(item, prefixo))) continue;" in _rec)
+chk("a marca passou a guardar QUAIS pastas falharam",
+    "let __pastasNuvemFalhadas = new Set();" in novo
+    and "function onedriveMarcarArvoreIncompleta(motivo, caminho){" in novo
+    and "if(caminho) __pastasNuvemFalhadas.add(String(caminho).toLowerCase());" in novo)
+chk("quem falha ao listar informa o caminho da pasta",
+    'onedriveMarcarArvoreIncompleta("pasta " + caminho, caminho)' in novo)
+chk("cada varredura zera a lista (pasta que falhou uma vez nao fica de castigo)",
+    "__pastasNuvemFalhadas = new Set();" in novo
+    and novo.count("__pastasNuvemFalhadas = new Set();") >= 1)
+chk("a area de um item e projeto/area -- nem o arquivo, nem o projeto inteiro",
+    "(item.pasta||[]).slice(0,2).join(\"/\")" in novo)
+chk("a garantia antiga continua: indice da nuvem nao e guardado de varredura furada",
+    "if(__arvoreNuvemIncompleta) return;" in novo)
+chk("a marca global continua existindo (quem depende dela nao ficou orfao)",
+    "let __arvoreNuvemIncompleta = false;" in novo
+    and "__arvoreNuvemIncompleta = true;" in novo)
+
+print("\n=== 112. FOTOS SOLTAS AGRUPADAS POR DATA DENTRO DO ZIP ===")
+# Pedido em campo em 01/09/2026, depois de abrir o primeiro zip: agrupar por
+# data em pastas com teto, por a hora no nome, e um modo que baixe a sequencia
+# inteira sem um toque por lote.
+chk("existe a funcao que decide os nomes, e ela e pura (testavel)",
+    novo.count("function orfasNomesNoZip(ids, orfasDesde){") == 1
+    and "const ORFAS_POR_PASTA_ZIP = 60;" in novo)
+_nz = novo[novo.find("function orfasNomesNoZip("):]
+_nz = _nz[:_nz.find("\nasync function baixarOrfasLote(")]
+chk("agrupa por dia, com teto por pasta e continuacao em _p2",
+    "`${dia}_p${parte}`" in _nz
+    and "Math.floor(jaNoDia / ORFAS_POR_PASTA_ZIP) + 1" in _nz)
+chk("a hora entra no nome do arquivo",
+    'dois(d.getHours())}h${dois(d.getMinutes())}m${dois(d.getSeconds())}' in _nz)
+chk("usa a data LOCAL, nao a UTC (foto do fim do dia cairia no dia seguinte)",
+    "d.getFullYear()" in _nz and "toISOString" not in _nz)
+chk("foto sem carimbo nao some -- vai para a pasta sem-data",
+    '"sem-data"' in _nz)
+chk("o zip carrega a data de cada foto (o Windows consegue ordenar a pasta)",
+    novo.count("function zipDataHora(ms){") == 1
+    and "arq.mtime = t" in novo
+    and "pushU16(lh,__zh); pushU16(lh,__zd);" in novo
+    and "pushU16(ch,__zh); pushU16(ch,__zd);" in novo)
+chk("sem mtime o zip fica exatamente como era (nao mexe nos outros exports)",
+    'const __dt = (typeof f.mtime === "number") ? zipDataHora(f.mtime) : null;' in novo
+    and "const __zd = __dt ? __dt.data : 0x21;" in novo)
+_seg = novo[novo.find("async baixarOrfasZipTudo(){"):]
+_seg = _seg[:_seg.find("orfasZipParar(){")]
+chk("existe o modo de baixar a sequencia inteira, com botao",
+    _seg != "" and 'onclick="App.baixarOrfasZipTudo()"' in novo)
+chk("o modo seguido continua indo UM lote por vez",
+    "await baixarOrfasLote(" in _seg
+    and "ORFAS_POR_LOTE_ZIP" in _seg
+    and "buildZip" not in _seg)
+chk("da para parar no meio e continuar de onde parou",
+    "if(__orfasZipCancelar) break;" in _seg
+    and "__orfasZipProximoLote = i + 1;" in _seg
+    and "orfasZipParar(){ __orfasZipCancelar = true;" in novo)
+chk("dois toques nao rodam dois lacos no mesmo banco",
+    "if(__orfasZipRodando)" in _seg
+    and "let __orfasZipRodando = false;" in novo)
+chk("no celular avisa em vez de empilhar menus de compartilhar",
+    "navigator.canShare" in _seg and "computador" in _seg)
+chk("o modo seguido tambem e SO LEITURA",
+    all(x not in _seg for x in ["dbSet", "readwrite", "fotosGravarMapaOrfas", ".delete("]))
+chk("a tela explica de onde vem a data (nao e a hora do disparo)",
+    "n\u00e3o a do disparo" in novo)
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
