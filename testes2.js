@@ -8328,15 +8328,16 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
          essa dependência. Mas são centenas de MB: montar um zip único
          estouraria a memória, o mesmo defeito que criou as órfãs. */
       const corpo = funcao("baixarOrfasLote");
+      const leitura = funcao("orfasLerComoArquivos");
       ok(HTML.indexOf("const ORFAS_POR_LOTE_ZIP = 30;") > 0, "sumiu o tamanho do lote");
-      ok(corpo.indexOf("mapa.clear();") > 0, "não libera as fotos do lote");
+      ok(leitura.indexOf("mapa.clear();") > 0, "não libera as fotos do bloco");
       ok(corpo.indexOf("arquivos.length = 0;") > 0, "não libera os bytes montados");
-      ok(corpo.indexOf("buildZip(arquivos)") > 0, "deve usar o zip que o app já tem");
+      ok(corpo.indexOf("buildZipPartes(arquivos)") > 0, "deve usar o zip que o app já tem");
     });
     t("o nome de cada foto sai da tabela de nomes, e como imagem", ()=>{
-      const corpo = funcao("baixarOrfasLote");
-      ok(corpo.indexOf("nomes.get(fid)") > 0, "o nome tem que vir da tabela calculada de uma vez");
-      ok(corpo.indexOf('.jpg`') > 0, "os arquivos precisam sair como imagem");
+      const leitura = funcao("orfasLerComoArquivos");
+      ok(leitura.indexOf("nomes.get(fid)") > 0, "o nome tem que vir da tabela calculada de uma vez");
+      ok(leitura.indexOf('.jpg`') > 0, "os arquivos precisam sair como imagem");
     });
     t("baixar é SÓ LEITURA — não altera nem apaga foto nenhuma", ()=>{
       const corpo = funcao("baixarOrfasLote");
@@ -8439,15 +8440,64 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       eq(vm.runInContext("zipDataHora(__ms) === null", c), true);
     });
     t("o zip so ganha data quando o chamador passa mtime (nao muda os outros exports)", ()=>{
-      const corpo = funcao("buildZip");
+      // O corpo que carimba a data mora em buildZipPartes desde 02/09/2026;
+      // buildZip virou o invólucro que junta tudo num bloco só.
+      const corpo = funcao("buildZipPartes");
       ok(corpo.indexOf('typeof f.mtime === "number"') > 0, "sumiu a checagem do mtime");
       ok(corpo.indexOf("__dt ? __dt.data : 0x21") > 0, "sem mtime tem que ficar o valor de antes");
       ok(corpo.indexOf("pushU16(lh,__zh)") > 0 && corpo.indexOf("pushU16(ch,__zh)") > 0,
          "a data tem que ir nos dois cabecalhos, local e central");
     });
     t("baixarOrfasLote carimba a data de cada foto no zip", ()=>{
+      ok(funcao("orfasLerComoArquivos").indexOf("arq.mtime = t") > 0,
+         "a data da foto nao vai para o arquivo");
+    });
+    /* ---- O IPHONE FECHAVA NO MEIO (relatado em campo em 02/09/2026) ----
+       Duas causas, e a segunda era consequencia da primeira. */
+    t("A CAUSA 1: le em blocos pequenos e solta cada texto assim que vira bytes", ()=>{
+      const leitura = funcao("orfasLerComoArquivos");
+      ok(HTML.indexOf("const ORFAS_BLOCO_LEITURA = 3;") > 0, "sumiu o tamanho do bloco de leitura");
+      ok(leitura.indexOf("i+=ORFAS_BLOCO_LEITURA") > 0, "voltou a ler o lote inteiro de uma vez");
+      const iClear = leitura.indexOf("mapa.clear();");
+      ok(iClear > 0 && iClear > leitura.indexOf("dataUrlToBytes(dataUrl)"),
+         "os textos tem que ser soltos DEPOIS de virarem bytes, dentro do laco");
+      ok(leitura.indexOf("setTimeout(r, 0)") > 0, "sem respiro o navegador nao recolhe entre os blocos");
+    });
+    t("e o zip vai para o Blob em PEDACOS — sem a copia unica do arquivo inteiro", ()=>{
       const corpo = funcao("baixarOrfasLote");
-      ok(corpo.indexOf("arq.mtime = t") > 0, "a data da foto nao vai para o arquivo");
+      ok(corpo.indexOf("new Blob(buildZipPartes(arquivos)") > 0,
+         "voltou a juntar o arquivo inteiro numa copia antes do Blob");
+      ok(corpo.indexOf("buildZip(arquivos)") < 0, "a copia unica voltou");
+    });
+    t("buildZip continua existindo e devolvendo UM bloco (os exports dependem disso)", ()=>{
+      const bz = funcao("buildZip");
+      ok(bz.indexOf("buildZipPartes(files)") > 0, "buildZip tem que reaproveitar o montador");
+      ok(bz.indexOf("new Uint8Array(total)") > 0, "buildZip precisa continuar devolvendo um bloco so");
+    });
+    t("no celular o lote e menor — o teto e a memoria viva, nao o tamanho do arquivo", ()=>{
+      ok(HTML.indexOf("const ORFAS_POR_LOTE_ZIP_CELULAR = 10;") > 0, "sumiu o lote do celular");
+      const f = funcao("orfasPorLote");
+      ok(f.indexOf("navigator.canShare") > 0, "nao distingue o aparelho");
+      ok(f.indexOf("ORFAS_POR_LOTE_ZIP_CELULAR") > 0 && f.indexOf("ORFAS_POR_LOTE_ZIP") > 0);
+    });
+    t("A CAUSA 2: a contagem do proximo lote sobrevive ao app fechar", ()=>{
+      /* Enquanto era variavel solta, todo fechamento a zerava -- e o app
+         fechava JUSTAMENTE durante a exportacao. Por isso sempre voltava ao
+         lote 1 e os outros 23 nunca sairiam, nem num aparelho que aguentasse. */
+      ok(HTML.indexOf("let __orfasZipProximoLote") < 0,
+         "a contagem voltou a ser variavel solta — o app fecha e ela some");
+      ok(HTML.indexOf("function orfasZipProximoLote(){ return Number(STATE.orfasZipProximoLote) || 0; }") > 0,
+         "a contagem precisa morar no STATE");
+      const g = funcao("orfasZipDefinirProximoLote");
+      ok(g.indexOf("STATE.orfasZipProximoLote =") > 0 && g.indexOf("marcarAlterado()") > 0,
+         "guardar sem gravar nao sobrevive ao fechamento");
+    });
+    t("a contagem avanca ANTES de montar o arquivo (fechou no meio, continua do seguinte)", ()=>{
+      const corpo = HTML.slice(HTML.indexOf("  async baixarOrfasZip(){"), HTML.indexOf("  async baixarOrfasZipTudo(){"));
+      const iAvanca = corpo.indexOf("orfasZipDefinirProximoLote(inicio + 1);");
+      const iMonta  = corpo.indexOf("await baixarOrfasLote(");
+      ok(iAvanca > 0 && iMonta > 0 && iAvanca < iMonta,
+         "se a contagem so avanca depois de montar, o fechamento no meio recomeca do lote 1 para sempre");
     });
 
     /* ---- modo seguido ---- */
@@ -8458,12 +8508,12 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
     t("o modo seguido continua baixando UM lote por vez (nao monta tudo junto)", ()=>{
       ok(seguido.indexOf("await baixarOrfasLote(") > 0, "tem que reaproveitar o lote de sempre");
-      ok(seguido.indexOf("ORFAS_POR_LOTE_ZIP") > 0, "tem que fatiar pelo tamanho do lote");
+      ok(seguido.indexOf("orfasPorLote()") > 0, "tem que fatiar pelo tamanho do lote do aparelho");
       ok(seguido.indexOf("buildZip") < 0, "nao pode montar um zip proprio, sem lote");
     });
     t("da para parar no meio, e continua de onde parou", ()=>{
       ok(seguido.indexOf("if(__orfasZipCancelar) break;") > 0, "sem parada no meio");
-      ok(seguido.indexOf("__orfasZipProximoLote = i + 1;") > 0, "nao guarda onde parou");
+      ok(seguido.indexOf("orfasZipDefinirProximoLote(i + 1);") > 0, "nao guarda onde parou");
       ok(HTML.indexOf("orfasZipParar(){ __orfasZipCancelar = true;") > 0, "sem botao de parar");
     });
     t("dois toques nao rodam dois lacos no mesmo banco", ()=>{

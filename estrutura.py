@@ -32,7 +32,11 @@ print("=== 3. ARQUITETURA DE FOTOS (CAMADA_FOTOS) ===")
 # Delta MEDIDO desta entrega (nao estimado): idbfoto: 4->11, foto: 9->17,
 # CAMADA_FOTOS 0->1. Some ao ORIGINAL na proxima geracao de original.html --
 # mesmo padrao dos extras da secao 4 logo abaixo, que ja passaram por isso.
-_extra_fotos = {"idbfoto:": 7, "foto:": 8, "CAMADA_FOTOS": 1}
+# Zerado em 02/09/2026 (segunda vez no dia): original.html foi regerado a
+# partir do commit da carga sob demanda, entao o delta daquela entrega JA esta
+# no original -- somar de novo conta duas vezes. Este extra so volta a ser
+# diferente de zero quando ESTA entrega mudar as contagens.
+_extra_fotos = {}
 for marca in ["idbfoto:", "foto:", "CAMADA_FOTOS"]:
     a, b = orig.count(marca) + _extra_fotos.get(marca, 0), novo.count(marca)
     chk("ocorrencias de '%s' inalteradas (%d)" % (marca, a), a == b, "orig+extra=%d novo=%d" % (a, b))
@@ -3235,16 +3239,43 @@ _bz = _bz[:_bz.find("\nfunction screenModalImportacaoRevisao")]
 chk("existe o download das orfas em zip, e ele sai EM LOTES",
     novo.count("async function baixarOrfasLote(") == 1
     and "const ORFAS_POR_LOTE_ZIP = 30;" in novo
-    and "Math.ceil(ids.length / ORFAS_POR_LOTE_ZIP)" in novo)
-chk("cada lote e liberado antes do proximo -- nunca monta tudo de uma vez",
-    "mapa.clear();" in _bz
+    and "Math.ceil(ids.length / porLote)" in novo)
+# 02/09/2026 — o iPhone fechava no meio da exportacao. Duas causas: o pico de
+# memoria (lote inteiro lido de uma vez, convertido com os textos ainda vivos,
+# e juntado numa copia unica antes do Blob) e a contagem do proximo lote numa
+# variavel solta, que o fechamento zerava -- por isso voltava sempre ao lote 1.
+chk("le em blocos pequenos e solta cada texto assim que ele vira bytes",
+    "const ORFAS_BLOCO_LEITURA = 3;" in novo
+    and novo.count("async function orfasLerComoArquivos(db, ids, orfasDesde, nomes){") == 1
+    and "i+=ORFAS_BLOCO_LEITURA" in novo)
+chk("o zip vai para o Blob em PEDACOS, sem a copia unica do arquivo inteiro",
+    "new Blob(buildZipPartes(arquivos)" in novo
+    and novo.count("function buildZipPartes(files){") == 1)
+chk("buildZip continua existindo e devolvendo um bloco so (os exports dependem)",
+    novo.count("function buildZip(files){") == 1
+    and "const all = buildZipPartes(files);" in novo)
+chk("no celular o lote e menor -- o teto e a memoria viva, nao o tamanho do arquivo",
+    "const ORFAS_POR_LOTE_ZIP_CELULAR = 10;" in novo
+    and novo.count("function orfasPorLote(){") == 1)
+chk("a contagem do proximo lote sobrevive ao app fechar",
+    "let __orfasZipProximoLote" not in novo
+    and "function orfasZipProximoLote(){ return Number(STATE.orfasZipProximoLote) || 0; }" in novo
+    and "STATE.orfasZipProximoLote = Number(n) || 0;" in novo)
+_umToque = novo[novo.find("  async baixarOrfasZip(){"):novo.find("  async baixarOrfasZipTudo(){")]
+chk("e avanca ANTES de montar o arquivo (fechou no meio, continua do seguinte)",
+    _umToque.find("orfasZipDefinirProximoLote(inicio + 1);") > 0
+    and _umToque.find("orfasZipDefinirProximoLote(inicio + 1);") < _umToque.find("await baixarOrfasLote("))
+_leit = novo[novo.find("async function orfasLerComoArquivos("):]
+_leit = _leit[:_leit.find("async function baixarOrfasLote(", 10)]
+chk("cada bloco e liberado antes do proximo -- nunca monta tudo de uma vez",
+    "mapa.clear();" in _leit
     and "arquivos.length = 0;" in _bz
-    and "fotosLerLote(db, conjunto)" in _bz)
+    and "fotosLerLote(db, bloco)" in _leit)
 chk("usa o zip que o app ja tem, sem biblioteca nova",
-    "buildZip(arquivos)" in _bz
-    and "dataUrlToBytes(dataUrl)" in _bz)
+    "buildZipPartes(arquivos)" in _bz
+    and "dataUrlToBytes(dataUrl)" in _leit)
 chk("o nome de cada foto vem da tabela calculada de uma vez para a lista toda",
-    "nomes.get(fid)" in _bz
+    "nomes.get(fid)" in _leit
     and "const nomes = orfasNomesNoZip(ids, orfasDesde);" in novo)
 chk("o zip tem nome inconfundivel: data, hora e a posicao no total",
     "const carimbo = `${ag.getFullYear()}-${dois(ag.getMonth()+1)}-${dois(ag.getDate())}_${dois(ag.getHours())}h${dois(ag.getMinutes())}`;" in _bz
@@ -3346,11 +3377,11 @@ chk("existe o modo de baixar a sequencia inteira, com botao",
     _seg != "" and 'onclick="App.baixarOrfasZipTudo()"' in novo)
 chk("o modo seguido continua indo UM lote por vez",
     "await baixarOrfasLote(" in _seg
-    and "ORFAS_POR_LOTE_ZIP" in _seg
+    and "orfasPorLote()" in _seg
     and "buildZip" not in _seg)
 chk("da para parar no meio e continuar de onde parou",
     "if(__orfasZipCancelar) break;" in _seg
-    and "__orfasZipProximoLote = i + 1;" in _seg
+    and "orfasZipDefinirProximoLote(i + 1);" in _seg
     and "orfasZipParar(){ __orfasZipCancelar = true;" in novo)
 chk("dois toques nao rodam dois lacos no mesmo banco",
     "if(__orfasZipRodando)" in _seg

@@ -2318,7 +2318,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "02/09/2026 08:56";
+const APP_BUILD = "02/09/2026 10:35";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -16457,11 +16457,11 @@ function screenSimplesConfigBackup(){
   <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.copiarListaFotoPerdida()">${ic('copy')} Copiar lista dos itens que ainda precisam de foto</button>
   <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.verDiagnosticoFotos()">${ic('info')} Conferir as fotos guardadas neste aparelho</button>
   <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="document.getElementById('fileFotosRecuperadas').click()">${ic('upload')} Devolver fotos a partir de um arquivo de backup (.json)</button>
-  <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.baixarOrfasZip()">${ic('download')} Baixar as fotos soltas (.zip)${__orfasZipTotalLotes? ` — próximo: lote ${Math.min(__orfasZipProximoLote+1, __orfasZipTotalLotes)} de ${__orfasZipTotalLotes}`:""}</button>
+  <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.baixarOrfasZip()">${ic('download')} Baixar as fotos soltas (.zip)${__orfasZipTotalLotes? ` — próximo: lote ${Math.min(orfasZipProximoLote()+1, __orfasZipTotalLotes)} de ${__orfasZipTotalLotes}`:""}</button>
   ${__orfasZipRodando
       ? `<button class="btn btn-secondary btn-block" style="margin-top:6px" onclick="App.orfasZipParar()">Parar depois do lote atual</button>`
       : `<button class="btn btn-secondary btn-block" style="margin-top:6px" onclick="App.baixarOrfasZipTudo()">${ic('download')} Baixar todos os lotes seguidos (no computador)</button>`}
-  ${__orfasZipProximoLote>0 && !__orfasZipRodando? `<button class="btn btn-ghost btn-block" style="margin-top:6px;font-size:12px" onclick="App.orfasZipReiniciar()">Recomeçar do lote 1</button>` : ""}
+  ${orfasZipProximoLote()>0 && !__orfasZipRodando? `<button class="btn btn-ghost btn-block" style="margin-top:6px;font-size:12px" onclick="App.orfasZipReiniciar()">Recomeçar do lote 1</button>` : ""}
   <div class="muted" style="font-size:11px;margin-top:6px">As fotos vêm em pastas <b>sem_dono_desde_AAAA-MM-DD</b>, com hora no nome. Essa data é a de quando o app percebeu que a foto ficou sem dono — <b>não</b> é o dia em que a foto foi tirada: a foto é redimensionada antes de ser guardada e isso apaga a data da câmera, que não existe mais no aparelho. Os lotes saem do mais recente para o mais antigo, então o lote 1 traz sempre as datas de agora.</div>
   ${__ultimoImporteFotos ? `<div class="field-hint" style="margin-top:6px;color:${__ultimoImporteFotos.erro?'var(--danger, #c0392b)':'var(--ok, #2e7d32)'}">${escapeHtml(__ultimoImporteFotos.mensagem)}</div>` : ""}
   ${__diagFotosCache ? `<div class="card card-pad" style="margin-top:8px">
@@ -17046,7 +17046,9 @@ function zipDataHora(ms){
   return { hora: (d.getHours()<<11) | (d.getMinutes()<<5) | (d.getSeconds()>>1),
            data: ((ano-1980)<<9) | ((d.getMonth()+1)<<5) | d.getDate() };
 }
-function buildZip(files){
+/* Monta o .zip como LISTA de pedaços, sem juntar tudo num bloco só — o Blob
+   aceita a lista e economiza uma cópia inteira do arquivo na memória. */
+function buildZipPartes(files){
   const localParts = [], central = [];
   let offset = 0;
   files.forEach(f=>{
@@ -17083,7 +17085,14 @@ function buildZip(files){
   pushU32(eocd,0x06054b50); pushU16(eocd,0); pushU16(eocd,0);
   pushU16(eocd,files.length); pushU16(eocd,files.length);
   pushU32(eocd,centralSize); pushU32(eocd,centralOffset); pushU16(eocd,0);
-  const all = [...localParts, ...central, new Uint8Array(eocd)];
+  return [...localParts, ...central, new Uint8Array(eocd)];
+}
+/* O zip como UM bloco só. Continua existindo porque é o que os exports de
+   planilha esperam receber; quem só vai criar um Blob deve usar buildZipPartes
+   e passar a lista direto, porque juntar tudo aqui custa uma cópia inteira do
+   arquivo em memória — num aparelho apertado, é essa cópia que derruba a aba. */
+function buildZip(files){
+  const all = buildZipPartes(files);
   let total = 0; all.forEach(b=>total+=b.length);
   const out = new Uint8Array(total);
   let p = 0; all.forEach(b=>{ out.set(b,p); p+=b.length; });
@@ -19849,17 +19858,22 @@ Devolver agora?`)) return;
       if(ids.length === 0){ toast("Nenhuma foto solta neste aparelho", false); return; }
       const db = await dbOpen();
       const orfasDesde = await fotosLerMapaOrfas(db);
-      const totalLotes = Math.ceil(ids.length / ORFAS_POR_LOTE_ZIP);
-      const inicio = (__orfasZipProximoLote || 0);
-      if(inicio >= totalLotes){ __orfasZipProximoLote = 0; toast("Todos os lotes já foram baixados"); render(); return; }
+      const porLote = orfasPorLote();
+      const totalLotes = Math.ceil(ids.length / porLote);
+      const inicio = orfasZipProximoLote();
+      if(inicio >= totalLotes){ orfasZipDefinirProximoLote(0); toast("Todos os lotes já foram baixados"); render(); return; }
       /* Os nomes saem da lista INTEIRA, não da fatia: é o que mantém a
          contagem por pasta contínua entre um lote e o seguinte. */
       const nomes = orfasNomesNoZip(ids, orfasDesde);
-      const fatia = ids.slice(inicio * ORFAS_POR_LOTE_ZIP, (inicio+1) * ORFAS_POR_LOTE_ZIP);
-      const qtd = await baixarOrfasLote(fatia, orfasDesde, inicio+1, totalLotes, nomes);
-      __orfasZipProximoLote = inicio + 1;
+      const fatia = ids.slice(inicio * porLote, (inicio+1) * porLote);
+      /* A contagem avança ANTES de montar o arquivo. Se o app fechar no meio
+         (é o que acontecia no iPhone), o próximo toque continua do lote
+         seguinte em vez de recomeçar eternamente do primeiro. Repetir um lote
+         custa um arquivo a mais; recomeçar sempre custa os outros 23. */
+      orfasZipDefinirProximoLote(inicio + 1);
       __orfasZipTotalLotes = totalLotes;
-      if(qtd > 0 && __orfasZipProximoLote < totalLotes) toast("Toque de novo para o lote " + (__orfasZipProximoLote+1));
+      const qtd = await baixarOrfasLote(fatia, orfasDesde, inicio+1, totalLotes, nomes);
+      if(qtd > 0 && orfasZipProximoLote() < totalLotes) toast("Toque de novo para o lote " + (orfasZipProximoLote()+1));
       render();
     }catch(e){ toast("Não foi possível montar o arquivo: " + ((e && e.message) || e), false); }
   },
@@ -19892,16 +19906,17 @@ Devolver agora?`)) return;
       const db = await dbOpen();
       const orfasDesde = await fotosLerMapaOrfas(db);
       const nomes = orfasNomesNoZip(ids, orfasDesde);
-      const totalLotes = Math.ceil(ids.length / ORFAS_POR_LOTE_ZIP);
+      const porLote = orfasPorLote();
+      const totalLotes = Math.ceil(ids.length / porLote);
       __orfasZipTotalLotes = totalLotes;
       __orfasZipRodando = true;
       __orfasZipCancelar = false;
       let feitos = 0;
-      for(let i = (__orfasZipProximoLote || 0); i < totalLotes; i++){
+      for(let i = orfasZipProximoLote(); i < totalLotes; i++){
         if(__orfasZipCancelar) break;
-        const fatia = ids.slice(i * ORFAS_POR_LOTE_ZIP, (i+1) * ORFAS_POR_LOTE_ZIP);
+        const fatia = ids.slice(i * porLote, (i+1) * porLote);
+        orfasZipDefinirProximoLote(i + 1);   // antes de montar: fechou no meio, continua do seguinte
         await baixarOrfasLote(fatia, orfasDesde, i+1, totalLotes, nomes);
-        __orfasZipProximoLote = i + 1;
         feitos++;
         toast(`Lote ${i+1} de ${totalLotes} baixado`);
         render();
@@ -19911,7 +19926,7 @@ Devolver agora?`)) return;
       }
       __orfasZipRodando = false;
       if(__orfasZipCancelar) toast(`Interrompido — ${feitos} lote(s) baixado(s). O próximo toque continua de onde parou`, false);
-      else { __orfasZipProximoLote = 0; toast(`Pronto — ${feitos} lote(s) baixado(s)`); }
+      else { orfasZipDefinirProximoLote(0); toast(`Pronto — ${feitos} lote(s) baixado(s)`); }
       render();
     }catch(e){
       __orfasZipRodando = false;
@@ -19920,7 +19935,7 @@ Devolver agora?`)) return;
     }
   },
   orfasZipParar(){ __orfasZipCancelar = true; toast("Parando depois do lote atual…"); },
-  orfasZipReiniciar(){ __orfasZipProximoLote = 0; render(); toast("Contagem reiniciada — o próximo toque baixa o lote 1"); },
+  orfasZipReiniciar(){ orfasZipDefinirProximoLote(0); render(); toast("Contagem reiniciada — o próximo toque baixa o lote 1"); },
   orfasDestinoCampo(campo){
     if(!__orfas) return;
     __orfas.destino.campo = campo;
@@ -21874,6 +21889,44 @@ function screenModalOrfas(){
    Passando disso o app baixa direto em vez de compartilhar — continua
    funcionando, so nao abre o menu nativo. */
 const ORFAS_POR_LOTE_ZIP = 30;
+/* No celular o lote é menor. O teto não é o tamanho do arquivo, é a memória
+   viva durante a montagem — e o iPhone que precisa deste botão é justamente o
+   que está sem folga. Menos fotos por lote significa mais lotes, e a contagem
+   guardada (ver STATE.orfasZipProximoLote) faz cada um continuar de onde
+   parou. */
+const ORFAS_POR_LOTE_ZIP_CELULAR = 10;
+function orfasPorLote(){
+  try{
+    const amostra = new File([new Blob(["x"])], "t.zip", {type:"application/zip"});
+    if(navigator.canShare && navigator.canShare({files:[amostra]})) return ORFAS_POR_LOTE_ZIP_CELULAR;
+  }catch(e){}
+  return ORFAS_POR_LOTE_ZIP;
+}
+/* Lê as fotos em blocos pequenos e solta cada texto assim que ele vira bytes.
+   Antes, as 30 fotos do lote ficavam VIVAS como texto (~17 MB) enquanto as
+   cópias em bytes eram criadas ao lado (+12,5 MB) — o dobro do necessário, no
+   pior momento possível. */
+const ORFAS_BLOCO_LEITURA = 3;
+async function orfasLerComoArquivos(db, ids, orfasDesde, nomes){
+  const arquivos = [];
+  let n = 0;
+  for(let i=0; i<ids.length; i+=ORFAS_BLOCO_LEITURA){
+    const bloco = new Set(ids.slice(i, i+ORFAS_BLOCO_LEITURA));
+    const mapa = await fotosLerLote(db, bloco);
+    mapa.forEach((dataUrl, fid)=>{
+      n++;
+      const t = orfasDesde[fid];
+      const nome = (nomes && nomes.get(fid)) || `data-desconhecida/${String(n).padStart(3,"0")}_${fid.slice(0,10)}.jpg`;
+      const arq = { name: nome, data: dataUrlToBytes(dataUrl) };
+      // Com data de verdade no arquivo, o Windows ordena a pasta por data.
+      if(typeof t === "number" && isFinite(t) && t > 0) arq.mtime = t;
+      arquivos.push(arq);
+    });
+    mapa.clear();          // os textos deste bloco já viraram bytes — soltos
+    await new Promise(r=>setTimeout(r, 0));  // deixa o navegador respirar e recolher
+  }
+  return arquivos;
+}
 /* Teto de fotos por pasta dentro do zip. Um dia inteiro de levantamento pode
    passar de duzentas fotos, e uma pasta com duzentas miniaturas trava a
    visualização no Explorer do Windows tanto quanto a lista solta que ela veio
@@ -21928,23 +21981,12 @@ function orfasNomesNoZip(ids, orfasDesde){
 }
 async function baixarOrfasLote(ids, orfasDesde, numero, totalLotes, nomes){
   const db = await dbOpen();
-  const conjunto = new Set(ids);
-  const mapa = await fotosLerLote(db, conjunto);
-  const arquivos = [];
-  let n = 0;
-  mapa.forEach((dataUrl, fid)=>{
-    n++;
-    const t = orfasDesde[fid];
-    const nome = (nomes && nomes.get(fid)) || `data-desconhecida/${String(n).padStart(3,"0")}_${fid.slice(0,10)}.jpg`;
-    const arq = { name: nome, data: dataUrlToBytes(dataUrl) };
-    // Com data de verdade no arquivo, o Windows ordena a pasta por data.
-    if(typeof t === "number" && isFinite(t) && t > 0) arq.mtime = t;
-    arquivos.push(arq);
-  });
-  mapa.clear();
+  const arquivos = await orfasLerComoArquivos(db, ids, orfasDesde, nomes);
   if(arquivos.length === 0) return 0;
-  const blob = new Blob([buildZip(arquivos)], {type:"application/zip"});
   const qtd = arquivos.length;
+  /* Lista de pedaços direto para o Blob: sem a cópia única do arquivo inteiro,
+     que era a última alocação grande antes de o app fechar. */
+  const blob = new Blob(buildZipPartes(arquivos), {type:"application/zip"});
   arquivos.length = 0;
   /* Nome inconfundivel: data, hora e a posicao no total. Sao dezenas de
      arquivos que vao parar na mesma pasta — sem isso vira adivinhacao. O
@@ -22044,7 +22086,16 @@ let __ultimaRecuperacaoFotos = null;
 let __diagFotosCache = null;
 /* Qual lote de fotos soltas o próximo toque vai baixar (o download sai em
    lotes para não montar centenas de MB de uma vez). */
-let __orfasZipProximoLote = 0;
+/* A CONTAGEM MORA NO STATE, não numa variável solta.
+   Enquanto era só memória, qualquer fechamento do app a zerava — e como o app
+   fechava JUSTAMENTE durante a exportação, toda tentativa recomeçava do lote 1
+   e os lotes seguintes nunca sairiam, nem num aparelho que aguentasse. Guardada,
+   a pessoa continua de onde parou. */
+function orfasZipProximoLote(){ return Number(STATE.orfasZipProximoLote) || 0; }
+function orfasZipDefinirProximoLote(n){
+  STATE.orfasZipProximoLote = Number(n) || 0;
+  try{ marcarAlterado(); }catch(e){}
+}
 let __orfasZipTotalLotes = 0;
 /* Modo seguido em andamento, e o pedido de parada. Sem a trava, dois toques
    no botão rodariam dois laços em cima do mesmo banco. */

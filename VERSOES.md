@@ -64,6 +64,35 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 02/09/2026 10:35
+
+**O app fechava ao exportar as fotos soltas, e voltava sempre ao lote 1.** Eram
+dois defeitos, e o segundo era consequência do primeiro.
+
+**1. Pico de memória.** O lote lia as 30 fotos de uma vez (~17 MB de texto),
+convertia todas para bytes com os textos ainda vivos (+12,5 MB), juntava o zip
+numa cópia única (+12,5 MB) e só então criava o arquivo (+12,5 MB). São ~55 MB
+alocados de um sopro, num aparelho que o iOS já estava apertando — a aba morria
+no meio. Agora:
+
+- as fotos são lidas em **blocos de 3**, e cada texto é solto assim que vira
+  bytes;
+- o zip vai para o arquivo **em pedaços**, sem a cópia única — era a última
+  alocação grande antes de o app fechar;
+- **no celular o lote é de 10 fotos**, não 30. O teto não é o tamanho do
+  arquivo, é a memória viva durante a montagem.
+
+**2. Sempre o lote 1.** A contagem do próximo lote era uma variável solta na
+memória. Quando o app fechava, ela voltava a zero — e como o app fechava
+**justamente durante a exportação**, toda tentativa recomeçava do lote 1 e os
+lotes 2 em diante nunca sairiam, nem num aparelho que aguentasse. Agora a
+contagem é gravada, e **avança antes de montar o arquivo**: se o app fechar no
+meio, o próximo toque continua do lote seguinte. Repetir um lote custa um
+arquivo a mais; recomeçar sempre custava os outros 23.
+
+Com o lote de 10 no celular, as 707 fotos saem em 71 arquivos menores — mais
+toques, mas cada um cabe na memória e a contagem não se perde.
+
 ## 02/09/2026 08:56
 
 **O app não carrega mais as fotos ao abrir.** É a correção da causa raiz do
