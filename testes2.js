@@ -9377,6 +9377,97 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  /* ---------- t145: as imagens do APP carregam na abertura -----------------
+     Relatado em campo em 02/09/2026: "a cada vez que abro o app perde o
+     logotipo do laudo". Defeito da carga sob demanda daquela manha.
+
+     O STATE nao guarda so foto de campo -- o logotipo do laudo e a figura do
+     processo moram nele tambem, e passaram pela mesma conversao para
+     referencia. O laudo testa se o logotipo e uma foto CARREGADA; com uma
+     referencia no lugar, respondia "nao tem logotipo" e saia com a marca em
+     texto. A cada abertura.
+
+     A regra que isto fixa: o que e do APP carrega na abertura; o que e de
+     CAMPO carrega sob demanda. */
+  {
+    console.log("\n[t145] imagens do app (logotipo, figura) carregam na abertura");
+    const cg = vm.createContext({ console, Promise, Set, Map, Object, Array, String, JSON });
+    vm.runInContext(`
+      const FOTO_REF_PREFIXO = "idbfoto:";
+      var STATE = {};
+      var __carregou = null;
+      function temIndexedDB(){ return true; }
+      // garantirFotosDe de mentira: so registra O QUE recebeu para carregar.
+      async function garantirFotosDe(alvo){ __carregou = alvo; return 1; }
+    `, cg);
+    vm.runInContext(funcao("carregarImagensDoApp"), cg);
+
+    const rodar = async (state)=>{
+      cg.__st = state;
+      vm.runInContext("STATE = __st; __carregou = null;", cg);
+      await vm.runInContext("carregarImagensDoApp()", cg);
+      return vm.runInContext("__carregou", cg);
+    };
+
+    const ta = async (nome, fn)=>{ total++;
+      try{ await fn(); console.log("  ok  " + nome); }
+      catch(e){ falhas++; console.log("  ERRO " + nome + " -> " + (e && e.message ? e.message : e)); } };
+
+    await ta("O CASO REAL: o logotipo do laudo entra na carga da abertura", async ()=>{
+      const alvo = await rodar({
+        ui: { mecseteConfig: { logoLaudo: "idbfoto:abc-1", empresa: "Mecsete" } },
+        projetosSimples: [{ id:"p1", areas:[] }],
+      });
+      ok(alvo && alvo.ui, "a configuracao ficou de fora da carga — o logotipo some a cada abertura");
+      eq(alvo.ui.mecseteConfig.logoLaudo, "idbfoto:abc-1");
+    });
+    /* A CONTA QUE FAZ ISTO VALER A PENA: as fotos de campo continuam FORA.
+       Carregar projetosSimples aqui seria desfazer a correcao do travamento --
+       1,27 GB de volta na abertura. */
+    await ta("mas as fotos de CAMPO continuam fora (senao o travamento volta)", async ()=>{
+      const alvo = await rodar({
+        ui: { mecseteConfig: { logoLaudo: "idbfoto:abc-1" } },
+        projetosSimples: [{ id:"p1", areas:[{ maquinas:[{ fotoGeral:"idbfoto:campo-1" }] }] }],
+        projetos: [{ id:"c1" }],
+      });
+      eq(alvo.projetosSimples, undefined, "projetosSimples entrou na carga da abertura — o travamento volta");
+      eq(alvo.projetos, undefined, "projetos do Modulo Completo entrou na carga da abertura");
+    });
+    /* POR ESTRUTURA, NAO POR LISTA. Uma lista de campos escrita a mao
+       envelheceria na primeira imagem nova guardada na configuracao, e o
+       defeito voltaria calado -- que foi exatamente como este apareceu. */
+    await ta("uma imagem NOVA na configuracao entra sozinha, sem ninguem lembrar dela", async ()=>{
+      const alvo = await rodar({
+        ui: { mecseteConfig: { carimboDoEngenheiro: "idbfoto:novo-1" } },
+        projetosSimples: [],
+      });
+      eq(alvo.ui.mecseteConfig.carimboDoEngenheiro, "idbfoto:novo-1",
+         "a carga precisa ir por estrutura, nao por lista de campos");
+    });
+    await ta("sem IndexedDB nao tenta carregar nada", async ()=>{
+      vm.runInContext("function temIndexedDB(){ return false; }", cg);
+      const alvo = await rodar({ ui:{ mecseteConfig:{ logoLaudo:"idbfoto:x" } } });
+      eq(alvo, null);
+      vm.runInContext("function temIndexedDB(){ return true; }", cg);
+    });
+
+    t("a abertura chama a carga e redesenha quando ela traz algo", ()=>{
+      ok(HTML.indexOf("carregarImagensDoApp().then(n=>{ if(n > 0) render(); }).catch(()=>{});") > 0,
+         "sem redesenhar, a tela ja aberta continua sem o logotipo");
+      // A CHAMADA, nao a definicao da funcao (que vive la em cima, junto da
+      // camada de fotos) — por isso o padrao inteiro da linha.
+      const i = HTML.indexOf("STATE = novoEstado;");
+      const j = HTML.indexOf("carregarImagensDoApp().then(n=>{ if(n > 0) render(); })");
+      ok(i > 0 && j > i, "a carga tem que vir DEPOIS de o STATE existir");
+    });
+    t("o laudo continua exigindo foto de verdade no logotipo (nao aceita referencia)", ()=>{
+      /* De proposito: uma referencia num <img src> vira quadro quebrado. Quem
+         resolve e a carga da abertura, nao um relaxamento aqui. */
+      ok(HTML.indexOf('const temFoto = (v)=> (typeof v === "string" && v.indexOf("data:image") === 0);') > 0,
+         "o laudo passou a aceitar referencia — sairia com quadro quebrado no PDF");
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

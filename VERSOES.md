@@ -64,6 +64,35 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 02/09/2026 17:35
+
+**Correção: o laudo perdia o logotipo a cada abertura do app.**
+
+Defeito que **eu introduzi hoje de manhã**, na versão das 08:56 (a que parou de
+carregar as fotos ao abrir).
+
+**O que aconteceu.** Aquela mudança fez as fotos ficarem guardadas e serem
+buscadas só por quem precisa delas — e resolveu o travamento. Só que o app não
+guarda apenas foto de campo: o **logotipo do laudo** e a **figura do processo**
+moram no mesmo lugar, e passaram pela mesma conversão. Na hora de montar o
+laudo, o app pergunta se o logotipo é uma imagem carregada; com a referência no
+lugar, a resposta virava "não tem logotipo" e o documento saía com a marca em
+texto. A cada abertura, até alguém reenviar o arquivo.
+
+**Nada foi perdido em momento nenhum** — o logotipo continuou guardado no
+aparelho o tempo todo; o laudo é que não o encontrava.
+
+**A regra que isto fixa:** o que é do **app** carrega na abertura; o que é de
+**campo** carrega sob demanda. São duas ou três imagens pequenas, presentes em
+toda página de todo laudo — carregá-las não custa nada perto das milhares de
+fotos de campo, que eram o problema real. As fotos de campo continuam exatamente
+como estavam desde as 08:56.
+
+A carga vai **por estrutura, não por lista de campos**: tudo o que não é dado de
+projeto entra. Uma lista escrita à mão envelheceria na primeira imagem nova que
+fosse guardada na configuração, e o defeito voltaria calado — que foi
+exatamente como este apareceu.
+
 ## 02/09/2026 16:38
 
 **Os equipamentos presos que a nuvem nem tem agora sobem.**

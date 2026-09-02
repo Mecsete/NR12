@@ -1715,6 +1715,32 @@ async function liberarFotosDasLinhas(linhas){
   for(const a of areas){ try{ n += await liberarFotosDe(a); }catch(e){} }
   return n;
 }
+/* AS IMAGENS DO APP CARREGAM NA ABERTURA; AS DE CAMPO, SOB DEMANDA.
+
+   O STATE não guarda só foto de campo: o logotipo do laudo e a figura do
+   processo moram nele também. Quando a carga sob demanda entrou, essas duas
+   viraram referência como todas as outras — e o laudo, que testa se o
+   logotipo é uma foto carregada, passou a responder "não tem logotipo" e a
+   sair com a marca em texto. A cada abertura do app.
+
+   A regra que isto fixa: o que é do APP carrega na abertura; o que é de CAMPO
+   carrega sob demanda. São duas ou três imagens pequenas, presentes em toda
+   página de todo laudo — carregá-las não custa nada perto das milhares de
+   fotos de campo, que eram o problema real.
+
+   Vai por ESTRUTURA, não por lista de campos: tudo que está fora de
+   projetosSimples/projetos entra. Uma lista escrita à mão envelheceria na
+   primeira imagem nova que alguém guardasse na configuração, e o defeito
+   voltaria calado — que foi exatamente como este apareceu. */
+async function carregarImagensDoApp(){
+  if(!temIndexedDB()) return 0;
+  const fora = {};
+  for(const k in STATE){
+    if(k === "projetosSimples" || k === "projetos") continue;
+    fora[k] = STATE[k];
+  }
+  return await garantirFotosDe(fora);
+}
 /* Existe alguma referência não resolvida aqui dentro? */
 function contemRefDeFoto(valor){
   const refs = new Set();
@@ -2371,7 +2397,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "02/09/2026 16:38";
+const APP_BUILD = "02/09/2026 17:35";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -22495,6 +22521,12 @@ let __estadoLocalCarregadoPromise = carregarEstadoSalvo().then(saved=>{
     STATE = novoEstado;
     marcarAlterado();
     render();
+    /* Logotipo do laudo, figura do processo e qualquer outra imagem do próprio
+       app: carregadas agora, fora do caminho da primeira renderização. Sem
+       isto o laudo abre sem logotipo — foi o que aconteceu entre as versões de
+       hoje 08:56 e 16:38. Redesenha ao terminar, para a tela que já estava
+       aberta mostrar a imagem sem precisar de outro toque. */
+    carregarImagensDoApp().then(n=>{ if(n > 0) render(); }).catch(()=>{});
   }
   // Ponto de restauração automático de "início de sessão" — só se já fizer
   // tempo desde o último (evita empilhar pontos toda vez que a pessoa só

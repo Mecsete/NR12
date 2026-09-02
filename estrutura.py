@@ -3655,6 +3655,33 @@ chk("item sem caminho completo nao pode ser dado como ausente da nuvem",
 chk("a trava de encolhimento continua de pe (rede de seguranca desta mudanca)",
     "if(onedriveEnvioEncolheDemais(item, tamTexto)){" in novo)
 
+print("\n=== 118. AS IMAGENS DO APP CARREGAM NA ABERTURA ===")
+# Relatado em campo em 02/09/2026: "a cada vez que abro o app perde o logotipo
+# do laudo". Defeito da carga sob demanda daquela manha (secao 114): o STATE
+# nao guarda so foto de campo -- o logotipo e a figura do processo moram nele
+# tambem, e viraram referencia como todas as outras. O laudo testa se o
+# logotipo e foto CARREGADA, respondia "nao tem" e saia com a marca em texto.
+chk("existe a carga das imagens do proprio app",
+    novo.count("async function carregarImagensDoApp(){") == 1)
+_ci = novo[novo.find("async function carregarImagensDoApp(){"):]
+_ci = _ci[:_ci.find("/* Existe alguma referência")]
+# POR ESTRUTURA, NAO POR LISTA: uma lista de campos escrita a mao envelheceria
+# na primeira imagem nova guardada na configuracao, e o defeito voltaria calado
+# -- que foi exatamente como este apareceu.
+chk("vai por estrutura: tudo fora de projetosSimples/projetos entra",
+    'if(k === "projetosSimples" || k === "projetos") continue;' in _ci
+    and "garantirFotosDe(fora)" in _ci)
+chk("e as fotos de CAMPO continuam fora (senao o travamento volta)",
+    "projetosSimples" in _ci and "fora[k] = STATE[k];" in _ci)
+chk("a abertura chama a carga DEPOIS de montar o STATE, e redesenha",
+    "carregarImagensDoApp().then(n=>{ if(n > 0) render(); }).catch(()=>{});" in novo
+    and novo.find("STATE = novoEstado;") < novo.find("carregarImagensDoApp().then("))
+# De proposito: o laudo continua exigindo foto de verdade. Uma referencia num
+# <img src> vira quadro quebrado no PDF -- quem resolve e a carga da abertura,
+# nao um relaxamento aqui.
+chk("o laudo continua exigindo foto de verdade no logotipo",
+    'const temFoto = (v)=> (typeof v === "string" && v.indexOf("data:image") === 0);' in novo)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
