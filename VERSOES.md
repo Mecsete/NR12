@@ -64,6 +64,44 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 02/09/2026 12:03
+
+**A conclusão do laudo agora é sua.** Na aba Imprimir, ao lado de Logotipo,
+Rodapé e Figura, entrou o botão **Conclusão**.
+
+Até aqui a conclusão era texto fixo no código: os mesmos três parágrafos em
+todo laudo, de qualquer área, de qualquer cliente — justamente a parte do
+documento em que o engenheiro precisa dizer algo daquela área.
+
+**Como funciona.** O botão abre uma caixa **já preenchida com o texto padrão**
+— quem só quer ajustar uma frase não precisa reescrever o resto, e quem nunca
+abrir continua com o laudo de sempre. A caixa tem formatação: negrito, itálico,
+sublinhado, lista com marcadores, lista numerada e um botão para tirar a
+formatação. Um botão "Voltar ao texto padrão" desfaz tudo quando precisar.
+
+**Cada área guarda a sua.** O texto fica no cadastro da área, então a Debulha
+tem a conclusão da Debulha e os Silos a dos Silos. Como qualquer outro dado do
+levantamento, ele **viaja no backup e na sincronização** — escreveu no
+computador, aparece no celular. O botão mostra um ponto (**Conclusão ·**)
+quando aquela área já tem texto próprio.
+
+**Duas garantias que valem saber:**
+
+- **Apagar tudo devolve o padrão**, não deixa o laudo sem conclusão. Um
+  documento assinado não sai sem esse capítulo por um apagão distraído.
+- **Colagem de fora é limpa.** Texto colado do Word ou de um site chega cheio
+  de marcação invisível. O app guarda só a formatação que ele mesmo oferece e
+  descarta o resto — sem perder nenhuma frase. O que não é texto (código de
+  página, imagem, link) é removido inteiro.
+
+**Sobre a verificação.** Além dos 1.031 testes, esta entrega foi aberta num
+navegador de verdade — e foi lá que apareceram **três defeitos que os scripts
+não pegavam**: o filtro de colagem deixava o conteúdo de um `<script>` virar
+texto do laudo; ele só limpava o primeiro nível (uma etiqueta dentro de outra
+escapava); e o botão Salvar quebrava por chamar uma função pelo nome errado —
+o texto se perderia na hora de salvar. Os três estão corrigidos e cada um
+ganhou um teste que reprova se voltar.
+
 ## 02/09/2026 10:35
 
 **O app fechava ao exportar as fotos soltas, e voltava sempre ao lote 1.** Eram

@@ -2318,7 +2318,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "02/09/2026 10:35";
+const APP_BUILD = "02/09/2026 12:03";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -22805,6 +22805,25 @@ window.addEventListener("pageshow", (event) => {
    referencia do cliente. Vale so para a prosa; tabelas e cartoes tem tamanho
    proprio e continuam como estavam. */
 .lp-par{margin:0 0 10px;text-align:justify;font-size:13.3px;line-height:1.5}
+/* A conclusão é escrita pelo engenheiro e guardada como HTML, então o que sai
+   do editor não tem a classe .lp-par de cada parágrafo — o estilo desce por
+   dentro do bloco. Assim o texto editado sai com a MESMA aparência do texto
+   padrão, que é o que a pessoa vê na prévia e espera no PDF. */
+.lp-conc p{margin:0 0 10px;text-align:justify;font-size:13.3px;line-height:1.5}
+.lp-conc ul,.lp-conc ol{margin:0 0 10px;padding-left:18px;font-size:13.3px;line-height:1.5;text-align:justify}
+.lp-conc li{margin-bottom:3px}
+.lp-conc p:last-child,.lp-conc ul:last-child,.lp-conc ol:last-child{margin-bottom:0}
+/* O editor: mesma medida de texto do documento, para o que se escreve ser o
+   que se vê. */
+.lp-editor{min-height:190px;max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:10px;
+  padding:11px 12px;font-size:13.3px;line-height:1.55;text-align:justify;background:var(--bg);color:var(--ink)}
+.lp-editor:focus{outline:2px solid var(--marca);outline-offset:-1px}
+.lp-editor p{margin:0 0 10px}
+.lp-editor ul,.lp-editor ol{margin:0 0 10px;padding-left:18px}
+.lp-fmt{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:7px}
+.lp-fmt button{min-width:36px;height:32px;border:1px solid var(--line);background:var(--bg-soft);border-radius:8px;
+  font-size:13.5px;color:var(--ink);display:flex;align-items:center;justify-content:center;padding:0 9px}
+.lp-fmt button:active{background:var(--line)}
 .lp-sub{font-weight:800;margin:14px 0 7px;font-size:15px}
 .lp-lista{margin:0 0 9px;padding-left:16px;font-size:13.3px;line-height:1.5}
 .lp-lista li{margin-bottom:3px;text-align:justify}
@@ -23325,12 +23344,85 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
     }
     return blocos;
   }
+  /* ---------- CONCLUSÃO EDITÁVEL, POR ÁREA ----------
+
+     O texto abaixo é o ponto de partida — o mesmo que o laudo sempre trouxe.
+     Editado, o texto daquela área passa a viver em `area.conclusaoLaudo`, e o
+     padrão continua aqui para quem nunca editou e para o botão "restaurar".
+
+     Guardar na ÁREA (e não na configuração do app) é o que faz cada área ter
+     a sua conclusão e o que leva o texto junto no backup e na sincronização,
+     como qualquer outro dado do levantamento. */
+  const LAUDO_CONCLUSAO_PADRAO =
+    "<p>Conforme apresentado no capítulo de riscos por equipamento, fica evidente a necessidade de eliminação ou redução de alguns riscos e, baseado na pontuação do método HRN (Hazard Rating Number), observamos que alguns deles merecem devida atenção e exigem prioridade para a sua adequação conforme a NR-12.</p>"
+  + "<p>A pontuação deve ser interpretada de forma que, quando o número da coluna HRN for mais próximo de 0, significa que o risco é mais brando; quanto mais afastado de 0, maior o perigo. Nas tabelas é mostrada também a classe, que indica em palavras e cores o grau do risco ali representado. Para eliminar o risco, operar o equipamento com segurança e adequar-se à NR-12, é recomendável que se façam as adequações indicadas.</p>"
+  + "<p>Além disso, a empresa deve assegurar a manutenção das medidas de proteção, dos procedimentos operacionais, das instruções de trabalho, dos treinamentos dos operadores, das sinalizações de segurança, dos manuais de instrução em português e dos registros de manutenção durante toda a vida útil da máquina.</p>";
+
+  /* A PENEIRA. O que se guarda é HTML, e HTML que chega de fora — sincronizado
+     de outro aparelho, restaurado de um backup, colado de um site — não pode
+     ser confiado. Passa por aqui na gravação E na leitura: mesmo que um dia
+     entre por outro caminho, não chega ao documento.
+     Só sobrevivem as etiquetas de formatação que o editor oferece, e nenhum
+     atributo: sem style, sem class, sem link, sem imagem, sem script. */
+  const LAUDO_CONC_TAGS_OK = ["p","br","b","strong","i","em","u","ul","ol","li"];
+  /* ETIQUETAS QUE SAEM COM O CONTEÚDO JUNTO. A regra geral é desembrulhar
+     (perder a etiqueta, guardar o texto), porque num laudo assinado uma frase
+     sumir em silêncio é grave. Mas o "texto" destas aqui não é prosa: é código
+     e endereço. Desembrulhar um <script> colocaria `alert(1)` no meio da
+     conclusão como se fosse uma frase escrita pelo engenheiro. */
+  const LAUDO_CONC_TAGS_FORA = ["script","style","noscript","template","iframe",
+                                "object","embed","svg","math","head","title","meta","link"];
+  function lpPeneirarRico(html){
+    const cru = String(html == null ? "" : html);
+    if(!cru.trim()) return "";
+    let doc;
+    try{ doc = new DOMParser().parseFromString("<div>" + cru + "</div>", "text/html"); }
+    catch(e){ return ""; }
+    const raiz = doc.body && doc.body.firstChild;
+    if(!raiz) return "";
+    const limpar = (no)=>{
+      /* Percorrido nó a nó, e NÃO sobre uma lista tirada antes: ao
+         desembrulhar uma etiqueta, os filhos dela sobem para cá e precisam ser
+         examinados também. Com a lista congelada no início, um <div><section>
+         saía com o <section> intacto — a peneira só pegava o primeiro nível. */
+      let filho = no.firstChild;
+      while(filho){
+        const prox = filho.nextSibling;
+        if(filho.nodeType === 3){ filho = prox; continue; }      // texto: fica
+        if(filho.nodeType !== 1){ filho.remove(); filho = prox; continue; } // comentário e afins
+        const tag = filho.tagName.toLowerCase();
+        if(LAUDO_CONC_TAGS_FORA.indexOf(tag) >= 0){ filho.remove(); filho = prox; continue; }
+        if(LAUDO_CONC_TAGS_OK.indexOf(tag) < 0){
+          /* Etiqueta desconhecida não leva o texto junto: o conteúdo sobe para
+             o lugar dela. Apagar o nó inteiro faria uma colagem de fora perder
+             frases em silêncio. Segue-se pelo primeiro filho promovido, para
+             que ele também passe pela peneira. */
+          const promovido = filho.firstChild;
+          while(filho.firstChild) no.insertBefore(filho.firstChild, filho);
+          filho.remove();
+          filho = promovido || prox;
+          continue;
+        }
+        for(const at of Array.from(filho.attributes)) filho.removeAttribute(at.name);
+        limpar(filho);
+        filho = prox;
+      }
+    };
+    limpar(raiz);
+    return raiz.innerHTML.trim();
+  }
+  /* O texto da conclusão desta área: o dela, se houver; o padrão, se não. */
+  function conclusaoDaArea(area){
+    const guardado = lpPeneirarRico(area && area.conclusaoLaudo);
+    return guardado || LAUDO_CONCLUSAO_PADRAO;
+  }
+  function conclusaoFoiEditada(area){
+    return !!(area && String(area.conclusaoLaudo||"").trim());
+  }
   function blocoConclusao(d){
     return { paginaInteira:true, html:`
       <div class="lp-faixa">CONCLUSÃO</div>
-      <p class="lp-par">Conforme apresentado no capítulo de riscos por equipamento, fica evidente a necessidade de eliminação ou redução de alguns riscos e, baseado na pontuação do método HRN (Hazard Rating Number), observamos que alguns deles merecem devida atenção e exigem prioridade para a sua adequação conforme a NR-12.</p>
-      <p class="lp-par">A pontuação deve ser interpretada de forma que, quando o número da coluna HRN for mais próximo de 0, significa que o risco é mais brando; quanto mais afastado de 0, maior o perigo. Nas tabelas é mostrada também a classe, que indica em palavras e cores o grau do risco ali representado. Para eliminar o risco, operar o equipamento com segurança e adequar-se à NR-12, é recomendável que se façam as adequações indicadas.</p>
-      <p class="lp-par">Além disso, a empresa deve assegurar a manutenção das medidas de proteção, dos procedimentos operacionais, das instruções de trabalho, dos treinamentos dos operadores, das sinalizações de segurança, dos manuais de instrução em português e dos registros de manutenção durante toda a vida útil da máquina.</p>
+      <div class="lp-conc">${conclusaoDaArea(d.area)}</div>
       <p class="lp-par" style="margin-top:${Math.round(20*MM)}px">${esc(d.proj.cidade||"")}, ${esc(d.hoje)}</p>
       <div class="lp-assin">
         <div><div class="linha"></div>${esc(d.proj.responsavel||"")}<br>${esc(d.proj.cargoResponsavel||"")}<br>${esc(d.proj.empresa||"")}</div>
@@ -23451,6 +23543,13 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
       <span>${ficha}</span>
       ${logoSemTransparencia()? `<b class="lp-logo-alerta">sem transparência — reenvie o PNG</b>`:""}`;
   }
+  /* A área que a aba está mostrando. O editor da conclusão precisa dela para
+     saber DE QUEM é o texto que está sendo escrito. */
+  function areaAtual(){
+    const areas = areasDoEscopo();
+    const alvo = areas.find(a=> a.area.id === STATE.ui.lpAreaId) || areas[0];
+    return alvo ? alvo.area : null;
+  }
   function telaImprimir(){
     const areas = areasDoEscopo();
     if(areas.length === 0){
@@ -23475,6 +23574,7 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
       <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirLogo()">${ic('gallery')} Logotipo</button>
       <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirRodape()">${ic('edit')} Rodapé</button>
       <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirFigura()">${ic('layers')} Figura</button>
+      <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirConclusao()">${ic('edit')} Conclusão${conclusaoFoiEditada(areaAtual()) ? " ·" : ""}</button>
     </div>
     <div class="lp-logo-linha">${logoFicha()}</div>
     ${""}
@@ -23718,6 +23818,79 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
       cacheFoto.clear(); __lpPaginas = []; __lpHtml = "";
       App.fecharModal(); render();
       toast("Figura removida");
+    },
+    /* CONCLUSÃO DO LAUDO — editor com formatação, guardado por área.
+       O texto padrão entra na caixa já escrito: quem quiser só ajustar uma
+       frase não precisa reescrever o resto, e quem nunca abrir aqui continua
+       com o laudo de sempre. */
+    lpAbrirConclusao(){
+      const area = areaAtual();
+      if(!area){ toast("Nenhuma área no escopo", false); return; }
+      const atual = conclusaoDaArea(area);
+      const editada = conclusaoFoiEditada(area);
+      const btn = (cmd, rot, titulo)=>
+        `<button type="button" title="${titulo}" onmousedown="event.preventDefault()" onclick="App.lpFmt('${cmd}')">${rot}</button>`;
+      abrirOverlay(`<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card" style="max-width:660px">
+        <h3>Conclusão do laudo</h3>
+        <div class="sheet-sub">Vale só para a área <b>${escapeHtml(area.nome||"área")}</b> — cada área guarda a sua. O texto sai no fim do laudo, acima das assinaturas.</div>
+        <div class="lp-fmt">
+          ${btn("bold","<b>N</b>","Negrito")}
+          ${btn("italic","<i>I</i>","Itálico")}
+          ${btn("underline","<u>S</u>","Sublinhado")}
+          ${btn("insertUnorderedList","• —","Lista com marcadores")}
+          ${btn("insertOrderedList","1. —","Lista numerada")}
+          ${btn("removeFormat","Tx","Tirar a formatação")}
+        </div>
+        <div class="lp-editor" id="lpConcEditor" contenteditable="true" spellcheck="true">${atual}</div>
+        <div class="field-hint" style="margin-top:7px">${editada
+          ? "Este texto foi editado para esta área. O botão abaixo devolve o texto padrão."
+          : "Este é o texto padrão do laudo. Ajuste o que precisar — o original pode ser devolvido depois."}</div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button class="btn btn-primary btn-sm" style="flex:1" onclick="App.lpSalvarConclusao()">${ic('check')} Salvar</button>
+          <button class="btn btn-secondary btn-sm" style="flex:1" onclick="App.fecharModal()">Cancelar</button>
+        </div>
+        <button class="btn btn-ghost btn-block btn-sm" style="margin-top:8px;font-size:12px" onclick="App.lpConclusaoPadrao()">Voltar ao texto padrão</button>
+      </div></div>`);
+      setTimeout(()=>{ const e = document.getElementById("lpConcEditor"); if(e) e.focus(); }, 60);
+    },
+    /* Formatação pela API do próprio navegador. É antiga e marcada como
+       obsoleta, mas é a única que funciona em todo lugar sem trazer uma
+       biblioteca inteira para dentro do arquivo — e o que ela produz passa
+       pela peneira antes de virar dado. */
+    lpFmt(cmd){
+      const e = document.getElementById("lpConcEditor");
+      if(!e) return;
+      e.focus();
+      try{ document.execCommand(cmd, false, null); }catch(err){}
+    },
+    lpSalvarConclusao(){
+      const area = areaAtual();
+      const e = document.getElementById("lpConcEditor");
+      if(!area || !e) return;
+      const limpo = lpPeneirarRico(e.innerHTML);
+      /* Caixa esvaziada = voltar ao padrão, não "laudo sem conclusão": um
+         laudo assinado não sai sem esse capítulo por um apagão distraído. */
+      const soTexto = String(e.textContent||"").replace(/\s+/g,"").trim();
+      if(!soTexto){
+        delete area.conclusaoLaudo;
+        toast("Caixa vazia — o texto padrão voltou");
+      }else{
+        area.conclusaoLaudo = limpo;
+      }
+      /* Carimbo de sincronização: sem ele, o texto ficaria só neste aparelho.
+         É o mesmo carimbo que qualquer edição de área usa. */
+      area.atualizadoEm = agoraSync();
+      marcarAlterado();
+      App.fecharModal();   // é método do App, não função solta (lpSalvarRodape faz igual)
+      /* O laudo montado ficou velho: se já havia páginas na tela, refaz. */
+      if(__lpPaginas.length) App.lpGerar(); else render();
+    },
+    lpConclusaoPadrao(){
+      const e = document.getElementById("lpConcEditor");
+      if(!e) return;
+      e.innerHTML = LAUDO_CONCLUSAO_PADRAO;
+      e.focus();
+      toast("Texto padrão restaurado na caixa — salve para valer");
     },
     lpAbrirRodape(){
       const c = getMecseteConfig();

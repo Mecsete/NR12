@@ -3513,6 +3513,62 @@ chk("o master congelado recebe a carga por fora, sem uma linha alterada",
     "async exportarMasterXLSXFotos(){" in novo
     and "await garantirFotosDe(STATE.projetos);" in novo)
 
+print("\n=== 115. CONCLUSAO DO LAUDO EDITAVEL, POR AREA ===")
+# Ate 02/09/2026 a conclusao era texto fixo no codigo: os mesmos tres
+# paragrafos em todo laudo, de qualquer area, de qualquer cliente -- justamente
+# a parte em que o engenheiro precisa dizer algo daquela area.
+chk("o texto padrao virou constante e continua sendo o do laudo",
+    novo.count("const LAUDO_CONCLUSAO_PADRAO =") == 1
+    and "Hazard Rating Number" in novo
+    and "vida útil da máquina" in novo)
+_bc = novo[novo.find("  function blocoConclusao(d){"):]
+_bc = _bc[:_bc.find("  /* ---------- paginador ---------- */")]
+chk("o bloco do laudo le a conclusao da AREA, sem texto fixo dentro",
+    "conclusaoDaArea(d.area)" in _bc
+    and "Hazard Rating Number" not in _bc
+    and 'class="lp-conc"' in _bc)
+chk("o texto editado sai com a MESMA aparencia do padrao no PDF",
+    ".lp-conc p{margin:0 0 10px;text-align:justify;font-size:13.3px;line-height:1.5}" in novo)
+# O texto e HTML, e HTML vindo de fora (sincronizado, restaurado de backup,
+# colado de um site) nao pode ser confiado. A peneira roda na gravacao E na
+# leitura.
+chk("existe a peneira, com lista fechada de etiquetas e sem atributo nenhum",
+    novo.count("function lpPeneirarRico(html){") == 1
+    and 'const LAUDO_CONC_TAGS_OK = ["p","br","b","strong","i","em","u","ul","ol","li"];' in novo
+    and "filho.removeAttribute(at.name)" in novo)
+chk("etiqueta desconhecida perde a etiqueta, NAO o texto",
+    "while(filho.firstChild) no.insertBefore(filho.firstChild, filho);" in novo)
+chk("a leitura tambem peneira -- nao so a gravacao",
+    "lpPeneirarRico(area && area.conclusaoLaudo)" in novo)
+chk("o que se grava e o texto peneirado, nunca o cru do editor",
+    "lpPeneirarRico(e.innerHTML)" in novo)
+# Guardar na AREA e o que faz cada area ter a sua e o texto viajar no backup e
+# na sincronizacao como qualquer outro campo do levantamento.
+_sv = novo[novo.find("    lpSalvarConclusao(){"):novo.find("    lpConclusaoPadrao(){")]
+chk("o texto mora na area, com carimbo de sincronizacao",
+    "area.conclusaoLaudo = limpo;" in _sv
+    and "area.atualizadoEm = agoraSync();" in _sv
+    and "marcarAlterado();" in _sv)
+chk("caixa esvaziada devolve o padrao -- laudo assinado nao sai sem conclusao",
+    "delete area.conclusaoLaudo;" in _sv)
+chk("editar invalida o laudo ja montado",
+    "if(__lpPaginas.length) App.lpGerar(); else render();" in _sv)
+chk("tem botao na barra, editor com formatacao e volta ao padrao",
+    'onclick="App.lpAbrirConclusao()"' in novo
+    and 'contenteditable="true"' in novo
+    and novo.count("    lpConclusaoPadrao(){") == 1
+    and "e.innerHTML = LAUDO_CONCLUSAO_PADRAO;" in novo)
+# O modulo de impressao e um BLOCO REMOVIVEL: tudo o que esta entrega
+# acrescentou tem de viver dentro dele. O campo na area fica sem leitor, o que
+# nao quebra nada. A secao 11 remove o bloco e roda node --check.
+_ini = novo.find("INÍCIO DO MÓDULO DE IMPRESSÃO DO LAUDO")
+_fim = novo.find("FIM DO MÓDULO DE IMPRESSÃO DO LAUDO")
+chk("tudo isto vive DENTRO do bloco removivel de impressao",
+    _ini > 0 and _fim > _ini
+    and all(_ini < novo.find(m) < _fim for m in
+            ["const LAUDO_CONCLUSAO_PADRAO =", "function lpPeneirarRico(", "function conclusaoDaArea(",
+             "lpAbrirConclusao(){", "lpSalvarConclusao(){", "function areaAtual("]))
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

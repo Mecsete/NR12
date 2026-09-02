@@ -8923,6 +8923,214 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  /* ---------- t143: conclusao do laudo editavel, por area ------------------
+     Ate 02/09/2026 a conclusao era texto fixo no codigo: os mesmos tres
+     paragrafos em todo laudo, de qualquer area, de qualquer cliente. E
+     justamente a parte em que o engenheiro precisa dizer algo daquela area.
+
+     O que se guarda e HTML, e HTML que chega de fora (sincronizado de outro
+     aparelho, restaurado de backup, colado de um site) nao pode ser confiado.
+     A peneira roda na gravacao E na leitura. O comportamento dela e provado
+     no navegador, onde existe DOMParser de verdade; aqui vai o contrato e a
+     estrutura. */
+  {
+    console.log("\n[t143] conclusao do laudo: editavel, por area, com peneira");
+    const cx = vm.createContext({ console, String, Object, Array, JSON });
+    // A peneira precisa de DOMParser (so no navegador). Aqui ela e a
+    // identidade, para o contrato de "padrao x guardado" ser testavel sozinho.
+    vm.runInContext("function lpPeneirarRico(h){ return String(h==null?'':h).trim(); }", cx);
+    /* constante() so sabe delimitar array/objeto e so acha na coluna zero; o
+       padrao e uma concatenacao de strings, indentada dentro do modulo. Lido
+       do proprio arquivo entregue, ate o ponto e virgula. */
+    {
+      const i = HTML.indexOf("const LAUDO_CONCLUSAO_PADRAO =");
+      ok(i > 0, "sumiu o texto padrao da conclusao");
+      const fim = HTML.indexOf(";" + String.fromCharCode(10), i);
+      vm.runInContext("var " + HTML.slice(i + 6, fim + 1), cx);
+    }
+    ["conclusaoDaArea","conclusaoFoiEditada"].forEach(n=> vm.runInContext(funcao(n), cx));
+    const conc = (area)=>{ cx.__a = area; return vm.runInContext("conclusaoDaArea(__a)", cx); };
+    const editada = (area)=>{ cx.__a = area; return vm.runInContext("conclusaoFoiEditada(__a)", cx); };
+    const PADRAO = vm.runInContext("LAUDO_CONCLUSAO_PADRAO", cx);
+
+    t("area que nunca foi editada recebe o texto padrao de sempre", ()=>{
+      eq(conc({ id:"a1" }), PADRAO);
+      eq(conc({ id:"a1", conclusaoLaudo:"" }), PADRAO);
+      eq(conc({ id:"a1", conclusaoLaudo:"   " }), PADRAO);
+      eq(editada({ id:"a1" }), false);
+    });
+    t("o texto padrao continua sendo o do laudo (nao pode ser esvaziado por engano)", ()=>{
+      ok(PADRAO.indexOf("Hazard Rating Number") > 0, "sumiu o parágrafo do HRN");
+      ok(PADRAO.indexOf("vida útil da máquina") > 0, "sumiu o parágrafo da manutenção das medidas");
+      ok((PADRAO.match(/<p>/g)||[]).length === 3, "o padrão tem que continuar com os três parágrafos");
+    });
+    t("area editada usa o texto DELA, nao o padrao", ()=>{
+      const a = { id:"a1", conclusaoLaudo:"<p>Conclusão da Debulha.</p>" };
+      eq(conc(a), "<p>Conclusão da Debulha.</p>");
+      eq(editada(a), true);
+    });
+    t("cada area guarda a sua — uma nao contamina a outra", ()=>{
+      const a1 = { id:"a1", conclusaoLaudo:"<p>Texto da área 1</p>" };
+      const a2 = { id:"a2" };
+      eq(conc(a1), "<p>Texto da área 1</p>");
+      eq(conc(a2), PADRAO, "a área sem texto próprio herdou o da vizinha");
+    });
+    t("o texto guardado SEMPRE passa pela peneira na leitura, nao so ao gravar", ()=>{
+      const f = funcao("conclusaoDaArea");
+      ok(f.indexOf("lpPeneirarRico(area && area.conclusaoLaudo)") > 0,
+         "ler sem peneirar deixa entrar no documento o que veio de outro aparelho");
+    });
+
+    /* ---- onde o texto mora, e o que isso significa ---- */
+    t("mora na AREA — viaja no backup e na sincronizacao como qualquer campo", ()=>{
+      ok(HTML.indexOf("area.conclusaoLaudo = limpo;") > 0, "nao grava no objeto da area");
+      const salvar = HTML.slice(HTML.indexOf("    lpSalvarConclusao(){"), HTML.indexOf("    lpConclusaoPadrao(){"));
+      ok(salvar.indexOf("area.atualizadoEm = agoraSync();") > 0,
+         "sem carimbo o texto fica preso neste aparelho");
+      ok(salvar.indexOf("marcarAlterado();") > 0, "nao grava");
+    });
+    t("caixa esvaziada volta ao padrao — laudo assinado nao sai sem conclusao", ()=>{
+      const salvar = HTML.slice(HTML.indexOf("    lpSalvarConclusao(){"), HTML.indexOf("    lpConclusaoPadrao(){"));
+      ok(salvar.indexOf("delete area.conclusaoLaudo;") > 0,
+         "apagar tudo tem que devolver o padrão, não deixar o capítulo vazio");
+      ok(salvar.indexOf("String(e.textContent||\"\").replace(/\\s+/g,\"\").trim()") > 0,
+         "a checagem de vazio tem que olhar o TEXTO, não o HTML (uma caixa vazia ainda tem <p><br></p>)");
+    });
+    t("o que se grava e o texto PENEIRADO, nunca o cru do editor", ()=>{
+      const salvar = HTML.slice(HTML.indexOf("    lpSalvarConclusao(){"), HTML.indexOf("    lpConclusaoPadrao(){"));
+      ok(salvar.indexOf("lpPeneirarRico(e.innerHTML)") > 0, "grava o HTML cru do editor");
+    });
+
+    /* ---- a peneira: estrutura (o comportamento e provado no navegador) ---- */
+    t("a peneira tem lista fechada de etiquetas e tira TODO atributo", ()=>{
+      ok(HTML.indexOf('const LAUDO_CONC_TAGS_OK = ["p","br","b","strong","i","em","u","ul","ol","li"];') > 0,
+         "a lista de etiquetas permitidas mudou — conferir se ainda é só formatação");
+      const f = funcao("lpPeneirarRico");
+      ok(f.indexOf("filho.removeAttribute(at.name)") > 0, "atributo passando: style, onclick, href entrariam no laudo");
+      ok(f.indexOf("LAUDO_CONC_TAGS_OK.indexOf(tag) < 0") > 0, "sem lista fechada, qualquer etiqueta entra");
+    });
+    t("etiqueta desconhecida perde a etiqueta, NAO o texto", ()=>{
+      const f = funcao("lpPeneirarRico");
+      ok(f.indexOf("while(filho.firstChild) no.insertBefore(filho.firstChild, filho);") > 0,
+         "apagar o nó inteiro faria uma colagem perder frases em silêncio — num laudo assinado isso é grave");
+    });
+    /* OS DOIS DEFEITOS QUE O TESTE NO NAVEGADOR PEGOU (02/09/2026), e que
+       nenhuma checagem de estrutura pegava. Ficam travados aqui. */
+    t("DEFEITO 1: script e style saem com o conteudo junto — o codigo nao vira frase", ()=>{
+      /* Desembrulhar e a regra geral (frase nao pode sumir em silencio), mas o
+         "texto" de um <script> e codigo: desembrulhado, `alert(1)` aparecia no
+         meio da conclusao como se fosse escrito pelo engenheiro. */
+      ok(HTML.indexOf('const LAUDO_CONC_TAGS_FORA = ["script","style","noscript","template","iframe",') > 0,
+         "sumiu a lista das etiquetas que saem com o conteudo");
+      const f = funcao("lpPeneirarRico");
+      ok(f.indexOf("LAUDO_CONC_TAGS_FORA.indexOf(tag) >= 0){ filho.remove();") > 0,
+         "script voltou a ser desembrulhado — o codigo dele entra no laudo como texto");
+    });
+    t("DEFEITO 2: o que sobe ao desembrulhar tambem passa pela peneira", ()=>{
+      /* Com a lista de filhos tirada ANTES do laco, os nos promovidos nunca
+         eram examinados: <div><section>Frase</section></div> saia com o
+         <section> intacto. A peneira so pegava o primeiro nivel. */
+      const f = funcao("lpPeneirarRico");
+      ok(f.indexOf("Array.from(no.childNodes)") < 0,
+         "voltou a percorrer uma lista congelada — a peneira so pega o primeiro nivel");
+      ok(f.indexOf("let filho = no.firstChild;") > 0 && f.indexOf("while(filho){") > 0,
+         "o percurso precisa ser no a no, para reexaminar o que sobe");
+      ok(f.indexOf("filho = promovido || prox;") > 0,
+         "sem seguir pelo no promovido, a etiqueta de dentro escapa");
+    });
+    t("HTML que nao da para ler nao vira texto meio quebrado — vira vazio", ()=>{
+      const f = funcao("lpPeneirarRico");
+      ok(f.indexOf("catch(e){ return \"\"; }") > 0, "falha de leitura tem que cair no padrão, não em lixo");
+    });
+
+    /* ---- a tela ---- */
+    t("o botao fica na barra da aba de imprimir, junto dos outros", ()=>{
+      ok(HTML.indexOf('onclick="App.lpAbrirConclusao()"') > 0, "sem botão não adianta existir");
+      ok(HTML.indexOf("conclusaoFoiEditada(areaAtual())") > 0,
+         "o botão precisa mostrar que aquela área já tem texto próprio");
+    });
+    t("o editor abre com o texto ATUAL dentro (nao com a caixa vazia)", ()=>{
+      const abrir = HTML.slice(HTML.indexOf("    lpAbrirConclusao(){"), HTML.indexOf("    lpFmt(cmd){"));
+      ok(abrir.indexOf("const atual = conclusaoDaArea(area);") > 0);
+      ok(abrir.indexOf('contenteditable="true"') > 0, "sem caixa editável não há edição");
+      ok(abrir.indexOf("${atual}") > 0, "a caixa tem que abrir já preenchida");
+    });
+    t("tem os comandos de formatacao que o texto guardado aceita", ()=>{
+      const abrir = HTML.slice(HTML.indexOf("    lpAbrirConclusao(){"), HTML.indexOf("    lpFmt(cmd){"));
+      // Os comandos entram pelo montador btn("comando", ...), com aspas duplas.
+      ["bold","italic","underline","insertUnorderedList","insertOrderedList","removeFormat"].forEach(c=>
+        ok(abrir.indexOf('btn("'+c+'"') > 0, "faltou o comando " + c));
+      ok(abrir.indexOf("App.lpFmt('${cmd}')") > 0, "os botoes precisam chamar o formatador");
+    });
+    t("da para voltar ao texto padrao depois de editar", ()=>{
+      ok(HTML.indexOf("    lpConclusaoPadrao(){") > 0);
+      ok(HTML.indexOf("e.innerHTML = LAUDO_CONCLUSAO_PADRAO;") > 0);
+    });
+    /* DEFEITO 3 achado no navegador: `fecharModal()` solto. Nao existe funcao
+       global com esse nome -- e metodo do App. Os cinco scripts passaram
+       limpos porque a chamada so quebra na hora de salvar de verdade, com a
+       pessoa esperando, e o texto dela se perde.
+
+       O QUE SEPARA UMA CHAMADA DE UMA DECLARACAO. As duas comecam igual
+       (`      fecharModal(`); o que muda e o fim da linha: declaracao termina
+       em `{`, chamada termina em `;`. A primeira versao deste teste olhava so
+       o comeco, classificava tudo como declaracao e passava com o defeito
+       dentro -- conferido reintroduzindo o defeito de proposito. */
+    t("nenhuma chamada solta a metodo do App dentro do modulo de impressao", ()=>{
+      const ini = HTML.indexOf("INÍCIO DO MÓDULO DE IMPRESSÃO DO LAUDO");
+      const fim = HTML.indexOf("FIM DO MÓDULO DE IMPRESSÃO DO LAUDO");
+      const NL = String.fromCharCode(10);
+      /* Comentarios fora: eles falam DOS metodos ("espera lpGerar() terminar")
+         e nao sao chamadas. Sem tirar, o teste acusaria a propria explicacao. */
+      const linhas = HTML.slice(ini, fim)
+        .replace(/\/\*[\s\S]*?\*\//g, " ")
+        .split(NL)
+        .map(l=>{ const i = l.indexOf("//"); return i >= 0 ? l.slice(0, i) : l; });
+      const metodos = ["fecharModal","lpGerar","lpSalvarConclusao","lpAbrirConclusao","lpFmt","lpImprimir","lpConclusaoPadrao"];
+      const soltas = [];
+      linhas.forEach(l=>{
+        const t = l.trim();
+        if(!t.endsWith(";")) return;              // declaracao termina em "{"
+        if(t.indexOf('onclick=') >= 0) return;    // dentro de HTML, e "App.x()" no atributo
+        metodos.forEach(m=>{
+          if(t.startsWith(m + "(") || t.indexOf(" " + m + "(") >= 0 || t.indexOf("{" + m + "(") >= 0){
+            if(t.indexOf("App." + m + "(") >= 0) return;   // do jeito certo
+            soltas.push(t.slice(0, 70));
+          }
+        });
+      });
+      eq(soltas.length, 0, "chamada solta a método do App (quebra só na hora de usar): " + soltas.join(" | "));
+    });
+    t("editar a conclusao invalida o laudo ja montado", ()=>{
+      const salvar = HTML.slice(HTML.indexOf("    lpSalvarConclusao(){"), HTML.indexOf("    lpConclusaoPadrao(){"));
+      ok(salvar.indexOf("if(__lpPaginas.length) App.lpGerar(); else render();") > 0,
+         "sem isto a prévia continuaria mostrando o texto velho");
+    });
+    t("o bloco do laudo le a conclusao da AREA que esta sendo gerada", ()=>{
+      const b = funcao("blocoConclusao");
+      ok(b.indexOf("conclusaoDaArea(d.area)") > 0, "voltou a usar texto fixo");
+      ok(b.indexOf("Hazard Rating Number") < 0, "o texto fixo continua embutido no bloco");
+      ok(b.indexOf('class="lp-conc"') > 0, "sem o bloco de estilo o texto editado sai com outra cara no PDF");
+    });
+    t("o estilo do texto editado e o MESMO do laudo (o que se escreve e o que sai)", ()=>{
+      ok(HTML.indexOf(".lp-conc p{margin:0 0 10px;text-align:justify;font-size:13.3px;line-height:1.5}") > 0,
+         "o parágrafo editado precisa sair igual ao .lp-par");
+    });
+    /* O modulo de impressao e um BLOCO REMOVIVEL. Tudo o que esta feature
+       acrescentou vive dentro dele; o campo na area fica sem ninguem ler, o
+       que nao quebra nada. estrutura.py remove o bloco e roda node --check. */
+    t("tudo isto vive DENTRO do modulo removivel de impressao", ()=>{
+      const ini = HTML.indexOf("INÍCIO DO MÓDULO DE IMPRESSÃO DO LAUDO");
+      const fim = HTML.indexOf("FIM DO MÓDULO DE IMPRESSÃO DO LAUDO");
+      ok(ini > 0 && fim > ini);
+      ["LAUDO_CONCLUSAO_PADRAO","function lpPeneirarRico(","function conclusaoDaArea(",
+       "lpAbrirConclusao(){","lpSalvarConclusao(){","function areaAtual("].forEach(m=>{
+        const p = HTML.indexOf(m);
+        ok(p > ini && p < fim, m + " ficou FORA do bloco removível");
+      });
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);
