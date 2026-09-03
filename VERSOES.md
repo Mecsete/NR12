@@ -64,6 +64,47 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 03/09/2026 10:04
+
+**Novo: liberar as fotos de um projeto arquivado, para ganhar espaço.** No
+bloco *Arquivados*, no cartão do projeto: *"Liberar as fotos (ganhar espaço)"*.
+
+Esta é a única operação do app que apaga foto de campo de propósito, e tudo
+nela existe para uma regra: **a foto só sai do aparelho depois que uma leitura
+da nuvem feita naquele momento confirmou que o pacote daquele item está lá e
+tem exatamente o mesmo tamanho em bytes do que existe aqui.** Não é "existe um
+arquivo com esse nome" — é o conteúdo conferido.
+
+O que a operação garante:
+
+- **Falhou a leitura da nuvem em qualquer ponto, nada é apagado.** Uma pasta
+  que não respondeu (429, sessão expirada — rotina no iPhone) apareceria como
+  "a nuvem não tem este arquivo". Na dúvida, a operação inteira para.
+- **O item que a nuvem não confirmar fica exatamente como está.**
+- **O texto do projeto continua inteiro** — áreas, equipamentos, tarefas,
+  riscos, medidas e textos de laudo.
+- **A foto volta com um toque.** Cada item fica com o mesmo selo de download de
+  um item recém-chegado de outro aparelho, mostrando o tamanho exato.
+- **Não entra na fila que baixa sozinha no Wi-Fi** — senão o espaço voltaria a
+  ser ocupado na mesma noite, sem ninguém pedir.
+- **Uma foto que o rascunho em andamento ainda use não é apagada.**
+
+Dois avisos que o app dá porque ninguém adivinharia sozinho:
+
+- Os **pontos de restauração** deste aparelho também soltam essas fotos (o
+  texto deles continua completo). Sem isso, nenhum byte seria liberado — o
+  ponto guarda referências e segura toda foto que aponta.
+- **Reativando o projeto, as fotos voltam** sozinhas no Wi-Fi. Para manter o
+  espaço livre, o projeto fica arquivado — o texto está todo aqui.
+
+O botão só aparece quando não há nada do projeto esperando para subir: o que
+não está na nuvem não pode sair do aparelho.
+
+O ENSAIO 32 do `banco.js` roda o ciclo completo contra uma nuvem de mentira —
+liberar, o que não confere ficar, abortar com pasta falhando, a foto voltar ao
+toque, e reativar + sincronizar **sem** apagar o pacote da nuvem — com prova de
+dentes em cada trava.
+
 ## 03/09/2026 08:45
 
 **Novo: arquivar um projeto neste aparelho.** No menu (⋮) de cada projeto,

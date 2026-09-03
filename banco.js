@@ -82,6 +82,7 @@ function novoAparelho(nome, nuvem){
     __confirmResposta:false,
     __confirmChamadas:[],
     navigator:{ onLine:true },
+    setTimeout,
     registrarEventoSync:()=>{},
     marcarProgressoSync:()=>{},
     journalGravarItem:()=>{},
@@ -134,15 +135,34 @@ function novoAparelho(nome, nuvem){
   vm.runInContext("var LAPIDES_SYNC_INTERVALO_AUTO_MS = 600000; var __lapidesSyncUltimaVerificacao=0; var __lapidesSyncEmAndamento=false; var __avisoLapidesMassaEm=0;", ctx);
   /* Arquivamento por aparelho (03/09/2026) — ver o mesmo trecho em testes2.js. */
   vm.runInContext("var __projArquivados = new Set();", ctx);
+  vm.runInContext("var LIBERAR_BLOCO = 8; var DB_STORE = 'estado'; var DB_KEY_PONTOS_RESTAURACAO = 'pontosRestauracao'; var STATE_fotosLiberadas_marker = 1;", ctx);
   // Listagem de pasta da nuvem de mentira, no formato que o app espera.
   ctx.onedriveListarFilhosEmLote = async (pastas) => {
     const m = new Map();
-    for(const p of pastas){ const f = nuvem.filhos(p); m.set(p, f===null ? [] : f); }
+    for(const p of pastas){
+      const f = nuvem.filhos(p);
+      if(f === null){
+        /* Pasta que nao respondeu (429, sessao expirada — rotina no iPhone).
+           O fake precisa REGISTRAR a falha do mesmo jeito que o app real: e
+           essa marca que faz a liberacao de fotos abortar em vez de concluir
+           "a nuvem nao tem este arquivo" e apagar foto por causa disso.
+           montarArvore nao passa por aqui (constroi a arvore por conta
+           propria e escreve as marcas no fim), entao os outros ensaios
+           continuam com o comportamento de sempre. */
+        vm.runInContext("__arvoreNuvemIncompleta = true; __pastasNuvemFalhadas.add(" + JSON.stringify(String(p).toLowerCase()) + ");", ctx);
+        m.set(p, []);
+      } else m.set(p, f);
+    }
     return m;
   };
   [ "__carregarUltimoCarimbo","registrarCarimboVisto","agoraSync",
     "segmentoPastaComId","extrairSufixoDoNome","idBateComSufixo",
     "projetoArquivado","projetosArquivadosDoAparelho","projetosAtivosDoAparelho",
+    // Liberar fotos de projeto arquivado (03/09/2026) — ENSAIO 32.
+    "liberarFotosDoProjetoArquivado","__soltarRefsLiberadas","__zerarFotosDoItem",
+    "__enderecoDosItensDoProjeto","fotosColetarIdsEmbutidas","pendenteFotosDoItem",
+    "comFotosCarregadas","onedriveBaixarFotosDeItem",
+
     "idsProtegidosPorArquivamento","projetoArquivadoPeloSufixo","pularPastaDeProjetoArquivado",
     "listarItensSincronizaveisSimples","separarFotosDoItem","__ehFotoEmbutida","__ehFotoOuRef",
     // Camada de carga sob demanda (02/09/2026): o envio carrega as fotos do
@@ -1901,6 +1921,260 @@ async function rodarAteParar(ap, maxCiclos, rotulo){
       arquivosDe("Terminado").length === 0,
       "sobraram=" + arquivosDe("Terminado").length);
     A.ctx.idsProtegidosPorArquivamento = protecaoReal;   // devolve a protecao
+  }
+
+  console.log("\n" + L + "\nENSAIO 32 - liberar fotos: so sai daqui o que a nuvem confirma AGORA\n" + L);
+  {
+    /* O QUE ESTE ENSAIO COBRE.
+       Esta e a unica operacao do app que apaga foto de campo de proposito.
+       Tudo nela depende de uma regra: a foto so sai do aparelho depois que
+       uma leitura da nuvem FEITA AGORA confirmou que o pacote de la existe e
+       tem exatamente o mesmo tamanho em bytes do pacote daqui.
+       O ensaio exercita a regra pelos dois lados -- o que confere sai, o que
+       nao confere fica -- e ainda o caso que mais assusta num iPhone: a
+       listagem falhar no meio. */
+
+    /* Banco de fotos de mentira: o suficiente para o codigo real rodar
+       (ler tamanho, apagar chave, guardar pontos de restauracao). */
+    function prepararBanco(ap){
+      const bytes = new Map();       // "foto:<id>" -> texto da foto
+      const outras = new Map();      // demais chaves (pontos de restauracao)
+      const db = {
+        transaction(){
+          const tx = {};
+          const store = {
+            delete(k){ if(String(k).startsWith("foto:")) bytes.delete(k); else outras.delete(k); },
+            put(v, k){ if(String(k).startsWith("foto:")) bytes.set(k, v); else outras.set(k, v); },
+          };
+          tx.objectStore = ()=>store;
+          Promise.resolve().then(()=>{ if(tx.oncomplete) tx.oncomplete(); });
+          return tx;
+        }
+      };
+      ap.ctx.__bytes = bytes;
+      ap.ctx.__outras = outras;
+      ap.ctx.__pontos = [];
+      ap.ctx.__rascunho = null;
+      ap.ctx.__dbFalso = db;
+      vm.runInContext(`
+        function temIndexedDB(){ return true; }
+        async function dbOpen(){ return __dbFalso; }
+        async function fotosCarregarIndice(){
+          const s = new Set();
+          __bytes.forEach((v,k)=> s.add(k.slice("foto:".length)));
+          return s;
+        }
+        async function fotosLerLote(db, refs){
+          const m = new Map();
+          refs.forEach(f=>{ const v = __bytes.get("foto:"+f); if(v!==undefined) m.set(f, v); });
+          return m;
+        }
+        async function listarPontosDeRestauracao(){ return __pontos; }
+        async function lerDraftPersistente(){ return __rascunho; }
+        async function dbSet(){ return true; }
+      `, ap.ctx);
+    }
+    /* Tira as fotos de dentro do STATE e poe no banco, como o app de verdade
+       faz: no STATE fica a referencia, os bytes moram na chave propria. */
+    function fotosParaOBanco(ap){
+      return vm.runInContext(`(function(){
+        let n = 0;
+        for(const p of STATE.projetosSimples)
+        for(const a of p.areas) for(const m of a.maquinas)
+        for(const t of m.tarefas) for(const r of t.riscos){
+          if(typeof r.foto === "string" && r.foto.startsWith("data:image")){
+            const fid = fotoCalcularId(r.foto);
+            __bytes.set("foto:"+fid, r.foto);
+            r.foto = "idbfoto:" + fid;
+            n++;
+          }
+        }
+        return n;
+      })()`, ap.ctx);
+    }
+    const nBytes = ap => ap.ctx.__bytes.size;
+    const texto = ap => vm.runInContext(
+      "STATE.projetosSimples[0].areas[0].maquinas.map(m=>m.tarefas[0].riscos[0].nome).join(',')", ap.ctx);
+    const fotosNoState = ap => vm.runInContext(`(function(){
+        let n = 0;
+        for(const p of STATE.projetosSimples) for(const a of p.areas) for(const m of a.maquinas)
+        for(const t of m.tarefas) for(const r of t.riscos) if(r.foto) n++;
+        return n; })()`, ap.ctx);
+
+    async function cenario(){
+      const nuvem = novaNuvem();
+      const A = novoAparelho("A", nuvem);
+      const p = arvoreExemplo(1, 2, 1, 1, true);   // 2 maquinas, 1 risco com foto em cada
+      p.empresa = "Encerrado";
+      /* Fotos DIFERENTES entre as maquinas: o id de uma foto vem do conteudo
+         dela, entao duas fotos identicas seriam uma chave so no banco — e o
+         cenario deixaria de exercitar dois itens de verdade. */
+      p.areas[0].maquinas.forEach((m, i)=>{
+        m.tarefas[0].riscos[0].foto = "data:image/jpeg;base64," + String.fromCharCode(66+i).repeat(200 + i*40);
+      });
+      A.ctx.STATE.projetosSimples = [p];
+      await rodarAteParar(A, 10);                   // sobe texto e pacotes de fotos
+      prepararBanco(A);
+      const n = fotosParaOBanco(A);
+      vm.runInContext("__projArquivados.add(" + JSON.stringify(p.id) + ");", A.ctx);
+      return { nuvem, A, p, n };
+    }
+    const liberar = (A, id) => vm.runInContext(
+      "liberarFotosDoProjetoArquivado(" + JSON.stringify(id) + ")", A.ctx);
+
+    /* ---------- 1) caminho normal ---------- */
+    {
+      const { nuvem, A, p, n } = await cenario();
+      checar("preparacao: as fotos foram para o banco e o STATE ficou so com a referencia",
+        n === 2 && nBytes(A) === 2, "fotos=" + n + " banco=" + nBytes(A));
+      const antes = texto(A);
+      const r = await liberar(A, p.id);
+      checar("nao deu erro", !r.erro, r.erro || "");
+      checar("O GANHO: as fotos confirmadas sairam do banco",
+        nBytes(A) === 0, "sobraram=" + nBytes(A));
+      checar("e o app diz quantas e quantos bytes foram liberados",
+        r.fotos === 2 && r.bytes > 0, "fotos=" + r.fotos + " bytes=" + r.bytes);
+      checar("O QUE FICA: o texto do projeto continua inteiro",
+        texto(A) === antes && antes.length > 0, "antes=" + antes + " depois=" + texto(A));
+      checar("os campos de foto ficaram vazios, como num item recem-chegado da nuvem",
+        fotosNoState(A) === 0);
+      checar("cada item liberado ganhou a marca que o app ja sabe tratar (__fotosOmitidas)",
+        vm.runInContext("STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos[0].__fotosOmitidas === true", A.ctx));
+      /* SEM O REGISTRO A FOTO NAO TEM COMO VOLTAR -- e ai apagar teria sido
+         perda, nao liberacao. */
+      checar("e ficou registrado de onde baixar cada uma de volta",
+        vm.runInContext("Object.keys(STATE.fotosLiberadas||{}).length", A.ctx) === 2);
+      checar("o selo de download do cartao enxerga esse registro",
+        vm.runInContext(`(function(){
+          const r = STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos[0];
+          const p = pendenteFotosDoItem(r.id);
+          return !!(p && p.caminho && p.tamanho > 0);
+        })()`, A.ctx));
+      /* NAO PODE ENTRAR NA FILA AUTOMATICA: ela baixa sozinha no Wi-Fi e
+         traria tudo de volta na mesma noite, desfazendo a liberacao. */
+      checar("O CUIDADO: nada foi para a fila que baixa sozinha no Wi-Fi",
+        vm.runInContext("(STATE.oneDrivePendentes||[]).filter(p=>p.tipo==='fotos').length", A.ctx) === 0);
+      checar("e o arquivo de fotos continua intacto na nuvem",
+        [...nuvem.arquivos.keys()].filter(c=>c.indexOf("/fotos_") >= 0).length === 2);
+
+      /* ---- A VOLTA ----
+         Liberar so nao e perder porque a foto volta. Este trecho faz o
+         caminho de verdade: o mesmo toque no selo do cartao. */
+      const idRisco = vm.runInContext(
+        "STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos[0].id", A.ctx);
+      await vm.runInContext("onedriveBaixarFotosDeItem(" + JSON.stringify(idRisco) + ")", A.ctx);
+      checar("A VOLTA: o toque no selo traz a foto daquele item de volta",
+        vm.runInContext(`(function(){
+          const r = STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos[0];
+          return typeof r.foto === "string" && r.foto.indexOf("data:image") === 0;
+        })()`, A.ctx));
+      checar("e o item sai do registro de liberadas, sem sobrar marca de espera",
+        vm.runInContext("!(STATE.fotosLiberadas||{})[" + JSON.stringify(idRisco) + "]", A.ctx)
+        && vm.runInContext("!STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos[0].__fotosOmitidas", A.ctx));
+      checar("o outro item continua liberado (voltou so o que foi pedido)",
+        vm.runInContext("Object.keys(STATE.fotosLiberadas||{}).length", A.ctx) === 1);
+
+      /* ---- E O QUE MAIS ASSUSTA: reativar e sincronizar ----
+         O item liberado tem foto:null. Se o envio tratasse isso como "este
+         item nao tem foto nenhuma" e regravasse o irmao fotos_*.json, a
+         liberacao teria APAGADO da nuvem a copia que ela mesma prometeu
+         preservar -- e a foto acabaria em lugar nenhum. */
+      vm.runInContext("__projArquivados.delete(" + JSON.stringify(p.id) + ");", A.ctx);
+      await rodarAteParar(A, 6);
+      checar("REATIVAR E SINCRONIZAR nao apaga o pacote de fotos da nuvem",
+        [...nuvem.arquivos.keys()].filter(c=>c.indexOf("/fotos_") >= 0).length === 2,
+        "sobraram=" + [...nuvem.arquivos.keys()].filter(c=>c.indexOf("/fotos_") >= 0).length);
+    }
+
+    /* ---------- 2) A REGRA: o que a nuvem nao confirma NAO sai ---------- */
+    {
+      const { nuvem, A, p } = await cenario();
+      // Mexe no pacote de UMA das maquinas: o tamanho deixa de bater.
+      const alvo = [...nuvem.arquivos.keys()].find(c=>c.indexOf("/fotos_") >= 0);
+      nuvem.put(alvo, nuvem.get(alvo) + "  ");
+      const r = await liberar(A, p.id);
+      checar("A REGRA: o item cujo pacote da nuvem nao bate byte a byte fica como estava",
+        r.mantidos === 1 && r.fotos === 1, "mantidos=" + r.mantidos + " apagadas=" + r.fotos);
+      checar("e a foto dele continua no banco, inteira",
+        nBytes(A) === 1, "banco=" + nBytes(A));
+      checar("so o outro item foi liberado",
+        fotosNoState(A) === 1, "fotos no STATE=" + fotosNoState(A));
+    }
+
+    /* ---------- 3) listagem que falha: ABORTA TUDO ----------
+       429 e sessao expirada sao rotina no iPhone. Uma pasta que nao respondeu
+       apareceria aqui como "a nuvem nao tem este arquivo" -- e a decisao que
+       depende disso e apagar foto. */
+    {
+      const { nuvem, A, p } = await cenario();
+      const pastaQualquer = [...nuvem.arquivos.keys()]
+        .filter(c=>c.indexOf("_maquina.json") > 0)[0];
+      nuvem.falharPastas = new Set([pastaQualquer.slice(0, pastaQualquer.lastIndexOf("/"))]);
+      const r = await liberar(A, p.id);
+      checar("A PROTECAO: com uma pasta falhando, a liberacao inteira para",
+        !!r.erro && r.erro.indexOf("incompleta") > 0, "erro=" + (r.erro||"nenhum"));
+      checar("e NENHUMA foto foi apagada", nBytes(A) === 2, "banco=" + nBytes(A));
+      checar("nem o STATE foi tocado", fotosNoState(A) === 2);
+    }
+
+    /* ---------- 4) projeto que nao esta arquivado ---------- */
+    {
+      const { A, p } = await cenario();
+      vm.runInContext("__projArquivados.delete(" + JSON.stringify(p.id) + ");", A.ctx);
+      const r = await liberar(A, p.id);
+      checar("projeto em uso nao pode ter foto liberada por acidente",
+        !!r.erro && r.erro.indexOf("arquivado") > 0, "erro=" + (r.erro||"nenhum"));
+      checar("e nada saiu do banco", nBytes(A) === 2);
+    }
+
+    /* ---------- 5) ponto de restauracao ----------
+       O ponto guarda o STATE com REFERENCIAS. Enquanto ele apontar para a
+       foto, ela nao pode sair do banco -- e a protecao da limpeza de orfas, e
+       ela esta certa. Por isso a liberacao solta, dentro do ponto, as
+       referencias EXATAMENTE das fotos liberadas. Sem isso o botao nao
+       ganharia um byte. */
+    {
+      const { A, p } = await cenario();
+      const ids = [...A.ctx.__bytes.keys()].map(k=>k.slice(5));
+      A.ctx.__pontos = [{ ts: 1, motivo:"abertura", dados:{ projetosSimples:[
+        { id:p.id, areas:[{ maquinas:[{ tarefas:[{ riscos: ids.map(f=>({ foto:"idbfoto:"+f, nome:"copia" })) }] }] }] }
+      ]}}];
+      const r = await liberar(A, p.id);
+      checar("O DETALHE QUE FAZ O BOTAO FUNCIONAR: o ponto solta as refs das fotos liberadas",
+        nBytes(A) === 0 && r.fotos === 2, "banco=" + nBytes(A) + " apagadas=" + r.fotos);
+      checar("mas o TEXTO do ponto continua inteiro",
+        vm.runInContext("__pontos[0].dados.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos.every(r=>r.nome==='copia')", A.ctx));
+      checar("e as refs viraram vazio no ponto, nao sumiram junto com o item",
+        vm.runInContext("__pontos[0].dados.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos.every(r=>r.foto===null)", A.ctx));
+
+      /* PROVA DE DENTES: sem soltar as refs do ponto, a liberacao nao apaga
+         nada -- que era o defeito silencioso possivel aqui (botao que roda,
+         diz que deu certo e nao ganha espaco nenhum). */
+      const { A: B, p: p2 } = await cenario();
+      const ids2 = [...B.ctx.__bytes.keys()].map(k=>k.slice(5));
+      B.ctx.__pontos = [{ ts:1, dados:{ x: ids2.map(f=>({ foto:"idbfoto:"+f })) } }];
+      vm.runInContext("__soltarRefsLiberadas = function(){ return false; };", B.ctx);
+      const r2 = await liberar(B, p2.id);
+      checar("PROVA DE DENTES: sem soltar o ponto, nao se ganha um byte",
+        r2.fotos === 0 && nBytes(B) === 2 && r2.presasEmPontos === 2,
+        "apagadas=" + r2.fotos + " banco=" + nBytes(B) + " presas=" + r2.presasEmPontos);
+    }
+
+    /* ---------- 6) rascunho em andamento ----------
+       Um formulario aberto, com foto tirada e Salvar ainda nao tocado, e o
+       trabalho MENOS protegido que existe: nao esta no STATE nem na nuvem. */
+    {
+      const { A, p } = await cenario();
+      const umId = [...A.ctx.__bytes.keys()][0].slice(5);
+      A.ctx.__rascunho = { foto: "idbfoto:" + umId };
+      const r = await liberar(A, p.id);
+      checar("foto que o rascunho em andamento ainda usa NAO e apagada",
+        nBytes(A) === 1 && A.ctx.__bytes.has("foto:"+umId),
+        "banco=" + nBytes(A));
+      checar("e o app conta essa como presa, nao como liberada",
+        r.presasEmPontos === 1 && r.fotos === 1,
+        "presas=" + r.presasEmPontos + " apagadas=" + r.fotos);
+    }
   }
 
   console.log("\n" + L);

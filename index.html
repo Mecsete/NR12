@@ -1983,6 +1983,256 @@ async function arquivadosGravar(lista){
     });
   }catch(e){ return false; }
 }
+/* ===== LIBERAR AS FOTOS DE UM PROJETO ARQUIVADO =====
+   Esta é a única operação do app que apaga foto de campo de propósito. Ela
+   existe porque as fotos são praticamente todo o espaço ocupado no aparelho, e
+   um projeto encerrado não precisa carregá-las por perto. O que sai daqui
+   continua na nuvem e volta com um toque.
+
+   REGRA QUE GOVERNA TUDO: uma foto só é apagada depois que ESTA operação, com
+   uma leitura da nuvem feita AGORA, confirmou que o pacote de fotos daquele
+   item está lá e tem exatamente o mesmo tamanho em bytes do pacote daqui. Não
+   é "existe um arquivo com esse nome" — é o conteúdo conferido byte a byte.
+
+   POR QUE NÃO USA O ÍNDICE JÁ GUARDADO: ele vale 24 h e, desde o
+   arquivamento, é montado SEM as pastas dos projetos arquivados. Decidir
+   apagar foto com base em dado velho ou incompleto é exatamente o erro que
+   não pode acontecer, então a nuvem é lida de novo, só para isto.
+
+   QUALQUER FALHA ABORTA TUDO. Uma pasta que não respondeu (429, sessão
+   expirada — rotina no iPhone) apareceria aqui como "a nuvem não tem este
+   arquivo". Na dúvida não se apaga nada: a operação inteira para e nem uma
+   foto sai.
+
+   O QUE FICA: o texto do projeto, inteiro. Áreas, equipamentos, tarefas,
+   riscos, medidas, textos de laudo — nada disso é tocado. Cada item fica no
+   mesmo estado de um item recém-chegado de outro aparelho esperando as fotos
+   (__fotosOmitidas), que é um estado que o app inteiro já sabe tratar: mostra
+   o selo de download no cartão, e o toque traz as fotos de volta.
+
+   PONTOS DE RESTAURAÇÃO. Um ponto guarda o STATE com REFERÊNCIAS às fotos —
+   ou seja, enquanto um ponto apontar para a foto, ela não pode sair do banco
+   (é a proteção da limpeza de órfãs, e ela está certa). Por isso a liberação
+   também solta, dentro dos pontos, as referências EXATAMENTE das fotos
+   liberadas. O texto de cada ponto continua completo e todas as outras fotos
+   continuam protegidas. Sem isto, a liberação não ganharia um byte — e é
+   melhor dizer isso na cara do que entregar um botão que não faz nada. */
+function __soltarRefsLiberadas(valor, ids){
+  if(Array.isArray(valor)){
+    let mudou = false;
+    for(let i=0;i<valor.length;i++){
+      const v = valor[i];
+      if(ehFotoRefPersist(v) && ids.has(v.slice(FOTO_REF_PREFIXO.length))){ valor.splice(i,1); i--; mudou = true; continue; }
+      if(__soltarRefsLiberadas(v, ids)) mudou = true;
+    }
+    return mudou;
+  }
+  if(valor && typeof valor === "object"){
+    let mudou = false;
+    for(const k in valor){
+      const v = valor[k];
+      if(ehFotoRefPersist(v) && ids.has(v.slice(FOTO_REF_PREFIXO.length))){ valor[k] = null; mudou = true; continue; }
+      if(__soltarRefsLiberadas(v, ids)) mudou = true;
+    }
+    return mudou;
+  }
+  return false;
+}
+/* Deixa o item no MESMO formato que separarFotosDoItem produz para a nuvem:
+   campo de foto única vira null, lista de fotos vira vazia, e entra a marca
+   __fotosOmitidas. Não é detalhe de estilo — é o formato que completarFotosDeItem
+   sabe repreencher e que o selo de download do cartão sabe reconhecer. */
+function __zerarFotosDoItem(obj){
+  const ids = new Set();
+  for(const k in obj){
+    const v = obj[k];
+    if(__ehFotoOuRef(v)){
+      if(ehFotoRefPersist(v)) ids.add(v.slice(FOTO_REF_PREFIXO.length));
+      obj[k] = null;
+      continue;
+    }
+    if(k===CAMPO_FOTOS_LISTA && Array.isArray(v) && v.length>0){
+      v.forEach(x=>{ if(ehFotoRefPersist(x)) ids.add(x.slice(FOTO_REF_PREFIXO.length)); });
+      obj[k] = [];
+    }
+  }
+  obj.__fotosOmitidas = true;
+  return ids;
+}
+/* Onde cada item mora dentro do projeto — os mesmos campos que o classificador
+   do download grava no descritor de um pacote de fotos (ver localizarItemLocal).
+   Serve para duas coisas: alcançar o objeto REAL dentro do STATE (a lista
+   sincronizável entrega cópias rasas) e montar o registro que faz o selo de
+   download funcionar depois. */
+function __enderecoDosItensDoProjeto(proj){
+  const m = new Map();
+  m.set("projeto:"+proj.id, { alvoTipo:"projeto", itemId:proj.id, ids:{} });
+  (proj.areas||[]).forEach(a=>{
+    m.set("area:"+a.id, { alvoTipo:"area", itemId:a.id, ids:{projId:proj.id} });
+    (a.maquinas||[]).forEach(mq=>{
+      m.set("maquina:"+mq.id, { alvoTipo:"maquina", itemId:mq.id, ids:{projId:proj.id, areaId:a.id} });
+      (mq.tarefas||[]).forEach(t=>{
+        m.set("tarefa:"+t.id, { alvoTipo:"tarefa", itemId:t.id, ids:{projId:proj.id, areaId:a.id, maquinaId:mq.id} });
+        (t.riscos||[]).forEach(r=>
+          m.set("risco:"+r.id, { alvoTipo:"risco", itemId:r.id, ids:{projId:proj.id, areaId:a.id, maquinaId:mq.id, tarefaId:t.id} }));
+      });
+    });
+  });
+  return m;
+}
+const LIBERAR_BLOCO = 8;
+async function liberarFotosDoProjetoArquivado(projId, onProgresso){
+  const res = { erro:null, itens:0, liberados:0, mantidos:0, fotos:0, bytes:0, presasEmPontos:0 };
+  const proj = (STATE.projetosSimples||[]).find(p=>p.id===projId);
+  if(!proj) return Object.assign(res, { erro:"Projeto não encontrado neste aparelho." });
+  if(!projetoArquivado(projId)) return Object.assign(res, { erro:"Só um projeto arquivado pode ter as fotos liberadas. Arquive primeiro." });
+  if(!getOneDriveConta()) return Object.assign(res, { erro:"Sem OneDrive conectado — não há como conferir se a nuvem tem as fotos, então nada é apagado." });
+  if(!temIndexedDB()) return Object.assign(res, { erro:"Este aparelho não tem o banco de dados local disponível." });
+
+  /* ---- 1) A nuvem é lida AGORA, e só a pasta deste projeto ---- */
+  const raiz = `${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado/${segmentoPastaComId(proj.empresa || proj.nome || "Projeto", proj.id)}`;
+  let arvore = null;
+  try{
+    arvore = await onedriveListarArvore(raiz, 4,
+      onProgresso ? (lidas, total)=>onProgresso({ fase:"nuvem", lidas, total }) : undefined);
+  }catch(e){ return Object.assign(res, { erro:"Não foi possível ler a nuvem agora: " + ((e && e.message) || e) }); }
+  if(!arvore) return Object.assign(res, { erro:"Não foi possível ler a nuvem agora." });
+  if(__arvoreNuvemIncompleta || __pastasNuvemFalhadas.size > 0 || __falhaNuvemSemCaminho)
+    return Object.assign(res, { erro:"A leitura da nuvem veio incompleta — alguma pasta não respondeu. Nada foi apagado. Tente de novo com a conexão estável." });
+  const naNuvem = onedriveColetarArquivosDaArvore(arvore);
+  if(naNuvem.size === 0)
+    return Object.assign(res, { erro:"A pasta deste projeto na nuvem voltou vazia. Nada foi apagado." });
+  /* Os caminhos do índice vêm em minúsculas (o OneDrive não diferencia); para
+     BAIXAR de volta é preciso o caminho como ele é de verdade. */
+  const caminhoReal = new Map();
+  (function andar(nos){ for(const n of (nos||[])){ if(n.pasta) andar(n.filhos); else caminhoReal.set(String(n.caminho).toLowerCase(), n.caminho); } })(arvore);
+
+  /* ---- 2) Confere item por item, sem apagar nada ainda ---- */
+  const endereco = __enderecoDosItensDoProjeto(proj);
+  const itens = listarItensSincronizaveisSimples(true).filter(it=> endereco.has(it.id));
+  const assinaturas = onedriveCarregarAssinaturas(__assinaturasOneDriveSimples);
+  const prefixo = `${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado/`.toLowerCase();
+  const confirmados = [];
+  for(const item of itens){
+    res.itens++;
+    /* As refs são colhidas ANTES de carregar: depois de garantirFotosDe o
+       campo já contém a foto, não a referência. */
+    const refs = new Set();
+    fotosColetarRefs(item.dados, refs);
+    let ok = null, tinhaFoto = false;
+    await comFotosCarregadas(item.dados, async ()=>{
+      const { soFotos, tinhaFotos } = separarFotosDoItem(item.dados);
+      if(!tinhaFotos) return;                       // item sem foto: nada a liberar, nem a manter
+      tinhaFoto = true;
+      if(contemRefDeFoto(soFotos)) return;          // a foto não está no aparelho — nada a conferir
+      const reg = assinaturas.get(item.id);
+      const pasta = (reg && Array.isArray(reg.pasta) && reg.pasta.length) ? reg.pasta : item.pasta;
+      const chave = prefixo + (pasta.join("/") + "/fotos_" + item.arquivo).toLowerCase();
+      const tamanhoRemoto = naNuvem.get(chave);
+      if(tamanhoRemoto === undefined) return;       // a nuvem não tem o pacote deste item
+      /* A CONFERÊNCIA QUE AUTORIZA APAGAR: mesmo tamanho em bytes do pacote
+         montado aqui, agora, com as fotos na mão. Diferente = fica tudo. */
+      if(new Blob([JSON.stringify(soFotos, null, 0)]).size !== tamanhoRemoto) return;
+      ok = { id:item.id, refs, caminho: caminhoReal.get(chave) || chave, tamanho: tamanhoRemoto,
+             nome: "fotos_" + item.arquivo };
+    });
+    /* "Mantidos" conta só quem TEM foto e não foi confirmado. Contar também os
+       itens sem foto nenhuma (projeto, área, tarefa) encheria o resultado de
+       um número alarmante que não quer dizer nada. */
+    if(ok) confirmados.push(ok); else if(tinhaFoto) res.mantidos++;
+    if(onProgresso && res.itens % LIBERAR_BLOCO === 0) onProgresso({ fase:"itens", lidas:res.itens, total:itens.length });
+  }
+  if(confirmados.length === 0)
+    return Object.assign(res, { erro: res.mantidos === 0
+      /* Nenhum item tinha foto AQUI: ou o projeto nunca teve, ou já foi
+         liberado antes. Culpar a nuvem neste caso seria acusar quem não fez
+         nada de errado. */
+      ? "Não havia foto para liberar neste projeto — as que existiam já estão só na nuvem."
+      : "Nenhum item teve a cópia da nuvem confirmada — nada foi apagado. Sincronize o projeto e tente de novo." });
+
+  /* ---- 3) Aplica no STATE e GRAVA, antes de apagar byte nenhum ----
+     Nesta ordem de propósito: se o app fechar no meio, o pior caso é sobrar
+     foto órfã no banco (a limpeza recolhe depois). Na ordem inversa, o pior
+     caso seria o STATE apontando para fotos que já não existem. */
+  const liberadasIds = new Set();
+  const registro = STATE.fotosLiberadas || (STATE.fotosLiberadas = {});
+  for(const c of confirmados){
+    const end = endereco.get(c.id);
+    const real = localizarItemLocal({ alvoTipo:end.alvoTipo, itemId:end.itemId, ...end.ids });
+    if(!real){ res.mantidos++; continue; }
+    __zerarFotosDoItem(real).forEach(fid=> liberadasIds.add(fid));
+    c.refs.forEach(fid=> liberadasIds.add(fid));
+    /* O registro do que voltar a baixar. NÃO entra em oneDrivePendentes de
+       propósito: aquela fila é baixada sozinha no Wi-Fi, e traria tudo de
+       volta na mesma noite, desfazendo a liberação. Aqui as fotos só voltam
+       quando a pessoa toca no item. */
+    registro[end.itemId] = { tipo:"fotos", alvoTipo:end.alvoTipo, itemId:end.itemId, ...end.ids,
+      chaveAssinatura: end.alvoTipo + ":" + end.itemId, caminho:c.caminho, nome:c.nome,
+      tamanho:c.tamanho, liberadoEm: Date.now() };
+    res.liberados++;
+  }
+  const db = await dbOpen();
+  /* Os pontos de restauração soltam as referências DESTAS fotos — só delas.
+     Sem isto o banco não perde um byte (ver o bloco de comentário no topo). */
+  let pontos = [];
+  try{ pontos = await listarPontosDeRestauracao(); }catch(e){ pontos = []; }
+  let pontosMudaram = false;
+  for(const p of pontos){ if(__soltarRefsLiberadas(p, liberadasIds)) pontosMudaram = true; }
+  marcarAlterado();
+  await dbSet(STATE);
+  if(pontosMudaram){
+    await new Promise((resolve)=>{
+      try{
+        const tx = db.transaction(DB_STORE,"readwrite");
+        tx.objectStore(DB_STORE).put(pontos, DB_KEY_PONTOS_RESTAURACAO);
+        tx.oncomplete = ()=>resolve(); tx.onerror = ()=>resolve();
+      }catch(e){ resolve(); }
+    });
+  }
+
+  /* ---- 4) Só agora os bytes saem — e só os que ninguém mais referencia ----
+     A conta é refeita do zero sobre o STATE já gravado, os pontos já
+     reescritos e o rascunho em andamento. Uma foto que qualquer um deles
+     ainda use fica no banco, mesmo tendo sido confirmada na nuvem. */
+  const aindaReferenciadas = new Set();
+  fotosColetarRefs(STATE, aindaReferenciadas);
+  fotosColetarIdsEmbutidas(STATE, aindaReferenciadas);
+  for(const p of pontos) fotosColetarRefs(p, aindaReferenciadas);
+  try{
+    const rascunho = await lerDraftPersistente();
+    if(rascunho){ fotosColetarRefs(rascunho, aindaReferenciadas); fotosColetarIdsEmbutidas(rascunho, aindaReferenciadas); }
+  }catch(e){}
+  const indice = await fotosCarregarIndice(db);
+  const apagar = [];
+  liberadasIds.forEach(fid=>{
+    if(!indice.has(fid)) return;                    // já não estava no banco
+    if(aindaReferenciadas.has(fid)){ res.presasEmPontos++; return; }
+    apagar.push(fid);
+  });
+  if(apagar.length > 0){
+    for(let i=0;i<apagar.length;i+=LIBERAR_BLOCO*10){
+      const lote = apagar.slice(i, i+LIBERAR_BLOCO*10);
+      /* Lê o tamanho antes de apagar — é o único jeito de dizer à pessoa
+         quanto espaço ela ganhou de verdade. */
+      const mapa = await fotosLerLote(db, new Set(lote));
+      mapa.forEach(v=>{ res.bytes += (v && v.length) || 0; });
+      mapa.clear();
+      await new Promise((resolve)=>{
+        try{
+          const tx = db.transaction(DB_STORE,"readwrite");
+          const store = tx.objectStore(DB_STORE);
+          lote.forEach(fid=> store.delete(FOTO_KEY_PREFIXO + fid));
+          tx.oncomplete = ()=>{ lote.forEach(fid=> indice.delete(fid)); resolve(); };
+          tx.onerror = ()=>resolve();
+        }catch(e){ resolve(); }
+      });
+      res.fotos += lote.length;
+      if(onProgresso) onProgresso({ fase:"apagando", lidas:res.fotos, total:apagar.length });
+      await new Promise(r=>setTimeout(r, 0));
+    }
+  }
+  return res;
+}
 async function fotosLerMapaOrfas(db){
   return await new Promise((resolve)=>{
     try{
@@ -2559,7 +2809,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "03/09/2026 08:45";
+const APP_BUILD = "03/09/2026 10:04";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -6247,7 +6497,15 @@ async function sincronizarDownloadOneDrive(){
 /* Localiza, nos pendentes, o pacote de fotos de um item específico (aquele
    marcado com "fotos no Wi-Fi" na tela). */
 function pendenteFotosDoItem(itemId){
-  return (STATE.oneDrivePendentes||[]).find(p=>p.tipo==="fotos" && p.itemId===itemId) || null;
+  const naFila = (STATE.oneDrivePendentes||[]).find(p=>p.tipo==="fotos" && p.itemId===itemId);
+  if(naFila) return naFila;
+  /* FOTO LIBERADA DE PROPÓSITO — mesmo registro, fila diferente.
+     Quem foi liberado para ganhar espaço NÃO entra em oneDrivePendentes: essa
+     fila é baixada sozinha no primeiro Wi-Fi, e traria tudo de volta na mesma
+     noite, desfazendo a liberação sem ninguém pedir. Fica neste registro à
+     parte, com o mesmo formato, para o selo do cartão e o download por toque
+     funcionarem exatamente igual. */
+  return (STATE.fotosLiberadas||{})[itemId] || null;
 }
 /* Download individual e imediato das fotos de UM item, acionado pelo toque no
    selo do cartão. No Wi-Fi baixa direto; em dados móveis pede confirmação
@@ -6273,6 +6531,7 @@ async function onedriveBaixarFotosDeItem(itemId){
     const dados = JSON.parse(texto);
     if(onedriveMesclarItemNovo(pend, dados)){
       STATE.oneDrivePendentes = (STATE.oneDrivePendentes||[]).filter(p=>p!==pend);
+      if(STATE.fotosLiberadas) delete STATE.fotosLiberadas[itemId];   // voltou: sai do registro de liberadas
       registrarEventoSync("down", pend.nome, (pend.alvoTipo||"item")+" (fotos)", pend.tamanho||0, true, undefined, rotuloCaminhoNuvem(pend.caminho));
       marcarAlterado();
       render();
@@ -6281,6 +6540,7 @@ async function onedriveBaixarFotosDeItem(itemId){
       // Alvo já estava completo (chegou por outro caminho nesse meio tempo) —
       // só tira dos pendentes e segue.
       STATE.oneDrivePendentes = (STATE.oneDrivePendentes||[]).filter(p=>p!==pend);
+      if(STATE.fotosLiberadas) delete STATE.fotosLiberadas[itemId];
       marcarAlterado();
       render();
     }
@@ -11740,6 +12000,17 @@ function renderRiskResult(r){
    precisar. Só quando aberto é que a contagem do que falta enviar é
    calculada; fechado, ele não custa nada. */
 let __mostrarArquivados = false;
+/* Quantos itens deste projeto já estão com as fotos liberadas — para o cartão
+   dizer o que já foi feito em vez de oferecer a mesma coisa de novo. */
+function itensComFotosLiberadas(proj){
+  const reg = STATE.fotosLiberadas || {};
+  let n = 0;
+  idsSincronizaveisDe("projeto", proj).forEach(id=>{
+    const cru = id.slice(id.indexOf(":")+1);
+    if(reg[cru]) n++;
+  });
+  return n;
+}
 function blocoArquivadosHtml(arquivados){
   if(arquivados.length === 0) return "";
   const cabecalho = `
@@ -11766,11 +12037,20 @@ function blocoArquivadosHtml(arquivados){
         <span class="stat-pill">${c.riscos} risco${c.riscos===1?'':'s'}</span>
       </div>
       ${f>0? `<div style="font-size:11.5px;color:#B26A00;margin-top:7px">${f} ${f===1?'item ainda não enviado':'itens ainda não enviados'} à nuvem — ${f===1?'ele volta':'eles voltam'} para a fila quando o projeto for reativado.</div>`:""}
-      <button class="btn btn-secondary btn-sm" style="margin-top:10px" onclick="App.reativarProjetoS('${p.id}')">${ic('arrowR')} Reativar neste aparelho</button>
+      ${(()=>{ const lib = itensComFotosLiberadas(p); return lib>0
+        ? `<div style="font-size:11.5px;color:#2e7d32;margin-top:7px">${lib} ${lib===1?'item está':'itens estão'} sem as fotos aqui — elas ficaram na nuvem e voltam ao toque no item.</div>`
+        : ""; })()}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+        <button class="btn btn-secondary btn-sm" onclick="App.reativarProjetoS('${p.id}')">${ic('arrowR')} Reativar neste aparelho</button>
+        ${f>0 ? "" : `<button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.liberarFotosDoProjeto('${p.id}')">${ic('trash')} ${itensComFotosLiberadas(p)>0 ? "Liberar o restante das fotos" : "Liberar as fotos (ganhar espaço)"}</button>`}
+      </div>
+      ${f>0? `<div class="field-hint" style="margin-top:6px">Liberar as fotos só aparece quando não houver nada esperando para subir — o que não está na nuvem não pode sair daqui.</div>`:""}
     </div>`;
   }).join("");
   return `<div class="section-title">Arquivados</div>${cabecalho}
-    <div class="field-hint" style="margin:8px 2px">Continuam inteiros neste aparelho — texto e fotos, nada foi apagado. Reativar é imediato e funciona sem internet: não há nada para baixar de volta.</div>
+    <div class="field-hint" style="margin:8px 2px">${arquivados.some(p=>itensComFotosLiberadas(p)>0)
+      ? "O texto continua inteiro neste aparelho e reativar é imediato. Onde as fotos foram liberadas, elas ficaram na nuvem — cada item baixa a sua ao toque."
+      : "Continuam inteiros neste aparelho — texto e fotos, nada foi apagado. Reativar é imediato e funciona sem internet: não há nada para baixar de volta."}</div>
     ${cartoes}`;
 }
 function screenSimplesProjetos(){
@@ -20278,7 +20558,59 @@ Devolver agora?`)) return;
     render();
     toast("Projeto arquivado neste aparelho — nada foi apagado");
   },
+  /* LIBERAR AS FOTOS — a única operação do app que apaga foto de campo de
+     propósito. O confirm não é formalidade: ele descreve a regra que autoriza
+     o apagamento (conferência byte a byte contra uma leitura da nuvem feita
+     agora), o que continua no aparelho, e as duas consequências que a pessoa
+     não teria como adivinhar sozinha — os pontos de restauração soltam essas
+     fotos, e reativar o projeto traz tudo de volta no Wi-Fi. */
+  async liberarFotosDoProjeto(id){
+    const p = STATE.projetosSimples.find(x=>x.id===id); if(!p) return;
+    if(__liberandoFotos){ toast("Já há uma liberação em andamento"); return; }
+    const c = contarItensDoProjeto(p);
+    if(!confirm(
+      `Liberar as fotos de "${p.empresa||'Projeto'}" deste aparelho?\n\n`
+      + `COMO FUNCIONA\n`
+      + `· O app lê a nuvem agora e confere, item por item, se a cópia de lá é idêntica à daqui\n`
+      + `· Só o que for confirmado é apagado deste aparelho — o resto fica\n`
+      + `· Se a leitura da nuvem falhar em qualquer ponto, NADA é apagado\n\n`
+      + `O QUE CONTINUA AQUI\n`
+      + `· O texto inteiro do projeto: ${c.areas} área(s), ${c.maquinas} equipamento(s), ${c.riscos} risco(s), medidas e textos de laudo\n`
+      + `· Cada item passa a mostrar um botão para baixar as fotos dele de volta, quando você precisar\n\n`
+      + `DUAS COISAS QUE VOCÊ PRECISA SABER\n`
+      + `· Os pontos de restauração deste aparelho também soltam essas fotos (o texto deles continua completo). Sem isso, nenhum espaço seria liberado de verdade.\n`
+      + `· Reativando o projeto, as fotos voltam sozinhas no Wi-Fi. Para manter o espaço livre, deixe-o arquivado.`)) return;
+    __liberandoFotos = true;
+    try{
+      toast("Lendo a nuvem para conferir…");
+      const r = await liberarFotosDoProjetoArquivado(id, (e)=>{
+        if(e.fase==="nuvem" && e.total > 4 && e.lidas % 20 === 0) toast(`Lendo a nuvem… ${e.lidas} de ${e.total} pastas`);
+        if(e.fase==="itens" && e.lidas % 40 === 0) toast(`Conferindo… ${e.lidas} de ${e.total} itens`);
+        if(e.fase==="apagando" && e.lidas % 100 === 0) toast(`Liberando… ${e.lidas} de ${e.total} fotos`);
+      });
+      render();
+      if(r.erro){ alert("Nada foi apagado.\n\n" + r.erro); return; }
+      alert(
+        `Fotos liberadas.\n\n`
+        + `· ${r.fotos} foto(s) saíram deste aparelho — ${fmtBytes(r.bytes)} livres\n`
+        + `· ${r.liberados} item(ns) passaram a buscar as fotos na nuvem\n`
+        + (r.mantidos>0 ? `· ${r.mantidos} item(ns) ficaram como estavam: a nuvem não tinha a cópia conferida deles\n` : "")
+        + (r.presasEmPontos>0 ? `· ${r.presasEmPontos} foto(s) continuam aqui porque um ponto de restauração ainda as usa\n` : "")
+        + `\nO texto do projeto continua inteiro. Para trazer as fotos de um item de volta, abra o item e toque no selo de download.`);
+    }catch(e){
+      alert("A liberação parou no meio: " + ((e && e.message) || e) + "\n\nO que já tinha sido conferido e gravado está seguro; nada é apagado sem confirmação da nuvem.");
+    }finally{ __liberandoFotos = false; }
+  },
   async reativarProjetoS(id){
+    /* Reativar devolve o projeto à sincronização — e, com ela, a fila que
+       baixa as fotos sozinha no Wi-Fi. Quem liberou espaço precisa saber
+       disso ANTES, senão os MB voltam sem explicação nenhuma. */
+    const alvo = STATE.projetosSimples.find(x=>x.id===id);
+    const lib = alvo ? itensComFotosLiberadas(alvo) : 0;
+    if(lib > 0 && !confirm(
+      `Reativar "${(alvo&&alvo.empresa)||'Projeto'}"?\n\n`
+      + `As fotos de ${lib} item(ns) foram liberadas para ganhar espaço. Reativando, elas voltam sozinhas da nuvem no próximo Wi-Fi e o espaço volta a ser ocupado.\n\n`
+      + `Para consultar o projeto SEM trazer as fotos de volta, deixe-o arquivado: o texto está todo aqui, e cada item baixa a foto dele ao toque.`)) return;
     __projArquivados.delete(String(id));
     await arquivadosGravar([...__projArquivados]);
     /* O índice da nuvem foi montado SEM as pastas deste projeto (elas não eram
@@ -22665,6 +22997,9 @@ let __diagFotosCache = null;
    evita duas medições ao mesmo tempo — ela lê milhares de fotos em blocos. */
 let __espacoProjCache = null;
 let __espacoProjRodando = false;
+/* Trava de reentrada da liberação de fotos: ela lê a nuvem, grava o STATE e
+   apaga do banco — duas ao mesmo tempo trabalhariam sobre a mesma lista. */
+let __liberandoFotos = false;
 /* Qual lote de fotos soltas o próximo toque vai baixar (o download sai em
    lotes para não montar centenas de MB de uma vez). */
 /* A CONTAGEM MORA NO STATE, não numa variável solta.

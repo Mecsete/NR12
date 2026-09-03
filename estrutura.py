@@ -48,7 +48,11 @@ print("=== 3. ARQUITETURA DE FOTOS (CAMADA_FOTOS) ===")
 # partir do commit da carga sob demanda, entao o delta daquela entrega JA esta
 # no original -- somar de novo conta duas vezes. Este extra so volta a ser
 # diferente de zero quando ESTA entrega mudar as contagens.
-_extra_fotos = {}
+# 03/09/2026 — LIBERAR FOTOS DE PROJETO ARQUIVADO (secao 124). "foto:" ganha
+# +1: o unico store.delete(FOTO_KEY_PREFIXO + fid) do app fora da limpeza de
+# orfas. E a arquitetura sendo APLICADA (a foto sai da chave propria dela,
+# como sempre esteve), nao contornada -- o piso continua onde estava.
+_extra_fotos = {"foto:": 1}
 for marca in ["idbfoto:", "foto:", "CAMADA_FOTOS"]:
     a, b = orig.count(marca) + _extra_fotos.get(marca, 0), novo.count(marca)
     chk("ocorrencias de '%s' inalteradas (%d)" % (marca, a), a == b, "orig+extra=%d novo=%d" % (a, b))
@@ -3915,6 +3919,73 @@ chk("a lista e lida antes do primeiro desenho",
 chk("com tudo arquivado, a tela vazia mostra a porta de volta",
     'Nenhum projeto ativo' in novo
     and novo.count("${blocoArquivadosHtml(arquivados)}") == 2)
+
+
+print("=== 124. LIBERAR FOTOS DE PROJETO ARQUIVADO (03/09/2026) ===")
+# A UNICA operacao do app que apaga foto de campo de proposito. Tudo aqui
+# existe para uma regra: a foto so sai depois que uma leitura da nuvem FEITA
+# AGORA confirmou o pacote daquele item byte a byte. O comportamento completo
+# (conferir, apagar, abortar, trazer de volta, e o que acontece ao reativar e
+# sincronizar) esta no ENSAIO 32 do banco.js, com prova de dentes.
+_lb = novo[novo.find("async function liberarFotosDoProjetoArquivado(projId, onProgresso){"):]
+_lb = _lb[:_lb.find("async function fotosLerMapaOrfas(")]
+chk("a funcao existe e tem corpo", len(_lb) > 3000)
+chk("A REGRA: so apaga o que bate byte a byte com o pacote da nuvem",
+    "if(new Blob([JSON.stringify(soFotos, null, 0)]).size !== tamanhoRemoto) return;" in _lb
+    and "if(tamanhoRemoto === undefined) return;" in _lb)
+# O indice guardado vale 24h e, desde o arquivamento, e montado SEM as pastas
+# dos projetos arquivados -- decidir apagar foto com ele seria decidir com dado
+# velho e incompleto.
+chk("le a nuvem agora, e nunca o indice guardado",
+    "await onedriveListarArvore(raiz, 4," in _lb and "onedriveIndiceNuvem()" not in _lb)
+chk("A PROTECAO: falha na listagem aborta ANTES de qualquer apagamento",
+    "if(__arvoreNuvemIncompleta || __pastasNuvemFalhadas.size > 0 || __falhaNuvemSemCaminho)" in _lb
+    and 0 < _lb.find("__arvoreNuvemIncompleta") < _lb.find("store.delete(FOTO_KEY_PREFIXO"))
+chk("so projeto arquivado, e so com OneDrive conectado",
+    "if(!projetoArquivado(projId))" in _lb and "if(!getOneDriveConta())" in _lb)
+# Ordem de gravacao: fechando o app no meio, o pior caso tem de ser foto orfa
+# no banco (a limpeza recolhe) -- nunca STATE apontando para foto que sumiu.
+chk("grava o STATE antes de apagar byte nenhum",
+    0 < _lb.find("await dbSet(STATE);") < _lb.find("store.delete(FOTO_KEY_PREFIXO"))
+chk("so apaga o que nem o STATE, nem os pontos, nem o rascunho usam",
+    "fotosColetarRefs(STATE, aindaReferenciadas)" in _lb
+    and "for(const p of pontos) fotosColetarRefs(p, aindaReferenciadas)" in _lb
+    and "lerDraftPersistente()" in _lb
+    and "if(aindaReferenciadas.has(fid)){ res.presasEmPontos++; return; }" in _lb)
+# Sem soltar as refs dos pontos, o botao roda, diz que deu certo e nao ganha um
+# byte -- o ponto guarda o STATE com REFERENCIAS e segura toda foto.
+chk("solta nos pontos as refs EXATAMENTE das fotos liberadas",
+    "__soltarRefsLiberadas(p, liberadasIds)" in _lb
+    and "ids.has(v.slice(FOTO_REF_PREFIXO.length))" in _corpoDe(novo, "__soltarRefsLiberadas")
+    and "DB_KEY_PONTOS_RESTAURACAO" in _lb)
+# O item liberado fica no mesmo formato de um recem-chegado da nuvem: e o
+# formato que completarFotosDeItem repreenche e que o selo do cartao reconhece.
+chk("o item liberado fica igual a um recem-chegado da nuvem",
+    all(x in _corpoDe(novo, "__zerarFotosDoItem") for x in ["obj[k] = null;", "obj[k] = [];", "obj.__fotosOmitidas = true;"]))
+# A fila oneDrivePendentes baixa sozinha no primeiro Wi-Fi: pondo as liberadas
+# la, o espaco voltaria a ser ocupado na mesma noite, sem ninguem pedir.
+chk("nao entra na fila que baixa sozinha no Wi-Fi",
+    all(x not in _lb for x in ["oneDrivePendentes.push", "STATE.oneDrivePendentes =", "STATE.oneDrivePendentes["])
+    and "STATE.fotosLiberadas" in _lb
+    and "(STATE.fotosLiberadas||{})[itemId]" in _corpoDe(novo, "pendenteFotosDoItem"))
+chk("baixar de volta limpa o registro nos dois caminhos",
+    _corpoDe(novo, "onedriveBaixarFotosDeItem").count("delete STATE.fotosLiberadas[itemId]") == 2)
+chk("o resultado nao chama de 'mantido' quem nunca teve foto",
+    "else if(tinhaFoto) res.mantidos++;" in _lb)
+# A tela e onde a pessoa decide: a pergunta precisa dizer a regra, o que fica,
+# e as duas consequencias que ninguem adivinha sozinho.
+_dlg = novo[novo.find("  async liberarFotosDoProjeto(id){"):novo.find("  async reativarProjetoS(id){")]
+chk("a pergunta diz a regra, o que fica e as duas surpresas possiveis",
+    "confere, item por item, se a cópia de lá é idêntica" in _dlg
+    and "Se a leitura da nuvem falhar em qualquer ponto, NADA é apagado" in _dlg
+    and "Os pontos de restauração deste aparelho também soltam essas fotos" in _dlg
+    and "as fotos voltam sozinhas no Wi-Fi" in _dlg)
+chk("o botao so aparece quando nao ha nada esperando para subir",
+    'App.liberarFotosDoProjeto(' in novo and '${f>0 ? "" : `<button' in novo)
+chk("reativar avisa que as fotos voltam e ocupam o espaco de novo",
+    "elas voltam sozinhas da nuvem no próximo Wi-Fi" in novo and "deixe-o arquivado" in novo)
+chk("duas liberacoes ao mesmo tempo nao rodam",
+    "let __liberandoFotos = false;" in novo and "if(__liberandoFotos){" in _dlg)
 
 
 print("\n---------------------------------------")

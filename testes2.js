@@ -10033,6 +10033,168 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  /* ---------- t151: liberar as fotos de um projeto arquivado ---------------
+     A unica operacao do app que apaga foto de campo de proposito. O
+     comportamento de ponta a ponta (conferir, apagar, abortar, trazer de
+     volta) e provado no ENSAIO 32 do banco.js, rodando o codigo real contra
+     uma nuvem de mentira, com prova de dentes. Aqui ficam as garantias de
+     ESTRUTURA e o texto da tela -- que e onde a pessoa decide. */
+  {
+    console.log("\n[t151] liberar fotos: so sai o que a nuvem confirma agora");
+    const F = funcao("liberarFotosDoProjetoArquivado");
+
+    /* A regra que autoriza apagar. Nao e "existe um arquivo com esse nome":
+       e o mesmo tamanho em bytes do pacote montado aqui, com as fotos na mao. */
+    t("A REGRA: so apaga o que bate byte a byte com o pacote da nuvem", ()=>{
+      ok(F.indexOf("if(new Blob([JSON.stringify(soFotos, null, 0)]).size !== tamanhoRemoto) return;") > 0,
+         "sem a comparacao de tamanho, bastaria existir um arquivo com o nome certo");
+      ok(F.indexOf("if(tamanhoRemoto === undefined) return;") > 0);
+    });
+    /* O indice guardado vale 24h e, desde o arquivamento, e montado SEM as
+       pastas dos projetos arquivados. Decidir apagar foto com base nele seria
+       decidir com dado velho e incompleto. */
+    t("le a nuvem AGORA -- nunca o indice guardado", ()=>{
+      ok(F.indexOf("await onedriveListarArvore(raiz, 4,") > 0);
+      ok(F.indexOf("onedriveIndiceNuvem()") < 0,
+         "voltou a usar o indice guardado, que vale 24h e nao tem as pastas arquivadas");
+    });
+    t("A PROTECAO: qualquer falha na listagem aborta tudo, sem apagar nada", ()=>{
+      ok(F.indexOf("if(__arvoreNuvemIncompleta || __pastasNuvemFalhadas.size > 0 || __falhaNuvemSemCaminho)") > 0,
+         "uma pasta que nao respondeu apareceria como 'a nuvem nao tem' — e a decisao e apagar foto");
+      ok(F.indexOf('if(naNuvem.size === 0)') > 0, "pasta vazia na nuvem tambem precisa abortar");
+      const i = F.indexOf("__arvoreNuvemIncompleta"), j = F.indexOf("store.delete(FOTO_KEY_PREFIXO");
+      ok(i > 0 && j > 0 && i < j, "a checagem precisa vir ANTES de qualquer apagamento");
+    });
+    t("so projeto arquivado, e so com OneDrive conectado", ()=>{
+      ok(F.indexOf("if(!projetoArquivado(projId))") > 0);
+      ok(F.indexOf("if(!getOneDriveConta())") > 0);
+    });
+    /* Ordem de gravacao: se o app fechar no meio, o pior caso tem de ser foto
+       orfa no banco (a limpeza recolhe depois) -- nunca o STATE apontando
+       para foto que ja nao existe. */
+    t("grava o STATE ANTES de apagar byte nenhum", ()=>{
+      const g = F.indexOf("await dbSet(STATE);"), d = F.indexOf("store.delete(FOTO_KEY_PREFIXO");
+      ok(g > 0 && d > 0 && g < d,
+         "apagando primeiro, um fechamento do app deixaria o STATE apontando para fotos que sumiram");
+    });
+    /* A conta e refeita do zero sobre o que ficou gravado. Uma foto que o
+       STATE, um ponto de restauracao ou o rascunho ainda usem fica no banco,
+       mesmo tendo sido confirmada na nuvem. */
+    t("so apaga o que ninguem mais referencia -- STATE, pontos e rascunho", ()=>{
+      ["fotosColetarRefs(STATE, aindaReferenciadas)",
+       "for(const p of pontos) fotosColetarRefs(p, aindaReferenciadas)",
+       "lerDraftPersistente()"].forEach(p=>
+        ok(F.indexOf(p) > 0, "faltou proteger: " + p));
+      ok(F.indexOf("if(aindaReferenciadas.has(fid)){ res.presasEmPontos++; return; }") > 0);
+    });
+    /* O ponto de restauracao guarda o STATE com REFERENCIAS: enquanto ele
+       apontar para a foto, ela nao sai do banco. Sem soltar as refs, o botao
+       roda, diz que deu certo e nao ganha um byte. */
+    t("solta, nos pontos de restauracao, as refs EXATAMENTE das fotos liberadas", ()=>{
+      ok(F.indexOf("__soltarRefsLiberadas(p, liberadasIds)") > 0);
+      const sr = funcao("__soltarRefsLiberadas");
+      ok(sr.indexOf("ids.has(v.slice(FOTO_REF_PREFIXO.length))") > 0,
+         "precisa mexer SO nos ids liberados — qualquer outra foto do ponto fica intocada");
+      ok(F.indexOf("DB_KEY_PONTOS_RESTAURACAO") > 0, "o ponto reescrito precisa ser gravado");
+    });
+    /* O item liberado fica no MESMO formato de um item recem-chegado da nuvem
+       esperando as fotos. Nao e estilo: e o formato que completarFotosDeItem
+       repreenche e que o selo do cartao reconhece. */
+    t("o item liberado fica igual a um recem-chegado da nuvem (__fotosOmitidas)", ()=>{
+      const z = funcao("__zerarFotosDoItem");
+      ok(z.indexOf("obj[k] = null;") > 0 && z.indexOf("obj[k] = [];") > 0,
+         "campo unico vira null e lista vira vazia — o mesmo que separarFotosDoItem manda para a nuvem");
+      ok(z.indexOf("obj.__fotosOmitidas = true;") > 0);
+    });
+    /* Sem o registro, a foto nao teria como voltar -- e ai apagar teria sido
+       perda, nao liberacao. */
+    t("registra de onde baixar cada foto de volta", ()=>{
+      ok(F.indexOf("registro[end.itemId] = { tipo:\"fotos\"") > 0);
+      ok(funcao("pendenteFotosDoItem").indexOf("(STATE.fotosLiberadas||{})[itemId]") > 0,
+         "sem isto o selo do cartao nao acha o registro e o toque nao baixa nada");
+    });
+    /* A fila oneDrivePendentes e baixada sozinha no primeiro Wi-Fi. Pondo as
+       liberadas la, tudo voltaria na mesma noite e o espaco sumiria de novo
+       sem ninguem pedir. */
+    t("O CUIDADO: nao entra na fila que baixa sozinha no Wi-Fi", ()=>{
+      /* Procura a OPERACAO, nao a palavra: o comentario que explica a decisao
+         cita a fila pelo nome, e um teste que barrasse a palavra estaria
+         barrando a propria documentacao. */
+      ["oneDrivePendentes.push", "STATE.oneDrivePendentes =", "STATE.oneDrivePendentes["].forEach(p=>
+        ok(F.indexOf(p) < 0, "as liberadas foram para a fila automatica (" + p + ") — o Wi-Fi traria tudo de volta na mesma noite"));
+      ok(F.indexOf("STATE.fotosLiberadas") > 0, "precisa ter uma fila propria, senao nao ha como voltar");
+    });
+    t("baixar de volta tira o item do registro de liberadas", ()=>{
+      const b = funcao("onedriveBaixarFotosDeItem");
+      eq((b.match(/delete STATE\.fotosLiberadas\[itemId\]/g)||[]).length, 2,
+         "os dois caminhos (mesclou / ja estava completo) precisam limpar o registro");
+    });
+    /* "Mantidos" tem de significar "tinha foto e a nuvem nao confirmou". Se
+       contasse tambem projeto, area e tarefa (que nao tem foto), o resultado
+       viria com um numero alarmante que nao quer dizer nada. */
+    t("o resultado nao conta como 'mantido' quem nunca teve foto", ()=>{
+      ok(F.indexOf("else if(tinhaFoto) res.mantidos++;") > 0);
+    });
+
+    /* ---- a tela: e nela que a pessoa decide ---- */
+    const D = HTML.slice(HTML.indexOf("  async liberarFotosDoProjeto(id){"),
+                         HTML.indexOf("  async reativarProjetoS(id){"));
+    t("o botao so aparece quando nao ha nada esperando para subir", ()=>{
+      ok(HTML.indexOf('${f>0 ? "" : `<button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.liberarFotosDoProjeto(') > 0,
+         "o que ainda nao subiu nao pode sair daqui — nem a opcao deve aparecer");
+    });
+    t("a pergunta explica a regra, o que fica e as duas surpresas possiveis", ()=>{
+      ok(D.indexOf("confere, item por item, se a cópia de lá é idêntica") > 0);
+      ok(D.indexOf("Se a leitura da nuvem falhar em qualquer ponto, NADA é apagado") > 0);
+      ok(D.indexOf("O texto inteiro do projeto") > 0);
+      ok(D.indexOf("Os pontos de restauração deste aparelho também soltam essas fotos") > 0,
+         "sem avisar, a pessoa descobre sozinha que o ponto perdeu as fotos");
+      ok(D.indexOf("as fotos voltam sozinhas no Wi-Fi") > 0,
+         "sem avisar, os MB voltam depois de reativar e ninguem entende por que");
+    });
+    t("o resultado diz o que aconteceu, inclusive o que NAO foi liberado", ()=>{
+      ok(D.indexOf("saíram deste aparelho") > 0 && D.indexOf("fmtBytes(r.bytes)") > 0);
+      ok(D.indexOf("a nuvem não tinha a cópia conferida deles") > 0);
+      ok(D.indexOf("um ponto de restauração ainda as usa") > 0);
+    });
+    t("erro nao vira silencio: aparece dizendo que nada foi apagado", ()=>{
+      ok(D.indexOf('alert("Nada foi apagado.\\n\\n" + r.erro)') > 0);
+    });
+    t("duas liberacoes ao mesmo tempo nao rodam", ()=>{
+      ok(HTML.indexOf("let __liberandoFotos = false;") > 0);
+      ok(D.indexOf("if(__liberandoFotos){") > 0);
+    });
+    /* Reativar devolve o projeto a fila que baixa fotos sozinha no Wi-Fi.
+       Quem liberou espaco precisa saber disso ANTES de tocar no botao. */
+    t("reativar avisa quando as fotos vao voltar e ocupar o espaco de novo", ()=>{
+      const R = HTML.slice(HTML.indexOf("  async reativarProjetoS(id){"),
+                           HTML.indexOf("  removerProjetoS(id){"));
+      ok(R.indexOf("itensComFotosLiberadas(alvo)") > 0);
+      ok(R.indexOf("elas voltam sozinhas da nuvem no próximo Wi-Fi") > 0);
+      ok(R.indexOf("deixe-o arquivado") > 0, "precisa dizer qual e a alternativa");
+    });
+    t("o cartao do arquivado mostra quantos itens ja estao sem as fotos", ()=>{
+      ok(funcao("blocoArquivadosHtml").indexOf("itensComFotosLiberadas(p)") > 0);
+      ok(HTML.indexOf("elas ficaram na nuvem e voltam ao toque no item") > 0);
+    });
+    /* Achado no navegador, nao pelos scripts: depois de liberar, a frase do
+       bloco continuava dizendo "texto e fotos, nada foi apagado" — com as
+       fotos ja fora do aparelho. A tela precisa contar o estado em que ESTA. */
+    t("a frase do bloco para de prometer as fotos depois que elas saem", ()=>{
+      const b = funcao("blocoArquivadosHtml");
+      ok(b.indexOf("arquivados.some(p=>itensComFotosLiberadas(p)>0)") > 0,
+         "sem isso a tela promete fotos que ja nao estao aqui");
+      ok(b.indexOf("cada item baixa a sua ao toque") > 0);
+      ok(b.indexOf("Liberar o restante das fotos") > 0,
+         "num projeto ja liberado, o botao nao pode oferecer a mesma coisa de novo");
+    });
+    t("rodar de novo num projeto ja liberado nao culpa a nuvem", ()=>{
+      ok(funcao("liberarFotosDoProjetoArquivado")
+         .indexOf("Não havia foto para liberar neste projeto") > 0,
+         "sem esta separacao, 'ja foi feito' aparecia como 'a nuvem nao confirmou'");
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);
