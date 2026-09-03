@@ -135,6 +135,9 @@ function novoAparelho(nome, nuvem){
   vm.runInContext("var LAPIDES_SYNC_INTERVALO_AUTO_MS = 600000; var __lapidesSyncUltimaVerificacao=0; var __lapidesSyncEmAndamento=false; var __avisoLapidesMassaEm=0;", ctx);
   /* Arquivamento por aparelho (03/09/2026) — ver o mesmo trecho em testes2.js. */
   vm.runInContext("var __projArquivados = new Set();", ctx);
+  /* O contador percorre os dois modulos; a bancada so monta o Simplificado.
+     Uma lista vazia para o Completo e fiel: aparelho sem projeto la. */
+  vm.runInContext("function listarItensSincronizaveisCompleto(){ return []; } var __assinaturasOneDriveCompleto={mapa:null,chaveEstado:'oneDriveAssinaturasCompleto'};", ctx);
   vm.runInContext("var LIBERAR_BLOCO = 8; var DB_STORE = 'estado'; var DB_KEY_PONTOS_RESTAURACAO = 'pontosRestauracao'; var STATE_fotosLiberadas_marker = 1;", ctx);
   // Listagem de pasta da nuvem de mentira, no formato que o app espera.
   ctx.onedriveListarFilhosEmLote = async (pastas) => {
@@ -182,7 +185,10 @@ function novoAparelho(nome, nuvem){
     "onedriveJaExisteNaNuvem","onedriveFotosJaExistemNaNuvem","onedriveReconciliarComArvore",
     "onedriveClassificarNovosSimples","onedriveMarcarJaExistente","arquivoJaExistente",
     "arquivoEstaEmQuarentena","executarComConcorrencia","exclusaoEmMassaSuspeita",
-    "rotuloCaminhoSync","onedriveMotivoSegurado","onedriveIdsDuplicadosNaLista","onedriveSincronizarModulo","marcarSubarvoreMaquinaAlterada","onedriveBaixarPendentes",
+    "rotuloCaminhoSync",
+    // Arquivo antigo na nuvem (03/09/2026): a trava de encolhimento passou a
+    // ser lida tambem por quem conta, dentro de onedriveMotivoSegurado.
+    "onedriveTamanhoRemotoDoTexto","onedriveEncolhimentoDoItem","onedriveMotivoSegurado","resolverArquivosAntigosDaNuvem","onedriveEstimarPendentesUpload","onedriveIdsDuplicadosNaLista","onedriveSincronizarModulo","marcarSubarvoreMaquinaAlterada","onedriveBaixarPendentes",
     "sincDuplicatasNaArvore","sincJuntarDuplicata",
     "marcarFotosPendentesParaEnvio","recuperarFotosPerdidasDaNuvem","manterTelaAcesa","liberarTelaAcesa",
     "progressoCancelado",
@@ -252,6 +258,8 @@ function novoAparelho(nome, nuvem){
      valor REAL entregue. Versão anterior à correção: nunca bloqueia. */
   if(typeof ctx.onedriveEnvioEncolheDemais !== "function"){
     ctx.onedriveEnvioEncolheDemais = () => false;
+    /* Versao anterior a correcao: sem a trava, tambem nao ha o que contar. */
+    if(typeof ctx.onedriveEncolhimentoDoItem !== "function") ctx.onedriveEncolhimentoDoItem = () => null;
   } else {
     for(const n of ["ENVIO_ENCOLHIMENTO_SUSPEITO","ENVIO_ENCOLHIMENTO_MINIMO_BYTES"]){
       const m = new RegExp("const " + n + " = ([^;]+);").exec(HTML);
@@ -2303,6 +2311,211 @@ async function rodarAteParar(ap, maxCiclos, rotulo){
       .some(([c, a]) => c.indexOf("risco_" + idRisco) >= 0 && a.texto.indexOf("Editado e nao enviado") >= 0);
     checar("A GARANTIA: reativado, o que estava pendente sobe -- nada se perdeu",
       noArquivo, "a edicao nao chegou na nuvem depois de reativar");
+  }
+
+  console.log("\n" + L + "\nENSAIO 35 - a fila que nao zerava por construcao (arquivo antigo na nuvem)\n" + L);
+  {
+    /* O QUE ESTE ENSAIO COBRE.
+       Existe uma trava certa no envio: se o arquivo que esta na nuvem e MUITO
+       maior que o texto que este aparelho mandaria, aquele arquivo esta no
+       formato antigo -- texto e fotos juntos -- e regrava-lo apagaria as fotos
+       embutidas nele. A trava esta certa.
+
+       O DEFEITO estava em quem CONTA: o contador nao conhecia a trava. Contava
+       o item como "falta enviar", o envio o descartava em silencio, e isso se
+       repetia para sempre. Item contado e nunca enviado e uma fila que nao
+       zera por construcao -- nenhuma quantidade de "Sincronizar agora"
+       resolve. E o sintoma relatado do iPhone.
+
+       Aqui: (a) o item sai da fila e aparece como segurado, com motivo;
+       (b) prova de dentes de que sem isso a fila nunca zera;
+       (c) o reparo resolve de vez, na ordem segura (fotos antes do texto);
+       (d) quando a conta NAO fecha, nada e regravado. */
+    const nuvem = novaNuvem();
+    const A = novoAparelho("A", nuvem);
+    const p = arvoreExemplo(1, 1, 1, 1, true);
+    p.empresa = "Legado";
+    /* Foto GRANDE de verdade: a suspeita de encolhimento exige que o arquivo
+       de la seja pelo menos ENVIO_ENCOLHIMENTO_MINIMO_BYTES maior que o texto
+       daqui, e a foto minuscula do exemplo padrao nem chega perto. */
+    p.areas[0].maquinas[0].tarefas[0].riscos[0].foto = "data:image/jpeg;base64," + "A".repeat(300 * 1024);
+    A.ctx.STATE.projetosSimples = [p];
+    await rodarAteParar(A, 10);
+
+    /* Simula o arquivo no FORMATO ANTIGO: o texto do risco na nuvem passa a
+       ter as fotos embutidas dentro dele (bem maior que o texto de hoje). */
+    const cRisco = [...nuvem.arquivos.keys()].find(c=>/\/risco_[^/]+\.json$/.test(c));
+    const cFotos = [...nuvem.arquivos.keys()].find(c=>c.indexOf("/fotos_risco_") >= 0);
+    checar("preparacao: o risco subiu no formato de hoje (texto + irmao de fotos)",
+      !!cRisco && !!cFotos, "risco=" + cRisco + " fotos=" + cFotos);
+    const textoNovo = nuvem.get(cRisco), pacoteFotos = nuvem.get(cFotos);
+    /* O formato antigo e exatamente isto: o texto E as fotos no MESMO arquivo,
+       sem irmao "fotos_". Nada inventado a mais -- e por isso que a conta do
+       reparo fecha: tudo que esta la dentro esta neste aparelho. */
+    const monolitico = JSON.stringify(Object.assign(JSON.parse(textoNovo), JSON.parse(pacoteFotos)));
+    nuvem.arquivos.delete(cFotos);
+    nuvem.put(cRisco, monolitico);
+    // Faz o app tomar conhecimento do tamanho novo, e obriga o risco a querer subir.
+    vm.runInContext(`(function(){
+      const t = STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0];
+      t.riscos[0].nome = "Editado aqui";
+      t.riscos[0].atualizadoEm = agoraSync();
+    })()`, A.ctx);
+    A.ctx.__arv = montarArvore(nuvem, A);
+    vm.runInContext("onedriveReconciliarComArvore(__arv)", A.ctx);
+
+    const conta = () => vm.runInContext("onedriveEstimarPendentesUpload()", A.ctx);
+    const tamanhoNaNuvem = () => (nuvem.arquivos.get(cRisco) || {}).tamanho || 0;
+
+    /* ---- (a) o item sai da FILA e aparece como SEGURADO, com motivo ---- */
+    const c1 = conta();
+    checar("O PONTO: o item preso NAO conta mais como 'falta enviar'",
+      c1.totalItens === 0, "totalItens=" + c1.totalItens);
+    checar("ele aparece como SEGURADO, que e o que a tela mostra",
+      c1.segurando.qtd === 1, "segurados=" + c1.segurando.qtd);
+    checar("e com o motivo escrito, nao um texto fixo",
+      Object.keys(c1.segurando.motivos || {}).join("").indexOf("formato antigo") >= 0,
+      "motivos=" + JSON.stringify(c1.segurando.motivos));
+
+    /* ---- e o envio nao gasta rede tentando a toa ---- */
+    const antesEnvio = tamanhoNaNuvem();
+    for(let i=0;i<3;i++) await ciclo(A);
+    checar("o envio nao regrava o arquivo antigo (as fotos de la continuam intactas)",
+      tamanhoNaNuvem() === antesEnvio, "tamanho mudou: " + antesEnvio + " -> " + tamanhoNaNuvem());
+
+    /* ---- (b) PROVA DE DENTES: sem a trava na CONTA, a fila nunca zera ---- */
+    {
+      const real = vm.runInContext("onedriveEncolhimentoDoItem", A.ctx);
+      vm.runInContext("onedriveEncolhimentoDoItem = function(){ return null; };", A.ctx);
+      const cSem = conta();
+      checar("PROVA DE DENTES: sem a trava na conta, o item volta a ser contado como 'falta enviar'",
+        cSem.totalItens === 1 && cSem.segurando.qtd === 0,
+        "totalItens=" + cSem.totalItens + " segurados=" + cSem.segurando.qtd);
+      /* E o envio continua NAO mandando: contado e nunca enviado, para sempre. */
+      for(let i=0;i<3;i++) await ciclo(A);
+      const cAinda = conta();
+      checar("PROVA DE DENTES: e por mais que sincronize, a conta nao baixa -- a fila que nao zera",
+        cAinda.totalItens === 1, "totalItens=" + cAinda.totalItens);
+      A.ctx.onedriveEncolhimentoDoItem = real;
+    }
+
+    /* ---- (c) o reparo resolve de vez, na ordem segura ---- */
+    A.ctx.__arv = montarArvore(nuvem, A);
+    vm.runInContext("onedriveReconciliarComArvore(__arv)", A.ctx);
+    const r = await vm.runInContext("resolverArquivosAntigosDaNuvem()", A.ctx);
+    checar("o reparo encontra o item e o resolve",
+      !r.erro && r.candidatos === 1 && r.resolvidos === 1,
+      JSON.stringify(r));
+    checar("A ORDEM E A SEGURANCA: o pacote de fotos passou a existir na nuvem",
+      nuvem.arquivos.has(cFotos), "o irmao de fotos nao foi criado");
+    checar("e so entao o texto foi regravado, agora pequeno",
+      tamanhoNaNuvem() > 0 && tamanhoNaNuvem() < antesEnvio / 4,
+      "tamanho=" + tamanhoNaNuvem() + " (antes " + antesEnvio + ")");
+    checar("nenhuma foto se perdeu: o pacote da nuvem tem a foto de verdade",
+      String(nuvem.get(cFotos) || "").indexOf("data:image") >= 0);
+
+    /* ---- e o item volta a sincronizar normalmente, e PARA ---- */
+    const c2 = conta();
+    checar("O GANHO: depois do reparo a conta zera",
+      c2.totalItens === 0 && c2.segurando.qtd === 0,
+      "totalItens=" + c2.totalItens + " segurados=" + c2.segurando.qtd);
+    nuvem.transferencias = 0;
+    for(let i=0;i<3;i++) await ciclo(A);
+    checar("e a sincronizacao para de vez (nao volta a mexer no item)",
+      nuvem.transferencias === 0, "transferencias=" + nuvem.transferencias);
+  }
+
+  console.log("\n" + L + "\nENSAIO 36 - o reparo NAO regrava quando a conta nao fecha\n" + L);
+  {
+    /* A trava existe para proteger foto que esta EMBUTIDA no arquivo antigo e
+       NAO esta neste aparelho. O reparo so pode regravar quando o texto daqui
+       mais o pacote de fotos daqui dao conta do tamanho de la. Quando nao dao,
+       alguma foto esta so naquele arquivo -- e regrava-lo a apagaria. */
+    const nuvem = novaNuvem();
+    const A = novoAparelho("A", nuvem);
+    const p = arvoreExemplo(1, 1, 1, 1, true);
+    p.empresa = "Incompleto";
+    A.ctx.STATE.projetosSimples = [p];
+    await rodarAteParar(A, 10);
+
+    const cRisco = [...nuvem.arquivos.keys()].find(c=>/\/risco_[^/]+\.json$/.test(c));
+    const cFotos = [...nuvem.arquivos.keys()].find(c=>c.indexOf("/fotos_risco_") >= 0);
+    const monolitico = JSON.stringify(Object.assign(JSON.parse(nuvem.get(cRisco)),
+      JSON.parse(nuvem.get(cFotos)),
+      /* O QUE FAZ A CONTA NAO FECHAR: o arquivo antigo tem MAIS conteudo do
+         que este aparelho conhece — outra foto, que so existe ali. Regravar
+         apagaria essa foto. */
+      { __outrasFotos: "y".repeat(900 * 1024) }));
+    nuvem.arquivos.delete(cFotos);
+    nuvem.put(cRisco, monolitico);
+    const tamanhoAntes = nuvem.arquivos.get(cRisco).tamanho;
+
+    /* Aqui o aparelho TEM a foto, mas o arquivo de la e muito maior do que o
+       texto + o pacote daqui explicam: sobra conteudo que nao esta aqui. */
+    vm.runInContext(`(function(){
+      const t = STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0];
+      t.riscos[0].nome = "Editado aqui";
+      t.riscos[0].atualizadoEm = agoraSync();
+    })()`, A.ctx);
+    A.ctx.__arv = montarArvore(nuvem, A);
+    vm.runInContext("onedriveReconciliarComArvore(__arv)", A.ctx);
+
+    const r = await vm.runInContext("resolverArquivosAntigosDaNuvem()", A.ctx);
+    checar("A PROTECAO: a conta nao fecha, entao o item NAO e resolvido",
+      r.candidatos === 1 && r.resolvidos === 0 && r.incompletos === 1, JSON.stringify(r));
+    checar("e o arquivo antigo continua INTACTO na nuvem",
+      nuvem.arquivos.get(cRisco).tamanho === tamanhoAntes,
+      "tamanho mudou: " + tamanhoAntes + " -> " + nuvem.arquivos.get(cRisco).tamanho);
+    checar("nem o irmao de fotos foi criado por engano",
+      !nuvem.arquivos.has(cFotos));
+    /* Continua segurado e visivel na tela, com o motivo -- nao vira silencio. */
+    const c = vm.runInContext("onedriveEstimarPendentesUpload()", A.ctx);
+    checar("o item segue segurado, com motivo, e fora da fila",
+      c.totalItens === 0 && c.segurando.qtd === 1, JSON.stringify(c.segurando));
+  }
+
+  console.log("\n" + L + "\nENSAIO 37 - falha ao enviar as fotos NAO deixa o texto ser regravado\n" + L);
+  {
+    /* O instante perigoso: as fotos ainda nao subiram e o texto ja foi
+       regravado -- a unica copia da foto teria sido apagada. Nao pode existir. */
+    const nuvem = novaNuvem();
+    const A = novoAparelho("A", nuvem);
+    const p = arvoreExemplo(1, 1, 1, 1, true);
+    p.empresa = "RedeRuim";
+    p.areas[0].maquinas[0].tarefas[0].riscos[0].foto = "data:image/jpeg;base64," + "A".repeat(300 * 1024);
+    A.ctx.STATE.projetosSimples = [p];
+    await rodarAteParar(A, 10);
+
+    const cRisco = [...nuvem.arquivos.keys()].find(c=>/\/risco_[^/]+\.json$/.test(c));
+    const cFotos = [...nuvem.arquivos.keys()].find(c=>c.indexOf("/fotos_risco_") >= 0);
+    const monolitico = JSON.stringify(Object.assign(JSON.parse(nuvem.get(cRisco)),
+      JSON.parse(nuvem.get(cFotos))));
+    nuvem.arquivos.delete(cFotos);
+    nuvem.put(cRisco, monolitico);
+    const tamanhoAntes = nuvem.arquivos.get(cRisco).tamanho;
+    vm.runInContext(`(function(){
+      const t = STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0];
+      t.riscos[0].nome = "Editado aqui"; t.riscos[0].atualizadoEm = agoraSync();
+    })()`, A.ctx);
+    A.ctx.__arv = montarArvore(nuvem, A);
+    vm.runInContext("onedriveReconciliarComArvore(__arv)", A.ctx);
+
+    /* A rede recusa exatamente o envio do pacote de fotos. */
+    const enviarReal = A.ctx.onedriveEnviarBlob;
+    A.ctx.onedriveEnviarBlob = async (subpasta, blob, filename) => {
+      if(String(filename).indexOf("fotos_") === 0) return false;
+      return await enviarReal(subpasta, blob, filename);
+    };
+    const r = await vm.runInContext("resolverArquivosAntigosDaNuvem()", A.ctx);
+    A.ctx.onedriveEnviarBlob = enviarReal;
+
+    checar("o reparo conta a falha, e nao finge sucesso",
+      r.candidatos === 1 && r.resolvidos === 0 && r.falhas === 1, JSON.stringify(r));
+    checar("O PONTO: o texto NAO foi regravado -- as fotos do arquivo antigo continuam la",
+      nuvem.arquivos.get(cRisco).tamanho === tamanhoAntes,
+      "tamanho mudou: " + tamanhoAntes + " -> " + nuvem.arquivos.get(cRisco).tamanho);
+    checar("e o item continua segurado, para ser tentado de novo depois",
+      vm.runInContext("onedriveEstimarPendentesUpload()", A.ctx).segurando.qtd === 1);
   }
 
   console.log("\n" + L);

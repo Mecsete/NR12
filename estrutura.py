@@ -3451,12 +3451,12 @@ chk("a trava da foto perdida e a da duplicata continuam existindo",
 _est = novo[novo.find("function onedriveEstimarPendentesUpload(){"):]
 _est = _est[:_est.find("/* Mesma checagem leve")]
 chk("a estimativa tira o segurado da conta de 'para enviar'",
-    "if(onedriveMotivoSegurado(item, dupDoModulo)){" in _est
+    "const motivoSeg = onedriveMotivoSegurado(item, dupDoModulo);" in _est
     and "segurando.qtd++;" in _est
     and "const dupDoModulo = onedriveIdsDuplicadosNaLista(itensAtuais);" in _est)
 chk("e devolve o grupo proprio, sem esconder nada",
     "porTipoAlterado, segurando };" in _est
-    and "const segurando = { qtd:0, bytes:0 };" in _est)
+    and "const segurando = { qtd:0, bytes:0, motivos:{} };" in _est)
 _tela = novo[novo.find("function onedriveStatusPendenteHtml(){"):]
 _tela = _tela[:_tela.find("async function onedriveEstimarPendentesDownload")]
 chk("a tela nao diz 'Tudo sincronizado' havendo item segurado",
@@ -4050,6 +4050,56 @@ chk("liberar fotos deixou de exigir fila zerada",
     'onclick="App.liberarFotosDoProjeto(' in novo
     and '${f>0 ? "" : `<button' not in novo
     and "a conferência é feita item por item" in novo)
+
+
+print("=== 126. A FILA QUE NAO ZERAVA POR CONSTRUCAO (03/09/2026) ===")
+# Trava certa no envio: arquivo da nuvem MUITO maior que o texto daqui = formato
+# antigo (texto e fotos juntos); regravar apagaria as fotos embutidas.
+# O DEFEITO estava em quem CONTA: o contador nao conhecia a trava, contava o
+# item como "falta enviar", e o envio o descartava em silencio. Contado e nunca
+# enviado = fila que nao zera por construcao. ENSAIOS 35/36/37 provam o
+# comportamento; t153 cobre estrutura e tela.
+_enc = _corpoDe(novo, "onedriveEncolhimentoDoItem")
+chk("quem conta e quem envia leem a MESMA funcao",
+    "if(onedriveEncolhimentoDoItem(item))" in _corpoDe(novo, "onedriveMotivoSegurado")
+    and "const motivoSeg = onedriveMotivoSegurado(item, dupDoModulo);" in novo)
+# Teste barato primeiro: arquivo de texto normal tem poucos KB e nem chega perto
+# do minimo -- sem esse corte, toda contagem pagaria uma separacao de fotos.
+chk("mede o tamanho remoto antes de serializar qualquer coisa",
+    0 <= _enc.find("const remoto = onedriveTamanhoRemotoDoTexto(item);")
+      < _enc.find("remoto <= ENVIO_ENCOLHIMENTO_MINIMO_BYTES")
+      < _enc.find("separarFotosDoItem"))
+chk("sem indice confiavel da nuvem nao se inventa suspeita",
+    "if(!indice) return undefined;" in _corpoDe(novo, "onedriveTamanhoRemotoDoTexto"))
+# Com tres motivos possiveis, um texto fixo mentiria justamente na linha que a
+# pessoa le para saber por que a fila nao anda.
+chk("o painel mostra o motivo de cada segurado, e como sair dele",
+    "segurando.motivos[motivoSeg] = (segurando.motivos[motivoSeg] || 0) + 1;" in novo
+    and "Object.keys(seg.motivos||{}).map(m=>{" in novo
+    and all(('"' + k + '":') in novo for k in ["duplicata", "perdeu", "formato antigo"]))
+# O reparo: a ORDEM e a seguranca inteira.
+_rep = _corpoDe(novo, "resolverArquivosAntigosDaNuvem")
+chk("o reparo sobe as FOTOS antes do texto",
+    0 < _rep.find('onedriveEnviarBlob(subpasta, blobFotos, "fotos_" + item.arquivo)')
+      < _rep.find("onedriveEnviarBlob(subpasta, blobTexto, item.arquivo)"))
+chk("e falhando as fotos, o texto NAO e regravado",
+    "if(!okFotos){ res.falhas++; return; }" in _rep)
+chk("so regrava quando o que esta aqui da conta do tamanho de la",
+    "if(bytesTexto + blobFotos.size < remoto){ res.incompletos++; return; }" in _rep
+    and "if(!tinhaFotos || contemRefDeFoto(soFotos)){ res.incompletos++; return; }" in _rep)
+chk("os dois arquivos passam pela trava da fronteira",
+    _rep.count("exigirSemReferenciaDeFoto(") == 2)
+chk("grava a assinatura, senao o item voltaria para a fila no ciclo seguinte",
+    "assinaturas.set(item.id, registroNovo);" in _rep
+    and "sigJournalGravar(__assinaturasOneDriveSimples.chaveEstado, item.id, registroNovo);" in _rep)
+chk("a tela conta os presos, liga ao sintoma e oferece o botao",
+    "formatoAntigo: itens.filter(it=> !!onedriveEncolhimentoDoItem(it)).length" in novo
+    and 'onclick="App.destravarFormatoAntigo()"' in novo
+    and "a fila não zera por causa deles" in novo)
+chk("e a pergunta explica a ordem, com trava de reentrada",
+    "As fotos de cada item sobem PRIMEIRO" in novo
+    and "se as fotos falharem, o texto não é tocado" in novo
+    and "let __destravandoAntigos = false;" in novo)
 
 
 print("\n---------------------------------------")

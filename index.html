@@ -2936,7 +2936,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "03/09/2026 16:36";
+const APP_BUILD = "03/09/2026 18:35";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -3978,6 +3978,68 @@ function avisarExclusaoMassaBloqueada(n){
   if(Date.now() - __avisoExclusaoMassaEm < 6*60*60*1000) return; // no máximo 1 aviso a cada 6h
   __avisoExclusaoMassaEm = Date.now();
   toast(`Atenção: ${n} ${n===1?'item sumiu':'itens sumiram'} deste aparelho sem passar pela pergunta de exclusão. Por segurança, ${n===1?'ele NÃO foi apagado':'eles NÃO foram apagados'} da nuvem — se você não excluiu isso de propósito, use "Sincronizar agora" para ${n===1?'trazê-lo':'trazê-los'} de volta; se a exclusão foi intencional, o "Sincronizar agora" vai pedir sua confirmação para concluir.`, false);
+}
+/* ===== DESTRAVAR ITENS DE FORMATO ANTIGO =====
+   Resolve, de vez, os itens que a trava de encolhimento segura (ver o bloco
+   "A FILA QUE NÃO ZERAVA POR CONSTRUÇÃO"). O arquivo daquele item está na
+   nuvem no formato antigo — texto e fotos no mesmo arquivo — e o app de hoje
+   grava em dois: o texto num, as fotos no irmão "fotos_".
+
+   A ORDEM É A SEGURANÇA. Sobe o pacote de FOTOS primeiro; só depois regrava o
+   texto. Se o envio das fotos falhar, o texto não é tocado e o arquivo antigo
+   continua lá, inteiro. Nunca existe um instante em que a única cópia da foto
+   já foi apagada e a nova ainda não chegou.
+
+   A CONTA QUE AUTORIZA: texto daqui + pacote de fotos daqui têm de dar conta
+   do tamanho do arquivo de lá. Se não dão, alguma foto embutida naquele
+   arquivo não está neste aparelho — e regravar a apagaria. Esse item continua
+   segurado, e o resultado diz quantos foram. */
+async function resolverArquivosAntigosDaNuvem(onProgresso){
+  const res = { candidatos:0, resolvidos:0, incompletos:0, falhas:0, erro:null };
+  if(!getOneDriveConta()) return Object.assign(res, { erro:"Sem OneDrive conectado." });
+  if(!onedriveIndiceNuvem()) return Object.assign(res, { erro:"O app ainda não tem uma leitura recente da nuvem. Toque em \"Sincronizar agora\" uma vez e tente de novo." });
+  const alvos = listarItensSincronizaveisSimples().filter(it=> !!onedriveEncolhimentoDoItem(it));
+  res.candidatos = alvos.length;
+  if(alvos.length === 0) return res;
+  const assinaturas = onedriveCarregarAssinaturas(__assinaturasOneDriveSimples);
+  let feitos = 0;
+  for(const item of alvos){
+    await comFotosCarregadas(item.dados, async ()=>{
+      const { semFotos, soFotos, tinhaFotos } = separarFotosDoItem(item.dados);
+      /* Sem foto aqui, não há o que salvar antes de regravar — e o arquivo de
+         lá tem alguma. Fica segurado. */
+      if(!tinhaFotos || contemRefDeFoto(soFotos)){ res.incompletos++; return; }
+      const bytesTexto = new Blob([JSON.stringify(semFotos, null, 0)]).size;
+      const blobFotos = new Blob([JSON.stringify(soFotos, null, 0)], {type:"application/json"});
+      const remoto = onedriveTamanhoRemotoDoTexto(item) || 0;
+      if(bytesTexto + blobFotos.size < remoto){ res.incompletos++; return; }
+      const subpasta = [SUBPASTA_BACKUP, "Simplificado", ...item.pasta].join("/");
+      /* A TRAVA DA FRONTEIRA, como em todo caminho que grava foto para fora. */
+      exigirSemReferenciaDeFoto(soFotos, "fotos de " + item.arquivo);
+      const okFotos = await onedriveEnviarBlob(subpasta, blobFotos, "fotos_" + item.arquivo);
+      registrarEventoSync("up", "fotos_" + item.arquivo, item.tipo + " (fotos)", blobFotos.size, okFotos,
+        okFotos ? "fotos separadas do arquivo antigo, enviadas ANTES do texto" : __ultimoMotivoFalhaEnvio,
+        rotuloCaminhoSync(item.pasta));
+      if(!okFotos){ res.falhas++; return; }   // sem as fotos salvas, o texto NÃO é regravado
+      exigirSemReferenciaDeFoto(semFotos, "texto de " + item.arquivo);
+      const blobTexto = new Blob([JSON.stringify(semFotos, null, 0)], {type:"application/json"});
+      const okTexto = await onedriveEnviarBlob(subpasta, blobTexto, item.arquivo);
+      registrarEventoSync("up", item.arquivo, item.tipo, blobTexto.size, okTexto,
+        okTexto ? "texto regravado no formato novo, com as fotos já salvas ao lado" : __ultimoMotivoFalhaEnvio,
+        rotuloCaminhoSync(item.pasta));
+      if(!okTexto){ res.falhas++; return; }
+      const registroNovo = { atualizadoEm:item.atualizadoEm, pasta:item.pasta, arquivo:item.arquivo,
+        fotosPendentes:false, tamanho:blobTexto.size, tamanhoFotos:blobFotos.size };
+      assinaturas.set(item.id, registroNovo);
+      sigJournalGravar(__assinaturasOneDriveSimples.chaveEstado, item.id, registroNovo);
+      res.resolvidos++;
+    });
+    feitos++;
+    if(onProgresso) onProgresso(feitos, alvos.length);
+  }
+  STATE[__assinaturasOneDriveSimples.chaveEstado] = Object.fromEntries(assinaturas);
+  if(res.resolvidos > 0) marcarAlterado();
+  return res;
 }
 async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinaturasRef, onProgresso){
   const itensAtuais = listarItens();
@@ -7032,6 +7094,13 @@ function onedriveMotivoSegurado(item, idsDuplicados){
      trabalho preso ao aparelho. */
   if(item.dados && item.dados[CAMPO_MARCA_FOTO_PERDIDA] && !onedriveNadaNaNuvemParaProteger(item))
     return "a foto se perdeu aqui e a cópia da nuvem é a última que existe — o texto não sobe para não apagá-la";
+  /* ARQUIVO ANTIGO NA NUVEM — ver o bloco "A FILA QUE NÃO ZERAVA POR
+     CONSTRUÇÃO". Esta trava já existia no envio, mas só lá: o contador não a
+     conhecia e contava o item como "falta enviar" para sempre. Lida aqui, ela
+     vale para os dois — o item sai da fila e aparece como segurado, com o
+     motivo. O botão "Destravar itens de formato antigo" resolve de vez. */
+  if(onedriveEncolhimentoDoItem(item))
+    return "o arquivo na nuvem está no formato antigo (texto e fotos no mesmo arquivo) e é bem maior — regravar apagaria fotos que talvez não estejam aqui";
   return null;
 }
 /* Ids que aparecem mais de uma vez na lista sincronizável — a mesma contagem
@@ -7047,7 +7116,12 @@ function onedriveEstimarPendentesUpload(){
   let totalBytes = 0, totalItens = 0;
   const porTipo = {};          // itens que a nuvem ainda não tem (novos)
   const porTipoAlterado = {};  // itens que já estão lá e foram editados aqui
-  const segurando = { qtd:0, bytes:0 };  // têm mudança, mas o envio segura até a foto voltar
+  /* Agora com o MOTIVO de cada um. Antes o painel exibia um texto fixo — o de
+     "foto perdida" — para qualquer item segurado. Com três motivos possíveis
+     (duplicata na árvore, foto perdida, arquivo antigo na nuvem), um texto
+     fixo passaria a mentir sobre o que está acontecendo, e é justamente essa
+     linha que a pessoa lê para saber por que a fila não anda. */
+  const segurando = { qtd:0, bytes:0, motivos:{} };
   const contar = (listarItens, mapaRef, ehSimplificado) => {
     const itensAtuais = listarItens();
     const assinaturas = onedriveCarregarAssinaturas(mapaRef);
@@ -7075,9 +7149,11 @@ function onedriveEstimarPendentesUpload(){
         /* SEGURADO — fora da conta de "para enviar", porque o envio não vai
            mandá-lo. Contar aqui era o que fazia o número nunca chegar a zero
            e a barra de progresso ficar em "0 de 6". */
-        if(onedriveMotivoSegurado(item, dupDoModulo)){
+        const motivoSeg = onedriveMotivoSegurado(item, dupDoModulo);
+        if(motivoSeg){
           segurando.qtd++;
           segurando.bytes += bytes;
+          segurando.motivos[motivoSeg] = (segurando.motivos[motivoSeg] || 0) + 1;
           continue;
         }
         totalBytes += bytes;
@@ -7358,6 +7434,10 @@ function onedriveDiagnosticoDados(){
   const enviosFalha = log.filter(e=> e && e.dir==="up" && e.ok === false && !ehReparo(e)).length;
   return { enviar, segurados, receber, nuvem, fila, quarentena, falhas, reparos, ultimos, enviosOk, enviosFalha,
            mudancaEndereco, carimboRegrediu, duplicadas, totalDuplicadas: dups.length,
+           /* Itens presos porque o arquivo deles na nuvem está no formato
+              antigo (texto e fotos juntos). Eram contados como "falta enviar"
+              e nunca enviados — a fila que não zerava por construção. */
+           formatoAntigo: itens.filter(it=> !!onedriveEncolhimentoDoItem(it)).length,
            eventosNoLog: log.length,
            ultimaSync: STATE.ultimaSincronizacaoOneDriveEm ? fmtQuando(STATE.ultimaSincronizacaoOneDriveEm) : "nunca",
            wifiConfirmado: !!STATE.wifiConfirmado,
@@ -7480,6 +7560,12 @@ function onedriveDiagnosticoInlineHtml(){
         <div style="margin-top:4px">Sobrou de antes da correção de 03/08. Juntar as cópias encerra o ciclo — fica a versão alterada por último, e o que estiver só na outra vem junto.</div>
         <button class="btn btn-primary btn-block" style="margin-top:8px" onclick="App.juntarDuplicatasSync()">${ic('check')} Juntar as ${d.totalDuplicadas} duplicata(s)</button>
       </div>`:""}
+      ${d.formatoAntigo > 0 ? `<div style="margin:8px 2px;padding:10px 12px;background:#FDE7E7;border:1px solid #E9A6A6;border-radius:6px;font-size:12.5px;color:#8A1F1F">
+        <b>${d.formatoAntigo} item(ns) presos por arquivo antigo na nuvem — a fila não zera por causa deles.</b>
+        <div style="margin-top:4px">O arquivo desses itens na nuvem está no formato antigo: texto e fotos gravados juntos. O app de hoje grava em dois (o texto num arquivo, as fotos no arquivo irmão), e regravar o texto por cima apagaria as fotos que estão dentro do arquivo antigo. Por isso o envio segura — e segurava sem dizer nada, contando o item como "falta enviar" para sempre.</div>
+        <div style="margin-top:4px">Destravar sobe as FOTOS primeiro e só então regrava o texto. Se o envio das fotos falhar, o texto não é tocado. E só faz isso quando a conta prova que este aparelho tem o conteúdo inteiro daquele arquivo — o que não passar na conta continua parado, e o resultado diz quantos.</div>
+        <button class="btn btn-primary btn-block" style="margin-top:8px" onclick="App.destravarFormatoAntigo()">${ic('upload')} Destravar os ${d.formatoAntigo} item(ns)</button>
+      </div>`:""}
       ${secao("Itens duplicados", d.duplicadas, "Nenhum item duplicado.")}
       ${d.mudancaEndereco > 0 ? `<div style="margin:6px 2px;padding:8px 10px;background:#FFF3D6;border:1px solid #E9C46A;border-radius:6px;font-size:12.5px;color:#5C3D00">
         <b>${d.mudancaEndereco} item(ns) trocando de endereço na nuvem a cada ciclo.</b> O app apaga a cópia antiga e envia de novo toda vez — por isso o envio "dá certo" e a fila não baixa. Provável causa do travamento.</div>`:""}
@@ -7541,9 +7627,21 @@ function onedriveStatusPendenteHtml(){
   ].filter(Boolean);
   /* Linha separada, com o motivo escrito. Estes itens NÃO estão na fila: eles
      estão parados de propósito, e vão continuar parados até a foto voltar. */
+  /* Uma linha por motivo, com o número e o caminho de resolver aquele motivo.
+     Item segurado NÃO está na fila — está parado de propósito. Sem dizer por
+     quê e como sair disso, a pessoa fica olhando um número que não anda. */
+  const COMO_RESOLVER = {
+    "duplicata": 'Use "Juntar duplicatas" na tela de Backup.',
+    "perdeu": 'Use "Recuperar fotos da nuvem" ou a galeria de fotos soltas; assim que a foto voltar, eles sobem sozinhos.',
+    "formato antigo": 'Use "Destravar itens de formato antigo" na tela de Backup — as fotos vão para o arquivo separado e o item volta a sincronizar.',
+  };
   const linhaSeg = seg.qtd>0
-    ? `<div style="font-size:11.5px;color:var(--aviso,#b26b00);margin-top:3px">${seg.qtd} ${seg.qtd===1?'item segurado':'itens segurados'}: a foto se perdeu aqui e a cópia da nuvem é a última que existe — o texto não sobe para não apagá-la.</div>
-       <div style="font-size:10.5px;color:var(--ink-faint)">Use "Recuperar fotos da nuvem" ou a galeria de fotos soltas; assim que a foto voltar, eles sobem sozinhos.</div>`
+    ? Object.keys(seg.motivos||{}).map(m=>{
+        const n = seg.motivos[m];
+        const chave = Object.keys(COMO_RESOLVER).find(k=> m.indexOf(k) >= 0);
+        return `<div style="font-size:11.5px;color:var(--aviso,#b26b00);margin-top:3px">${n} ${n===1?'item segurado':'itens segurados'}: ${m}.</div>`
+             + (chave? `<div style="font-size:10.5px;color:var(--ink-faint)">${COMO_RESOLVER[chave]}</div>` : "");
+      }).join("")
     : "";
   return `<div style="margin:6px 2px 0">
     ${linhas.map(l=>`<div style="font-size:11.5px;color:var(--ink-dim)">${l}</div>`).join('')}
@@ -7687,6 +7785,55 @@ function onedriveEnvioEncolheDemais(item, bytesLocais){
   if(typeof remoto !== "number" || remoto <= 0) return false;
   if(bytesLocais * ENVIO_ENCOLHIMENTO_SUSPEITO >= remoto) return false;
   return (remoto - bytesLocais) > ENVIO_ENCOLHIMENTO_MINIMO_BYTES;
+}
+/* ===== ARQUIVO ANTIGO NA NUVEM: A FILA QUE NÃO ZERAVA POR CONSTRUÇÃO =====
+   Sintoma relatado várias vezes: a sincronização do iPhone nunca chega a zero.
+   Uma das causas é estrutural, e esta é ela.
+
+   Existe uma trava certa no envio (onedriveEnvioEncolheDemais): se o arquivo
+   que está na nuvem é MUITO maior que o texto que este aparelho mandaria,
+   provavelmente aquele arquivo está no formato antigo — texto e fotos juntos,
+   no MESMO arquivo. Regravá-lo com o texto daqui apagaria as fotos embutidas
+   nele. A trava impede isso, e está certa.
+
+   O DEFEITO estava em quem CONTA. O contador da fila não conhecia essa trava:
+   contava o item como "falta enviar" e o envio o descartava em silêncio, para
+   sempre. Um item nessas condições nunca sobe e nunca sai da conta — é uma
+   fila que não zera por construção, e nenhuma quantidade de "Sincronizar
+   agora" resolve. Mesma classe do defeito corrigido em 02/09 às 16:38; esta
+   ocorrência escapou porque mora DENTRO do corpo do envio, não no filtro.
+
+   Correção em duas partes:
+   1. A trava passa a viver em onedriveMotivoSegurado, como as outras. Quem
+      conta e quem envia leem a mesma função — o item sai da fila de envio e
+      aparece na linha de "segurados", com o motivo escrito. O número volta a
+      poder chegar a zero.
+   2. Um reparo com botão próprio resolve de vez (resolverArquivosAntigosDaNuvem):
+      sobe o pacote de fotos PRIMEIRO e só então regrava o texto — e só quando
+      a conta prova que este aparelho tem o conteúdo inteiro daquele arquivo.
+
+   O TESTE BARATO PRIMEIRO. A suspeita exige que o arquivo de lá seja pelo
+   menos ENVIO_ENCOLHIMENTO_MINIMO_BYTES maior; um arquivo de texto normal tem
+   poucos KB e nem chega perto. Por isso a primeira coisa medida é o tamanho
+   remoto: quase todo item sai daqui numa consulta de mapa, sem separar foto
+   nem serializar nada. */
+function onedriveTamanhoRemotoDoTexto(item){
+  if(!item || !Array.isArray(item.pasta) || !item.arquivo) return undefined;
+  const indice = onedriveIndiceNuvem();
+  if(!indice) return undefined;
+  const prefixo = `${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado/`.toLowerCase();
+  return indice.get(prefixo + (item.pasta.join("/") + "/" + item.arquivo).toLowerCase());
+}
+/* Devolve null quando não há suspeita; senão, os números que a explicam.
+   Funciona com as fotos carregadas ou só como referência: o tamanho do TEXTO
+   não muda, porque separarFotosDoItem tira a foto do texto nos dois casos. */
+function onedriveEncolhimentoDoItem(item){
+  const remoto = onedriveTamanhoRemotoDoTexto(item);
+  if(typeof remoto !== "number" || remoto <= ENVIO_ENCOLHIMENTO_MINIMO_BYTES) return null;
+  const { semFotos, tinhaFotos } = separarFotosDoItem(item.dados || {});
+  const bytesTexto = new Blob([JSON.stringify(tinhaFotos ? semFotos : (item.dados||{}), null, 0)]).size;
+  if(!onedriveEnvioEncolheDemais(item, bytesTexto)) return null;
+  return { remoto, bytesTexto, tinhaFotos };
 }
 function onedriveJaExisteNaNuvem(item){
   const indice = onedriveIndiceNuvem();
@@ -19827,6 +19974,39 @@ Devolver agora?`)) return;
     render();
     toast(`Fila limpa (${n} avisos descartados)`);
   },
+  /* Ver "DESTRAVAR ITENS DE FORMATO ANTIGO". A ordem (fotos antes do texto) é
+     a segurança inteira desta operação — nunca existe um instante em que a
+     única cópia da foto já foi apagada e a nova ainda não chegou. */
+  async destravarFormatoAntigo(){
+    if(__destravandoAntigos){ toast("Já há um destravamento em andamento"); return; }
+    if(!confirm("Destravar os itens presos por arquivo antigo?\n\n· As fotos de cada item sobem PRIMEIRO, para um arquivo separado\n· Só depois o texto é regravado — se as fotos falharem, o texto não é tocado\n· Item cuja conta não fecha (o arquivo de lá tem foto que não está aqui) continua parado\n\nNada é apagado da nuvem.")) return;
+    __destravandoAntigos = true;
+    try{
+      toast("Destravando…");
+      const r = await resolverArquivosAntigosDaNuvem((feitos, total)=>{
+        if(total > 5 && feitos % 5 === 0) toast(`Destravando… ${feitos} de ${total}`);
+      });
+      if(r.erro){ alert(r.erro); return; }
+      await dbSet(STATE);
+      /* O painel de diagnóstico é montado na hora do desenho
+         (onedriveDiagnosticoInlineHtml), então basta redesenhar — mas a
+         estimativa de envio é memorizada, e sem zerar o memo a tela mostraria
+         a contagem de antes do reparo. */
+      /* A FORMA importa: onedriveEstimativaEnvioComMemo lê __memoEnvio.up sem
+         checar o objeto. Zerar com null derrubaria a tela inteira no próximo
+         desenho — tem de ser a mesma forma vazia da declaração. */
+      __memoEnvio = { em:0, up:null, fotos:null };
+      render();
+      alert(
+        `Destravamento concluído.\n\n`
+        + `· ${r.resolvidos} item(ns) voltaram a sincronizar\n`
+        + (r.incompletos>0 ? `· ${r.incompletos} continuam parados: o arquivo da nuvem tem foto que não está neste aparelho — regravar apagaria essa foto\n` : "")
+        + (r.falhas>0 ? `· ${r.falhas} falharam no envio (rede) — tente de novo mais tarde\n` : "")
+        + `\nNada foi apagado da nuvem.`);
+    }catch(e){
+      alert("O destravamento parou: " + ((e && e.message) || e) + "\n\nNada foi apagado — o que já subiu está salvo.");
+    }finally{ __destravandoAntigos = false; }
+  },
   async juntarDuplicatasSync(){
     const dup = sincDuplicatasNaArvore();
     if(dup.length === 0){ toast("Nenhum item duplicado", false); return; }
@@ -23204,6 +23384,9 @@ let __espacoProjRodando = false;
 /* Trava de reentrada da liberação de fotos: ela lê a nuvem, grava o STATE e
    apaga do banco — duas ao mesmo tempo trabalhariam sobre a mesma lista. */
 let __liberandoFotos = false;
+/* Trava de reentrada do destravamento de arquivos antigos: ele regrava
+   arquivos na nuvem, e dois ao mesmo tempo trabalhariam sobre a mesma lista. */
+let __destravandoAntigos = false;
 /* Qual lote de fotos soltas o próximo toque vai baixar (o download sai em
    lotes para não montar centenas de MB de uma vez). */
 /* A CONTAGEM MORA NO STATE, não numa variável solta.

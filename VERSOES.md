@@ -64,6 +64,46 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 03/09/2026 18:35
+
+**A fila que não zerava por construção.** Uma das causas de a sincronização
+nunca chegar a zero era estrutural, e esta versão a corrige.
+
+Existe uma trava certa no envio: se o arquivo que está na nuvem é **muito
+maior** que o texto que o aparelho mandaria, aquele arquivo está no formato
+antigo — texto e fotos gravados **juntos**, no mesmo arquivo. Regravá-lo com o
+texto de hoje apagaria as fotos embutidas nele. A trava impede isso, e está
+certa.
+
+O defeito estava em **quem conta**: o contador da fila não conhecia essa trava.
+Contava o item como *"falta enviar"*, o envio o descartava em silêncio, e isso
+se repetia para sempre. **Item contado e nunca enviado é uma fila que não zera
+por construção** — nenhuma quantidade de "Sincronizar agora" resolve.
+
+Duas correções:
+
+1. **A trava passou a ser lida por quem conta.** Quem conta e quem envia agora
+   leem a mesma função. O item sai da fila de envio e aparece na linha de
+   *itens segurados*, **com o motivo escrito** e o caminho de resolver. O
+   número volta a poder chegar a zero. (O painel também deixou de exibir um
+   motivo fixo para todos: com três motivos possíveis — duplicata, foto
+   perdida, arquivo antigo — o texto fixo mentia justamente na linha que
+   explica por que a fila não anda.)
+2. **Botão "Destravar itens de formato antigo"**, no Diagnóstico da
+   sincronização. Ele resolve de vez: **sobe o pacote de fotos primeiro** e só
+   então regrava o texto. Se o envio das fotos falhar, o texto não é tocado —
+   nunca existe um instante em que a única cópia da foto já foi apagada e a
+   nova ainda não chegou. E só regrava quando a conta prova que este aparelho
+   tem o conteúdo inteiro daquele arquivo (texto daqui + pacote daqui dão conta
+   do tamanho de lá). O que não passa na conta continua parado, e o resultado
+   diz quantos foram e por quê.
+
+Os **ENSAIOS 35, 36 e 37** provam o ciclo inteiro contra uma nuvem de mentira,
+com prova de dentes: sem a trava na conta, o item volta a ser contado e a fila
+não zera por mais que se sincronize; com a conta fechando, o reparo resolve e a
+sincronização para; com a conta **não** fechando, nada é regravado; e com a
+rede recusando o envio das fotos, o texto continua intocado.
+
 ## 03/09/2026 16:36
 
 **Projeto arquivado passa a ser SÓ LEITURA.** Enquanto estiver arquivado, não

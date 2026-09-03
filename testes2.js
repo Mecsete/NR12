@@ -8630,6 +8630,17 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     vm.runInContext("var __pastasNuvemFalhadas = new Set(); var __falhaNuvemSemCaminho = false;", c);
     ["__areaDoItemNuvem","__areaTeveFalhaNaListagem","onedriveNadaNaNuvemParaProteger"]
       .forEach(n=> vm.runInContext(funcao(n), c));
+    /* ARQUIVO ANTIGO NA NUVEM (03/09/2026): a trava de encolhimento passou a
+       ser lida tambem por quem CONTA, dentro de onedriveMotivoSegurado. */
+    ["ENVIO_ENCOLHIMENTO_SUSPEITO","ENVIO_ENCOLHIMENTO_MINIMO_BYTES"].forEach(n=>{
+      /* Ja pode ter vindo de outro trecho extraido neste mesmo contexto —
+         redeclarar const derruba tudo com "already been declared". */
+      try{ vm.runInContext(constante(n), c); }catch(e){}
+    });
+    ["separarFotosDoItem","__ehFotoOuRef","ehFotoRefPersist","ehFotoDataUrlPersist",
+     "onedriveTamanhoRemotoDoTexto","onedriveEnvioEncolheDemais","onedriveEncolhimentoDoItem"]
+      .forEach(n=> vm.runInContext(funcao(n), c));
+    vm.runInContext("var CAMPO_FOTOS_LISTA = \"fotosOutras\";", c);
     vm.runInContext(funcao("onedriveMotivoSegurado"), c);
     vm.runInContext(funcao("onedriveIdsDuplicadosNaLista"), c);
     vm.runInContext(funcao("onedriveEstimarPendentesUpload"), c);
@@ -10433,6 +10444,113 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
     t("a pergunta de arquivar avisa que o projeto congela", ()=>{
       ok(HTML.indexOf("Passa a ser SÓ LEITURA: não dá para criar, editar nem apagar nada dentro dele") > 0);
+    });
+  }
+
+  /* ---------- t153: a fila que nao zerava por construcao ------------------
+     Existe uma trava certa no envio: se o arquivo que esta na nuvem e MUITO
+     maior que o texto que este aparelho mandaria, aquele arquivo esta no
+     formato antigo (texto e fotos juntos) e regrava-lo apagaria as fotos
+     embutidas nele.
+     O DEFEITO estava em quem CONTA: o contador nao conhecia a trava. Contava o
+     item como "falta enviar" e o envio o descartava em silencio, para sempre.
+     Item contado e nunca enviado e uma fila que nao zera POR CONSTRUCAO --
+     nenhuma quantidade de "Sincronizar agora" resolve, e foi o sintoma
+     relatado do iPhone.
+     Comportamento provado de ponta a ponta nos ENSAIOS 35, 36 e 37 do
+     banco.js, com prova de dentes. Aqui ficam a estrutura e a tela. */
+  {
+    console.log("\n[t153] arquivo antigo na nuvem: a fila que nao zerava");
+
+    t("A CORRECAO: quem conta e quem envia leem a MESMA funcao", ()=>{
+      ok(funcao("onedriveMotivoSegurado").indexOf("if(onedriveEncolhimentoDoItem(item))") > 0,
+         "sem isto o contador volta a contar um item que o envio nunca manda");
+      /* E o contador so ignora quem esta segurado por ali — nao por uma lista
+         propria, que envelheceria em silencio. */
+      ok(funcao("onedriveEstimarPendentesUpload").indexOf("const motivoSeg = onedriveMotivoSegurado(item, dupDoModulo);") > 0);
+    });
+    /* O teste barato primeiro: um arquivo de texto normal tem poucos KB e nem
+       chega perto do minimo. Sem esse corte, cada item pagaria uma separacao
+       de fotos e duas serializacoes a cada contagem. */
+    t("mede o tamanho remoto ANTES de serializar qualquer coisa", ()=>{
+      const f = funcao("onedriveEncolhimentoDoItem");
+      const iRemoto = f.indexOf("const remoto = onedriveTamanhoRemotoDoTexto(item);");
+      const iCorte  = f.indexOf("remoto <= ENVIO_ENCOLHIMENTO_MINIMO_BYTES");
+      const iSepara = f.indexOf("separarFotosDoItem");
+      ok(iRemoto >= 0 && iCorte > iRemoto && iSepara > iCorte,
+         "a separacao de fotos precisa vir DEPOIS do corte barato");
+    });
+    t("sem indice confiavel da nuvem, nao ha suspeita", ()=>{
+      ok(funcao("onedriveTamanhoRemotoDoTexto").indexOf("if(!indice) return undefined;") > 0,
+         "inventar suspeita sem indice seria segurar item por nada");
+    });
+    /* Antes o painel exibia um texto fixo (o de "foto perdida") para qualquer
+       item segurado. Com tres motivos possiveis, um texto fixo mente
+       justamente na linha que a pessoa le para saber por que a fila nao anda. */
+    t("o painel diz o MOTIVO de cada segurado, e como sair dele", ()=>{
+      ok(funcao("onedriveEstimarPendentesUpload").indexOf("segurando.motivos[motivoSeg] = (segurando.motivos[motivoSeg] || 0) + 1;") > 0);
+      ok(HTML.indexOf("Object.keys(seg.motivos||{}).map(m=>{") > 0,
+         "voltou a mostrar um motivo fixo para todos");
+      ["duplicata", "perdeu", "formato antigo"].forEach(k=>
+        ok(HTML.indexOf('"' + k + '":') > 0, "faltou o caminho de resolver: " + k));
+    });
+
+    /* ---- o reparo ---- */
+    const R = funcao("resolverArquivosAntigosDaNuvem");
+    t("A ORDEM E A SEGURANCA: as fotos sobem ANTES do texto", ()=>{
+      const iFotos = R.indexOf('onedriveEnviarBlob(subpasta, blobFotos, "fotos_" + item.arquivo)');
+      const iTexto = R.indexOf("onedriveEnviarBlob(subpasta, blobTexto, item.arquivo)");
+      ok(iFotos > 0 && iTexto > 0 && iFotos < iTexto,
+         "regravando o texto primeiro, existiria um instante sem nenhuma copia da foto");
+      ok(R.indexOf("if(!okFotos){ res.falhas++; return; }") > 0,
+         "falhando as fotos, o texto NAO pode ser regravado");
+    });
+    /* A conta que autoriza regravar: o que esta aqui da conta do tamanho de
+       la. Se nao da, alguma foto so existe naquele arquivo. */
+    t("A CONTA QUE AUTORIZA: texto + pacote daqui tem de dar conta do de la", ()=>{
+      ok(R.indexOf("if(bytesTexto + blobFotos.size < remoto){ res.incompletos++; return; }") > 0,
+         "sem esta conta, o reparo apagaria foto que so existe na nuvem");
+      ok(R.indexOf("if(!tinhaFotos || contemRefDeFoto(soFotos)){ res.incompletos++; return; }") > 0,
+         "sem foto carregada aqui nao ha o que salvar antes de regravar");
+    });
+    t("passa pela trava da fronteira antes de gravar na nuvem", ()=>{
+      eq((R.match(/exigirSemReferenciaDeFoto\(/g)||[]).length, 2,
+         "os dois arquivos (fotos e texto) precisam da trava");
+    });
+    t("registra a assinatura, senao o item voltaria para a fila no ciclo seguinte", ()=>{
+      ok(R.indexOf("assinaturas.set(item.id, registroNovo);") > 0);
+      ok(R.indexOf("sigJournalGravar(__assinaturasOneDriveSimples.chaveEstado, item.id, registroNovo);") > 0);
+      ok(R.indexOf("fotosPendentes:false") > 0, "as fotos acabaram de subir — nao ficam pendentes");
+    });
+    t("exige leitura recente da nuvem, e diz o que fazer quando nao tem", ()=>{
+      ok(R.indexOf("if(!onedriveIndiceNuvem())") > 0);
+      ok(R.indexOf('Toque em \\"Sincronizar agora\\" uma vez e tente de novo.') > 0);
+    });
+
+    /* ---- a tela ---- */
+    t("o diagnostico conta os presos e oferece o botao", ()=>{
+      ok(HTML.indexOf("formatoAntigo: itens.filter(it=> !!onedriveEncolhimentoDoItem(it)).length") > 0,
+         "sem a contagem, o botao nao tem como aparecer");
+      ok(HTML.indexOf('onclick="App.destravarFormatoAntigo()"') > 0);
+      ok(HTML.indexOf("a fila não zera por causa deles") > 0,
+         "a tela precisa ligar o numero ao sintoma que a pessoa vive");
+    });
+    t("a pergunta explica a ordem e o que NAO acontece", ()=>{
+      const D = HTML.slice(HTML.indexOf("  async destravarFormatoAntigo(){"),
+                           HTML.indexOf("  async juntarDuplicatasSync(){"));
+      ok(D.indexOf("As fotos de cada item sobem PRIMEIRO") > 0);
+      ok(D.indexOf("se as fotos falharem, o texto não é tocado") > 0);
+      ok(D.indexOf("Nada é apagado da nuvem") > 0);
+      ok(D.indexOf("continuam parados: o arquivo da nuvem tem foto que não está neste aparelho") > 0,
+         "o resultado precisa dizer o que NAO foi resolvido, e por que");
+      ok(D.indexOf("if(__destravandoAntigos)") > 0, "dois de uma vez trabalhariam sobre a mesma lista");
+      /* Achado no navegador, nao pelos scripts: a acao chamava uma funcao que
+         nao existe, e zerar o memo com null derrubaria a tela no desenho
+         seguinte (onedriveEstimativaEnvioComMemo le .up sem checar o objeto). */
+      ok(D.indexOf("carregarDiagnosticoSyncNaTela") < 0,
+         "voltou a chamar funcao inexistente — a acao morre no meio");
+      ok(D.indexOf("__memoEnvio = { em:0, up:null, fotos:null };") > 0,
+         "o memo precisa ser zerado NA FORMA certa, senao a tela quebra no proximo desenho");
     });
   }
 
