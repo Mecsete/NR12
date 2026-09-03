@@ -64,6 +64,52 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 03/09/2026 16:36
+
+**Projeto arquivado passa a ser SÓ LEITURA.** Enquanto estiver arquivado, não
+dá para criar, editar, mover, duplicar nem apagar nada dentro dele.
+
+O buraco que isso fecha: um projeto que **parou de sincronizar** mas
+**continua sendo editado** acumula trabalho que nunca chega à nuvem — e
+ninguém veria, porque a tela mostra tudo salvo e a única cópia fica naquele
+aparelho. Se arquivar tira da sincronização, arquivar precisa congelar.
+
+A garantia é estrutural, em três camadas:
+
+1. **Um gargalo.** Quase toda edição age sobre o projeto *atual*
+   (`STATE.ui.projetoSId`). Garantindo que esse ponteiro nunca aponte para um
+   arquivado, dezenas de telas ficam impossibilitadas de tocá-lo. Arquivar com
+   o projeto aberto tira a tela de dentro dele; a abertura do app confere de
+   novo (um backup restaurado pode trazer o ponteiro apontando para lá).
+2. **Bloqueios nomeados** nas poucas entradas que endereçam por id: mover e
+   duplicar área *para* outro projeto, anexar foto solta, importar textos de
+   laudo, importar dados de plaqueta, dados do projeto e copiar risco na tela
+   de Laudo, excluir projeto. As varreduras em massa (reescrever frases dos
+   riscos, juntar duplicatas) passaram a olhar só os projetos ativos.
+3. **Um delator.** Ao arquivar, o app guarda quantos itens o projeto tinha e
+   qual o carimbo de tempo mais recente. Se algum caminho ainda não previsto
+   alterar o projeto, a conta deixa de bater e a lista de projetos mostra o
+   aviso com o botão *Reativar e sincronizar*. Bloqueio é promessa; carimbo é
+   prova.
+
+Um teste novo **enumera** todos os métodos do app que gravam e reprova se
+algum deles não estiver coberto pelo gargalo, por um bloqueio, ou isento com o
+motivo escrito — para que um método escrito daqui a seis meses não abra o
+buraco de novo em silêncio.
+
+**Liberar as fotos deixou de exigir a fila zerada.** A versão anterior só
+mostrava o botão quando não havia nada esperando para subir — e num aparelho
+onde a fila não zera isso tornava o recurso inalcançável justamente onde ele é
+necessário. A segurança nunca dependeu disso: a conferência é **por item**, e
+item pendente nunca é confirmado, logo nunca é tocado. A pergunta agora diz,
+com o número, quantos itens não serão tocados.
+
+Os **ENSAIOS 33 e 34** provam o lado da sincronização com dois aparelhos: um
+projeto arquivado não troca um byte (nem sobe, nem desce), o outro aparelho
+continua trabalhando nele normalmente, e ao reativar tudo o que aconteceu no
+período chega — inclusive itens criados lá. E arquivar com item pendente não
+apaga nada da nuvem nem perde a edição: ela volta para a fila ao reativar.
+
 ## 03/09/2026 10:04
 
 **Novo: liberar as fotos de um projeto arquivado, para ganhar espaço.** No

@@ -2177,6 +2177,134 @@ async function rodarAteParar(ap, maxCiclos, rotulo){
     }
   }
 
+  console.log("\n" + L + "\nENSAIO 33 - arquivado congela: nao sobe, nao desce, e volta inteiro\n" + L);
+  {
+    /* O QUE ESTE ENSAIO COBRE.
+       Arquivar so e confiavel se o projeto REALMENTE parar de trafegar --
+       texto e foto -- e se, ao voltar, nada tiver se perdido no caminho.
+       O medo declarado pelo engenheiro: arquivar e depois descobrir que algo
+       nao subiu, ou que o projeto nao volta inteiro. Aqui os dois lados sao
+       exercitados com dois aparelhos de verdade, um arquivando e o outro
+       continuando a trabalhar. */
+    const nuvem = novaNuvem();
+    const A = novoAparelho("A", nuvem);
+    const B = novoAparelho("B", nuvem);
+    const p = arvoreExemplo(1, 2, 1, 1, true);
+    p.empresa = "Congelado";
+    A.ctx.STATE.projetosSimples = [p];
+    await rodarAteParar(A, 10);
+    await rodarAteParar(B, 12);
+
+    const riscosDe = ap => vm.runInContext(`(function(){
+      const o = [];
+      for(const p of STATE.projetosSimples) for(const a of p.areas) for(const m of a.maquinas)
+      for(const t of m.tarefas) for(const r of t.riscos) o.push(r.nome);
+      return o.sort().join("|"); })()`, ap.ctx);
+    const nArquivos = () => nuvem.arquivos.size;
+
+    checar("preparacao: os dois aparelhos tem o projeto inteiro",
+      riscosDe(A) === riscosDe(B) && riscosDe(A).length > 0,
+      "A=" + riscosDe(A) + " B=" + riscosDe(B));
+    const antesA = riscosDe(A), arquivosAntes = nArquivos();
+
+    /* ---- A arquiva. Daqui em diante A nao troca mais nada sobre ele ---- */
+    vm.runInContext("__projArquivados.add(" + JSON.stringify(p.id) + ");", A.ctx);
+
+    nuvem.transferencias = 0;
+    for(let i=0;i<5;i++) await ciclo(A);
+    checar("O PONTO: com o projeto arquivado, A nao troca UM BYTE sobre ele",
+      nuvem.transferencias === 0, "transferencias=" + nuvem.transferencias);
+    checar("e nada sumiu da nuvem por causa disso",
+      nArquivos() === arquivosAntes, "antes=" + arquivosAntes + " agora=" + nArquivos());
+
+    /* ---- Enquanto isso, B continua trabalhando no mesmo projeto ---- */
+    vm.runInContext(`(function(){
+      const t = STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0];
+      t.riscos[0].nome = "Risco editado no B";
+      t.riscos[0].atualizadoEm = agoraSync();
+      t.riscos.push({ id:"novoNoB", nome:"Risco novo do B", fotosOutras:[],
+                      criadoEm: agoraSync(), atualizadoEm: agoraSync() });
+    })()`, B.ctx);
+    await rodarAteParar(B, 10);
+
+    nuvem.transferencias = 0;
+    for(let i=0;i<5;i++) await ciclo(A);
+    checar("A tambem NAO BAIXA o que o B mudou -- arquivado nao desce",
+      nuvem.transferencias === 0 && riscosDe(A) === antesA,
+      "transferencias=" + nuvem.transferencias + " A=" + riscosDe(A));
+    /* Congelado de verdade: nem o texto do A mudou sozinho, nem ele
+       contaminou a nuvem com a versao antiga que ainda tem aqui. */
+    checar("e a versao do B na nuvem continua sendo a mais nova (A nao regravou por cima)",
+      [...nuvem.arquivos.keys()].some(c=>c.indexOf("novoNoB") >= 0),
+      "o risco novo do B sumiu da nuvem");
+
+    /* ---- E AGORA A PERGUNTA QUE IMPORTA: volta inteiro? ---- */
+    vm.runInContext("__projArquivados.delete(" + JSON.stringify(p.id) + ");", A.ctx);
+    await rodarAteParar(A, 12);
+    await rodarAteParar(B, 12);
+    checar("A RESPOSTA AO MEDO: reativado, A recebe TUDO que aconteceu enquanto esteve fora",
+      riscosDe(A) === riscosDe(B),
+      "A=" + riscosDe(A) + "\n     B=" + riscosDe(B));
+    checar("inclusive o item criado no outro aparelho durante o arquivamento",
+      riscosDe(A).indexOf("Risco novo do B") >= 0, "A=" + riscosDe(A));
+    checar("e a edicao feita la tambem chegou",
+      riscosDe(A).indexOf("Risco editado no B") >= 0, "A=" + riscosDe(A));
+
+    /* ---- estabilidade: depois de convergir, ninguem fica trocando a toa ---- */
+    nuvem.transferencias = 0;
+    await ciclo(A); await ciclo(B);
+    checar("e a sincronizacao PARA depois de convergir (sem fila eterna)",
+      nuvem.transferencias === 0, "transferencias=" + nuvem.transferencias);
+  }
+
+  console.log("\n" + L + "\nENSAIO 34 - arquivar com item pendente nao apaga nem perde o pendente\n" + L);
+  {
+    /* O CENARIO EXATO DO MEDO: a fila do aparelho nao zera (429, sessao
+       expirada -- rotina no iPhone) e mesmo assim a pessoa precisa arquivar.
+       O que NAO pode acontecer: o item que nao subiu ser apagado da nuvem, ou
+       sumir do aparelho. Ele tem de continuar aqui, intacto, e voltar para a
+       fila assim que o projeto for reativado. */
+    const nuvem = novaNuvem();
+    const A = novoAparelho("A", nuvem);
+    const p = arvoreExemplo(1, 2, 1, 1, false);
+    p.empresa = "ComPendente";
+    A.ctx.STATE.projetosSimples = [p];
+    await rodarAteParar(A, 10);
+
+    /* Cria um item que a nuvem nunca vai aceitar: a pasta dele falha ao
+       listar E o envio dele falha. Simples: edita e bloqueia o envio
+       apagando a assinatura e deixando a nuvem recusar aquele caminho. */
+    vm.runInContext(`(function(){
+      const t = STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0];
+      t.riscos[0].nome = "Editado e nao enviado";
+      t.riscos[0].atualizadoEm = agoraSync();
+    })()`, A.ctx);
+    const idRisco = vm.runInContext("STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos[0].id", A.ctx);
+    const arquivosAntes = nuvem.arquivos.size;
+
+    // Arquiva SEM ter sincronizado a edicao.
+    vm.runInContext("__projArquivados.add(" + JSON.stringify(p.id) + ");", A.ctx);
+    A.ctx.__confirmResposta = true;   // pior caso: a pessoa diz sim a tudo
+    A.ctx.__confirmChamadas = [];
+    await vm.runInContext('onedriveSincronizarModulo("Simplificado", listarItensSincronizaveisSimples, __assinaturasOneDriveSimples, function(){})', A.ctx);
+
+    checar("o item pendente NAO e apagado da nuvem ao arquivar",
+      nuvem.arquivos.size === arquivosAntes, "antes=" + arquivosAntes + " agora=" + nuvem.arquivos.size);
+    checar("nem uma pergunta de exclusao aparece",
+      A.ctx.__confirmChamadas.length === 0, "perguntou: " + A.ctx.__confirmChamadas.join(" | "));
+    checar("e a edicao continua INTEIRA no aparelho",
+      vm.runInContext("STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos[0].nome", A.ctx)
+        === "Editado e nao enviado");
+
+    /* Reativando, o pendente volta para a fila e sobe -- nada se perdeu. */
+    vm.runInContext("__projArquivados.delete(" + JSON.stringify(p.id) + ");", A.ctx);
+    await rodarAteParar(A, 10);
+    const noArquivo = [...nuvem.arquivos.entries()]
+      .some(([c, a]) => c.indexOf("risco_" + idRisco) >= 0 && a.texto.indexOf("Editado e nao enviado") >= 0);
+    checar("A GARANTIA: reativado, o que estava pendente sobe -- nada se perdeu",
+      noArquivo, "a edicao nao chegou na nuvem depois de reativar");
+  }
+
   console.log("\n" + L);
   console.log(falhas ? "ENSAIOS: " + falhas + " FALHA(S)" : "ENSAIOS: TODOS OK");
   console.log(L + "\n");

@@ -246,6 +246,11 @@ vm.runInContext("let __laudoRascunho = null; let __laudoInfoHrn = { po:false, fe
    existir no contexto antes dele rodar. diaBRCurto só é usada pela tela do
    relatório (fora dos blocos), mas é extraída junto por ser a mesma dupla. */
 [ "diaLocalBR", "diaBRCurto" ].forEach(n=> vm.runInContext(funcao(n), ctx));
+/* PROJETO ARQUIVADO E SO LEITURA (03/09/2026): importarTextosLaudo e
+   importarDadosPlaqueta, dentro do BLOCO_A, consultam o arquivamento antes de
+   escrever. Sem a lista e as funcoes aqui, o codigo real nao roda. */
+vm.runInContext("var __projArquivados = new Set();", ctx);
+[ "projetoArquivado", "projetoArquivadoDaMaquina" ].forEach(n=> vm.runInContext(funcao(n), ctx));
 vm.runInContext(BLOCO_A, ctx);
 vm.runInContext(BLOCO_B, ctx);
 /* laudoBlocoPlaqueta (dentro de BLOCO_B) passou a usar selectOptions/opt
@@ -2751,7 +2756,9 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   });
 
   console.log("\n=== t64 · juntar itens duplicados (a causa da sync eterna) ===");
-  [ "sincDuplicatasNaArvore", "sincJuntarDuplicata", "sincJuntarTodasDuplicatas" ]
+  /* PROJETO ARQUIVADO E SO LEITURA (03/09/2026): a varredura de duplicatas
+     passou a olhar so os projetos ativos. */
+  [ "projetosAtivosDoAparelho", "sincDuplicatasNaArvore", "sincJuntarDuplicata", "sincJuntarTodasDuplicatas" ]
     .forEach(n=> vm.runInContext(funcao(n), ctx));
   vm.runInContext(constante("SINC_FILHOS_DE"), ctx);
   const TD = 1750000000000;
@@ -6853,6 +6860,10 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     const ctx = vm.createContext({ String, Array, Object, RegExp, Set, Map });
     vm.runInContext("var STATE = { projetosSimples: [] }; var __carimbo = 5000;", ctx);
     vm.runInContext("function marcarAlterado(){} function agoraSync(){ return ++__carimbo; }", ctx);
+    /* PROJETO ARQUIVADO E SO LEITURA (03/09/2026): a reescrita passou a varrer
+       so os projetos ativos. */
+    vm.runInContext("var __projArquivados = new Set();", ctx);
+    ["projetoArquivado","projetosAtivosDoAparelho"].forEach(n=> vm.runInContext(funcao(n), ctx));
     ["RISCO_LOCAIS","RISCO_COMPONENTES","RISCO_EVENTOS","RISCO_PARTES","RISCO_CAMPOS",
      "RISCO_NUCLEOS_FEMININOS","RISCO_EVENTO_CLASSE","RISCO_EVENTO_PARTE_GENITIVO",
      "RISCO_PARTES_SO_NO_FIM","RISCO_LOCAIS_POSICAO"].forEach(n=> vm.runInContext(constante(n), ctx));
@@ -9889,7 +9900,10 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     t("le e grava direto na chave, sem passar pelo STATE", ()=>{
       const ler = funcao("arquivadosLer"), gravar = funcao("arquivadosGravar");
       ok(ler.indexOf("get(DB_KEY_ARQUIVADOS)") > 0);
-      ok(gravar.indexOf("put(lista.map(String), DB_KEY_ARQUIVADOS)") > 0);
+      ok(gravar.indexOf("put(lista, DB_KEY_ARQUIVADOS)") > 0);
+      /* A forma gravada (id + carimbo) sai de uma funcao so, para arquivar e
+         reativar nunca gravarem formatos diferentes. */
+      ok(funcao("gravavelDosArquivados").indexOf("__arqCarimbos.get(String(id))") > 0);
       ok(gravar.indexOf("store.delete(DB_KEY_ARQUIVADOS)") > 0,
          "esvaziar a lista precisa apagar a chave, nao gravar lista vazia");
       [ler, gravar].forEach(f=> ok(f.indexOf("STATE") < 0, "o arquivamento encostou no STATE"));
@@ -9939,7 +9953,14 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
                            HTML.indexOf("  async reativarProjetoS(id){"));
       ok(f.indexOf("faltaEnviarPorProjeto()") > 0, "sem conferir a fila, o aviso nao existe");
       ok(f.indexOf("sem cópia em nenhum outro lugar") > 0);
-      ok(f.indexOf("O melhor é sincronizar primeiro e arquivar depois") > 0);
+      /* NÃO manda "sincronize primeiro": no iPhone deste projeto a fila não
+         zera, e um conselho impossível de seguir só empurra a pessoa para
+         longe do recurso. Diz o que ACONTECE e deixa a decisão com ela. */
+      ok(f.indexOf("Eles voltam para a fila assim que você reativar o projeto") > 0,
+         "sem isto, 'itens não enviados' parece perda — e não é");
+      ok(f.indexOf("se ela não sai do lugar, arquivar é o que interrompe as tentativas") > 0);
+      ok(f.indexOf("O melhor é sincronizar primeiro e arquivar depois") < 0,
+         "voltou o conselho que o aparelho do engenheiro não consegue seguir");
     });
     /* O indice da nuvem foi montado SEM as pastas do projeto arquivado. Mantido
        depois de reativar, ele responde "esses arquivos nao existem na nuvem" —
@@ -10025,7 +10046,11 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     /* A lista precisa estar lida ANTES do primeiro desenho: e ela que decide o
        que aparece na tela e o que entra na sincronizacao. */
     t("a lista e lida antes do primeiro desenho", ()=>{
-      ok(HTML.indexOf("let __arquivadosCarregados = arquivadosLer().then(l=>{ __projArquivados = new Set(l); })") > 0);
+      ok(HTML.indexOf("let __arquivadosCarregados = arquivadosLer().then(l=>{") > 0
+         && HTML.indexOf("__arqCarimbos.set(String(e.id), { itens:e.itens, maxAt:Number(e.maxAt)||0 });") > 0);
+      /* Formato antigo (so ids) continua sendo lido: quem ja arquivou nao pode
+         perder o arquivamento ao atualizar o app. */
+      ok(HTML.indexOf('if(typeof e === "string"){ __projArquivados.add(e); return; }') > 0);
       ok(HTML.indexOf("await __arquivadosCarregados;   // antes do primeiro render — ver acima") > 0);
       const i = HTML.indexOf("await __arquivadosCarregados;");
       ok(i > 0 && i < HTML.indexOf("    STATE = novoEstado;"),
@@ -10139,9 +10164,20 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     /* ---- a tela: e nela que a pessoa decide ---- */
     const D = HTML.slice(HTML.indexOf("  async liberarFotosDoProjeto(id){"),
                          HTML.indexOf("  async reativarProjetoS(id){"));
-    t("o botao so aparece quando nao ha nada esperando para subir", ()=>{
-      ok(HTML.indexOf('${f>0 ? "" : `<button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.liberarFotosDoProjeto(') > 0,
-         "o que ainda nao subiu nao pode sair daqui — nem a opcao deve aparecer");
+    /* MUDOU EM 03/09/2026, e a mudanca e o ponto: a versao anterior so
+       mostrava o botao com a fila do projeto zerada. No iPhone do engenheiro a
+       fila NAO zera — entao o recurso ficava inalcancavel justamente no
+       aparelho que precisa dele. A seguranca nunca dependeu dessa trava: a
+       conferencia e POR ITEM, e item pendente nunca e confirmado, logo nunca
+       e tocado. */
+    t("liberar NAO exige fila zerada -- a conferencia e por item", ()=>{
+      ok(HTML.indexOf('${f>0 ? "" : `<button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.liberarFotosDoProjeto(') < 0,
+         "a trava por projeto voltou — no iPhone ela torna o recurso inalcancavel");
+      ok(HTML.indexOf('onclick="App.liberarFotosDoProjeto(') > 0, "o botao precisa existir");
+      ok(HTML.indexOf("a conferência é feita item por item, e o que ainda não está na nuvem simplesmente não é tocado") > 0,
+         "a tela precisa explicar por que e seguro mesmo com fila pendente");
+      ok(D.indexOf("que ainda não subiram NÃO são tocados") > 0,
+         "a pergunta precisa dizer, com o numero, o que acontece com os pendentes");
     });
     t("a pergunta explica a regra, o que fica e as duas surpresas possiveis", ()=>{
       ok(D.indexOf("confere, item por item, se a cópia de lá é idêntica") > 0);
@@ -10192,6 +10228,211 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(funcao("liberarFotosDoProjetoArquivado")
          .indexOf("Não havia foto para liberar neste projeto") > 0,
          "sem esta separacao, 'ja foi feito' aparecia como 'a nuvem nao confirmou'");
+    });
+  }
+
+  /* ---------- t152: PROJETO ARQUIVADO É SÓ LEITURA -------------------------
+     O buraco que isto fecha: um projeto que PAROU de sincronizar mas CONTINUA
+     sendo editado acumula trabalho que nunca chega à nuvem — e ninguém veria,
+     porque a tela mostra tudo salvo. Se arquivar tira da sincronização, então
+     arquivar precisa congelar.
+
+     A garantia vem de um GARGALO, não de uma lista de verificações: quase toda
+     edição age sobre o projeto ATUAL (STATE.ui.projetoSId). Garantindo que
+     esse ponteiro nunca aponte para um arquivado, dezenas de métodos ficam
+     impossibilitados de tocá-lo. As poucas entradas que endereçam por id
+     levam bloqueio nomeado. E o carimbo delata se algo escapar. */
+  {
+    console.log("\n[t152] projeto arquivado e so leitura");
+
+    /* ---- O GARGALO ---- */
+    t("O GARGALO: entrar num projeto arquivado e impossivel", ()=>{
+      const f = HTML.slice(HTML.indexOf("  abrirProjetoS(id){"), HTML.indexOf("  abrirAreaS(id){"));
+      ok(f.indexOf("if(recusarSeArquivado(id)) return;") > 0,
+         "entrar no projeto e o que destrava todas as telas de edicao");
+    });
+    t("e se a tela ja estiver dentro quando ele for arquivado, ela sai", ()=>{
+      const sair = funcao("sairDeProjetoArquivado");
+      ok(sair.indexOf("STATE.ui.projetoSId = null;") > 0);
+      ["areaSId","maquinaSId","tarefaSId"].forEach(k=>
+        ok(sair.indexOf("STATE.ui." + k + " = null;") > 0, "ficou apontando para " + k));
+      ok(sair.indexOf('STATE.ui.screen = "simples-projetos"') > 0);
+      const arq = HTML.slice(HTML.indexOf("  async arquivarProjetoS(id){"), HTML.indexOf("  async liberarFotosDoProjeto(id){"));
+      ok(arq.indexOf("sairDeProjetoArquivado();") > 0, "arquivar precisa tirar a tela de dentro");
+    });
+    /* Um backup restaurado pode trazer o ponteiro salvo apontando para dentro
+       de um projeto que, NESTE aparelho, esta arquivado. */
+    t("na abertura do app tambem, para o caso do backup restaurado", ()=>{
+      /* Ancorado no trecho contiguo, e nao por posicao: "sairDeProjetoArquivado()"
+         aparece tambem dentro de arquivarProjetoS, que vem antes no arquivo. */
+      const i = HTML.indexOf("    STATE = novoEstado;");
+      ok(i > 0);
+      const depois = HTML.slice(i, i + 500);
+      ok(depois.indexOf("sairDeProjetoArquivado();") > 0,
+         "precisa rodar logo depois do STATE carregar, senao nao ha o que conferir");
+    });
+
+    /* ---- ESTE E O TESTE QUE IMPEDE A REGRESSAO ----
+       Ele nao confere metodos escolhidos a mao: ele ENUMERA todos os metodos
+       do App que gravam (chamam marcarAlterado) e tocam dado de projeto, e
+       cobra que cada um esteja coberto — pelo gargalo (usa o projeto atual) ou
+       por bloqueio nomeado. Um metodo novo escrito daqui a seis meses sem
+       nenhum dos dois FALHA aqui, com o nome dele na mensagem. */
+    t("A ANTI-REGRESSAO: todo metodo que grava esta coberto pelo gargalo ou por bloqueio", ()=>{
+      const ini = HTML.indexOf("\nconst App = {");
+      const fim = HTML.indexOf("\n};", ini);
+      const bloco = HTML.slice(ini, fim);
+      const re = /\n  (?:async )?([a-zA-Z_$][\w$]*)\((.*?)\)\{/g;
+      const marcas = []; let m;
+      while((m = re.exec(bloco))) marcas.push({ nome:m[1], em:m.index });
+      ok(marcas.length > 100, "o extrator nao achou os metodos do App (mudou o formato?)");
+
+      /* Passar pelo projeto ATUAL ja e a cobertura: o ponteiro nunca aponta
+         para arquivado. */
+      const PELO_ATUAL = ["getCurrentProjetoSimples","getCurrentAreaSimples","getCurrentMaquinaSimples",
+        "getCurrentTarefaSimples","todasAreasSimples","todasMaquinasSimples","arrayDoSelMode",
+        "buscarAreaSimplesPorId","buscarMaquinaSimplesPorId","buscarTarefaSimplesPorId"];
+      /* Isentos, cada um por um motivo escrito: */
+      const ISENTOS = {
+        // Módulo Completo — mexe em STATE.projetos, outra árvore; o arquivamento é do Simplificado.
+        duplicarProjeto:1, novaArea:1, duplicarArea:1, removerArea:1, novaMaquina:1,
+        confirmarMoverMaquina:1, duplicarMaquina:1, removerMaquina:1, novaTarefa:1,
+        confirmarMoverTarefa:1, duplicarTarefa:1, removerTarefa:1, novoPerigo:1,
+        // Só escreve escolha de tela (STATE.ui), não dado de projeto.
+        selecionarTodasAreasExport:1, desmarcarTodasAreasExport:1,
+        selecionarAreasDoProjetoExport:1, desmarcarAreasDoProjetoExport:1,
+        // Substituem o STATE inteiro por decisão explícita da pessoa.
+        confirmarImportacaoBackup:1,
+        // É a própria saída do arquivamento.
+        reativarProjetoS:1,
+        // Varre só os ativos por dentro (projetosAtivosDoAparelho).
+        juntarDuplicatasSync:1, recomporFrasesRiscos:1,
+        // Escreve na configuração (inspetores), e o dado do projeto passa por laudoSetProjeto.
+        laudoSalvarInspetor:1,
+      };
+      const descobertos = [];
+      marcas.forEach((mk, i)=>{
+        const corpo = bloco.slice(mk.em, i+1 < marcas.length ? marcas[i+1].em : bloco.length);
+        if(corpo.indexOf("marcarAlterado()") < 0) return;          // não grava
+        if(!/projetosSimples|areas|maquinas|tarefas|riscos/.test(corpo)) return;  // não é dado de projeto
+        if(ISENTOS[mk.nome]) return;
+        const peloAtual = PELO_ATUAL.some(f=> corpo.indexOf(f + "(") >= 0);
+        const bloqueado = corpo.indexOf("recusarSeArquivado(") >= 0 || corpo.indexOf("projetoArquivado") >= 0;
+        if(!peloAtual && !bloqueado) descobertos.push(mk.nome);
+      });
+      ok(descobertos.length === 0,
+         "metodo(s) que gravam em projeto sem gargalo nem bloqueio: " + descobertos.join(", ")
+         + " — ou faca passar pelo projeto atual, ou chame recusarSeArquivado, ou isente com o motivo escrito");
+    });
+
+    /* ---- Os bloqueios nomeados, um a um ---- */
+    t("mover e duplicar area recusam destino arquivado", ()=>{
+      ["moverAreaSParaProjeto","duplicarAreaSParaProjeto"].forEach(n=>{
+        const f = HTML.slice(HTML.indexOf("  " + n + "(idArea, idProjetoDestino){"));
+        ok(f.slice(0, 400).indexOf("recusarSeArquivado(idProjetoDestino)") > 0, "sem bloqueio: " + n);
+      });
+      /* E os menus nem oferecem — melhor nao oferecer do que recusar depois. */
+      eq((HTML.match(/proj\.id!==p\.id && !projetoArquivado\(proj\.id\)/g)||[]).length, 2,
+         "os dois menus de destino precisam filtrar o arquivado");
+    });
+    t("anexar foto solta recusa alvo em projeto arquivado", ()=>{
+      const f = HTML.slice(HTML.indexOf("  async orfaAnexar(fid){"), HTML.indexOf("  menuMaquinaS(ev,id){"));
+      ok(f.indexOf("projetoSimplesDoItemId(d.id)") > 0 && f.indexOf("recusarSeArquivado(projAlvo.id)") > 0);
+    });
+    t("os dois imports pulam item de projeto arquivado, e dizem quantos", ()=>{
+      const tl = funcao("importarTextosLaudo");
+      ok(tl.indexOf("if(item.proj && projetoArquivado(item.proj.id)){ res.arquivados++; return; }") > 0);
+      ok(tl.indexOf("arquivados:0") > 0, "sem o contador, o pulo fica invisivel");
+      const pl = funcao("importarDadosPlaqueta");
+      ok(pl.indexOf("if(projetoArquivadoDaMaquina(m)){ res.arquivadas++; return; }") > 0);
+      ok(pl.indexOf("arquivadas:0") > 0);
+    });
+    t("as duas varreduras em massa so olham os projetos ativos", ()=>{
+      ok(funcao("recomporFrasesDosRiscos").indexOf("__percorrerItensSimples(projetosAtivosDoAparelho()") > 0,
+         "reescrever frases num arquivado prenderia texto novo aqui");
+      ok(funcao("sincDuplicatasNaArvore").indexOf("projetosAtivosDoAparelho().forEach") > 0,
+         "duplicata so atrapalha quem sincroniza");
+    });
+    t("a tela de Laudo tambem: dados do projeto e copiar risco", ()=>{
+      ok(HTML.indexOf("if(recusarSeArquivado(pid)) return;   // endereça por id, fora da navegação") > 0);
+      const c = HTML.slice(HTML.indexOf("  laudoCopiarRisco(rid){"), HTML.indexOf("  laudoCopiarRisco(rid){") + 900);
+      ok(c.indexOf("recusarSeArquivado(item.proj.id)") > 0);
+    });
+    t("excluir projeto arquivado tambem passa pelo bloqueio", ()=>{
+      const f = HTML.slice(HTML.indexOf("  removerProjetoS(id){"), HTML.indexOf("  menuAreaS(ev,id){"));
+      ok(f.indexOf("if(recusarSeArquivado(id)) return;") > 0);
+    });
+
+    /* ---- O DELATOR ----
+       Bloqueio e promessa; carimbo e prova. Se algum caminho ainda nao
+       previsto alterar um arquivado, a conta deixa de bater e a tela avisa. */
+    {
+      const cd = vm.createContext({ Number, Object, Array, String, Set, Map, console });
+      vm.runInContext(`
+        var STATE = { projetosSimples: [] };
+        var __projArquivados = new Set(["pA"]);
+        var __arqCarimbos = new Map();
+      `, cd);
+      ["carimboDoProjeto","projetoArquivado","arquivadosAlterados"].forEach(n=> vm.runInContext(funcao(n), cd));
+      const montar = (at)=> vm.runInContext(`
+        STATE.projetosSimples = [{ id:"pA", empresa:"Arquivado", atualizadoEm:100, areas:[
+          { id:"a1", atualizadoEm:100, maquinas:[
+            { id:"m1", atualizadoEm:100, tarefas:[
+              { id:"t1", atualizadoEm:100, riscos:[{ id:"r1", atualizadoEm:${at} }] }]}]}]}];
+      `, cd);
+
+      t("o carimbo conta os itens e guarda o carimbo de tempo mais recente", ()=>{
+        montar(100);
+        const c = vm.runInContext("carimboDoProjeto(STATE.projetosSimples[0])", cd);
+        eq(c.itens, 5, "projeto + area + maquina + tarefa + risco");
+        eq(c.maxAt, 100);
+      });
+      t("projeto arquivado intocado: nao aparece no delator", ()=>{
+        montar(100);
+        vm.runInContext(`__arqCarimbos.set("pA", carimboDoProjeto(STATE.projetosSimples[0]));`, cd);
+        eq(vm.runInContext("arquivadosAlterados().length", cd), 0);
+      });
+      /* O CASO QUE JUSTIFICA O DELATOR: uma edicao que escapou de todos os
+         bloqueios. Sem ele, esse trabalho ficaria preso sem ninguem saber. */
+      t("O DELATOR: edicao que escapou dos bloqueios e denunciada", ()=>{
+        montar(100);
+        vm.runInContext(`__arqCarimbos.set("pA", carimboDoProjeto(STATE.projetosSimples[0]));`, cd);
+        vm.runInContext(`STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos[0].atualizadoEm = 999;`, cd);
+        const f = vm.runInContext("arquivadosAlterados()", cd);
+        eq(f.length, 1); eq(f[0].nome, "Arquivado");
+      });
+      t("item a mais ou a menos tambem e denunciado", ()=>{
+        montar(100);
+        vm.runInContext(`__arqCarimbos.set("pA", carimboDoProjeto(STATE.projetosSimples[0]));`, cd);
+        vm.runInContext(`STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos.push({ id:"r2", atualizadoEm:50 });`, cd);
+        eq(vm.runInContext("arquivadosAlterados().length", cd), 1, "um risco novo nao pode passar despercebido");
+      });
+      /* Um carimbo de tempo MENOR nao e novidade a enviar (veio de fora, ou o
+         relogio do aparelho andou para tras) — denunciar isso seria alarme
+         falso a cada abertura. */
+      t("carimbo mais ANTIGO nao e denuncia: nao ha novidade a subir", ()=>{
+        montar(100);
+        vm.runInContext(`__arqCarimbos.set("pA", carimboDoProjeto(STATE.projetosSimples[0]));`, cd);
+        vm.runInContext(`STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos[0].atualizadoEm = 10;`, cd);
+        eq(vm.runInContext("arquivadosAlterados().length", cd), 0);
+      });
+      t("projeto arquivado por versao antiga (sem carimbo) nao gera alarme falso", ()=>{
+        montar(999);
+        vm.runInContext(`__arqCarimbos.clear();`, cd);
+        eq(vm.runInContext("arquivadosAlterados().length", cd), 0,
+           "quem arquivou antes do carimbo existir nao tem contra o que comparar");
+      });
+    }
+    t("o aviso do delator aparece na lista e oferece reativar", ()=>{
+      const f = funcao("avisoArquivadosAlteradosHtml");
+      ok(f.indexOf("if(fora.length === 0) return \"\";") > 0, "estado normal e nao aparecer nada");
+      ok(f.indexOf("mudou estando arquivado") > 0);
+      ok(f.indexOf("App.reativarProjetoS(") > 0, "avisar sem o caminho de resolver nao resolve nada");
+      /* Nas duas saidas da tela: com projetos ativos e com tudo arquivado. */
+      ok(HTML.indexOf("${avisoArquivadosAlteradosHtml()}") > 0 && HTML.indexOf("${avisoAlterados}") > 0);
+    });
+    t("a pergunta de arquivar avisa que o projeto congela", ()=>{
+      ok(HTML.indexOf("Passa a ser SÓ LEITURA: não dá para criar, editar nem apagar nada dentro dele") > 0);
     });
   }
 

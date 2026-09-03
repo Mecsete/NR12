@@ -1957,6 +1957,120 @@ function faltaEnviarPorProjeto(){
   }catch(e){}
   return out;
 }
+/* ===== PROJETO ARQUIVADO É SÓ LEITURA =====
+   O buraco que isto fecha: um projeto que PAROU de sincronizar mas CONTINUA
+   sendo editado acumula trabalho que nunca chega à nuvem. Ninguém veria — a
+   tela mostraria tudo salvo, e a única cópia estaria naquele aparelho. Se
+   arquivar tira o projeto da sincronização, então arquivar precisa também
+   congelá-lo: o que não muda não tem o que subir.
+
+   A GARANTIA VEM DE UM GARGALO, NÃO DE UMA LISTA DE VERIFICAÇÕES.
+   Quase toda edição do Módulo Simplificado age sobre o projeto ATUAL, o que
+   STATE.ui.projetoSId aponta (getCurrentProjetoSimples e as funções que
+   descem a partir dela). Garantindo que esse ponteiro NUNCA aponte para um
+   projeto arquivado, dezenas de métodos ficam impossibilitados de tocá-lo sem
+   precisar de uma verificação em cada um — que é justamente o tipo de lista
+   que alguém esquece de atualizar depois.
+
+   Sobram poucas entradas que endereçam um projeto por FORA do ponteiro, e
+   essas sim levam bloqueio nomeado:
+     · mover / duplicar área PARA outro projeto (o destino é escolhido);
+     · anexar foto solta a um item (o alvo é escolhido);
+     · importar textos de laudo e dados de plaqueta (endereçam por id);
+     · reescrever as frases dos riscos (varre todos os projetos).
+
+   E POR FIM O DELATOR. Bloqueio é promessa; carimbo é prova. Ao arquivar,
+   guarda-se quantos itens o projeto tinha e qual o carimbo de tempo mais
+   recente entre eles. Se algum caminho ainda não previsto alterar o projeto,
+   a conta deixa de bater e a lista de projetos mostra o aviso, com o botão de
+   reativar — que é o que devolve o projeto à sincronização. O risco de perder
+   trabalho em silêncio deixa de existir mesmo que um bloqueio falhe. */
+function bloqueioDeArquivado(projId){
+  if(!projId || !projetoArquivado(projId)) return null;
+  const p = (STATE.projetosSimples||[]).find(x=>x.id===projId);
+  return `"${(p && p.empresa) || "Este projeto"}" está arquivado neste aparelho e não pode ser alterado. Reative-o na lista de projetos para editar.`;
+}
+/* Devolve true quando a ação deve PARAR (e já avisa a pessoa). Escrito para
+   ser lido como uma cláusula de guarda: if(recusarSeArquivado(id)) return; */
+function recusarSeArquivado(projId){
+  const motivo = bloqueioDeArquivado(projId);
+  if(!motivo) return false;
+  toast(motivo, false);
+  return true;
+}
+/* O projeto que contém um item, seja qual for o nível. Usado pelos caminhos
+   que endereçam item por id, sem passar pela navegação. */
+/* O projeto que contém uma máquina — por identidade do objeto, porque o
+   caminho da plaqueta já tem a máquina em mãos e não o id do projeto. */
+function projetoArquivadoDaMaquina(maq){
+  if(!maq) return false;
+  for(const p of (STATE.projetosSimples||[]))
+    for(const a of (p.areas||[]))
+      if((a.maquinas||[]).indexOf(maq) >= 0) return projetoArquivado(p.id);
+  return false;
+}
+function projetoSimplesDoItemId(itemId){
+  if(!itemId) return null;
+  for(const p of (STATE.projetosSimples||[])){
+    if(p.id === itemId) return p;
+    for(const a of (p.areas||[])){
+      if(a.id === itemId) return p;
+      for(const m of (a.maquinas||[])){
+        if(m.id === itemId) return p;
+        for(const t of (m.tarefas||[])){
+          if(t.id === itemId) return p;
+          for(const r of (t.riscos||[])) if(r.id === itemId) return p;
+        }
+      }
+    }
+  }
+  return null;
+}
+/* O GARGALO. Se a tela está (ou ficou) dentro de um projeto arquivado, volta
+   para a lista. Chamado ao arquivar e na abertura do app — esta segunda cobre
+   o caso de um backup restaurado num aparelho onde o projeto já está
+   arquivado, com o ponteiro salvo apontando para dentro dele. */
+function sairDeProjetoArquivado(){
+  if(!STATE.ui || !projetoArquivado(STATE.ui.projetoSId)) return false;
+  STATE.ui.projetoSId = null;
+  STATE.ui.areaSId = null;
+  STATE.ui.maquinaSId = null;
+  STATE.ui.tarefaSId = null;
+  if(String(STATE.ui.screen||"").indexOf("simples-") === 0) STATE.ui.screen = "simples-projetos";
+  return true;
+}
+/* O CARIMBO — quantos itens e qual o "atualizadoEm" mais recente. São
+   exatamente as duas grandezas que a sincronização usa para decidir que há
+   novidade a enviar: se as duas continuam iguais, não existe trabalho preso. */
+function carimboDoProjeto(p){
+  let itens = 0, maxAt = 0;
+  const ver = (o)=>{ itens++; const t = Number(o && o.atualizadoEm) || 0; if(t > maxAt) maxAt = t; };
+  if(!p) return { itens:0, maxAt:0 };
+  ver(p);
+  (p.areas||[]).forEach(a=>{
+    ver(a);
+    (a.maquinas||[]).forEach(m=>{
+      ver(m);
+      (m.tarefas||[]).forEach(t=>{ ver(t); (t.riscos||[]).forEach(ver); });
+    });
+  });
+  return { itens, maxAt };
+}
+let __arqCarimbos = new Map();   // id do projeto -> {itens, maxAt} no momento em que foi arquivado
+/* Quais projetos arquivados mudaram desde que foram arquivados. Lista vazia é
+   o estado normal e esperado. */
+function arquivadosAlterados(){
+  const fora = [];
+  (STATE.projetosSimples||[]).forEach(p=>{
+    if(!projetoArquivado(p.id)) return;
+    const guardado = __arqCarimbos.get(String(p.id));
+    if(!guardado) return;   // arquivado antes de o carimbo existir — nada a comparar
+    const agora = carimboDoProjeto(p);
+    if(agora.itens !== guardado.itens || agora.maxAt > guardado.maxAt)
+      fora.push({ id:p.id, nome:p.empresa || "Projeto sem nome", de:guardado, para:agora });
+  });
+  return fora;
+}
 async function arquivadosLer(){
   if(!temIndexedDB()) return [];
   try{
@@ -1964,10 +2078,23 @@ async function arquivadosLer(){
     return await new Promise((resolve)=>{
       const tx = db.transaction(DB_STORE,"readonly");
       const rq = tx.objectStore(DB_STORE).get(DB_KEY_ARQUIVADOS);
-      rq.onsuccess = ()=>resolve(Array.isArray(rq.result) ? rq.result.map(String) : []);
+      /* DOIS FORMATOS. Até 03/09/2026 10:04 a lista era só de ids; a partir
+         daí cada entrada é {id, itens, maxAt} — o carimbo do delator. Ler os
+         dois evita que quem já arquivou num aparelho perca o arquivamento ao
+         atualizar o app. Sem carimbo, o projeto continua arquivado e apenas
+         não é comparado (arquivadosAlterados ignora quem não tem carimbo). */
+      rq.onsuccess = ()=>resolve(Array.isArray(rq.result) ? rq.result : []);
       rq.onerror   = ()=>resolve([]);
     });
   }catch(e){ return []; }
+}
+/* A lista como ela vai para o banco: id + carimbo. Uma função só, para o
+   formato gravado nunca divergir entre arquivar e reativar. */
+function gravavelDosArquivados(){
+  return [...__projArquivados].map(id=>{
+    const c = __arqCarimbos.get(String(id));
+    return c ? { id:String(id), itens:c.itens, maxAt:c.maxAt } : { id:String(id) };
+  });
 }
 async function arquivadosGravar(lista){
   if(!temIndexedDB()) return false;
@@ -1976,7 +2103,7 @@ async function arquivadosGravar(lista){
     return await new Promise((resolve)=>{
       const tx = db.transaction(DB_STORE,"readwrite");
       const store = tx.objectStore(DB_STORE);
-      if(lista && lista.length) store.put(lista.map(String), DB_KEY_ARQUIVADOS);
+      if(lista && lista.length) store.put(lista, DB_KEY_ARQUIVADOS);
       else store.delete(DB_KEY_ARQUIVADOS);
       tx.oncomplete = ()=>resolve(true);
       tx.onerror    = ()=>resolve(false);
@@ -2809,7 +2936,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "03/09/2026 10:04";
+const APP_BUILD = "03/09/2026 16:36";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -5829,7 +5956,10 @@ function listarItensFotoPerdidaTexto(){
    tela pede para sincronizar ANTES de recompor. */
 function recomporFrasesDosRiscos(apenasContar){
   const res = { riscos:0, nomes:0, descricoes:0, preservados:0 };
-  __percorrerItensSimples(STATE.projetosSimples, (item, tipo)=>{
+  /* PROJETO ARQUIVADO É SÓ LEITURA — ver o bloco de comentário lá. Esta função
+     varre todos os projetos de uma vez; sem o filtro, reescreveria frases num
+     projeto que já não sincroniza, e esse texto novo ficaria preso aqui. */
+  __percorrerItensSimples(projetosAtivosDoAparelho(), (item, tipo)=>{
     if(tipo !== "risco") return;
     let mexeu = false;
     const nomeNovo = montarNomeRisco(item);
@@ -7044,7 +7174,10 @@ function sincDuplicatasNaArvore(){
     if(!grupos.has(k)) grupos.set(k, []);
     grupos.get(k).push({ tipo, id:obj.id, obj, lista, caminho });
   };
-  (STATE.projetosSimples||[]).forEach(p=>{
+  /* PROJETO ARQUIVADO É SÓ LEITURA. Duplicata só atrapalha quem sincroniza —
+     num projeto arquivado ela é inofensiva, e juntar mexeria num projeto que
+     não sobe mais. */
+  projetosAtivosDoAparelho().forEach(p=>{
     const cp = p.empresa || "Projeto";
     (p.areas||[]).forEach(a=>{
       const ca = cp + " › " + (a.nome||"Área");
@@ -12011,6 +12144,23 @@ function itensComFotosLiberadas(proj){
   });
   return n;
 }
+/* O AVISO DO DELATOR — ver "PROJETO ARQUIVADO É SÓ LEITURA".
+   Estado normal: não aparece nada. Se aparecer, algum caminho ainda não
+   previsto alterou um projeto que não sincroniza — e esse trabalho está preso
+   só neste aparelho. O botão devolve o projeto à sincronização, que é o que
+   resolve; não é aviso decorativo. */
+function avisoArquivadosAlteradosHtml(){
+  const fora = arquivadosAlterados();
+  if(fora.length === 0) return "";
+  return fora.map(f=>`
+    <div class="card card-pad" style="border:1.5px solid var(--danger,#c0392b)">
+      <div style="font-weight:800;font-size:13.5px;color:var(--danger,#c0392b)">${escapeHtml(f.nome)} mudou estando arquivado</div>
+      <div style="font-size:12.5px;color:var(--ink-dim);margin-top:4px">
+        Um projeto arquivado não sincroniza. O que mudou nele está só neste aparelho — reative para que suba para a nuvem.
+      </div>
+      <button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="App.reativarProjetoS('${f.id}')">${ic('arrowR')} Reativar e sincronizar</button>
+    </div>`).join("");
+}
 function blocoArquivadosHtml(arquivados){
   if(arquivados.length === 0) return "";
   const cabecalho = `
@@ -12042,9 +12192,9 @@ function blocoArquivadosHtml(arquivados){
         : ""; })()}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
         <button class="btn btn-secondary btn-sm" onclick="App.reativarProjetoS('${p.id}')">${ic('arrowR')} Reativar neste aparelho</button>
-        ${f>0 ? "" : `<button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.liberarFotosDoProjeto('${p.id}')">${ic('trash')} ${itensComFotosLiberadas(p)>0 ? "Liberar o restante das fotos" : "Liberar as fotos (ganhar espaço)"}</button>`}
+        <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.liberarFotosDoProjeto('${p.id}')">${ic('trash')} ${itensComFotosLiberadas(p)>0 ? "Liberar o restante das fotos" : "Liberar as fotos (ganhar espaço)"}</button>
       </div>
-      ${f>0? `<div class="field-hint" style="margin-top:6px">Liberar as fotos só aparece quando não houver nada esperando para subir — o que não está na nuvem não pode sair daqui.</div>`:""}
+      ${f>0? `<div class="field-hint" style="margin-top:6px">Liberar as fotos continua disponível: a conferência é feita item por item, e o que ainda não está na nuvem simplesmente não é tocado.</div>`:""}
     </div>`;
   }).join("");
   return `<div class="section-title">Arquivados</div>${cabecalho}
@@ -12070,11 +12220,12 @@ function screenSimplesProjetos(){
       <span style="flex:1"><b style="font-size:13.5px">Sessão do OneDrive expirou</b><br><span style="font-size:12px;color:var(--ink-dim)">Toque para conectar de novo — comum acontecer no iPhone</span></span>
       ${ic('chevR')}
     </div>` : '';
+  const avisoAlterados = avisoArquivadosAlteradosHtml();
   if(projetos.length===0){
     /* Com tudo arquivado, a tela vazia sozinha mentiria: diria "nenhum projeto
        cadastrado" com os projetos todos ali, guardados. O bloco de arquivados
        entra junto, para o caminho de volta estar sempre à vista. */
-    return `${avisoOneDrive}<div class="empty">${ic('briefcase')}<h3>${arquivados.length? "Nenhum projeto ativo" : "Nenhum projeto cadastrado"}</h3><p>${arquivados.length? "Os projetos deste aparelho estão arquivados — reative um abaixo quando precisar." : "Crie o primeiro projeto do módulo simplificado."}</p>
+    return `${avisoOneDrive}${avisoAlterados}<div class="empty">${ic('briefcase')}<h3>${arquivados.length? "Nenhum projeto ativo" : "Nenhum projeto cadastrado"}</h3><p>${arquivados.length? "Os projetos deste aparelho estão arquivados — reative um abaixo quando precisar." : "Crie o primeiro projeto do módulo simplificado."}</p>
       <div style="margin-top:18px"><button class="btn btn-primary" onclick="App.abrirModalProjetoS(null)">${ic('plus')} Novo projeto</button></div></div>
       ${blocoArquivadosHtml(arquivados)}`;
   }
@@ -12099,7 +12250,7 @@ function screenSimplesProjetos(){
       <div class="list-actions"><button class="icon-btn" onclick="App.menuProjetoS(event,'${p.id}')">${ic('dots')}</button></div>
     </div>`;
   }).join("");
-  return `${avisoOneDrive}<div class="section-title">${projetos.length} projeto${projetos.length===1?'':'s'}</div>${cards}
+  return `${avisoOneDrive}${avisoArquivadosAlteradosHtml()}<div class="section-title">${projetos.length} projeto${projetos.length===1?'':'s'}</div>${cards}
     ${blocoArquivadosHtml(arquivados)}
     <div class="fab-wrap"><button class="fab" onclick="App.abrirModalProjetoS(null)">${ic('plus')}</button></div>`;
 }
@@ -14440,7 +14591,7 @@ const LAUDO_TEXTOS_FORMATO = "apr-textos-laudo-v1";
 function importarTextosLaudo(pacote){
   if(!pacote || typeof pacote !== "object") return null;
   if(pacote.formato !== LAUDO_TEXTOS_FORMATO || !Array.isArray(pacote.textos)) return null;
-  const res = { aplicados:0, pulados:0, naoAchados:0, invalidos:0, porCampo:{} };
+  const res = { aplicados:0, pulados:0, naoAchados:0, invalidos:0, arquivados:0, porCampo:{} };
   /* Um índice por nível: escopo é da MÁQUINA e tarefa é da TAREFA, então
      qualquer linha que passe por elas serve para localizá-las. */
   const porMaquina = new Map(), porTarefa = new Map(), porRisco = new Map();
@@ -14458,6 +14609,11 @@ function importarTextosLaudo(pacote){
                : (campo === "tarefa") ? porTarefa.get(alvoId)
                : porRisco.get(alvoId);
     if(!item){ res.naoAchados++; return; }
+    /* PROJETO ARQUIVADO É SÓ LEITURA. Este caminho endereça o item por id, sem
+       passar pela navegação — então precisa do bloqueio aqui. Aplicar um texto
+       carimbaria atualizadoEm (ver laudoCarimbarParaSincronizar) num projeto
+       que não sincroniza mais: trabalho novo, preso só neste aparelho. */
+    if(item.proj && projetoArquivado(item.proj.id)){ res.arquivados++; return; }
     const g = laudoGet(item, campo);
     if(g.sug || g.fin || g.st){ res.pulados++; return; }  // já tem texto ou decisão: não mexe
     laudoSet(item, campo, { sug: texto, st: "pend", duv: String((linha && linha.duvida) || "").trim() });
@@ -14585,12 +14741,15 @@ function maquinaSimplesGlobalPorId(id){
 function importarDadosPlaqueta(pacote){
   if(!pacote || typeof pacote !== "object") return null;
   if(pacote.formato !== PLAQUETA_FORMATO || !Array.isArray(pacote.maquinas)) return null;
-  const res = { camposAplicados:0, maquinasAtualizadas:0, naoAchadas:0, invalidos:0 };
+  const res = { camposAplicados:0, maquinasAtualizadas:0, naoAchadas:0, invalidos:0, arquivadas:0 };
   pacote.maquinas.forEach(linha=>{
     const id = (linha && linha.id) || "";
     if(!id || typeof linha !== "object"){ res.invalidos++; return; }
     const m = maquinaSimplesGlobalPorId(id);
     if(!m){ res.naoAchadas++; return; }
+    /* PROJETO ARQUIVADO É SÓ LEITURA. Preencher plaqueta carimba atualizadoEm
+       (logo abaixo) — dado novo num projeto que não sobe mais. */
+    if(projetoArquivadoDaMaquina(m)){ res.arquivadas++; return; }
     let mudouEsta = false;
     PLAQUETA_CAMPOS_IMPORTAVEIS.forEach(campo=>{
       const valor = String(linha[campo] || "").trim();
@@ -19525,6 +19684,10 @@ const App = {
     marcarAlterado();
   },
   recomporFrasesRiscos(){
+    /* Varre TODOS os projetos e reescreve nome e descrição dos riscos — um
+       projeto arquivado ficaria com texto novo que nunca subiria. */
+    const nArq = projetosArquivadosDoAparelho().length;
+    if(nArq > 0) toast(`${nArq} projeto(s) arquivado(s) ficam de fora — projeto arquivado não é alterado.`);
     const prev = recomporFrasesDosRiscos(true);
     if(!prev || prev.riscos === 0){
       __ultimaRecomposicaoFrases = { erro:false, mensagem:"Nenhuma frase a reescrever: as automáticas já estão na redação nova" + (prev && prev.preservados ? (" (" + prev.preservados + " frase(s) sua(s) preservada(s))") : "") + "." };
@@ -20058,7 +20221,13 @@ Devolver agora?`)) return;
   },
 
   /* ---------- Módulo Simplificado: navegação ---------- */
-  abrirProjetoS(id){ go("simples-areas",{projetoSId:id, areaSId:null, maquinaSId:null, tarefaSId:null}); },
+  abrirProjetoS(id){
+    /* Não é alcançável pela lista (arquivado não aparece lá), mas fecha a
+       porta para qualquer caminho futuro que chame isto com um id direto —
+       entrar no projeto é o que destrava todas as telas de edição. */
+    if(recusarSeArquivado(id)) return;
+    go("simples-areas",{projetoSId:id, areaSId:null, maquinaSId:null, tarefaSId:null});
+  },
   abrirAreaS(id){ if(__selMode && __selMode.tipo==="areaS"){ App.toggleSelecao(id); return; } go("simples-maquinas",{areaSId:id, maquinaSId:null, tarefaSId:null}); },
   abrirMaquinaS(id){ if(__selMode && __selMode.tipo==="maquinaS"){ App.toggleSelecao(id); return; } go("simples-tarefas",{maquinaSId:id, tarefaSId:null}); },
   abrirTarefaS(id){ if(__selMode && __selMode.tipo==="tarefaS"){ App.toggleSelecao(id); return; } go("simples-riscos",{tarefaSId:id}); },
@@ -20542,6 +20711,7 @@ Devolver agora?`)) return;
     const falta = faltaEnviarPorProjeto().get(id) || 0;
     let msg = `Arquivar "${p.empresa||'Projeto'}" neste aparelho?\n\n`
       + `· Sai da lista e da sincronização DESTE aparelho\n`
+      + `· Passa a ser SÓ LEITURA: não dá para criar, editar nem apagar nada dentro dele enquanto estiver arquivado\n`
       + `· Continua inteiro aqui: ${c.areas} área(s), ${c.maquinas} equipamento(s), ${c.riscos} risco(s), com as fotos\n`
       + `· Nada é apagado — nem aqui, nem na nuvem\n`
       + `· Reativar é imediato e funciona sem internet\n`
@@ -20550,13 +20720,20 @@ Devolver agora?`)) return;
        não subiu. Fora da fila, ele fica só neste aparelho, sem cópia nenhuma
        em outro lugar. Não bloqueia — avisa com o número na frente. */
     if(falta > 0){
-      msg += `\n\nATENÇÃO: ${falta} ${falta===1?'item deste projeto ainda não subiu':'itens deste projeto ainda não subiram'} para a nuvem. Arquivando agora, ${falta===1?'ele fica parado':'eles ficam parados'} só neste aparelho, sem cópia em nenhum outro lugar.\n\nO melhor é sincronizar primeiro e arquivar depois.`;
+      msg += `\n\nATENÇÃO: ${falta} ${falta===1?'item deste projeto ainda não subiu':'itens deste projeto ainda não subiram'} para a nuvem. Arquivando agora, ${falta===1?'ele fica parado':'eles ficam parados'} só neste aparelho, sem cópia em nenhum outro lugar.\n\nEles voltam para a fila assim que você reativar o projeto — não se perdem. Se a fila estiver descendo normalmente, vale sincronizar antes; se ela não sai do lugar, arquivar é o que interrompe as tentativas.`;
     }
     if(!confirm(msg)) return;
     __projArquivados.add(String(id));
-    await arquivadosGravar([...__projArquivados]);
+    /* O CARIMBO do delator, tirado no instante do arquivamento. É contra ele
+       que arquivadosAlterados compara depois — ver o bloco "PROJETO ARQUIVADO
+       É SÓ LEITURA". */
+    __arqCarimbos.set(String(id), carimboDoProjeto(p));
+    await arquivadosGravar(gravavelDosArquivados());
+    /* Se a tela estava dentro do projeto, sai agora: dali todas as telas de
+       edição estariam abertas sobre um projeto que não sincroniza mais. */
+    sairDeProjetoArquivado();
     render();
-    toast("Projeto arquivado neste aparelho — nada foi apagado");
+    toast("Projeto arquivado — fica só de leitura neste aparelho, e nada foi apagado");
   },
   /* LIBERAR AS FOTOS — a única operação do app que apaga foto de campo de
      propósito. O confirm não é formalidade: ele descreve a regra que autoriza
@@ -20568,12 +20745,19 @@ Devolver agora?`)) return;
     const p = STATE.projetosSimples.find(x=>x.id===id); if(!p) return;
     if(__liberandoFotos){ toast("Já há uma liberação em andamento"); return; }
     const c = contarItensDoProjeto(p);
+    /* A fila do projeto NÃO é condição para liberar: a conferência é por item,
+       e item pendente nunca é confirmado, logo nunca é tocado. Exigir fila
+       zerada tornava o recurso inalcançável justamente no aparelho que mais
+       precisa dele — o iPhone, onde a fila não zera. */
+    const falta = faltaEnviarPorProjeto().get(id) || 0;
     if(!confirm(
       `Liberar as fotos de "${p.empresa||'Projeto'}" deste aparelho?\n\n`
       + `COMO FUNCIONA\n`
       + `· O app lê a nuvem agora e confere, item por item, se a cópia de lá é idêntica à daqui\n`
       + `· Só o que for confirmado é apagado deste aparelho — o resto fica\n`
-      + `· Se a leitura da nuvem falhar em qualquer ponto, NADA é apagado\n\n`
+      + `· Se a leitura da nuvem falhar em qualquer ponto, NADA é apagado\n`
+      + (falta > 0 ? `· Os ${falta} item(ns) que ainda não subiram NÃO são tocados — as fotos deles continuam aqui\n` : "")
+      + `\n`
       + `O QUE CONTINUA AQUI\n`
       + `· O texto inteiro do projeto: ${c.areas} área(s), ${c.maquinas} equipamento(s), ${c.riscos} risco(s), medidas e textos de laudo\n`
       + `· Cada item passa a mostrar um botão para baixar as fotos dele de volta, quando você precisar\n\n`
@@ -20612,7 +20796,8 @@ Devolver agora?`)) return;
       + `As fotos de ${lib} item(ns) foram liberadas para ganhar espaço. Reativando, elas voltam sozinhas da nuvem no próximo Wi-Fi e o espaço volta a ser ocupado.\n\n`
       + `Para consultar o projeto SEM trazer as fotos de volta, deixe-o arquivado: o texto está todo aqui, e cada item baixa a foto dele ao toque.`)) return;
     __projArquivados.delete(String(id));
-    await arquivadosGravar([...__projArquivados]);
+    __arqCarimbos.delete(String(id));
+    await arquivadosGravar(gravavelDosArquivados());
     /* O índice da nuvem foi montado SEM as pastas deste projeto (elas não eram
        listadas enquanto ele estava arquivado). Mantê-lo agora faria o app
        concluir que os arquivos dele "não existem na nuvem" — e é exatamente
@@ -20627,6 +20812,10 @@ Devolver agora?`)) return;
     toast("Projeto reativado — voltou para a lista e para a sincronização");
   },
   removerProjetoS(id){
+    /* Arquivado não aparece na lista, então este método não é alcançável para
+       ele hoje. Fica bloqueado para que, no dia em que existir um caminho de
+       "excluir arquivado", ele seja escrito de propósito e não por acidente. */
+    if(recusarSeArquivado(id)) return;
     const alvo = STATE.projetosSimples.find(x=>x.id===id);
     if(!confirm("Excluir este projeto e tudo dentro dele? Esta ação não pode ser desfeita.")) return;
     if(alvo) perguntarApagarTambemNaNuvem("este projeto e tudo dentro dele", idsSincronizaveisDe("projeto", alvo));
@@ -20654,13 +20843,19 @@ Devolver agora?`)) return;
   menuMoverAreaS(id){
     const p = getCurrentProjetoSimples();
     const a = p.areas.find(x=>x.id===id); if(!a) return;
-    const outros = STATE.projetosSimples.filter(proj=>proj.id!==p.id);
-    if(outros.length===0){ toast("Não há outro projeto cadastrado para mover esta área", false); return; }
+    /* Arquivado fora da lista de destinos: melhor não oferecer do que
+       oferecer e recusar depois (o bloqueio em moverAreaSParaProjeto continua
+       lá como garantia, este filtro é só para não frustrar o toque). */
+    const outros = STATE.projetosSimples.filter(proj=>proj.id!==p.id && !projetoArquivado(proj.id));
+    if(outros.length===0){ toast("Não há outro projeto ativo para mover esta área", false); return; }
     abrirMenuAcoes(`Mover "${a.nome||'Área'}" para...`, "Escolha o projeto de destino", outros.map(proj=>(
       {label:proj.empresa||"Sem nome", icon:"briefcase", onclick:`App.moverAreaSParaProjeto('${id}','${proj.id}')`}
     )));
   },
   moverAreaSParaProjeto(idArea, idProjetoDestino){
+    /* Destino escolhido por id — não passa pelo ponteiro de tela, então
+       precisa do bloqueio nomeado. */
+    if(recusarSeArquivado(idProjetoDestino)) return;
     const p = getCurrentProjetoSimples();
     const a = p.areas.find(x=>x.id===idArea); if(!a) return;
     const destino = STATE.projetosSimples.find(x=>x.id===idProjetoDestino); if(!destino) return;
@@ -20681,13 +20876,14 @@ Devolver agora?`)) return;
   menuDuplicarAreaSOutroProjeto(id){
     const p = getCurrentProjetoSimples();
     const a = p.areas.find(x=>x.id===id); if(!a) return;
-    const outros = STATE.projetosSimples.filter(proj=>proj.id!==p.id);
-    if(outros.length===0){ toast("Não há outro projeto cadastrado para duplicar esta área", false); return; }
+    const outros = STATE.projetosSimples.filter(proj=>proj.id!==p.id && !projetoArquivado(proj.id));
+    if(outros.length===0){ toast("Não há outro projeto ativo para duplicar esta área", false); return; }
     abrirMenuAcoes(`Duplicar "${a.nome||'Área'}" para...`, "Escolha o projeto de destino", outros.map(proj=>(
       {label:proj.empresa||"Sem nome", icon:"briefcase", onclick:`App.duplicarAreaSParaProjeto('${id}','${proj.id}')`}
     )));
   },
   duplicarAreaSParaProjeto(idArea, idProjetoDestino){
+    if(recusarSeArquivado(idProjetoDestino)) return;   // ver moverAreaSParaProjeto
     const p = getCurrentProjetoSimples();
     const a = p.areas.find(x=>x.id===idArea); if(!a) return;
     const destino = STATE.projetosSimples.find(x=>x.id===idProjetoDestino); if(!destino) return;
@@ -20866,6 +21062,10 @@ Devolver agora?`)) return;
     const d = __orfas.destino;
     const item = d.tipo === "maquina" ? maquinaSimplesGlobalPorId(d.id) : riscoSimplesGlobalPorId(d.id);
     if(!item){ toast("O item não foi encontrado", false); return; }
+    /* PROJETO ARQUIVADO É SÓ LEITURA. O alvo aqui é escolhido por id na
+       galeria de fotos soltas, sem passar pela navegação. */
+    const projAlvo = projetoSimplesDoItemId(d.id);
+    if(projAlvo && recusarSeArquivado(projAlvo.id)) return;
     const campoPrincipal = d.tipo === "maquina" ? "fotoGeral" : "foto";
     /* Destino escolhido na tela. "auto" mantém o comportamento de sempre.
        Um campo único escolhido de propósito (Foto Geral ou Plaqueta) só
@@ -21753,6 +21953,7 @@ Devolver agora?`)) return;
   laudoSetFiltroTarefa(id){ STATE.ui.laudoFiltroTar = id || ""; STATE.ui.laudoLimite = 60; render(); },
   laudoLimparFiltros(){ STATE.ui.laudoFiltroArea = ""; STATE.ui.laudoFiltroMaq = ""; STATE.ui.laudoFiltroTar = ""; STATE.ui.laudoLimite = 60; render(); },
   laudoSetProjeto(pid, campo, valor){
+    if(recusarSeArquivado(pid)) return;   // endereça por id, fora da navegação
     const p = STATE.projetosSimples.find(x=>x.id===pid);
     if(!p) return;
     p[campo] = valor;
@@ -21862,6 +22063,9 @@ Devolver agora?`)) return;
     // igual ao resto da tela de Laudo.
     const item = laudoItemPorId(rid);
     if(!item) return;
+    /* Endereça pelo id do risco, sem passar pela navegação — alcançaria um
+       risco de projeto arquivado se a tela de Laudo mostrasse o escopo todo. */
+    if(item.proj && recusarSeArquivado(item.proj.id)) return;
     /* Este é o ponto de cópia MAIS sensível dos que existem: fica dentro da
        própria tela de revisão do laudo, onde os textos estão sendo aprovados.
        Sem prepararCopiaDuplicada, a cópia nascia com os textos já aprovados
@@ -23300,7 +23504,16 @@ carregarStatusArmazenamentoNaTela();
    decide o que aparece na tela e o que entra na sincronização. Lida depois, a
    lista piscaria com os arquivados dentro, e o primeiro ciclo automático ainda
    varreria a nuvem inteira. */
-let __arquivadosCarregados = arquivadosLer().then(l=>{ __projArquivados = new Set(l); }).catch(()=>{});
+let __arquivadosCarregados = arquivadosLer().then(l=>{
+  __projArquivados = new Set();
+  __arqCarimbos = new Map();
+  (l||[]).forEach(e=>{
+    if(typeof e === "string"){ __projArquivados.add(e); return; }   // formato antigo, sem carimbo
+    if(!e || !e.id) return;
+    __projArquivados.add(String(e.id));
+    if(typeof e.itens === "number") __arqCarimbos.set(String(e.id), { itens:e.itens, maxAt:Number(e.maxAt)||0 });
+  });
+}).catch(()=>{});
 let __estadoLocalCarregadoPromise = carregarEstadoSalvo().then(async saved=>{
   if(saved){
     let novoEstado = Array.isArray(saved.projetos) ? saved : migrarParaHierarquiaV4(saved);
@@ -23324,6 +23537,11 @@ let __estadoLocalCarregadoPromise = carregarEstadoSalvo().then(async saved=>{
     else if(novoEstado.modulo==="simplificado") novoEstado.ui.screen = "simples-projetos";
     await __arquivadosCarregados;   // antes do primeiro render — ver acima
     STATE = novoEstado;
+    /* O GARGALO, aplicado também na abertura: um backup restaurado pode trazer
+       o ponteiro de tela apontando para dentro de um projeto que, NESTE
+       aparelho, está arquivado. Sem isto o app abriria já dentro dele, com
+       tudo editável. */
+    sairDeProjetoArquivado();
     marcarAlterado();
     render();
     /* Logotipo do laudo, figura do processo e qualquer outra imagem do próprio

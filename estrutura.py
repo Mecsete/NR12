@@ -3980,12 +3980,76 @@ chk("a pergunta diz a regra, o que fica e as duas surpresas possiveis",
     and "Se a leitura da nuvem falhar em qualquer ponto, NADA é apagado" in _dlg
     and "Os pontos de restauração deste aparelho também soltam essas fotos" in _dlg
     and "as fotos voltam sozinhas no Wi-Fi" in _dlg)
-chk("o botao so aparece quando nao ha nada esperando para subir",
-    'App.liberarFotosDoProjeto(' in novo and '${f>0 ? "" : `<button' in novo)
+# SUBSTITUIDA em 03/09/2026: a versao das 10:04 so mostrava o botao com a fila
+# do projeto zerada. No iPhone do engenheiro a fila NAO zera -- entao o recurso
+# ficava inalcancavel justamente no aparelho que precisa dele. A seguranca
+# nunca dependeu dessa trava: a conferencia e POR ITEM, e item pendente nunca e
+# confirmado, logo nunca e tocado. A checagem viva esta na secao 125.
+chk("o botao de liberar existe e a pergunta explica os pendentes",
+    'App.liberarFotosDoProjeto(' in novo
+    and "que ainda não subiram NÃO são tocados" in _dlg)
 chk("reativar avisa que as fotos voltam e ocupam o espaco de novo",
     "elas voltam sozinhas da nuvem no próximo Wi-Fi" in novo and "deixe-o arquivado" in novo)
 chk("duas liberacoes ao mesmo tempo nao rodam",
     "let __liberandoFotos = false;" in novo and "if(__liberandoFotos){" in _dlg)
+
+
+print("=== 125. PROJETO ARQUIVADO E SO LEITURA (03/09/2026) ===")
+# O buraco: um projeto que PAROU de sincronizar mas CONTINUA sendo editado
+# acumula trabalho que nunca chega a nuvem, e ninguem veria. Se arquivar tira
+# da sincronizacao, arquivar precisa congelar.
+# A garantia vem de um GARGALO (STATE.ui.projetoSId nunca aponta para
+# arquivado), de bloqueios nomeados nas poucas entradas que enderecam por id, e
+# de um CARIMBO que delata se algo escapar. A anti-regressao (que ENUMERA todo
+# metodo do App que grava) esta em t152; os ENSAIOS 33 e 34 provam o lado da
+# sincronizacao com dois aparelhos de verdade.
+chk("o gargalo existe e limpa o ponteiro inteiro",
+    all(x in _corpoDe(novo, "sairDeProjetoArquivado")
+        for x in ["STATE.ui.projetoSId = null;", "STATE.ui.areaSId = null;",
+                  "STATE.ui.maquinaSId = null;", "STATE.ui.tarefaSId = null;"]))
+chk("entrar num projeto arquivado e recusado",
+    "if(recusarSeArquivado(id)) return;" in novo[novo.find("  abrirProjetoS(id){"):novo.find("  abrirAreaS(id){")])
+chk("arquivar tira a tela de dentro do projeto",
+    "sairDeProjetoArquivado();" in novo[novo.find("  async arquivarProjetoS(id){"):novo.find("  async liberarFotosDoProjeto(id){")])
+# Backup restaurado pode trazer o ponteiro apontando para dentro de um projeto
+# que, NESTE aparelho, esta arquivado.
+chk("e a abertura do app tambem confere, depois de carregar o STATE",
+    "sairDeProjetoArquivado();" in novo[novo.find("    STATE = novoEstado;"):novo.find("    STATE = novoEstado;") + 500])
+chk("os bloqueios nomeados estao nas entradas que enderecam por id",
+    "recusarSeArquivado(idProjetoDestino)" in novo
+    and "recusarSeArquivado(projAlvo.id)" in novo
+    and "if(recusarSeArquivado(pid)) return;" in novo
+    and "recusarSeArquivado(item.proj.id)" in novo)
+chk("os dois menus de destino nem oferecem o arquivado",
+    novo.count("proj.id!==p.id && !projetoArquivado(proj.id)") == 2)
+chk("os dois imports pulam e contam o que era de projeto arquivado",
+    "if(item.proj && projetoArquivado(item.proj.id)){ res.arquivados++; return; }" in novo
+    and "if(projetoArquivadoDaMaquina(m)){ res.arquivadas++; return; }" in novo)
+chk("as varreduras em massa so olham os ativos",
+    "__percorrerItensSimples(projetosAtivosDoAparelho()" in novo
+    and "projetosAtivosDoAparelho().forEach(p=>{" in novo)
+# Bloqueio e promessa; carimbo e prova.
+chk("o carimbo mede itens e o atualizadoEm mais recente",
+    "function carimboDoProjeto(p){" in novo and "if(t > maxAt) maxAt = t;" in novo)
+chk("o delator compara, e so acusa quando ha novidade a subir",
+    "if(agora.itens !== guardado.itens || agora.maxAt > guardado.maxAt)" in novo
+    and "if(!guardado) return;" in _corpoDe(novo, "arquivadosAlterados"))
+chk("o aviso aparece nas duas saidas da tela e oferece reativar",
+    "${avisoArquivadosAlteradosHtml()}" in novo and "${avisoAlterados}" in novo
+    and "App.reativarProjetoS(" in _corpoDe(novo, "avisoArquivadosAlteradosHtml"))
+chk("o registro gravado guarda id + carimbo, por uma funcao so",
+    "function gravavelDosArquivados(){" in novo
+    and novo.count("arquivadosGravar(gravavelDosArquivados())") == 2)
+chk("e o formato antigo (so ids) continua sendo lido",
+    'if(typeof e === "string"){ __projArquivados.add(e); return; }' in novo)
+chk("a pergunta de arquivar avisa que o projeto congela",
+    "Passa a ser SÓ LEITURA" in novo)
+# A trava por projeto tornava "liberar fotos" inalcancavel no iPhone, onde a
+# fila nao zera. Removida de proposito: a conferencia sempre foi por item.
+chk("liberar fotos deixou de exigir fila zerada",
+    'onclick="App.liberarFotosDoProjeto(' in novo
+    and '${f>0 ? "" : `<button' not in novo
+    and "a conferência é feita item por item" in novo)
 
 
 print("\n---------------------------------------")
