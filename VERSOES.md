@@ -64,6 +64,47 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 03/09/2026 19:02
+
+**Novo: risco residual previsto no laudo.** Botão *"Risco residual"* na barra
+do Laudo em A4, junto dos de Logotipo, Conclusão e Assinatura.
+
+Ligado, cada risco que tenha **Solução escrita** ganha uma segunda tabela de
+HRN logo abaixo da atual, com tarja verde e o título
+**"Risco residual previsto — após implantar a solução"**. Os quatro campos (PO,
+FE, GPD, NP) viram listas suspensas, e o HRN é recalculado no toque.
+
+É o que a ABNT NBR ISO 12100 pede: a reavaliação **depois** da medida de
+proteção. Até aqui o laudo mostrava só o quadro de hoje, e a redução prometida
+pela Solução ficava na cabeça de quem lê.
+
+Como funciona:
+
+- **A tarja mostra a queda, não só o número final** — `12 SIGNIFICATIVO → 4
+  MUITO BAIXO`. É isso que mostra o ganho da medida a quem aprova o
+  investimento.
+- **No PDF entra só o que você de fato avaliou.** Campo deixado no valor de
+  hoje não conta; e voltar um campo ao valor de hoje **desfaz** a previsão dele.
+  Risco não avaliado simplesmente não ganha a segunda tabela.
+- **Só onde há Solução.** Previsão de uma medida que não foi proposta seria
+  linha vazia ocupando página A4.
+- **Avisa quando a solução não basta:** se o residual ficar acima de "baixo ou
+  desprezível" (o que as próprias faixas I a V exigem), aparece o alerta de que
+  a medida proposta não leva o risco a um nível aceitável.
+- **Nada é preenchido automaticamente.** Em vez disso, uma dica na tela diz
+  quais campos cada tipo de medida costuma reduzir (proteção fixa →
+  Frequência; intertravamento e parada de emergência → Probabilidade; redução
+  de energia → Grau do Dano). Num laudo com ART, o palpite automático seria
+  responsabilidade de quem assina.
+- **Uma nota fecha o quadro:** *"Estimativa de reavaliação conforme ABNT NBR
+  ISO 12100. A reavaliação definitiva deve ser feita após a implantação e a
+  verificação da medida."* — para o laudo nunca ser lido como se a medida já
+  existisse.
+
+Detalhes de uso: entrar no modo de edição sobe o zoom para 100% (a 50% as
+listas ficam pequenas demais para o dedo), e imprimir sai do modo sozinho, para
+o PDF nunca levar as listas suspensas nem os riscos ainda não avaliados.
+
 ## 03/09/2026 18:35
 
 **A fila que não zerava por construção.** Uma das causas de a sincronização

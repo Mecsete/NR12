@@ -3032,8 +3032,13 @@ print("\n=== 104. BUG DE CAMPO: RISCO DESMARCADO SAIA NO PDF ===")
 #   MESMO bug por outro caminho.
 chk("Imprimir virou async e SEMPRE garante a versao sem oculto antes de continuar",
     novo.count("async lpImprimir(){") == 1)
-chk("desliga o modo de selecao incondicionalmente (nao so 'se estiver ligado')",
-    "STATE.ui.lpModoOcultar = false;\n      while(__lpGerando) await new Promise(r=>setTimeout(r, 30));\n      await App.lpGerar();" in novo)
+# 03/09/2026: entrou tambem o modo de edicao do risco residual, pela MESMA
+# razao (nele aparecem blocos de riscos ainda nao avaliados e as listas
+# suspensas). A garantia continua sendo: desliga incondicionalmente, e so
+# entao espera e remonta -- sem "se estiver ligado".
+chk("desliga os modos de edicao incondicionalmente (nao so 'se estiverem ligados')",
+    "STATE.ui.lpModoOcultar = false;" in novo
+    and "STATE.ui.lpModoPrev = false;\n      while(__lpGerando) await new Promise(r=>setTimeout(r, 30));\n      await App.lpGerar();" in novo)
 _i_lpimp = novo.find("async lpImprimir(){")
 _i_desliga = novo.find("STATE.ui.lpModoOcultar = false;", _i_lpimp)
 _i_espera = novo.find("while(__lpGerando)", _i_lpimp)
@@ -4100,6 +4105,69 @@ chk("e a pergunta explica a ordem, com trava de reentrada",
     "As fotos de cada item sobem PRIMEIRO" in novo
     and "se as fotos falharem, o texto não é tocado" in novo
     and "let __destravandoAntigos = false;" in novo)
+
+
+print("=== 127. RISCO RESIDUAL PREVISTO (03/09/2026) ===")
+# A NBR ISO 12100 nao termina no risco encontrado: pede a reavaliacao DEPOIS da
+# medida. Tres decisoes do engenheiro: termo normativo na tarja, tabela so onde
+# ha Solucao, e no PDF so o que ele de fato mexeu. Comportamento em t154.
+_prev = _corpoDe(novo, "lpPrevBlocoHtml")
+chk("o motor existe e nao encosta no quadro de hoje",
+    "function hrnPrevistoDoItem(it){" in novo
+    and "function hrnPrevAplicar(risco, tarefa, campo, valorClassificacao){" in novo
+    and "const atual = hrnDoItem({ tarefa, risco });" in _corpoDe(novo, "hrnPrevAplicar"))
+# O que mantem honesta a regra "so sai no PDF o que eu de fato mexi".
+chk("voltar ao valor de hoje APAGA a previsao daquele campo",
+    "if(v === atual[campo]) delete prev[campo];" in novo
+    and "if(Object.keys(prev).length === 0) delete risco.hrnPrev;" in novo)
+# faixaHRN recebe o NOME do nivel; passar o numero devolveria null e todo risco
+# viraria "nao aceitavel" em silencio.
+chk("aceitavel sai das proprias faixas, e pelo nome do nivel",
+    'const HRN_PREV_ACEITAVEL_ORD = ["VI", "VII", "VIII"];' in novo
+    and "faixaHRN(nivelHRN(hrn))" in _corpoDe(novo, "hrnPrevistoAceitavel"))
+chk("a tabela so nasce onde ha Solucao escrita",
+    'if(!riscoTemSolucaoNoLaudo(it)) return "";' in _prev
+    and 'laudoTextoFinal(it, "solucao")' in _corpoDe(novo, "riscoTemSolucaoNoLaudo"))
+chk("a tarja usa o termo normativo e mostra a QUEDA",
+    "Risco residual previsto — após implantar a solução" in _prev
+    and "&rarr;" in _prev and "ainda não avaliado" in _prev)
+# Duas regras de exibicao diferentes, as duas no CSS: no PDF so o avaliado; no
+# modo de edicao, tudo.
+chk("no PDF entra so o avaliado; no modo de edicao aparece tudo",
+    ".lp-prev{display:none;" in novo and ".lp-prev.tem{display:block}" in novo
+    and ".lp-modo-prev .lp-prev{display:block}" in novo)
+chk("lista suspensa nunca aparece no PDF, e ha texto no lugar dela",
+    ".lp-prev-sel{display:none;" in novo
+    and ".lp-modo-prev .lp-prev-sel{display:block}" in novo
+    and ".lp-modo-prev .lp-prev-txt{display:none}" in novo
+    and '<span class="lp-prev-txt">' in _prev)
+chk("avisa quando a solucao nao chega a nivel aceitavel, e so depois de avaliada",
+    "A solução proposta não leva este risco a um nível aceitável" in _prev
+    and "p.mudou && !p.aceitavel" in _prev)
+# Sem esta nota, um fiscal pode ler a tabela como se a medida ja existisse.
+chk("traz a nota que impede o laudo de parecer ja implantado",
+    "Estimativa de reavaliação conforme ABNT NBR ISO 12100" in _prev
+    and "após a implantação e a verificação da medida" in _prev)
+# Preenchimento automatico num laudo com ART seria responsabilidade nossa; a
+# dica escrita deixa a decisao com o engenheiro.
+chk("a dica de qual campo mexer fica so na tela",
+    ".lp-prev-dica{display:none;" in novo
+    and "Proteção fixa e enclausuramento costumam reduzir a <b>Frequência</b>" in _prev)
+_tog = novo[novo.find("    async lpToggleModoPrev(){"):novo.find("    lpPrevSet(riscoId, campo, valor){")]
+_set = novo[novo.find("    lpPrevSet(riscoId, campo, valor){"):novo.find("    async lpToggleRisco(riscoId){")]
+chk("trocar de modo remonta (paginacao), mexer numa lista nao",
+    "await App.lpGerar();" in _tog and "lpGerar" not in _set)
+chk("mexer numa lista redesenha so aquele risco -- o calculo instantaneo",
+    'document.getElementById("lpPrev-" + riscoId)' in _set
+    and "el.outerHTML = lpPrevBlocoHtml(it);" in _set
+    and "it.risco.atualizadoEm = agoraSync();" in _set)
+chk("projeto arquivado continua so leitura tambem aqui",
+    "recusarSeArquivado(it.proj.id)" in _set)
+# O documento e desenhado em A4 e encolhido por transform:scale: a 50% a lista
+# fica com metade do tamanho e nao da para acertar com o dedo.
+chk("a lista e um alvo de toque de verdade",
+    "min-height:17px" in novo
+    and "if((STATE.ui.lpZoom || 0.5) < 1) STATE.ui.lpZoom = 1;" in _tog)
 
 
 print("\n---------------------------------------")

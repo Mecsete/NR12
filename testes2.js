@@ -10554,6 +10554,196 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  /* ---------- t154: risco residual previsto -------------------------------
+     A NBR ISO 12100 nao termina no risco encontrado: pede a reavaliacao DEPOIS
+     da medida. Ate aqui o laudo mostrava so o quadro de hoje, e a reducao
+     prometida pela Solucao ficava na cabeca de quem le.
+     As tres decisoes do engenheiro (03/09/2026): tarja com o termo normativo,
+     tabela so onde ha Solucao, e no PDF so o que ele de fato mexeu. */
+  {
+    console.log("\n[t154] risco residual previsto");
+    const cp = vm.createContext({ console, Object, Array, String, Number, JSON, Math });
+    vm.runInContext(`
+      const OUTRO = "Outro (especificar)";
+      function sugerirGPD(){ return 2; }
+      function sugerirFE(){ return 4; }
+      function sugerirNP(){ return 2; }
+      function sugerirPO(){ return 5; }
+      function valOuOutro(v,o){ return v===OUTRO ? (o||"") : (v||""); }
+    `, cp);
+    ["HRN_PO_TABELA","HRN_FE_TABELA","HRN_GPD_TABELA","HRN_NP_TABELA","HRN_FAIXAS",
+     "HRN_PREV_ACEITAVEL_ORD","HRN_PREV_TABELAS","HRN_PREV_CAMPOS","GPD_RENOMEADOS"]
+      .forEach(n=> vm.runInContext(constante(n), cp));
+    /* As listas de opcoes sao derivadas das tabelas numa linha so; o extrator
+       constante() nao delimita esse formato e traria a tabela seguinte junto
+       ("Identifier already declared"). Derivar aqui da o mesmo valor. */
+    vm.runInContext(["PO","FE","GPD","NP"].map(k=>
+      "const HRN_" + k + "_OPTS = HRN_" + k + "_TABELA.map(x=>x.classificacao);").join(""), cp);
+    ["calcHRN","nivelHRN","faixaHRN","gpdCanonico","valorPorClassificacaoHRN","labelHRN","hrnDoItem",
+     "hrnPrevistoAceitavel","hrnPrevistoDoItem","hrnPrevClassificacao","hrnPrevAplicar"]
+      .forEach(n=> vm.runInContext(funcao(n), cp));
+
+    const item = ()=> vm.runInContext(`(function(){
+      globalThis.__t = { frequencia:"Horária", numPessoas:"3-7 pessoas" };
+      globalThis.__r = { id:"r1", nome:"Arrastamento", po:"Possível", gpd:"Fratura osso maior" };
+      return { tarefa: __t, risco: __r };
+    })()`, cp);
+    const prev = ()=> vm.runInContext("hrnPrevistoDoItem({ tarefa: __t, risco: __r })", cp);
+    const aplicar = (c, v)=> vm.runInContext(
+      "hrnPrevAplicar(__r, __t, " + JSON.stringify(c) + ", " + JSON.stringify(v) + ")", cp);
+    const guardado = ()=> vm.runInContext("__r.hrnPrev ? JSON.parse(JSON.stringify(__r.hrnPrev)) : null", cp);
+
+    t("sem previsao, a projecao e igual ao quadro de hoje e nao conta como avaliada", ()=>{
+      item();
+      const p = prev();
+      eq(p.hrn, p.atual.hrn);
+      eq(p.mudou, false, "sem nada mexido, o risco nao pode entrar no PDF");
+      eq(guardado(), null, "nao pode gravar nada so por desenhar a tabela");
+    });
+    t("mexer num campo recalcula na hora e marca como avaliado", ()=>{
+      item();
+      const antes = prev().hrn;
+      ok(aplicar("fe", "Anual"), "a aplicacao devia ter sido aceita");
+      const p = prev();
+      ok(p.hrn < antes, "reduzir a frequencia tem de reduzir o HRN: " + antes + " -> " + p.hrn);
+      eq(p.mudou, true);
+      eq(guardado().fe, "Anual");
+      eq(p.atual.hrn, antes, "o quadro de HOJE nao pode mudar junto");
+    });
+    /* O QUE MANTEM HONESTA A REGRA "so sai no PDF o que eu de fato mexi":
+       voltar ao valor de hoje e DESFAZER, nao gravar uma previsao igual. */
+    t("O PONTO: voltar ao valor de hoje APAGA a previsao daquele campo", ()=>{
+      item();
+      const atual = prev().atual;
+      const nomeHoje = vm.runInContext("labelHRN([], " + atual.fe + ", HRN_FE_TABELA)", cp);
+      aplicar("fe", "Anual");
+      eq(prev().mudou, true);
+      aplicar("fe", nomeHoje);
+      eq(prev().mudou, false, "voltar ao valor de hoje tem de desfazer");
+      eq(guardado(), null, "sem nenhum campo previsto, a previsao inteira some");
+    });
+    t("um campo desfeito nao apaga os outros", ()=>{
+      item();
+      aplicar("fe", "Anual"); aplicar("po", "Quase Impossível");
+      eq(Object.keys(guardado()).length, 2);
+      const nomeHoje = vm.runInContext("labelHRN([], hrnDoItem({tarefa:__t,risco:__r}).fe, HRN_FE_TABELA)", cp);
+      /* hrnDoItem le o valor de HOJE, que nao muda com a previsao — entao esta
+         comparacao continua valendo depois de qualquer previsao gravada. */
+      aplicar("fe", nomeHoje);
+      eq(Object.keys(guardado()).join(","), "po");
+    });
+    t("valor invalido nao grava nada", ()=>{
+      item();
+      eq(aplicar("gpd", "Isso nao existe na tabela"), false);
+      eq(guardado(), null);
+      eq(aplicar("inventado", "Anual"), false, "campo fora dos quatro nao pode entrar");
+    });
+    /* Os quatro campos sao editaveis aqui de proposito: no quadro de hoje FE e
+       NP vem da TAREFA (nenhum risco pode divergir dos irmaos), mas a previsao
+       e por risco porque a Solucao e por risco. */
+    t("os QUATRO campos sao previsiveis, inclusive os que hoje vem da tarefa", ()=>{
+      item();
+      ["po","fe","gpd","np"].forEach(c=>{
+        const opts = vm.runInContext("HRN_" + c.toUpperCase() + "_OPTS", cp);
+        ok(aplicar(c, opts[0]) || aplicar(c, opts[opts.length-1]), "campo nao aceito: " + c);
+      });
+    });
+    /* O criterio de aceitavel NAO foi inventado: as proprias faixas I a V
+       dizem "ate se chegar a um risco do tipo baixo ou desprezivel". */
+    t("aceitavel e da faixa BAIXO para baixo, como as proprias faixas mandam", ()=>{
+      [[0.5,true],[3,true],[7,true],[12,false],[64,false],[600,false]].forEach(([h,esperado])=>{
+        eq(vm.runInContext("hrnPrevistoAceitavel(" + h + ")", cp), esperado, "HRN " + h);
+      });
+      const f = funcao("hrnPrevistoAceitavel");
+      ok(f.indexOf("faixaHRN(nivelHRN(hrn))") > 0,
+         "faixaHRN recebe o NOME do nivel; passar o numero devolveria null e tudo viraria 'nao aceitavel'");
+    });
+
+    /* ---- o bloco no documento ---- */
+    const B = funcao("lpPrevBlocoHtml");
+    t("so aparece onde ha Solucao escrita", ()=>{
+      ok(B.indexOf("if(!riscoTemSolucaoNoLaudo(it)) return \"\";") > 0,
+         "previsao sem medida proposta e linha vazia ocupando pagina A4");
+      ok(funcao("riscoTemSolucaoNoLaudo").indexOf('laudoTextoFinal(it, "solucao")') > 0);
+    });
+    t("a tarja usa o termo normativo e mostra a QUEDA, nao so o numero final", ()=>{
+      ok(B.indexOf("Risco residual previsto — após implantar a solução") > 0,
+         "'risco residual' e o termo da ISO 12100 — e o que um auditor procura");
+      ok(B.indexOf("&rarr;") > 0 && B.indexOf("esc(a.nivel)") > 0 && B.indexOf("esc(p.nivel)") > 0,
+         "sem o de-para, o numero sozinho nao mostra o ganho da medida");
+      ok(B.indexOf("ainda não avaliado") > 0);
+    });
+    /* No PDF so entra o que foi avaliado; no modo de edicao aparece tudo. Sao
+       duas regras diferentes, e as duas moram no CSS. */
+    t("no PDF entra so o avaliado; no modo de edicao aparece tudo", ()=>{
+      ok(B.indexOf('class="lp-prev${p.mudou?\' tem\':\'\'}"') > 0);
+      ok(HTML.indexOf(".lp-prev{display:none;") > 0);
+      ok(HTML.indexOf(".lp-prev.tem{display:block}") > 0);
+      ok(HTML.indexOf(".lp-modo-prev .lp-prev{display:block}") > 0);
+    });
+    t("as listas suspensas so aparecem no modo de edicao, e o texto no lugar delas", ()=>{
+      ok(HTML.indexOf(".lp-prev-sel{display:none;") > 0, "lista visivel no PDF seria erro grosseiro");
+      ok(HTML.indexOf(".lp-modo-prev .lp-prev-sel{display:block}") > 0);
+      ok(HTML.indexOf(".lp-modo-prev .lp-prev-txt{display:none}") > 0);
+      ok(B.indexOf('<span class="lp-prev-txt">') > 0, "sem o texto, o PDF sairia com celula vazia");
+    });
+    t("avisa quando a solucao NAO leva a um nivel aceitavel", ()=>{
+      ok(B.indexOf("A solução proposta não leva este risco a um nível aceitável") > 0);
+      ok(B.indexOf("p.mudou && !p.aceitavel") > 0,
+         "avisar antes de a pessoa avaliar seria alarme falso em todo risco");
+    });
+    t("traz a nota que impede o laudo de parecer ja implantado", ()=>{
+      ok(B.indexOf("Estimativa de reavaliação conforme ABNT NBR ISO 12100") > 0);
+      ok(B.indexOf("após a implantação e a verificação da medida") > 0);
+    });
+    t("a dica de qual campo mexer fica so na tela, nunca no PDF", ()=>{
+      ok(HTML.indexOf(".lp-prev-dica{display:none;") > 0);
+      ok(B.indexOf("Proteção fixa e enclausuramento costumam reduzir a <b>Frequência</b>") > 0,
+         "a dica e o que substitui o preenchimento automatico, que num laudo com ART seria responsabilidade nossa");
+    });
+
+    /* ---- as acoes ---- */
+    t("o botao fica junto dos outros do laudo e mostra que esta editando", ()=>{
+      ok(HTML.indexOf('onclick="App.lpToggleModoPrev()"') > 0);
+      ok(HTML.indexOf('${STATE.ui.lpModoPrev? " · editando" : ""}') > 0);
+      ok(HTML.indexOf("${STATE.ui.lpModoPrev?' lp-modo-prev':''}") > 0);
+    });
+    /* Ligar/desligar faz blocos inteiros aparecerem e sumirem, e a paginacao e
+       medida na montagem — sem remontar, as paginas ficariam com buracos ou
+       com conteudo transbordando. */
+    t("ligar e desligar o modo REMONTA o laudo (paginacao)", ()=>{
+      const f = HTML.slice(HTML.indexOf("    async lpToggleModoPrev(){"), HTML.indexOf("    lpPrevSet(riscoId, campo, valor){"));
+      ok(f.indexOf("await App.lpGerar();") > 0);
+      /* Achado no navegador: o documento e desenhado em A4 e encolhido por
+         transform:scale. No zoom padrao (50%) a lista fica com metade do
+         tamanho e nao da para acertar com o dedo num celular. */
+      ok(f.indexOf("if((STATE.ui.lpZoom || 0.5) < 1) STATE.ui.lpZoom = 1;") > 0,
+         "entrar no modo de edicao com zoom de 50% deixa as listas intocaveis");
+      ok(HTML.indexOf("min-height:17px") > 0, "a lista precisa de altura de alvo de toque");
+    });
+    /* Mas mexer numa lista NAO remonta: a tabela prevista tem sempre a mesma
+       altura, entao a paginacao nao muda — e remontar a cada toque deixaria a
+       edicao insuportavel num laudo de 200 riscos. */
+    t("mas mexer numa lista NAO remonta -- redesenha so aquele risco", ()=>{
+      const f = HTML.slice(HTML.indexOf("    lpPrevSet(riscoId, campo, valor){"), HTML.indexOf("    async lpToggleRisco(riscoId){"));
+      ok(f.indexOf("lpGerar") < 0, "remontar a cada toque numa lista trava a edicao");
+      ok(f.indexOf('document.getElementById("lpPrev-" + riscoId)') > 0
+         && f.indexOf("el.outerHTML = lpPrevBlocoHtml(it);") > 0,
+         "e o que da o calculo instantaneo pedido");
+      ok(f.indexOf("it.risco.atualizadoEm = agoraSync();") > 0,
+         "sem carimbo, a previsao nao chega ao outro aparelho");
+      ok(f.indexOf("recusarSeArquivado(it.proj.id)") > 0,
+         "projeto arquivado e so leitura — ver t152");
+    });
+    /* Mesma razao do modo de selecao: no modo de edicao aparecem blocos de
+       riscos nao avaliados E as listas suspensas. */
+    t("imprimir sai do modo de edicao antes de montar", ()=>{
+      const f = HTML.slice(HTML.indexOf("    async lpImprimir(){"), HTML.indexOf("    async lpImprimir(){") + 2200);
+      ok(f.indexOf("STATE.ui.lpModoPrev = false;") > 0);
+      ok(f.indexOf("STATE.ui.lpModoPrev = false;") < f.indexOf("await App.lpGerar();"));
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

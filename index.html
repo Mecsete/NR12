@@ -2936,7 +2936,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "03/09/2026 18:35";
+const APP_BUILD = "03/09/2026 19:02";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -15465,6 +15465,86 @@ function hrnDoItem({tarefa,risco}){
   const hrn = calcHRN(po,fe,gpd,np);
   return {po,fe,gpd,np,hrn,nivel:nivelHRN(hrn)};
 }
+/* ===== RISCO RESIDUAL PREVISTO =====
+   A ABNT NBR ISO 12100 não termina no risco encontrado: ela pede a
+   reavaliação DEPOIS da medida de proteção — o risco residual. Até aqui o
+   laudo mostrava só o quadro de hoje, e a redução prometida pela Solução
+   ficava na cabeça de quem lê.
+
+   O QUE É GRAVADO. Só o que o engenheiro MUDOU, em `risco.hrnPrev`, pelo nome
+   da classificação (o mesmo vocabulário do quadro atual). Campo que ele não
+   mexeu não é gravado: a previsão daquele campo é o valor de hoje. E voltar um
+   campo ao valor de hoje APAGA a chave, em vez de gravar uma previsão igual —
+   é isso que mantém honesta a regra "no PDF só sai o risco onde eu de fato
+   mexi".
+
+   POR QUE OS QUATRO CAMPOS SÃO EDITÁVEIS AQUI, e não só Probabilidade e Grau
+   do Dano: no quadro de hoje, Frequência e Nº de pessoas vêm da TAREFA de
+   propósito (nenhum risco pode divergir dos irmãos). Na previsão isso deixa de
+   valer — uma proteção fixa instalada num ponto específico muda a exposição
+   DAQUELE risco e de mais nenhum. A previsão é por risco porque a Solução é
+   por risco.
+
+   O QUE É ACEITÁVEL. Não foi inventado aqui: as próprias faixas I a V dizem,
+   no texto de ação delas, "até se chegar a um risco do tipo baixo ou
+   desprezível". Então aceitável é da faixa BAIXO para baixo. */
+const HRN_PREV_ACEITAVEL_ORD = ["VI", "VII", "VIII"];   // Baixo, Muito baixo, Desprezível
+const HRN_PREV_TABELAS = { po:HRN_PO_TABELA, fe:HRN_FE_TABELA, gpd:HRN_GPD_TABELA, np:HRN_NP_TABELA };
+const HRN_PREV_CAMPOS = ["po", "fe", "gpd", "np"];
+function hrnPrevistoAceitavel(hrn){
+  /* faixaHRN recebe o NOME do nível, não o número — passar o número devolve
+     null e todo risco viraria "não aceitável" em silêncio. */
+  const f = faixaHRN(nivelHRN(hrn));
+  return !!f && HRN_PREV_ACEITAVEL_ORD.indexOf(f.ord) >= 0;
+}
+/* A projeção. Devolve sempre um resultado — mesmo sem nada previsto, para a
+   tela poder desenhar a tabela com os valores de hoje e a pessoa mexer a
+   partir dali. Quem decide se aquilo vai para o PDF é o campo `mudou`. */
+function hrnPrevistoDoItem(it){
+  const atual = hrnDoItem({ tarefa: it.tarefa, risco: it.risco });
+  const prev = (it.risco && it.risco.hrnPrev) || {};
+  const val = {};
+  HRN_PREV_CAMPOS.forEach(k=>{
+    const v = prev[k] ? valorPorClassificacaoHRN(HRN_PREV_TABELAS[k], prev[k]) : undefined;
+    val[k] = (typeof v === "number") ? v : atual[k];
+  });
+  const hrn = calcHRN(val.po, val.fe, val.gpd, val.np);
+  return { po:val.po, fe:val.fe, gpd:val.gpd, np:val.np, hrn,
+           nivel: nivelHRN(hrn), atual,
+           mudou: HRN_PREV_CAMPOS.some(k=> !!prev[k]),
+           aceitavel: hrnPrevistoAceitavel(hrn) };
+}
+/* Nome da classificação prevista de um campo — o que a lista mostra como
+   selecionado. Sem previsão própria, mostra a de hoje. */
+function hrnPrevClassificacao(it, campo){
+  const prev = (it.risco && it.risco.hrnPrev) || {};
+  if(prev[campo]) return prev[campo];
+  const atual = hrnDoItem({ tarefa: it.tarefa, risco: it.risco });
+  return labelHRN([], atual[campo], HRN_PREV_TABELAS[campo]);
+}
+/* Grava a escolha de UM campo. Ver o bloco acima: voltar ao valor de hoje
+   apaga a chave, e sem nenhuma chave a previsão inteira deixa de existir. */
+function hrnPrevAplicar(risco, tarefa, campo, valorClassificacao){
+  if(HRN_PREV_CAMPOS.indexOf(campo) < 0) return false;
+  const atual = hrnDoItem({ tarefa, risco });
+  const prev = Object.assign({}, risco.hrnPrev || {});
+  if(!valorClassificacao){
+    delete prev[campo];
+  }else{
+    const v = valorPorClassificacaoHRN(HRN_PREV_TABELAS[campo], valorClassificacao);
+    if(typeof v !== "number") return false;
+    if(v === atual[campo]) delete prev[campo];
+    else prev[campo] = valorClassificacao;
+  }
+  if(Object.keys(prev).length === 0) delete risco.hrnPrev;
+  else risco.hrnPrev = prev;
+  return true;
+}
+/* Previsão só faz sentido onde existe medida proposta: prever a redução de
+   uma solução que não foi escrita é linha vazia ocupando página A4. */
+function riscoTemSolucaoNoLaudo(it){
+  return !!String(laudoTextoFinal(it, "solucao") || "").trim();
+}
 function linhaSimples({proj,area,maquina,tarefa,risco}){
   const {po,fe,gpd,np,hrn,nivel} = hrnDoItem({tarefa,risco});
   return [
@@ -24266,6 +24346,27 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
 .lp-hrn td{border:1px solid #8A8CA3;padding:3px 4px}
 .lp-hrn td.k{background:#F2F3F7;font-weight:800;width:52%}
 .lp-hrn td.v{text-align:center;font-weight:800;background:#FDE9DC}
+/* RISCO RESIDUAL PREVISTO — a segunda tabela de HRN, abaixo da atual.
+   Segue a mesma lógica de exibição da ferramenta de ocultar: os controles de
+   edição existem sempre no HTML e só APARECEM no modo de edição, e o bloco
+   inteiro só entra no documento (e no PDF) quando houve previsão de verdade
+   — a classe "tem". Sem isso, imprimir levaria junto as listas suspensas e as
+   tabelas dos riscos que ninguém avaliou. */
+.lp-prev{display:none;border:1px solid #2E7D32;border-top:0}
+.lp-prev.tem{display:block}
+.lp-modo-prev .lp-prev{display:block}
+.lp-prev-tarja{display:flex;align-items:center;gap:6px;background:#2E7D32;color:#fff;
+  padding:2px 6px;font-size:8px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
+.lp-prev-tarja .d{margin-left:auto;font-size:8.5px;letter-spacing:.02em;white-space:nowrap}
+.lp-prev .lp-rc-rodape{border-top:0}
+.lp-prev-sel{display:none;width:100%;font-size:9px;padding:2px 1px;min-height:17px;border:1px solid #2E7D32;
+  border-radius:3px;background:#fff;color:#1E2148;font-family:inherit;cursor:pointer}
+.lp-modo-prev .lp-prev-sel{display:block}
+.lp-modo-prev .lp-prev-txt{display:none}
+.lp-prev-ver{font-size:8px;font-weight:800;line-height:1.15;text-align:center;padding:2px 4px}
+.lp-prev-nota{font-size:6.5px;color:#5B5F7A;line-height:1.25;padding:2px 6px 3px;border-top:1px solid #C8CBD9}
+.lp-prev-dica{display:none;font-size:6.5px;color:#5B5F7A;line-height:1.25;padding:2px 6px}
+.lp-modo-prev .lp-prev-dica{display:block}
 /* --- conclusão --- */
 .lp-assin{display:flex;gap:${Math.round(20*MM)}px;justify-content:space-around;margin-top:${Math.round(34*MM)}px;text-align:center;font-size:11px}
 .lp-assin div{flex:1}
@@ -24587,6 +24688,60 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
         <li>PREVISÃO PARA ADEQUAÇÃO DOS RISCOS NÃO ADEQUADOS</li>
       </ul></div>` };
   }
+  /* O bloco do RISCO RESIDUAL PREVISTO de um risco. Devolve vazio quando não há
+   Solução escrita: prever a redução de uma medida que não foi proposta não
+   informa nada e ocuparia página.
+   O bloco é sempre desenhado (quando há Solução) e a exibição fica com o CSS:
+   no modo de edição aparece para todos, e fora dele só para quem tem previsão
+   de verdade — que é o que sai no PDF. */
+  function lpPrevBlocoHtml(it){
+  if(!riscoTemSolucaoNoLaudo(it)) return "";
+  const esc = escapeHtml;
+  const r = it.risco;
+  const p = hrnPrevistoDoItem(it);
+  const a = p.atual;
+  const metaA = NIVEL_HRN_META[a.nivel] || {};
+  const metaP = NIVEL_HRN_META[p.nivel] || {};
+  const lista = (campo, opts) => {
+    const sel = hrnPrevClassificacao(it, campo);
+    return `<span class="lp-prev-txt">${esc(sel)}</span>`
+      + `<select class="lp-prev-sel" onchange="App.lpPrevSet('${r.id}','${campo}',this.value)">`
+      + opts.map(o=>`<option value="${esc(o)}"${o===sel?" selected":""}>${esc(o)}</option>`).join("")
+      + `</select>`;
+  };
+  /* A QUEDA, e não só o número final. "64 ALTO" sozinho não diz nada; o que
+     convence quem aprova o investimento é ver de onde para onde. */
+  const delta = p.mudou
+    ? `<span class="d">${esc(hrnNumeroBR(a.hrn))} ${esc(a.nivel)} &rarr; ${esc(hrnNumeroBR(p.hrn))} ${esc(p.nivel)}</span>`
+    : `<span class="d">ainda não avaliado</span>`;
+  return `<div class="lp-prev${p.mudou?' tem':''}" id="lpPrev-${r.id}">
+    <div class="lp-prev-tarja"><span>Risco residual previsto — após implantar a solução</span>${delta}</div>
+    <div class="lp-rc-rodape">
+      <div class="lp-rc-hrn"><table class="lp-hrn-h">
+        <tr><td>Probabilidade (PO)</td><td>Frequência (FE)</td><td>Grau do Dano (GPD)</td><td>Nº de pessoas (NP)</td><td>HRN</td></tr>
+        <tr>
+          <td>${lista("po", HRN_PO_OPTS)}</td>
+          <td>${lista("fe", HRN_FE_OPTS)}</td>
+          <td>${lista("gpd", HRN_GPD_OPTS)}</td>
+          <td>${lista("np", HRN_NP_OPTS)}</td>
+          <td style="background:${metaP.cor||metaA.cor};color:${metaP.texto||metaA.texto}">
+            <div class="lp-hrn-n">${esc(hrnNumeroBR(p.hrn))}</div>
+            <div class="lp-hrn-c">${esc(p.nivel)}</div>
+          </td>
+        </tr>
+      </table></div>
+      <div class="lp-rc-plr">
+        <div class="r">Situação após a medida</div>
+        <div class="lp-prev-ver" style="color:${p.aceitavel? "#2E7D32" : "#B26A00"}">
+          ${p.aceitavel? "Risco aceitável" : "Ainda acima do aceitável"}
+        </div>
+      </div>
+    </div>
+    ${p.mudou && !p.aceitavel ? `<div class="lp-prev-nota" style="color:#8A5B00;background:#FFF7E6"><b>A solução proposta não leva este risco a um nível aceitável</b> — as faixas I a V pedem redução até "baixo ou desprezível". Preveja medida complementar ou revise a Solução.</div>` : ""}
+    <div class="lp-prev-dica">Ajuste só o que a medida realmente muda. Proteção fixa e enclausuramento costumam reduzir a <b>Frequência</b> (deixa de haver acesso); intertravamento e parada de emergência reduzem a <b>Probabilidade</b>; redução de energia ou de velocidade reduz o <b>Grau do Dano</b>. Campo deixado no valor de hoje não entra no laudo.</div>
+    <div class="lp-prev-nota">Estimativa de reavaliação conforme ABNT NBR ISO 12100. A reavaliação definitiva deve ser feita após a implantação e a verificação da medida.</div>
+  </div>`;
+}
   async function blocosEquipamentos(itens){
     const blocos = [];
     const porMaquina = new Map();
@@ -24705,6 +24860,7 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
                   : `<div class="v">${plr.aplicavel? "A classificar" : "Não aplicável"}</div>`}
               </div>
             </div>
+            ${lpPrevBlocoHtml(it)}
           </div>` });
         }
       }
@@ -24947,12 +25103,13 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
       <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirFigura()">${ic('layers')} Figura</button>
       <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirConclusao()">${ic('edit')} Conclusão${conclusaoFoiEditada(areaAtual()) ? " ·" : ""}</button>
       <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirAssinatura()">${ic('edit')} Assinatura${assinaturaLaudo() ? " ·" : ""}</button>
+      <button class="btn ${STATE.ui.lpModoPrev? "btn-secondary" : "btn-ghost"} btn-sm" style="border:1px solid ${STATE.ui.lpModoPrev? "#2E7D32" : "var(--line)"}" onclick="App.lpToggleModoPrev()">${ic('shield')} Risco residual${STATE.ui.lpModoPrev? " · editando" : ""}</button>
     </div>
     <div class="lp-logo-linha">${logoFicha()}</div>
     ${""}
     ${__lpPaginas.length? `
       <div class="lp-visor-wrap">
-        <div class="lp-visor"><div class="lp-doc${STATE.ui.lpModoOcultar?' lp-modo-ocultar':''}" id="lpDoc" style="transform:scale(${zoom});width:${PAG_A}px;margin-bottom:${Math.round(-PAG_A*(1-zoom))}px">${__lpHtml}</div></div>
+        <div class="lp-visor"><div class="lp-doc${STATE.ui.lpModoOcultar?' lp-modo-ocultar':''}${STATE.ui.lpModoPrev?' lp-modo-prev':''}" id="lpDoc" style="transform:scale(${zoom});width:${PAG_A}px;margin-bottom:${Math.round(-PAG_A*(1-zoom))}px">${__lpHtml}</div></div>
         <div class="lp-flut">
           <button class="lp-flut-btn" title="Imprimir / Salvar PDF" aria-label="Imprimir ou salvar em PDF" onclick="App.lpImprimir()">${ic('print')}</button>
           <button class="lp-flut-btn" title="Aumentar" aria-label="Aumentar o zoom" onclick="App.lpZoom(1)">${ic('zoomMais')}</button>
@@ -25027,6 +25184,39 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
       marcarAlterado();
       await App.lpGerar();
     },
+    /* RISCO RESIDUAL — liga o modo de edição. Remonta o laudo de propósito:
+       ligar e desligar faz blocos inteiros aparecerem e sumirem, e a
+       paginação é medida na montagem. Sem remontar, as páginas ficariam com
+       buracos ou com conteúdo transbordando — mesmo motivo pelo qual
+       lpToggleRisco remonta. */
+    async lpToggleModoPrev(){
+      STATE.ui.lpModoPrev = !STATE.ui.lpModoPrev;
+      marcarAlterado();
+      if(STATE.ui.lpModoPrev){
+        /* O documento é desenhado em A4 e encolhido por transform:scale. No
+           zoom padrão (50%) as listas ficam com metade do tamanho e não dá
+           para acertar com o dedo. Ao entrar no modo de edição, sobe para
+           100% — quem quiser continua ajustando o zoom pelos botões. */
+        if((STATE.ui.lpZoom || 0.5) < 1) STATE.ui.lpZoom = 1;
+        toast("Ajuste os campos previstos em cada risco. Só o que você mudar entra no laudo.");
+      }
+      await App.lpGerar();
+    },
+    /* Um campo da previsão. NÃO remonta o laudo: a tabela prevista tem sempre
+       a mesma altura, mudando só os valores dentro dela — então a paginação
+       não muda, e remontar a cada toque numa lista deixaria a edição
+       insuportável num laudo de 200 riscos. Redesenha só o bloco daquele
+       risco, que é o que dá o cálculo instantâneo. */
+    lpPrevSet(riscoId, campo, valor){
+      const it = laudoItemPorId(riscoId);
+      if(!it || !it.risco) return;
+      if(it.proj && recusarSeArquivado(it.proj.id)) return;
+      if(!hrnPrevAplicar(it.risco, it.tarefa, campo, valor)) return;
+      it.risco.atualizadoEm = agoraSync();
+      marcarAlterado();
+      const el = document.getElementById("lpPrev-" + riscoId);
+      if(el) el.outerHTML = lpPrevBlocoHtml(it);
+    },
     async lpToggleRisco(riscoId){
       const it = laudoItemPorId(riscoId);
       if(!it || !it.risco) return;
@@ -25094,6 +25284,11 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
       //    imprimir logo depois de desmarcar alguma coisa (a própria
       //    desmarcação já dispara uma montagem) reproduz o mesmo bug.
       STATE.ui.lpModoOcultar = false;
+      /* Mesma razão do modo de seleção, logo acima: no modo de edição do risco
+         residual TODOS os blocos aparecem, inclusive os de riscos que ninguém
+         avaliou, e as listas suspensas estão visíveis. Imprimir sem sair dele
+         levaria as duas coisas para o PDF. */
+      STATE.ui.lpModoPrev = false;
       while(__lpGerando) await new Promise(r=>setTimeout(r, 30));
       await App.lpGerar();
       const doc = document.getElementById("lpDoc");
