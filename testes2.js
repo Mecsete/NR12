@@ -4788,9 +4788,15 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     vm.runInContext("var __assinaturasOneDriveSimples = { mapa:null, chaveEstado:'oneDriveAssinaturasSimples' };", ctxS);
     vm.runInContext("var __arvoreSimplesCache = null, __indiceNuvemMapa = null, __indiceNuvemMapaEm = 0;", ctxS);
     vm.runInContext("var __downloadJaVarreuNestaSessao = false;", ctxS);
+    /* Arquivamento por aparelho (03/09/2026): a lista sincronizavel consulta
+       projetoArquivado, e a exclusao inferida consulta idsProtegidosPorArquivamento.
+       Sem esta lista aqui, o codigo real extraido do index.html nao roda. */
+    vm.runInContext("var __projArquivados = new Set();", ctxS);
     [ "__carregarUltimoCarimbo","registrarCarimboVisto","agoraSync",
       "segmentoPastaComId","extrairSufixoDoNome","idBateComSufixo",
-      "listarItensSincronizaveisSimples","separarFotosDoItem","__ehFotoEmbutida",
+      "projetoArquivado","projetosArquivadosDoAparelho","projetosAtivosDoAparelho",
+    "idsProtegidosPorArquivamento","projetoArquivadoPeloSufixo","pularPastaDeProjetoArquivado",
+    "listarItensSincronizaveisSimples","separarFotosDoItem","__ehFotoEmbutida",
       "__ehFotoOuRef","ehFotoRefPersist","ehFotoDataUrlPersist",
       "tamanhoTextoLocalDoItem","onedriveCarregarAssinaturas","onedriveAssinaturaDe",
       "onedriveAnotarTamanho","onedriveArquivoMudouNaNuvem","onedriveMesmaVersaoPeloTamanho",
@@ -7025,8 +7031,10 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       var __arvoreSimplesCache = null;
       async function fotosCarregarIndice(){ return new Set(); }
       var __assinaturasOneDriveSimples = { mapa:null, chaveEstado:"oneDriveAssinaturasSimples" };
+      var __projArquivados = new Set();   // arquivamento por aparelho (03/09/2026)
     `, ctx);
     ["CAMPOS_FILHOS_SYNC","CAMPO_FILHOS_POR_TIPO","CAMPOS_FOTO_UNICA"].forEach(n=>vm.runInContext(constante(n), ctx));
+    ["projetoArquivado","projetoArquivadoPeloSufixo"].forEach(n=>vm.runInContext(funcao(n), ctx));
     ["segmentoPastaComId","extrairSufixoDoNome","idBateComSufixo","separarFotosDoItem","__ehFotoEmbutida",
      "__ehFotoOuRef","ehFotoRefPersist","ehFotoDataUrlPersist",
      "tamanhoTextoLocalDoItem","onedriveCarregarAssinaturas","onedriveAssinaturaDe","onedriveAnotarTamanho",
@@ -9845,6 +9853,183 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     t("duas medicoes ao mesmo tempo nao rodam", ()=>{
       ok(HTML.indexOf("if(__espacoProjRodando) return;") > 0,
          "sem trava, dois toques leem o banco inteiro duas vezes ao mesmo tempo");
+    });
+  }
+
+  /* ---------- t150: arquivar projeto — SO NESTE APARELHO --------------------
+     Pedido em 03/09/2026 com duas condicoes explicitas do engenheiro:
+     (1) tem de ser POR DISPOSITIVO — quem arquiva e quem ja terminou naquele
+         celular; outra pessoa pode estar no meio da inspecao com o mesmo
+         projeto em outro aparelho;
+     (2) o medo declarado: arquivar e depois o iPhone nao conseguir montar o
+         projeto de volta.
+     A resposta a (2) esta na estrutura, nao numa promessa: arquivar NAO APAGA
+     NADA. O projeto continua inteiro no aparelho — por isso reativar e
+     instantaneo e funciona sem internet, e por isso nao existe "montar de
+     volta". Os testes abaixo travam exatamente essas duas coisas.
+
+     O caso perigoso (arquivar virar apagar a nuvem) e provado de ponta a ponta
+     no ENSAIO 31 do banco.js, com sincronizacao manual e usuario respondendo
+     SIM — inclusive com prova de dentes. */
+  {
+    console.log("\n[t150] arquivar projeto: so neste aparelho, sem apagar nada");
+
+    /* ---- (1) POR DISPOSITIVO ----
+       A garantia nao vem de uma lista de exclusao (que alguem esquece de
+       atualizar) e sim da ESTRUTURA: a lista mora numa chave propria do banco,
+       e o STATE nao a referencia. O backup le o STATE. A sincronizacao le o
+       STATE. Os pontos de restauracao clonam o STATE. Nenhum deles a alcanca.
+       Mesmo desenho da assinatura do responsavel (t148). */
+    t("A GARANTIA: a lista de arquivados mora fora do STATE, em chave propria", ()=>{
+      ok(HTML.indexOf('const DB_KEY_ARQUIVADOS = "projetosArquivadosNesteAparelho";') > 0,
+         "sumiu a chave propria — o arquivamento passaria a viajar entre aparelhos");
+      ok(HTML.indexOf("STATE.projetosArquivados") < 0 && HTML.indexOf("mecseteConfig.arquivados") < 0,
+         "o arquivamento foi parar no STATE — arquivar aqui sumiria com o projeto no aparelho do colega");
+    });
+    t("le e grava direto na chave, sem passar pelo STATE", ()=>{
+      const ler = funcao("arquivadosLer"), gravar = funcao("arquivadosGravar");
+      ok(ler.indexOf("get(DB_KEY_ARQUIVADOS)") > 0);
+      ok(gravar.indexOf("put(lista.map(String), DB_KEY_ARQUIVADOS)") > 0);
+      ok(gravar.indexOf("store.delete(DB_KEY_ARQUIVADOS)") > 0,
+         "esvaziar a lista precisa apagar a chave, nao gravar lista vazia");
+      [ler, gravar].forEach(f=> ok(f.indexOf("STATE") < 0, "o arquivamento encostou no STATE"));
+    });
+    t("o backup continua saindo do STATE, e so dele", ()=>{
+      const f = funcao("backupV2EmPartes");
+      ok(f.indexOf("STATE.projetosSimples") > 0);
+      ok(f.indexOf("ARQUIVADOS") < 0 && f.indexOf("Arquivad") < 0,
+         "o backup encostou na lista de arquivados");
+    });
+    t("e o pacote da equipe tambem nao a leva", ()=>{
+      ok(funcao("montarPacoteEquipe").indexOf("rquivad") < 0,
+         "a lista entrou no pacote da configuracao, que sincroniza");
+    });
+
+    /* ---- (2) ARQUIVAR NAO APAGA — e por isso nao ha o que remontar ---- */
+    t("O QUE RESPONDE O MEDO: nada e apagado ao arquivar", ()=>{
+      const f = HTML.slice(HTML.indexOf("  async arquivarProjetoS(id){"),
+                           HTML.indexOf("  async reativarProjetoS(id){"));
+      ok(f.length > 200, "nao achou o metodo de arquivar");
+      ["STATE.projetosSimples =", "splice(", ".filter(x=>x.id!==", "dbDelete", "onedriveApagarBlob",
+       "registrarLapidesExclusao"].forEach(p=>
+        ok(f.indexOf(p) < 0, "arquivar chegou a apagar alguma coisa: " + p));
+      ok(f.indexOf("__projArquivados.add(String(id))") > 0, "so o que faz e marcar o id");
+    });
+    t("reativar tambem so tira a marca — nao busca, nao baixa, nao monta nada", ()=>{
+      const f = HTML.slice(HTML.indexOf("  async reativarProjetoS(id){"),
+                           HTML.indexOf("  removerProjetoS(id){"));
+      ok(f.indexOf("__projArquivados.delete(String(id))") > 0);
+      ["onedriveBaixar", "await onedriveListarArvore", "fetch("].forEach(p=>
+        ok(f.indexOf(p) < 0, "reativar passou a depender da rede: " + p));
+    });
+    /* O texto do confirm faz parte da correcao, nao e enfeite: a duvida "sera
+       que perco o projeto?" e justamente o que impede o recurso de ser usado. */
+    t("a pergunta de arquivar diz, com todas as letras, que nada e apagado", ()=>{
+      const f = HTML.slice(HTML.indexOf("  async arquivarProjetoS(id){"),
+                           HTML.indexOf("  async reativarProjetoS(id){"));
+      ok(f.indexOf("Nada é apagado — nem aqui, nem na nuvem") > 0);
+      ok(f.indexOf("Reativar é imediato e funciona sem internet") > 0);
+      ok(f.indexOf("Os outros aparelhos não são afetados") > 0,
+         "sem esta linha, arquivar parece uma decisao de equipe");
+    });
+    /* O UNICO jeito de arquivar causar prejuizo: trabalho de campo que ainda
+       nao subiu. Fora da fila, ele fica so neste aparelho, sem copia nenhuma. */
+    t("avisa quando ha trabalho de campo que ainda nao subiu", ()=>{
+      const f = HTML.slice(HTML.indexOf("  async arquivarProjetoS(id){"),
+                           HTML.indexOf("  async reativarProjetoS(id){"));
+      ok(f.indexOf("faltaEnviarPorProjeto()") > 0, "sem conferir a fila, o aviso nao existe");
+      ok(f.indexOf("sem cópia em nenhum outro lugar") > 0);
+      ok(f.indexOf("O melhor é sincronizar primeiro e arquivar depois") > 0);
+    });
+    /* O indice da nuvem foi montado SEM as pastas do projeto arquivado. Mantido
+       depois de reativar, ele responde "esses arquivos nao existem na nuvem" —
+       e e essa resposta que libera o envio de um item cuja foto se perdeu aqui,
+       apagando a ultima copia que existe. */
+    t("reativar zera o indice da nuvem, que foi montado sem as pastas dele", ()=>{
+      const f = HTML.slice(HTML.indexOf("  async reativarProjetoS(id){"),
+                           HTML.indexOf("  removerProjetoS(id){"));
+      ok(f.indexOf("STATE.oneDriveIndiceNuvem = null;") > 0,
+         "sem zerar, o indice incompleto mente por 24h e pode custar a ultima copia de uma foto");
+      ok(f.indexOf("__indiceNuvemMapa = null;") > 0, "o cache em memoria tambem precisa cair");
+    });
+
+    /* ---- o efeito na sincronizacao (o pedido original) ---- */
+    t("a lista sincronizavel pula o projeto arquivado", ()=>{
+      const f = funcao("listarItensSincronizaveisSimples");
+      ok(f.indexOf("if(!incluirArquivados && projetoArquivado(proj.id)) return;") > 0,
+         "sem esta linha o projeto arquivado continua custando a sincronizacao inteira");
+    });
+    t("a exclusao inferida NUNCA alcanca um projeto arquivado", ()=>{
+      const f = funcao("onedriveSincronizarModulo");
+      ok(f.indexOf("const idsArquivados = idsProtegidosPorArquivamento();") > 0);
+      ok(f.indexOf("if(!idsAtuais.has(id) && !idsArquivados.has(id)) idsExcluidosTodos.push(id);") > 0,
+         "esta e a linha que separa arquivar de apagar — ver ENSAIO 31");
+    });
+    t("a varredura da nuvem nao abre a pasta do projeto arquivado", ()=>{
+      ok(funcao("onedriveListarArvore").indexOf("n.pasta && !(pularNo && pularNo(n))") > 0,
+         "sem o filtro, a subarvore inteira continua sendo listada — e e a listagem que gasta rede");
+      eq((HTML.match(/onedriveListarArvore\(`\$\{ONEDRIVE_PASTA_APP\}\/\$\{SUBPASTA_BACKUP\}\/Simplificado`, 4, undefined, pularPastaDeProjetoArquivado\)/g)||[]).length, 2,
+         "os DOIS caminhos de sincronizacao (baixar e contar) precisam do filtro");
+    });
+    /* Recuperacao precisa enxergar TUDO — inclusive o que esta arquivado. Se um
+       dia ela passar a usar o filtro, uma foto perdida dentro de um projeto
+       arquivado deixaria de ser encontrada. */
+    t("mas a RECUPERACAO de fotos continua varrendo tudo, inclusive o arquivado", ()=>{
+      const f = funcao("recuperarFotosVarrendoNuvem");
+      ok(f.indexOf("pularPastaDeProjetoArquivado") < 0,
+         "a recuperacao passou a pular o arquivado — foto perdida la dentro nao seria mais achada");
+    });
+    t("e o classificador do download ignora o projeto arquivado", ()=>{
+      ok(funcao("onedriveClassificarNovosSimples")
+         .indexOf("if(projetoArquivadoPeloSufixo(extrairSufixoDoNome(nodeProj.nome))) continue;") > 0);
+    });
+
+    /* ---- a tela ---- */
+    t("a lista mostra so os ativos, e o bloco de arquivados fica no fim", ()=>{
+      const f = funcao("screenSimplesProjetos");
+      ok(f.indexOf("const projetos = projetosAtivosDoAparelho();") > 0);
+      ok(f.indexOf("blocoArquivadosHtml(arquivados)") > 0);
+    });
+    /* Com tudo arquivado, a tela vazia sozinha diria "nenhum projeto
+       cadastrado" — com os projetos todos ali, guardados. E o caminho de volta
+       ficaria invisivel. */
+    t("com tudo arquivado, a tela vazia nao mente nem esconde o caminho de volta", ()=>{
+      const f = funcao("screenSimplesProjetos");
+      ok(f.indexOf('${arquivados.length? "Nenhum projeto ativo" : "Nenhum projeto cadastrado"}') > 0);
+      const vazio = f.slice(f.indexOf("if(projetos.length===0){"), f.indexOf("const cards ="));
+      ok(vazio.indexOf("blocoArquivadosHtml(arquivados)") > 0,
+         "sem o bloco na tela vazia, os projetos arquivados ficam sem porta de volta");
+    });
+    t("o bloco vem fechado, e so aberto e que calcula a fila", ()=>{
+      const f = funcao("blocoArquivadosHtml");
+      ok(HTML.indexOf("let __mostrarArquivados = false;") > 0, "aberto por padrao, incomoda todo dia");
+      ok(f.indexOf("if(!__mostrarArquivados) return") > 0);
+      ok(f.indexOf("if(!__mostrarArquivados) return") < f.indexOf("faltaEnviarPorProjeto()"),
+         "a conta precisa ficar DEPOIS do retorno — fechado, o bloco nao pode custar nada");
+    });
+    t("cada cartao arquivado diz o que tem dentro e tem o botao de reativar", ()=>{
+      const f = funcao("blocoArquivadosHtml");
+      ok(f.indexOf("contarItensDoProjeto(p)") > 0, "a ficha precisa dizer quantas areas/equipamentos/riscos");
+      ok(f.indexOf("App.reativarProjetoS(") > 0);
+      ok(f.indexOf("Reativar é imediato e funciona sem internet") > 0);
+    });
+    t("a conta do que falta enviar e feita UMA vez, nao por cartao", ()=>{
+      ok(funcao("faltaEnviarPorProjeto").indexOf("listarItensSincronizaveisSimples(true)") > 0,
+         "precisa da lista completa, senao o projeto ja arquivado contaria zero");
+      ok(funcao("blocoArquivadosHtml").indexOf("const falta = faltaEnviarPorProjeto();") > 0,
+         "chamada por cartao refaria a lista inteira a cada projeto — o custo que este recurso veio evitar");
+    });
+    t("tem a opcao no menu do projeto", ()=>{
+      ok(HTML.indexOf('{label:"Arquivar neste aparelho", icon:"folder", onclick:`App.arquivarProjetoS(') > 0);
+    });
+    /* A lista precisa estar lida ANTES do primeiro desenho: e ela que decide o
+       que aparece na tela e o que entra na sincronizacao. */
+    t("a lista e lida antes do primeiro desenho", ()=>{
+      ok(HTML.indexOf("let __arquivadosCarregados = arquivadosLer().then(l=>{ __projArquivados = new Set(l); })") > 0);
+      ok(HTML.indexOf("await __arquivadosCarregados;   // antes do primeiro render — ver acima") > 0);
+      const i = HTML.indexOf("await __arquivadosCarregados;");
+      ok(i > 0 && i < HTML.indexOf("    STATE = novoEstado;"),
+         "lida depois do STATE, a tela pisca com os arquivados dentro");
     });
   }
 

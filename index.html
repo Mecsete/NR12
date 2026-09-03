@@ -1865,6 +1865,124 @@ async function assinaturaGravar(dataUrl){
     });
   }catch(e){ return false; }
 }
+/* ===== PROJETOS ARQUIVADOS — SÓ NESTE APARELHO =====
+   Um projeto terminado continua custando a sincronização inteira: a cada
+   ciclo o app monta a lista de TODOS os itens de TODOS os projetos, compara
+   assinatura por assinatura, e lista na nuvem a pasta de cada um deles. Num
+   acervo com milhares de itens, a maior parte desse trabalho é gasta com
+   projetos que ninguém vai abrir de novo — e é ele que produz as esperas, os
+   429 e as sessões expiradas no iPhone.
+
+   Arquivar tira o projeto da lista e da sincronização NESTE APARELHO.
+
+   POR QUE POR APARELHO, E NÃO PARA TODOS: quem arquiva é quem já terminou o
+   trabalho naquele celular. Outra pessoa pode estar no meio da inspeção com o
+   mesmo projeto em outro aparelho, e propagar o arquivamento tiraria o
+   projeto da tela dela sem aviso nenhum. Por isso a lista mora numa chave
+   própria do banco, FORA do STATE — o mesmo desenho da assinatura do
+   responsável: o backup lê o STATE, a sincronização lê o STATE, os pontos de
+   restauração clonam o STATE, e nenhum deles alcança esta lista.
+
+   O QUE ARQUIVAR **NÃO** FAZ: não apaga nada. Nem uma palavra, nem uma foto,
+   nem um arquivo da nuvem. O projeto continua inteiro neste aparelho, com
+   todas as áreas, equipamentos, tarefas, riscos e fotos. É por isso que
+   reativar é instantâneo e funciona sem internet: não há nada para "montar de
+   volta", nada para baixar, nenhuma pasta para listar.
+
+   Essa é a resposta ao medo — legítimo — de arquivar um projeto e o aparelho
+   não conseguir remontá-lo depois: aqui ele nunca chega a ser desmontado. O
+   que sai é o trabalho de sincronizar, não o projeto. */
+const DB_KEY_ARQUIVADOS = "projetosArquivadosNesteAparelho";
+let __projArquivados = new Set();
+function projetoArquivado(id){ return __projArquivados.has(String(id)); }
+function projetosArquivadosDoAparelho(){
+  return (STATE.projetosSimples||[]).filter(p=>projetoArquivado(p.id));
+}
+function projetosAtivosDoAparelho(){
+  return (STATE.projetosSimples||[]).filter(p=>!projetoArquivado(p.id));
+}
+/* TRAVA CENTRAL DESTE RECURSO — ARQUIVAR NUNCA PODE VIRAR APAGAR.
+   O motor de sincronização reconhece uma exclusão assim: o id está no mapa de
+   assinaturas e não está mais na lista local. Um projeto arquivado sai
+   justamente dessa lista. Sem esta função, o primeiro "Sincronizar agora"
+   depois de arquivar ofereceria apagar da nuvem os milhares de itens do
+   projeto de uma vez — e a nuvem costuma ser a última cópia da foto de campo. */
+function idsProtegidosPorArquivamento(){
+  const s = new Set();
+  projetosArquivadosDoAparelho().forEach(p=>{
+    idsSincronizaveisDe("projeto", p).forEach(id=>s.add(id));
+  });
+  return s;
+}
+/* A pasta da nuvem carrega o id no nome — é assim que a varredura sabe, sem
+   abrir a pasta, que aquele projeto está arquivado aqui. */
+function projetoArquivadoPeloSufixo(sufixo){
+  if(!sufixo) return false;
+  const p = (STATE.projetosSimples||[]).find(x=>idBateComSufixo(x.id, sufixo));
+  return !!p && projetoArquivado(p.id);
+}
+/* Filtro passado à listagem da nuvem pelos dois caminhos de sincronização: a
+   pasta de um projeto arquivado não é aberta, e com ela some da rede toda a
+   subárvore de áreas, equipamentos, tarefas e riscos daquele projeto. É daqui
+   que vem a economia de verdade — a listagem é a parte que gasta requisições,
+   e é ela que provoca os 429 e as sessões expiradas.
+   A ferramenta de RECUPERAR fotos da nuvem NÃO usa este filtro: recuperação
+   precisa enxergar tudo, inclusive o que está arquivado. */
+function pularPastaDeProjetoArquivado(no){
+  return !!no && no.pasta && projetoArquivadoPeloSufixo(extrairSufixoDoNome(no.nome));
+}
+/* Quantos itens de cada projeto a nuvem ainda não tem (ou tem numa versão
+   antiga). Arquivar tira o projeto da fila de envio: se ainda houver trabalho
+   de campo esperando para subir, ele fica parado só neste aparelho, sem cópia
+   em lugar nenhum. É esse o aviso que aparece antes de arquivar.
+   Calculado de uma vez para todos os projetos — chamar por projeto dentro do
+   desenho da tela refaria a lista sincronizável inteira a cada cartão, que é
+   exatamente o custo que este recurso veio evitar. */
+function faltaEnviarPorProjeto(){
+  const out = new Map();
+  if(!getOneDriveConta()) return out;
+  try{
+    const assinaturas = onedriveCarregarAssinaturas(__assinaturasOneDriveSimples);
+    const porId = new Map();
+    listarItensSincronizaveisSimples(true).forEach(it=> porId.set(it.id, it));
+    (STATE.projetosSimples||[]).forEach(p=>{
+      let n = 0;
+      idsSincronizaveisDe("projeto", p).forEach(id=>{
+        const it = porId.get(id); if(!it) return;
+        const reg = assinaturas.get(id);
+        if(!reg || reg.atualizadoEm !== it.atualizadoEm || reg.fotosPendentes) n++;
+      });
+      out.set(p.id, n);
+    });
+  }catch(e){}
+  return out;
+}
+async function arquivadosLer(){
+  if(!temIndexedDB()) return [];
+  try{
+    const db = await dbOpen();
+    return await new Promise((resolve)=>{
+      const tx = db.transaction(DB_STORE,"readonly");
+      const rq = tx.objectStore(DB_STORE).get(DB_KEY_ARQUIVADOS);
+      rq.onsuccess = ()=>resolve(Array.isArray(rq.result) ? rq.result.map(String) : []);
+      rq.onerror   = ()=>resolve([]);
+    });
+  }catch(e){ return []; }
+}
+async function arquivadosGravar(lista){
+  if(!temIndexedDB()) return false;
+  try{
+    const db = await dbOpen();
+    return await new Promise((resolve)=>{
+      const tx = db.transaction(DB_STORE,"readwrite");
+      const store = tx.objectStore(DB_STORE);
+      if(lista && lista.length) store.put(lista.map(String), DB_KEY_ARQUIVADOS);
+      else store.delete(DB_KEY_ARQUIVADOS);
+      tx.oncomplete = ()=>resolve(true);
+      tx.onerror    = ()=>resolve(false);
+    });
+  }catch(e){ return false; }
+}
 async function fotosLerMapaOrfas(db){
   return await new Promise((resolve)=>{
     try{
@@ -2441,7 +2559,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "02/09/2026 19:31";
+const APP_BUILD = "03/09/2026 08:45";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -2831,9 +2949,15 @@ function pastaItem(...partes){
 /* Percorre toda a árvore do módulo simplificado e devolve uma lista plana de
    itens sincronizáveis, cada um já com o caminho de pastas (array de segmentos)
    e o nome de arquivo que deve ter dentro da pasta-base. */
-function listarItensSincronizaveisSimples(){
+function listarItensSincronizaveisSimples(incluirArquivados){
   const itens = [];
   STATE.projetosSimples.forEach(proj=>{
+    /* PROJETO ARQUIVADO NESTE APARELHO NÃO ENTRA NA SINCRONIZAÇÃO.
+       É esta linha que produz a economia pedida: nada dele é comparado, nada
+       dele é enviado. Ele continua inteiro no aparelho e inteiro na nuvem.
+       Quem precisa da lista COMPLETA (para contar o que ainda falta subir,
+       por exemplo) pede com incluirArquivados. */
+    if(!incluirArquivados && projetoArquivado(proj.id)) return;
     const segProj = segmentoPastaComId(proj.empresa || proj.nome || "Projeto", proj.id);
     const caminhoProj = [segProj];
     // Mesma lógica dos demais níveis: o arquivo do projeto não embute "areas"
@@ -3520,7 +3644,13 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
   const podeSubirFotos = podeSincronizarAutomaticoAgora() || !!onProgresso;
 
   const idsExcluidosTodos = [];
-  assinaturas.forEach((registro, id)=>{ if(!idsAtuais.has(id)) idsExcluidosTodos.push(id); });
+  /* ARQUIVADO NÃO É APAGADO — ver idsProtegidosPorArquivamento.
+     Um projeto arquivado sai da lista sincronizável, e "sair da lista" é
+     exatamente o sinal que o motor lê como exclusão. Sem esta proteção,
+     arquivar um projeto de 1700 itens e tocar em "Sincronizar agora" ofereceria
+     apagar os 1700 arquivos da nuvem de uma vez. */
+  const idsArquivados = idsProtegidosPorArquivamento();
+  assinaturas.forEach((registro, id)=>{ if(!idsAtuais.has(id) && !idsArquivados.has(id)) idsExcluidosTodos.push(id); });
   // Separa o que a pessoa JÁ confirmou apagar (lápide gravada no momento da
   // exclusão) do que sumiu sem explicação. O confirmado vai direto; só o
   // incerto passa pelo freio de exclusão em massa.
@@ -4159,7 +4289,7 @@ async function onedriveListarFilhosEmLote(caminhos, onLote){
    pastas respondido. Num projeto grande esta função leva minutos e não tem
    nada para contar ainda — sem um sinal de vida, quem chamou fica com o
    painel de progresso mudo (ver progressoAbrir). */
-async function onedriveListarArvore(caminhoPasta, profundidadeRestante, onPasta){
+async function onedriveListarArvore(caminhoPasta, profundidadeRestante, onPasta, pularNo){
   const construirNos = (caminhoBase, itens) => itens.map(f => {
     const caminhoFilho = `${caminhoBase}/${f.nome}`;
     return f.pasta
@@ -4171,7 +4301,10 @@ async function onedriveListarArvore(caminhoPasta, profundidadeRestante, onPasta)
   __falhaNuvemSemCaminho = false;
   const filhosRaiz = (await onedriveListarFilhosEmLote([caminhoPasta])).get(caminhoPasta) || [];
   const nivelRaiz = construirNos(caminhoPasta, filhosRaiz);
-  let nivelAtual = nivelRaiz.filter(n=>n.pasta);
+  /* pularNo corta uma pasta E TODA a subárvore dela antes de qualquer
+     requisição — é assim que um projeto arquivado deixa de custar rede.
+     Quem não passa filtro continua varrendo tudo, como sempre. */
+  let nivelAtual = nivelRaiz.filter(n=>n.pasta && !(pularNo && pularNo(n)));
   let restante = profundidadeRestante;
   let nivel = 1;
   while(nivelAtual.length>0 && restante>0){
@@ -4281,6 +4414,10 @@ function onedriveClassificarNovosSimples(arvoreProjetos){
   for(const nodeProj of arvoreProjetos){
     if(!nodeProj.pasta) continue;
     if(pularProj.has(nodeProj)) continue; // cópia parada do mesmo projeto — ver onedriveDuplicatasParaIgnorar
+    /* Projeto arquivado neste aparelho: nada dele é baixado nem contado. A
+       listagem já nem abre a pasta (ver pularPastaDeProjetoArquivado); esta
+       linha cobre o caminho em que a árvore veio de outra origem. */
+    if(projetoArquivadoPeloSufixo(extrairSufixoDoNome(nodeProj.nome))) continue;
     const projLocal = STATE.projetosSimples.find(p=>idBateComSufixo(p.id, extrairSufixoDoNome(nodeProj.nome)));
     if(!projLocal){
       // Projeto que este aparelho ainda não conhece. Antes, isso era pulado
@@ -5481,7 +5618,7 @@ function onedriveEstaEmWifi(){
 async function sincronizarDownloadOneDriveUmaPassada(onProgresso){
   if(!getOneDriveConta()) return { mesclados:0, erro:false };
   try{
-    const arvore = await onedriveListarArvore(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`, 4);
+    const arvore = await onedriveListarArvore(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`, 4, undefined, pularPastaDeProjetoArquivado);
     const { pequenos, grandes } = onedriveClassificarNovosSimples(arvore);
     let mesclados = 0;
     await executarComConcorrencia(pequenos, 8, async (item) => {
@@ -7024,7 +7161,7 @@ function onedriveStatusPendenteHtml(){
 async function onedriveEstimarPendentesDownload(){
   if(!getOneDriveConta()) return { pequenos:[], grandes:[], erro:false, camadaIncompleta:false, arvore:null };
   try{
-    const arvore = await onedriveListarArvore(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`, 4);
+    const arvore = await onedriveListarArvore(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`, 4, undefined, pularPastaDeProjetoArquivado);
     onedriveGuardarIndiceNuvem(onedriveColetarArquivosDaArvore(arvore)); // mantém o índice fresco também no ciclo automático
     const classificado = onedriveClassificarNovosSimples(arvore);
     // Se existe Projeto ou Área ainda não conhecidos por este aparelho, tudo o
@@ -11598,8 +11735,49 @@ function renderRiskResult(r){
 /* =========================================================================
    MÓDULO SIMPLIFICADO — TELAS DE LISTA
    ========================================================================= */
+/* O bloco dos arquivados na lista de projetos. Fechado por padrão: quem
+   arquivou não quer vê-los todo dia — quer poder trazê-los de volta quando
+   precisar. Só quando aberto é que a contagem do que falta enviar é
+   calculada; fechado, ele não custa nada. */
+let __mostrarArquivados = false;
+function blocoArquivadosHtml(arquivados){
+  if(arquivados.length === 0) return "";
+  const cabecalho = `
+    <div class="card list-card" style="cursor:pointer" onclick="App.toggleArquivados()">
+      <div class="list-thumb">${ic('folder')}</div>
+      <div class="list-body">
+        <div class="list-name">Arquivados neste aparelho</div>
+        <div class="list-tag">${arquivados.length} projeto${arquivados.length===1?'':'s'} fora da sincronização</div>
+      </div>
+      <div class="list-actions" style="padding:0 12px;color:var(--ink-dim)">${__mostrarArquivados?'▲':'▼'}</div>
+    </div>`;
+  if(!__mostrarArquivados) return `<div class="section-title">Arquivados</div>${cabecalho}`;
+  const falta = faltaEnviarPorProjeto();
+  const cartoes = arquivados.slice().sort((a,b)=>b.criadoEm-a.criadoEm).map(p=>{
+    const c = contarItensDoProjeto(p);
+    const f = falta.get(p.id) || 0;
+    return `
+    <div class="card card-pad" style="margin-top:8px">
+      <div style="font-weight:800;font-size:13.5px">${escapeHtml(p.empresa||'Sem nome')}</div>
+      <div style="font-size:12px;color:var(--ink-dim)">${escapeHtml(p.cidade||'sem cidade')} · ${fmtDate(p.data)}</div>
+      <div class="list-meta" style="margin-top:6px">
+        <span class="stat-pill">${c.areas} área${c.areas===1?'':'s'}</span>
+        <span class="stat-pill">${c.maquinas} equipamento${c.maquinas===1?'':'s'}</span>
+        <span class="stat-pill">${c.riscos} risco${c.riscos===1?'':'s'}</span>
+      </div>
+      ${f>0? `<div style="font-size:11.5px;color:#B26A00;margin-top:7px">${f} ${f===1?'item ainda não enviado':'itens ainda não enviados'} à nuvem — ${f===1?'ele volta':'eles voltam'} para a fila quando o projeto for reativado.</div>`:""}
+      <button class="btn btn-secondary btn-sm" style="margin-top:10px" onclick="App.reativarProjetoS('${p.id}')">${ic('arrowR')} Reativar neste aparelho</button>
+    </div>`;
+  }).join("");
+  return `<div class="section-title">Arquivados</div>${cabecalho}
+    <div class="field-hint" style="margin:8px 2px">Continuam inteiros neste aparelho — texto e fotos, nada foi apagado. Reativar é imediato e funciona sem internet: não há nada para baixar de volta.</div>
+    ${cartoes}`;
+}
 function screenSimplesProjetos(){
-  const projetos = STATE.projetosSimples;
+  /* A lista mostra só os ATIVOS; os arquivados vão para o bloco próprio, no
+     fim da tela. Nenhum projeto some do aparelho — só sai daqui. */
+  const projetos = projetosAtivosDoAparelho();
+  const arquivados = projetosArquivadosDoAparelho();
   const temOneDrive = getOneDriveConta();
   const avisoOneDrive = (!temOneDrive && onedriveDisponivel()) ? `
     <div class="card card-pad" style="border:1.5px solid #0364B8;display:flex;align-items:center;gap:10px" onclick="App.go('simples-config-backup')">
@@ -11613,8 +11791,12 @@ function screenSimplesProjetos(){
       ${ic('chevR')}
     </div>` : '';
   if(projetos.length===0){
-    return `${avisoOneDrive}<div class="empty">${ic('briefcase')}<h3>Nenhum projeto cadastrado</h3><p>Crie o primeiro projeto do módulo simplificado.</p>
-      <div style="margin-top:18px"><button class="btn btn-primary" onclick="App.abrirModalProjetoS(null)">${ic('plus')} Novo projeto</button></div></div>`;
+    /* Com tudo arquivado, a tela vazia sozinha mentiria: diria "nenhum projeto
+       cadastrado" com os projetos todos ali, guardados. O bloco de arquivados
+       entra junto, para o caminho de volta estar sempre à vista. */
+    return `${avisoOneDrive}<div class="empty">${ic('briefcase')}<h3>${arquivados.length? "Nenhum projeto ativo" : "Nenhum projeto cadastrado"}</h3><p>${arquivados.length? "Os projetos deste aparelho estão arquivados — reative um abaixo quando precisar." : "Crie o primeiro projeto do módulo simplificado."}</p>
+      <div style="margin-top:18px"><button class="btn btn-primary" onclick="App.abrirModalProjetoS(null)">${ic('plus')} Novo projeto</button></div></div>
+      ${blocoArquivadosHtml(arquivados)}`;
   }
   const cards = projetos.slice().sort((a,b)=>b.criadoEm-a.criadoEm).map(p=>{
     let totalMaquinas = 0, totalRiscos = 0;
@@ -11638,6 +11820,7 @@ function screenSimplesProjetos(){
     </div>`;
   }).join("");
   return `${avisoOneDrive}<div class="section-title">${projetos.length} projeto${projetos.length===1?'':'s'}</div>${cards}
+    ${blocoArquivadosHtml(arquivados)}
     <div class="fab-wrap"><button class="fab" onclick="App.abrirModalProjetoS(null)">${ic('plus')}</button></div>`;
 }
 function screenSimplesAreas(){
@@ -20064,8 +20247,52 @@ Devolver agora?`)) return;
     abrirMenuAcoes(p.empresa||"Projeto", p.cidade||"", [
       {label:"Ver áreas", icon:"arrowR", onclick:`App.abrirProjetoS('${id}')`},
       {label:"Editar dados", icon:"edit", onclick:`App.abrirModalProjetoS('${id}')`},
+      {label:"Arquivar neste aparelho", icon:"folder", onclick:`App.arquivarProjetoS('${id}')`},
       {label:"Excluir projeto", icon:"trash", onclick:`App.removerProjetoS('${id}')`, danger:true},
     ]);
+  },
+  toggleArquivados(){ __mostrarArquivados = !__mostrarArquivados; render(); },
+  /* ARQUIVAR NÃO APAGA NADA — nem aqui, nem na nuvem. O texto do confirm diz
+     isso item por item de propósito: a pergunta certa produz a decisão certa,
+     e a dúvida "será que perco o projeto?" é justamente o que trava o uso
+     deste recurso. */
+  async arquivarProjetoS(id){
+    const p = STATE.projetosSimples.find(x=>x.id===id); if(!p) return;
+    const c = contarItensDoProjeto(p);
+    const falta = faltaEnviarPorProjeto().get(id) || 0;
+    let msg = `Arquivar "${p.empresa||'Projeto'}" neste aparelho?\n\n`
+      + `· Sai da lista e da sincronização DESTE aparelho\n`
+      + `· Continua inteiro aqui: ${c.areas} área(s), ${c.maquinas} equipamento(s), ${c.riscos} risco(s), com as fotos\n`
+      + `· Nada é apagado — nem aqui, nem na nuvem\n`
+      + `· Reativar é imediato e funciona sem internet\n`
+      + `· Os outros aparelhos não são afetados`;
+    /* O único jeito de arquivar causar prejuízo: trabalho de campo que ainda
+       não subiu. Fora da fila, ele fica só neste aparelho, sem cópia nenhuma
+       em outro lugar. Não bloqueia — avisa com o número na frente. */
+    if(falta > 0){
+      msg += `\n\nATENÇÃO: ${falta} ${falta===1?'item deste projeto ainda não subiu':'itens deste projeto ainda não subiram'} para a nuvem. Arquivando agora, ${falta===1?'ele fica parado':'eles ficam parados'} só neste aparelho, sem cópia em nenhum outro lugar.\n\nO melhor é sincronizar primeiro e arquivar depois.`;
+    }
+    if(!confirm(msg)) return;
+    __projArquivados.add(String(id));
+    await arquivadosGravar([...__projArquivados]);
+    render();
+    toast("Projeto arquivado neste aparelho — nada foi apagado");
+  },
+  async reativarProjetoS(id){
+    __projArquivados.delete(String(id));
+    await arquivadosGravar([...__projArquivados]);
+    /* O índice da nuvem foi montado SEM as pastas deste projeto (elas não eram
+       listadas enquanto ele estava arquivado). Mantê-lo agora faria o app
+       concluir que os arquivos dele "não existem na nuvem" — e é exatamente
+       essa conclusão que libera o envio de um item cuja foto se perdeu aqui,
+       apagando a última cópia que existe. Zerar devolve a resposta
+       conservadora ("não sei, então não arrisca") até a próxima varredura
+       completa, que acontece no ciclo seguinte. */
+    STATE.oneDriveIndiceNuvem = null;
+    __indiceNuvemMapa = null; __indiceNuvemMapaEm = 0;
+    marcarAlterado();
+    render();
+    toast("Projeto reativado — voltou para a lista e para a sincronização");
   },
   removerProjetoS(id){
     const alvo = STATE.projetosSimples.find(x=>x.id===id);
@@ -22734,7 +22961,12 @@ carregarStatusArmazenamentoNaTela();
    aparelho terminarem de carregar, e concluir erradamente "este aparelho não
    tem nada" — com um backup antigo da nuvem sendo proposto e, se confirmado,
    substituindo dados reais que só ainda não tinham entrado na tela. */
-let __estadoLocalCarregadoPromise = carregarEstadoSalvo().then(saved=>{
+/* A lista de projetos arquivados é lida ANTES do primeiro desenho: é ela que
+   decide o que aparece na tela e o que entra na sincronização. Lida depois, a
+   lista piscaria com os arquivados dentro, e o primeiro ciclo automático ainda
+   varreria a nuvem inteira. */
+let __arquivadosCarregados = arquivadosLer().then(l=>{ __projArquivados = new Set(l); }).catch(()=>{});
+let __estadoLocalCarregadoPromise = carregarEstadoSalvo().then(async saved=>{
   if(saved){
     let novoEstado = Array.isArray(saved.projetos) ? saved : migrarParaHierarquiaV4(saved);
     novoEstado.projetosSimples = Array.isArray(novoEstado.projetosSimples) ? novoEstado.projetosSimples : [];
@@ -22755,6 +22987,7 @@ let __estadoLocalCarregadoPromise = carregarEstadoSalvo().then(saved=>{
     delete novoEstado.sincronizarEmDadosMoveis;
     if(novoEstado.modulo==="completo") novoEstado.ui.screen = "projetos";
     else if(novoEstado.modulo==="simplificado") novoEstado.ui.screen = "simples-projetos";
+    await __arquivadosCarregados;   // antes do primeiro render — ver acima
     STATE = novoEstado;
     marcarAlterado();
     render();

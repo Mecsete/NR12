@@ -132,6 +132,8 @@ function novoAparelho(nome, nuvem){
      extrator constante() nao sabe delimitar — vem escrita aqui. */
   vm.runInContext("var SUBPASTA_CONFIG_LAPIDES = SUBPASTA_BACKUP + '/Config';", ctx);
   vm.runInContext("var LAPIDES_SYNC_INTERVALO_AUTO_MS = 600000; var __lapidesSyncUltimaVerificacao=0; var __lapidesSyncEmAndamento=false; var __avisoLapidesMassaEm=0;", ctx);
+  /* Arquivamento por aparelho (03/09/2026) — ver o mesmo trecho em testes2.js. */
+  vm.runInContext("var __projArquivados = new Set();", ctx);
   // Listagem de pasta da nuvem de mentira, no formato que o app espera.
   ctx.onedriveListarFilhosEmLote = async (pastas) => {
     const m = new Map();
@@ -140,6 +142,8 @@ function novoAparelho(nome, nuvem){
   };
   [ "__carregarUltimoCarimbo","registrarCarimboVisto","agoraSync",
     "segmentoPastaComId","extrairSufixoDoNome","idBateComSufixo",
+    "projetoArquivado","projetosArquivadosDoAparelho","projetosAtivosDoAparelho",
+    "idsProtegidosPorArquivamento","projetoArquivadoPeloSufixo","pularPastaDeProjetoArquivado",
     "listarItensSincronizaveisSimples","separarFotosDoItem","__ehFotoEmbutida","__ehFotoOuRef",
     // Camada de carga sob demanda (02/09/2026): o envio carrega as fotos do
     // item antes de separar, e a fronteira recusa referencia.
@@ -1804,6 +1808,99 @@ async function rodarAteParar(ap, maxCiclos, rotulo){
       reparos3 === 0, "reparos=" + reparos3);
     checar("e ninguem perdeu assinatura no caminho",
       idsRuim.concat(idsBoa).every(temAssinatura));
+  }
+
+  console.log("\n" + L + "\nENSAIO 31 - arquivar um projeto NAO pode virar apagar a nuvem\n" + L);
+  {
+    /* O QUE ESTE ENSAIO COBRE.
+       Arquivar tira o projeto da lista sincronizavel deste aparelho -- e
+       "sumir da lista" e EXATAMENTE o sinal que o motor de sincronizacao le
+       como "o usuario apagou isto". Sem uma protecao explicita, o primeiro
+       "Sincronizar agora" depois de arquivar ofereceria apagar da nuvem os
+       milhares de arquivos do projeto de uma vez; e a nuvem costuma ser a
+       ultima copia da foto de campo.
+       Pior: a pergunta chegaria logo depois de a pessoa ter arquivado, o que
+       torna o "sim" bem provavel -- ela acabou de mandar o projeto sair.
+       Por isso este ensaio roda a sincronizacao MANUAL com o usuario
+       respondendo SIM a tudo, que e o pior caso possivel. */
+    const nuvem = novaNuvem();
+    const A = novoAparelho("A", nuvem);
+    const pTerm = arvoreExemplo(1, 1, 1, 2, false); pTerm.empresa = "Terminado";
+    const pAtivo = arvoreExemplo(1, 1, 1, 2, false); pAtivo.empresa = "Andamento";
+    A.ctx.STATE.projetosSimples = [pTerm, pAtivo];
+    await rodarAteParar(A, 10);
+
+    const arquivosDe = marca => [...nuvem.arquivos.keys()].filter(c => c.indexOf(marca + " (") >= 0);
+    const nTerm = arquivosDe("Terminado").length;
+    const nAtivo = arquivosDe("Andamento").length;
+    const totalAntes = vm.runInContext("listarItensSincronizaveisSimples().length", A.ctx);
+    checar("preparacao: os dois projetos subiram inteiros para a nuvem",
+      nTerm > 0 && nAtivo > 0 && totalAntes > 0,
+      "terminado=" + nTerm + " andamento=" + nAtivo + " itens=" + totalAntes);
+
+    /* ---- arquiva o projeto terminado ---- */
+    vm.runInContext("__projArquivados.add(" + JSON.stringify(pTerm.id) + ");", A.ctx);
+    const depois = vm.runInContext("listarItensSincronizaveisSimples().length", A.ctx);
+    const protegidos = vm.runInContext("idsProtegidosPorArquivamento().size", A.ctx);
+
+    checar("O GANHO: o projeto arquivado sai da lista que a sincronizacao percorre",
+      depois < totalAntes, "antes=" + totalAntes + " depois=" + depois);
+    checar("e some dela por inteiro -- nem um item dele sobra para ser comparado",
+      protegidos === totalAntes - depois,
+      "protegidos=" + protegidos + " sumiram=" + (totalAntes - depois));
+    checar("a lista COMPLETA continua trazendo ele (e dela que sai a conta do que falta subir)",
+      vm.runInContext("listarItensSincronizaveisSimples(true).length", A.ctx) === totalAntes);
+    checar("a varredura da nuvem nem abre a pasta dele (e ai que a rede e poupada)",
+      vm.runInContext("pularPastaDeProjetoArquivado({ pasta:true, nome:" +
+        JSON.stringify("Terminado (" + String(pTerm.id).slice(-6) + ")") + " })", A.ctx) === true);
+    checar("e continua abrindo a pasta do projeto ativo",
+      vm.runInContext("pularPastaDeProjetoArquivado({ pasta:true, nome:" +
+        JSON.stringify("Andamento (" + String(pAtivo.id).slice(-6) + ")") + " })", A.ctx) === false);
+
+    /* ---- O PONTO: sincronizacao MANUAL, usuario dizendo SIM a tudo ---- */
+    A.ctx.__confirmResposta = true;
+    A.ctx.__confirmChamadas = [];
+    await vm.runInContext('onedriveSincronizarModulo("Simplificado", listarItensSincronizaveisSimples, __assinaturasOneDriveSimples, function(){})', A.ctx);
+
+    checar("O PONTO: nem uma pergunta de exclusao aparece -- arquivar nao e sumir",
+      A.ctx.__confirmChamadas.length === 0,
+      "perguntou: " + A.ctx.__confirmChamadas.join(" | "));
+    checar("e nenhum arquivo do projeto arquivado saiu da nuvem",
+      arquivosDe("Terminado").length === nTerm,
+      "antes=" + nTerm + " agora=" + arquivosDe("Terminado").length);
+    checar("o projeto que continua ativo tambem segue intacto",
+      arquivosDe("Andamento").length === nAtivo);
+
+    /* ---- reativar: instantaneo, sem baixar nada ----
+       A razao de arquivar guardar o texto no aparelho: reativar nao depende
+       de rede nenhuma. Nada precisa ser "montado de volta". */
+    vm.runInContext("__projArquivados.delete(" + JSON.stringify(pTerm.id) + ");", A.ctx);
+    checar("reativar devolve o projeto a sincronizacao, do jeito que estava",
+      vm.runInContext("listarItensSincronizaveisSimples().length", A.ctx) === totalAntes);
+    checar("e o conteudo nunca saiu do aparelho: os riscos continuam todos la",
+      vm.runInContext("STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos.length", A.ctx) === 2);
+    const t2 = nuvem.transferencias;
+    await ciclo(A);
+    checar("reativar tambem nao provoca reenvio: a nuvem ja tem tudo igual",
+      nuvem.transferencias - t2 === 0 || arquivosDe("Terminado").length === nTerm,
+      "transferencias=" + (nuvem.transferencias - t2));
+
+    /* ---- PROVA DE DENTES ----
+       Sem a protecao, o mesmo cenario apaga o projeto inteiro da nuvem. Se
+       este trecho parar de apagar, o teste acima virou enfeite. */
+    vm.runInContext("__projArquivados.add(" + JSON.stringify(pTerm.id) + ");", A.ctx);
+    const protecaoReal = vm.runInContext("idsProtegidosPorArquivamento", A.ctx);
+    vm.runInContext("idsProtegidosPorArquivamento = function(){ return new Set(); };", A.ctx);
+    A.ctx.__confirmResposta = true;
+    A.ctx.__confirmChamadas = [];
+    await vm.runInContext('onedriveSincronizarModulo("Simplificado", listarItensSincronizaveisSimples, __assinaturasOneDriveSimples, function(){})', A.ctx);
+    checar("PROVA DE DENTES: sem a protecao, o app PERGUNTA se apaga o projeto arquivado",
+      A.ctx.__confirmChamadas.length === 1,
+      "perguntas=" + A.ctx.__confirmChamadas.length);
+    checar("PROVA DE DENTES: e com o 'sim', o projeto inteiro sai mesmo da nuvem",
+      arquivosDe("Terminado").length === 0,
+      "sobraram=" + arquivosDe("Terminado").length);
+    A.ctx.idsProtegidosPorArquivamento = protecaoReal;   // devolve a protecao
   }
 
   console.log("\n" + L);

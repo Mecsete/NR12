@@ -64,6 +64,39 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 03/09/2026 08:45
+
+**Novo: arquivar um projeto neste aparelho.** No menu (⋮) de cada projeto,
+*"Arquivar neste aparelho"*. O projeto sai da lista e **sai da sincronização** —
+deixa de ser comparado item a item a cada ciclo, e a pasta dele na nuvem deixa
+de ser aberta. É essa listagem que gasta requisição e provoca os erros de
+"sessão expirada" no iPhone.
+
+**Arquivar não apaga nada.** Nem uma palavra, nem uma foto, nem um arquivo da
+nuvem. O projeto continua inteiro no aparelho, com todas as áreas,
+equipamentos, tarefas, riscos e fotos — por isso *Reativar* é imediato e
+funciona sem internet: não existe "montar de volta", porque nada foi
+desmontado.
+
+**É por aparelho.** Quem arquiva é quem já terminou o trabalho naquele celular;
+os outros aparelhos não são afetados. A lista de arquivados fica numa chave
+própria do banco, fora do backup, da sincronização e dos pontos de restauração
+(mesmo desenho da assinatura do responsável).
+
+Duas proteções que vêm junto:
+
+- **Arquivar nunca vira apagar.** Sair da lista de sincronização é exatamente o
+  sinal que o app lê como "o usuário apagou isto". Sem tratamento, o primeiro
+  *Sincronizar agora* depois de arquivar ofereceria apagar da nuvem os milhares
+  de arquivos do projeto de uma vez. O ENSAIO 31 prova o caso pelo pior
+  caminho: sincronização manual, usuário respondendo *sim* a tudo — e nada sai
+  da nuvem.
+- **Aviso quando há trabalho de campo parado.** Se ainda houver item que não
+  subiu, a pergunta de arquivar mostra o número e recomenda sincronizar antes.
+
+O botão *"Quanto cada projeto ocupa de fotos"* (versão anterior) continua sendo
+o lugar de decidir **o que** vale arquivar.
+
 ## 02/09/2026 19:31
 
 **Novo: quanto cada projeto ocupa de fotos neste aparelho.** Em Configurações →

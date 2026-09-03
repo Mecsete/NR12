@@ -14,6 +14,18 @@ def chk(nome, cond, detalhe=""):
         falhas += 1
     print(("  ok   " if cond else "  ERRO ") + nome + ((" -> " + detalhe) if detalhe and not cond else ""))
 
+def _corpoDe(txt, nome):
+    """Corpo aproximado de uma funcao: do cabecalho ate a proxima declaracao de
+    topo. Suficiente para perguntar 'este trecho encosta em X?'."""
+    i = txt.find("function " + nome + "(")
+    if i < 0:
+        return ""
+    j = txt.find("\nfunction ", i + 1)
+    k = txt.find("\nasync function ", i + 1)
+    fim = min(x for x in (j, k, len(txt)) if x > 0)
+    return txt[i:fim]
+
+
 print("=== 3. ARQUITETURA DE FOTOS (CAMADA_FOTOS) ===")
 # +1 em "idbfoto:" e "foto:" a partir de 27/08/2026, de proposito: o RASCUNHO
 # passou a usar a mesma camada (ver secao 100). Antes ele gravava as fotos
@@ -2662,10 +2674,15 @@ chk("etapa aninhada (que nao abriu o painel) continua sem fechar nem parar o rel
     and novo.index("if(meu === false) return;") < novo.index("if(__progresso && __progresso.tique){ clearInterval"))
 chk("a listagem da nuvem sabe avisar andamento (parametro opcional, aditivo)",
     "async function onedriveListarFilhosEmLote(caminhos, onLote){" in novo
-    and "async function onedriveListarArvore(caminhoPasta, profundidadeRestante, onPasta){" in novo
+    and "async function onedriveListarArvore(caminhoPasta, profundidadeRestante, onPasta, pularNo){" in novo
     and "if(onLote) onLote(Math.min(inicio + ONEDRIVE_BATCH_TAMANHO, caminhos.length), caminhos.length);" in novo)
-chk("os pontos que ja chamavam a listagem continuam funcionando sem passar o parametro novo",
-    novo.count("await onedriveListarArvore(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`, 4)") >= 2)
+# 03/09/2026: os dois caminhos de sincronizacao passam agora o filtro de
+# projetos arquivados (secao 123). A garantia aqui e outra e continua valendo:
+# quem chama SEM parametro nenhum tem de continuar funcionando -- e a
+# recuperacao de fotos, que precisa varrer tudo.
+chk("chamar a listagem sem os parametros opcionais continua funcionando",
+    novo.count("await onedriveListarArvore(`${ONEDRIVE_PASTA_APP}/${SUBPASTA_BACKUP}/Simplificado`, 4,") >= 1
+    and "onLendoNuvem ? (lidas, total, nivel)=>onLendoNuvem(lidas, total, nivel) : undefined);" in novo)
 chk("a varredura ampla usa esse aviso para mostrar pastas lidas durante a leitura",
     "lendo a lista da nuvem" in novo and "de ${total} pastas" in novo)
 
@@ -3764,7 +3781,7 @@ chk("mora em chave propria do banco, fora do STATE",
     and "STATE.assinatura" not in novo
     and "mecseteConfig.assinatura" not in novo)
 _al = novo[novo.find("async function assinaturaLer(){"):]
-_al = _al[:_al.find("async function fotosLerMapaOrfas(")]
+_al = _al[:_al.find("/* ===== PROJETOS ARQUIVADOS")]
 chk("ler e gravar nao encostam no STATE",
     "get(DB_KEY_ASSINATURA)" in _al
     and "put(dataUrl, DB_KEY_ASSINATURA)" in _al
@@ -3841,6 +3858,64 @@ chk("tem botao, trava de reentrada e usa o formatador do app",
     'onclick="App.verEspacoPorProjeto()"' in novo
     and "if(__espacoProjRodando) return;" in novo
     and "const mb = fmtBytes;" in novo)
+
+print("=== 123. ARQUIVAR PROJETO -- SO NESTE APARELHO (03/09/2026) ===")
+# Pedido com duas condicoes explicitas: por dispositivo, e sem o risco de o
+# aparelho nao conseguir remontar o projeto depois. A segunda e respondida pela
+# estrutura, nao por promessa: arquivar NAO APAGA NADA -- o projeto continua
+# inteiro aqui, entao nao existe "montar de volta".
+_arq = novo[novo.find("  async arquivarProjetoS(id){"):novo.find("  async reativarProjetoS(id){")]
+_rea = novo[novo.find("  async reativarProjetoS(id){"):novo.find("  removerProjetoS(id){")]
+chk("existe o par arquivar/reativar",
+    len(_arq) > 400 and len(_rea) > 200)
+# POR DISPOSITIVO: a garantia vem da chave propria, nao de uma lista de
+# exclusao. O backup, a sincronizacao e os pontos de restauracao leem o STATE.
+chk("a lista mora fora do STATE, em chave propria do banco",
+    'const DB_KEY_ARQUIVADOS = "projetosArquivadosNesteAparelho";' in novo
+    and "STATE.projetosArquivados" not in novo)
+chk("e nem o backup nem o pacote da equipe a alcancam",
+    "ARQUIVADOS" not in _corpoDe(novo, "backupV2EmPartes")
+    and "rquivad" not in _corpoDe(novo, "montarPacoteEquipe"))
+# O QUE RESPONDE O MEDO DECLARADO.
+chk("arquivar nao apaga nada -- so marca o id",
+    "__projArquivados.add(String(id))" in _arq
+    and all(x not in _arq for x in ["STATE.projetosSimples =", "onedriveApagarBlob",
+                                    "registrarLapidesExclusao", "dbDelete"]))
+chk("reativar nao depende de rede: nao busca, nao baixa, nao monta nada",
+    "__projArquivados.delete(String(id))" in _rea
+    and all(x not in _rea for x in ["onedriveBaixar", "await onedriveListarArvore", "fetch("]))
+# A TRAVA CENTRAL: sair da lista sincronizavel e exatamente o sinal que o motor
+# le como exclusao. Sem isto, arquivar ofereceria apagar o projeto da nuvem.
+# Provado de ponta a ponta, com prova de dentes, no ENSAIO 31 do banco.js.
+chk("arquivar NUNCA vira apagar: a exclusao inferida pula os ids arquivados",
+    "const idsArquivados = idsProtegidosPorArquivamento();" in novo
+    and "if(!idsAtuais.has(id) && !idsArquivados.has(id)) idsExcluidosTodos.push(id);" in novo)
+# A ECONOMIA PEDIDA: sai do envio E da listagem da nuvem (que e a parte que
+# gasta requisicao e provoca os 429).
+chk("sai da lista de envio, com porta para a lista completa",
+    "if(!incluirArquivados && projetoArquivado(proj.id)) return;" in novo
+    and "function listarItensSincronizaveisSimples(incluirArquivados){" in novo)
+chk("e sai da varredura da nuvem pelos DOIS caminhos de sincronizacao",
+    novo.count("Simplificado`, 4, undefined, pularPastaDeProjetoArquivado)") == 2
+    and "n.pasta && !(pularNo && pularNo(n))" in novo)
+# Recuperacao precisa enxergar tudo: foto perdida dentro de um projeto
+# arquivado ainda tem de ser encontravel.
+chk("mas a recuperacao de fotos continua varrendo tudo",
+    "pularPastaDeProjetoArquivado" not in _corpoDe(novo, "recuperarFotosVarrendoNuvem"))
+# O indice da nuvem foi montado sem as pastas do projeto arquivado; mantido
+# depois de reativar, ele responderia "nao existe na nuvem" e liberaria o envio
+# de um item cuja foto se perdeu aqui -- apagando a ultima copia.
+chk("reativar zera o indice da nuvem, montado sem as pastas dele",
+    "STATE.oneDriveIndiceNuvem = null;" in _rea and "__indiceNuvemMapa = null;" in _rea)
+chk("avisa antes de arquivar quando ha trabalho de campo que nao subiu",
+    "faltaEnviarPorProjeto()" in _arq and "sem cópia em nenhum outro lugar" in _arq)
+chk("a lista e lida antes do primeiro desenho",
+    "await __arquivadosCarregados;" in novo
+    and novo.find("await __arquivadosCarregados;") < novo.find("    STATE = novoEstado;"))
+chk("com tudo arquivado, a tela vazia mostra a porta de volta",
+    'Nenhum projeto ativo' in novo
+    and novo.count("${blocoArquivadosHtml(arquivados)}") == 2)
+
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
