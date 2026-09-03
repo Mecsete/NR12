@@ -2936,7 +2936,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "03/09/2026 19:02";
+const APP_BUILD = "03/09/2026 19:21";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -15545,6 +15545,75 @@ function hrnPrevAplicar(risco, tarefa, campo, valorClassificacao){
 function riscoTemSolucaoNoLaudo(it){
   return !!String(laudoTextoFinal(it, "solucao") || "").trim();
 }
+/* ===== PLr PREVISTO — a função de segurança depois da medida =====
+   O PLr sai de três parâmetros da ABNT NBR ISO 13849-1 / NBR 14153:
+     S — severidade, que vem do Grau do Dano;
+     F — exposição à zona de perigo;
+     P — possibilidade de evitar.
+
+   O QUE É RECALCULADO SOZINHO, E O QUE NÃO É — e o motivo é normativo, não
+   preguiça:
+
+   · S sai do Grau do Dano previsto. É substituição direta no MESMO campo que
+     plrSeveridade já lê, com a MESMA tabela. Nada é inventado, então recalcula
+     sozinho.
+
+   · F NÃO é derivado da Frequência prevista. A Frequência do HRN e a Exposição
+     do PLr falam vocabulários diferentes: o HRN usa "Anual/Mensal/Semanal/
+     Diária/Horária/Constante" e a Exposição usa "Menos de 1x por turno / 1x
+     por turno / 2x por turno / Mais de 2x / Contínua". Converter "Horária" em
+     "Mais de 2x por turno" seria criar uma correspondência normativa nova, de
+     memória, dentro de um laudo assinado com ART. Em vez disso a Exposição
+     ganha lista própria, no vocabulário certo, começando no valor de hoje —
+     quem decide é o engenheiro.
+
+   · P idem: lista própria, vocabulário do PLr, começando no valor de hoje.
+
+   Sem previsão nenhuma nesses dois, o PLr previsto sai igual ao de hoje — que
+   é a resposta certa quando a medida não muda exposição nem possibilidade de
+   evitar (uma proteção que só reduz a gravidade da lesão, por exemplo). */
+function plrPrevistoDoItem(it){
+  const atual = plrExigido(it.risco, it.tarefa);
+  if(!atual.aplicavel) return { aplicavel:false, atual, previsto:atual, mudou:false };
+  const hp = (it.risco && it.risco.hrnPrev) || {};
+  const pp = (it.risco && it.risco.plrPrev) || {};
+  const rSint = Object.assign({}, it.risco);
+  if(hp.gpd) rSint.gpd = hp.gpd;                 // S, por substituição direta
+  if(pp.exposicao) rSint.exposicao = pp.exposicao;
+  if(pp.evitar) rSint.evitar = pp.evitar;
+  const previsto = plrExigido(rSint, it.tarefa);
+  return { aplicavel:true, atual, previsto,
+           mudou: !!(pp.exposicao || pp.evitar || hp.gpd),
+           trocou: !!(atual.completo && previsto.completo && previsto.plr !== atual.plr) };
+}
+/* Valor mostrado como selecionado nas listas de Exposição e Possibilidade de
+   evitar do quadro previsto: o previsto, se houver; senão o de hoje. */
+function plrPrevValor(it, campo){
+  const pp = (it.risco && it.risco.plrPrev) || {};
+  if(pp[campo]) return pp[campo];
+  if(campo === "exposicao")
+    return String(it.risco.exposicao || "").trim()
+      || exposicaoPelaFrequencia(valOuOutro(it.tarefa.frequencia, it.tarefa.frequenciaOutro));
+  return String(it.risco.evitar || "").trim();
+}
+/* Mesma regra do HRN previsto: voltar ao valor de hoje DESFAZ a previsão
+   daquele campo, em vez de gravar uma previsão igual. É o que mantém honesto
+   o "no PDF só sai o que eu de fato mexi". */
+function plrPrevAplicar(it, campo, valor){
+  if(campo !== "exposicao" && campo !== "evitar") return false;
+  const hoje = (function(){
+    const pp = it.risco.plrPrev; delete it.risco.plrPrev;
+    const v = plrPrevValor(it, campo);
+    if(pp) it.risco.plrPrev = pp;
+    return v;
+  })();
+  const pp = Object.assign({}, it.risco.plrPrev || {});
+  if(!valor || valor === hoje) delete pp[campo];
+  else pp[campo] = valor;
+  if(Object.keys(pp).length === 0) delete it.risco.plrPrev;
+  else it.risco.plrPrev = pp;
+  return true;
+}
 function linhaSimples({proj,area,maquina,tarefa,risco}){
   const {po,fe,gpd,np,hrn,nivel} = hrnDoItem({tarefa,risco});
   return [
@@ -24366,6 +24435,14 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
 .lp-prev-ver{font-size:8px;font-weight:800;line-height:1.15;text-align:center;padding:2px 4px}
 .lp-prev-nota{font-size:6.5px;color:#5B5F7A;line-height:1.25;padding:2px 6px 3px;border-top:1px solid #C8CBD9}
 .lp-prev-dica{display:none;font-size:6.5px;color:#5B5F7A;line-height:1.25;padding:2px 6px}
+/* Exposição (F) e Possibilidade de evitar (P): as duas entradas do PLr que o
+   app NÃO converte sozinho (ver o bloco "PLr PREVISTO"). Fora do modo de
+   edição viram texto, como o resto do quadro. */
+.lp-prev-plr{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:2px 6px;align-items:center;
+  padding:3px 6px;border-top:1px solid #C8CBD9;font-size:8px}
+.lp-prev-plr .rot{font-size:6.5px;font-weight:bold;letter-spacing:.03em;text-transform:uppercase;color:#5B5F7A}
+.lp-prev-plr .lp-prev-sel{display:none}
+.lp-modo-prev .lp-prev-plr .lp-prev-sel{display:block}
 .lp-modo-prev .lp-prev-dica{display:block}
 /* --- conclusão --- */
 .lp-assin{display:flex;gap:${Math.round(20*MM)}px;justify-content:space-around;margin-top:${Math.round(34*MM)}px;text-align:center;font-size:11px}
@@ -24702,6 +24779,7 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
   const a = p.atual;
   const metaA = NIVEL_HRN_META[a.nivel] || {};
   const metaP = NIVEL_HRN_META[p.nivel] || {};
+  const pl = plrPrevistoDoItem(it);
   const lista = (campo, opts) => {
     const sel = hrnPrevClassificacao(it, campo);
     return `<span class="lp-prev-txt">${esc(sel)}</span>`
@@ -24711,10 +24789,19 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
   };
   /* A QUEDA, e não só o número final. "64 ALTO" sozinho não diz nada; o que
      convence quem aprova o investimento é ver de onde para onde. */
-  const delta = p.mudou
+  /* Tres estados, e cada um precisa de uma frase honesta. Mexer so na
+     Exposicao muda o PLr sem mexer no HRN — mostrar "12 &rarr; 12" ali pareceria
+     defeito, quando na verdade a reavaliacao aconteceu e foi na exigencia da
+     função de segurança. */
+  const delta = (p.hrn !== a.hrn)
     ? `<span class="d">${esc(hrnNumeroBR(a.hrn))} ${esc(a.nivel)} &rarr; ${esc(hrnNumeroBR(p.hrn))} ${esc(p.nivel)}</span>`
-    : `<span class="d">ainda não avaliado</span>`;
-  return `<div class="lp-prev${p.mudou?' tem':''}" id="lpPrev-${r.id}">
+    : (p.mudou || pl.mudou)
+      ? `<span class="d">HRN inalterado (${esc(hrnNumeroBR(p.hrn))} ${esc(p.nivel)})${pl.trocou? " · exigência de PLr revista" : ""}</span>`
+      : `<span class="d">ainda não avaliado</span>`;
+  /* Entra no PDF quando houve previsão de HRN OU de PLr: mexer só na
+     Exposição já é uma reavaliação, e ela mudaria o PLr sem mudar o HRN. */
+  const avaliado = p.mudou || pl.mudou;
+  return `<div class="lp-prev${avaliado?' tem':''}" id="lpPrev-${r.id}">
     <div class="lp-prev-tarja"><span>Risco residual previsto — após implantar a solução</span>${delta}</div>
     <div class="lp-rc-rodape">
       <div class="lp-rc-hrn"><table class="lp-hrn-h">
@@ -24731,14 +24818,32 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
         </tr>
       </table></div>
       <div class="lp-rc-plr">
-        <div class="r">Situação após a medida</div>
+        <div class="r">${pl.aplicavel? "Função de segurança (PLr)" : "Situação após a medida"}</div>
+        ${pl.aplicavel? `<div class="v" style="text-align:center">${
+          pl.atual.completo && pl.previsto.completo
+            ? (pl.trocou
+                ? `<b>PL ${esc(pl.atual.plr)}</b> &rarr; <b style="color:#2E7D32">PL ${esc(pl.previsto.plr)}</b>`
+                : `<b>PL ${esc(pl.previsto.plr)}</b>`)
+            : "A classificar"}</div>` : ""}
         <div class="lp-prev-ver" style="color:${p.aceitavel? "#2E7D32" : "#B26A00"}">
           ${p.aceitavel? "Risco aceitável" : "Ainda acima do aceitável"}
         </div>
       </div>
     </div>
+    ${pl.aplicavel? `<div class="lp-prev-plr">
+      <span class="rot">Exposição (F)</span>
+      <span class="lp-prev-txt">${esc(plrPrevValor(it, "exposicao") || "—")}</span>
+      <select class="lp-prev-sel" onchange="App.lpPrevSetPlr('${r.id}','exposicao',this.value)">
+        ${PLR_F_OPCOES.map(o=>`<option value="${esc(o.v)}"${o.v===plrPrevValor(it,"exposicao")?" selected":""}>${esc(o.v)} (${esc(o.f)})</option>`).join("")}
+      </select>
+      <span class="rot">Possibilidade de evitar (P)</span>
+      <span class="lp-prev-txt">${esc(plrPrevValor(it, "evitar") || "—")}</span>
+      <select class="lp-prev-sel" onchange="App.lpPrevSetPlr('${r.id}','evitar',this.value)">
+        ${PLR_P_OPCOES.map(o=>`<option value="${esc(o.v)}"${o.v===plrPrevValor(it,"evitar")?" selected":""}>${esc(o.v)} (${esc(o.p)})</option>`).join("")}
+      </select>
+    </div>`:""}
     ${p.mudou && !p.aceitavel ? `<div class="lp-prev-nota" style="color:#8A5B00;background:#FFF7E6"><b>A solução proposta não leva este risco a um nível aceitável</b> — as faixas I a V pedem redução até "baixo ou desprezível". Preveja medida complementar ou revise a Solução.</div>` : ""}
-    <div class="lp-prev-dica">Ajuste só o que a medida realmente muda. Proteção fixa e enclausuramento costumam reduzir a <b>Frequência</b> (deixa de haver acesso); intertravamento e parada de emergência reduzem a <b>Probabilidade</b>; redução de energia ou de velocidade reduz o <b>Grau do Dano</b>. Campo deixado no valor de hoje não entra no laudo.</div>
+    <div class="lp-prev-dica">Ajuste só o que a medida realmente muda. Proteção fixa e enclausuramento costumam reduzir a <b>Frequência</b> (deixa de haver acesso); intertravamento e parada de emergência reduzem a <b>Probabilidade</b>; redução de energia ou de velocidade reduz o <b>Grau do Dano</b>. Campo deixado no valor de hoje não entra no laudo. O <b>PLr</b> é recalculado sozinho a partir do Grau do Dano previsto (severidade); Exposição e Possibilidade de evitar têm listas próprias logo abaixo, no vocabulário da NBR 14153 — o app não converte uma coisa na outra por conta própria.</div>
     <div class="lp-prev-nota">Estimativa de reavaliação conforme ABNT NBR ISO 12100. A reavaliação definitiva deve ser feita após a implantação e a verificação da medida.</div>
   </div>`;
 }
@@ -25103,7 +25208,6 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
       <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirFigura()">${ic('layers')} Figura</button>
       <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirConclusao()">${ic('edit')} Conclusão${conclusaoFoiEditada(areaAtual()) ? " ·" : ""}</button>
       <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirAssinatura()">${ic('edit')} Assinatura${assinaturaLaudo() ? " ·" : ""}</button>
-      <button class="btn ${STATE.ui.lpModoPrev? "btn-secondary" : "btn-ghost"} btn-sm" style="border:1px solid ${STATE.ui.lpModoPrev? "#2E7D32" : "var(--line)"}" onclick="App.lpToggleModoPrev()">${ic('shield')} Risco residual${STATE.ui.lpModoPrev? " · editando" : ""}</button>
     </div>
     <div class="lp-logo-linha">${logoFicha()}</div>
     ${""}
@@ -25117,6 +25221,7 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
           <span class="lp-flut-pct">${Math.round(zoom*100)}%</span>
           <span class="lp-flut-sep"></span>
           <button class="lp-flut-btn${STATE.ui.lpModoOcultar?' ativo':''}" title="${STATE.ui.lpModoOcultar?'Sair da seleção de itens':'Escolher o que entra no laudo'}" aria-label="Escolher equipamentos e riscos que entram no laudo" onclick="App.lpToggleModoOcultar()">${ic('selecionarItens')}</button>
+          <button class="lp-flut-btn${STATE.ui.lpModoPrev?' ativo':''}" title="${STATE.ui.lpModoPrev?'Sair da previsão de risco residual':'Prever o risco residual (após a solução)'}" aria-label="Prever o risco residual após implantar a solução" onclick="App.lpToggleModoPrev()">${ic('shield')}</button>
         </div>
       </div>
       ${STATE.ui.lpModoOcultar? `<div class="card card-pad" style="margin-top:10px;background:var(--bg-soft)">
@@ -25212,6 +25317,19 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
       if(!it || !it.risco) return;
       if(it.proj && recusarSeArquivado(it.proj.id)) return;
       if(!hrnPrevAplicar(it.risco, it.tarefa, campo, valor)) return;
+      it.risco.atualizadoEm = agoraSync();
+      marcarAlterado();
+      const el = document.getElementById("lpPrev-" + riscoId);
+      if(el) el.outerHTML = lpPrevBlocoHtml(it);
+    },
+    /* Mesma mecânica de lpPrevSet: grava, carimba e redesenha só aquele risco.
+       Aqui a mudança pode alterar o PLr sem alterar o HRN — por isso os dois
+       caminhos existem separados. */
+    lpPrevSetPlr(riscoId, campo, valor){
+      const it = laudoItemPorId(riscoId);
+      if(!it || !it.risco) return;
+      if(it.proj && recusarSeArquivado(it.proj.id)) return;
+      if(!plrPrevAplicar(it, campo, valor)) return;
       it.risco.atualizadoEm = agoraSync();
       marcarAlterado();
       const el = document.getElementById("lpPrev-" + riscoId);

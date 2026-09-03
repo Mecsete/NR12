@@ -64,6 +64,36 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 03/09/2026 19:21
+
+**Risco residual: o botão mudou de lugar e o PLr passou a ser recalculado.**
+
+O botão saiu da barra de cima e foi para a **barra flutuante da direita**,
+junto de imprimir, zoom e "escolher o que entra no laudo" — os controles que
+agem sobre a prévia, e não sobre o conteúdo. Fica destacado enquanto o modo
+está ligado.
+
+**PLr previsto.** Quando o risco tem função de segurança, a caixa da direita do
+quadro previsto mostra a exigência recalculada: **PL e → PL b**.
+
+O que é recalculado sozinho e o que não é — e o motivo é normativo:
+
+- **Severidade (S)** sai do **Grau do Dano previsto**. É substituição direta no
+  mesmo campo que o cálculo de hoje já lê, com a mesma tabela: nada é
+  inventado, então recalcula sozinho.
+- **Exposição (F)** e **Possibilidade de evitar (P)** ganharam **listas
+  próprias** logo abaixo do quadro, no vocabulário da NBR 14153 (com F1/F2 e
+  P1/P2 à vista). O app **não** converte a Frequência do HRN em Exposição do
+  PLr: os dois falam vocabulários diferentes ("Horária/Constante" contra "Mais
+  de 2x por turno/Contínua"), e criar essa correspondência de memória dentro de
+  um laudo assinado com ART seria assumir uma decisão normativa que cabe ao
+  engenheiro. Sem previsão nessas duas, o PLr previsto sai igual ao de hoje.
+
+Mesma regra do HRN: voltar um campo ao valor de hoje **desfaz** a previsão
+dele. E mexer só na Exposição já conta como avaliado — ela muda o PLr sem mudar
+o HRN; nesse caso a tarja diz *"HRN inalterado · exigência de PLr revista"* em
+vez de mostrar um "12 → 12" que pareceria defeito.
+
 ## 03/09/2026 19:02
 
 **Novo: risco residual previsto no laudo.** Botão *"Risco residual"* na barra

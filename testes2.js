@@ -10672,11 +10672,21 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(B.indexOf("&rarr;") > 0 && B.indexOf("esc(a.nivel)") > 0 && B.indexOf("esc(p.nivel)") > 0,
          "sem o de-para, o numero sozinho nao mostra o ganho da medida");
       ok(B.indexOf("ainda não avaliado") > 0);
+      /* Achado no navegador: mexendo so na Exposicao, o HRN nao muda e a tarja
+         mostrava "12 SIGNIFICATIVO -> 12 SIGNIFICATIVO", que parece defeito.
+         A reavaliacao aconteceu, mas foi na exigencia da funcao de seguranca. */
+      ok(B.indexOf("HRN inalterado (") > 0 && B.indexOf("exigência de PLr revista") > 0,
+         "o caso em que so o PLr muda precisa de frase propria");
+      ok(B.indexOf("const delta = (p.hrn !== a.hrn)") > 0,
+         "o de-para do HRN so faz sentido quando o HRN muda de verdade");
     });
     /* No PDF so entra o que foi avaliado; no modo de edicao aparece tudo. Sao
        duas regras diferentes, e as duas moram no CSS. */
     t("no PDF entra so o avaliado; no modo de edicao aparece tudo", ()=>{
-      ok(B.indexOf('class="lp-prev${p.mudou?\' tem\':\'\'}"') > 0);
+      /* A classe "tem" passou a considerar tambem a previsao de PLr: mexer so
+         na Exposicao ja e uma reavaliacao, e ela muda o PLr sem mudar o HRN. */
+      ok(B.indexOf("const avaliado = p.mudou || pl.mudou;") > 0
+         && B.indexOf('class="lp-prev${avaliado?\' tem\':\'\'}"') > 0);
       ok(HTML.indexOf(".lp-prev{display:none;") > 0);
       ok(HTML.indexOf(".lp-prev.tem{display:block}") > 0);
       ok(HTML.indexOf(".lp-modo-prev .lp-prev{display:block}") > 0);
@@ -10703,10 +10713,18 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
 
     /* ---- as acoes ---- */
-    t("o botao fica junto dos outros do laudo e mostra que esta editando", ()=>{
-      ok(HTML.indexOf('onclick="App.lpToggleModoPrev()"') > 0);
-      ok(HTML.indexOf('${STATE.ui.lpModoPrev? " · editando" : ""}') > 0);
+    /* Mudou por pedido do engenheiro: o botao foi para a barra flutuante da
+       direita, junto de imprimir, zoom e selecao de itens — que sao os
+       controles que agem sobre a PREVIA, e nao sobre o conteudo do laudo. */
+    t("o botao fica na barra flutuante da direita, com marca de ativo", ()=>{
+      const i = HTML.indexOf('<div class="lp-flut">');
+      const flut = HTML.slice(i, i + 1600);
+      ok(flut.indexOf('onclick="App.lpToggleModoPrev()"') > 0, "o botao precisa estar na barra flutuante");
+      ok(flut.indexOf("${STATE.ui.lpModoPrev?' ativo':''}") > 0, "sem a marca, nao da para saber que esta ligado");
       ok(HTML.indexOf("${STATE.ui.lpModoPrev?' lp-modo-prev':''}") > 0);
+      const j = HTML.indexOf('<div class="lp-barra">');
+      ok(HTML.slice(j, HTML.indexOf('<div class="lp-logo-linha">')).indexOf("lpToggleModoPrev") < 0,
+         "voltou para a barra de cima");
     });
     /* Ligar/desligar faz blocos inteiros aparecerem e sumirem, e a paginacao e
        medida na montagem — sem remontar, as paginas ficariam com buracos ou
@@ -10735,6 +10753,63 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(f.indexOf("recusarSeArquivado(it.proj.id)") > 0,
          "projeto arquivado e so leitura — ver t152");
     });
+    /* ---- PLr previsto ----
+       O PLr sai de S (severidade, do Grau do Dano), F (exposicao) e P
+       (possibilidade de evitar). A decisao que este bloco trava e QUAL desses
+       o app recalcula sozinho e qual ele NAO recalcula, e o motivo e
+       normativo: converter a Frequencia do HRN ("Horaria", "Constante") na
+       Exposicao do PLr ("Mais de 2x por turno", "Continua") seria criar uma
+       correspondencia normativa nova, de memoria, dentro de um laudo com ART. */
+    t("A DECISAO NORMATIVA: severidade recalcula sozinha, exposicao NAO e convertida", ()=>{
+      const f = funcao("plrPrevistoDoItem");
+      ok(f.indexOf("if(hp.gpd) rSint.gpd = hp.gpd;") > 0,
+         "S sai do Grau do Dano previsto — substituicao direta no mesmo campo, sem inventar nada");
+      ok(f.indexOf("exposicaoPelaFrequencia(hp.fe") < 0 && f.indexOf("hp.fe") < 0,
+         "converter a Frequencia do HRN em Exposicao do PLr seria correspondencia normativa inventada");
+      ok(f.indexOf("if(pp.exposicao) rSint.exposicao = pp.exposicao;") > 0
+         && f.indexOf("if(pp.evitar) rSint.evitar = pp.evitar;") > 0,
+         "F e P precisam de escolha propria do engenheiro");
+    });
+    t("as listas de F e P usam o vocabulario do PLr, nao o do HRN", ()=>{
+      ok(B.indexOf("PLR_F_OPCOES.map(o=>") > 0 && B.indexOf("PLR_P_OPCOES.map(o=>") > 0);
+      ok(B.indexOf('App.lpPrevSetPlr(') > 0);
+      ok(B.indexOf("(${esc(o.f)})") > 0 && B.indexOf("(${esc(o.p)})") > 0,
+         "mostrar F1/F2 e P1/P2 junto e o que liga a escolha a norma");
+    });
+    t("sem previsao de F e P, o PLr previsto sai igual ao de hoje", ()=>{
+      const f = funcao("plrPrevValor");
+      ok(f.indexOf('if(pp[campo]) return pp[campo];') > 0);
+      ok(f.indexOf("exposicaoPelaFrequencia(valOuOutro(it.tarefa.frequencia") > 0,
+         "sem escolha propria, vale o mesmo caminho que o quadro de hoje usa");
+    });
+    t("voltar F ou P ao valor de hoje tambem DESFAZ a previsao", ()=>{
+      const f = funcao("plrPrevAplicar");
+      ok(f.indexOf("if(!valor || valor === hoje) delete pp[campo];") > 0);
+      ok(f.indexOf("if(Object.keys(pp).length === 0) delete it.risco.plrPrev;") > 0);
+      /* O valor "de hoje" tem de ser lido SEM a previsao no caminho, senao
+         compararia a previsao com ela mesma e nunca desfaria. */
+      ok(f.indexOf("delete it.risco.plrPrev;") > 0 && f.indexOf("if(pp) it.risco.plrPrev = pp;") > 0,
+         "o valor de hoje precisa ser lido com a previsao fora do caminho");
+    });
+    t("a caixa mostra a troca de PL, e so quando o risco tem PLr", ()=>{
+      ok(B.indexOf('pl.aplicavel? "Função de segurança (PLr)" : "Situação após a medida"') > 0,
+         "risco sem funcao de seguranca nao pode ganhar caixa de PLr vazia");
+      ok(B.indexOf("PL ${esc(pl.atual.plr)}</b> &rarr; <b style=\"color:#2E7D32\">PL ${esc(pl.previsto.plr)}") > 0,
+         "sem o de-para, nao da para ver que a exigencia caiu");
+      ok(B.indexOf('pl.trocou') > 0, "PL igual nao pode aparecer como se tivesse mudado");
+    });
+    t("mexer em F ou P redesenha so aquele risco, como o HRN", ()=>{
+      const f = HTML.slice(HTML.indexOf("    lpPrevSetPlr(riscoId, campo, valor){"), HTML.indexOf("    async lpToggleRisco(riscoId){"));
+      ok(f.indexOf("lpGerar") < 0);
+      ok(f.indexOf("el.outerHTML = lpPrevBlocoHtml(it);") > 0);
+      ok(f.indexOf("it.risco.atualizadoEm = agoraSync();") > 0);
+      ok(f.indexOf("recusarSeArquivado(it.proj.id)") > 0);
+    });
+    t("a dica explica por que o app nao converte Frequencia em Exposicao", ()=>{
+      ok(B.indexOf("o app não converte uma coisa na outra por conta própria") > 0);
+      ok(B.indexOf("recalculado sozinho a partir do Grau do Dano previsto") > 0);
+    });
+
     /* Mesma razao do modo de selecao: no modo de edicao aparecem blocos de
        riscos nao avaliados E as listas suspensas. */
     t("imprimir sai do modo de edicao antes de montar", ()=>{

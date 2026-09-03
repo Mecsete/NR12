@@ -4165,6 +4165,33 @@ chk("projeto arquivado continua so leitura tambem aqui",
     "recusarSeArquivado(it.proj.id)" in _set)
 # O documento e desenhado em A4 e encolhido por transform:scale: a 50% a lista
 # fica com metade do tamanho e nao da para acertar com o dedo.
+# PLr previsto (03/09/2026, pedido do engenheiro). A decisao travada aqui e
+# QUAL parametro o app recalcula sozinho: S sai do Grau do Dano previsto
+# (substituicao direta no mesmo campo), mas F NAO e convertido da Frequencia do
+# HRN -- os dois falam vocabularios diferentes ("Horaria" x "Mais de 2x por
+# turno") e converter seria correspondencia normativa inventada de memoria,
+# dentro de laudo com ART. F e P ganham lista propria, no vocabulario do PLr.
+_plp = _corpoDe(novo, "plrPrevistoDoItem")
+chk("severidade prevista recalcula sozinha; exposicao NAO e convertida",
+    "if(hp.gpd) rSint.gpd = hp.gpd;" in _plp
+    and "hp.fe" not in _plp
+    and "if(pp.exposicao) rSint.exposicao = pp.exposicao;" in _plp)
+chk("F e P tem lista propria, no vocabulario do PLr",
+    "PLR_F_OPCOES.map(o=>" in _prev and "PLR_P_OPCOES.map(o=>" in _prev
+    and "App.lpPrevSetPlr(" in _prev)
+chk("voltar F ou P ao valor de hoje tambem desfaz a previsao",
+    "if(!valor || valor === hoje) delete pp[campo];" in _corpoDe(novo, "plrPrevAplicar")
+    and "if(Object.keys(pp).length === 0) delete it.risco.plrPrev;" in _corpoDe(novo, "plrPrevAplicar"))
+chk("a caixa so vira PLr quando o risco tem funcao de seguranca",
+    'pl.aplicavel? "Função de segurança (PLr)" : "Situação após a medida"' in _prev
+    and "pl.trocou" in _prev)
+chk("mexer so na exposicao ja conta como avaliado",
+    "const avaliado = p.mudou || pl.mudou;" in _prev)
+# O botao foi para a barra flutuante da direita, junto dos controles que agem
+# sobre a PREVIA (imprimir, zoom, selecao) e nao sobre o conteudo.
+chk("o botao mora na barra flutuante, e nao na barra de cima",
+    "App.lpToggleModoPrev()" in novo[novo.find('<div class="lp-flut">'):novo.find('<div class="lp-flut">')+1600]
+    and "lpToggleModoPrev" not in novo[novo.find('<div class="lp-barra">'):novo.find('<div class="lp-logo-linha">')])
 chk("a lista e um alvo de toque de verdade",
     "min-height:17px" in novo
     and "if((STATE.ui.lpZoom || 0.5) < 1) STATE.ui.lpZoom = 1;" in _tog)
