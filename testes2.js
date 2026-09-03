@@ -9699,6 +9699,155 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  /* ---------- t149: quanto cada projeto ocupa de fotos ---------------------
+     Base para decidir o que arquivar (conversa de 02/09/2026). Leitura pura.
+
+     DOIS NUMEROS, e a diferenca entre eles e o ponto: a mesma foto e gravada
+     uma vez so (o id vem do conteudo), entao a mesma imagem em dois projetos
+     ocupa um espaco unico. Arquivar um projeto libera o EXCLUSIVO, nao o
+     total -- mostrar o total como "espaco a liberar" seria prometer espaco
+     que nao vem. */
+  {
+    console.log("\n[t149] espaco de fotos por projeto (leitura pura)");
+    const ep = vm.createContext({ console, Promise, Set, Map, Object, Array, String, Number, JSON, setTimeout });
+    vm.runInContext(`
+      const FOTO_REF_PREFIXO = "idbfoto:";
+      var STATE = { projetosSimples: [] };
+      var __banco = new Map();        // fid -> texto da foto
+      var __lidos = [];               // quantas fotos cada leitura pediu
+      function temIndexedDB(){ return true; }
+      async function dbOpen(){ return {}; }
+      async function fotosCarregarIndice(){ return new Set(__banco.keys()); }
+      async function fotosLerLote(db, refs){
+        __lidos.push(refs.size);
+        const m = new Map();
+        refs.forEach(f=>{ if(__banco.has(f)) m.set(f, __banco.get(f)); });
+        return m;
+      }
+      async function listarPontosDeRestauracao(){ return []; }
+    `, ep);
+    ["ehFotoDataUrlPersist","ehFotoRefPersist","fotoCalcularId","fotosColetarRefs",
+     "fotosColetarIdsEmbutidas","__refsDoProjeto","contarItensDoProjeto",
+     "espacoDeFotosPorProjeto"].forEach(n=> vm.runInContext(funcao(n), ep));
+    vm.runInContext("const ESPACO_BLOCO_LEITURA = " +
+      /const ESPACO_BLOCO_LEITURA = (\d+);/.exec(HTML)[1] + ";", ep);
+
+    /* Cenario com numeros redondos, para a conta poder ser conferida a mao:
+       A tem 100+50 so dela; B tem 200 so dele; e as duas usam a MESMA foto de
+       80. Uma quinta foto nao pertence a projeto nenhum. */
+    const montar = ()=>{
+      vm.runInContext(`
+        __banco = new Map([["a1","x".repeat(100)],["a2","x".repeat(50)],
+                           ["b1","x".repeat(200)],["co","x".repeat(80)],
+                           ["so","x".repeat(30)]]);
+        __lidos = [];
+        STATE.projetosSimples = [
+          { id:"pA", empresa:"Projeto A", cidade:"X", areas:[{ id:"aA", nome:"Area", maquinas:[
+            { id:"mA", fotoGeral:"idbfoto:a1", fotoPlaqueta:"idbfoto:a2", fotosOutras:["idbfoto:co"],
+              tarefas:[{ id:"tA", riscos:[{ id:"rA", fotosOutras:[] }] }] } ] }] },
+          { id:"pB", empresa:"Projeto B", cidade:"Y", areas:[{ id:"aB", nome:"Area", maquinas:[
+            { id:"mB", fotoGeral:"idbfoto:b1", fotosOutras:["idbfoto:co"],
+              tarefas:[{ id:"tB", riscos:[{ id:"rB", fotosOutras:[] }] },
+                       { id:"tB2", riscos:[{ id:"rB2", fotosOutras:[] },{ id:"rB3", fotosOutras:[] }] }] } ] }] },
+        ];
+      `, ep);
+      return vm.runInContext("espacoDeFotosPorProjeto()", ep);
+    };
+
+    const ta = async (nome, fn)=>{ total++;
+      try{ await fn(); console.log("  ok  " + nome); }
+      catch(e){ falhas++; console.log("  ERRO " + nome + " -> " + (e && e.message ? e.message : e)); } };
+
+    let r;
+    await ta("preparacao: mede os dois projetos", async ()=>{
+      r = await montar();
+      eq(r.linhas.length, 2);
+    });
+    /* O CASO QUE JUSTIFICA OS DOIS NUMEROS: a foto de 80 esta nos dois
+       projetos. Ela conta no TOTAL de cada um, e no EXCLUSIVO de nenhum. */
+    await ta("O PONTO: foto usada por dois projetos entra no total, nunca no exclusivo", async ()=>{
+      const A = r.linhas.find(l=>l.nome==="Projeto A");
+      const B = r.linhas.find(l=>l.nome==="Projeto B");
+      eq(A.total, 230, "total de A: 100 + 50 + 80 compartilhada");
+      eq(A.exclusivo, 150, "exclusivo de A: so 100 + 50");
+      eq(B.total, 280, "total de B: 200 + 80 compartilhada");
+      eq(B.exclusivo, 200, "exclusivo de B: so 200");
+      eq(r.compartilhadas, 1, "a foto compartilhada precisa ser contada e dita");
+    });
+    await ta("a lista vem do maior exclusivo para o menor (o que mais libera primeiro)", async ()=>{
+      eq(r.linhas.map(l=>l.nome).join(","), "Projeto B,Projeto A");
+    });
+    await ta("conta as fotos de cada projeto, sem duplicar a compartilhada", async ()=>{
+      eq(r.linhas.find(l=>l.nome==="Projeto A").fotos, 3);
+      eq(r.linhas.find(l=>l.nome==="Projeto B").fotos, 2);
+      eq(r.fotosNoBanco, 5, "o banco tem 5 arquivos, nao 6");
+    });
+    await ta("foto sem dono nenhum aparece a parte, com o peso dela", async ()=>{
+      eq(r.soltas, 1);
+      eq(r.bytesSoltas, 30);
+    });
+    await ta("a ficha do projeto traz a contagem de itens", async ()=>{
+      const B = r.linhas.find(l=>l.nome==="Projeto B");
+      eq(B.contagem.areas, 1); eq(B.contagem.maquinas, 1);
+      eq(B.contagem.tarefas, 2); eq(B.contagem.riscos, 3);
+    });
+    /* LER EM BLOCOS NAO E DETALHE: ler as milhares de fotos de uma vez seriam
+       mais de 1 GB na memoria -- exatamente o pico que a carga sob demanda
+       veio eliminar. Um diagnostico que derruba o app e pior que nenhum. */
+    await ta("le em BLOCOS pequenos, nunca tudo de uma vez", async ()=>{
+      const lidos = vm.runInContext("__lidos", ep);
+      const teto = vm.runInContext("ESPACO_BLOCO_LEITURA", ep);
+      ok(lidos.length > 0, "nao leu nada");
+      lidos.forEach(n=> ok(n <= teto, "leu " + n + " fotos de uma vez, o teto e " + teto));
+    });
+    await ta("referencia sem arquivo no aparelho e contada a parte, nao somada", async ()=>{
+      vm.runInContext(`STATE.projetosSimples[0].areas[0].maquinas[0].fotosOutras.push("idbfoto:sumiu");`, ep);
+      const r2 = await vm.runInContext("espacoDeFotosPorProjeto()", ep);
+      const A = r2.linhas.find(l=>l.nome==="Projeto A");
+      eq(A.faltando, 1, "a referencia sem arquivo precisa aparecer, para explicar a diferenca");
+      eq(A.total, 230, "referencia sem arquivo nao pode somar peso nenhum");
+    });
+    t("e SO LEITURA: nao apaga, nao move, nao altera nada", ()=>{
+      const f = funcao("espacoDeFotosPorProjeto");
+      ["dbSet","readwrite",".delete(","store.put","marcarAlterado"].forEach(p=>
+        ok(f.indexOf(p) < 0, "operacao de escrita no diagnostico: " + p));
+      ok(f.indexOf("mapa.clear()") > 0, "precisa soltar cada bloco depois de somar");
+    });
+    /* UMA COLUNA SO NO CASO NORMAL. Dois projetos nao compartilham foto na
+       pratica -- cada levantamento fotografa maquinas diferentes. Duas colunas
+       iguais so ocupam a tela. A CONTA do exclusivo continua sendo feita: ela
+       custa nada e e ela que decide quanto some ao arquivar. Se um dia a mesma
+       foto aparecer em dois projetos, a segunda coluna nasce e explica a
+       diferenca, em vez de o app prometer um espaco que nao vem. */
+    t("a tela mostra UMA coluna quando nao ha foto compartilhada", ()=>{
+      ok(HTML.indexOf("const compartilha = e.linhas.some(l=> l.total !== l.exclusivo);") > 0,
+         "sem esta decisao, a tela mostra duas colunas sempre iguais");
+      ok(HTML.indexOf('${compartilha? "Exclusivo" : "Espaço"}') > 0,
+         "o cabecalho precisa mudar junto com o numero de colunas");
+      ok(HTML.indexOf('${compartilha? `<th style="padding:4px 6px;text-align:right">Total</th>`:""}') > 0,
+         "a coluna Total precisa sumir quando nao acrescenta nada");
+    });
+    t("mas a CONTA do exclusivo continua sendo feita, e ela e que vale", ()=>{
+      const f = funcao("espacoDeFotosPorProjeto");
+      ok(f.indexOf("if(donos.get(fid) === 1) exclusivo += t;") > 0,
+         "sem a conta, arquivar prometeria espaco que nao vem se houver foto compartilhada");
+    });
+    t("havendo foto compartilhada, a tela explica a diferenca", ()=>{
+      ok(HTML.indexOf("é o que seria liberado se o projeto saísse deste aparelho") > 0,
+         "sem essa frase, o numero maior passa a impressao de espaco que nao vem");
+      ok(HTML.indexOf('onclick="App.verEspacoPorProjeto()"') > 0, "sem botao nao adianta existir");
+      ok(HTML.indexOf("Isto é só leitura: nada foi apagado nem movido") > 0);
+    });
+    t("usa o formatador do app, para KB nao virar '0.0 MB'", ()=>{
+      ok(HTML.indexOf("const mb = fmtBytes;") > 0,
+         "com MB fixo, 30 KB aparece como 0.0 MB e nao informa nada");
+    });
+    t("duas medicoes ao mesmo tempo nao rodam", ()=>{
+      ok(HTML.indexOf("if(__espacoProjRodando) return;") > 0,
+         "sem trava, dois toques leem o banco inteiro duas vezes ao mesmo tempo");
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

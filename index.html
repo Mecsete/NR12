@@ -2441,7 +2441,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "02/09/2026 18:24";
+const APP_BUILD = "02/09/2026 19:31";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -5127,6 +5127,109 @@ function itemTemEspacoDeFotoVazio(obj){
                              a menos que a foto esteja na nuvem ou num backup.
 
    Esta função não grava nada. Só conta e mede. */
+/* ===== QUANTO CADA PROJETO OCUPA DE FOTOS NESTE APARELHO =====
+   Leitura pura: não apaga, não move, não altera nada. É a base para decidir o
+   que vale arquivar — sem esse número, escolher o que sai é chute.
+
+   DOIS NÚMEROS POR PROJETO, e a diferença entre eles importa:
+     · TOTAL     — o peso de todas as fotos que o projeto usa.
+     · EXCLUSIVO — o peso das fotos que SÓ ele usa.
+
+   A mesma foto é gravada uma única vez (o id vem do conteúdo dela), então a
+   mesma imagem em dois projetos ocupa um espaço só. Arquivar um projeto libera
+   o EXCLUSIVO, não o total — mostrar o total como "espaço a liberar" seria
+   prometer um espaço que não vem.
+
+   LEITURA EM BLOCOS. O IndexedDB não informa o tamanho de um valor sem ler o
+   valor. Ler as milhares de fotos de uma vez seriam mais de 1 GB na memória —
+   exatamente o pico que a carga sob demanda veio eliminar. Aqui lê em blocos
+   pequenos, soma o tamanho e solta. */
+const ESPACO_BLOCO_LEITURA = 25;
+function __refsDoProjeto(p){
+  const refs = new Set();
+  fotosColetarRefs(p, refs);
+  fotosColetarIdsEmbutidas(p, refs);   // projeto ainda no formato antigo
+  return refs;
+}
+async function espacoDeFotosPorProjeto(onProgresso){
+  if(!temIndexedDB()) return { erro:"Este aparelho não tem o banco de dados local disponível." };
+  const db = await dbOpen();
+  const indice = await fotosCarregarIndice(db);
+
+  /* 1) De quem é cada foto. Um id pode ser usado por mais de um projeto — é
+        justamente isso que separa o total do exclusivo. */
+  const projetos = (STATE.projetosSimples || []).map(p=>({
+    id: p.id,
+    nome: (p.empresa || "Projeto sem nome"),
+    cidade: p.cidade || "",
+    refs: __refsDoProjeto(p),
+    contagem: contarItensDoProjeto(p),
+  }));
+  const donos = new Map();   // fid -> quantos projetos usam
+  projetos.forEach(pr=> pr.refs.forEach(fid=>{
+    if(indice.has(fid)) donos.set(fid, (donos.get(fid) || 0) + 1);
+  }));
+
+  /* 2) Tamanho de cada foto, lido em blocos e somado na hora. */
+  const tamanho = new Map();
+  const todas = [...donos.keys()];
+  for(let i=0; i<todas.length; i+=ESPACO_BLOCO_LEITURA){
+    const lote = new Set(todas.slice(i, i+ESPACO_BLOCO_LEITURA));
+    const mapa = await fotosLerLote(db, lote);
+    mapa.forEach((v, fid)=> tamanho.set(fid, (v && v.length) || 0));
+    mapa.clear();
+    if(onProgresso) onProgresso(Math.min(i+ESPACO_BLOCO_LEITURA, todas.length), todas.length);
+    await new Promise(r=>setTimeout(r, 0));   // deixa o navegador respirar
+  }
+
+  /* 3) Fecha a conta por projeto. */
+  const linhas = projetos.map(pr=>{
+    let total = 0, exclusivo = 0, fotos = 0, faltando = 0;
+    pr.refs.forEach(fid=>{
+      if(!indice.has(fid)){ faltando++; return; }   // referência sem arquivo no aparelho
+      const t = tamanho.get(fid) || 0;
+      fotos++; total += t;
+      if(donos.get(fid) === 1) exclusivo += t;
+    });
+    return { id:pr.id, nome:pr.nome, cidade:pr.cidade, fotos, total, exclusivo, faltando,
+             contagem:pr.contagem };
+  }).sort((a,b)=> b.exclusivo - a.exclusivo);
+
+  /* 4) O que não pertence a projeto nenhum: as fotos soltas. Entram aqui
+        porque também ocupam espaço e também dá para recuperá-lo — só que pela
+        galeria de fotos soltas, não por arquivamento. */
+  const referenciadas = new Set();
+  projetos.forEach(pr=> pr.refs.forEach(f=>referenciadas.add(f)));
+  const soltas = [];
+  indice.forEach(fid=>{ if(!referenciadas.has(fid)) soltas.push(fid); });
+  let bytesSoltas = 0;
+  for(let i=0; i<soltas.length; i+=ESPACO_BLOCO_LEITURA){
+    const lote = new Set(soltas.slice(i, i+ESPACO_BLOCO_LEITURA));
+    const mapa = await fotosLerLote(db, lote);
+    mapa.forEach(v=>{ bytesSoltas += (v && v.length) || 0; });
+    mapa.clear();
+    await new Promise(r=>setTimeout(r, 0));
+  }
+
+  const totalNoBanco = linhas.reduce((a,l)=>a+l.total, 0);
+  return { linhas, fotosNoBanco: indice.size, soltas: soltas.length, bytesSoltas,
+           compartilhadas: [...donos.values()].filter(n=>n>1).length,
+           totalNoBanco };
+}
+/* Contagem de itens de um projeto — a mesma hierarquia que o resto do app
+   percorre, para a ficha do projeto arquivado poder dizer o que há lá dentro
+   sem precisar dos dados. */
+function contarItensDoProjeto(p){
+  let areas = 0, maquinas = 0, tarefas = 0, riscos = 0;
+  for(const a of (p.areas || [])){
+    areas++;
+    for(const m of (a.maquinas || [])){
+      maquinas++;
+      for(const t of (m.tarefas || [])){ tarefas++; riscos += (t.riscos || []).length; }
+    }
+  }
+  return { areas, maquinas, tarefas, riscos };
+}
 async function diagnosticarFotosDoAparelho(){
   if(!temIndexedDB()) return { erro:"Este aparelho não tem o banco de dados local disponível." };
   const db = await dbOpen();
@@ -16631,6 +16734,7 @@ function screenSimplesConfigBackup(){
   <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.recuperarFotosPerdidas(0)">${ic('shield')} Devolver fotos — o projeto inteiro</button>
   <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.copiarListaFotoPerdida()">${ic('copy')} Copiar lista dos itens que ainda precisam de foto</button>
   <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.verDiagnosticoFotos()">${ic('info')} Conferir as fotos guardadas neste aparelho</button>
+  <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.verEspacoPorProjeto()">${ic('layers')} Quanto cada projeto ocupa de fotos</button>
   <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="document.getElementById('fileFotosRecuperadas').click()">${ic('upload')} Devolver fotos a partir de um arquivo de backup (.json)</button>
   <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.baixarOrfasZip()">${ic('download')} Baixar as fotos soltas (.zip)${__orfasZipTotalLotes? ` — próximo: lote ${Math.min(orfasZipProximoLote()+1, __orfasZipTotalLotes)} de ${__orfasZipTotalLotes}`:""}</button>
   ${__orfasZipRodando
@@ -16653,6 +16757,50 @@ function screenSimplesConfigBackup(){
       ? `Há <b>${__diagFotosCache.orfas} foto(s) recuperável(is)</b> guardada(s) aqui sem dono${__diagFotosCache.maisAntigaDias!==null?` — a mais antiga há ${__diagFotosCache.maisAntigaDias} dia(s), e a quarentena as guarda por 30`:''}. Avise o suporte com estes números.`
       : `Nenhuma foto órfã: tudo que está guardado neste aparelho já tem dono. As referências quebradas, se houver, precisam vir da nuvem ou de um backup.`}</div>
   </div>` : ""}
+  ${__espacoProjCache ? (()=>{
+    const e = __espacoProjCache;
+    if(e.erro) return `<div class="field-hint" style="margin-top:8px;color:var(--danger,#c0392b)">${escapeHtml(e.erro)}</div>`;
+    const mb = fmtBytes;   // escolhe a unidade: 30 KB não pode virar "0.0 MB"
+    const somaExcl = e.linhas.reduce((a,l)=>a+l.exclusivo, 0);
+    /* UMA COLUNA SÓ, no caso normal. Dois projetos não compartilham foto na
+       prática (decisão do engenheiro responsável em 02/09/2026: cada
+       levantamento fotografa máquinas diferentes), e duas colunas iguais só
+       ocupam a tela.
+       A conta do exclusivo continua sendo feita — ela custa nada e é ela que
+       decide quanto some ao arquivar. Se um dia a mesma foto aparecer em dois
+       projetos, a segunda coluna nasce e explica a diferença, em vez de o app
+       prometer um espaço que não vem. */
+    const compartilha = e.linhas.some(l=> l.total !== l.exclusivo);
+    return `<div class="card card-pad" style="margin-top:8px">
+      <div style="font-weight:800;font-size:13px;margin-bottom:6px">Quanto cada projeto ocupa de fotos</div>
+      ${compartilha? `<div style="font-size:12px;color:var(--ink-dim);margin-bottom:8px">
+        <b>Exclusivo</b> é o que seria liberado se o projeto saísse deste aparelho — menor que o total porque a mesma foto aparece em mais de um projeto, e a foto é guardada uma vez só.
+      </div>` : ""}
+      <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+        <tr style="text-align:left;color:var(--ink-faint);font-size:11px;text-transform:uppercase;letter-spacing:.04em">
+          <th style="padding:4px 6px 4px 0">Projeto</th><th style="padding:4px 6px;text-align:right">Fotos</th>
+          ${compartilha? `<th style="padding:4px 6px;text-align:right">Total</th>`:""}<th style="padding:4px 0 4px 6px;text-align:right">${compartilha? "Exclusivo" : "Espaço"}</th>
+        </tr>
+        ${e.linhas.map(l=>`<tr style="border-top:1px solid var(--line)">
+          <td style="padding:6px 6px 6px 0">
+            <div style="font-weight:700">${escapeHtml(l.nome)}</div>
+            <div style="font-size:11px;color:var(--ink-faint)">${l.contagem.areas} área(s) · ${l.contagem.maquinas} equip. · ${l.contagem.riscos} risco(s)${l.faltando? ` · <span style="color:#B26A00">${l.faltando} foto(s) faltando aqui</span>`:""}</div>
+          </td>
+          <td style="padding:6px;text-align:right">${l.fotos}</td>
+          ${compartilha? `<td style="padding:6px;text-align:right;color:var(--ink-dim)">${mb(l.total)}</td>`:""}
+          <td style="padding:6px 0 6px 6px;text-align:right;font-weight:800">${mb(l.exclusivo)}</td>
+        </tr>`).join("")}
+      </table>
+      </div>
+      <div style="font-size:12.5px;color:var(--ink-dim);line-height:1.9;margin-top:10px;border-top:1px solid var(--line);padding-top:8px">
+        ${compartilha? "Somando o exclusivo de todos" : "Somando todos"}: <b>${mb(somaExcl)}</b><br>
+        Fotos guardadas no aparelho: <b>${e.fotosNoBanco}</b>${e.compartilhadas>0? ` · <b>${e.compartilhadas}</b> usada(s) por mais de um projeto`:""}<br>
+        <span style="color:${e.soltas>0?'#2e7d32':'inherit'}">Fotos soltas (sem dono): <b>${e.soltas}</b>${e.soltas>0?` — ${mb(e.bytesSoltas)}, recuperáveis pela galeria de fotos soltas`:""}</span>
+      </div>
+      <div class="field-hint" style="margin-top:8px">Isto é só leitura: nada foi apagado nem movido. Serve para escolher o que vale tirar do aparelho.</div>
+    </div>`;
+  })() : ""}
   <div class="section-title">Backup · Reescrever as frases dos riscos</div>
   <div class="card card-pad">
     <p style="font-size:12.5px;color:var(--ink-dim)">O nome e a descrição do risco são montados a partir de <b>Evento, Componente, Local e Parte do corpo</b>. A redação foi melhorada: a parte do corpo passou a ligar-se ao evento ("Amputação <b>da mão</b> na lâmina da tampa de inspeção", em vez de "Amputação na lâmina, na tampa de inspeção, com lesão na mão"). Isto reescreve os riscos que já existem.<br><br><b>Frase que você digitou por cima nunca é tocada</b> — só as que o próprio app tinha montado.<br><br>Se houver outra pessoa trabalhando no mesmo projeto, <b>sincronize antes</b>: recompor altera o carimbo de data, e edições que ainda não chegaram aqui seriam passadas por cima.</p>
@@ -20119,6 +20267,24 @@ Devolver agora?`)) return;
     }
   },
   orfasZipParar(){ __orfasZipCancelar = true; toast("Parando depois do lote atual…"); },
+  /* Leitura pura: percorre as fotos em blocos e soma o tamanho. Não apaga,
+     não move, não altera nada — é a base para decidir o que vale arquivar.
+     Pode demorar num acervo grande, por isso o progresso na tela. */
+  async verEspacoPorProjeto(){
+    if(__espacoProjRodando) return;
+    __espacoProjRodando = true;
+    try{
+      toast("Medindo o espaço das fotos…");
+      __espacoProjCache = await espacoDeFotosPorProjeto((lidas, total)=>{
+        if(total > 200 && lidas % 200 === 0) toast(`Medindo… ${lidas} de ${total}`);
+      });
+      render();
+      if(!__espacoProjCache.erro) toast("Medição concluída");
+    }catch(e){
+      __espacoProjCache = { erro: "Não foi possível medir: " + ((e && e.message) || e) };
+      render();
+    }finally{ __espacoProjRodando = false; }
+  },
   orfasZipReiniciar(){ orfasZipDefinirProximoLote(0); render(); toast("Contagem reiniciada — o próximo toque baixa o lote 1"); },
   orfasDestinoCampo(campo){
     if(!__orfas) return;
@@ -22268,6 +22434,10 @@ let __ultimoImportePlaqueta = null;
 let __ultimaRecuperacaoFotos = null;
 /* Resultado do último diagnóstico de fotos guardadas (somente leitura). */
 let __diagFotosCache = null;
+/* Resultado da última medição de espaço por projeto (somente leitura). A trava
+   evita duas medições ao mesmo tempo — ela lê milhares de fotos em blocos. */
+let __espacoProjCache = null;
+let __espacoProjRodando = false;
 /* Qual lote de fotos soltas o próximo toque vai baixar (o download sai em
    lotes para não montar centenas de MB de uma vez). */
 /* A CONTAGEM MORA NO STATE, não numa variável solta.

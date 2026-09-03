@@ -64,6 +64,37 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 02/09/2026 19:31
+
+**Novo: quanto cada projeto ocupa de fotos neste aparelho.** Em Configurações →
+Backup, o botão *"Quanto cada projeto ocupa de fotos"*.
+
+É o primeiro passo da ideia de arquivar projetos encerrados: sem saber onde
+está o peso, escolher o que sai do aparelho é chute. **Só leitura — não apaga,
+não move e não altera nada.**
+
+A lista mostra, por projeto, **quantas fotos e quanto espaço** ocupam, ordenada
+do maior para o menor — o que mais libera primeiro. Cada linha traz também a
+contagem de áreas, equipamentos e riscos, e avisa quando há referência de foto
+sem o arquivo no aparelho.
+
+No rodapé: o total a liberar somando tudo, quantas fotos estão guardadas, e o
+peso das **fotos soltas** — que também ocupam espaço, mas se recuperam pela
+galeria de fotos soltas, não por arquivamento.
+
+**Uma ressalva que o app faz sozinho.** A mesma foto é guardada uma única vez
+(o app a identifica pelo conteúdo). Se a mesma imagem aparecesse em dois
+projetos, tirar um deles não liberaria o espaço dela. Na prática isso não
+acontece — cada levantamento fotografa máquinas diferentes —, então a tela
+mostra **uma coluna só**. Mas a conta é feita de qualquer forma: se um dia
+houver uma foto repetida entre projetos, a tela abre uma segunda coluna e
+explica a diferença, em vez de prometer um espaço que não viria.
+
+**A medição lê em blocos pequenos** e solta cada um depois de somar. Ler as
+milhares de fotos de uma vez seriam mais de 1 GB na memória — exatamente o pico
+que a carga sob demanda veio eliminar. Um diagnóstico que derruba o app seria
+pior que nenhum: conferido que medir não deixa nenhuma foto carregada.
+
 ## 02/09/2026 18:24
 
 **Novo: sua assinatura no laudo.** Na aba Imprimir, ao lado de Logotipo, Rodapé,

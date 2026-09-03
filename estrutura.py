@@ -3807,6 +3807,41 @@ chk("PNG, para a assinatura nao sair com fundo branco tapando a linha",
 chk("remover pergunta antes e apaga do aparelho",
     "assinaturaGravar(null)" in novo and "__assinaturaLaudo = null;" in novo)
 
+print("\n=== 122. QUANTO CADA PROJETO OCUPA DE FOTOS (leitura pura) ===")
+# Base para decidir o que arquivar (conversa de 02/09/2026). Sem esse numero,
+# escolher o que sai do aparelho e chute -- ninguem sabia se o Corteva eram
+# 900 MB e os outros 300, ou o contrario.
+chk("existe a medicao, e ela conta itens por projeto",
+    novo.count("async function espacoDeFotosPorProjeto(onProgresso){") == 1
+    and novo.count("function contarItensDoProjeto(p){") == 1
+    and novo.count("function __refsDoProjeto(p){") == 1)
+_ep = novo[novo.find("async function espacoDeFotosPorProjeto(onProgresso){"):]
+_ep = _ep[:_ep.find("/* Contagem de itens de um projeto")]
+# O PONTO DA FEATURE: a mesma foto e gravada uma vez so, entao arquivar um
+# projeto libera o EXCLUSIVO, nao o total. Prometer o total seria prometer
+# espaco que nao vem.
+chk("separa TOTAL de EXCLUSIVO -- a foto compartilhada nao conta duas vezes",
+    "if(donos.get(fid) === 1) exclusivo += t;" in _ep
+    and "donos.set(fid, (donos.get(fid) || 0) + 1)" in _ep)
+chk("e a tela explica a diferenca, em vez de deixar o numero maior enganar",
+    "é o que seria liberado se o projeto saísse deste aparelho" in novo)
+# LER EM BLOCOS NAO E DETALHE: ler tudo de uma vez seriam mais de 1 GB na
+# memoria -- o mesmo pico que a carga sob demanda (secao 114) veio eliminar.
+chk("le em blocos pequenos e solta cada um depois de somar",
+    "const ESPACO_BLOCO_LEITURA = 25;" in novo
+    and "i+=ESPACO_BLOCO_LEITURA" in _ep
+    and _ep.count("mapa.clear();") == 2)
+chk("e SO LEITURA: nao apaga, nao move, nao altera nada",
+    all(x not in _ep for x in ["dbSet", "readwrite", ".delete(", "store.put", "marcarAlterado"]))
+chk("mostra tambem o que nao e de projeto nenhum (as fotos soltas)",
+    "bytesSoltas" in _ep and "recuperáveis pela galeria de fotos soltas" in novo)
+chk("referencia sem arquivo aparece a parte, e nao soma peso",
+    "if(!indice.has(fid)){ faltando++; return; }" in _ep)
+chk("tem botao, trava de reentrada e usa o formatador do app",
+    'onclick="App.verEspacoPorProjeto()"' in novo
+    and "if(__espacoProjRodando) return;" in novo
+    and "const mb = fmtBytes;" in novo)
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
