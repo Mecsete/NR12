@@ -2936,7 +2936,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "03/09/2026 19:21";
+const APP_BUILD = "03/09/2026 19:25";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -24401,7 +24401,7 @@ window.addEventListener("pageshow", (event) => {
    espaco sai das cinco colunas do HRN, que continuam sem quebrar porque o
    maior rotulo delas ("Grau do Dano (GPD)") e bem mais curto. */
 .lp-rc-plr{flex:0 0 156px;border-left:1px solid #8A8CA3;padding:4px 8px;display:flex;
-  flex-direction:column;justify-content:center;gap:2px}
+  flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:2px}
 .lp-rc-plr .r{font-size:6.5px;font-weight:bold;letter-spacing:.03em;text-transform:uppercase;
   color:#5B5F7A;white-space:nowrap}
 .lp-rc-plr .v{font-size:8.5px;color:#111}
@@ -24819,7 +24819,7 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
       </table></div>
       <div class="lp-rc-plr">
         <div class="r">${pl.aplicavel? "Função de segurança (PLr)" : "Situação após a medida"}</div>
-        ${pl.aplicavel? `<div class="v" style="text-align:center">${
+        ${pl.aplicavel? `<div class="v">${
           pl.atual.completo && pl.previsto.completo
             ? (pl.trocou
                 ? `<b>PL ${esc(pl.atual.plr)}</b> &rarr; <b style="color:#2E7D32">PL ${esc(pl.previsto.plr)}</b>`

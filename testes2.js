@@ -10797,6 +10797,13 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(B.indexOf("PL ${esc(pl.atual.plr)}</b> &rarr; <b style=\"color:#2E7D32\">PL ${esc(pl.previsto.plr)}") > 0,
          "sem o de-para, nao da para ver que a exigencia caiu");
       ok(B.indexOf('pl.trocou') > 0, "PL igual nao pode aparecer como se tivesse mudado");
+      /* A celula ja centralizava na vertical; a horizontal faltava, nos DOIS
+         quadros (o de hoje e o previsto). Feito no CSS da celula, e nao inline
+         no previsto, para os dois ficarem iguais. */
+      ok(HTML.indexOf("flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:2px}") > 0,
+         "o conteudo do PLr precisa ficar centralizado nos dois quadros");
+      ok(B.indexOf('<div class="v" style="text-align:center">') < 0,
+         "centralizar so no previsto deixaria os dois quadros diferentes");
     });
     t("mexer em F ou P redesenha so aquele risco, como o HRN", ()=>{
       const f = HTML.slice(HTML.indexOf("    lpPrevSetPlr(riscoId, campo, valor){"), HTML.indexOf("    async lpToggleRisco(riscoId){"));

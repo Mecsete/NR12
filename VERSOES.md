@@ -64,6 +64,13 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 03/09/2026 19:25
+
+**Ajuste:** o conteúdo da célula **Função de segurança (PLr)** passou a ficar
+centralizado — no quadro do risco atual e no do risco residual. A célula já
+centralizava na vertical; faltava a horizontal. Feito no estilo da própria
+célula, e não só no quadro previsto, para os dois ficarem iguais.
+
 ## 03/09/2026 19:21
 
 **Risco residual: o botão mudou de lugar e o PLr passou a ser recalculado.**

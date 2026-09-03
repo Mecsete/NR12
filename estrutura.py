@@ -4182,6 +4182,9 @@ chk("F e P tem lista propria, no vocabulario do PLr",
 chk("voltar F ou P ao valor de hoje tambem desfaz a previsao",
     "if(!valor || valor === hoje) delete pp[campo];" in _corpoDe(novo, "plrPrevAplicar")
     and "if(Object.keys(pp).length === 0) delete it.risco.plrPrev;" in _corpoDe(novo, "plrPrevAplicar"))
+chk("o conteudo da celula do PLr fica centralizado nos dois quadros",
+    "flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:2px}" in novo
+    and '<div class="v" style="text-align:center">' not in novo)
 chk("a caixa so vira PLr quando o risco tem funcao de seguranca",
     'pl.aplicavel? "Função de segurança (PLr)" : "Situação após a medida"' in _prev
     and "pl.trocou" in _prev)
