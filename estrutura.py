@@ -1,4 +1,4 @@
-import re, sys
+import os, re, sys
 
 # Uso: python3 estrutura.py [original.html] [novo.html]
 # Sem argumentos, compara original.html x index.html na pasta atual.
@@ -4258,6 +4258,56 @@ chk("a folha monta os filtros sozinha, sem depender de quem chama",
 _ft = novo[novo.find("  laudoFiltrarCopia(q){"):novo.find("  laudoAplicarCopia(rid, campo, origemId){")]
 chk("o campo de texto filtra por cima, sem redesenhar",
     "el.hidden = !(!t ||" in _ft and "innerHTML" not in _ft)
+
+
+print("=== 129. O APP PERCEBE QUE HA VERSAO NOVA (04/09/2026) ===")
+# O service worker busca a rede primeiro, entao RECARREGAR sempre traz a versao
+# publicada. So que num app instalado na tela de inicio do iPhone, reabrir pelo
+# seletor de aplicativos NAO e uma navegacao: a pagina segue viva em memoria,
+# com o codigo de dias atras. Foi assim que uma correcao publicada de manha
+# continuou invisivel a tarde.
+chk("a checagem existe e so aceita o formato do carimbo",
+    'const VERSAO_ARQUIVO = "versao.txt";' in novo
+    and "/^\\d{2}\\/\\d{2}\\/\\d{4} \\d{2}:\\d{2}$/.test(txt)" in novo)
+# Baixar o index.html so para ler a versao seriam 2,3 MB de dados moveis por
+# checagem (o carimbo mora depois da metade de um arquivo de 4 MB).
+chk("NAO baixa o index.html para conferir a versao",
+    "verificarVersaoPublicada" in novo
+    and "index.html" not in _corpoDe(novo, "verificarVersaoPublicada"))
+chk("fura cache no meio do caminho, e nao inventa nada sem o arquivo",
+    'url.searchParams.set("t", String(Date.now()));' in novo
+    and 'cache:"no-store"' in _corpoDe(novo, "verificarVersaoPublicada")
+    and "if(!resp.ok) return __versaoNova;" in novo)
+# Voltar para o app e o momento exato do problema.
+chk("checa ao voltar para o app, com limite de uma a cada 10 min",
+    "else verificarVersaoPublicada().catch(()=>{});" in novo
+    and "const VERSAO_INTERVALO_MS = 10 * 60 * 1000;" in novo
+    and "Date.now() - __versaoUltimaChecagem < VERSAO_INTERVALO_MS" in novo)
+# Recarregar sozinho, em campo, no meio de um formulario, e o tipo de coisa que
+# faz perder confianca no app.
+# atualizarApp e METODO do App, nao "function nome(" — _corpoDe nao alcanca.
+_att = novo[novo.find("  async atualizarApp(){"):novo.find("  laudoAbrirCopiar(rid, campo){")]
+chk("avisa na barra do topo e NAO recarrega sozinho",
+    "${avisoVersaoNovaHtml()}" in novo
+    and 'onclick="App.atualizarApp()"' in novo
+    and "location.reload()" in _att)
+chk("e grava o que estiver pendente antes de recarregar",
+    "if(__salvamentoPendente) await persistir();" in _att
+    and "flushDraftPendente();" in _att
+    and _att.find("await persistir();") < _att.find("location.reload()"))
+
+# A TRAVA QUE IMPEDE O AVISO DE MENTIR: versao.txt e APP_BUILD tem de bater.
+# Publicar um sem o outro faria o app anunciar versao que nao existe, ou ficar
+# mudo diante de uma que existe.
+_vt = os.path.join(os.path.dirname(os.path.abspath(caminho_novo)) or ".", "versao.txt")
+_mb = re.search(r'const APP_BUILD = "([^"]+)";', novo)
+try:
+    _conteudo = open(_vt, encoding="utf-8").read().strip()
+except Exception:
+    _conteudo = "(versao.txt nao encontrado)"
+chk("versao.txt existe e bate com o APP_BUILD",
+    bool(_mb) and _conteudo == _mb.group(1),
+    "versao.txt=%r APP_BUILD=%r" % (_conteudo, _mb.group(1) if _mb else None))
 
 
 print("\n---------------------------------------")

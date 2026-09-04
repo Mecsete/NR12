@@ -10963,6 +10963,151 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  /* ---------- t155: o app percebe que ha versao nova ----------------------
+     O service worker busca a rede primeiro, entao RECARREGAR sempre traz a
+     versao publicada. So que num app instalado na tela de inicio do iPhone,
+     reabrir pelo seletor de aplicativos NAO e uma navegacao: a pagina segue
+     viva em memoria com o codigo de dias atras, e nenhuma requisicao de
+     navegacao acontece. Foi assim que uma correcao publicada de manha
+     continuou invisivel a tarde, com o engenheiro achando que o pedido nao
+     tinha sido atendido (04/09/2026). */
+  {
+    console.log("\n[t155] o app percebe que ha versao nova");
+    const cv = vm.createContext({ console, Date, URL, RegExp, String, JSON, Promise, setTimeout });
+    vm.runInContext(`
+      const APP_BUILD = "04/09/2026 10:00";
+      var location = { href: "https://exemplo/app/index.html" };
+      var navigator = { onLine: true };
+      var __renders = 0;
+      function render(){ __renders++; }
+      function escapeHtml(x){ return String(x); }
+      function ic(){ return "<svg></svg>"; }
+      var __resposta = { ok:true, texto:"04/09/2026 16:13" };
+      var __urlsPedidas = [];
+      async function fetch(u){
+        __urlsPedidas.push(String(u));
+        if(__resposta.erro) throw new Error("sem rede");
+        return { ok: __resposta.ok, text: async ()=> __resposta.texto };
+      }
+    `, cv);
+    /* O extrator constante() nao delimita uma const seguida de outra na mesma
+       secao — a primeira ja traz a segunda junto, e carregar as duas daria
+       "already been declared". */
+    ["VERSAO_ARQUIVO","VERSAO_INTERVALO_MS"].forEach(n=>{
+      try{ vm.runInContext(constante(n), cv); }catch(e){}
+    });
+    /* Ja vieram junto com a constante acima (mesma secao do arquivo); so
+       declara se ainda nao existirem. */
+    try{ vm.runInContext("__versaoNova; __versaoUltimaChecagem;", cv); }
+    catch(e){ vm.runInContext("var __versaoNova = null; var __versaoUltimaChecagem = 0;", cv); }
+    ["verificarVersaoPublicada","avisoVersaoNovaHtml"].forEach(n=> vm.runInContext(funcao(n), cv));
+    const rodar = ()=> vm.runInContext("verificarVersaoPublicada(true)", cv);
+    const zerar = ()=> vm.runInContext("__versaoNova = null; __versaoUltimaChecagem = 0; __urlsPedidas = [];", cv);
+
+    const ta = async (nome, fn)=>{ total++;
+      try{ await fn(); console.log("  ok  " + nome); }
+      catch(e){ falhas++; console.log("  ERRO " + nome + " -> " + (e && e.message ? e.message : e)); } };
+
+    await ta("O PONTO: versao publicada diferente da que roda vira aviso", async ()=>{
+      zerar();
+      eq(await rodar(), "04/09/2026 16:13");
+      ok(vm.runInContext("avisoVersaoNovaHtml()", cv).indexOf("Versão nova disponível") > 0);
+      ok(vm.runInContext("__renders", cv) > 0, "a tela precisa se redesenhar para o aviso aparecer");
+    });
+    await ta("mesma versao: nao avisa nada", async ()=>{
+      zerar();
+      vm.runInContext('__resposta = { ok:true, texto:"04/09/2026 10:00" };', cv);
+      eq(await rodar(), null);
+      eq(vm.runInContext("avisoVersaoNovaHtml()", cv), "");
+    });
+    /* NAO baixa o index.html: sao 4 MB, com o carimbo depois da metade — 2,3 MB
+       de dados moveis por checagem, num app de campo. */
+    await ta("pede o arquivo pequeno, nunca o index.html", async ()=>{
+      zerar();
+      vm.runInContext('__resposta = { ok:true, texto:"04/09/2026 16:13" };', cv);
+      await rodar();
+      const u = vm.runInContext("__urlsPedidas[0]", cv);
+      ok(u.indexOf("versao.txt") > 0, "url pedida: " + u);
+      ok(u.indexOf("index.html") < 0, "baixar o index.html seriam 2,3 MB por checagem");
+      ok(/[?&]t=\d+/.test(u), "sem carimbo na url, um cache no meio do caminho responde o antigo");
+    });
+    /* Uma pagina de erro pode voltar com status 200 e corpo HTML. Anunciar
+       "versao nova: <!DOCTYPE" seria pior do que nao avisar. */
+    await ta("resposta que nao e um carimbo NAO vira aviso", async ()=>{
+      zerar();
+      vm.runInContext('__resposta = { ok:true, texto:"<!DOCTYPE html><html>404</html>" };', cv);
+      eq(await rodar(), null);
+      eq(vm.runInContext("avisoVersaoNovaHtml()", cv), "");
+    });
+    await ta("sem o arquivo publicado (versao antiga no ar), fica calado", async ()=>{
+      zerar();
+      vm.runInContext('__resposta = { ok:false, texto:"" };', cv);
+      eq(await rodar(), null);
+    });
+    await ta("sem rede, fica calado e nao quebra", async ()=>{
+      zerar();
+      vm.runInContext('__resposta = { erro:true };', cv);
+      eq(await rodar(), null);
+    });
+    await ta("offline declarado nem chega a pedir", async ()=>{
+      zerar();
+      vm.runInContext('navigator.onLine = false; __resposta = { ok:true, texto:"04/09/2026 16:13" };', cv);
+      eq(await vm.runInContext("verificarVersaoPublicada()", cv), null);
+      eq(vm.runInContext("__urlsPedidas.length", cv), 0);
+      vm.runInContext("navigator.onLine = true;", cv);
+    });
+    /* Sem o limite, cada volta ao app dispararia uma requisicao — e no celular
+       a pessoa entra e sai do app dezenas de vezes por hora. */
+    await ta("respeita o limite de uma checagem a cada 10 min", async ()=>{
+      zerar();
+      vm.runInContext('__resposta = { ok:true, texto:"04/09/2026 16:13" };', cv);
+      await vm.runInContext("verificarVersaoPublicada()", cv);
+      eq(vm.runInContext("__urlsPedidas.length", cv), 1);
+      await vm.runInContext("verificarVersaoPublicada()", cv);
+      eq(vm.runInContext("__urlsPedidas.length", cv), 1, "checou de novo dentro do intervalo");
+      await vm.runInContext("verificarVersaoPublicada(true)", cv);
+      eq(vm.runInContext("__urlsPedidas.length", cv), 2, "o 'forcar' precisa furar o limite");
+    });
+    /* O carimbo NAO pode voltar a zero quando a checagem falha: senao uma falha
+       de rede apagaria o aviso que ja estava na tela. */
+    await ta("falha depois de ja ter avisado NAO apaga o aviso", async ()=>{
+      zerar();
+      vm.runInContext('__resposta = { ok:true, texto:"04/09/2026 16:13" };', cv);
+      await rodar();
+      vm.runInContext('__resposta = { erro:true };', cv);
+      eq(await rodar(), "04/09/2026 16:13", "a falha nao pode limpar o aviso ja mostrado");
+    });
+
+    /* ---- a tela e a acao ---- */
+    t("o aviso fica na barra do topo, visivel em qualquer tela", ()=>{
+      ok(HTML.indexOf("${avisoVersaoNovaHtml()}") > 0);
+      const i = HTML.indexOf("${avisoVersaoNovaHtml()}");
+      const topo = HTML.lastIndexOf('return `<div class="topbar">', i);
+      ok(topo > 0 && topo < i, "o aviso precisa estar dentro da barra do topo");
+    });
+    /* Recarregar sozinho, em campo, no meio de um formulario aberto, e o tipo
+       de coisa que faz perder a confianca no app. */
+    t("NAO recarrega sozinho: e um toque", ()=>{
+      ok(HTML.indexOf('onclick="App.atualizarApp()"') > 0);
+      const f = HTML.slice(HTML.indexOf("  async atualizarApp(){"), HTML.indexOf("  laudoAbrirCopiar(rid, campo){"));
+      ok(f.indexOf("location.reload()") > 0);
+      ok(funcao("verificarVersaoPublicada").indexOf("location.reload") < 0,
+         "a checagem nunca pode recarregar por conta propria");
+    });
+    t("e grava o pendente ANTES de recarregar", ()=>{
+      const f = HTML.slice(HTML.indexOf("  async atualizarApp(){"), HTML.indexOf("  laudoAbrirCopiar(rid, campo){"));
+      ok(f.indexOf("if(__salvamentoPendente) await persistir();") > 0);
+      ok(f.indexOf("flushDraftPendente();") > 0, "o rascunho aberto tambem precisa sair antes");
+      ok(f.indexOf("await persistir();") < f.indexOf("location.reload()"));
+    });
+    /* Voltar para o app e o momento exato do problema no iPhone. */
+    t("checa ao voltar para o app", ()=>{
+      ok(HTML.indexOf("else verificarVersaoPublicada().catch(()=>{});") > 0);
+      ok(HTML.indexOf("setTimeout(()=>{ verificarVersaoPublicada(true).catch(()=>{}); }, 15000);") > 0,
+         "e uma vez na abertura, fora do caminho da primeira tela");
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

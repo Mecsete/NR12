@@ -64,6 +64,36 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 04/09/2026 18:09
+
+**Novo: o app avisa quando existe versão nova publicada.** Uma faixa amarela
+aparece na barra do topo, em qualquer tela: *"Versão nova disponível — DD/MM
+HH:MM. Toque para atualizar."*
+
+Por que faltava: o service worker busca a rede primeiro, então **recarregar** a
+página sempre trouxe a versão publicada. Só que num app instalado na tela de
+início do iPhone, reabrir pelo seletor de aplicativos **não é uma navegação** —
+a página continua viva em memória, com o código de dias atrás, e nenhuma
+requisição de navegação acontece. Foi assim que correções publicadas de manhã
+continuaram invisíveis à tarde.
+
+Como funciona:
+
+- Um arquivo `versao.txt` de uma linha é publicado ao lado do app, com o mesmo
+  carimbo do rodapé. Conferir custa alguns bytes — baixar o `index.html` só
+  para ler a versão custaria **2,3 MB** por checagem, porque o carimbo mora
+  depois da metade de um arquivo de 4 MB.
+- A checagem roda **ao voltar para o app** (o momento exato do problema) e uma
+  vez 15 segundos depois de abrir, no máximo uma a cada 10 minutos.
+- **O app nunca recarrega sozinho.** Recarregar sem avisar, em campo, no meio
+  de um formulário aberto, é o tipo de coisa que faz perder a confiança no
+  app. É um toque — e o que estiver pendente é gravado antes.
+- Sem rede, com resposta estranha, ou sem o arquivo publicado, o app fica
+  calado em vez de inventar um aviso.
+
+`estrutura.py` reprova se o `versao.txt` e o `APP_BUILD` discordarem — um aviso
+de versão que não existe seria pior que nenhum aviso.
+
 ## 04/09/2026 16:13
 
 **Correção encontrada ao responder uma pergunta:** *desfazer* uma previsão de

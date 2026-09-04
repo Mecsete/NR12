@@ -2936,7 +2936,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "04/09/2026 16:13";
+const APP_BUILD = "04/09/2026 18:09";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -9153,6 +9153,62 @@ async function persistir(){
 // 300ms só na memória, e se o app fosse encerrado nesse intervalo (comum
 // quando o celular apaga a tela sozinho ou o Android mata o app em segundo
 // plano), a edição desaparecia sem nenhum aviso.
+/* ===== O APP PERCEBE QUE HÁ VERSÃO NOVA =====
+   O service worker busca a rede primeiro, então RECARREGAR a página sempre
+   traz a versão publicada. O problema é que, num app instalado na tela de
+   início do iPhone, reabrir pelo seletor de aplicativos NÃO é uma navegação:
+   a página continua viva em memória, com o código de dias atrás, e nenhuma
+   requisição de navegação acontece. Foi assim que uma correção publicada de
+   manhã continuou invisível à tarde, com a pessoa achando que o pedido não
+   tinha sido atendido.
+
+   COMO SE VERIFICA. Não dá para baixar o index.html só para ler a versão: o
+   arquivo tem 4 MB e o carimbo mora depois da metade dele — seriam 2,3 MB de
+   dados móveis por checagem. Por isso existe o versao.txt ao lado: um arquivo
+   de uma linha, com o mesmo carimbo. A checagem custa alguns bytes.
+
+   O versao.txt e o APP_BUILD PRECISAM bater — se alguém publicar um sem o
+   outro, o app avisaria de uma versão nova que não existe (ou pior, ficaria
+   mudo diante de uma que existe). Por isso a validação estrutural confere os
+   dois, e a publicação regrava o arquivo a partir do próprio APP_BUILD.
+
+   E NÃO RECARREGA SOZINHO. Recarregar sem avisar, em campo, no meio de um
+   formulário aberto, é o tipo de coisa que faz perder confiança no app — e a
+   pessoa pode estar sem tempo de conferir o que estava fazendo. O aviso fica
+   na barra do topo, visível em qualquer tela, e a atualização é um toque. */
+const VERSAO_ARQUIVO = "versao.txt";
+const VERSAO_INTERVALO_MS = 10 * 60 * 1000;   // no máximo uma checagem a cada 10 min
+let __versaoNova = null;            // carimbo publicado, quando diferente do que está rodando
+let __versaoUltimaChecagem = 0;
+async function verificarVersaoPublicada(forcar){
+  if(!forcar && Date.now() - __versaoUltimaChecagem < VERSAO_INTERVALO_MS) return __versaoNova;
+  try{ if(navigator.onLine === false) return __versaoNova; }catch(e){}
+  __versaoUltimaChecagem = Date.now();
+  try{
+    /* O carimbo de tempo na URL fura qualquer cache no meio do caminho — o do
+       navegador, o da CDN — sem depender de o servidor mandar os cabeçalhos
+       certos. */
+    const url = new URL(VERSAO_ARQUIVO, location.href);
+    url.searchParams.set("t", String(Date.now()));
+    const resp = await fetch(url.toString(), { cache:"no-store" });
+    if(!resp.ok) return __versaoNova;             // sem o arquivo (versão antiga publicada): não inventa nada
+    const txt = String(await resp.text()).trim();
+    /* Só aceita o formato do carimbo. Uma página de erro do servidor devolve
+       HTML com status 200 em alguns casos, e anunciar "versão nova: <!DOCTYPE"
+       seria pior que não avisar. */
+    if(!/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/.test(txt)) return __versaoNova;
+    const antes = __versaoNova;
+    __versaoNova = (txt !== APP_BUILD) ? txt : null;
+    if(__versaoNova !== antes) render();
+    return __versaoNova;
+  }catch(e){ return __versaoNova; }
+}
+function avisoVersaoNovaHtml(){
+  if(!__versaoNova) return "";
+  return `<div class="topbar-atualizar" onclick="App.atualizarApp()">
+    ${ic('download')}<span><b>Versão nova disponível</b> — ${escapeHtml(__versaoNova)}. Toque para atualizar.</span>
+  </div>`;
+}
 function flushSalvamentoPendente(){
   if(!__salvamentoPendente) return;
   clearTimeout(__saveTimer);
@@ -9185,6 +9241,10 @@ function flushTudoAntesDeSair(){
 }
 document.addEventListener("visibilitychange", ()=>{
   if(document.visibilityState==="hidden") flushTudoAntesDeSair();
+  /* VOLTAR PARA O APP é o momento exato do problema: no iPhone, reabrir pelo
+     seletor de aplicativos não recarrega nada, e é aí que a versão antiga
+     sobrevive por dias. A checagem é limitada a uma a cada 10 minutos. */
+  else verificarVersaoPublicada().catch(()=>{});
 });
 window.addEventListener("pagehide", flushTudoAntesDeSair);
 function setSaveChip(estado){
@@ -11640,6 +11700,7 @@ function topBarS(){
     ${chipSyncHtml()}
   </div>
   ${s!=="simples-tabela" ? `<div style="margin-top:8px"><span class="savechip${__ultimoErroSalvar?' erro-salvar':''}" id="saveChip" onclick="App.tentarSalvarNovamente()"><span class="dot"></span><span class="lbl">${__ultimoErroSalvar?'Não foi possível salvar — toque aqui':'Salvo no aparelho'}</span></span></div>` : ""}
+  ${avisoVersaoNovaHtml()}
   </div>`;
 }
 function crumbBarS(){
@@ -22913,6 +22974,14 @@ Devolver agora?`)) return;
     marcarAlterado(); render();
     toast("Texto da mitigação existente preenchido");
   },
+  /* Grava o que estiver pendente ANTES de recarregar. location.reload dispara
+     pagehide, e o listener de saída já forçaria a gravação — mas esperar aqui
+     torna a ordem explícita, em vez de depender de um efeito colateral. */
+  async atualizarApp(){
+    try{ if(__salvamentoPendente) await persistir(); }catch(e){}
+    try{ flushDraftPendente(); }catch(e){}
+    location.reload();
+  },
   laudoAbrirCopiar(rid, campo){
     const item = laudoItemPorId(rid); if(!item) return;
     laudoCopiaPreparar(item, campo);   // reabrir sempre começa sem filtro
@@ -24011,6 +24080,9 @@ let __estadoLocalCarregadoPromise = carregarEstadoSalvo().then(async saved=>{
        hoje 08:56 e 16:38. Redesenha ao terminar, para a tela que já estava
        aberta mostrar a imagem sem precisar de outro toque. */
     carregarImagensDoApp().then(n=>{ if(n > 0) render(); }).catch(()=>{});
+    /* Primeira checagem de versão, fora do caminho da abertura: 15 s depois,
+       para não disputar rede com a carga inicial nem atrasar a primeira tela. */
+    setTimeout(()=>{ verificarVersaoPublicada(true).catch(()=>{}); }, 15000);
   }
   // Ponto de restauração automático de "início de sessão" — só se já fizer
   // tempo desde o último (evita empilhar pontos toda vez que a pessoa só
@@ -24383,6 +24455,9 @@ window.addEventListener("pageshow", (event) => {
 .lp-rodape .lp-marca{flex:0 0 auto;text-align:center}
 .lp-rodape .lp-marca img{height:26px;display:block;margin:0 auto}
 .lp-rodape .lp-eng{flex:1 1 0;min-width:0;text-align:right;white-space:pre-line}
+.topbar-atualizar{display:flex;align-items:center;gap:8px;margin-top:8px;padding:7px 10px;cursor:pointer;
+  background:#FFF3D6;border:1px solid #E9C46A;border-radius:8px;color:#5C3D00;font-size:12.5px;line-height:1.35}
+.topbar-atualizar svg{flex:0 0 auto;width:16px;height:16px}
 .lp-medidor{position:absolute;left:-99999px;top:0;visibility:hidden;background:#fff;box-sizing:border-box;
   font-family:Arial,Helvetica,sans-serif;font-size:11.5px;line-height:1.42;color:#111}
 /* --- capa --- */
