@@ -10692,6 +10692,14 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       aplicar("fe", nomeHoje);
       eq(prev().mudou, false, "voltar ao valor de hoje tem de desfazer");
       eq(guardado(), null, "sem nenhum campo previsto, a previsao inteira some");
+      /* E some como NULL, nao como chave apagada: a mesclagem remota so copia
+         as chaves que EXISTEM no arquivo que chegou, entao chave apagada nunca
+         viaja e o outro aparelho ficaria com a previsao antiga para sempre —
+         inclusive no PDF dele. Achado pelo ENSAIO 38 em 04/09/2026. */
+      const fa = funcao("hrnPrevAplicar");
+      ok(fa.indexOf("risco.hrnPrev = Object.keys(prev).length === 0 ? null : prev;") > 0,
+         "apagar a chave faz o desfazer nao chegar no outro aparelho");
+      ok(fa.indexOf("delete risco.hrnPrev") < 0);
     });
     t("um campo desfeito nao apaga os outros", ()=>{
       item();
@@ -10859,19 +10867,28 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
          "mostrar F1/F2 e P1/P2 junto e o que liga a escolha a norma");
     });
     t("sem previsao de F e P, o PLr previsto sai igual ao de hoje", ()=>{
-      const f = funcao("plrPrevValor");
-      ok(f.indexOf('if(pp[campo]) return pp[campo];') > 0);
-      ok(f.indexOf("exposicaoPelaFrequencia(valOuOutro(it.tarefa.frequencia") > 0,
-         "sem escolha propria, vale o mesmo caminho que o quadro de hoje usa");
+      ok(funcao("plrPrevValor").indexOf("pp[campo] || plrValorDeHoje(it, campo)") > 0,
+         "sem escolha propria, vale o valor de hoje");
+      ok(funcao("plrValorDeHoje").indexOf("exposicaoPelaFrequencia(valOuOutro(it.tarefa.frequencia") > 0,
+         "e o valor de hoje sai do mesmo caminho que o quadro de hoje usa");
     });
     t("voltar F ou P ao valor de hoje tambem DESFAZ a previsao", ()=>{
       const f = funcao("plrPrevAplicar");
       ok(f.indexOf("if(!valor || valor === hoje) delete pp[campo];") > 0);
-      ok(f.indexOf("if(Object.keys(pp).length === 0) delete it.risco.plrPrev;") > 0);
-      /* O valor "de hoje" tem de ser lido SEM a previsao no caminho, senao
-         compararia a previsao com ela mesma e nunca desfaria. */
-      ok(f.indexOf("delete it.risco.plrPrev;") > 0 && f.indexOf("if(pp) it.risco.plrPrev = pp;") > 0,
-         "o valor de hoje precisa ser lido com a previsao fora do caminho");
+      /* null, e NAO delete: a mesclagem remota so copia as chaves que EXISTEM
+         no arquivo que chegou, entao chave apagada nunca viaja e o outro
+         aparelho ficaria com a previsao antiga para sempre. ENSAIO 38. */
+      ok(f.indexOf("it.risco.plrPrev = Object.keys(pp).length === 0 ? null : pp;") > 0,
+         "apagar a chave faz o desfazer nao chegar no outro aparelho");
+      /* O valor "de hoje" e lido por uma funcao propria, sem tirar a previsao
+         do caminho. A versao de estreia apagava plrPrev, lia, e repunha —
+         mas repunha so "if(pp)", entao uma previsao ja desfeita (null) nao
+         voltava e a chave ficava AUSENTE, que e exatamente o que nao viaja na
+         sincronizacao. */
+      ok(f.indexOf("const hoje = plrValorDeHoje(it, campo);") > 0,
+         "ler o valor de hoje nao pode mexer no objeto");
+      ok(f.indexOf("delete it.risco.plrPrev") < 0);
+      ok(funcao("plrPrevValor").indexOf("pp[campo] || plrValorDeHoje(it, campo)") > 0);
     });
     t("a caixa mostra a troca de PL, e so quando o risco tem PLr", ()=>{
       /* A celula e SO do PLr, igual a do quadro de hoje. O julgamento

@@ -4119,7 +4119,11 @@ chk("o motor existe e nao encosta no quadro de hoje",
 # O que mantem honesta a regra "so sai no PDF o que eu de fato mexi".
 chk("voltar ao valor de hoje APAGA a previsao daquele campo",
     "if(v === atual[campo]) delete prev[campo];" in novo
-    and "if(Object.keys(prev).length === 0) delete risco.hrnPrev;" in novo)
+    # null, e NAO delete: aplicarAtualizacaoRemota so copia as chaves que
+    # EXISTEM no arquivo remoto, entao chave apagada nunca viaja e o outro
+    # aparelho fica com a previsao antiga para sempre. Achado pelo ENSAIO 38.
+    and "risco.hrnPrev = Object.keys(prev).length === 0 ? null : prev;" in novo
+    and "delete risco.hrnPrev" not in novo)
 # faixaHRN recebe o NOME do nivel; passar o numero devolveria null e todo risco
 # viraria "nao aceitavel" em silencio.
 chk("aceitavel sai das proprias faixas, e pelo nome do nivel",
@@ -4186,7 +4190,8 @@ chk("F e P tem lista propria, no vocabulario do PLr",
     and "App.lpPrevSetPlr(" in _prev)
 chk("voltar F ou P ao valor de hoje tambem desfaz a previsao",
     "if(!valor || valor === hoje) delete pp[campo];" in _corpoDe(novo, "plrPrevAplicar")
-    and "if(Object.keys(pp).length === 0) delete it.risco.plrPrev;" in _corpoDe(novo, "plrPrevAplicar"))
+    and "it.risco.plrPrev = Object.keys(pp).length === 0 ? null : pp;" in _corpoDe(novo, "plrPrevAplicar")
+    and "delete it.risco.plrPrev" not in novo)
 chk("o conteudo da celula do PLr fica centralizado nos dois quadros",
     "flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:2px}" in novo
     and '<div class="v" style="text-align:center">' not in novo)

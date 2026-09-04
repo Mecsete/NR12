@@ -2936,7 +2936,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "04/09/2026 16:00";
+const APP_BUILD = "04/09/2026 16:13";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -15541,8 +15541,11 @@ function hrnPrevAplicar(risco, tarefa, campo, valorClassificacao){
     if(v === atual[campo]) delete prev[campo];
     else prev[campo] = valorClassificacao;
   }
-  if(Object.keys(prev).length === 0) delete risco.hrnPrev;
-  else risco.hrnPrev = prev;
+  /* null, e NÃO delete: a mesclagem remota só copia as chaves que existem no
+     arquivo que chegou (ver aplicarAtualizacaoRemota). Uma chave apagada
+     simplesmente não viaja, e o outro aparelho ficaria com a previsão antiga
+     para sempre — inclusive no PDF dele. Achado pelo ENSAIO 38. */
+  risco.hrnPrev = Object.keys(prev).length === 0 ? null : prev;
   return true;
 }
 /* Previsão só faz sentido onde existe medida proposta: prever a redução de
@@ -15593,30 +15596,30 @@ function plrPrevistoDoItem(it){
 }
 /* Valor mostrado como selecionado nas listas de Exposição e Possibilidade de
    evitar do quadro previsto: o previsto, se houver; senão o de hoje. */
-function plrPrevValor(it, campo){
-  const pp = (it.risco && it.risco.plrPrev) || {};
-  if(pp[campo]) return pp[campo];
+function plrValorDeHoje(it, campo){
   if(campo === "exposicao")
     return String(it.risco.exposicao || "").trim()
       || exposicaoPelaFrequencia(valOuOutro(it.tarefa.frequencia, it.tarefa.frequenciaOutro));
   return String(it.risco.evitar || "").trim();
+}
+function plrPrevValor(it, campo){
+  const pp = (it.risco && it.risco.plrPrev) || {};
+  return pp[campo] || plrValorDeHoje(it, campo);
 }
 /* Mesma regra do HRN previsto: voltar ao valor de hoje DESFAZ a previsão
    daquele campo, em vez de gravar uma previsão igual. É o que mantém honesto
    o "no PDF só sai o que eu de fato mexi". */
 function plrPrevAplicar(it, campo, valor){
   if(campo !== "exposicao" && campo !== "evitar") return false;
-  const hoje = (function(){
-    const pp = it.risco.plrPrev; delete it.risco.plrPrev;
-    const v = plrPrevValor(it, campo);
-    if(pp) it.risco.plrPrev = pp;
-    return v;
-  })();
+  /* O valor de HOJE é lido direto, sem tirar a previsão do caminho. A versão
+     anterior apagava plrPrev, lia, e repunha — e repunha só "if(pp)", então
+     uma previsão já desfeita (null) não voltava, deixando a chave ausente. E
+     chave ausente é justamente o que não viaja na sincronização. */
+  const hoje = plrValorDeHoje(it, campo);
   const pp = Object.assign({}, it.risco.plrPrev || {});
   if(!valor || valor === hoje) delete pp[campo];
   else pp[campo] = valor;
-  if(Object.keys(pp).length === 0) delete it.risco.plrPrev;
-  else it.risco.plrPrev = pp;
+  it.risco.plrPrev = Object.keys(pp).length === 0 ? null : pp;   // ver hrnPrevAplicar
   return true;
 }
 function linhaSimples({proj,area,maquina,tarefa,risco}){

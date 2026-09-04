@@ -2518,6 +2518,76 @@ async function rodarAteParar(ap, maxCiclos, rotulo){
       vm.runInContext("onedriveEstimarPendentesUpload()", A.ctx).segurando.qtd === 1);
   }
 
+
+  console.log("\n" + L + "\nENSAIO 38 - a previsao de risco residual sobrevive a sincronizacao\n" + L);
+  {
+    /* PERGUNTA DO ENGENHEIRO (04/09/2026): "depois que eu alimento as
+       informacoes de risco residual, elas ficam salvas? tem possibilidade de
+       ao abrir a aplicacao isso ter sido perdido?"
+       O lado LOCAL (gravacao no aparelho) foi conferido no navegador. Este
+       ensaio cobre o lado que a pergunta implica sem dizer: a sincronizacao.
+       A previsao mora em campos NOVOS do risco (hrnPrev e plrPrev); se o motor
+       os ignorasse, nunca chegariam ao outro aparelho — e pior, um item que
+       voltasse da nuvem por cima apagaria a previsao feita aqui. */
+    const nuvem = novaNuvem();
+    const A = novoAparelho("A", nuvem);
+    const B = novoAparelho("B", nuvem);
+    const p = arvoreExemplo(1, 1, 1, 1, false);
+    p.empresa = "Residual";
+    A.ctx.STATE.projetosSimples = [p];
+    await rodarAteParar(A, 10);
+    await rodarAteParar(B, 12);
+
+    const prev = ap => vm.runInContext('(function(){'
+      + 'var r = STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos[0];'
+      + 'return JSON.stringify({ hrn:r.hrnPrev||null, plr:r.plrPrev||null }); })()', ap.ctx);
+    const nome = ap => vm.runInContext(
+      "STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos[0].nome", ap.ctx);
+
+    checar("preparacao: os dois aparelhos tem o risco, sem previsao nenhuma",
+      prev(A) === prev(B) && prev(A).indexOf("null") > 0, "A=" + prev(A) + " B=" + prev(B));
+
+    /* ---- A preenche a previsao ---- */
+    vm.runInContext('(function(){'
+      + 'var r = STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos[0];'
+      + 'r.hrnPrev = { gpd:"Corte / Laceracao", po:"Quase Impossivel" };'
+      + 'r.plrPrev = { exposicao:"Menos de 1x por turno" };'
+      + 'r.atualizadoEm = agoraSync(); })()', A.ctx);
+    await rodarAteParar(A, 10);
+    await rodarAteParar(B, 12);
+
+    checar("A PREVISAO VIAJA: chega inteira no outro aparelho",
+      prev(B) === prev(A), "A=" + prev(A) + "\n     B=" + prev(B));
+    checar("com os dois campos, e nao so um",
+      prev(B).indexOf("Corte") > 0 && prev(B).indexOf("Menos de 1x") > 0, "B=" + prev(B));
+
+    /* ---- O CASO QUE ASSUSTA: o outro aparelho edita o risco e devolve. O
+       item volta por cima do daqui — a previsao vai junto no caminho? ---- */
+    vm.runInContext('(function(){'
+      + 'var r = STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos[0];'
+      + 'r.nome = "Nome trocado no B"; r.atualizadoEm = agoraSync(); })()', B.ctx);
+    await rodarAteParar(B, 10);
+    await rodarAteParar(A, 12);
+    checar("edicao vinda do outro aparelho NAO apaga a previsao",
+      prev(A).indexOf("Corte") > 0 && prev(A).indexOf("Menos de 1x") > 0, "A=" + prev(A));
+    checar("e a edicao do outro aparelho chegou, como devia",
+      nome(A) === "Nome trocado no B", "A=" + nome(A));
+
+    /* ---- desfazer tambem viaja: apagar a previsao aqui apaga la ---- */
+    vm.runInContext('(function(){'
+      + 'var r = STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos[0];'
+      + 'r.hrnPrev = null; r.plrPrev = null; r.atualizadoEm = agoraSync(); })()', A.ctx);   /* null, como o app faz */
+    await rodarAteParar(A, 10);
+    await rodarAteParar(B, 12);
+    checar("desfazer a previsao tambem chega no outro aparelho",
+      prev(B).indexOf("null") > 0 && prev(B).indexOf("Corte") < 0, "B=" + prev(B));
+
+    /* ---- e a sincronizacao PARA: previsao nao gera vaivem ---- */
+    nuvem.transferencias = 0;
+    await ciclo(A); await ciclo(B);
+    checar("e a sincronizacao para depois de convergir",
+      nuvem.transferencias === 0, "transferencias=" + nuvem.transferencias);
+  }
   console.log("\n" + L);
   console.log(falhas ? "ENSAIOS: " + falhas + " FALHA(S)" : "ENSAIOS: TODOS OK");
   console.log(L + "\n");

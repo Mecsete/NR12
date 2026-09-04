@@ -64,6 +64,34 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 04/09/2026 16:13
+
+**Correção encontrada ao responder uma pergunta:** *desfazer* uma previsão de
+risco residual não chegava ao outro aparelho.
+
+A previsão em si sempre viajou. O que não viajava era a remoção: ao voltar
+todos os campos ao valor de hoje, o app **apagava a chave** do risco — e a
+mesclagem da sincronização só copia as chaves que **existem** no arquivo que
+chega. Chave apagada não aparece, e o outro aparelho ficava com a previsão
+antiga para sempre, inclusive no PDF dele.
+
+Agora a previsão desfeita é gravada como `null` em vez de apagada, e a remoção
+viaja. Nada foi mexido no motor de sincronização — fazer a mesclagem apagar
+chaves ausentes faria uma versão antiga do app, que não conhece um campo novo,
+apagá-lo dos outros aparelhos.
+
+Junto veio uma segunda correção do mesmo caso: a leitura do "valor de hoje" da
+Exposição apagava a previsão temporariamente para ler e depois repunha — mas
+repunha só quando havia algo, então uma previsão já desfeita não voltava e a
+chave sumia. Agora o valor de hoje é lido por uma função própria, sem tocar no
+objeto.
+
+**Sobre a pergunta original — os dados ficam salvos.** A gravação segue o mesmo
+caminho de qualquer edição do app: junta as alterações por 300 ms e grava; e
+grava na hora quando o app perde o foco (troca de aplicativo, tela apagada, aba
+fechada). Conferido no navegador, inclusive o pior caso — mexer e sair na
+mesma hora.
+
 ## 04/09/2026 16:00
 
 **Correção: não dava para editar a previsão de risco residual de itens que
