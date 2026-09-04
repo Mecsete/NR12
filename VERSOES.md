@@ -64,6 +64,23 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 04/09/2026 16:00
+
+**Correção: não dava para editar a previsão de risco residual de itens que
+caíam perto do fim da página.** A tarja verde aparecia e a tabela com as listas
+ficava fora da área visível da folha, impossível de tocar.
+
+Causa: o medidor que calcula a paginação não carregava as classes de modo do
+documento. As regras de exibição dos modos são de descendente
+(`.lp-modo-prev .lp-prev`) e o medidor não fica dentro do documento — então
+tudo que só aparece **em modo de edição** era medido com altura **zero**. A
+página fechava sem contar o quadro do risco residual, e quem caía na borda era
+cortado.
+
+Medido no navegador com 14 riscos: antes da correção, **3 quadros vazavam cerca
+de 240 px** da página; depois, nenhum. O mesmo valia para o modo de seleção de
+itens, corrigido junto.
+
 ## 04/09/2026 15:53
 
 **Novo: filtros no "Copiar de outro".** Além do campo de texto, a folha agora

@@ -10910,6 +10910,33 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(B.indexOf("recalculado sozinho a partir do Grau do Dano previsto") > 0);
     });
 
+    /* ---- O MEDIDOR DA PAGINACAO PRECISA ESTAR NO MESMO MODO ----
+       Relatado em campo em 04/09/2026: "nao consigo editar a previsao deste
+       item, parece que ficou perto do fim da pagina". Era isso mesmo.
+       As regras dos modos sao de DESCENDENTE (".lp-modo-prev .lp-prev") e o
+       medidor nao fica dentro de .lp-doc — sem as classes, tudo que so aparece
+       em modo de edicao media como altura ZERO. A pagina fechava sem contar o
+       quadro do risco residual, e quem caia perto da borda era cortado: a
+       tarja verde aparecia e a tabela com as listas ficava fora da area
+       visivel, impossivel de tocar.
+       Medido no navegador: com a linha antiga, 3 de 14 quadros vazavam ~240px
+       da pagina; com a correcao, nenhum. */
+    t("A CORRECAO: o medidor da paginacao herda os modos do documento", ()=>{
+      const f = funcao("paginar");
+      ok(f.indexOf('med.className = "lp-medidor"') > 0);
+      ok(f.indexOf('(STATE.ui.lpModoPrev ? " lp-modo-prev" : "")') > 0,
+         "sem isto o quadro do risco residual mede ZERO e a pagina corta quem cai na borda");
+      ok(f.indexOf('(STATE.ui.lpModoOcultar ? " lp-modo-ocultar" : "")') > 0,
+         "o modo de selecao tem o mesmo problema, pela mesma razao");
+    });
+    /* A regra que faz a correcao ser necessaria: as duas exibicoes dependem de
+       um ancestral com a classe do modo. Se um dia isso virar seletor direto,
+       o medidor nao precisaria mais das classes — e este teste avisa. */
+    t("e as regras dos modos continuam sendo de descendente", ()=>{
+      ok(HTML.indexOf(".lp-modo-prev .lp-prev{display:block}") > 0);
+      ok(HTML.indexOf(".lp-modo-ocultar .lp-oculta-toggle{display:flex}") > 0);
+    });
+
     /* Mesma razao do modo de selecao: no modo de edicao aparecem blocos de
        riscos nao avaliados E as listas suspensas. */
     t("imprimir sai do modo de edicao antes de montar", ()=>{

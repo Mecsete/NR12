@@ -2936,7 +2936,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "04/09/2026 15:53";
+const APP_BUILD = "04/09/2026 16:00";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -25197,7 +25197,17 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
      comecar pagina nova — nao existe meia pagina deitada. */
   async function paginar(blocos){
     const med = document.createElement("div");
-    med.className = "lp-medidor";
+    /* O MEDIDOR PRECISA ESTAR NO MESMO MODO QUE O DOCUMENTO.
+       As regras dos modos são de descendente (".lp-modo-prev .lp-prev"), e o
+       medidor não fica dentro de .lp-doc — sem estas classes, tudo que só
+       aparece EM MODO DE EDIÇÃO media como altura ZERO. A conta da página
+       fechava sem contar o quadro do risco residual, e quem caía perto do fim
+       da folha era cortado: a tarja verde aparecia e a tabela com as listas
+       ficava fora da área visível, impossível de tocar. Relatado em campo em
+       04/09/2026. */
+    med.className = "lp-medidor"
+      + (STATE.ui.lpModoOcultar ? " lp-modo-ocultar" : "")
+      + (STATE.ui.lpModoPrev ? " lp-modo-prev" : "");
     document.body.appendChild(med);
     try{ if(document.fonts && document.fonts.ready) await document.fonts.ready; }catch(e){}
     const paginas = [];

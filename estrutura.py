@@ -4206,6 +4206,18 @@ chk("mexer so na exposicao ja conta como avaliado",
 chk("o botao mora na barra flutuante, e nao na barra de cima",
     "App.lpToggleModoPrev()" in novo[novo.find('<div class="lp-flut">'):novo.find('<div class="lp-flut">')+1600]
     and "lpToggleModoPrev" not in novo[novo.find('<div class="lp-barra">'):novo.find('<div class="lp-logo-linha">')])
+# Relatado em campo (04/09/2026): "nao consigo editar a previsao deste item,
+# parece que ficou perto do fim da pagina". As regras dos modos sao de
+# DESCENDENTE e o medidor nao fica dentro de .lp-doc — sem as classes, tudo que
+# so aparece em modo de edicao media ZERO, a pagina fecha sem contar o quadro,
+# e quem cai na borda e cortado. Medido: 3 de 14 quadros vazavam ~240px.
+chk("o medidor da paginacao herda os modos do documento",
+    'med.className = "lp-medidor"' in novo
+    and '(STATE.ui.lpModoPrev ? " lp-modo-prev" : "")' in novo
+    and '(STATE.ui.lpModoOcultar ? " lp-modo-ocultar" : "")' in novo)
+chk("e as regras dos modos continuam sendo de descendente",
+    ".lp-modo-prev .lp-prev{display:block}" in novo
+    and ".lp-modo-ocultar .lp-oculta-toggle{display:flex}" in novo)
 chk("a lista e um alvo de toque de verdade",
     "min-height:17px" in novo
     and "if((STATE.ui.lpZoom || 0.5) < 1) STATE.ui.lpZoom = 1;" in _tog)
