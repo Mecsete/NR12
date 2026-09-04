@@ -10792,8 +10792,19 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
          "o valor de hoje precisa ser lido com a previsao fora do caminho");
     });
     t("a caixa mostra a troca de PL, e so quando o risco tem PLr", ()=>{
-      ok(B.indexOf('pl.aplicavel? "Função de segurança (PLr)" : "Situação após a medida"') > 0,
-         "risco sem funcao de seguranca nao pode ganhar caixa de PLr vazia");
+      /* A celula e SO do PLr, igual a do quadro de hoje. O julgamento
+         "aceitavel ou nao" ja esta na celula do HRN ao lado, com numero, nivel
+         e a cor da faixa — repetir em palavras aqui era dizer duas vezes a
+         mesma coisa (pedido do engenheiro em 03/09/2026). */
+      ok(B.indexOf("lp-prev-ver") < 0 && B.indexOf("Risco aceitável") < 0,
+         "o veredito em palavras repete a celula do HRN, que ja diz isso em cor");
+      ok(B.indexOf('<div class="r">Função de segurança (PLr)</div>') > 0
+         && B.indexOf('!pl.aplicavel ? "Não aplicável"') > 0,
+         "risco sem funcao de seguranca responde como no quadro de hoje");
+      ok(B.indexOf('"A classificar"') > 0);
+      /* O aviso que importa quando NAO e aceitavel continua: e o de baixo, que
+         diz o que fazer, e nao um rotulo solto. */
+      ok(B.indexOf("A solução proposta não leva este risco a um nível aceitável") > 0);
       ok(B.indexOf("PL ${esc(pl.atual.plr)}</b> &rarr; <b style=\"color:#2E7D32\">PL ${esc(pl.previsto.plr)}") > 0,
          "sem o de-para, nao da para ver que a exigencia caiu");
       ok(B.indexOf('pl.trocou') > 0, "PL igual nao pode aparecer como se tivesse mudado");

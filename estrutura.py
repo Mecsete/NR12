@@ -4185,8 +4185,14 @@ chk("voltar F ou P ao valor de hoje tambem desfaz a previsao",
 chk("o conteudo da celula do PLr fica centralizado nos dois quadros",
     "flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:2px}" in novo
     and '<div class="v" style="text-align:center">' not in novo)
-chk("a caixa so vira PLr quando o risco tem funcao de seguranca",
-    'pl.aplicavel? "Função de segurança (PLr)" : "Situação após a medida"' in _prev
+# 03/09/2026: a celula voltou a ser SO do PLr. O julgamento "aceitavel ou nao"
+# ja esta na celula do HRN ao lado, com numero, nivel e cor da faixa; em
+# palavras aqui era repeticao. O aviso do caso ruim continua na nota de baixo,
+# que diz o que fazer.
+chk("a caixa e so do PLr, sem repetir o que a celula do HRN ja diz",
+    '<div class="r">Função de segurança (PLr)</div>' in _prev
+    and "lp-prev-ver" not in novo
+    and '!pl.aplicavel ? "Não aplicável"' in _prev
     and "pl.trocou" in _prev)
 chk("mexer so na exposicao ja conta como avaliado",
     "const avaliado = p.mudou || pl.mudou;" in _prev)

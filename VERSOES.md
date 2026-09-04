@@ -64,6 +64,20 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 04/09/2026 07:09
+
+**Ajuste:** saiu a frase "Risco aceitável / Ainda acima do aceitável" de dentro
+da célula **Função de segurança (PLr)** do quadro previsto. A célula do HRN ao
+lado já diz isso — com o número, o nível e a cor da faixa — e repetir em
+palavras era dizer duas vezes a mesma coisa.
+
+A célula volta a ser só do PLr, igual à do quadro de hoje: mesma etiqueta e as
+mesmas respostas (`PL x`, `PL x → PL y`, `A classificar`, `Não aplicável`).
+
+O aviso do caso ruim continua: quando a solução não leva o risco a um nível
+aceitável, a linha abaixo da tabela diz isso **e diz o que fazer** — que é onde
+esse alerta é útil.
+
 ## 03/09/2026 19:25
 
 **Ajuste:** o conteúdo da célula **Função de segurança (PLr)** passou a ficar
