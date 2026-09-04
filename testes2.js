@@ -10650,6 +10650,9 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
     /* O criterio de aceitavel NAO foi inventado: as proprias faixas I a V
        dizem "ate se chegar a um risco do tipo baixo ou desprezivel". */
+    /* O criterio continua existindo e testado, ainda que nao seja mais
+       DESENHADO: e o unico lugar do app que le a aceitabilidade a partir do
+       texto das proprias faixas. Sem teste, envelheceria calado. */
     t("aceitavel e da faixa BAIXO para baixo, como as proprias faixas mandam", ()=>{
       [[0.5,true],[3,true],[7,true],[12,false],[64,false],[600,false]].forEach(([h,esperado])=>{
         eq(vm.runInContext("hrnPrevistoAceitavel(" + h + ")", cp), esperado, "HRN " + h);
@@ -10697,10 +10700,18 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(HTML.indexOf(".lp-modo-prev .lp-prev-txt{display:none}") > 0);
       ok(B.indexOf('<span class="lp-prev-txt">') > 0, "sem o texto, o PDF sairia com celula vazia");
     });
-    t("avisa quando a solucao NAO leva a um nivel aceitavel", ()=>{
-      ok(B.indexOf("A solução proposta não leva este risco a um nível aceitável") > 0);
-      ok(B.indexOf("p.mudou && !p.aceitavel") > 0,
-         "avisar antes de a pessoa avaliar seria alarme falso em todo risco");
+    /* O aviso "a solucao nao leva a um nivel aceitavel" foi RETIRADO em
+       04/09/2026, a pedido do engenheiro: a celula do HRN ja mostra o numero, o
+       nivel e a cor da faixa, e o julgamento cabe a quem assina — a caixa de
+       texto repetia isso e ainda ocupava altura de linha na folha. */
+    t("o quadro nao opina sobre a suficiencia da solucao", ()=>{
+      ok(B.indexOf("A solução proposta não leva este risco a um nível aceitável") < 0,
+         "voltou o aviso: o HRN ja diz o nivel, e a leitura e de quem assina");
+      ok(B.indexOf("lp-prev-ver") < 0 && B.indexOf("Risco aceitável") < 0);
+      /* O que fica no quadro previsto: a tarja com o de-para e a nota da ISO
+         12100. Nada alem disso. */
+      eq((B.match(/lp-prev-nota/g)||[]).length, 1,
+         "so a nota da ISO 12100 continua abaixo da tabela");
     });
     t("traz a nota que impede o laudo de parecer ja implantado", ()=>{
       ok(B.indexOf("Estimativa de reavaliação conforme ABNT NBR ISO 12100") > 0);
@@ -10802,9 +10813,9 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
          && B.indexOf('!pl.aplicavel ? "Não aplicável"') > 0,
          "risco sem funcao de seguranca responde como no quadro de hoje");
       ok(B.indexOf('"A classificar"') > 0);
-      /* O aviso que importa quando NAO e aceitavel continua: e o de baixo, que
-         diz o que fazer, e nao um rotulo solto. */
-      ok(B.indexOf("A solução proposta não leva este risco a um nível aceitável") > 0);
+      /* Nem aqui nem em lugar nenhum: o quadro nao opina sobre a suficiencia
+         da solucao (04/09/2026). Ver o teste proprio, mais acima. */
+      ok(B.indexOf("A solução proposta não leva este risco a um nível aceitável") < 0);
       ok(B.indexOf("PL ${esc(pl.atual.plr)}</b> &rarr; <b style=\"color:#2E7D32\">PL ${esc(pl.previsto.plr)}") > 0,
          "sem o de-para, nao da para ver que a exigencia caiu");
       ok(B.indexOf('pl.trocou') > 0, "PL igual nao pode aparecer como se tivesse mudado");

@@ -2936,7 +2936,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "04/09/2026 07:09";
+const APP_BUILD = "04/09/2026 10:59";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -15491,6 +15491,11 @@ function hrnDoItem({tarefa,risco}){
 const HRN_PREV_ACEITAVEL_ORD = ["VI", "VII", "VIII"];   // Baixo, Muito baixo, Desprezível
 const HRN_PREV_TABELAS = { po:HRN_PO_TABELA, fe:HRN_FE_TABELA, gpd:HRN_GPD_TABELA, np:HRN_NP_TABELA };
 const HRN_PREV_CAMPOS = ["po", "fe", "gpd", "np"];
+/* NÃO É MAIS DESENHADO NO LAUDO (04/09/2026, decisão do engenheiro): o
+   julgamento já está na célula do HRN, com o número, o nível e a cor da faixa.
+   A função fica porque é o único lugar do app que lê o critério de
+   aceitabilidade a partir do texto das próprias faixas — e continua coberta
+   por teste, então não envelhece calada. */
 function hrnPrevistoAceitavel(hrn){
   /* faixaHRN recebe o NOME do nível, não o número — passar o número devolve
      null e todo risco viraria "não aceitável" em silêncio. */
@@ -24844,7 +24849,6 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
         ${PLR_P_OPCOES.map(o=>`<option value="${esc(o.v)}"${o.v===plrPrevValor(it,"evitar")?" selected":""}>${esc(o.v)} (${esc(o.p)})</option>`).join("")}
       </select>
     </div>`:""}
-    ${p.mudou && !p.aceitavel ? `<div class="lp-prev-nota" style="color:#8A5B00;background:#FFF7E6"><b>A solução proposta não leva este risco a um nível aceitável</b> — as faixas I a V pedem redução até "baixo ou desprezível". Preveja medida complementar ou revise a Solução.</div>` : ""}
     <div class="lp-prev-dica">Ajuste só o que a medida realmente muda. Proteção fixa e enclausuramento costumam reduzir a <b>Frequência</b> (deixa de haver acesso); intertravamento e parada de emergência reduzem a <b>Probabilidade</b>; redução de energia ou de velocidade reduz o <b>Grau do Dano</b>. Campo deixado no valor de hoje não entra no laudo. O <b>PLr</b> é recalculado sozinho a partir do Grau do Dano previsto (severidade); Exposição e Possibilidade de evitar têm listas próprias logo abaixo, no vocabulário da NBR 14153 — o app não converte uma coisa na outra por conta própria.</div>
     <div class="lp-prev-nota">Estimativa de reavaliação conforme ABNT NBR ISO 12100. A reavaliação definitiva deve ser feita após a implantação e a verificação da medida.</div>
   </div>`;

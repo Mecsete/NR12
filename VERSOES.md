@@ -64,6 +64,20 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 04/09/2026 10:59
+
+**Ajuste:** saiu também a caixa de alerta *"A solução proposta não leva este
+risco a um nível aceitável"*. A célula do HRN já mostra o número, o nível e a
+cor da faixa — a leitura é de quem assina, e a caixa ainda ocupava altura de
+linha na folha.
+
+O quadro do risco residual fica agora com: a tarja verde (com o de-para do
+HRN), a tabela prevista, a célula do PLr e a nota da ABNT NBR ISO 12100. Nada
+além disso.
+
+O critério de aceitabilidade continua existindo no código e coberto por teste —
+apenas não é mais desenhado.
+
 ## 04/09/2026 07:09
 
 **Ajuste:** saiu a frase "Risco aceitável / Ainda acima do aceitável" de dentro

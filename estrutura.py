@@ -4141,9 +4141,14 @@ chk("lista suspensa nunca aparece no PDF, e ha texto no lugar dela",
     and ".lp-modo-prev .lp-prev-sel{display:block}" in novo
     and ".lp-modo-prev .lp-prev-txt{display:none}" in novo
     and '<span class="lp-prev-txt">' in _prev)
-chk("avisa quando a solucao nao chega a nivel aceitavel, e so depois de avaliada",
-    "A solução proposta não leva este risco a um nível aceitável" in _prev
-    and "p.mudou && !p.aceitavel" in _prev)
+# 04/09/2026: o aviso "a solucao nao leva a nivel aceitavel" foi RETIRADO a
+# pedido do engenheiro — a celula do HRN ja mostra numero, nivel e cor da
+# faixa, e a leitura cabe a quem assina. O criterio (hrnPrevistoAceitavel)
+# continua existindo e testado, so nao e mais desenhado.
+chk("o quadro nao opina sobre a suficiencia da solucao",
+    "A solução proposta não leva este risco a um nível aceitável" not in novo
+    and "lp-prev-ver" not in novo
+    and _prev.count("lp-prev-nota") == 1)
 # Sem esta nota, um fiscal pode ler a tabela como se a medida ja existisse.
 chk("traz a nota que impede o laudo de parecer ja implantado",
     "Estimativa de reavaliação conforme ABNT NBR ISO 12100" in _prev
