@@ -2936,7 +2936,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "04/09/2026 10:59";
+const APP_BUILD = "04/09/2026 15:53";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -17230,7 +17230,15 @@ function laudoCandidatosCopia(item, campo){
     const texto = laudoTextoFinal(o, campo);
     if(!texto || !String(texto).trim()) return;
     vistos.add(chave);
-    out.push({ id:o.risco.id, titulo, sub, texto:String(texto) });
+    /* A hierarquia viaja junto: é dela que saem os filtros do modal. Sem isso,
+       achar "o mesmo risco na outra esteira" numa lista de centenas de linhas
+       depende de lembrar como o texto foi escrito. */
+    out.push({ id:o.risco.id, titulo, sub, texto:String(texto),
+      projetoId:o.proj.id,     projetoNome: o.proj.empresa || "Projeto",
+      areaId:o.area.id,        areaNome: o.area.nome || "Área",
+      maquinaId:o.maquina.id,  maquinaNome: nomeMaquinaS(o.maquina) || "Equipamento",
+      tarefaId:o.tarefa.id,    tarefaNome: valOuOutro(o.tarefa.tarefa, o.tarefa.tarefaOutro) || "Tarefa",
+      riscoNome: (o.risco.nome===OUTRO ? o.risco.nomeOutro : o.risco.nome) || "Risco" });
   });
   return out.sort((a,b)=> a.titulo.localeCompare(b.titulo,"pt-BR"));
 }
@@ -17369,22 +17377,116 @@ async function laudoRevisarTextoEtitulo(item, campo){
   }
   return mudou;
 }
-function laudoSheetCopiarHtml(item, campo){
-  const def = laudoCampoDef(campo);
-  const cands = laudoCandidatosCopia(item, campo);
-  const linhas = cands.map(c=>`<button class="laudo-copia-item" data-busca="${escapeHtml((c.titulo+" "+c.sub+" "+c.texto).toLowerCase())}"
+/* ===== FILTROS DO "COPIAR DE OUTRO" =====
+   A lista de origens pode ter centenas de linhas — num projeto grande, achar
+   "o mesmo risco na outra esteira" só pelo campo de texto exige lembrar como
+   aquele texto foi escrito. Os filtros descem pela hierarquia que a pessoa já
+   tem na cabeça: área, equipamento, tarefa, risco.
+
+   QUAIS FILTROS APARECEM: só os níveis ACIMA da linha, mais o nome do risco.
+   Filtrar por equipamento numa lista em que cada linha É um equipamento daria
+   um item por filtro e não ajudaria ninguém — a mesma regra que
+   LAUDO_AGRUPAR_POR já usa para decidir por onde agrupar.
+   O nome do RISCO é a exceção proposital: é justamente o caso comum ("o mesmo
+   risco que já escrevi em outra máquina"), e nomes se repetem entre linhas.
+
+   E CADA LISTA SÓ APARECE COM 2+ OPÇÕES. Um seletor com uma opção só é um
+   controle morto ocupando espaço numa tela de celular. */
+const LAUDO_COPIA_FILTROS = {
+  maquina: [ {k:"projeto", rot:"Projeto"}, {k:"area", rot:"Área"} ],
+  tarefa:  [ {k:"projeto", rot:"Projeto"}, {k:"area", rot:"Área"}, {k:"maquina", rot:"Equipamento"} ],
+  risco:   [ {k:"projeto", rot:"Projeto"}, {k:"area", rot:"Área"}, {k:"maquina", rot:"Equipamento"},
+             {k:"tarefa", rot:"Tarefa"}, {k:"risco", rot:"Risco"} ],
+};
+const LAUDO_COPIA_CHAVE = { projeto:"projetoNome", area:"areaNome", maquina:"maquinaNome",
+                            tarefa:"tarefaNome", risco:"riscoNome" };
+let __laudoCopia = null;   // { item, campo, cands, f:{projeto,area,maquina,tarefa,risco}, q }
+/* Os candidatos que passam pelos filtros escolhidos. `ate` limita a quais
+   filtros aplicar — é o que faz a cascata: as opções de Equipamento saem dos
+   candidatos filtrados só por Projeto e Área. */
+function laudoCopiaFiltrados(ate){
+  if(!__laudoCopia) return [];
+  const ordem = (LAUDO_COPIA_FILTROS[__laudoCopia.nivel] || []).map(x=>x.k);
+  const usar = (ate === undefined) ? ordem : ordem.slice(0, ate);
+  return __laudoCopia.cands.filter(c=>
+    usar.every(k=> !__laudoCopia.f[k] || c[LAUDO_COPIA_CHAVE[k]] === __laudoCopia.f[k]));
+}
+function laudoCopiaOpcoes(k, ate){
+  const vistos = new Set();
+  laudoCopiaFiltrados(ate).forEach(c=>{ const v = c[LAUDO_COPIA_CHAVE[k]]; if(v) vistos.add(v); });
+  return [...vistos].sort((a,b)=> String(a).localeCompare(String(b), "pt-BR"));
+}
+function laudoCopiaFiltrosHtml(){
+  if(!__laudoCopia) return "";
+  const defs = LAUDO_COPIA_FILTROS[__laudoCopia.nivel] || [];
+  const linhas = defs.map((d, i)=>{
+    const opts = laudoCopiaOpcoes(d.k, i);   // cascata: só os filtros acima deste
+    /* Escolha que deixou de existir depois de mexer num filtro acima: é
+       esquecida aqui, senão a lista ficaria vazia sem explicação. */
+    if(__laudoCopia.f[d.k] && opts.indexOf(__laudoCopia.f[d.k]) < 0) __laudoCopia.f[d.k] = "";
+    if(opts.length < 2 && !__laudoCopia.f[d.k]) return "";
+    return `<select class="sp-select-sm" style="flex:1 1 44%;min-width:130px"
+        onchange="App.laudoCopiaFiltro('${d.k}', this.value)">
+      <option value="">${escapeHtml(d.rot)}: todos</option>
+      ${opts.map(o=>`<option value="${escapeHtml(o)}"${o===__laudoCopia.f[d.k]?" selected":""}>${escapeHtml(o)}</option>`).join("")}
+    </select>`;
+  }).filter(Boolean).join("");
+  if(!linhas) return "";
+  const algum = Object.keys(__laudoCopia.f).some(k=>__laudoCopia.f[k]);
+  return `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">${linhas}
+    ${algum? `<button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.laudoCopiaLimpar()">Limpar filtros</button>`:""}
+  </div>`;
+}
+function laudoCopiaListaHtml(){
+  if(!__laudoCopia) return "";
+  const { item, campo } = __laudoCopia;
+  const lista = laudoCopiaFiltrados();
+  if(lista.length === 0)
+    return `<p style="font-size:13px;color:var(--ink-dim);padding:8px 2px">Nenhuma origem com esse filtro. ${
+      __laudoCopia.cands.length? "Tente limpar os filtros." : "Nenhum outro item tem esse texto preenchido ainda."}</p>`;
+  return lista.map(c=>`<button class="laudo-copia-item" data-busca="${escapeHtml((c.titulo+" "+c.sub+" "+c.texto).toLowerCase())}"
       onclick="App.laudoAplicarCopia('${item.risco.id}','${campo}','${c.id}')">
       <b>${escapeHtml(c.titulo)}</b><i>${escapeHtml(c.sub)}</i><span>${escapeHtml(c.texto.slice(0,160))}${c.texto.length>160?"…":""}</span>
     </button>`).join("");
+}
+/* Redesenha só os filtros e a lista. O campo de texto fica de fora de
+   propósito: redesenhá-lo tiraria o cursor de quem está digitando. */
+function laudoCopiaRedesenhar(){
+  const f = document.getElementById("laudoCopiaFiltros");
+  const l = document.getElementById("laudoCopiaLista");
+  if(f) f.innerHTML = laudoCopiaFiltrosHtml();
+  if(l){ l.innerHTML = laudoCopiaListaHtml(); App.laudoFiltrarCopia(__laudoCopia ? __laudoCopia.q : ""); }
+  const c = document.getElementById("laudoCopiaConta");
+  if(c) c.textContent = laudoCopiaContagem();
+}
+function laudoCopiaContagem(){
+  if(!__laudoCopia) return "";
+  const total = __laudoCopia.cands.length;
+  const visiveis = document.querySelectorAll("#laudoCopiaLista .laudo-copia-item:not([hidden])").length;
+  return visiveis === total ? `${total} origem(ns)` : `${visiveis} de ${total}`;
+}
+function laudoCopiaPreparar(item, campo){
+  __laudoCopia = { item, campo,
+    nivel: LAUDO_NIVEL_CAMPO[campo] || "risco",
+    cands: laudoCandidatosCopia(item, campo),
+    f: { projeto:"", area:"", maquina:"", tarefa:"", risco:"" }, q:"" };
+  return __laudoCopia;
+}
+function laudoSheetCopiarHtml(item, campo){
+  /* A folha se basta: monta o estado dos filtros se ele ainda nao for o deste
+     item e campo. Depender de quem chama ter montado antes faria a folha sair
+     VAZIA por qualquer caminho novo, sem erro nenhum na tela. */
+  if(!__laudoCopia || __laudoCopia.item !== item || __laudoCopia.campo !== campo)
+    laudoCopiaPreparar(item, campo);
+  const def = laudoCampoDef(campo);
   return `<div class="sheet-overlay" id="overlayInner" onclick="if(event.target===this)App.fecharModal()">
     <div class="sheet sheet-col" style="max-height:84vh">
       <div class="sheet-handle"></div>
       <h3>Copiar ${escapeHtml(def.rot.toLowerCase())}</h3>
-      <div class="sheet-sub">Escolha de onde copiar — o texto entra como seu (editado) e pode ser ajustado depois.</div>
-      <div class="field" style="margin:6px 0 10px"><input type="text" placeholder="Filtrar…" oninput="App.laudoFiltrarCopia(this.value)"></div>
-      <div id="laudoCopiaLista" class="sheet-rolagem">
-        ${cands.length? linhas : `<p style="font-size:13px;color:var(--ink-dim);padding:8px 2px">Nenhum outro item com esse texto preenchido ainda.</p>`}
-      </div>
+      <div class="sheet-sub">Escolha de onde copiar — o texto entra como seu (editado) e pode ser ajustado depois. <span id="laudoCopiaConta" style="font-weight:700"></span></div>
+      <div id="laudoCopiaFiltros">${laudoCopiaFiltrosHtml()}</div>
+      <div class="field" style="margin:0 0 10px"><input type="text" placeholder="Filtrar pelo texto…" oninput="App.laudoFiltrarCopia(this.value)"></div>
+      <div id="laudoCopiaLista" class="sheet-rolagem">${laudoCopiaListaHtml()}</div>
       <button class="sheet-cancel" onclick="App.fecharModal()">Cancelar</button>
     </div>
   </div>`;
@@ -22810,13 +22912,32 @@ Devolver agora?`)) return;
   },
   laudoAbrirCopiar(rid, campo){
     const item = laudoItemPorId(rid); if(!item) return;
+    laudoCopiaPreparar(item, campo);   // reabrir sempre começa sem filtro
     abrirOverlay(laudoSheetCopiarHtml(item, campo));
+    laudoCopiaRedesenhar();
   },
+  laudoCopiaFiltro(qual, valor){
+    if(!__laudoCopia) return;
+    __laudoCopia.f[qual] = String(valor||"");
+    laudoCopiaRedesenhar();
+  },
+  laudoCopiaLimpar(){
+    if(!__laudoCopia) return;
+    Object.keys(__laudoCopia.f).forEach(k=> __laudoCopia.f[k] = "");
+    laudoCopiaRedesenhar();
+  },
+  /* O campo de texto continua filtrando POR CIMA dos seletores, escondendo
+     linha por linha — é o que permite digitar sem redesenhar a lista e sem
+     perder o cursor. Usa [hidden] em vez de style.display para a contagem
+     poder perguntar ":not([hidden])". */
   laudoFiltrarCopia(q){
+    if(__laudoCopia) __laudoCopia.q = String(q||"");
     const t = String(q||"").trim().toLowerCase();
     document.querySelectorAll("#laudoCopiaLista .laudo-copia-item").forEach(el=>{
-      el.style.display = (!t || (el.getAttribute("data-busca")||"").indexOf(t) >= 0) ? "" : "none";
+      el.hidden = !(!t || (el.getAttribute("data-busca")||"").indexOf(t) >= 0);
     });
+    const c = document.getElementById("laudoCopiaConta");
+    if(c) c.textContent = laudoCopiaContagem();
   },
   laudoAplicarCopia(rid, campo, origemId){
     const item = laudoItemPorId(rid);

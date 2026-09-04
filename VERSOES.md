@@ -64,6 +64,31 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 04/09/2026 15:53
+
+**Novo: filtros no "Copiar de outro".** Além do campo de texto, a folha agora
+tem listas de **Projeto, Área, Equipamento, Tarefa e Risco**.
+
+Numa área com centenas de linhas, achar "o mesmo risco na outra esteira" só
+pelo texto exigia lembrar como aquele texto tinha sido escrito. Agora se desce
+pela hierarquia que você já tem na cabeça.
+
+Detalhes:
+
+- **Cada campo mostra só os filtros que fazem sentido para o nível dele.** Uma
+  lista de escopos é uma lista de equipamentos — filtrar por equipamento ali
+  daria um item por filtro. É a mesma regra que o app já usa para decidir por
+  onde agrupar. O **nome do risco** é a exceção proposital: é justamente o caso
+  comum ("o mesmo risco que já escrevi em outra máquina").
+- **As listas descem em cascata.** Escolhendo a área, o seletor de equipamento
+  passa a mostrar só os daquela área.
+- **Lista com uma opção só não vira seletor** — num projeto de um cliente só, o
+  filtro de Projeto simplesmente não aparece.
+- **O campo de texto continua filtrando por cima**, sem redesenhar a lista, para
+  o cursor não se perder enquanto você digita.
+- O contador ao lado do subtítulo mostra `2 de 4`, e um botão **Limpar filtros**
+  aparece assim que houver algum ativo.
+
 ## 04/09/2026 10:59
 
 **Ajuste:** saiu também a caixa de alerta *"A solução proposta não leva este

@@ -541,6 +541,77 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(h.indexOf("laudoFiltrarCopia") > 0, "sem filtro");
     ok(h.indexOf("data-busca=") > 0, "sem indice de busca");
   });
+  /* ---- filtros por hierarquia no "Copiar de outro" (04/09/2026) ----
+     A lista de origens pode ter centenas de linhas; achar "o mesmo risco na
+     outra esteira" so pelo texto exige lembrar como aquele texto foi escrito.
+     Os filtros descem pela hierarquia que a pessoa ja tem na cabeca. */
+  t("a folha se BASTA: monta os filtros sozinha, sem depender de quem chama", ()=>{
+    /* Isto nao e detalhe: a versao de estreia dependia de laudoAbrirCopiar ter
+       montado o estado antes, e a folha saia VAZIA por qualquer outro caminho,
+       sem erro nenhum na tela. Um teste pegou na hora. */
+    vm.runInContext("__laudoCopia = null;", ctx);
+    const h = C.laudoSheetCopiarHtml(C.linhasEscopoSimples()[0], "risco");
+    ok(h.indexOf("laudo-copia-item") > 0, "a folha saiu sem nenhuma origem");
+  });
+  t("os candidatos carregam a hierarquia inteira", ()=>{
+    const c = C.laudoCandidatosCopia(C.linhasEscopoSimples()[0], "risco")[0];
+    ok(!!c, "sem candidato nao da para testar");
+    ["projetoNome","areaNome","maquinaNome","tarefaNome","riscoNome"].forEach(k=>
+      ok(typeof c[k] === "string" && c[k].length > 0, "faltou " + k));
+  });
+  /* So os niveis ACIMA da linha, mais o nome do risco. Filtrar por equipamento
+     numa lista em que cada linha E um equipamento daria um item por filtro. */
+  t("cada campo oferece so os filtros que fazem sentido para o nivel dele", ()=>{
+    /* const dentro do contexto nao vira propriedade do global — so function. */
+    const j = k => vm.runInContext("LAUDO_COPIA_FILTROS." + k + ".map(x=>x.k).join(',')", ctx);
+    eq(j("maquina"), "projeto,area");
+    eq(j("tarefa"), "projeto,area,maquina");
+    eq(j("risco"), "projeto,area,maquina,tarefa,risco",
+       "no nivel do risco o proprio nome entra: e o caso comum de copia");
+  });
+  t("o filtro corta a lista, e limpar devolve tudo", ()=>{
+    const item = C.linhasEscopoSimples()[0];
+    C.laudoCopiaPreparar(item, "risco");
+    const total = C.laudoCopiaFiltrados().length;
+    ok(total > 0, "sem candidatos nao da para testar");
+    const areas = C.laudoCopiaOpcoes("area", 1);
+    ok(areas.length > 0);
+    vm.runInContext("__laudoCopia.f.area = " + JSON.stringify(areas[0]) + ";", ctx);
+    const filtrado = C.laudoCopiaFiltrados();
+    ok(filtrado.length > 0 && filtrado.every(x=>x.areaNome === areas[0]));
+    vm.runInContext('__laudoCopia.f.area = "";', ctx);
+    eq(C.laudoCopiaFiltrados().length, total);
+  });
+  /* A CASCATA: as opcoes de Equipamento saem dos candidatos ja filtrados por
+     Projeto e Area — senao o seletor ofereceria equipamento de area que a
+     pessoa acabou de excluir do filtro. */
+  t("as opcoes descem em cascata pelos filtros acima", ()=>{
+    const item = C.linhasEscopoSimples()[0];
+    C.laudoCopiaPreparar(item, "risco");
+    const todas = C.laudoCopiaOpcoes("maquina", 3);
+    const areas = C.laudoCopiaOpcoes("area", 1);
+    vm.runInContext("__laudoCopia.f.area = " + JSON.stringify(areas[0]) + ";", ctx);
+    const soDaArea = C.laudoCopiaOpcoes("maquina", 3);
+    ok(soDaArea.length <= todas.length, "a cascata nunca pode ampliar as opcoes");
+    ok(soDaArea.every(m=> C.laudoCopiaFiltrados(1).some(c=>c.maquinaNome===m)));
+  });
+  /* Escolha que deixou de existir depois de mexer num filtro acima precisa ser
+     esquecida, senao a lista fica vazia sem a pessoa entender por que. */
+  t("escolha que deixou de existir e esquecida, nao deixa a lista vazia", ()=>{
+    ok(C.laudoCopiaFiltrosHtml.toString().indexOf('__laudoCopia.f[d.k] = ""') > 0);
+  });
+  t("lista com uma opcao so nao vira seletor", ()=>{
+    ok(C.laudoCopiaFiltrosHtml.toString().indexOf("opts.length < 2") > 0,
+       "seletor de uma opcao e controle morto ocupando tela de celular");
+  });
+  /* O campo de texto filtra POR CIMA dos seletores, escondendo linha a linha —
+     e o que permite digitar sem redesenhar a lista e sem perder o cursor. */
+  t("digitar nao redesenha a lista (o cursor nao pode se perder)", ()=>{
+    const f = String(HTML.slice(HTML.indexOf("  laudoFiltrarCopia(q){"), HTML.indexOf("  laudoAplicarCopia(rid, campo, origemId){")));
+    ok(f.indexOf("el.hidden =") > 0, "usa [hidden] para a contagem poder perguntar :not([hidden])");
+    ok(f.indexOf("innerHTML") < 0, "redesenhar ao digitar tira o cursor de quem escreve");
+    ok(funcao("laudoCopiaRedesenhar").indexOf("laudoCopiaFiltrosHtml()") > 0);
+  });
 
   console.log("\n=== t18 · busca e navegacao entre linhas ===");
   t("busca encontra por nome do risco", ()=>{

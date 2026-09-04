@@ -4211,6 +4211,38 @@ chk("a lista e um alvo de toque de verdade",
     and "if((STATE.ui.lpZoom || 0.5) < 1) STATE.ui.lpZoom = 1;" in _tog)
 
 
+print("=== 128. FILTROS NO 'COPIAR DE OUTRO' (04/09/2026) ===")
+# A lista de origens pode ter centenas de linhas; achar "o mesmo risco na outra
+# esteira" so pelo texto exige lembrar como aquele texto foi escrito. Os
+# filtros descem pela hierarquia que a pessoa ja tem na cabeca.
+chk("os candidatos carregam a hierarquia inteira",
+    all(x in _corpoDe(novo, "laudoCandidatosCopia")
+        for x in ["projetoNome", "areaNome", "maquinaNome", "tarefaNome", "riscoNome"]))
+# So os niveis ACIMA da linha, mais o nome do risco (o caso comum de copia).
+# Mesma regra que LAUDO_AGRUPAR_POR ja usa para decidir por onde agrupar.
+chk("cada campo oferece so os filtros do nivel dele",
+    "const LAUDO_COPIA_FILTROS = {" in novo
+    and 'maquina: [ {k:"projeto", rot:"Projeto"}, {k:"area", rot:"Área"} ],' in novo
+    and '{k:"tarefa", rot:"Tarefa"}, {k:"risco", rot:"Risco"} ],' in novo)
+# A cascata: as opcoes de Equipamento saem dos candidatos ja filtrados por
+# Projeto e Area -- senao o seletor ofereceria equipamento de area excluida.
+chk("as opcoes descem em cascata pelos filtros acima",
+    "const usar = (ate === undefined) ? ordem : ordem.slice(0, ate);" in _corpoDe(novo, "laudoCopiaFiltrados")
+    and "laudoCopiaOpcoes(d.k, i)" in _corpoDe(novo, "laudoCopiaFiltrosHtml"))
+chk("escolha que sumiu e esquecida, e lista de 1 opcao nao vira seletor",
+    'if(__laudoCopia.f[d.k] && opts.indexOf(__laudoCopia.f[d.k]) < 0) __laudoCopia.f[d.k] = "";' in novo
+    and 'if(opts.length < 2 && !__laudoCopia.f[d.k]) return "";' in novo)
+# A folha se basta: depender de quem chama ter montado o estado antes fazia a
+# folha sair VAZIA por qualquer caminho novo, sem erro nenhum na tela.
+chk("a folha monta os filtros sozinha, sem depender de quem chama",
+    "if(!__laudoCopia || __laudoCopia.item !== item || __laudoCopia.campo !== campo)" in novo
+    and "function laudoCopiaPreparar(item, campo){" in novo)
+# Digitar nao pode redesenhar a lista: o cursor de quem escreve se perderia.
+_ft = novo[novo.find("  laudoFiltrarCopia(q){"):novo.find("  laudoAplicarCopia(rid, campo, origemId){")]
+chk("o campo de texto filtra por cima, sem redesenhar",
+    "el.hidden = !(!t ||" in _ft and "innerHTML" not in _ft)
+
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
