@@ -2936,7 +2936,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/09/2026 15:38";
+const APP_BUILD = "07/09/2026 15:50";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -25103,7 +25103,7 @@ function lpMaiorPLrDoEquipamento(itens){
       const cplr = PLR_CORES[mplr.plr] || null;
       const notaPlr = mplr.aplicaveis
         ? "Nota: referência. Corresponde ao maior PLr entre as funções de segurança identificadas neste equipamento. O PLr é determinado individualmente para cada função de segurança, conforme o risco associado — não é atribuído de forma global ao equipamento."
-        : "Nota: nenhum risco deste equipamento resultou em função de segurança a classificar por PLr — o tratamento previsto é por proteção fixa ou medida equivalente. O PLr é determinado individualmente para cada função de segurança, nunca de forma global ao equipamento.";
+        : "Nota: nenhum risco deste equipamento resultou em função de segurança a classificar por PLr. O PLr é determinado individualmente para cada função de segurança, nunca de forma global ao equipamento.";
       blocos.push({ quebrarAntes:true, html:`
         <div class="lp-faixa-c">Análise de Risco pelo método HRN com Mapeamento e Diagnóstico</div>
         <div class="lp-apr${m.ocultoLaudo?' lp-oculto':''}">
