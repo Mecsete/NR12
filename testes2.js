@@ -4230,7 +4230,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   });
   t("a tela nomeia a máquina e o campo", ()=>{
     const f = funcao("gerarLaudoIAItens");
-    ok(f.indexOf('const CAMPO_ROTULO = { escopo:"escopo do equipamento", tarefa:"descrição da tarefa", risco:"descrição do risco", existente:"mitigação existente", solucao:"solução" };') > 0);
+    ok(f.indexOf('const CAMPO_ROTULO = { escopo:"escopo do equipamento", tarefa:"descrição da tarefa", nome:"nome do risco", risco:"descrição do risco", existente:"mitigação existente", solucao:"solução" };') > 0);
     ok(f.indexOf('(nomeMaquinaS(item.maquina) || "") + " — " + (CAMPO_ROTULO[campo] || campo)') > 0);
   });
 
@@ -4329,14 +4329,14 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   });
   t("Copiar de outro não se oferece a si mesmo em existente", ()=>{
     const f = funcao("laudoCandidatosCopia");
-    ok(f.indexOf('(campo==="risco"||campo==="existente"||campo==="solucao") && o.risco.id===item.risco.id') > 0,
+    ok(f.indexOf('(campo==="nome"||campo==="risco"||campo==="existente"||campo==="solucao") && o.risco.id===item.risco.id') > 0,
        "existente ficaria na propria lista de candidatos a copiar de si mesmo");
   });
   t("a geração em lote também cobre existente, mas só quando há algo a descrever", ()=>{
     const f = funcao("gerarLaudoIAItens");
     ok(f.indexOf('if(laudoTemMitigacaoExistente(it.risco) && laudoPrecisaGerar(it, "existente", refazer)) n++;') > 0,
        "sem essa checagem, a barra de progresso nao contaria os campos de existente");
-    ok(f.indexOf('for(const campo of ["risco","existente","solucao"]){') > 0);
+    ok(f.indexOf('for(const campo of ["nome","risco","existente","solucao"]){') > 0);
     ok(f.indexOf('if(campo==="existente" && !laudoTemMitigacaoExistente(item.risco)) continue;') > 0,
        "sem isto, geraria um texto da IA para maquina sem NADA existente marcado");
     ok(f.indexOf('const orig = campo==="existente" ? laudoEntradaExistente(item) : laudoTextoOriginal(item, campo);') > 0);
@@ -4809,12 +4809,15 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     // Deixa a fila de microtasks correr sem resolver nenhuma chamada — se
     // for mesmo Promise.all, as 3 já terão sido disparadas neste ponto.
     await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
-    t("as 3 chamadas (risco, mitigação existente e solução) são disparadas ANTES de qualquer resposta voltar",
-      ()=> eq(disparos.length, 3, "disparadas: " + disparos.join(", ")));
+    /* Eram 3; viraram 4 quando o nome do risco entrou como campo de laudo
+       (07/09/2026). O que este teste defende continua o mesmo: as chamadas
+       saem TODAS antes de qualquer resposta voltar. */
+    t("as 4 chamadas (nome, risco, mitigação existente e solução) são disparadas ANTES de qualquer resposta voltar",
+      ()=> eq(disparos.length, 4, "disparadas: " + disparos.join(", ")));
     resolvedores.forEach(r=>r());
     const gravadosParalelo = await promessaGeracao;
-    t("depois de resolvidas, os 3 textos são gravados normalmente",
-      ()=> eq(gravadosParalelo, 3));
+    t("depois de resolvidas, os 4 textos são gravados normalmente",
+      ()=> eq(gravadosParalelo, 4));
     t("uma única mensagem de progresso anuncia os 3 campos juntos, não um de cada vez",
       ()=> ok(painelTeste.atualizacoes.some(a=> a.sub && a.sub.indexOf("+") > 0),
               "esperava algo como 'descrição do risco + mitigação existente + solução'"));
@@ -5969,7 +5972,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   t("o cartão do Escopo usa a identificação; os outros campos seguem como antes", ()=>{
     ok(HTML.indexOf("      : campo===\"escopo\"\n      ? laudoBlocoIdentificacaoEquipamento(item)") > 0,
        "o cartão do escopo não passou a usar a identificação");
-    ok(HTML.indexOf('${campo==="solucao" ? "O que você propôs em campo" : "Seu texto de campo"}') > 0,
+    ok(HTML.indexOf('${campo==="solucao" ? "O que você propôs em campo" : campo==="nome" ? "Nome de campo" : "Seu texto de campo"}') > 0,
        "os demais campos perderam o rótulo de sempre");
   });
   t("o texto que VAI PARA O LAUDO continua sendo nome + descrição", ()=>{
@@ -11291,7 +11294,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
        isso que nao pode ir para um laudo assinado. Os dois testes que
        defendiam a duvida viraram estes, que defendem o contrario. */
     t("nao existe mais coluna de duvida na planilha", ()=>{
-      eq(COLUNAS.filter(c=>c.resp).length, 5, "sao 5 colunas de resposta, uma por campo");
+      eq(COLUNAS.filter(c=>c.resp).length, 6, "sao 6 colunas de resposta, uma por campo");
       ok(!COLUNAS.some(c=> /d[uú]vida/i.test(c.h)), "coluna de dúvida voltou por engano");
       ok(!COLUNAS.some(c=> c.resp && c.resp.tipo === "duvida"));
     });
@@ -11383,11 +11386,11 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
         ok(corpo.indexOf('"' + c.h + '":') > 0, "coluna sem valor em baseIACamposDaLinha: " + c.h);
       });
     });
-    t("os cinco campos importaveis tem a sua coluna de texto", ()=>{
-      ["escopo","tarefa","risco","existente","solucao"].forEach(campo=>{
+    t("os seis campos importaveis tem a sua coluna de texto", ()=>{
+      ["escopo","tarefa","nome","risco","existente","solucao"].forEach(campo=>{
         ok(COLUNAS.some(c=>c.resp && c.resp.campo===campo && c.resp.tipo==="texto"), campo);
       });
-      eq(Object.keys(NIVEL).length, 5);
+      eq(Object.keys(NIVEL).length, 6);
     });
     t("nenhum cabecalho repetido: dois iguais fariam uma coluna sumir", ()=>{
       const vistos = {};
@@ -11442,6 +11445,113 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       const f = funcao("gerarBytesBaseIAXlsx");
       ok(f.indexOf("c.resp?2:1") > 0, "cabeçalho das colunas de resposta");
       ok(f.indexOf("c.resp?4:3") > 0, "corpo das colunas de resposta");
+    });
+  }
+
+  /* ---------- t158: Nome do risco virou campo do laudo --------------------
+     Pedido de 07/09/2026. O nome de campo continua intocado: quando o
+     inspetor monta o risco pelas quatro listas, o nome sai curto e as vezes
+     sem dizer o dano ou a parte do corpo. Agora existe um nome PARA O LAUDO,
+     revisavel e sugerivel — sem que nada disso encoste no cadastro. */
+  {
+    console.log("\n[t158] nome do risco como campo do laudo");
+    const item = ()=> ({ maquina:{ id:"m1", laudoIA:{} }, tarefa:{ id:"t1", laudoIA:{} },
+                         risco:{ id:"r1", nome:"Proteção desparafusada", laudoIA:{} } });
+    const cxCol = vm.createContext({ Array, Object, String });
+    ["BASE_IA_COLUNAS","BASE_IA_NIVEL"].forEach(n=> vm.runInContext(constante(n), cxCol));
+
+    /* O PONTO: o nome de campo e a base, e nunca e sobrescrito. */
+    t("O PONTO: o nome de campo continua intocado depois de aplicar outro", ()=>{
+      const it = item();
+      eq(C.laudoTextoOriginal(it, "nome"), "Proteção desparafusada");
+      C.laudoSet(it, "nome", { sug:"Agarramento das mãos na ponta de eixo", st:"ok", fin:"Agarramento das mãos na ponta de eixo" });
+      eq(it.risco.nome, "Proteção desparafusada", "o cadastro de campo NAO pode mudar");
+      eq(C.laudoTextoFinal(it, "nome"), "Agarramento das mãos na ponta de eixo");
+      eq(C.laudoTextoOriginal(it, "nome"), "Proteção desparafusada");
+    });
+    /* Sem nome digitado, o app ja monta um a partir das quatro listas — e ele
+       que a IA melhora, em vez de partir do nada. */
+    t("risco montado pelas listas: a base e o nome que o app monta", ()=>{
+      const it = item();
+      it.risco.nome = ""; it.risco.evento = "agarramento"; it.risco.componente = "Eixo"; it.risco.parteCorpo = "Mãos";
+      const base = C.laudoTextoOriginal(it, "nome");
+      ok(base.length > 0, "sem base, a IA escreve do zero e ignora o que foi montado");
+      eq(base, C.montarNomeRisco(it.risco));
+    });
+    t("recusar volta para o nome de campo, como nos outros campos", ()=>{
+      const it = item();
+      C.laudoSet(it, "nome", { sug:"Outro nome", st:"no" });
+      eq(C.laudoTextoFinal(it, "nome"), "Proteção desparafusada");
+    });
+    t("guarda no risco, com estado e duvida proprios", ()=>{
+      const it = item();
+      C.laudoSet(it, "nome", { sug:"Corte da mão no rolete", st:"pend", duv:"Falta o componente." });
+      eq(it.risco.laudoIA.nomeSug, "Corte da mão no rolete");
+      eq(it.risco.laudoIA.nomeSt, "pend");
+      eq(it.risco.laudoIA.duvNome, "Falta o componente.");
+      eq(C.laudoGet(it, "nome").sug, "Corte da mão no rolete");
+    });
+    /* LAUDO_CAMPOS comanda o "X de 4 campos", o painel de pendencias e as
+       colunas AQ-AT do Excel da Corteva. O nome nao pode entrar la: viraria
+       um quinto campo obrigatorio e mudaria contagem e planilha do cliente. */
+    t("NAO entra em LAUDO_CAMPOS: nao e um quinto campo obrigatorio", ()=>{
+      eq(vm.runInContext("LAUDO_CAMPOS.length", ctx), 4);
+      ok(vm.runInContext("LAUDO_CAMPOS.every(c=>c.k!=='nome')", ctx), "nome vazou para LAUDO_CAMPOS");
+      eq(C.laudoCampoDef("nome").rot, "Nome do risco");
+    });
+    t("mas ENTRA na lista importavel, senao a planilha nao teria onde gravar", ()=>{
+      const imp = vm.runInContext("LAUDO_CAMPOS_IMPORTAVEIS", ctx);
+      ok(imp.indexOf("nome") >= 0);
+      eq(imp.length, 6);
+    });
+    /* O nome aprovado e do LAUDO. O cadastro, a navegacao e o Excel da Corteva
+       seguem com o nome de campo: la o assunto e o levantamento. */
+    t("o laudo impresso usa o nome aprovado", ()=>{
+      ok(HTML.indexOf('const nomeRisco = laudoTextoFinal(it, "nome") || "Risco";') > 0);
+    });
+    t("o cartao da revisao tambem", ()=>{
+      ok(HTML.indexOf('const nomeRisco = laudoTextoFinal(it, "nome");') > 0);
+    });
+    t("o Excel da Corteva e o Word continuam com o nome de CAMPO", ()=>{
+      ok(HTML.indexOf("const nomeRisco=item.risco.nome===OUTRO?item.risco.nomeOutro:item.risco.nome;") > 0,
+         "a aba Resumo é levantamento, não laudo");
+      ok(HTML.indexOf("const nomeRisco = corrigirNomeRisco(risco.nome===OUTRO?risco.nomeOutro:risco.nome)") > 0);
+    });
+    t("o bloco aparece na tela logo ACIMA da descricao do risco", ()=>{
+      ok(HTML.indexOf('(c.k==="risco"? laudoBlocoCampo(item,"nome") : "")') > 0);
+      ok(HTML.indexOf('${campo==="solucao" ? "O que você propôs em campo" : campo==="nome" ? "Nome de campo" : "Seu texto de campo"}') > 0);
+    });
+    /* O prompt precisa dizer o que e um nome BOM, senao a IA devolve a
+       condicao ("proteção desparafusada") como se fosse o risco. */
+    t("o prompt da IA ensina a nomear, e proibe nomear pela condicao", ()=>{
+      const p = constante("IA_PROMPTS_PADRAO");
+      ok(p.indexOf("nome_xlsx:") > 0);
+      const bloco = p.slice(p.indexOf("nome_xlsx:"), p.indexOf("risco_xlsx:"));
+      ok(bloco.indexOf("3 a 4 palavras") > 0);
+      ok(bloco.indexOf("parte do corpo") > 0);
+      ok(bloco.indexOf("é condição, não é nome de risco") > 0,
+         "sem isso a IA devolve 'proteção desparafusada' como nome");
+      ok(bloco.indexOf("Não invente componente") > 0);
+    });
+    t("a planilha tem a coluna do nome, e ela grava no risco", ()=>{
+      const cols = vm.runInContext("BASE_IA_COLUNAS", cxCol);
+      ok(cols.some(c=> c.resp && c.resp.campo === "nome"), "coluna de resposta do nome");
+      ok(cols.some(c=> c.h === "Nome do risco (campo)"), "a base precisa levar o nome de campo");
+      eq(vm.runInContext("BASE_IA_NIVEL", cxCol).nome, "risco");
+    });
+    t("as instrucoes da planilha ensinam a nomear", ()=>{
+      const p = HTML.slice(HTML.indexOf("const BASE_IA_PROMPT = ["), HTML.indexOf("const BASE_IA_ABA_INSTRUCOES"));
+      ok(p.indexOf("RESPOSTA - Nome do risco") > 0);
+      ok(p.indexOf("é condição, não nome de risco") > 0);
+      ok(p.indexOf("Quando o nome de campo já estiver bom, devolva-o igual") > 0,
+         "sem isso a IA reescreve nome que já estava certo");
+    });
+    /* A geracao em lote pede os campos do risco em paralelo; o nome tem de
+       entrar nessa mesma leva, e nao virar uma chamada extra em serie. */
+    t("a geracao em lote pede o nome junto dos outros, na mesma leva", ()=>{
+      const f = funcao("gerarLaudoIAItens");
+      ok(f.indexOf('for(const campo of ["nome","risco","existente","solucao"]){') > 0);
+      ok(f.indexOf('if(laudoPrecisaGerar(it, "nome", refazer)) n++;') > 0, "a barra de progresso precisa contar o nome");
     });
   }
 

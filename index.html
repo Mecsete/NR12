@@ -2937,7 +2937,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/09/2026 19:38";
+const APP_BUILD = "07/09/2026 20:09";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -13021,6 +13021,7 @@ const IA_PROMPTS_PADRAO = {
   equipamento_xlsx:"Você é um engenheiro de segurança do trabalho especializado em NR-12. Leia a descrição do equipamento escrita pelo inspetor e responda SOMENTE em JSON válido, sem nenhum texto antes ou depois, exatamente neste formato: {\"duvida\":\"\"}. Em \"duvida\": se a descrição estiver vaga ou faltar alguma informação importante para o laudo (ex.: capacidade, forma de acionamento, modelo), escreva uma pergunta curta e objetiva sobre o que falta; se a descrição já estiver completa, devolva \"duvida\":\"\".",
   escopo_xlsx:"Você é um engenheiro de segurança do trabalho especializado em NR-12 e ISO 12100. Com base no nome e na descrição do equipamento informados, responda SOMENTE em JSON válido, sem nenhum texto antes ou depois, exatamente neste formato: {\"texto\":\"\",\"duvida\":\"\"}. Em \"texto\": escreva um parágrafo curto (3 a 5 linhas) descrevendo os limites de uso do equipamento (espaço, uso e tempo, quando aplicável), sem inventar dados não informados. Em \"duvida\": uma pergunta curta sobre alguma informação que falte para definir melhor o escopo, ou \"\" se não houver.",
   tarefa_xlsx:"Você é um engenheiro de segurança do trabalho especializado em NR-12. Com base no nome da tarefa e em uma eventual nota do inspetor, responda SOMENTE em JSON válido, sem nenhum texto antes ou depois, exatamente neste formato: {\"texto\":\"\",\"duvida\":\"\"}. Em \"texto\": descrição técnica curta e objetiva (2 a 4 linhas) do que é executado nessa tarefa, sem inventar etapas não informadas. Em \"duvida\": uma pergunta curta sobre o que falta saber sobre essa tarefa, ou \"\" se não houver.",
+  nome_xlsx:"Você é um engenheiro de segurança do trabalho especializado em NR-12. Responda SOMENTE em JSON válido, sem nenhum texto antes ou depois, exatamente neste formato: {\"texto\":\"\",\"duvida\":\"\"}. Em \"texto\": escreva o NOME do risco em 3 a 4 palavras, dizendo qual é o dano, qual parte do corpo é atingida e em qual componente do equipamento ocorre, com a concordância correta (\"na correia\", \"no eixo\", \"na comporta\"). Exemplos bons: \"Prensamento dos dedos na comporta\", \"Agarramento das mãos no eixo do motor\", \"Corte da perna na proteção danificada\". O nome diz o que VAI ACONTECER — nunca por que o risco está acessível: \"proteção desparafusada\" é condição, não é nome de risco; isso pertence à descrição. Não invente componente nem parte do corpo que não estejam informados. Sem ponto final. Em \"duvida\": uma pergunta curta se faltar informação para nomear, ou \"\" se não houver.",
   risco_xlsx:"Você é um engenheiro de segurança do trabalho especializado em NR-12. Responda SOMENTE em JSON válido, sem nenhum texto antes ou depois, exatamente neste formato: {\"texto\":\"\",\"duvida\":\"\"}. Em \"texto\": reescreva a descrição do risco abaixo de forma técnica e objetiva, mantendo exatamente o mesmo sentido, sem inventar informação nova. Em \"duvida\": uma pergunta curta sobre o que falta esclarecer nesse risco, ou \"\" se não houver.",
   mitigacao_xlsx:"Você é um engenheiro de segurança do trabalho especializado em NR-12 e ISO 12100. Responda SOMENTE em JSON válido, sem nenhum texto antes ou depois, exatamente neste formato: {\"texto\":\"\",\"duvida\":\"\"}. Em \"texto\": reescreva o texto de medida/mitigação abaixo de forma técnica e objetiva, sem inventar medidas não informadas. Em \"duvida\": uma pergunta curta sobre o que falta definir na solução/mitigação, ou \"\" se não houver.",
   /* Revisão de português usada quando o engenheiro APLICA um texto. Não é uma
@@ -14589,13 +14590,14 @@ const LAUDO_CAMPOS = [
    legitimamente não tem nada registrado). O texto final dela vai para
    risco.descMedida, que já tem coluna própria (T) desde sempre. */
 function laudoCampoDef(campo){
+  if(campo==="nome")      return { k:"nome", rot:"Nome do risco", sigla:"N" };
   if(campo==="existente") return { k:"existente", rot:"Mitigação existente", sigla:"M" };
   return LAUDO_CAMPOS.find(c=>c.k===campo);
 }
 const LAUDO_ST_ROTULO = { "":"Não gerado", pend:"Aguardando sua decisão", ok:"Aplicado", edit:"Editado por você", no:"Recusado — vale o seu texto" };
 const LAUDO_ST_COR    = { "":"#8A8CA3", pend:"#B26A00", ok:"#2E7D32", edit:"#1565C0", no:"#4A4D6B" };
 const LAUDO_ST_FUNDO  = { "":"#E8EAF0", pend:"#FFF3D6", ok:"#E3F4E4", edit:"#E1EEFB", no:"#E8EAF0" };
-const LAUDO_TIPO_PROMPT = { escopo:"escopo_xlsx", tarefa:"tarefa_xlsx", risco:"risco_xlsx", existente:"mitigacao_xlsx", solucao:"mitigacao_xlsx" };
+const LAUDO_TIPO_PROMPT = { escopo:"escopo_xlsx", tarefa:"tarefa_xlsx", nome:"nome_xlsx", risco:"risco_xlsx", existente:"mitigacao_xlsx", solucao:"mitigacao_xlsx" };
 
 function getLaudoMaquina(m){
   if(!m.laudoIA) m.laudoIA = {};
@@ -14614,7 +14616,8 @@ function getLaudoTarefa(t){
 function getLaudoRisco(r){
   if(!r.laudoIA) r.laudoIA = {};
   const l = r.laudoIA;
-  ["riscoSug","riscoFin","riscoSt","duvRisco","existenteSug","existenteFin","existenteSt","duvExistente","solucaoSug","solucaoFin","solucaoSt","duvSolucao","em"].forEach(k=>{ if(l[k]===undefined) l[k] = ""; });
+  ["nomeSug","nomeFin","nomeSt","duvNome","riscoSug","riscoFin","riscoSt","duvRisco","existenteSug","existenteFin","existenteSt","duvExistente","solucaoSug","solucaoFin","solucaoSt","duvSolucao","em"].forEach(k=>{ if(l[k]===undefined) l[k] = ""; });
+  if(!Array.isArray(l.nomeRefs)) l.nomeRefs = [];
   if(!Array.isArray(l.riscoRefs)) l.riscoRefs = [];
   if(!Array.isArray(l.existenteRefs)) l.existenteRefs = [];
   if(!Array.isArray(l.solucaoRefs)) l.solucaoRefs = [];
@@ -14775,6 +14778,7 @@ function laudoEntradaComReferencias(item, campo, entrada, exemplos){
 function laudoGet(item, campo){
   if(campo==="escopo"){ const l = getLaudoMaquina(item.maquina); return { sug:l.escopoSug, fin:l.escopoFin, st:l.escopoSt, duv:l.duvEscopo, refs:l.escopoRefs||[] }; }
   if(campo==="tarefa"){ const l = getLaudoTarefa(item.tarefa);   return { sug:l.tarefaSug, fin:l.tarefaFin, st:l.tarefaSt, duv:l.duvTarefa, refs:l.tarefaRefs||[] }; }
+  if(campo==="nome"){   const l = getLaudoRisco(item.risco);     return { sug:l.nomeSug, fin:l.nomeFin, st:l.nomeSt, duv:l.duvNome, refs:l.nomeRefs||[] }; }
   if(campo==="risco"){  const l = getLaudoRisco(item.risco);     return { sug:l.riscoSug, fin:l.riscoFin, st:l.riscoSt, duv:l.duvRisco, refs:l.riscoRefs||[] }; }
   if(campo==="existente"){ const l = getLaudoRisco(item.risco);  return { sug:l.existenteSug, fin:l.existenteFin, st:l.existenteSt, duv:l.duvExistente, refs:l.existenteRefs||[] }; }
   const l = getLaudoRisco(item.risco);                           return { sug:l.solucaoSug, fin:l.solucaoFin, st:l.solucaoSt, duv:l.duvSolucao, refs:l.solucaoRefs||[] };
@@ -14795,7 +14799,7 @@ function laudoGet(item, campo){
         aplicou, editou ou recusou nunca é tocado;
      3. não encosta em nenhum dado de campo (nome, descrição, fotos, HRN).
    ========================================================================= */
-const LAUDO_CAMPOS_IMPORTAVEIS = ["escopo", "tarefa", "risco", "existente", "solucao"];
+const LAUDO_CAMPOS_IMPORTAVEIS = ["escopo", "tarefa", "nome", "risco", "existente", "solucao"];
 const LAUDO_TEXTOS_FORMATO = "apr-textos-laudo-v1";
 function importarTextosLaudo(pacote){
   if(!pacote || typeof pacote !== "object") return null;
@@ -14888,6 +14892,7 @@ const BASE_IA_COLUNAS = [
   { h:"Já decidido no app", larg:30 },
   { h:"RESPOSTA - Escopo do equipamento", larg:56, resp:{ campo:"escopo",    tipo:"texto"  } },
   { h:"RESPOSTA - Descrição da tarefa",   larg:56, resp:{ campo:"tarefa",    tipo:"texto"  } },
+  { h:"RESPOSTA - Nome do risco",         larg:34, resp:{ campo:"nome",      tipo:"texto"  } },
   { h:"RESPOSTA - Descrição do risco",    larg:56, resp:{ campo:"risco",     tipo:"texto"  } },
   { h:"RESPOSTA - Mitigação existente",   larg:56, resp:{ campo:"existente", tipo:"texto"  } },
   { h:"RESPOSTA - Solução",               larg:56, resp:{ campo:"solucao",   tipo:"texto"  } },
@@ -14946,6 +14951,14 @@ const BASE_IA_PROMPT = [
 "Para limpeza ou higienização, separe os dois tipos. A limpeza frequente é feita pela equipe de operação, que remove impurezas sem desmontar equipamento. A limpeza completa, menos frequente, exige bloqueio LOTO e é a MANUTENÇÃO quem remove as proteções fixas, com ferramenta, para que a limpeza seja feita. O texto nunca pode dar a entender que a operação remove proteção. Não é preciso explicar isso em toda linha — deixe claro onde a linha sustentar.",
 "2 a 4 linhas.",
 "",
+"RESPOSTA - Nome do risco",
+"De 3 a 4 palavras, dizendo qual é o DANO, qual PARTE DO CORPO é atingida e em qual COMPONENTE do equipamento ocorre, com a concordância correta (\"na correia\", \"no eixo\", \"na comporta\"). Sem ponto final.",
+"Bons: \"Prensamento dos dedos na comporta\" · \"Agarramento das mãos no eixo do motor\" · \"Corte da perna na proteção danificada\".",
+"Ruins: \"Prensamento dos dedos\" (não diz onde) · \"Cilindro pneumático\" (não diz o dano) · \"Partes móveis\" (nenhum dos dois).",
+"O nome diz o que VAI ACONTECER, nunca por que o risco está acessível. \"Proteção desparafusada\" é condição, não nome de risco — isso pertence à Descrição do risco.",
+"Fontes: \"Nome do risco (campo)\", os quatro campos \"Risco: local / componente / evento / parte do corpo\", a \"Descrição do risco (campo)\" e, quando ela revela o que será protegido, a \"Sugestão de mitigação (campo)\".",
+"Quando o nome de campo já estiver bom, devolva-o igual. Não invente componente nem parte do corpo que não estejam informados.",
+"",
 "RESPOSTA - Descrição do risco",
 "Uma frase corrida combinando componente + condição observada + como a pessoa se expõe + consequência. Só com o que está na linha.",
 "Fontes: \"Descrição do risco (campo)\", os quatro campos \"Risco: local / componente / evento / parte do corpo\", e a \"Sugestão de mitigação (campo)\" quando ela revela o que será protegido.",
@@ -14979,7 +14992,7 @@ const BASE_IA_ABA_INSTRUCOES = "COMO PREENCHER";
    tarefa e da tarefa. E por isso que a mesma maquina aparece em varias linhas
    com o mesmo escopo — e por isso que a volta precisa juntar as repeticoes
    antes de importar (ver baseIAPacoteDasAbas). */
-const BASE_IA_NIVEL = { escopo:"maquina", tarefa:"tarefa", risco:"risco", existente:"risco", solucao:"risco" };
+const BASE_IA_NIVEL = { escopo:"maquina", tarefa:"tarefa", nome:"risco", risco:"risco", existente:"risco", solucao:"risco" };
 
 /* Compara cabecalho ignorando acento, caixa, espaco a mais e o tipo de traco.
    A planilha volta reescrita por um modelo de IA: "RESPOSTA — Solução" e
@@ -15568,7 +15581,13 @@ function laudoSet(item, campo, patch){
     return;
   }
   const l = getLaudoRisco(item.risco);
-  if(campo==="risco"){
+  if(campo==="nome"){
+    if(patch.sug!==undefined) l.nomeSug = patch.sug;
+    if(patch.fin!==undefined) l.nomeFin = patch.fin;
+    if(patch.st !==undefined) l.nomeSt  = patch.st;
+    if(patch.duv!==undefined) l.duvNome = patch.duv;
+    if(patch.refs!==undefined) l.nomeRefs = patch.refs;
+  }else if(campo==="risco"){
     if(patch.sug!==undefined) l.riscoSug = patch.sug;
     if(patch.fin!==undefined) l.riscoFin = patch.fin;
     if(patch.st !==undefined) l.riscoSt  = patch.st;
@@ -15661,6 +15680,7 @@ function laudoTextoOriginal(item, campo){
      em "Outra tarefa (especificar)", onde é a única descrição que existe) e
      era exibido como "(nada escrito em campo)" mesmo tendo sido escrito. */
   if(campo==="tarefa")  return item.tarefa.descricao || valOuOutro(item.tarefa.tarefa, item.tarefa.tarefaOutro) || "";
+  if(campo==="nome")    return (item.risco.nome===OUTRO ? item.risco.nomeOutro : item.risco.nome) || montarNomeRisco(item.risco) || "";
   if(campo==="risco")   return item.risco.descricao || "";
   if(campo==="existente") return item.risco.descMedida || "";
   /* Solucao e SEMPRE a proposta do inspetor (sugestaoMitigacao) — nunca a
@@ -15850,6 +15870,7 @@ async function gerarLaudoIAItens(itens, onProgress, opts){
     itens.forEach(it=>{
       if(laudoPrecisaGerar(it, "escopo", refazer) && !mq.has(it.maquina.id)){ mq.add(it.maquina.id); n++; }
       if(laudoPrecisaGerar(it, "tarefa", refazer) && !tf.has(it.tarefa.id)){ tf.add(it.tarefa.id); n++; }
+      if(laudoPrecisaGerar(it, "nome", refazer)) n++;
       if(laudoPrecisaGerar(it, "risco", refazer)) n++;
       if(laudoTemMitigacaoExistente(it.risco) && laudoPrecisaGerar(it, "existente", refazer)) n++;
       if(laudoPrecisaGerar(it, "solucao", refazer)) n++;
@@ -15878,7 +15899,7 @@ async function gerarLaudoIAItens(itens, onProgress, opts){
     progressoAtualizar(undefined, undefined, undefined, "Sem resposta da IA — " + (__iaMotivoFalha || "motivo desconhecido"));
     if(falhasSeguidas >= LIMITE_FALHAS_SEGUIDAS) paradoPorFalhas = true;
   };
-  const CAMPO_ROTULO = { escopo:"escopo do equipamento", tarefa:"descrição da tarefa", risco:"descrição do risco", existente:"mitigação existente", solucao:"solução" };
+  const CAMPO_ROTULO = { escopo:"escopo do equipamento", tarefa:"descrição da tarefa", nome:"nome do risco", risco:"descrição do risco", existente:"mitigação existente", solucao:"solução" };
   /* Avisa ANTES de escrever: a pessoa ve o que esta sendo feito enquanto a IA
      responde, e nao so depois de pronto. */
   const anunciar = (item, campo)=> progressoAtualizar(camposFeitos, totalCampos,
@@ -15942,7 +15963,7 @@ async function gerarLaudoIAItens(itens, onProgress, opts){
        O que já vem do cache de reuso continua resolvido na hora, sem chamada
        nenhuma — só o que sobra depois disso é que vira pedido paralelo. */
     const camposPendentes = [];
-    for(const campo of ["risco","existente","solucao"]){
+    for(const campo of ["nome","risco","existente","solucao"]){
       if(campo==="existente" && !laudoTemMitigacaoExistente(item.risco)) continue;
       if(!laudoPrecisaGerar(item, campo, refazer)) continue;
       const orig = campo==="existente" ? laudoEntradaExistente(item) : laudoTextoOriginal(item, campo);
@@ -17138,7 +17159,7 @@ function laudoAbaRevisao(){
 
   const cards = visiveis.map(it=>{
     const r = laudoResumoItem(it);
-    const nomeRisco = it.risco.nome===OUTRO ? it.risco.nomeOutro : it.risco.nome;
+    const nomeRisco = laudoTextoFinal(it, "nome");
     const pronto = (r.ok + r.no) === r.total;
     const nFotos = laudoFotosDoItem(it).length;
     const hrn = hrnDoItem({tarefa:it.tarefa, risco:it.risco});
@@ -17553,7 +17574,7 @@ function laudoBlocoCampo(item, campo){
       ? laudoBlocoMedidaExistenteEditavelHtml(item)
       : campo==="escopo"
       ? laudoBlocoIdentificacaoEquipamento(item)
-      : `<div style="font-size:11px;font-weight:800;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">${campo==="solucao" ? "O que você propôs em campo" : "Seu texto de campo"}</div>
+      : `<div style="font-size:11px;font-weight:800;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">${campo==="solucao" ? "O que você propôs em campo" : campo==="nome" ? "Nome de campo" : "Seu texto de campo"}</div>
     <div style="font-size:13px;color:var(--ink-dim);background:var(--bg-soft);border-radius:8px;padding:9px 10px;white-space:pre-wrap">${escapeHtml(orig || "(nada escrito em campo)")}</div>
     ${solucaoSemProposta? `<div class="field-hint" style="margin-top:5px">Você ainda não escreveu o que precisa ser feito. Sem proposta, o laudo repete a descrição do que já existe — gere a sugestão da IA ou escreva a solução no risco.</div>`:""}`}
 
@@ -17761,7 +17782,9 @@ function screenSimplesLaudoItem(){
     </div>`:""}
   ${laudoBlocoPlaqueta(item)}
   <div class="laudo-grid">
-    ${LAUDO_CAMPOS.map(c=> (c.k==="solucao"? laudoBlocoCampo(item,"existente") : "") + laudoBlocoCampo(item, c.k)).join("")}
+    ${LAUDO_CAMPOS.map(c=> (c.k==="risco"? laudoBlocoCampo(item,"nome") : "")
+                         + (c.k==="solucao"? laudoBlocoCampo(item,"existente") : "")
+                         + laudoBlocoCampo(item, c.k)).join("")}
     <div style="display:flex;flex-direction:column;gap:12px">
       ${laudoBlocoHRN(item)}
       <div class="card card-pad laudo-bloco">
@@ -17826,7 +17849,7 @@ function laudoCandidatosCopia(item, campo){
     if(vistos.has(chave)) return;
     if(campo==="escopo" && o.maquina.id===item.maquina.id) return;
     if(campo==="tarefa" && o.tarefa.id===item.tarefa.id) return;
-    if((campo==="risco"||campo==="existente"||campo==="solucao") && o.risco.id===item.risco.id) return;
+    if((campo==="nome"||campo==="risco"||campo==="existente"||campo==="solucao") && o.risco.id===item.risco.id) return;
     const texto = laudoTextoFinal(o, campo);
     if(!texto || !String(texto).trim()) return;
     vistos.add(chave);
@@ -25724,7 +25747,7 @@ function lpMaiorPLrDoEquipamento(itens){
           const evs = [];
           for(const f of fotos.slice(0,2)) evs.push(await reduzirFoto(f, 460));
           const evsOk = evs.filter(Boolean);
-          const nomeRisco = (r.nome === OUTRO ? r.nomeOutro : r.nome) || "Risco";
+          const nomeRisco = laudoTextoFinal(it, "nome") || "Risco";
           /* Antes recalculava sempre do checklist, ignorando qualquer texto
              que a IA tivesse escrito e o engenheiro aprovado no laudo. Agora
              segue a MESMA regra de risco/tarefa/escopo: aprovado > sugestão >

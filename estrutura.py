@@ -1287,8 +1287,13 @@ print("\n=== 46. MITIGACAO EXISTENTE E SOLUCAO EM CARTOES SEPARADOS ===")
 # vez de um wrapper a parte -- ver secao 47.
 chk("laudoBlocoCampo nao chama mais laudoBlocoExistenteHtml por dentro do campo solucao",
     'campo==="solucao" ? laudoBlocoExistenteHtml(item) : ""' not in novo)
-chk("o loop da tela insere o cartao de existente IMEDIATAMENTE ANTES do cartao de Solucao",
-    'c.k==="solucao"? laudoBlocoCampo(item,"existente") : "") + laudoBlocoCampo(item, c.k)' in novo)
+# O cartao do Nome do risco entrou em 07/09/2026, logo ANTES da Descricao do
+# risco (e o titulo dela); o de existente continua imediatamente antes da
+# Solucao. Ambos sao inseridos pelo mesmo loop.
+chk("o loop da tela insere Nome antes da Descricao, e existente antes da Solucao",
+    '(c.k==="risco"? laudoBlocoCampo(item,"nome") : "")' in novo
+    and '(c.k==="solucao"? laudoBlocoCampo(item,"existente") : "")' in novo
+    and novo.index('laudoBlocoCampo(item,"nome")') < novo.index('laudoBlocoCampo(item,"existente")'))
 chk("o rotulo do campo Solucao nao carrega mais a Mitigacao no nome (afeta cartao + os 2 modais)",
     '{ k:"solucao", rot:"Solução",' in novo and 'rot:"Solução / Mitigação"' not in novo)
 chk("o laudo impresso (A4) segue o mesmo rotulo novo",
@@ -1347,7 +1352,7 @@ print("\n=== 48. HRN E NIVEL DE DESEMPENHO EMPILHADOS NA MESMA CELULA DO GRID ==
 # colunas conforme a largura) e nunca ficavam um embaixo do outro de
 # verdade -- o usuario pediu para otimizar o espaco juntando os dois.
 chk("HRN e o Nivel de desempenho viram UMA celula so do grid (par, nao impar)",
-    'grid">\n    ${LAUDO_CAMPOS.map(c=> (c.k==="solucao"? laudoBlocoCampo(item,"existente") : "") + laudoBlocoCampo(item, c.k)).join("")}\n    <div style="display:flex;flex-direction:column;gap:12px">\n      ${laudoBlocoHRN(item)}' in novo)
+    '.join("")}\n    <div style="display:flex;flex-direction:column;gap:12px">\n      ${laudoBlocoHRN(item)}' in novo)
 
 print("\n=== 49. 'PEDIR UM AJUSTE A IA' MOSTRA QUE ESTA TRABALHANDO ===")
 # Antes so um toast ("Pedindo a IA... aguarde") que passa rapido -- se a
@@ -2018,7 +2023,7 @@ print("\n=== 71. IMPORTAR TEXTOS DO LAUDO GERADOS FORA DO APP ===")
 chk("existe a funcao de importacao, com formato proprio e campos declarados",
     novo.count("function importarTextosLaudo(pacote){") == 1
     and 'const LAUDO_TEXTOS_FORMATO = "apr-textos-laudo-v1";' in novo
-    and 'const LAUDO_CAMPOS_IMPORTAVEIS = ["escopo", "tarefa", "risco", "existente", "solucao"];' in novo)
+    and 'const LAUDO_CAMPOS_IMPORTAVEIS = ["escopo", "tarefa", "nome", "risco", "existente", "solucao"];' in novo)
 chk("o texto entra como SUGESTAO a decidir, nunca como decisao tomada",
     'laudoSet(item, campo, { sug: texto, st: "pend", duv: String((linha && linha.duvida) || "").trim() });' in novo)
 chk("campo que ja tem texto ou decisao NAO e tocado",
@@ -4366,9 +4371,9 @@ chk("a volta so traduz: quem grava continua sendo importarTextosLaudo",
 # Cada texto tem UM dono. Mandar escopo para o risco encheria o laudo de textos
 # repetidos no lugar errado.
 chk("cada campo vai para o dono certo (escopo=maquina, tarefa=tarefa)",
-    'const BASE_IA_NIVEL = { escopo:"maquina", tarefa:"tarefa", risco:"risco", existente:"risco", solucao:"risco" };' in novo)
-chk("cinco colunas de resposta, e nenhuma coluna de duvida",
-    novo.count('tipo:"texto"') == 5 and 'tipo:"duvida"' not in novo,
+    'const BASE_IA_NIVEL = { escopo:"maquina", tarefa:"tarefa", nome:"risco", risco:"risco", existente:"risco", solucao:"risco" };' in novo)
+chk("seis colunas de resposta, e nenhuma coluna de duvida",
+    novo.count('tipo:"texto"') == 6 and 'tipo:"duvida"' not in novo,
     "texto=%d" % novo.count('tipo:"texto"'))
 # Sem coluna de duvida, a saida natural do modelo passa a ser comentar a falta
 # DENTRO do texto — e e exatamente isso que nao pode ir para um laudo assinado.
@@ -4410,6 +4415,50 @@ chk("todo equipamento entra, mesmo sem tarefa ou risco",
     and "if(riscos.length === 0)" in _corpoDe(novo, "baseIAGruposParaExportar"))
 chk("e coisa nova: nao existia na versao anterior",
     "baseIAGruposParaExportar" not in orig and "BASE_IA_COLUNAS" not in orig)
+
+
+print("=== 132. NOME DO RISCO COMO CAMPO DO LAUDO (07/09/2026) ===")
+# O nome montado pelas quatro listas sai curto e as vezes nomeia a CONDICAO
+# ("Protecao desparafusada") em vez do dano. Agora existe um nome PARA O LAUDO,
+# revisavel e sugerivel — sem encostar no cadastro de campo.
+chk("o nome tem lugar proprio no risco, com estado e duvida",
+    '"nomeSug","nomeFin","nomeSt","duvNome"' in novo
+    and 'if(!Array.isArray(l.nomeRefs)) l.nomeRefs = [];' in novo
+    and 'if(campo==="nome")      return { k:"nome", rot:"Nome do risco", sigla:"N" };' in novo)
+# REGRA ZERO: o cadastro de campo nao pode ser alterado por nada daqui. O nome
+# de campo e a BASE do texto, nunca o destino dele.
+chk("o nome de campo e so a base: laudoSet nunca escreve em risco.nome",
+    "l.nomeSug = patch.sug" in novo
+    and "item.risco.nome =" not in _corpoDe(novo, "laudoSet")
+    and 'if(campo==="nome")    return (item.risco.nome===OUTRO ? item.risco.nomeOutro : item.risco.nome) || montarNomeRisco(item.risco) || "";' in novo)
+# LAUDO_CAMPOS comanda o "X de 4 campos", o painel de pendencias e as colunas
+# AQ-AT do Excel da Corteva: um quinto item ali mudaria contagem e planilha do
+# cliente. E o mesmo motivo pelo qual "existente" ficou de fora.
+_lc = novo[novo.index("const LAUDO_CAMPOS = ["):]
+_lc = _lc[:_lc.index("];")]
+chk("NAO entra em LAUDO_CAMPOS, mas ENTRA na lista importavel",
+    'k:"nome"' not in _lc
+    and _lc.count("k:\"") == 4
+    and '"tarefa", "nome", "risco"' in novo)
+# O nome aprovado e do LAUDO. Levantamento (Excel da Corteva, Word) segue com o
+# nome de campo — la o assunto e o que foi visto, nao o documento.
+chk("o laudo impresso e o cartao da revisao usam o nome aprovado",
+    'const nomeRisco = laudoTextoFinal(it, "nome") || "Risco";' in novo
+    and 'const nomeRisco = laudoTextoFinal(it, "nome");' in novo)
+chk("o Excel da Corteva e o Word seguem com o nome de campo",
+    "const nomeRisco=item.risco.nome===OUTRO?item.risco.nomeOutro:item.risco.nome;" in novo
+    and "corrigirNomeRisco(risco.nome===OUTRO?risco.nomeOutro:risco.nome)" in novo)
+# Sem dizer o que e um nome BOM, a IA devolve a condicao como se fosse o risco.
+chk("a IA e a planilha ensinam a nomear pelo dano, nao pela condicao",
+    'nome_xlsx:' in novo
+    and "é condição, não é nome de risco" in novo
+    and '"RESPOSTA - Nome do risco",' in novo
+    and "é condição, não nome de risco" in novo)
+chk("a geracao em lote pede o nome na MESMA leva paralela dos outros",
+    'for(const campo of ["nome","risco","existente","solucao"]){' in novo
+    and 'if(laudoPrecisaGerar(it, "nome", refazer)) n++;' in novo)
+chk("e coisa nova: nao existia na versao anterior",
+    '"nomeSug","nomeFin"' not in orig and 'campo==="nome"' not in orig)
 
 
 print("\n---------------------------------------")
