@@ -4310,6 +4310,44 @@ chk("versao.txt existe e bate com o APP_BUILD",
     "versao.txt=%r APP_BUILD=%r" % (_conteudo, _mb.group(1) if _mb else None))
 
 
+print("=== 130. MAIOR PLr DO EQUIPAMENTO (referencia no cabecalho) ===")
+# PLr e requerido por FUNCAO DE SEGURANCA, um por risco. Um numero solto ao
+# lado do nome do equipamento seria lido como nota do equipamento — por isso a
+# frase ao lado nao e enfeite, e o que impede a leitura errada num documento
+# assinado com ART.
+chk("a faixa existe e vem DEPOIS dos dados do equipamento",
+    '<div class="lp-apr-plr">' in novo
+    and novo.index('${cel("Capacidade", m.capacidade)}') < novo.index('<div class="lp-apr-plr">'))
+chk("diz de quem e o PLr, e que nao e do equipamento",
+    "Maior PLr identificado:" in novo
+    and "determinado individualmente para cada função de segurança" in novo
+    and "não é atribuído de forma global ao equipamento" in novo)
+# "Não aplica" sozinho parece dado faltando; a versao sem funcao de seguranca
+# precisa dizer por que nao aplica.
+chk("sem funcao de seguranca, explica o motivo em vez de so dizer Nao aplica",
+    "Não aplica" in novo
+    and "nenhum risco deste equipamento resultou em função de segurança a classificar" in novo)
+_c = _corpoDe(novo, "lpMaiorPLrDoEquipamento")
+chk("nao conta risco que o laudo nao mostra, nem risco sem funcao de seguranca",
+    "r.ocultoLaudo" in _c and "if(!res.aplicavel) return;" in _c)
+chk("compara pela ordem da norma, nao pela primeira que aparecer",
+    "LP_PLR_ORDEM.indexOf(res.plr) > LP_PLR_ORDEM.indexOf(maior)" in _c
+    and 'const LP_PLR_ORDEM = ["a", "b", "c", "d", "e"];' in novo)
+# Funcao de seguranca existente com dado faltando NAO pode virar "Nao aplica":
+# seria esconder pendencia dentro do laudo.
+chk("dado faltando vira 'A classificar', nunca 'Nao aplica'",
+    'return { plr:"", rotulo:"A classificar", aplicaveis };' in _c)
+# Se saisse do bloco removivel, arrancar a impressao levaria junto uma funcao
+# que o resto do app nao teria como perder.
+_ini = novo.index("INÍCIO DO MÓDULO DE IMPRESSÃO DO LAUDO")
+_fim = novo.index("FIM DO MÓDULO DE IMPRESSÃO DO LAUDO")
+chk("vive inteiro dentro do modulo de impressao (bloco removivel)",
+    _ini < novo.index("function lpMaiorPLrDoEquipamento") < _fim
+    and _ini < novo.index(".lp-apr-plr{") < _fim)
+chk("e coisa nova: nao existia na versao anterior",
+    "lpMaiorPLrDoEquipamento" not in orig)
+
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

@@ -2936,7 +2936,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "04/09/2026 18:09";
+const APP_BUILD = "07/09/2026 15:38";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -24556,6 +24556,10 @@ window.addEventListener("pageshow", (event) => {
 .lp-apr-cab .d{flex:1;display:grid;grid-template-columns:auto 1fr auto 1fr;font-size:9.5px}
 .lp-apr-cab .d span{padding:4px 6px;border-bottom:1px solid #fff;background:#D9DCE6;font-weight:800;text-align:right;color:#333}
 .lp-apr-cab .d em{padding:4px 6px;border-bottom:1px solid #fff;background:#EDEFF5;font-style:normal;font-weight:800;text-align:center;color:${NAVY}}
+.lp-apr-plr{border-top:1px solid #8A8CA3;background:#F6F7FA;padding:5px 8px;display:flex;align-items:baseline;gap:10px}
+.lp-apr-plr .l{flex:0 0 auto;font-size:9.5px;font-weight:800;color:#333;white-space:nowrap}
+.lp-apr-plr .l em{font-style:normal;font-weight:800;margin-left:6px;padding:1px 8px;border-radius:3px;color:${NAVY};background:#EDEFF5;border:1px solid #C9CDDD}
+.lp-apr-plr .n{flex:1;font-size:8.5px;line-height:1.3;color:#555;text-align:justify}
 .lp-apr-txt{padding:7px 10px;text-align:center;font-size:10px;border-top:1px solid #8A8CA3}
 .lp-risco{width:100%;border-collapse:collapse;font-size:9px;table-layout:fixed}
 .lp-risco th{background:${NAVY};color:#fff;font-weight:800;padding:3px;border:1px solid #8A8CA3;font-size:9.5px}
@@ -25052,6 +25056,32 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
     <div class="lp-prev-nota">Estimativa de reavaliação conforme ABNT NBR ISO 12100. A reavaliação definitiva deve ser feita após a implantação e a verificação da medida.</div>
   </div>`;
 }
+/* MAIOR PLr DO EQUIPAMENTO — e REFERENCIA de leitura, nao classificacao.
+   O PLr e requerido por FUNCAO DE SEGURANCA (um por risco, conforme o risco
+   associado); equipamento nao tem PLr. Muitos riscos nem entram nessa conta:
+   os que se resolvem por protecao fixa, por exemplo, nao geram funcao de
+   seguranca a classificar.
+   Risco oculto do laudo NAO conta: o laudo nao pode anunciar um nivel que
+   veio de um risco que ele proprio nao mostra.
+   Tres saidas distintas de proposito — dizer "Nao aplica" quando na verdade
+   existe funcao de seguranca com dado faltando seria esconder pendencia num
+   documento assinado. */
+const LP_PLR_ORDEM = ["a", "b", "c", "d", "e"];
+function lpMaiorPLrDoEquipamento(itens){
+  let aplicaveis = 0, maior = "";
+  (itens || []).forEach(it=>{
+    const r = it && it.risco;
+    if(!r || r.ocultoLaudo) return;
+    const res = plrExigido(r, it.tarefa);
+    if(!res.aplicavel) return;
+    aplicaveis++;
+    if(!res.plr) return;
+    if(LP_PLR_ORDEM.indexOf(res.plr) > LP_PLR_ORDEM.indexOf(maior)) maior = res.plr;
+  });
+  if(maior) return { plr:maior, rotulo:maior, aplicaveis };
+  if(aplicaveis) return { plr:"", rotulo:"A classificar", aplicaveis };
+  return { plr:"", rotulo:"Não aplica", aplicaveis:0 };
+}
   async function blocosEquipamentos(itens){
     const blocos = [];
     const porMaquina = new Map();
@@ -25067,6 +25097,13 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
       const cel = (r, v)=> `<span>${esc(r)}:</span><em>${esc(v||"")}</em>`;
       const primeiro = g.tarefas.values().next().value.itens[0];
       const escopo = laudoTextoFinal(primeiro, "escopo") || m.descricao || "";
+      const todosDaMaquina = [];
+      for(const t of g.tarefas.values()) t.itens.forEach(x=> todosDaMaquina.push(x));
+      const mplr = lpMaiorPLrDoEquipamento(todosDaMaquina);
+      const cplr = PLR_CORES[mplr.plr] || null;
+      const notaPlr = mplr.aplicaveis
+        ? "Nota: referência. Corresponde ao maior PLr entre as funções de segurança identificadas neste equipamento. O PLr é determinado individualmente para cada função de segurança, conforme o risco associado — não é atribuído de forma global ao equipamento."
+        : "Nota: nenhum risco deste equipamento resultou em função de segurança a classificar por PLr — o tratamento previsto é por proteção fixa ou medida equivalente. O PLr é determinado individualmente para cada função de segurança, nunca de forma global ao equipamento.";
       blocos.push({ quebrarAntes:true, html:`
         <div class="lp-faixa-c">Análise de Risco pelo método HRN com Mapeamento e Diagnóstico</div>
         <div class="lp-apr${m.ocultoLaudo?' lp-oculto':''}">
@@ -25081,6 +25118,10 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
               ${cel("Nº Série", m.numeroSerie)}${cel("Localização", g.area.nome)}
               ${cel("Capacidade", m.capacidade)}${cel("Tensão", m.tensao)}
             </div>
+          </div>
+          <div class="lp-apr-plr">
+            <div class="l">Maior PLr identificado:<em${cplr? ` style="color:${cplr.cor};background:${cplr.fundo};border-color:${cplr.cor}55"`:""}>${esc(mplr.rotulo)}</em></div>
+            <div class="n">${esc(notaPlr)}</div>
           </div>
         </div>
         <div class="lp-faixa-c" style="margin-top:6px">ESCOPO</div>

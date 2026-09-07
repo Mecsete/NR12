@@ -11108,6 +11108,102 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  /* ---------- t156: maior PLr do equipamento (referencia no cabecalho) -----
+     Pedido de 07/09/2026: uma linha logo abaixo dos dados do equipamento com
+     o PLr mais alto encontrado nele, deixando claro que PLr e por FUNCAO DE
+     SEGURANCA — nao existe PLr de equipamento. Os testes abaixo defendem
+     exatamente isso: que o campo nunca vire uma classificacao global, e que
+     ele nao minta quando falta dado. */
+  {
+    console.log("\n[t156] maior PLr identificado no equipamento");
+    vm.runInContext(constante("LP_PLR_ORDEM"), ctx);
+    vm.runInContext(funcao("lpMaiorPLrDoEquipamento"), ctx);
+    const mx = (itens)=> C.lpMaiorPLrDoEquipamento(itens);
+    /* Risco com funcao de seguranca (medida de comando) e os tres eixos
+       preenchidos: da PLr classificado. */
+    const cmd = (gpd, exp, evi, extra)=> Object.assign({
+      medidaPropostaTipo:"prot_movel_int", gpd:gpd, exposicao:exp, evitar:evi }, extra||{});
+    const item = (r)=> ({ risco:r, tarefa:{ frequencia:"Semanal" } });
+
+    t("O PONTO: pega o MAIOR entre as funcoes de seguranca, nao a primeira", ()=>{
+      const res = mx([
+        item(cmd("Corte", "Menos de 1x por turno", "Possível evitar")),          // a
+        item(cmd("Fatalidade", "Mais de 2x por turno", "Praticamente impossível")), // e
+        item(cmd("Corte", "Menos de 1x por turno", "Praticamente impossível")),  // b
+      ]);
+      eq(res.rotulo, "e");
+      eq(res.plr, "e");
+      eq(res.aplicaveis, 3);
+    });
+    t("a ordem e a da norma (a<b<c<d<e), nao alfabetica por acaso", ()=>{
+      eq(mx([ item(cmd("Fatalidade","Mais de 2x por turno","Praticamente impossível")),
+              item(cmd("Corte","Menos de 1x por turno","Possível evitar")) ]).plr, "e",
+         "inverter a ordem dos itens nao pode mudar o resultado");
+    });
+    /* Proteção fixa resolve o risco sem funcao de seguranca: nao entra na
+       conta, e se for o unico caso o campo diz "Não aplica". */
+    t("equipamento so com protecao fixa: Nao aplica", ()=>{
+      const res = mx([ item({ medidaPropostaTipo:"prot_fixa", gpd:"Fatalidade",
+                              exposicao:"Mais de 2x por turno", evitar:"Praticamente impossível" }) ]);
+      eq(res.rotulo, "Não aplica");
+      eq(res.aplicaveis, 0);
+      eq(res.plr, "");
+    });
+    t("sem risco nenhum tambem e Nao aplica, e nao quebra", ()=>{
+      eq(mx([]).rotulo, "Não aplica");
+      eq(mx(null).rotulo, "Não aplica");
+      eq(mx([ null, {}, { risco:null } ]).rotulo, "Não aplica");
+    });
+    /* Dizer "Não aplica" quando EXISTE funcao de seguranca com dado faltando
+       seria esconder pendencia dentro de um documento assinado com ART. */
+    t("funcao de seguranca com dado faltando NAO vira 'Nao aplica'", ()=>{
+      const res = mx([ item(cmd("Fatalidade", "", "")) ]);
+      eq(res.rotulo, "A classificar");
+      eq(res.aplicaveis, 1);
+      eq(res.plr, "", "sem os tres eixos nao existe letra para exibir");
+    });
+    t("mistura de classificado com incompleto mostra a letra que existe", ()=>{
+      const res = mx([ item(cmd("Fatalidade", "", "")),
+                       item(cmd("Corte", "Menos de 1x por turno", "Possível evitar")) ]);
+      eq(res.rotulo, "a");
+      eq(res.aplicaveis, 2);
+    });
+    /* O laudo nao pode anunciar um nivel vindo de um risco que ele nao mostra. */
+    t("risco excluido do laudo nao entra na conta", ()=>{
+      const alto = cmd("Fatalidade", "Mais de 2x por turno", "Praticamente impossível");
+      alto.ocultoLaudo = true;
+      eq(mx([ item(alto), item(cmd("Corte", "Menos de 1x por turno", "Possível evitar")) ]).rotulo, "a",
+         "o risco oculto (PLr e) nao pode puxar o campo para cima");
+      eq(mx([ item(alto) ]).rotulo, "Não aplica",
+         "ocultando o unico risco classificavel, sobra nada a anunciar");
+    });
+    /* A frase e o que impede o numero de ser lido como nota do equipamento. */
+    t("a faixa aparece abaixo dos dados e a nota explica que PLr e por funcao", ()=>{
+      const i = HTML.indexOf('<div class="lp-apr-plr">');
+      ok(i > 0, "a faixa precisa existir no cabecalho do equipamento");
+      ok(HTML.lastIndexOf('${cel("Capacidade", m.capacidade)}', i) > 0
+         && HTML.lastIndexOf('${cel("Capacidade", m.capacidade)}', i) < i,
+         "a faixa tem de vir DEPOIS dos dados do equipamento");
+      ok(HTML.indexOf("Maior PLr identificado:") > 0);
+      ok(HTML.indexOf("determinado individualmente para cada função de segurança") > 0,
+         "sem essa frase o numero vira nota do equipamento");
+      ok(HTML.indexOf("não é atribuído de forma global ao equipamento") > 0);
+    });
+    t("a nota muda quando nao ha funcao de seguranca alguma", ()=>{
+      ok(HTML.indexOf("nenhum risco deste equipamento resultou em função de segurança a classificar") > 0,
+         "'Não aplica' sem explicacao parece dado faltando");
+    });
+    /* Se o campo saisse do bloco removivel, arrancar a impressao levaria junto
+       uma funcao que o resto do app nao teria como perder. */
+    t("vive dentro do modulo de impressao (bloco removivel)", ()=>{
+      const ini = HTML.indexOf("INÍCIO DO MÓDULO DE IMPRESSÃO DO LAUDO");
+      const fim = HTML.indexOf("FIM DO MÓDULO DE IMPRESSÃO DO LAUDO");
+      const p = HTML.indexOf("function lpMaiorPLrDoEquipamento");
+      ok(p > ini && p < fim, "a funcao precisa estar dentro do bloco removivel");
+      ok(HTML.indexOf(".lp-apr-plr{") > ini && HTML.indexOf(".lp-apr-plr{") < fim);
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);
