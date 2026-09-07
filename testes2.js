@@ -11204,6 +11204,219 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  /* ---------- t157: base para a IA em planilha (ida e volta) --------------
+     A geracao pela API esbarra no limite de requisicoes muito antes de
+     terminar um projeto grande. Este caminho tira a escrita de dentro do app:
+     sai uma planilha do que foi levantado em campo, ela e respondida em
+     qualquer IA, e volta pela MESMA porta de sempre (importarTextosLaudo).
+     O risco real desse formato nao e a planilha nao abrir — e a IA parar no
+     meio e devolver o arquivo como se estivesse inteiro. Por isso boa parte
+     dos testes abaixo e sobre CONTAR o que voltou. */
+  {
+    console.log("\n[t157] base para a IA em planilha");
+    const cx = vm.createContext({ console, Map, Set, Array, Object, String, Number, JSON, RegExp });
+    vm.runInContext('const LAUDO_TEXTOS_FORMATO = "apr-textos-laudo-v1";', cx);
+    ["BASE_IA_COLUNAS","BASE_IA_NIVEL"].forEach(n=> vm.runInContext(constante(n), cx));
+    ["baseIANormalizarCabecalho","baseIADesescapar","baseIATextosDe","baseIALerSst",
+     "baseIALerCelulas","baseIARespostasDaAba","baseIAPacoteDasAbas","baseIANomeAba"]
+      .forEach(n=> vm.runInContext(funcao(n), cx));
+    const B = cx;
+    /* const declarado dentro do vm nao vira propriedade do contexto (so
+       function declaration vira) — as duas listas precisam ser lidas assim. */
+    const COLUNAS = vm.runInContext("BASE_IA_COLUNAS", cx);
+    const NIVEL   = vm.runInContext("BASE_IA_NIVEL", cx);
+
+    /* Monta o XML de uma aba como o Excel escreve, para os testes rodarem
+       sobre o mesmo caminho que o arquivo de verdade percorre. */
+    const COLS = COLUNAS.map(c=>c.h);
+    const letra = (i)=>{ let n=i+1, s=""; while(n>0){ const m=(n-1)%26; s=String.fromCharCode(65+m)+s; n=Math.floor((n-1)/26);} return s; };
+    function aba(linhas, opts){
+      const sst = []; const idx = (v)=>{ const i = sst.indexOf(v); if(i>=0) return i; sst.push(v); return sst.length-1; };
+      const cab = (opts && opts.cabecalho) || COLS;
+      let xml = `<row r="1">` + cab.map((h,i)=> `<c r="${letra(i)}1" t="s"><v>${idx(h)}</v></c>`).join("") + `</row>`;
+      linhas.forEach((l,li)=>{
+        const rn = li+2;
+        const cells = cab.map((h,i)=>{
+          const v = l[h];
+          if(v===undefined || v==="") return "";
+          return `<c r="${letra(i)}${rn}" t="s"><v>${idx(String(v))}</v></c>`;
+        }).join("");
+        xml += `<row r="${rn}">${cells}</row>`;
+      });
+      return { xml:`<sheetData>${xml}</sheetData>`, sst };
+    }
+    const ler = (linhas, opts)=>{ const a = aba(linhas, opts); return B.baseIARespostasDaAba(B.baseIALerCelulas(a.xml, a.sst)); };
+
+    const LINHA = {
+      "ID_Risco":"r1", "ID_Tarefa":"t1", "ID_Maquina":"m1",
+      "RESPOSTA - Escopo do equipamento":"Silo de armazenagem...",
+      "RESPOSTA - Descrição da tarefa":"Limpeza realizada...",
+      "RESPOSTA - Descrição do risco":"A proteção encontra-se...",
+      "RESPOSTA - Solução":"Recomenda-se instalar...",
+    };
+
+    t("O PONTO: cada texto vai para o dono certo, nao todos para o risco", ()=>{
+      const r = ler([LINHA]);
+      const acha = (campo)=> r.entradas.find(e=>e.campo===campo);
+      eq(acha("escopo").id, "m1", "escopo é do EQUIPAMENTO");
+      eq(acha("tarefa").id, "t1", "tarefa é da TAREFA");
+      eq(acha("risco").id, "r1");
+      eq(acha("solucao").id, "r1");
+      eq(r.linhasLidas, 1);
+    });
+    /* A planilha volta reescrita por um modelo: caixa, acento e tipo de traco
+       mudam. Casar so o texto exato perderia a resposta inteira, calada. */
+    t("cabecalho reescrito pela IA continua casando", ()=>{
+      const cab = COLS.map(h=> h.replace(" - ", " — ").toUpperCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g,""));
+      const linha = {}; COLS.forEach((h,i)=> { if(LINHA[h]!==undefined) linha[cab[i]] = LINHA[h]; });
+      const r = ler([linha], { cabecalho:cab });
+      eq(r.entradas.length, 4, "com o cabeçalho mexido, nada casou");
+    });
+    /* O numero que mais importa do formato inteiro. */
+    t("conta as linhas que voltaram SEM resposta (IA parou no meio)", ()=>{
+      const vazia = { "ID_Risco":"r2", "ID_Tarefa":"t1", "ID_Maquina":"m1" };
+      const r = ler([LINHA, vazia, vazia]);
+      eq(r.linhasLidas, 3);
+      eq(r.semResposta, 2, "sem esse número, entrega pela metade parece entrega inteira");
+    });
+    t("linha totalmente em branco no fim da planilha nao conta como nada", ()=>{
+      const r = ler([LINHA, {}, {}]);
+      eq(r.linhasLidas, 1);
+      eq(r.semResposta, 0, "linha vazia do Excel não é resposta faltando");
+    });
+    /* Duvida sozinha nao tem onde ser gravada (laudoSet guarda a duvida junto
+       da sugestao). Contar e melhor do que descartar em silencio. */
+    t("duvida sem texto e contada, nao descartada", ()=>{
+      const r = ler([{ "ID_Risco":"r1", "RESPOSTA - Dúvida do risco":"Falta a altura." }]);
+      eq(r.entradas.length, 0);
+      eq(r.duvidaSemTexto, 1);
+    });
+    t("a duvida viaja junto do texto dela", ()=>{
+      const r = ler([{ "ID_Risco":"r1", "RESPOSTA - Descrição do risco":"Texto.", "RESPOSTA - Dúvida do risco":"Falta a altura." }]);
+      eq(r.entradas[0].duvida, "Falta a altura.");
+    });
+    t("resposta sem o ID daquele nivel e contada, nao chutada em outro item", ()=>{
+      const r = ler([{ "ID_Risco":"r1", "RESPOSTA - Escopo do equipamento":"Texto." }]);
+      eq(r.entradas.length, 0, "sem ID_Maquina não existe onde gravar o escopo");
+      eq(r.semId, 1);
+    });
+    /* Aba que nao e nossa nao pode virar erro: planilha respondida costuma
+       voltar com aba de rascunho junto. */
+    t("aba sem cabecalho nosso e ignorada, nao quebra", ()=>{
+      eq(B.baseIARespostasDaAba(B.baseIALerCelulas("<sheetData><row r=\"1\"><c r=\"A1\" t=\"s\"><v>0</v></c></row></sheetData>", ["Rascunho"])), null);
+      eq(B.baseIARespostasDaAba([]), null);
+    });
+
+    /* ---- juntar as abas ---- */
+    t("mesmo escopo repetido em varias linhas entra UMA vez", ()=>{
+      const a = ler([LINHA, Object.assign({}, LINHA, { "ID_Risco":"r2" })]);
+      const { pacote, resumo } = B.baseIAPacoteDasAbas([a]);
+      eq(pacote.textos.filter(x=>x.campo==="escopo").length, 1, "escopo é do equipamento, não da linha");
+      ok(resumo.repetidos > 0);
+    });
+    /* Dois escopos DIFERENTES para o mesmo equipamento e a IA se contradizendo.
+       Vale o primeiro, mas o caso precisa aparecer no aviso. */
+    t("textos divergentes para o mesmo item sao contados, nao somem", ()=>{
+      const a = ler([LINHA, Object.assign({}, LINHA, { "ID_Risco":"r2", "RESPOSTA - Escopo do equipamento":"Outro escopo." })]);
+      const { pacote, resumo } = B.baseIAPacoteDasAbas([a]);
+      eq(resumo.divergentes, 1);
+      eq(pacote.textos.find(x=>x.campo==="escopo").texto, "Silo de armazenagem...", "vale o primeiro");
+    });
+    t("o pacote sai no formato que o import de sempre entende", ()=>{
+      const { pacote } = B.baseIAPacoteDasAbas([ler([LINHA])]);
+      eq(pacote.formato, "apr-textos-laudo-v1");
+      ok(pacote.textos.every(x=> x.id && x.campo && x.texto));
+    });
+    t("varias abas somam, e aba nula (nao nossa) nao atrapalha", ()=>{
+      const { pacote, resumo } = B.baseIAPacoteDasAbas([ler([LINHA]), null, ler([Object.assign({}, LINHA, { "ID_Risco":"r9", "ID_Tarefa":"t9", "ID_Maquina":"m9" })])]);
+      eq(resumo.abas, 2);
+      eq(pacote.textos.length, 8);
+    });
+    t("planilha sem nenhuma aba nossa devolve zero abas, para virar aviso", ()=>{
+      eq(B.baseIAPacoteDasAbas([null, null]).resumo.abas, 0);
+    });
+
+    /* ---- leitura de celula ---- */
+    t("le texto quebrado em varios <t> (celula editada a mao no Excel)", ()=>{
+      eq(B.baseIATextosDe("<t>Parte um </t><t>e parte dois</t>"), "Parte um e parte dois");
+    });
+    t("desescapa o que o Excel escapa", ()=>{
+      eq(B.baseIADesescapar("a &amp; b &lt;c&gt; &quot;d&quot;"), 'a & b <c> "d"');
+    });
+    t("le celula inlineStr, que e o que muita ferramenta gera", ()=>{
+      const linhas = B.baseIALerCelulas('<row r="1"><c r="A1" t="inlineStr"><is><t>ID_Risco</t></is></c></row>', []);
+      eq(linhas[0].cells.A, "ID_Risco");
+    });
+    t("<si/> vazio na tabela de textos nao desloca todos os indices", ()=>{
+      const sst = B.baseIALerSst("<sst><si/><si><t>dois</t></si></sst>");
+      eq(sst.length, 2);
+      eq(sst[1], "dois", "um <si/> lido a menos joga TODA a planilha uma coluna para o lado");
+    });
+
+    /* ---- nome de aba ---- */
+    /* Nome de aba recusado pelo Excel nao abre o arquivo: falha total. */
+    t("nome de aba respeita o que o Excel aceita", ()=>{
+      const u = [];
+      eq(B.baseIANomeAba("Debulha/Secagem", u), "Debulha-Secagem");
+      ok(B.baseIANomeAba("Área com um nome muito comprido que passa de trinta e um", u).length <= 31);
+      eq(B.baseIANomeAba("", u), "Área");
+    });
+    t("duas areas com o mesmo nome viram abas diferentes", ()=>{
+      const u = [];
+      eq(B.baseIANomeAba("Debulha", u), "Debulha");
+      eq(B.baseIANomeAba("Debulha", u), "Debulha (2)");
+      eq(B.baseIANomeAba("Debulha", u), "Debulha (3)");
+    });
+
+    /* ---- contrato das colunas ---- */
+    t("toda coluna de leitura tem valor montado, nenhuma fica orfa", ()=>{
+      const corpo = funcao("baseIACamposDaLinha");
+      COLUNAS.filter(c=>!c.resp).forEach(c=>{
+        ok(corpo.indexOf('"' + c.h + '":') > 0, "coluna sem valor em baseIACamposDaLinha: " + c.h);
+      });
+    });
+    t("os cinco campos importaveis tem coluna de texto e de duvida", ()=>{
+      ["escopo","tarefa","risco","existente","solucao"].forEach(campo=>{
+        ok(COLUNAS.some(c=>c.resp && c.resp.campo===campo && c.resp.tipo==="texto"), campo);
+        ok(COLUNAS.some(c=>c.resp && c.resp.campo===campo && c.resp.tipo==="duvida"), campo);
+      });
+      eq(Object.keys(NIVEL).length, 5);
+    });
+    t("nenhum cabecalho repetido: dois iguais fariam uma coluna sumir", ()=>{
+      const vistos = {};
+      COLUNAS.forEach(c=>{
+        const n = B.baseIANormalizarCabecalho(c.h);
+        ok(!vistos[n], "cabeçalho repetido: " + c.h);
+        vistos[n] = true;
+      });
+    });
+
+    /* ---- a volta nao pode ter gravacao propria ---- */
+    /* Se a planilha gravasse sozinha, existiriam duas portas para o mesmo
+       dado, cada uma com a sua protecao para manter em dia. */
+    t("a volta so traduz: quem grava continua sendo importarTextosLaudo", ()=>{
+      const f = funcao("importarPlanilhaRespostasIA");
+      ok(f.indexOf("importarTextosLaudo(pacote)") > 0);
+      ["laudoSet(", "marcarAlterado(", "st: \"pend\"", "STATE."].forEach(x=>
+        ok(f.indexOf(x) < 0, "a volta não pode gravar por conta própria: " + x));
+    });
+    t("todo equipamento entra, inclusive o que ainda nao tem risco", ()=>{
+      const f = funcao("baseIAGruposParaExportar");
+      ok(f.indexOf("if(tarefas.length === 0)") > 0, "máquina sem tarefa precisa de linha para o escopo");
+      ok(f.indexOf("if(riscos.length === 0)") > 0, "tarefa sem risco precisa de linha para o texto da tarefa");
+    });
+    t("a planilha e uma aba por area", ()=>{
+      ok(funcao("baseIAGruposParaExportar").indexOf("nomeAba:(area.nome") > 0);
+      ok(funcao("gerarBytesBaseIAXlsx").indexOf("baseIANomeAba(g.nomeAba, usados)") > 0);
+    });
+    t("as colunas que a IA preenche saem em cor propria", ()=>{
+      const f = funcao("gerarBytesBaseIAXlsx");
+      ok(f.indexOf("c.resp?2:1") > 0, "cabeçalho das colunas de resposta");
+      ok(f.indexOf("c.resp?4:3") > 0, "corpo das colunas de resposta");
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

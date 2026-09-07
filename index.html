@@ -684,6 +684,7 @@ var st,ct,ut,lt,dt,ht,pt,gt,ft,mt=function(){function t(e,t,r){this.networkInter
 <input type="file" id="fileHazardGaleria" accept="image/*" multiple hidden>
 <input type="file" id="fileImport" accept="application/json" hidden>
 <input type="file" id="fileTextosLaudo" accept="application/json,.json" hidden>
+<input type="file" id="filePlanilhaIA" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
 <input type="file" id="fileDadosPlaqueta" accept="application/json,.json" hidden>
 <input type="file" id="fileFotosRecuperadas" accept="application/json,.json" hidden>
 <div id="toast" class="toast"></div>
@@ -2936,7 +2937,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/09/2026 15:50";
+const APP_BUILD = "07/09/2026 19:18";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -14831,6 +14832,447 @@ function importarTextosLaudo(pacote){
   if(res.aplicados > 0) marcarAlterado();
   return res;
 }
+
+/* =========================================================================
+   BASE PARA A IA EM PLANILHA — a ida e a volta
+
+   Por que existe: num projeto grande a geracao pelo provedor de IA esbarra no
+   limite de requisicoes muito antes de terminar. Nao e defeito do app, e
+   volume. Este caminho tira a ESCRITA de dentro do app: sai uma planilha com
+   o que foi levantado em campo, ela e respondida em qualquer IA (ou a mao), e
+   volta.
+
+   A VOLTA NAO TEM GRAVACAO PROPRIA, DE PROPOSITO. Ela so traduz a planilha
+   para o pacote apr-textos-laudo-v1 e entrega para importarTextosLaudo, que
+   ja e o unico lugar que sabe gravar texto de laudo vindo de fora — e que ja
+   garante: entra como sugestao aguardando decisao, nunca por cima de campo
+   com texto ou decisao, nunca em projeto arquivado, e nenhum dado de campo e
+   alterado. Duplicar essa logica aqui seria criar uma segunda porta com
+   protecao propria para manter em dia.
+   ========================================================================= */
+/* Uma coluna por informacao que os prompts do laudo citam. Coluna com "resp"
+   e das que a IA preenche; o resto e leitura. A ordem desta lista E a ordem
+   da planilha, na ida e na volta. */
+const BASE_IA_COLUNAS = [
+  { h:"ID_Risco",   larg:20 },
+  { h:"ID_Tarefa",  larg:20 },
+  { h:"ID_Maquina", larg:20 },
+  { h:"Área",       larg:22 },
+  { h:"Local da área", larg:22 },
+  { h:"Descrição da área", larg:34 },
+  { h:"Equipamento", larg:26 },
+  { h:"Tipo de equipamento", larg:22 },
+  { h:"Descrição do equipamento (campo)", larg:40 },
+  { h:"Tarefa", larg:24 },
+  { h:"Descrição da tarefa (campo)", larg:40 },
+  { h:"Frequência da tarefa", larg:18 },
+  { h:"Nome do risco (campo)", larg:28 },
+  { h:"Descrição do risco (campo)", larg:44 },
+  { h:"Risco: local", larg:18 },
+  { h:"Risco: componente", larg:18 },
+  { h:"Risco: evento", larg:18 },
+  { h:"Risco: parte do corpo", larg:18 },
+  { h:"Probabilidade", larg:18 },
+  { h:"O que a probabilidade significa", larg:34 },
+  { h:"Grau do dano", larg:22 },
+  { h:"O que o grau do dano significa", larg:34 },
+  { h:"HRN", larg:8 },
+  { h:"Nível de risco", larg:16 },
+  { h:"Há medida existente?", larg:14 },
+  { h:"Descrição da medida existente (campo)", larg:40 },
+  { h:"Medidas existentes marcadas", larg:30 },
+  { h:"Texto da biblioteca - mitigação existente", larg:44 },
+  { h:"Sugestão de mitigação (campo)", larg:40 },
+  { h:"Medida proposta marcada", larg:26 },
+  { h:"Texto da biblioteca - solução", larg:44 },
+  { h:"Já decidido no app", larg:30 },
+  { h:"RESPOSTA - Escopo do equipamento", larg:56, resp:{ campo:"escopo",    tipo:"texto"  } },
+  { h:"RESPOSTA - Dúvida do escopo",      larg:34, resp:{ campo:"escopo",    tipo:"duvida" } },
+  { h:"RESPOSTA - Descrição da tarefa",   larg:56, resp:{ campo:"tarefa",    tipo:"texto"  } },
+  { h:"RESPOSTA - Dúvida da tarefa",      larg:34, resp:{ campo:"tarefa",    tipo:"duvida" } },
+  { h:"RESPOSTA - Descrição do risco",    larg:56, resp:{ campo:"risco",     tipo:"texto"  } },
+  { h:"RESPOSTA - Dúvida do risco",       larg:34, resp:{ campo:"risco",     tipo:"duvida" } },
+  { h:"RESPOSTA - Mitigação existente",   larg:56, resp:{ campo:"existente", tipo:"texto"  } },
+  { h:"RESPOSTA - Dúvida da mitigação",   larg:34, resp:{ campo:"existente", tipo:"duvida" } },
+  { h:"RESPOSTA - Solução",               larg:56, resp:{ campo:"solucao",   tipo:"texto"  } },
+  { h:"RESPOSTA - Dúvida da solução",     larg:34, resp:{ campo:"solucao",   tipo:"duvida" } },
+];
+/* Cada texto tem UM dono, e nao e sempre o risco: escopo e do equipamento e
+   tarefa e da tarefa. E por isso que a mesma maquina aparece em varias linhas
+   com o mesmo escopo — e por isso que a volta precisa juntar as repeticoes
+   antes de importar (ver baseIAPacoteDasAbas). */
+const BASE_IA_NIVEL = { escopo:"maquina", tarefa:"tarefa", risco:"risco", existente:"risco", solucao:"risco" };
+
+/* Compara cabecalho ignorando acento, caixa, espaco a mais e o tipo de traco.
+   A planilha volta reescrita por um modelo de IA: "RESPOSTA — Solução" e
+   "Resposta - Solucao" precisam casar, ou a resposta inteira se perde calada. */
+function baseIANormalizarCabecalho(v){
+  return String(v==null?"":v).normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[\u2010-\u2015]/g, "-").replace(/\s+/g, " ").trim().toLowerCase();
+}
+function baseIADesescapar(v){
+  return String(v==null?"":v).replace(/&lt;/g,"<").replace(/&gt;/g,">")
+    .replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&#10;/g,"\n").replace(/&amp;/g,"&");
+}
+/* Junta os pedacos de texto de uma celula. O Excel quebra uma frase em varios
+   <t> quando ela tem formatacao no meio; ler so o primeiro truncaria o texto
+   exatamente onde ele foi editado a mao. */
+function baseIATextosDe(xml){
+  const re = /<t\b[^>]*\/>|<t\b[^>]*>([\s\S]*?)<\/t>/g;
+  let m, out = "";
+  while((m = re.exec(xml))) out += baseIADesescapar(m[1] || "");
+  return out;
+}
+function baseIALerSst(xml){
+  const out = [];
+  const re = /<si\s*\/>|<si\b[^>]*>([\s\S]*?)<\/si>/g;
+  let m;
+  while((m = re.exec(String(xml||"")))) out.push(m[1] === undefined ? "" : baseIATextosDe(m[1]));
+  return out;
+}
+/* Le uma aba de .xlsx ja descompactada, sem DOMParser de proposito: o mesmo
+   codigo roda na suite de testes, em Node, onde nao existe navegador. */
+function baseIALerCelulas(xml, sst){
+  const linhas = [];
+  const reRow = /<row\b([^>]*)\/>|<row\b([^>]*)>([\s\S]*?)<\/row>/g;
+  let mr;
+  while((mr = reRow.exec(String(xml||"")))){
+    const attrs = mr[1] || mr[2] || "";
+    const mn = /\br="(\d+)"/.exec(attrs);
+    if(!mn) continue;
+    const cells = {};
+    const corpo = mr[3] || "";
+    const reC = /<c\b([^>]*)\/>|<c\b([^>]*)>([\s\S]*?)<\/c>/g;
+    let mc;
+    while((mc = reC.exec(corpo))){
+      const ca = mc[1] || mc[2] || "", dentro = mc[3] || "";
+      const mref = /\br="([A-Z]+)\d+"/.exec(ca);
+      if(!mref) continue;
+      /* A aspa vai escrita como \x22 de proposito: o extrator da suite de
+         testes conta aspas para achar onde a funcao termina, e uma aspa
+         impar dentro de uma expressao regular o faz ler a funcao errada. */
+      const mt = /\bt="([^\x22]+)"/.exec(ca);
+      const tipo = mt ? mt[1] : "n";
+      let v = "";
+      if(tipo === "inlineStr"){ v = baseIATextosDe(dentro); }
+      else{
+        const mv = /<v>([\s\S]*?)<\/v>/.exec(dentro);
+        const bruto = mv ? mv[1] : "";
+        v = (tipo === "s") ? (sst[Number(bruto)] || "") : baseIADesescapar(bruto);
+      }
+      cells[mref[1]] = String(v).trim();
+    }
+    linhas.push({ n: Number(mn[1]), cells });
+  }
+  return linhas;
+}
+/* Uma aba respondida vira entradas de texto. Devolve null quando a aba nao e
+   nossa (sem linha de cabecalho com ID) — planilha volta com aba de rascunho
+   com frequencia, e isso nao pode virar erro. */
+function baseIARespostasDaAba(linhas){
+  let cab = null;
+  for(const l of (linhas||[])){
+    for(const letra in l.cells){
+      const n = baseIANormalizarCabecalho(l.cells[letra]);
+      if(n === "id_risco" || n === "id_maquina"){ cab = l; break; }
+    }
+    if(cab) break;
+  }
+  if(!cab) return null;
+  const mapa = {};
+  for(const letra in cab.cells){
+    const n = baseIANormalizarCabecalho(cab.cells[letra]);
+    if(n && mapa[n] === undefined) mapa[n] = letra;
+  }
+  const col = (h)=> mapa[baseIANormalizarCabecalho(h)] || null;
+  const cId = { risco:col("ID_Risco"), tarefa:col("ID_Tarefa"), maquina:col("ID_Maquina") };
+  const resps = BASE_IA_COLUNAS.filter(c=>c.resp)
+    .map(c=> ({ campo:c.resp.campo, tipo:c.resp.tipo, letra:col(c.h) }))
+    .filter(c=> !!c.letra);
+  const res = { entradas:[], linhasLidas:0, semResposta:0, semId:0, duvidaSemTexto:0 };
+  (linhas||[]).forEach(l=>{
+    if(l.n <= cab.n) return;
+    const get = (letra)=> letra ? String(l.cells[letra] || "").trim() : "";
+    const ids = { risco:get(cId.risco), tarefa:get(cId.tarefa), maquina:get(cId.maquina) };
+    if(!ids.risco && !ids.tarefa && !ids.maquina) return;   // linha vazia do fim da planilha
+    res.linhasLidas++;
+    const porCampo = {};
+    resps.forEach(r=>{
+      const v = get(r.letra);
+      if(!v) return;
+      if(!porCampo[r.campo]) porCampo[r.campo] = {};
+      porCampo[r.campo][r.tipo] = v;
+    });
+    const campos = Object.keys(porCampo);
+    if(campos.length === 0){ res.semResposta++; return; }
+    campos.forEach(campo=>{
+      const t = porCampo[campo];
+      /* Duvida sem texto nao tem onde entrar: laudoSet guarda a duvida junto
+         da sugestao, e sugestao vazia nao existe. Contar e melhor do que
+         descartar em silencio — e o sinal de que a IA respondeu so metade. */
+      if(!t.texto){ res.duvidaSemTexto++; return; }
+      const alvo = ids[BASE_IA_NIVEL[campo]];
+      if(!alvo){ res.semId++; return; }
+      res.entradas.push({ id:alvo, campo:campo, texto:t.texto, duvida:t.duvida || "" });
+    });
+  });
+  return res;
+}
+/* Junta as abas num pacote so. O mesmo escopo aparece repetido em todas as
+   linhas daquele equipamento — isso e esperado. O que NAO e esperado e a IA
+   escrever DOIS escopos diferentes para o mesmo equipamento: ai vale o
+   primeiro e o caso e contado, para aparecer no aviso em vez de sumir. */
+function baseIAPacoteDasAbas(abas){
+  const vistos = new Map();
+  const textos = [];
+  const resumo = { abas:0, linhasLidas:0, semResposta:0, semId:0, duvidaSemTexto:0, repetidos:0, divergentes:0 };
+  (abas||[]).forEach(r=>{
+    if(!r) return;
+    resumo.abas++;
+    resumo.linhasLidas += r.linhasLidas;
+    resumo.semResposta += r.semResposta;
+    resumo.semId += r.semId;
+    resumo.duvidaSemTexto += r.duvidaSemTexto;
+    r.entradas.forEach(e=>{
+      const k = e.campo + "|" + e.id;
+      if(vistos.has(k)){
+        if(vistos.get(k) === e.texto) resumo.repetidos++; else resumo.divergentes++;
+        return;
+      }
+      vistos.set(k, e.texto);
+      textos.push(e);
+    });
+  });
+  return { pacote:{ formato:LAUDO_TEXTOS_FORMATO, textos:textos }, resumo:resumo };
+}
+/* Frase do resultado. O numero que mais importa e "linhas sem resposta": e
+   assim que se enxerga a IA ter parado no meio da planilha e devolvido o
+   arquivo como se estivesse inteiro. */
+function baseIAMensagemImporte(resumo, r){
+  const partes = [];
+  for(const c in r.porCampo) partes.push(r.porCampo[c] + " de " + c);
+  let msg = r.aplicados + " texto" + (r.aplicados===1?"":"s") + " aplicado" + (r.aplicados===1?"":"s")
+    + (partes.length ? " (" + partes.join(", ") + ")" : "")
+    + ", de " + resumo.linhasLidas + " linha(s) lida(s) em " + resumo.abas + " aba(s).";
+  if(resumo.semResposta)    msg += " " + resumo.semResposta + " linha(s) voltaram SEM resposta nenhuma — confira se a IA parou no meio.";
+  if(r.pulados)             msg += " " + r.pulados + " pulado(s) por já ter sua decisão.";
+  if(r.naoAchados)          msg += " " + r.naoAchados + " sem item correspondente neste aparelho.";
+  if(r.arquivados)          msg += " " + r.arquivados + " em projeto arquivado (só leitura).";
+  if(resumo.divergentes)    msg += " " + resumo.divergentes + " texto(s) diferentes para o mesmo item — valeu o primeiro.";
+  if(resumo.semId)          msg += " " + resumo.semId + " sem o ID da linha.";
+  if(resumo.duvidaSemTexto) msg += " " + resumo.duvidaSemTexto + " com dúvida mas sem texto.";
+  return msg;
+}
+
+/* ---------- a ida: montar a planilha ---------- */
+/* Um objeto por linha, com o cabecalho como chave. Montar por nome (e nao por
+   posicao) e o que impede uma coluna nova no meio da lista deslocar todas as
+   outras em silencio. */
+function baseIACamposDaLinha(ctx){
+  const maquina = ctx.maquina, tarefa = ctx.tarefa || null, risco = ctx.risco || null;
+  const it = { proj:ctx.proj, area:ctx.area, maquina:maquina, tarefa:tarefa || {id:""}, risco:risco || {id:""} };
+  const po = risco ? HRN_PO_TABELA.find(x=> x.classificacao === String(risco.po||"").trim()) : null;
+  const gpdInfo = risco ? HRN_GPD_TABELA.find(x=> x.classificacao === String(risco.gpd||"").trim()) : null;
+  const h = (tarefa && risco) ? hrnDoItem({ tarefa:tarefa, risco:risco }) : null;
+  const marcadas = risco
+    ? medidasExistentesDe(risco).map(k=> (medidaPorChave(k)||{}).rot || k).concat(outrosExistentesDe(risco))
+    : [];
+  const prop = risco ? medidaPorChave(String(risco.medidaPropostaTipo||"")) : null;
+  const decid = [];
+  LAUDO_CAMPOS_IMPORTAVEIS.forEach(c=>{
+    if(c === "tarefa" && !tarefa) return;
+    if(BASE_IA_NIVEL[c] === "risco" && !risco) return;
+    const g = laudoGet(it, c);
+    if(g.st) decid.push(c + ": " + (LAUDO_ST_ROTULO[g.st] || g.st));
+  });
+  return {
+    "ID_Risco":   risco ? risco.id : "",
+    "ID_Tarefa":  tarefa ? tarefa.id : "",
+    "ID_Maquina": maquina ? maquina.id : "",
+    "Área":          ctx.area ? (ctx.area.nome || "") : "",
+    "Local da área": ctx.area ? (ctx.area.local || "") : "",
+    "Descrição da área": ctx.area ? (ctx.area.descricao || "") : "",
+    "Equipamento":   maquina ? nomeMaquinaS(maquina) : "",
+    "Tipo de equipamento": maquina ? valOuOutro(maquina.tipoEquip, maquina.tipoEquipOutro) : "",
+    "Descrição do equipamento (campo)": maquina ? (maquina.descricao || "") : "",
+    "Tarefa": tarefa ? valOuOutro(tarefa.tarefa, tarefa.tarefaOutro) : "",
+    "Descrição da tarefa (campo)": tarefa ? (tarefa.descricao || "") : "",
+    "Frequência da tarefa": tarefa ? valOuOutro(tarefa.frequencia, tarefa.frequenciaOutro) : "",
+    "Nome do risco (campo)": risco ? (risco.nome === OUTRO ? (risco.nomeOutro||"") : (risco.nome||"")) : "",
+    "Descrição do risco (campo)": risco ? (risco.descricao || "") : "",
+    "Risco: local":          risco ? (risco.local || "") : "",
+    "Risco: componente":     risco ? (risco.componente || "") : "",
+    "Risco: evento":         risco ? (risco.evento || "") : "",
+    "Risco: parte do corpo": risco ? (risco.parteCorpo || "") : "",
+    "Probabilidade": risco ? (risco.po || "") : "",
+    "O que a probabilidade significa": po ? po.desc : "",
+    "Grau do dano": risco ? (risco.gpd || "") : "",
+    "O que o grau do dano significa": gpdInfo ? gpdInfo.desc : "",
+    "HRN": h ? String(h.hrn) : "",
+    "Nível de risco": h ? h.nivel : "",
+    "Há medida existente?": risco ? (risco.medidaImplementada || "") : "",
+    "Descrição da medida existente (campo)": risco ? (risco.descMedida || "") : "",
+    "Medidas existentes marcadas": marcadas.join(" | "),
+    "Texto da biblioteca - mitigação existente": risco ? medidaTextoExistenteMulti(risco) : "",
+    "Sugestão de mitigação (campo)": risco ? (risco.sugestaoMitigacao || "") : "",
+    "Medida proposta marcada": prop ? prop.rot : "",
+    "Texto da biblioteca - solução": (risco && prop) ? medidaTextoProposto(risco, risco.medidaPropostaTipo) : "",
+    "Já decidido no app": decid.join(" | "),
+  };
+}
+function baseIALinha(ctx){
+  const v = baseIACamposDaLinha(ctx);
+  return BASE_IA_COLUNAS.map(c=> c.resp ? "" : String(v[c.h] === undefined ? "" : v[c.h]));
+}
+/* Uma aba por area, e TODA maquina entra — inclusive a que ainda nao tem
+   tarefa ou risco cadastrado. O escopo dela e um campo do laudo como
+   qualquer outro; deixa-la de fora obrigaria a preencher esses equipamentos
+   a mao, um a um, justamente no projeto grande em que isso e inviavel. */
+function baseIAGruposParaExportar(){
+  const ids = getAreasSelecionadasExport();
+  const grupos = [];
+  (STATE.projetosSimples||[]).forEach(proj=>{
+    (proj.areas||[]).forEach(area=>{
+      if(ids.indexOf(area.id) < 0) return;
+      const linhas = [];
+      (area.maquinas||[]).forEach(maquina=>{
+        const tarefas = maquina.tarefas || [];
+        if(tarefas.length === 0){ linhas.push(baseIALinha({ proj:proj, area:area, maquina:maquina })); return; }
+        tarefas.forEach(tarefa=>{
+          const riscos = tarefa.riscos || [];
+          if(riscos.length === 0){ linhas.push(baseIALinha({ proj:proj, area:area, maquina:maquina, tarefa:tarefa })); return; }
+          riscos.forEach(risco=> linhas.push(baseIALinha({ proj:proj, area:area, maquina:maquina, tarefa:tarefa, risco:risco })));
+        });
+      });
+      if(linhas.length) grupos.push({ proj:proj, area:area, nomeAba:(area.nome || "Área"), linhas:linhas });
+    });
+  });
+  return grupos;
+}
+/* Nome de aba que o Excel aceita: ate 31 caracteres, sem : \ / ? * [ ], nunca
+   repetido. Nome recusado nao abre o arquivo — falha total, nao parcial. */
+function baseIANomeAba(bruto, usados){
+  let s = String(bruto==null?"":bruto).replace(/[:\\\/\?\*\[\]]/g, "-").replace(/\s+/g, " ").trim();
+  if(!s) s = "Área";
+  if(s.length > 31) s = s.slice(0, 31).trim();
+  let base = s, i = 2;
+  while(usados.indexOf(s.toLowerCase()) >= 0){
+    const suf = " (" + i + ")";
+    s = base.slice(0, 31 - suf.length).trim() + suf;
+    i++;
+  }
+  usados.push(s.toLowerCase());
+  return s;
+}
+const BASE_IA_STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<fonts count="2"><font><sz val="10"/><name val="Calibri"/></font><font><b/><sz val="10"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font></fonts>
+<fills count="5"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FF2A2E66"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFE94E1B"/><bgColor indexed="64"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFF2F3F7"/><bgColor indexed="64"/></patternFill></fill></fills>
+<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="5">
+<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>
+<xf numFmtId="0" fontId="1" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>
+<xf numFmtId="0" fontId="0" fillId="4" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>
+<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>
+</cellXfs>
+<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+<dxfs count="0"/><tableStyles count="0" defaultTableStyle="TableStyleMedium2"/>
+</styleSheet>`;
+function gerarBytesBaseIAXlsx(grupos){
+  const sst = buildSstHelper();
+  const usados = [];
+  const totalCols = BASE_IA_COLUNAS.length;
+  const colsXml = "<cols>" + BASE_IA_COLUNAS.map((c,i)=>
+    `<col min="${i+1}" max="${i+1}" width="${c.larg||20}" customWidth="1"/>`).join("") + "</cols>";
+  const sheetDefs = [], sheetsXml = [];
+  grupos.forEach((g, i)=>{
+    const nome = baseIANomeAba(g.nomeAba, usados);
+    const head = BASE_IA_COLUNAS.map((c,ci)=> sst.cell(ci+1, 1, c.h, c.resp?2:1)).join("");
+    let dados = "";
+    g.linhas.forEach((row, ri)=>{
+      const rn = ri + 2;
+      dados += `<row r="${rn}">` + BASE_IA_COLUNAS.map((c,ci)=>
+        sst.cell(ci+1, rn, row[ci] || "", c.resp?4:3)).join("") + `</row>`;
+    });
+    const totalRows = g.linhas.length + 1;
+    sheetsXml.push(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<dimension ref="A1:${colLetter(totalCols)}${totalRows}"/>
+<sheetViews><sheetView workbookViewId="0"><pane xSplit="3" ySplit="1" topLeftCell="D2" activePane="bottomRight" state="frozen"/></sheetView></sheetViews>
+<sheetFormatPr defaultRowHeight="15"/>${colsXml}
+<sheetData><row r="1" ht="30" customHeight="1">${head}</row>${dados}</sheetData>
+</worksheet>`);
+    sheetDefs.push({ name:nome, sheetId:i+1, rId:"rId"+(i+1) });
+  });
+  const nAbas = sheetsXml.length;
+  const wbRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`+
+    `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">`+
+    sheetDefs.map((d,i)=> `<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i+1}.xml"/>`).join("")+
+    `<Relationship Id="rId${nAbas+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`+
+    `<Relationship Id="rId${nAbas+2}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>`+
+    `</Relationships>`;
+  const ct = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`+
+    `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">`+
+    `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>`+
+    `<Default Extension="xml" ContentType="application/xml"/>`+
+    `<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>`+
+    sheetsXml.map((_,i)=> `<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("")+
+    `<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>`+
+    `<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>`+
+    `<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>`+
+    `<Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>`+
+    `</Types>`;
+  const appProps = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
+<Application>APR Campo</Application><DocSecurity>0</DocSecurity><ScaleCrop>false</ScaleCrop>
+<HeadingPairs><vt:vector size="2" baseType="variant"><vt:variant><vt:lpstr>Worksheets</vt:lpstr></vt:variant><vt:variant><vt:i4>${nAbas}</vt:i4></vt:variant></vt:vector></HeadingPairs>
+<TitlesOfParts><vt:vector size="${nAbas}" baseType="lpstr">${sheetDefs.map(d=>`<vt:lpstr>${escapeXml(d.name)}</vt:lpstr>`).join("")}</vt:vector></TitlesOfParts>
+<LinksUpToDate>false</LinksUpToDate><SharedDoc>false</SharedDoc><HyperlinksChanged>false</HyperlinksChanged><AppVersion>16.0300</AppVersion></Properties>`;
+  const files = [
+    { name:"[Content_Types].xml", data:strToBytes(ct) },
+    { name:"_rels/.rels", data:strToBytes(XLSX_RELS_ROOT) },
+    { name:"docProps/core.xml", data:strToBytes(XLSX_CORE_PROPS) },
+    { name:"docProps/app.xml", data:strToBytes(appProps) },
+    { name:"xl/workbook.xml", data:strToBytes(buildWorkbookXml(sheetDefs, [])) },
+    { name:"xl/_rels/workbook.xml.rels", data:strToBytes(wbRels) },
+    { name:"xl/styles.xml", data:strToBytes(BASE_IA_STYLES) },
+    { name:"xl/sharedStrings.xml", data:strToBytes(buildSstXml(sst.getStrings())) },
+  ];
+  sheetsXml.forEach((x,i)=> files.push({ name:`xl/worksheets/sheet${i+1}.xml`, data:strToBytes(x) }));
+  return buildZip(files);
+}
+async function exportarBaseIAXlsx(){
+  const grupos = baseIAGruposParaExportar();
+  if(grupos.length === 0){ toast("Nenhuma área selecionada em Configurações → Exportações", false); return; }
+  const bytes = gerarBytesBaseIAXlsx(grupos);
+  const n = grupos.reduce((t,g)=> t + g.linhas.length, 0);
+  const blob = new Blob([bytes], { type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  await compartilharOuBaixarBlob(blob, "base_para_ia.xlsx",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    n + " linha(s) em " + grupos.length + " aba(s)");
+}
+/* A volta. So traduz e entrega — quem grava e importarTextosLaudo. */
+async function importarPlanilhaRespostasIA(file){
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const zip = new window.PizZip(bytes);
+  const arqSst = zip.file("xl/sharedStrings.xml");
+  const sst = arqSst ? baseIALerSst(arqSst.asText()) : [];
+  const abas = [];
+  zip.file(/^xl\/worksheets\/sheet\d+\.xml$/).forEach(f=>{
+    abas.push(baseIARespostasDaAba(baseIALerCelulas(f.asText(), sst)));
+  });
+  const { pacote, resumo } = baseIAPacoteDasAbas(abas);
+  if(resumo.abas === 0) return { erro:true, mensagem:"Nenhuma aba com as colunas da base foi encontrada. Confira se a IA devolveu a planilha exportada pelo app, com a linha de cabeçalho e a coluna ID_Risco." };
+  const r = importarTextosLaudo(pacote);
+  if(!r) return { erro:true, mensagem:"Não foi possível montar o pacote de textos a partir da planilha." };
+  return { erro:false, mensagem:baseIAMensagemImporte(resumo, r), aplicados:r.aplicados };
+}
+
 /* =========================================================================
    IMPORTAR DADOS DE PLAQUETA LIDOS FORA DO APP
 
@@ -18027,6 +18469,14 @@ function screenSimplesConfigIA(){
     <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:8px">Em projeto grande, a geração pelo provedor de IA esbarra no limite de requisições muito antes de terminar. Aqui você carrega os textos escritos fora do app (arquivo .json). Eles entram como <b>sugestão aguardando sua decisão</b>, exatamente como os da IA — você continua aprovando um a um na revisão. Campo que você já aplicou, editou ou recusou <b>não é tocado</b>, e nenhum dado de campo é alterado.</p>
     <button class="btn btn-secondary btn-block" onclick="document.getElementById('fileTextosLaudo').click()">${ic('upload')} Importar textos do laudo (.json)</button>
     ${__ultimoImporteTextos ? `<div class="field-hint" style="margin-top:8px;color:${__ultimoImporteTextos.erro?'var(--danger, #c0392b)':'var(--ok, #2e7d32)'}">${escapeHtml(__ultimoImporteTextos.mensagem)}</div>` : ""}
+  </div>
+  <div class="section-title">Planilha para responder fora do app</div>
+  <div class="card card-pad">
+    <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:8px">Sai uma planilha com o que foi levantado em campo — uma aba por área, uma linha por risco, e os IDs que fazem os textos voltarem para o lugar certo. As colunas <b>laranja</b> são as que a IA preenche; as demais são leitura. Responda em qualquer IA (ou à mão) e carregue de volta aqui. Vale a mesma regra de sempre: <b>entra como sugestão aguardando sua decisão</b>, campo já resolvido não é tocado, nenhum dado de campo é alterado.</p>
+    <button class="btn btn-secondary btn-block" onclick="App.exportarBaseIA()">${ic('download')} Exportar base para a IA (.xlsx)</button>
+    <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="document.getElementById('filePlanilhaIA').click()">${ic('upload')} Importar planilha respondida (.xlsx)</button>
+    ${__ultimoImportePlanilhaIA ? `<div class="field-hint" style="margin-top:8px;color:${__ultimoImportePlanilhaIA.erro?'var(--danger, #c0392b)':'var(--ok, #2e7d32)'}">${escapeHtml(__ultimoImportePlanilhaIA.mensagem)}</div>` : ""}
+    <div class="field-hint" style="margin-top:8px">Peça para a IA responder <b>por família de equipamento</b>, um bloco de cada vez. Ela pode devolver a planilha várias vezes, parcial: o que já entrou nunca é reimportado. O aviso acima diz quantas linhas voltaram <b>sem resposta</b> — é assim que se percebe que a IA parou no meio.</div>
   </div>
   <div class="section-title">Dados de plaqueta lidos fora do app</div>
   <div class="card card-pad">
@@ -22977,6 +23427,7 @@ Devolver agora?`)) return;
   /* Grava o que estiver pendente ANTES de recarregar. location.reload dispara
      pagehide, e o listener de saída já forçaria a gravação — mas esperar aqui
      torna a ordem explícita, em vez de depender de um efeito colateral. */
+  async exportarBaseIA(){ try{ await exportarBaseIAXlsx(); }catch(e){ toast("Não foi possível gerar a planilha: " + (e && e.message ? e.message : "erro"), false); } },
   async atualizarApp(){
     try{ if(__salvamentoPendente) await persistir(); }catch(e){}
     try{ flushDraftPendente(); }catch(e){}
@@ -23691,6 +24142,25 @@ const LIMITE_IMPORTACAO_V2_BYTES = (EH_DISPOSITIVO_MOVEL ? 300 : 4096) * 1024 * 
    pessoa não teria como saber quantos textos entraram e quantos foram
    pulados por já terem decisão. */
 let __ultimoImporteTextos = null;
+/* Resultado do ultimo importe por planilha, mostrado na propria aba IA. */
+let __ultimoImportePlanilhaIA = null;
+document.getElementById("filePlanilhaIA").addEventListener("change", async function(){
+  const file = this.files[0]; if(!file) return;
+  this.value = "";
+  try{
+    const r = await importarPlanilhaRespostasIA(file);
+    __ultimoImportePlanilhaIA = r;
+    if(r.erro){ toast("Planilha não reconhecida", false); }
+    else{
+      toast(r.aplicados > 0 ? "Textos importados — revise na aba Revisão" : "Nada a importar: os campos já têm texto ou decisão");
+      if(r.aplicados > 0) await dbSet(STATE);
+    }
+  }catch(e){
+    __ultimoImportePlanilhaIA = { erro:true, mensagem:"Não foi possível ler a planilha: " + (e && e.message ? e.message : "erro desconhecido") };
+    toast("Não foi possível ler a planilha", false);
+  }
+  render();
+});
 document.getElementById("fileTextosLaudo").addEventListener("change", async function(){
   const file = this.files[0]; if(!file) return;
   this.value = "";

@@ -4348,6 +4348,56 @@ chk("e coisa nova: nao existia na versao anterior",
     "lpMaiorPLrDoEquipamento" not in orig)
 
 
+print("=== 131. BASE PARA A IA EM PLANILHA (07/09/2026) ===")
+# A geracao pela API esbarra no limite de requisicoes muito antes de terminar um
+# projeto grande. Este caminho tira a escrita de dentro do app.
+chk("a ida e a volta existem, com os dois botoes na aba IA",
+    "function gerarBytesBaseIAXlsx" in novo
+    and "function importarPlanilhaRespostasIA" in novo
+    and 'onclick="App.exportarBaseIA()"' in novo
+    and "document.getElementById('filePlanilhaIA').click()" in novo
+    and '<input type="file" id="filePlanilhaIA"' in novo)
+# A PROTECAO MORA NUM LUGAR SO. Se a volta gravasse por conta propria, existiriam
+# duas portas para o mesmo dado, cada uma com a sua regra para manter em dia.
+_v = _corpoDe(novo, "importarPlanilhaRespostasIA")
+chk("a volta so traduz: quem grava continua sendo importarTextosLaudo",
+    "importarTextosLaudo(pacote)" in _v
+    and "laudoSet(" not in _v and "marcarAlterado(" not in _v and "STATE." not in _v)
+# Cada texto tem UM dono. Mandar escopo para o risco encheria o laudo de textos
+# repetidos no lugar errado.
+chk("cada campo vai para o dono certo (escopo=maquina, tarefa=tarefa)",
+    'const BASE_IA_NIVEL = { escopo:"maquina", tarefa:"tarefa", risco:"risco", existente:"risco", solucao:"risco" };' in novo)
+chk("os cinco campos importaveis tem coluna de texto E de duvida",
+    novo.count('tipo:"texto"') == 5 and novo.count('tipo:"duvida"') == 5,
+    "texto=%d duvida=%d" % (novo.count('tipo:"texto"'), novo.count('tipo:"duvida"')))
+# O risco real deste formato nao e a planilha nao abrir: e a IA parar no meio e
+# devolver o arquivo como se estivesse inteiro.
+chk("conta as linhas que voltaram sem resposta, e diz isso na tela",
+    "res.semResposta++" in novo
+    and "linha(s) voltaram SEM resposta nenhuma" in _corpoDe(novo, "baseIAMensagemImporte"))
+chk("texto divergente para o mesmo item e contado, nao some",
+    "resumo.divergentes++" in novo
+    and "texto(s) diferentes para o mesmo item" in novo)
+# A planilha volta reescrita por um modelo: casar so o texto exato do cabecalho
+# perderia a resposta inteira, sem erro nenhum aparecer.
+chk("casa o cabecalho ignorando acento, caixa e tipo de traco",
+    "function baseIANormalizarCabecalho" in novo
+    and "normalize(\"NFD\")" in _corpoDe(novo, "baseIANormalizarCabecalho")
+    and "toLowerCase()" in _corpoDe(novo, "baseIANormalizarCabecalho"))
+# Nome de aba recusado pelo Excel nao abre o arquivo — falha total, nao parcial.
+chk("nome de aba dentro do que o Excel aceita, e sem repetir",
+    "function baseIANomeAba" in novo
+    and "slice(0, 31)" in _corpoDe(novo, "baseIANomeAba")
+    and "usados.indexOf(s.toLowerCase()) >= 0" in novo)
+# Equipamento sem risco cadastrado tambem precisa do escopo; deixa-lo de fora
+# obrigaria a preencher a mao justamente no projeto grande.
+chk("todo equipamento entra, mesmo sem tarefa ou risco",
+    "if(tarefas.length === 0)" in _corpoDe(novo, "baseIAGruposParaExportar")
+    and "if(riscos.length === 0)" in _corpoDe(novo, "baseIAGruposParaExportar"))
+chk("e coisa nova: nao existia na versao anterior",
+    "baseIAGruposParaExportar" not in orig and "BASE_IA_COLUNAS" not in orig)
+
+
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
