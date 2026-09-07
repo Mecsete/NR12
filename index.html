@@ -2937,7 +2937,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/09/2026 19:18";
+const APP_BUILD = "07/09/2026 19:38";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -14887,16 +14887,94 @@ const BASE_IA_COLUNAS = [
   { h:"Texto da biblioteca - solução", larg:44 },
   { h:"Já decidido no app", larg:30 },
   { h:"RESPOSTA - Escopo do equipamento", larg:56, resp:{ campo:"escopo",    tipo:"texto"  } },
-  { h:"RESPOSTA - Dúvida do escopo",      larg:34, resp:{ campo:"escopo",    tipo:"duvida" } },
   { h:"RESPOSTA - Descrição da tarefa",   larg:56, resp:{ campo:"tarefa",    tipo:"texto"  } },
-  { h:"RESPOSTA - Dúvida da tarefa",      larg:34, resp:{ campo:"tarefa",    tipo:"duvida" } },
   { h:"RESPOSTA - Descrição do risco",    larg:56, resp:{ campo:"risco",     tipo:"texto"  } },
-  { h:"RESPOSTA - Dúvida do risco",       larg:34, resp:{ campo:"risco",     tipo:"duvida" } },
   { h:"RESPOSTA - Mitigação existente",   larg:56, resp:{ campo:"existente", tipo:"texto"  } },
-  { h:"RESPOSTA - Dúvida da mitigação",   larg:34, resp:{ campo:"existente", tipo:"duvida" } },
   { h:"RESPOSTA - Solução",               larg:56, resp:{ campo:"solucao",   tipo:"texto"  } },
-  { h:"RESPOSTA - Dúvida da solução",     larg:34, resp:{ campo:"solucao",   tipo:"duvida" } },
 ];
+/* INSTRUCOES PARA A IA — viajam DENTRO da planilha, na primeira aba, e tambem
+   podem ser copiadas para colar no chat. Ficam aqui, junto de BASE_IA_COLUNAS,
+   de proposito: quando uma coluna muda de nome, a instrucao que fala dela esta
+   na tela seguinte, e nao num documento guardado noutro lugar.
+
+   Sem coluna de duvida (decisao de 07/09/2026: o vai e vem era exaustivo), a
+   saida natural do modelo passa a ser comentar a falta DENTRO do texto — e e
+   exatamente isso que nao pode ir para um laudo assinado. Por isso a proibicao
+   aparece cedo e literal. */
+const BASE_IA_PROMPT = [
+"COMO PREENCHER ESTA PLANILHA — LAUDO NR-12 (MecSete Engenharia)",
+"",
+"Você vai preencher SOMENTE as colunas cujo título começa com \"RESPOSTA -\" (as laranja). Todas as outras colunas são leitura.",
+"",
+"MANUSEIO DO ARQUIVO",
+"1. Não altere, não reordene e não apague nenhuma coluna, linha ou aba.",
+"2. Nunca mexa em ID_Risco, ID_Tarefa e ID_Maquina: é por eles que os textos voltam para o aplicativo.",
+"3. Não crie linhas novas nem invente IDs.",
+"4. Devolva a planilha no mesmo formato .xlsx.",
+"5. Trabalhe em BLOCOS, agrupando por tipo de equipamento (silos, transportadores, elevadores, debulhadores, quadros elétricos...). Entregue bloco a bloco. Não tente todas as linhas de uma vez: o risco é degradar no meio ou pular linhas em silêncio. Você pode devolver a planilha várias vezes — o aplicativo aceita entrega parcial e nunca reimporta o que já entrou.",
+"",
+"A FONTE",
+"A única fonte é o que está nesta planilha, escrito por quem esteve na frente do equipamento. Se você tiver acesso a textos de laudo já gerados por IA neste projeto, ignore-os por completo: eles estão comprovadamente trocados entre equipamentos.",
+"",
+"O QUE NUNCA FAZER",
+"1. Nunca inventar dado. Se a linha não diz a altura, a potência, a dimensão ou o modo de operar, isso não entra no texto.",
+"2. Nunca escrever que um dado falta. Não existe coluna de dúvida nesta planilha: escreva de forma afirmativa e técnica apenas o que a linha sustenta, e pare aí. Frases como \"não foi registrada a altura, devendo ser confirmada\" não podem ir para um laudo assinado.",
+"3. Nunca citar norma dentro do texto — nem número de item, nem medida tirada de norma. A referência normativa é tratada pelo próprio aplicativo. Exceção: citação que o inspetor escreveu em campo é preservada palavra por palavra.",
+"4. Nunca mudar a intenção técnica do que foi proposto em campo. Você reescreve a redação, não a decisão de engenharia: se o inspetor escreveu \"aumentar a plataforma 40 cm para a esquerda\", continua sendo 40 cm à esquerda.",
+"5. Nunca deixar em branco uma célula de resposta que a linha permitia escrever.",
+"",
+"A REGRA MAIS IMPORTANTE — não achatar riscos diferentes",
+"Repetir o mesmo texto em várias linhas é CERTO quando o dado de campo é o mesmo: treze silos com a mesma constatação recebem o mesmo texto.",
+"Repetir é ERRO GRAVE quando as descrições de campo são diferentes. Caso real: \"abertura com acesso à ponta de eixo\" (a proteção existe, mas tem vão) e \"proteção desparafusada com acesso à ponta de eixo\" (a proteção está solta) receberam o mesmo texto dizendo \"encontra-se desparafusada\" — falso para o primeiro. Um é falha de projeto, o outro de manutenção, e a solução de cada um é diferente.",
+"Antes de repetir um texto, compare a coluna \"Descrição do risco (campo)\" das duas linhas. Iguais: pode repetir. Diferentes em algum detalhe que muda a condição: textos diferentes.",
+"",
+"COLUNA A COLUNA",
+"",
+"RESPOSTA - Escopo do equipamento",
+"O mesmo equipamento (mesmo ID_Maquina) aparece em várias linhas: repita o mesmo texto em todas elas.",
+"Descreve o equipamento pela FUNÇÃO, nunca pela TAG. O texto tem de servir a qualquer equipamento daquela função na área — não cite TAG, número de série nem código de ativo.",
+"Diga o que o equipamento faz, onde fica no processo, como é acionado, e em que momentos há intervenção humana.",
+"Mencione, de forma natural e abrangente, as proteções que JÁ existem: olhe todas as linhas daquele ID_Maquina, nas colunas \"Descrição da medida existente (campo)\" e \"Medidas existentes marcadas\". Havendo várias, fale delas em conjunto, sem repetir uma frase padrão para cada uma.",
+"Use \"Tipo de equipamento\" como apoio; se a \"Descrição do equipamento (campo)\" disser outra coisa, ela manda — uma linha chamada \"Correia CNV-002\" cuja descrição diz \"mesa que alimenta a CV-3404\" é uma mesa, não um transportador.",
+"3 a 5 linhas.",
+"",
+"RESPOSTA - Descrição da tarefa",
+"A mesma tarefa (mesmo ID_Tarefa) aparece em várias linhas: repita o mesmo texto. Antes de escrever, olhe as tarefas de equipamentos quase idênticos na mesma área, para reunir mais informação.",
+"Se \"Descrição da tarefa (campo)\" tiver conteúdo, ele PRECISA aparecer no texto: é observação de quem esteve lá e vale mais que o texto genérico. Incorpore com naturalidade.",
+"Cite a frequência ao final quando a coluna \"Frequência da tarefa\" tiver valor. Não cite quantidade de pessoas.",
+"Para \"Operação normal (todos os modos)\", o texto tem de transmitir este sentido: a máquina trabalha de forma contínua e sem intervenção humana direta, mas há circulação de pessoas ao redor e o acesso às proximidades permanece possível — acompanhamento do processo, inspeção visual ou trânsito entre equipamentos. É nessa condição de proximidade com a máquina em movimento que os riscos se apresentam.",
+"Para limpeza ou higienização, separe os dois tipos. A limpeza frequente é feita pela equipe de operação, que remove impurezas sem desmontar equipamento. A limpeza completa, menos frequente, exige bloqueio LOTO e é a MANUTENÇÃO quem remove as proteções fixas, com ferramenta, para que a limpeza seja feita. O texto nunca pode dar a entender que a operação remove proteção. Não é preciso explicar isso em toda linha — deixe claro onde a linha sustentar.",
+"2 a 4 linhas.",
+"",
+"RESPOSTA - Descrição do risco",
+"Uma frase corrida combinando componente + condição observada + como a pessoa se expõe + consequência. Só com o que está na linha.",
+"Fontes: \"Descrição do risco (campo)\", os quatro campos \"Risco: local / componente / evento / parte do corpo\", e a \"Sugestão de mitigação (campo)\" quando ela revela o que será protegido.",
+"A coluna \"O que a probabilidade significa\" descreve como a pessoa alcança a zona de perigo e ajuda a escrever a exposição. Uma ressalva: quando ela disser \"Precisa deitar ou subir em algo para alcançar\", não afirme que a pessoa deita ou sobe — diga apenas que o acesso é bastante restrito.",
+"Exemplo. Campo: \"Proteção desparafusada, com acesso ao cilindro pneumático, com risco de prensamento dos dedos.\" Texto: \"A proteção do cilindro pneumático encontra-se desparafusada, permitindo o acesso das mãos à zona de acionamento e expondo os dedos do trabalhador ao prensamento durante o movimento do cilindro.\"",
+"",
+"RESPOSTA - Mitigação existente",
+"Se \"Há medida existente?\" for Não e as colunas de medida estiverem vazias, escreva exatamente: Não há medida de proteção implantada para esta exposição.",
+"Caso contrário, reescreva em português correto o que está em \"Descrição da medida existente (campo)\", preservando integralmente o sentido e qualquer citação de norma que já esteja lá, palavra por palavra.",
+"Quando \"Texto da biblioteca - mitigação existente\" tiver conteúdo, ele é a base pronta do aplicativo: aproveite a forma técnica dela, mas o que o inspetor escreveu continua sendo o texto principal.",
+"Corrija os erros conhecidos do texto de origem: \"instalada em a zona de perigo\" vira \"instalada na zona de perigo\"; \"em o cilindro\" vira \"no cilindro\"; \"mais\" no lugar de \"mas\"; \"correira\" vira \"correia\".",
+"",
+"RESPOSTA - Solução",
+"Precisa citar o que já existe antes de propor.",
+"Com medida existente: \"Já há, no equipamento, [o que existe]. Como a medida existente não é suficiente para eliminar a exposição, recomenda-se [proposta].\" Quando o que existe for frase livre do inspetor (por exemplo \"existe a tampa, mas está desparafusada\"), use \"Constatado em campo: ...\" para a frase não ficar duplicada.",
+"Sem medida existente: recomende a proposta direto, em linguagem técnica e português correto.",
+"A [proposta] é a \"Sugestão de mitigação (campo)\" reescrita em linguagem de laudo, sem mudar a intenção técnica.",
+"Quando \"Texto da biblioteca - solução\" tiver conteúdo, use-a para dar forma técnica ao que foi proposto em campo — mas retire dela a citação de norma, que não vai no texto.",
+"Quando o risco for de alcance através de abertura (vão, grade, malha), a dimensão da abertura é o que define a distância de segurança. Se a linha não traz essa dimensão, não invente valor nem cite tabela: escreva a recomendação deixando a verificação dimensional a cargo do projeto — por exemplo \"...com abertura e distanciamento dimensionados para impedir o alcance da parte do corpo exposta\".",
+"",
+"ANTES DE ENTREGAR CADA BLOCO, confira e relate:",
+"1. Todas as linhas do bloco têm ID, e nenhum ID foi alterado?",
+"2. Toda célula de resposta que a linha permitia escrever está preenchida?",
+"3. Nenhum texto afirma dado que não está na planilha?",
+"4. Onde repeti texto, a descrição de campo era mesmo idêntica?",
+"5. Nenhum texto menciona a ausência de informação, nem cita item de norma?",
+"Se alguma linha não pôde ser respondida, liste-a na sua resposta do chat, FORA da planilha, dizendo o que faltou.",
+].join("\n");
+const BASE_IA_ABA_INSTRUCOES = "COMO PREENCHER";
 /* Cada texto tem UM dono, e nao e sempre o risco: escopo e do equipamento e
    tarefa e da tarefa. E por isso que a mesma maquina aparece em varias linhas
    com o mesmo escopo — e por isso que a volta precisa juntar as repeticoes
@@ -14989,7 +15067,7 @@ function baseIARespostasDaAba(linhas){
   const resps = BASE_IA_COLUNAS.filter(c=>c.resp)
     .map(c=> ({ campo:c.resp.campo, tipo:c.resp.tipo, letra:col(c.h) }))
     .filter(c=> !!c.letra);
-  const res = { entradas:[], linhasLidas:0, semResposta:0, semId:0, duvidaSemTexto:0 };
+  const res = { entradas:[], linhasLidas:0, semResposta:0, semId:0 };
   (linhas||[]).forEach(l=>{
     if(l.n <= cab.n) return;
     const get = (letra)=> letra ? String(l.cells[letra] || "").trim() : "";
@@ -15010,10 +15088,10 @@ function baseIARespostasDaAba(linhas){
       /* Duvida sem texto nao tem onde entrar: laudoSet guarda a duvida junto
          da sugestao, e sugestao vazia nao existe. Contar e melhor do que
          descartar em silencio — e o sinal de que a IA respondeu so metade. */
-      if(!t.texto){ res.duvidaSemTexto++; return; }
+      if(!t.texto) return;
       const alvo = ids[BASE_IA_NIVEL[campo]];
       if(!alvo){ res.semId++; return; }
-      res.entradas.push({ id:alvo, campo:campo, texto:t.texto, duvida:t.duvida || "" });
+      res.entradas.push({ id:alvo, campo:campo, texto:t.texto });
     });
   });
   return res;
@@ -15025,14 +15103,13 @@ function baseIARespostasDaAba(linhas){
 function baseIAPacoteDasAbas(abas){
   const vistos = new Map();
   const textos = [];
-  const resumo = { abas:0, linhasLidas:0, semResposta:0, semId:0, duvidaSemTexto:0, repetidos:0, divergentes:0 };
+  const resumo = { abas:0, linhasLidas:0, semResposta:0, semId:0, repetidos:0, divergentes:0 };
   (abas||[]).forEach(r=>{
     if(!r) return;
     resumo.abas++;
     resumo.linhasLidas += r.linhasLidas;
     resumo.semResposta += r.semResposta;
     resumo.semId += r.semId;
-    resumo.duvidaSemTexto += r.duvidaSemTexto;
     r.entradas.forEach(e=>{
       const k = e.campo + "|" + e.id;
       if(vistos.has(k)){
@@ -15060,7 +15137,6 @@ function baseIAMensagemImporte(resumo, r){
   if(r.arquivados)          msg += " " + r.arquivados + " em projeto arquivado (só leitura).";
   if(resumo.divergentes)    msg += " " + resumo.divergentes + " texto(s) diferentes para o mesmo item — valeu o primeiro.";
   if(resumo.semId)          msg += " " + resumo.semId + " sem o ID da linha.";
-  if(resumo.duvidaSemTexto) msg += " " + resumo.duvidaSemTexto + " com dúvida mas sem texto.";
   return msg;
 }
 
@@ -15183,6 +15259,22 @@ const BASE_IA_STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 <dxfs count="0"/><tableStyles count="0" defaultTableStyle="TableStyleMedium2"/>
 </styleSheet>`;
+/* A aba de instrucoes vai DENTRO do arquivo, e antes das areas. Instrucao que
+   viaja em documento separado e instrucao que se perde: a planilha chega ao
+   modelo sem ela, e a resposta volta fora do padrao sem ninguem perceber por
+   que. Ela nao tem cabecalho de ID, entao a leitura de volta a ignora sozinha
+   (ver baseIARespostasDaAba). */
+function baseIAAbaInstrucoesXml(sst){
+  const linhas = BASE_IA_PROMPT.split("\n");
+  const dados = linhas.map((txt, i)=> `<row r="${i+1}">${sst.cell(1, i+1, txt, i===0?1:0)}</row>`).join("");
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<dimension ref="A1:A${linhas.length}"/>
+<sheetViews><sheetView workbookViewId="0"/></sheetViews>
+<sheetFormatPr defaultRowHeight="15"/><cols><col min="1" max="1" width="150" customWidth="1"/></cols>
+<sheetData>${dados}</sheetData>
+</worksheet>`;
+}
 function gerarBytesBaseIAXlsx(grupos){
   const sst = buildSstHelper();
   const usados = [];
@@ -15190,6 +15282,8 @@ function gerarBytesBaseIAXlsx(grupos){
   const colsXml = "<cols>" + BASE_IA_COLUNAS.map((c,i)=>
     `<col min="${i+1}" max="${i+1}" width="${c.larg||20}" customWidth="1"/>`).join("") + "</cols>";
   const sheetDefs = [], sheetsXml = [];
+  sheetsXml.push(baseIAAbaInstrucoesXml(sst));
+  sheetDefs.push({ name:baseIANomeAba(BASE_IA_ABA_INSTRUCOES, usados), sheetId:1, rId:"rId1" });
   grupos.forEach((g, i)=>{
     const nome = baseIANomeAba(g.nomeAba, usados);
     const head = BASE_IA_COLUNAS.map((c,ci)=> sst.cell(ci+1, 1, c.h, c.resp?2:1)).join("");
@@ -15207,7 +15301,7 @@ function gerarBytesBaseIAXlsx(grupos){
 <sheetFormatPr defaultRowHeight="15"/>${colsXml}
 <sheetData><row r="1" ht="30" customHeight="1">${head}</row>${dados}</sheetData>
 </worksheet>`);
-    sheetDefs.push({ name:nome, sheetId:i+1, rId:"rId"+(i+1) });
+    sheetDefs.push({ name:nome, sheetId:i+2, rId:"rId"+(i+2) });
   });
   const nAbas = sheetsXml.length;
   const wbRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`+
@@ -18474,8 +18568,10 @@ function screenSimplesConfigIA(){
   <div class="card card-pad">
     <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:8px">Sai uma planilha com o que foi levantado em campo — uma aba por área, uma linha por risco, e os IDs que fazem os textos voltarem para o lugar certo. As colunas <b>laranja</b> são as que a IA preenche; as demais são leitura. Responda em qualquer IA (ou à mão) e carregue de volta aqui. Vale a mesma regra de sempre: <b>entra como sugestão aguardando sua decisão</b>, campo já resolvido não é tocado, nenhum dado de campo é alterado.</p>
     <button class="btn btn-secondary btn-block" onclick="App.exportarBaseIA()">${ic('download')} Exportar base para a IA (.xlsx)</button>
+    <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.copiarPromptPlanilhaIA()">${ic('copy')} Copiar as instruções para colar no chat</button>
     <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="document.getElementById('filePlanilhaIA').click()">${ic('upload')} Importar planilha respondida (.xlsx)</button>
     ${__ultimoImportePlanilhaIA ? `<div class="field-hint" style="margin-top:8px;color:${__ultimoImportePlanilhaIA.erro?'var(--danger, #c0392b)':'var(--ok, #2e7d32)'}">${escapeHtml(__ultimoImportePlanilhaIA.mensagem)}</div>` : ""}
+    <div class="field-hint" style="margin-top:8px">As instruções de preenchimento já vão <b>dentro do arquivo</b>, na primeira aba (<i>COMO PREENCHER</i>) — normalmente basta anexar a planilha. O botão acima copia o mesmo texto, para quando a IA não abrir a primeira aba sozinha.</div>
     <div class="field-hint" style="margin-top:8px">Peça para a IA responder <b>por família de equipamento</b>, um bloco de cada vez. Ela pode devolver a planilha várias vezes, parcial: o que já entrou nunca é reimportado. O aviso acima diz quantas linhas voltaram <b>sem resposta</b> — é assim que se percebe que a IA parou no meio.</div>
   </div>
   <div class="section-title">Dados de plaqueta lidos fora do app</div>
@@ -23427,6 +23523,16 @@ Devolver agora?`)) return;
   /* Grava o que estiver pendente ANTES de recarregar. location.reload dispara
      pagehide, e o listener de saída já forçaria a gravação — mas esperar aqui
      torna a ordem explícita, em vez de depender de um efeito colateral. */
+  async copiarPromptPlanilhaIA(){
+    try{
+      await navigator.clipboard.writeText(BASE_IA_PROMPT);
+      toast("Instruções copiadas — cole no chat da IA junto com a planilha");
+    }catch(e){
+      /* Alguns navegadores so liberam a area de transferencia em HTTPS. */
+      console.log(BASE_IA_PROMPT);
+      toast("Não foi possível copiar automaticamente — o texto saiu no console do navegador", false);
+    }
+  },
   async exportarBaseIA(){ try{ await exportarBaseIAXlsx(); }catch(e){ toast("Não foi possível gerar a planilha: " + (e && e.message ? e.message : "erro"), false); } },
   async atualizarApp(){
     try{ if(__salvamentoPendente) await persistir(); }catch(e){}

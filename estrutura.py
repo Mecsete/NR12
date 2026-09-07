@@ -4367,9 +4367,23 @@ chk("a volta so traduz: quem grava continua sendo importarTextosLaudo",
 # repetidos no lugar errado.
 chk("cada campo vai para o dono certo (escopo=maquina, tarefa=tarefa)",
     'const BASE_IA_NIVEL = { escopo:"maquina", tarefa:"tarefa", risco:"risco", existente:"risco", solucao:"risco" };' in novo)
-chk("os cinco campos importaveis tem coluna de texto E de duvida",
-    novo.count('tipo:"texto"') == 5 and novo.count('tipo:"duvida"') == 5,
-    "texto=%d duvida=%d" % (novo.count('tipo:"texto"'), novo.count('tipo:"duvida"')))
+chk("cinco colunas de resposta, e nenhuma coluna de duvida",
+    novo.count('tipo:"texto"') == 5 and 'tipo:"duvida"' not in novo,
+    "texto=%d" % novo.count('tipo:"texto"'))
+# Sem coluna de duvida, a saida natural do modelo passa a ser comentar a falta
+# DENTRO do texto — e e exatamente isso que nao pode ir para um laudo assinado.
+chk("as instrucoes proibem comentar a falta dentro do texto",
+    "const BASE_IA_PROMPT = [" in novo
+    and "Nunca escrever que um dado falta" in novo
+    and "Nao existe coluna".replace("Nao","Não") in novo
+    and "Nunca inventar dado" in novo
+    and "liste-a na sua resposta do chat, FORA da planilha" in novo)
+# Instrucao em documento separado e instrucao que se perde.
+chk("as instrucoes viajam dentro do arquivo, na primeira aba, e podem ser copiadas",
+    "sheetsXml.push(baseIAAbaInstrucoesXml(sst));" in novo
+    and "sheetId:i+2" in novo
+    and 'onclick="App.copiarPromptPlanilhaIA()"' in novo
+    and "navigator.clipboard.writeText(BASE_IA_PROMPT)" in novo)
 # O risco real deste formato nao e a planilha nao abrir: e a IA parar no meio e
 # devolver o arquivo como se estivesse inteiro.
 chk("conta as linhas que voltaram sem resposta, e diz isso na tela",

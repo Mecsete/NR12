@@ -11285,16 +11285,23 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       eq(r.linhasLidas, 1);
       eq(r.semResposta, 0, "linha vazia do Excel não é resposta faltando");
     });
-    /* Duvida sozinha nao tem onde ser gravada (laudoSet guarda a duvida junto
-       da sugestao). Contar e melhor do que descartar em silencio. */
-    t("duvida sem texto e contada, nao descartada", ()=>{
-      const r = ler([{ "ID_Risco":"r1", "RESPOSTA - Dúvida do risco":"Falta a altura." }]);
-      eq(r.entradas.length, 0);
-      eq(r.duvidaSemTexto, 1);
+    /* A coluna de duvida foi retirada em 07/09/2026 a pedido do engenheiro: o
+       vai e vem de perguntas era exaustivo. Com ela fora, a saida natural do
+       modelo passa a ser comentar a falta DENTRO do texto — e e exatamente
+       isso que nao pode ir para um laudo assinado. Os dois testes que
+       defendiam a duvida viraram estes, que defendem o contrario. */
+    t("nao existe mais coluna de duvida na planilha", ()=>{
+      eq(COLUNAS.filter(c=>c.resp).length, 5, "sao 5 colunas de resposta, uma por campo");
+      ok(!COLUNAS.some(c=> /d[uú]vida/i.test(c.h)), "coluna de dúvida voltou por engano");
+      ok(!COLUNAS.some(c=> c.resp && c.resp.tipo === "duvida"));
     });
-    t("a duvida viaja junto do texto dela", ()=>{
-      const r = ler([{ "ID_Risco":"r1", "RESPOSTA - Descrição do risco":"Texto.", "RESPOSTA - Dúvida do risco":"Falta a altura." }]);
-      eq(r.entradas[0].duvida, "Falta a altura.");
+    t("o prompt proibe comentar a falta dentro do texto", ()=>{
+      const p = HTML.slice(HTML.indexOf("const BASE_IA_PROMPT = ["), HTML.indexOf('const BASE_IA_ABA_INSTRUCOES'));
+      ok(p.indexOf("Nunca escrever que um dado falta") > 0, "sem essa frase, o modelo escreve a falta no laudo");
+      ok(p.indexOf("Não existe coluna de dúvida nesta planilha") > 0);
+      ok(p.indexOf("Nunca inventar dado") > 0, "resolver não pode virar inventar");
+      ok(p.indexOf("liste-a na sua resposta do chat, FORA da planilha") > 0,
+         "o que não deu para responder precisa de um destino, senão some");
     });
     t("resposta sem o ID daquele nivel e contada, nao chutada em outro item", ()=>{
       const r = ler([{ "ID_Risco":"r1", "RESPOSTA - Escopo do equipamento":"Texto." }]);
@@ -11376,10 +11383,9 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
         ok(corpo.indexOf('"' + c.h + '":') > 0, "coluna sem valor em baseIACamposDaLinha: " + c.h);
       });
     });
-    t("os cinco campos importaveis tem coluna de texto e de duvida", ()=>{
+    t("os cinco campos importaveis tem a sua coluna de texto", ()=>{
       ["escopo","tarefa","risco","existente","solucao"].forEach(campo=>{
         ok(COLUNAS.some(c=>c.resp && c.resp.campo===campo && c.resp.tipo==="texto"), campo);
-        ok(COLUNAS.some(c=>c.resp && c.resp.campo===campo && c.resp.tipo==="duvida"), campo);
       });
       eq(Object.keys(NIVEL).length, 5);
     });
@@ -11409,6 +11415,28 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     t("a planilha e uma aba por area", ()=>{
       ok(funcao("baseIAGruposParaExportar").indexOf("nomeAba:(area.nome") > 0);
       ok(funcao("gerarBytesBaseIAXlsx").indexOf("baseIANomeAba(g.nomeAba, usados)") > 0);
+    });
+    /* Instrucao que viaja em documento separado e instrucao que se perde: a
+       planilha chega ao modelo sem ela e a resposta volta fora do padrao, sem
+       ninguem descobrir por que. */
+    t("as instrucoes viajam DENTRO do arquivo, na primeira aba", ()=>{
+      const f = funcao("gerarBytesBaseIAXlsx");
+      ok(f.indexOf("sheetsXml.push(baseIAAbaInstrucoesXml(sst));") > 0);
+      ok(f.indexOf("baseIAAbaInstrucoesXml") < f.indexOf("grupos.forEach"), "tem de ser a PRIMEIRA aba");
+      ok(f.indexOf('sheetId:i+2') > 0, "as abas de área precisam ceder o sheetId 1");
+      ok(funcao("baseIAAbaInstrucoesXml").indexOf("BASE_IA_PROMPT.split") > 0);
+    });
+    /* A aba de instrucoes nao tem coluna de ID: a leitura de volta precisa
+       simplesmente ignora-la, sem virar erro nem linha invalida. */
+    t("a aba de instrucoes e ignorada na volta", ()=>{
+      const a = aba([], { cabecalho:["COMO PREENCHER ESTA PLANILHA — LAUDO NR-12 (MecSete Engenharia)"] });
+      eq(B.baseIARespostasDaAba(B.baseIALerCelulas(a.xml, a.sst)), null);
+    });
+    t("da para copiar o mesmo texto para colar no chat", ()=>{
+      ok(HTML.indexOf('onclick="App.copiarPromptPlanilhaIA()"') > 0);
+      const m = HTML.slice(HTML.indexOf("  async copiarPromptPlanilhaIA(){"), HTML.indexOf("  async exportarBaseIA(){"));
+      ok(m.indexOf("navigator.clipboard.writeText(BASE_IA_PROMPT)") > 0, "tem de copiar o MESMO texto da aba");
+      ok(m.indexOf("console.log(BASE_IA_PROMPT)") > 0, "sem HTTPS a área de transferência falha; o texto não pode sumir");
     });
     t("as colunas que a IA preenche saem em cor propria", ()=>{
       const f = funcao("gerarBytesBaseIAXlsx");
