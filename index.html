@@ -2937,7 +2937,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/09/2026 20:09";
+const APP_BUILD = "07/09/2026 20:26";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -12565,8 +12565,11 @@ function screenSimplesRiscos(){
       <div style="margin-top:18px"><button class="btn btn-primary" onclick="App.abrirModalRiscoS(null,'${t.id}')">${ic('plus')} Novo risco</button></div></div>`;
   }
   const q = __buscaAtual.trim().toLowerCase();
-  const listaFiltrada = q? t.riscos.filter(r=> (r.nome||"").toLowerCase().includes(q) || (r.descricao||"").toLowerCase().includes(q)) : t.riscos;
-  const listaOrdenada = ordenarLista(listaFiltrada, r=>r.nome);
+  /* Busca e ordem seguem o nome MOSTRADO — ordenar por um nome que a tela nao
+     exibe faz a lista parecer fora de ordem. O nome de campo continua valendo
+     na busca: quem procura pelo que digitou em campo tem de achar. */
+  const listaFiltrada = q? t.riscos.filter(r=> (nomeRiscoNaTela(r)||"").toLowerCase().includes(q) || (r.nome||"").toLowerCase().includes(q) || (r.descricao||"").toLowerCase().includes(q)) : t.riscos;
+  const listaOrdenada = ordenarLista(listaFiltrada, r=>nomeRiscoNaTela(r));
   const cards = listaOrdenada.map((r,i)=>{
     const pend = r.medidaImplementada==="Não";
     const semMitigacao = !r.sugestaoMitigacao || !r.sugestaoMitigacao.trim();
@@ -12578,7 +12581,7 @@ function screenSimplesRiscos(){
       ${dragHandleHtml('riscoS',r.id)}
       <div class="list-thumb lg" data-card-role="photo">${r.foto? `<img data-imgref="${imgReg(r.foto)}">` : (r.__fotosOmitidas? (()=>{ const pf = pendenteFotosDoItem(r.id); return `<div class="thumb-download" onclick="event.stopPropagation();App.onedriveBaixarFotosDeItem('${r.id}')" title="${pf? 'Toque para baixar as fotos agora ('+fmtBytes(pf.tamanho)+') — em dados móveis, pede confirmação' : 'Fotos ainda no outro aparelho — chegam quando ele tiver Wi-Fi'}">${ic('download')}<span>${pf? fmtBytes(pf.tamanho) : 'fotos'}</span></div>`; })() : ic('warn'))}</div>
       <div class="list-body">
-        <div class="list-name" data-card-role="name">${escapeHtml(r.nome||('Risco '+String(i+1).padStart(2,'0')))}</div>
+        <div class="list-name" data-card-role="name">${escapeHtml(nomeRiscoNaTela(r)||('Risco '+String(i+1).padStart(2,'0')))}</div>
         <div class="list-tag" style="font-family:inherit">${escapeHtml((r.descricao||'sem descrição').slice(0,60))}</div>
         <div class="list-meta">
           <span class="stat-pill" style="background:${hrnMeta.cor};color:${hrnMeta.texto};font-weight:800">HRN ${hrnData.hrn} · ${hrnData.nivel}</span>
@@ -14678,8 +14681,24 @@ function refsSemelhanca(a, b){
   return comuns / (a.size + b.size - comuns);
 }
 function laudoNomeDoRisco(r){ return ((r && (r.nome===OUTRO ? r.nomeOutro : r.nome)) || ""); }
+/* O NOME QUE A NAVEGACAO MOSTRA.
+
+   So troca pelo nome do laudo depois de DECIDIDO (aplicado ou editado). Uma
+   sugestao ainda pendente nao pode renomear o item na lista: depois de uma
+   geracao em lote, TUDO apareceria renomeado e a lista deixaria de responder a
+   pergunta que ela passa a responder agora — "o que eu ja arrumei?".
+
+   Recusado volta ao nome de campo, como em todo campo do laudo. */
+function nomeRiscoNaTela(r){
+  const l = r && r.laudoIA;
+  if(l && (l.nomeSt === "ok" || l.nomeSt === "edit")){
+    const n = String(l.nomeFin || l.nomeSug || "").trim();
+    if(n) return n;
+  }
+  return laudoNomeDoRisco(r);
+}
 function laudoRotuloItem(o){
-  return [nomeMaquinaS(o.maquina), valOuOutro(o.tarefa.tarefa, o.tarefa.tarefaOutro), laudoNomeDoRisco(o.risco)]
+  return [nomeMaquinaS(o.maquina), valOuOutro(o.tarefa.tarefa, o.tarefa.tarefaOutro), nomeRiscoNaTela(o.risco)]
     .filter(Boolean).join(" · ");
 }
 /* Índice dos campos já aprovados, com as palavras já separadas — montado UMA
@@ -14988,6 +15007,20 @@ const BASE_IA_PROMPT = [
 "Se alguma linha não pôde ser respondida, liste-a na sua resposta do chat, FORA da planilha, dizendo o que faltou.",
 ].join("\n");
 const BASE_IA_ABA_INSTRUCOES = "COMO PREENCHER";
+/* O texto que de fato vai para a planilha e para o botao de copiar: o que o
+   engenheiro escreveu, quando escreveu; senao o padrao acima.
+
+   Guardado em getIAConfig(), junto dos outros prompts — entao ele SINCRONIZA
+   entre os aparelhos como o resto da configuracao da IA, e nao fica preso no
+   aparelho onde foi escrito.
+
+   Texto vazio cai no padrao de proposito: uma planilha sair com a aba de
+   instrucoes em branco (por um apagao acidental no campo) e pior do que sair
+   com a instrucao de fabrica. */
+function basePlanilhaPromptAtual(){
+  const v = String(getIAConfig().promptPlanilha || "").trim();
+  return v || BASE_IA_PROMPT;
+}
 /* Cada texto tem UM dono, e nao e sempre o risco: escopo e do equipamento e
    tarefa e da tarefa. E por isso que a mesma maquina aparece em varias linhas
    com o mesmo escopo — e por isso que a volta precisa juntar as repeticoes
@@ -15278,7 +15311,7 @@ const BASE_IA_STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
    que. Ela nao tem cabecalho de ID, entao a leitura de volta a ignora sozinha
    (ver baseIARespostasDaAba). */
 function baseIAAbaInstrucoesXml(sst){
-  const linhas = BASE_IA_PROMPT.split("\n");
+  const linhas = basePlanilhaPromptAtual().split("\n");
   const dados = linhas.map((txt, i)=> `<row r="${i+1}">${sst.cell(1, i+1, txt, i===0?1:0)}</row>`).join("");
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
@@ -17159,7 +17192,7 @@ function laudoAbaRevisao(){
 
   const cards = visiveis.map(it=>{
     const r = laudoResumoItem(it);
-    const nomeRisco = laudoTextoFinal(it, "nome");
+    const nomeRisco = nomeRiscoNaTela(it.risco);
     const pronto = (r.ok + r.no) === r.total;
     const nFotos = laudoFotosDoItem(it).length;
     const hrn = hrnDoItem({tarefa:it.tarefa, risco:it.risco});
@@ -17741,7 +17774,7 @@ function screenSimplesLaudoItem(){
     return `<div class="empty">${ic('warn')}<h3>Linha não encontrada</h3><p>Ela pode ter sido excluída ou movida.</p>
       <button class="btn btn-primary" style="margin-top:12px" onclick="App.go('simples-laudo')">${ic('back')} Voltar ao laudo</button></div>`;
   }
-  const nomeRisco = item.risco.nome===OUTRO ? item.risco.nomeOutro : item.risco.nome;
+  const nomeRisco = nomeRiscoNaTela(item.risco);
   const r = laudoResumoItem(item);
   const lm = getLaudoMaquina(item.maquina);
   const fotos = laudoFotosDoItem(item);
@@ -17806,7 +17839,7 @@ function laudoSheetGaleriaHtml(item){
   const fotos = laudoFotosDoItem(item);
   __laudoGaleria = fotos;
   __laudoGaleriaItemId = item.risco.id;
-  const nomeRisco = item.risco.nome===OUTRO ? item.risco.nomeOutro : item.risco.nome;
+  const nomeRisco = nomeRiscoNaTela(item.risco);
   const grid = fotos.map((f,i)=>`<button onclick="App.laudoVerFotoGaleria(${i})" title="${escapeHtml(f.rot)}">
       <img data-imgref="${imgReg(f.src)}"><em>${escapeHtml(f.rot)}</em></button>`).join("");
   return `<div class="sheet-overlay" id="overlayInner" onclick="if(event.target===this)App.fecharModal()">
@@ -18627,6 +18660,13 @@ function screenSimplesConfigIA(){
   <div class="field"><label>Descrição da Tarefa</label><textarea oninput="App.onIAConfigPromptInput('tarefa', this.value)">${escapeHtml(cfg.prompts.tarefa)}</textarea></div>
   <div class="field"><label>Descrição do Risco</label><textarea oninput="App.onIAConfigPromptInput('risco', this.value)">${escapeHtml(cfg.prompts.risco)}</textarea></div>
   <div class="field"><label>Mitigação / Eliminação do Risco</label><textarea oninput="App.onIAConfigPromptInput('mitigacao', this.value)">${escapeHtml(cfg.prompts.mitigacao)}</textarea></div>
+  <div class="section-title">Instruções da planilha respondida fora do app</div>
+  <div class="card card-pad">
+    <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:8px">É este o texto que sai na primeira aba da planilha exportada (<i>COMO PREENCHER</i>) e no botão de copiar. Ele fala das colunas pelo nome — ao mudar alguma coisa aqui, confira se os nomes citados continuam existindo na planilha. Deixar em branco volta ao texto padrão.</p>
+    <div class="field" style="margin-bottom:8px"><textarea style="min-height:260px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px" oninput="App.onIAPromptPlanilhaInput(this.value)">${escapeHtml(basePlanilhaPromptAtual())}</textarea></div>
+    <button class="btn btn-secondary btn-block" onclick="App.restaurarPromptPlanilha()">${ic('check')} Restaurar o texto padrão</button>
+    ${String(cfg.promptPlanilha||"").trim() ? `<div class="field-hint" style="margin-top:8px">Você está usando um texto próprio. Ele sincroniza para os seus outros aparelhos junto com o resto da configuração da IA.</div>` : `<div class="field-hint" style="margin-top:8px">Texto padrão do app — atualizado junto com as colunas da planilha a cada versão.</div>`}
+  </div>
   <button class="btn btn-ghost btn-block" onclick="App.restaurarPromptsIAPadrao()">Restaurar instruções padrão</button>
   ${temChave? `<button class="btn btn-danger btn-block" style="margin-top:14px" onclick="App.removerChaveIA()">${ic('trash')} Remover chave e desativar IA</button>` : ""}
   <div class="section-title">Base de Normas (PDF)</div>
@@ -23104,7 +23144,7 @@ Devolver agora?`)) return;
     const item = laudoItemPorId(rid);
     if(!item) return;
     laudoSincronizarAtuais(item);
-    const nomeRisco = item.risco.nome===OUTRO ? item.risco.nomeOutro : item.risco.nome;
+    const nomeRisco = nomeRiscoNaTela(item.risco);
     abrirMenuAcoes(nomeRisco||"Risco", "", [
       {label:"Visualizar / editar o risco", icon:"edit", onclick:`App.abrirModalRiscoS('${rid}','${tarefaId}')`},
       {label:"Editar a tarefa", icon:"edit", onclick:`App.laudoEditarTarefa('${rid}')`},
@@ -23546,13 +23586,23 @@ Devolver agora?`)) return;
   /* Grava o que estiver pendente ANTES de recarregar. location.reload dispara
      pagehide, e o listener de saída já forçaria a gravação — mas esperar aqui
      torna a ordem explícita, em vez de depender de um efeito colateral. */
+  onIAPromptPlanilhaInput(v){
+    getIAConfig().promptPlanilha = v;
+    marcarPromptAlterado("planilha");
+  },
+  restaurarPromptPlanilha(){
+    getIAConfig().promptPlanilha = "";
+    marcarPromptAlterado("planilha");
+    toast("Texto padrão restaurado");
+    render();
+  },
   async copiarPromptPlanilhaIA(){
     try{
-      await navigator.clipboard.writeText(BASE_IA_PROMPT);
+      await navigator.clipboard.writeText(basePlanilhaPromptAtual());
       toast("Instruções copiadas — cole no chat da IA junto com a planilha");
     }catch(e){
       /* Alguns navegadores so liberam a area de transferencia em HTTPS. */
-      console.log(BASE_IA_PROMPT);
+      console.log(basePlanilhaPromptAtual());
       toast("Não foi possível copiar automaticamente — o texto saiu no console do navegador", false);
     }
   },

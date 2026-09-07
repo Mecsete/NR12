@@ -11427,7 +11427,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(f.indexOf("sheetsXml.push(baseIAAbaInstrucoesXml(sst));") > 0);
       ok(f.indexOf("baseIAAbaInstrucoesXml") < f.indexOf("grupos.forEach"), "tem de ser a PRIMEIRA aba");
       ok(f.indexOf('sheetId:i+2') > 0, "as abas de área precisam ceder o sheetId 1");
-      ok(funcao("baseIAAbaInstrucoesXml").indexOf("BASE_IA_PROMPT.split") > 0);
+      ok(funcao("baseIAAbaInstrucoesXml").indexOf("basePlanilhaPromptAtual().split") > 0);
     });
     /* A aba de instrucoes nao tem coluna de ID: a leitura de volta precisa
        simplesmente ignora-la, sem virar erro nem linha invalida. */
@@ -11438,8 +11438,8 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     t("da para copiar o mesmo texto para colar no chat", ()=>{
       ok(HTML.indexOf('onclick="App.copiarPromptPlanilhaIA()"') > 0);
       const m = HTML.slice(HTML.indexOf("  async copiarPromptPlanilhaIA(){"), HTML.indexOf("  async exportarBaseIA(){"));
-      ok(m.indexOf("navigator.clipboard.writeText(BASE_IA_PROMPT)") > 0, "tem de copiar o MESMO texto da aba");
-      ok(m.indexOf("console.log(BASE_IA_PROMPT)") > 0, "sem HTTPS a área de transferência falha; o texto não pode sumir");
+      ok(m.indexOf("navigator.clipboard.writeText(basePlanilhaPromptAtual())") > 0, "tem de copiar o MESMO texto da aba");
+      ok(m.indexOf("console.log(basePlanilhaPromptAtual())") > 0, "sem HTTPS a área de transferência falha; o texto não pode sumir");
     });
     t("as colunas que a IA preenche saem em cor propria", ()=>{
       const f = funcao("gerarBytesBaseIAXlsx");
@@ -11509,8 +11509,45 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     t("o laudo impresso usa o nome aprovado", ()=>{
       ok(HTML.indexOf('const nomeRisco = laudoTextoFinal(it, "nome") || "Risco";') > 0);
     });
-    t("o cartao da revisao tambem", ()=>{
-      ok(HTML.indexOf('const nomeRisco = laudoTextoFinal(it, "nome");') > 0);
+    /* A navegacao mostra o nome DECIDIDO (aplicado ou editado). Sugestao ainda
+       pendente nao renomeia nada: depois de uma geracao em lote tudo apareceria
+       renomeado, e a lista deixaria de dizer o que ja foi arrumado. */
+    t("a navegacao mostra o nome decidido, nao a sugestao pendente", ()=>{
+      const r = { id:"r1", nome:"Proteção desparafusada", laudoIA:{} };
+      eq(C.nomeRiscoNaTela(r), "Proteção desparafusada");
+      r.laudoIA = { nomeSug:"Agarramento das mãos no eixo", nomeSt:"pend" };
+      eq(C.nomeRiscoNaTela(r), "Proteção desparafusada", "pendente nao pode renomear na lista");
+      r.laudoIA.nomeSt = "ok";
+      eq(C.nomeRiscoNaTela(r), "Agarramento das mãos no eixo");
+      r.laudoIA = { nomeSug:"Outro", nomeSt:"no" };
+      eq(C.nomeRiscoNaTela(r), "Proteção desparafusada", "recusado volta ao nome de campo");
+    });
+    t("o cartao do risco, a trilha e o menu usam esse mesmo nome", ()=>{
+      ok(HTML.indexOf("${escapeHtml(nomeRiscoNaTela(r)||('Risco '+String(i+1).padStart(2,'0')))}") > 0, "cartão da lista");
+      eq((HTML.match(/const nomeRisco = nomeRiscoNaTela\(item\.risco\);/g)||[]).length, 3, "trilha, folha e menu");
+      ok(HTML.indexOf("const nomeRisco = nomeRiscoNaTela(it.risco);") > 0, "cartão da revisão");
+      ok(HTML.indexOf("const listaOrdenada = ordenarLista(listaFiltrada, r=>nomeRiscoNaTela(r));") > 0,
+         "ordenar por um nome que a tela não mostra deixa a lista fora de ordem");
+    });
+    t("a busca ainda acha pelo nome de CAMPO", ()=>{
+      const i0 = HTML.indexOf("const listaFiltrada = q? t.riscos.filter");
+      const f = HTML.slice(i0, HTML.indexOf("const listaOrdenada = ordenarLista", i0));
+      ok(f.indexOf("(r.nome||\"\").toLowerCase().includes(q)") > 0,
+         "quem procura pelo que digitou em campo tem de continuar achando");
+    });
+    /* O texto da planilha e editavel; o que sai no arquivo tem de ser o texto
+       EDITADO, senao a edicao vira enfeite. */
+    t("o prompt da planilha e editavel e sincroniza", ()=>{
+      const f = funcao("basePlanilhaPromptAtual");
+      ok(f.indexOf("getIAConfig().promptPlanilha") > 0);
+      ok(f.indexOf("|| BASE_IA_PROMPT") > 0, "texto vazio tem de cair no padrão");
+      ok(HTML.indexOf('onclick="App.restaurarPromptPlanilha()"') > 0, "sem volta, um texto quebrado fica preso");
+      /* Um por um: a fatia larga passava mesmo quando SO a restauracao
+         carimbava, porque o carimbo dela caia dentro do pedaco lido. */
+      const digitar = HTML.slice(HTML.indexOf("  onIAPromptPlanilhaInput(v){"), HTML.indexOf("  restaurarPromptPlanilha(){"));
+      const restaurar = HTML.slice(HTML.indexOf("  restaurarPromptPlanilha(){"), HTML.indexOf("  async copiarPromptPlanilhaIA(){"));
+      ok(digitar.indexOf('marcarPromptAlterado("planilha")') > 0, "sem carimbo ao digitar, a edição não viaja para os outros aparelhos");
+      ok(restaurar.indexOf('marcarPromptAlterado("planilha")') > 0, "restaurar também precisa viajar");
     });
     t("o Excel da Corteva e o Word continuam com o nome de CAMPO", ()=>{
       ok(HTML.indexOf("const nomeRisco=item.risco.nome===OUTRO?item.risco.nomeOutro:item.risco.nome;") > 0,

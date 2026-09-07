@@ -4388,7 +4388,16 @@ chk("as instrucoes viajam dentro do arquivo, na primeira aba, e podem ser copiad
     "sheetsXml.push(baseIAAbaInstrucoesXml(sst));" in novo
     and "sheetId:i+2" in novo
     and 'onclick="App.copiarPromptPlanilhaIA()"' in novo
-    and "navigator.clipboard.writeText(BASE_IA_PROMPT)" in novo)
+    and "navigator.clipboard.writeText(basePlanilhaPromptAtual())" in novo)
+# O texto e editavel em Configuracoes -> IA e sincroniza com o resto da
+# configuracao. Vazio cai no padrao: planilha com aba de instrucoes em branco e
+# pior do que planilha com a instrucao de fabrica.
+chk("o texto e editavel, sincroniza, e vazio volta ao padrao",
+    "function basePlanilhaPromptAtual" in novo
+    and "getIAConfig().promptPlanilha" in _corpoDe(novo, "basePlanilhaPromptAtual")
+    and "|| BASE_IA_PROMPT" in _corpoDe(novo, "basePlanilhaPromptAtual")
+    and 'onclick="App.restaurarPromptPlanilha()"' in novo
+    and 'marcarPromptAlterado("planilha")' in novo)
 # O risco real deste formato nao e a planilha nao abrir: e a IA parar no meio e
 # devolver o arquivo como se estivesse inteiro.
 chk("conta as linhas que voltaram sem resposta, e diz isso na tela",
@@ -4442,9 +4451,22 @@ chk("NAO entra em LAUDO_CAMPOS, mas ENTRA na lista importavel",
     and '"tarefa", "nome", "risco"' in novo)
 # O nome aprovado e do LAUDO. Levantamento (Excel da Corteva, Word) segue com o
 # nome de campo — la o assunto e o que foi visto, nao o documento.
-chk("o laudo impresso e o cartao da revisao usam o nome aprovado",
-    'const nomeRisco = laudoTextoFinal(it, "nome") || "Risco";' in novo
-    and 'const nomeRisco = laudoTextoFinal(it, "nome");' in novo)
+chk("o laudo impresso usa o nome do laudo",
+    'const nomeRisco = laudoTextoFinal(it, "nome") || "Risco";' in novo)
+# A NAVEGACAO mostra o nome so depois de DECIDIDO. Uma sugestao pendente nao
+# pode renomear o item: depois de uma geracao em lote tudo apareceria renomeado
+# e a lista deixaria de responder "o que eu ja arrumei?".
+chk("a navegacao mostra o nome decidido, e nunca a sugestao pendente",
+    "function nomeRiscoNaTela" in novo
+    and 'l.nomeSt === "ok" || l.nomeSt === "edit"' in _corpoDe(novo, "nomeRiscoNaTela")
+    and "return laudoNomeDoRisco(r);" in _corpoDe(novo, "nomeRiscoNaTela"))
+chk("cartao da lista, trilha, menu, cartao da revisao e ordem seguem esse nome",
+    "${escapeHtml(nomeRiscoNaTela(r)||('Risco '+String(i+1).padStart(2,'0')))}" in novo
+    and novo.count("const nomeRisco = nomeRiscoNaTela(item.risco);") == 3
+    and "const nomeRisco = nomeRiscoNaTela(it.risco);" in novo
+    and "ordenarLista(listaFiltrada, r=>nomeRiscoNaTela(r))" in novo)
+chk("a busca continua achando pelo nome de campo",
+    '(nomeRiscoNaTela(r)||"").toLowerCase().includes(q) || (r.nome||"").toLowerCase().includes(q)' in novo)
 chk("o Excel da Corteva e o Word seguem com o nome de campo",
     "const nomeRisco=item.risco.nome===OUTRO?item.risco.nomeOutro:item.risco.nome;" in novo
     and "corrigirNomeRisco(risco.nome===OUTRO?risco.nomeOutro:risco.nome)" in novo)
