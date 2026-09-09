@@ -11592,6 +11592,125 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  /* ---------- t159: varredura, camadas e o julgamento da medida -----------
+     Revisao de 09/09/2026, depois do engenheiro mapear o uso de cada coluna.
+     Duas mudancas de fundo:
+
+     1) A planilha passou a levar o JULGAMENTO dele sobre a medida existente
+        (Atende / Atende em parte / Nao atende) e a ressalva escrita a mao. A
+        Solucao e escrita justamente em cima desse julgamento — sem ele, a IA
+        supunha que a medida existente nunca era suficiente.
+
+     2) O prompt deixou de ser uma lista de campos e passou a mandar uma
+        VARREDURA antes de escrever, e depois escrever em CAMADAS. Um
+        equipamento aparece em varias linhas, uma por risco, e cada risco tem
+        so um pedaco da informacao: quem escreve linha a linha perde o resto. */
+  {
+    console.log("\n[t159] varredura, camadas e julgamento da medida existente");
+    const PROMPT = HTML.slice(HTML.indexOf("const BASE_IA_PROMPT = ["), HTML.indexOf("const BASE_IA_ABA_INSTRUCOES"));
+    const secao = (nome, ate)=> PROMPT.slice(PROMPT.indexOf('"RESPOSTA - ' + nome), ate ? PROMPT.indexOf('"RESPOSTA - ' + ate) : PROMPT.length);
+    const cxC = vm.createContext({ Array, Object, String });
+    vm.runInContext(constante("BASE_IA_COLUNAS"), cxC);
+    const COLS = vm.runInContext("BASE_IA_COLUNAS", cxC);
+
+    /* ---- as duas colunas novas ---- */
+    t("O PONTO: a planilha leva a situacao da medida e a ressalva", ()=>{
+      ok(COLS.some(c=> c.h === "Situação da medida existente"), "faltou a coluna de situação");
+      ok(COLS.some(c=> c.h === "Ressalva da medida existente (campo)"), "faltou a coluna de ressalva");
+      const corpo = funcao("baseIACamposDaLinha");
+      ok(corpo.indexOf('"Ressalva da medida existente (campo)": risco ? (risco.medidaExistenteRessalva || "") : ""') > 0);
+    });
+    /* "Atende" numa linha sem medida nenhuma seria lido como protecao aprovada:
+       MEDIDA_SITUACOES tem "ok" como padrao, e sem esta guarda o padrao vazaria
+       para toda linha sem mitigacao. */
+    t("a situacao so aparece quando existe algo instalado", ()=>{
+      const corpo = funcao("baseIACamposDaLinha");
+      ok(corpo.indexOf('(risco && laudoTemMitigacaoExistente(risco)) ? sitMedida.rot : ""') > 0,
+         "sem a guarda, linha sem medida sairia como 'Atende'");
+    });
+    t("as duas entram na Mitigacao e na Solucao", ()=>{
+      const m = secao("Mitigação existente", "Solução");
+      const sol = secao("Solução");
+      ok(m.indexOf("Situação da medida existente") > 0);
+      ok(m.indexOf("Ressalva da medida existente (campo)") > 0);
+      ok(sol.indexOf("Situação da medida existente") > 0);
+      ok(sol.indexOf("Ressalva da medida existente (campo)") > 0);
+    });
+    /* Duas frases escritas a mao no mesmo campo podem divergir; sem uma regra
+       de desempate a IA escolhe sozinha, e o laudo fica a sorte. */
+    t("em divergencia entre ressalva e sugestao, prevalece a ressalva", ()=>{
+      ok(secao("Solução").indexOf("prevalece a RESSALVA") > 0);
+    });
+    t("Atende com proposta em campo vira melhoria, nao correcao", ()=>{
+      ok(secao("Solução").indexOf("Como melhoria, recomenda-se") > 0,
+         "sem isso, medida aprovada sairia como insuficiente no laudo");
+    });
+
+    /* ---- varredura e camadas ---- */
+    t("manda varrer TODOS os riscos do equipamento antes de escrever", ()=>{
+      ok(PROMPT.indexOf("PRIMEIRO A VARREDURA, DEPOIS OS TEXTOS") > 0);
+      ok(PROMPT.indexOf("TODAS as mitigações já existentes, reunida de TODOS os riscos") > 0);
+    });
+    t("a ordem das camadas esta declarada, com a dependencia de cada uma", ()=>{
+      ok(PROMPT.indexOf("1º Escopo do equipamento (usa a varredura)") > 0);
+      ok(PROMPT.indexOf("2º Descrição da tarefa (usa o Escopo que você acabou de escrever)") > 0);
+      ok(PROMPT.indexOf("4º Descrição do risco (usa o Nome que você acabou de escrever)") > 0);
+      const o = ["1º Escopo", "2º Descrição da tarefa", "3º Nome do risco", "4º Descrição do risco", "5º Mitigação", "6º Solução"];
+      for(let i=1;i<o.length;i++) ok(PROMPT.indexOf(o[i-1]) < PROMPT.indexOf(o[i]), "camada fora de ordem: " + o[i]);
+    });
+    t("a tarefa usa o escopo como apoio, sem repeti-lo", ()=>{
+      const tf = secao("Descrição da tarefa", "Nome do risco");
+      ok(tf.indexOf("Escopo que você já escreveu") > 0);
+      ok(tf.indexOf("não repita o escopo dentro da tarefa") > 0);
+    });
+    t("a descricao do risco usa o nome, o de campo e o gerado", ()=>{
+      ok(secao("Descrição do risco", "Mitigação existente").indexOf("tanto o de campo quanto o que você acabou de escrever") > 0);
+    });
+
+    /* ---- escopo ---- */
+    /* Se o escopo citar "Silo 2102", ele para de servir ao 2103 — e o
+       reaproveitamento entre equipamentos identicos era todo o ganho. */
+    t("O PONTO DO ESCOPO: filtra o codigo, mas aproveita o nome", ()=>{
+      const e = secao("Escopo do equipamento", "Descrição da tarefa");
+      ok(e.indexOf('aproveite \\\"silo\\\" e descarte \\\"2102\\\"') > 0, "precisa do exemplo concreto do filtro");
+      ok(e.indexOf("Filtre o nome, não o ignore") > 0);
+      ok(e.indexOf("sirva a QUALQUER equipamento daquela função") > 0);
+    });
+    t("nao repete as tres colunas de area", ()=>{
+      const e = secao("Escopo do equipamento", "Descrição da tarefa");
+      ok(e.indexOf("Use UMA delas, a mais informativa") > 0, "as três colunas de área costumam repetir a mesma coisa");
+    });
+    t("agrupa mitigacoes parecidas, sem dois-pontos e sem lista", ()=>{
+      const e = secao("Escopo do equipamento", "Descrição da tarefa");
+      ok(e.indexOf("Agrupe as parecidas") > 0);
+      ok(e.indexOf("Sem dois-pontos e sem lista") > 0);
+    });
+    /* O escopo descreve o equipamento. Registrar ali que a protecao nao atende
+       poria o mesmo defeito em dois lugares do laudo, com duas redacoes. */
+    t("o escopo fala so do que existe, nunca da insuficiencia", ()=>{
+      const e = secao("Escopo do equipamento", "Descrição da tarefa");
+      ok(e.indexOf("Fale apenas do que EXISTE") > 0);
+      ok(e.indexOf("a insuficiência é assunto da Mitigação existente e da Solução") > 0);
+    });
+    t("encadeamento entre equipamentos so com apoio no texto de campo", ()=>{
+      ok(PROMPT.indexOf("encadeamento deduzido por semelhança de nome não vale") > 0);
+      ok(secao("Escopo do equipamento", "Descrição da tarefa").indexOf("Só quando o texto de campo sustentar") > 0);
+    });
+
+    /* ---- grau do dano fora do texto ---- */
+    /* Pedido explicito: a classificacao e engessada e ja sai na tabela. */
+    t("Grau do dano NAO entra em texto nenhum", ()=>{
+      ok(PROMPT.indexOf("HRN, Probabilidade, Grau do dano e Nível de risco não entram em frase nenhuma") > 0);
+      ok(secao("Descrição do risco", "Mitigação existente").indexOf("nunca da classificação de Grau do dano") > 0);
+      ok(PROMPT.indexOf("Nenhum texto cita HRN, Probabilidade, Grau do dano ou Nível de risco?") > 0,
+         "a conferência final também precisa cobrar isso");
+    });
+    t("a conferencia final cobra a varredura e a ausencia de TAG", ()=>{
+      ok(PROMPT.indexOf("A varredura foi feita antes de escrever") > 0);
+      ok(PROMPT.indexOf("Nenhum escopo cita TAG, código de ativo ou número de série?") > 0);
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

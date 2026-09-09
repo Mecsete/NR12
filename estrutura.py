@@ -4377,6 +4377,32 @@ chk("seis colunas de resposta, e nenhuma coluna de duvida",
     "texto=%d" % novo.count('tipo:"texto"'))
 # Sem coluna de duvida, a saida natural do modelo passa a ser comentar a falta
 # DENTRO do texto — e e exatamente isso que nao pode ir para um laudo assinado.
+# A planilha passou a levar o julgamento do engenheiro sobre a medida existente
+# e a ressalva escrita a mao. A Solucao e escrita em cima desse julgamento —
+# sem ele, a IA supunha que a medida existente nunca era suficiente.
+chk("a planilha leva a situacao da medida existente e a ressalva",
+    '{ h:"Situação da medida existente", larg:18 },' in novo
+    and '{ h:"Ressalva da medida existente (campo)", larg:40 },' in novo
+    and '(risco && laudoTemMitigacaoExistente(risco)) ? sitMedida.rot : ""' in novo
+    and "prevalece a RESSALVA" in novo)
+# Um equipamento aparece em varias linhas, uma por risco, e cada risco tem so um
+# pedaco da informacao. Escrever linha a linha joga o resto fora.
+chk("o prompt manda varrer antes de escrever, e escrever em camadas",
+    "PRIMEIRO A VARREDURA, DEPOIS OS TEXTOS" in novo
+    and "TODAS as mitigações já existentes, reunida de TODOS os riscos" in novo
+    and "1º Escopo do equipamento (usa a varredura)" in novo
+    and "2º Descrição da tarefa (usa o Escopo que você acabou de escrever)" in novo
+    and novo.index("1º Escopo do equipamento") < novo.index("6º Solução"))
+# Escopo que cite "Silo 2102" para de servir ao 2103 — e o reaproveitamento
+# entre equipamentos identicos era todo o ganho do campo.
+chk("o escopo filtra o codigo do nome, sem descartar o nome",
+    "Filtre o nome, não o ignore" in novo
+    and "sirva a QUALQUER equipamento daquela função" in novo
+    and "Fale apenas do que EXISTE" in novo
+    and "Sem dois-pontos e sem lista" in novo)
+chk("Grau do dano fica fora de texto, por pedido do engenheiro",
+    "HRN, Probabilidade, Grau do dano e Nível de risco não entram em frase nenhuma" in novo
+    and "nunca da classificação de Grau do dano" in novo)
 chk("as instrucoes proibem comentar a falta dentro do texto",
     "const BASE_IA_PROMPT = [" in novo
     and "Nunca escrever que um dado falta" in novo
