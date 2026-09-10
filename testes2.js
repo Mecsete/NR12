@@ -3997,7 +3997,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
                 sugestaoMitigacao:"Instalar proteção conforme meu critério." };
     const h = C.blocoMedidaPropostaHtml(r);
     eq((h.match(/medida-frase/g)||[]).length, 1, "sem ele não dá para voltar ao texto da biblioteca");
-    ok(h.indexOf("Texto sugerido pela medida escolhida") > 0, "sem rótulo, o quadro fica sem explicação");
+    ok(h.indexOf("Sugestão Solução") > 0, "sem rótulo, o quadro fica sem explicação");
     ok(h.indexOf("aplicarTextoMitigacao()") > 0, "faltou o botão de voltar ao sugerido");
   });
   t("a mitigação existente segue a mesma regra", ()=>{
@@ -11618,42 +11618,48 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
        do aplicativo. Na tela do risco o campo se chama "O que falta", e quem
        confere a planilha contra o app procurava por um nome que nao existia
        (10/09/2026). */
-    t("O PONTO: a planilha leva a situacao da medida e o que falta nela", ()=>{
-      ok(COLS.some(c=> c.h === "Situação da medida existente"), "faltou a coluna de situação");
-      ok(COLS.some(c=> c.h === "O que falta na medida existente"), "faltou a coluna do defeito");
-      ok(!COLS.some(c=> /ressalva/i.test(c.h)), "o nome 'ressalva' não existe na tela do app");
+    /* AS COLUNAS TEM O NOME QUE A TELA USA. Cada nome diferente entre a tela e
+       a planilha e uma duvida a mais na hora de conferir uma contra a outra —
+       foi assim que "Ressalva" virou confusao (10/09/2026). */
+    t("O PONTO: as colunas se chamam como os campos da tela", ()=>{
+      ["Descrição da Mitigação Existente", "Solução Editável", "Sugestão Solução"]
+        .forEach(h=> ok(COLS.some(c=> c.h === h), "faltou a coluna " + h));
+      ["ressalva", "Texto da biblioteca", "medida existente (campo)", "Sugestão de mitigação"]
+        .forEach(x=> ok(!COLS.some(c=> c.h.toLowerCase().indexOf(x.toLowerCase()) >= 0), "nome antigo sobrou: " + x));
       const corpo = funcao("baseIACamposDaLinha");
-      ok(corpo.indexOf('"O que falta na medida existente": risco ? (risco.medidaExistenteRessalva || "") : ""') > 0);
+      ok(corpo.indexOf('"Descrição da Mitigação Existente": risco ? (risco.descMedida || "") : ""') > 0);
+      ok(corpo.indexOf('"Solução Editável": risco ? (risco.sugestaoMitigacao || "") : ""') > 0);
     });
-    /* "Atende" numa linha sem medida nenhuma seria lido como protecao aprovada:
-       MEDIDA_SITUACOES tem "ok" como padrao, e sem esta guarda o padrao vazaria
-       para toda linha sem mitigacao. */
-    t("a situacao so aparece quando existe algo instalado", ()=>{
-      const corpo = funcao("baseIACamposDaLinha");
-      ok(corpo.indexOf('(risco && laudoTemMitigacaoExistente(risco)) ? sitMedida.rot : ""') > 0,
-         "sem a guarda, linha sem medida sairia como 'Atende'");
+    /* Atende/Nao atende e "O que falta" sao apoio de CAMPO, e o app ja escreve
+       os dois DENTRO da Descricao da Mitigacao Existente (sincronizarDescMedida
+       ExistenteMulti). Manter as colunas separadas levava a IA a repetir o mesmo
+       julgamento em duas frases. */
+    t("situacao e 'o que falta' saem da planilha: ja estao na Descricao", ()=>{
+      ok(!COLS.some(c=> c.h === "Situação da medida existente"));
+      ok(!COLS.some(c=> c.h === "O que falta na medida existente"));
+      ok(funcao("baseIACamposDaLinha").indexOf("sitMedida") < 0, "sobrou a variável sem uso");
     });
-    t("as duas entram na Mitigacao e na Solucao", ()=>{
+    t("a Mitigacao tem UMA fonte, e a conferencia pelo que foi marcado", ()=>{
       const m = secao("Mitigação existente", "Solução");
-      const sol = secao("Solução");
-      ok(m.indexOf("Situação da medida existente") > 0);
-      ok(m.indexOf("O que falta na medida existente") > 0);
-      ok(sol.indexOf("Situação da medida existente") > 0);
-      ok(sol.indexOf("O que falta na medida existente") > 0);
+      ok(m.indexOf("A FONTE É UMA SÓ: a coluna \\\"Descrição da Mitigação Existente\\\"") > 0);
+      ok(m.indexOf("Medidas existentes marcadas\\\" serve de conferência") > 0);
+      ok(m.indexOf("Situação da medida existente") < 0, "o julgamento já vem dentro da Descrição");
     });
     /* O texto escrito a mao pelo inspetor manda. "O que falta" nao e uma
        segunda proposta — e o diagnostico do que esta instalado, e serve para dar
        precisao a frase, nao para trocar a acao. */
-    t("a sugestao escrita a mao e o texto principal da solucao", ()=>{
+    t("a Solucao Editavel e o texto principal da solucao", ()=>{
       const sol = secao("Solução");
-      ok(sol.indexOf("O TEXTO PRINCIPAL é sempre a \\\"Sugestão de mitigação (campo)\\\"") > 0);
-      ok(sol.indexOf("Ela manda no conteúdo e na intenção") > 0);
-      ok(sol.indexOf("não é uma segunda proposta") > 0);
+      ok(sol.indexOf("O TEXTO PRINCIPAL é sempre a \\\"Solução Editável\\\"") > 0);
+      ok(sol.indexOf("você reescreve a redação, nunca a decisão") > 0);
+      ok(sol.indexOf("A [proposta] é a \\\"Solução Editável\\\" reescrita em linguagem de laudo") > 0);
     });
-    /* Sem isto a IA completa a proposta por conta propria — ou seja, decide
-       engenharia no lugar de quem assina. */
-    t("sugestao que nao cobre o defeito nao vira complemento inventado", ()=>{
-      ok(secao("Solução").indexOf("sem afirmar que aquele defeito fica resolvido") > 0);
+    /* A abertura da frase sai da propria Descricao: e la que o app ja registrou
+       se a protecao atende, atende em parte ou nao atende. */
+    t("a abertura da Solucao sai da Descricao da Mitigacao Existente", ()=>{
+      const sol = secao("Solução");
+      ok(sol.indexOf("Leia a \\\"Descrição da Mitigação Existente\\\" para saber o que há na máquina e se aquilo atende") > 0);
+      ok(sol.indexOf("Como melhoria, recomenda-se") > 0, "medida que atende não pode sair como correção");
     });
     /* MUDANCA DE DIRECAO (10/09/2026): a solucao passa a fechar com o item da
        norma. So e seguro porque a citacao ja vem PRONTA e conferida na coluna da

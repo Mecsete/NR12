@@ -1105,7 +1105,7 @@ print("\n=== 40. TEXTO SUGERIDO NAO APARECE DUAS VEZES ===")
 # mesma frase — so faz sentido quando DIFERE do campo, que e quando o texto foi
 # editado a mao e da para voltar ao sugerido.
 chk("os tres quadros so aparecem quando ha diferenca",
-    "${podeAplicar? `<div class=\"medida-rot\">Texto sugerido pela medida escolhida</div>" in novo
+    "${podeAplicar? `<div class=\"medida-rot\">Sugestão Solução</div>" in novo
     and "${podeAplicar? `<div class=\"medida-rot\">Texto sugerido pelo que foi marcado</div>" in novo
     and "${difereDoLaudo? `<div class=\"medida-rot\">" in novo)
 chk("nenhum quadro ficou preso ao antigo 'se existe texto'",
@@ -4377,21 +4377,33 @@ chk("seis colunas de resposta, e nenhuma coluna de duvida",
     "texto=%d" % novo.count('tipo:"texto"'))
 # Sem coluna de duvida, a saida natural do modelo passa a ser comentar a falta
 # DENTRO do texto — e e exatamente isso que nao pode ir para um laudo assinado.
-# A planilha passou a levar o julgamento do engenheiro sobre a medida existente
-# (Atende / Atende em parte / Nao atende) e o defeito apontado por ele. A
-# Solucao e escrita em cima desse julgamento — sem ele, a IA supunha que a
-# medida existente nunca era suficiente.
-# O cabecalho da coluna usa o MESMO rotulo da tela do risco ("O que falta"):
-# nome de coluna que nao existe no app e nome que confunde quem confere a
-# planilha contra o aplicativo. "Ressalva" so vive como identificador interno.
+# AS COLUNAS TEM O NOME DOS CAMPOS DA TELA. Cada nome diferente entre a tela e
+# a planilha e uma duvida a mais na hora de conferir uma contra a outra — foi
+# assim que "Ressalva" virou confusao (10/09/2026).
 _cols = novo[novo.index("const BASE_IA_COLUNAS = ["):]
 _cols = _cols[:_cols.index("\n];")]
-chk("a planilha leva a situacao da medida existente e o que falta nela",
-    '{ h:"Situação da medida existente", larg:18 },' in novo
-    and '{ h:"O que falta na medida existente", larg:40 },' in novo
+chk("as colunas se chamam como os campos da tela",
+    '{ h:"Descrição da Mitigação Existente", larg:44 },' in _cols
+    and '{ h:"Solução Editável", larg:44 },' in _cols
+    and '{ h:"Sugestão Solução", larg:44 },' in _cols
     and "essalva" not in _cols
-    and '(risco && laudoTemMitigacaoExistente(risco)) ? sitMedida.rot : ""' in novo
-    and '"O que falta na medida existente": risco ? (risco.medidaExistenteRessalva || "") : ""' in novo)
+    and "Texto da biblioteca" not in _cols
+    and "Sugestão de mitigação" not in _cols)
+chk("a tela usa exatamente os mesmos nomes das colunas",
+    "<label>Solução Editável</label>" in novo
+    and novo.count("<label>Descrição da Mitigação Existente</label>") == 2
+    and novo.count('<div class="medida-rot">Sugestão Solução</div>') == 2)
+# Atende/Nao atende e "O que falta" sao apoio de CAMPO: o proprio app ja escreve
+# os dois DENTRO da Descricao da Mitigacao Existente (sincronizarDescMedida
+# Existente). Colunas separadas levavam a IA a repetir o mesmo julgamento.
+chk("situacao e 'o que falta' saem da planilha: ja estao na Descricao",
+    "Situação da medida existente" not in novo
+    and "O que falta na medida existente" not in novo
+    and "sitMedida" not in novo)
+chk("a Mitigacao existente tem UMA fonte declarada",
+    "A FONTE É UMA SÓ: a coluna" in novo
+    and "serve de conferência" in novo)
+
 # Um equipamento aparece em varias linhas, uma por risco, e cada risco tem so um
 # pedaco da informacao. Escrever linha a linha joga o resto fora.
 chk("o prompt manda varrer antes de escrever, e escrever em camadas",
@@ -4414,9 +4426,10 @@ chk("protecao insuficiente entra no escopo; o julgamento dela e que nao entra",
     and "Fale apenas do que EXISTE" not in novo)
 # Ressalva vem de lista fechada e diz o que FALTA; sugestao e texto livre e diz
 # o que FAZER. Nao sao duas versoes da mesma coisa, e nao precisam de desempate.
-chk("o texto escrito a mao manda; o defeito da medida so da precisao",
+chk("a Solucao Editavel e o texto principal, e a abertura sai da Descricao",
     "O TEXTO PRINCIPAL é sempre a" in novo
-    and "não é uma segunda proposta" in novo
+    and "você reescreve a redação, nunca a decisão" in novo
+    and "para saber o que há na máquina e se aquilo atende" in novo
     and "prevalece a RESSALVA" not in novo)
 # MUDANCA DE DIRECAO (10/09/2026): a solucao passa a fechar com o item da norma.
 # So e segura porque a citacao vem PRONTA e conferida da BIBLIOTECA_MEDIDAS — o

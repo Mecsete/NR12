@@ -2937,7 +2937,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "10/09/2026 08:59";
+const APP_BUILD = "10/09/2026 10:16";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -10937,7 +10937,7 @@ function blocoMedidaExistenteHtml(r){
       ${podeAplicar? `<button type="button" class="btn btn-secondary btn-sm btn-block" style="margin-top:8px" onclick="App.aplicarTextoMedidaExistenteMulti()">${ic('copy')} Usar este texto</button>`:""}
     ` : `<div class="field-hint" style="margin-top:8px">Marque o que existe e o app escreve o texto com a citação da norma.</div>`}
     <div class="field" style="margin:10px 0 0">
-      <label>Descrição da mitigação existente <span style="font-weight:400;color:var(--ink-faint)">(editável)</span></label>
+      <label>Descrição da Mitigação Existente</label>
       <textarea oninput="App.setDraftField('descMedida', this.value)">${escapeHtml(r.descMedida||"")}</textarea>
     </div>
   </div>`;
@@ -10958,11 +10958,11 @@ function blocoMedidaPropostaHtml(r){
     ${selectMedidaHtml(tipo, "App.onDraftMedidaProposta(this.value)")}
     ${!tipo && mSug? `<button type="button" class="btn btn-secondary btn-sm btn-block" style="margin-top:8px" onclick="App.onDraftMedidaProposta('${sugerida}')">${ic('shield')} Sugestão do app: ${escapeHtml(mSug.rot)}</button>`:""}
     ${medidaRodapeHtml(m)}
-    ${podeAplicar? `<div class="medida-rot">Texto sugerido pela medida escolhida</div>
+    ${podeAplicar? `<div class="medida-rot">Sugestão Solução</div>
       <div class="medida-frase">${escapeHtml(sugestao)}</div>`:""}
     ${podeAplicar? `<button type="button" class="btn btn-secondary btn-sm btn-block" style="margin-top:8px" onclick="App.aplicarTextoMitigacao()">${ic('copy')} Usar este texto</button>`:""}
     <div class="field" style="margin:10px 0 0">
-      <label>Sugestão para reduzir ou eliminar o risco <span style="font-weight:400;color:var(--ink-faint)">(editável)</span></label>
+      <label>Solução Editável</label>
       <textarea oninput="App.setDraftField('sugestaoMitigacao', this.value)">${escapeHtml(r.sugestaoMitigacao||"")}</textarea>
     </div>
   </div>`;
@@ -10983,7 +10983,7 @@ function laudoBlocoMedidaHtml(item){
     ${selectMedidaHtml(tipo, `App.laudoSetMedida('${r.id}', this.value)`)}
     ${!tipo && mSug? `<button class="btn btn-ghost btn-sm btn-block" style="margin-top:6px;border:1px solid var(--line)" onclick="App.laudoSetMedida('${r.id}','${sugerida}')">${ic('shield')} Sugestão do app: ${escapeHtml(mSug.rot)}</button>`:""}
     ${m? `<div class="field-hint" style="margin-top:6px">Base normativa: <b>${escapeHtml(medidaReferencia(m))}</b></div>`:""}
-    ${difereDoLaudo? `<div class="medida-rot">Texto sugerido pela medida escolhida</div>
+    ${difereDoLaudo? `<div class="medida-rot">Sugestão Solução</div>
       <div class="medida-frase">${escapeHtml(texto)}</div>
       <button class="btn btn-secondary btn-sm btn-block" style="margin-top:8px" onclick="App.laudoAplicarMedida('${r.id}')">${ic('check')} Usar este texto no laudo</button>`:""}
   </div>`;
@@ -11083,7 +11083,7 @@ function laudoBlocoMedidaExistenteEditavelHtml(item){
       ${podeAplicar? `<button type="button" class="btn btn-secondary btn-sm btn-block" style="margin-top:8px" onclick="App.laudoAplicarTextoMedidaExistenteMulti('${rid}')">${ic('copy')} Usar este texto</button>`:""}
     ` : `<div class="field-hint" style="margin-top:8px">Marque o que existe e o app escreve o texto com a citação da norma.</div>`}
     <div class="field" style="margin:10px 0 0">
-      <label>Descrição da mitigação existente <span style="font-weight:400;color:var(--ink-faint)">(editável)</span></label>
+      <label>Descrição da Mitigação Existente</label>
       <textarea oninput="App.laudoSetMedidaExistenteCampo('${rid}','desc', this.value)">${escapeHtml(r.descMedida||"")}</textarea>
     </div>
   </div>`;
@@ -14902,14 +14902,11 @@ const BASE_IA_COLUNAS = [
   { h:"HRN", larg:8 },
   { h:"Nível de risco", larg:16 },
   { h:"Há medida existente?", larg:14 },
-  { h:"Descrição da medida existente (campo)", larg:40 },
-  { h:"Situação da medida existente", larg:18 },
-  { h:"O que falta na medida existente", larg:40 },
+  { h:"Descrição da Mitigação Existente", larg:44 },
   { h:"Medidas existentes marcadas", larg:30 },
-  { h:"Texto da biblioteca - mitigação existente", larg:44 },
-  { h:"Sugestão de mitigação (campo)", larg:40 },
+  { h:"Solução Editável", larg:44 },
   { h:"Medida proposta marcada", larg:26 },
-  { h:"Texto da biblioteca - solução", larg:44 },
+  { h:"Sugestão Solução", larg:44 },
   { h:"Já decidido no app", larg:30 },
   { h:"RESPOSTA - Escopo do equipamento", larg:56, resp:{ campo:"escopo",    tipo:"texto"  } },
   { h:"RESPOSTA - Descrição da tarefa",   larg:56, resp:{ campo:"tarefa",    tipo:"texto"  } },
@@ -14961,7 +14958,7 @@ const BASE_IA_PROMPT = [
 "O QUE NUNCA FAZER",
 "1. Nunca inventar dado. Se a linha não diz a altura, a potência, a dimensão ou o modo de operar, isso não entra no texto.",
 "2. Nunca escrever que um dado falta. Não existe coluna de dúvida nesta planilha: escreva de forma afirmativa e técnica apenas o que a linha sustenta, e pare aí. Frases como \"não foi registrada a altura, devendo ser confirmada\" não podem ir para um laudo assinado.",
-"3. Nunca INVENTAR citação de norma. Você não escolhe item de norma e não deduz item nenhum a partir do tipo de proteção nem de memória. A citação que aparece no texto é SEMPRE reproduzida de onde já veio pronta: da coluna \"Texto da biblioteca - solução\", da coluna \"Texto da biblioteca - mitigação existente\", ou do que o inspetor escreveu em campo — nesse caso palavra por palavra. Sem uma dessas fontes, o texto não cita norma alguma. Medida numérica tirada de norma (distância, abertura, altura) continua proibida em qualquer caso.",
+"3. Nunca INVENTAR citação de norma. Você não escolhe item de norma e não deduz item nenhum a partir do tipo de proteção nem de memória. A citação que aparece no texto é SEMPRE reproduzida de onde já veio pronta: da coluna \"Sugestão Solução\" ou da coluna \"Descrição da Mitigação Existente\" — nesse caso palavra por palavra. Sem uma dessas fontes, o texto não cita norma alguma. Medida numérica tirada de norma (distância, abertura, altura) continua proibida em qualquer caso.",
 "4. Nunca mudar a intenção técnica do que foi proposto em campo. Você reescreve a redação, não a decisão de engenharia: se o inspetor escreveu \"aumentar a plataforma 40 cm para a esquerda\", continua sendo 40 cm à esquerda.",
 "5. Nunca deixar em branco uma célula de resposta que a linha permitia escrever.",
 "6. Nunca citar no texto os números da avaliação: HRN, Probabilidade, Grau do dano e Nível de risco não entram em frase nenhuma. Eles já saem no laudo, na tabela própria, e repeti-los em texto cria duas versões do mesmo julgamento.",
@@ -14980,7 +14977,7 @@ const BASE_IA_PROMPT = [
 "Diga o que o equipamento faz, onde fica no processo, como é acionado, e em que momentos há intervenção humana.",
 "Situe o equipamento pelas colunas \"Área\", \"Local da área\" e \"Descrição da área\". Use UMA delas, a mais informativa: as três costumam repetir a mesma coisa, e citar todas deixa o texto redundante. Não transcreva a descrição da área inteira.",
 "Se a varredura mostrou que este equipamento recebe material de outro do bloco, ou alimenta outro, diga isso — é o que dá sentido de processo ao laudo (\"recebe o milho da moega e entrega ao elevador\"). Só quando o texto de campo sustentar.",
-"Cite as mitigações que JÁ existem, reunidas na varredura de TODOS os riscos daquele equipamento. Agrupe as parecidas em vez de listar uma a uma: \"possui proteções fixas nos roletes, nos tambores e no eixo do redutor\" resolve três riscos em meia frase. Sem dois-pontos e sem lista — a informação flui dentro do texto, com naturalidade.",
+"Cite as mitigações que JÁ existem, reunidas na varredura de TODOS os riscos daquele equipamento — colunas \"Descrição da Mitigação Existente\" e \"Medidas existentes marcadas\". Agrupe as parecidas em vez de listar uma a uma: \"possui proteções fixas nos roletes, nos tambores e no eixo do redutor\" resolve três riscos em meia frase. Sem dois-pontos e sem lista — a informação flui dentro do texto, com naturalidade.",
 "Toda proteção instalada entra no escopo, inclusive a que foi julgada insuficiente: ela existe, e o escopo descreve o que o equipamento tem.",
 "O que NÃO entra no escopo é o julgamento sobre ela. Nada de \"porém não atende\", \"com abertura\", \"danificada\", \"solta\". No escopo a proteção aparece só como existente; a insuficiência é assunto da Mitigação existente e da Solução, e repeti-la aqui poria o mesmo defeito em dois lugares do laudo, com duas redações.",
 "Use \"Tipo de equipamento\" como apoio; se a \"Descrição do equipamento (campo)\" disser outra coisa, ela manda — uma linha chamada \"Correia CNV-002\" cuja descrição diz \"mesa que alimenta a CV-3404\" é uma mesa, não um transportador.",
@@ -15001,35 +14998,33 @@ const BASE_IA_PROMPT = [
 "Bons: \"Prensamento dos dedos na comporta\" · \"Agarramento das mãos no eixo do motor\" · \"Corte da perna na proteção danificada\".",
 "Ruins: \"Prensamento dos dedos\" (não diz onde) · \"Cilindro pneumático\" (não diz o dano) · \"Partes móveis\" (nenhum dos dois).",
 "O nome diz o que VAI ACONTECER, nunca por que o risco está acessível. \"Proteção desparafusada\" é condição, não nome de risco — isso pertence à Descrição do risco.",
-"Fontes: \"Nome do risco (campo)\", os quatro campos \"Risco: local / componente / evento / parte do corpo\", a \"Descrição do risco (campo)\" e, quando ela revela o que será protegido, a \"Sugestão de mitigação (campo)\".",
+"Fontes: \"Nome do risco (campo)\", os quatro campos \"Risco: local / componente / evento / parte do corpo\", a \"Descrição do risco (campo)\" e, quando ela revela o que será protegido, a \"Solução Editável\".",
 "Quando o nome de campo já estiver bom, devolva-o igual. Não invente componente nem parte do corpo que não estejam informados.",
 "",
 "RESPOSTA - Descrição do risco",
 "Uma frase corrida combinando componente + condição observada + como a pessoa se expõe + consequência. Só com o que está na linha.",
-"Fontes: \"Descrição do risco (campo)\", os quatro campos \"Risco: local / componente / evento / parte do corpo\", o nome do risco — tanto o de campo quanto o que você acabou de escrever — e a \"Sugestão de mitigação (campo)\" quando ela revela o que será protegido.",
+"Fontes: \"Descrição do risco (campo)\", os quatro campos \"Risco: local / componente / evento / parte do corpo\", o nome do risco — tanto o de campo quanto o que você acabou de escrever — e a \"Solução Editável\" quando ela revela o que será protegido.",
 "A coluna \"O que a probabilidade significa\" descreve como a pessoa alcança a zona de perigo e ajuda a escrever a exposição. Uma ressalva: quando ela disser \"Precisa deitar ou subir em algo para alcançar\", não afirme que a pessoa deita ou sobe — diga apenas que o acesso é bastante restrito.",
 "A consequência que fecha a frase vem do que o campo descreve — agarramento, corte, prensamento, queda — e nunca da classificação de Grau do dano, que sai na tabela do laudo e não em texto.",
 "Exemplo. Campo: \"Proteção desparafusada, com acesso ao cilindro pneumático, com risco de prensamento dos dedos.\" Texto: \"A proteção do cilindro pneumático encontra-se desparafusada, permitindo o acesso das mãos à zona de acionamento e expondo os dedos do trabalhador ao prensamento durante o movimento do cilindro.\"",
 "",
 "RESPOSTA - Mitigação existente",
-"Se \"Há medida existente?\" for Não e as colunas de medida estiverem vazias, escreva exatamente: Não há medida de proteção implantada para esta exposição.",
-"Caso contrário, reescreva em português correto o que está em \"Descrição da medida existente (campo)\", preservando integralmente o sentido e qualquer citação de norma que já esteja lá, palavra por palavra.",
-"A coluna \"Medidas existentes marcadas\" traz o que o inspetor apontou no checklist do aplicativo — proteção fixa, enclausuramento, sinalização e assim por diante. É dado de campo como qualquer outro: o que estiver marcado ali precisa aparecer no texto, mesmo que a descrição escrita não repita.",
-"A coluna \"Situação da medida existente\" é o julgamento do engenheiro sobre o que está instalado: Atende, Atende em parte ou Não atende. Ela PRECISA aparecer no texto e é ela que define o tom. \"Atende\": a frase termina afirmando que a medida cumpre a função. \"Atende em parte\" e \"Não atende\": o texto registra que a proteção existe mas não elimina a exposição — sem inventar o motivo, que vem da ressalva.",
-"A coluna \"O que falta na medida existente\" aponta o defeito da proteção instalada — \"com abertura que ainda permite o acesso à zona de perigo\", \"sem dispositivo de intertravamento\", \"com fixação que permite a remoção sem o uso de ferramenta\". Ela vem de uma lista fechada do aplicativo, então chega pronta em linguagem técnica: use o texto dela como está, sem suavizar e sem reescrever para outra coisa. Não é uma proposta de solução: é o diagnóstico do que está instalado.",
-"Quando \"Texto da biblioteca - mitigação existente\" tiver conteúdo, ele é a base pronta do aplicativo: aproveite a forma técnica dela, mas o que o inspetor escreveu continua sendo o texto principal.",
+"A FONTE É UMA SÓ: a coluna \"Descrição da Mitigação Existente\". O aplicativo já monta esse texto a partir de tudo que o inspetor marcou em campo — o que existe, se atende ou não, o que falta e a citação da norma. Tudo o que a IA precisa está ali.",
+"Se essa coluna estiver vazia e \"Há medida existente?\" for Não, escreva exatamente: Não há medida de proteção implantada para esta exposição.",
+"Caso contrário, reescreva o texto dela em português correto e com fluidez de laudo, preservando integralmente o sentido e a citação de norma que já esteja lá, palavra por palavra. Não acrescente julgamento que o texto não traga, e não reordene a citação para outro lugar da frase.",
+"A coluna \"Medidas existentes marcadas\" serve de conferência: o que estiver marcado ali precisa estar contemplado no texto. Se a descrição não mencionar algo que está marcado, inclua — sem inventar como aquilo foi instalado.",
 "Corrija os erros conhecidos do texto de origem: \"instalada em a zona de perigo\" vira \"instalada na zona de perigo\"; \"em o cilindro\" vira \"no cilindro\"; \"mais\" no lugar de \"mas\"; \"correira\" vira \"correia\".",
 "",
 "RESPOSTA - Solução",
-"Precisa citar o que já existe antes de propor, e a \"Situação da medida existente\" define a abertura da frase:",
-"— Atende em parte / Não atende: \"Já há, no equipamento, [o que existe], porém [a ressalva]. Recomenda-se [proposta].\"",
-"— Atende, mas ainda existe proposta em campo: a proposta é melhoria, não correção — \"Já há, no equipamento, [o que existe]. Como melhoria, recomenda-se [proposta].\"",
-"— Sem medida existente: recomende a proposta direto, em linguagem técnica e português correto.",
+"O TEXTO PRINCIPAL é sempre a \"Solução Editável\": foi escrita à mão por quem esteve na máquina e decidiu o que fazer. Ela manda no conteúdo e na intenção — você reescreve a redação, nunca a decisão.",
+"Precisa citar o que já existe antes de propor. Leia a \"Descrição da Mitigação Existente\" para saber o que há na máquina e se aquilo atende:",
+"— A descrição registra que a proteção não atende, ou atende só em parte: \"Já há, no equipamento, [o que existe]. Como a medida existente não elimina a exposição, recomenda-se [proposta].\"",
+"— A descrição registra que atende, e ainda assim há proposta em campo: a proposta é melhoria, não correção — \"Já há, no equipamento, [o que existe]. Como melhoria, recomenda-se [proposta].\"",
+"— Sem mitigação existente: recomende a proposta direto, em linguagem técnica e português correto.",
 "Quando o que existe for frase livre do inspetor (por exemplo \"existe a tampa, mas está desparafusada\"), use \"Constatado em campo: ...\" para a frase não ficar duplicada.",
-"O TEXTO PRINCIPAL é sempre a \"Sugestão de mitigação (campo)\": foi escrita à mão por quem esteve na máquina e decidiu o que fazer. Ela manda no conteúdo e na intenção.",
-"A coluna \"O que falta na medida existente\" não é uma segunda proposta: é o defeito da proteção instalada. Use-a para dar precisão ao texto — dizer o que exatamente a solução vem corrigir. Quando as duas falam da mesma medida, ela enriquece a frase da sugestão. Quando a sugestão não cobre o defeito apontado, escreva a ação da sugestão sem afirmar que aquele defeito fica resolvido: a decisão de engenharia é do inspetor, e completá-la seria mudá-la.",
+"A [proposta] é a \"Solução Editável\" reescrita em linguagem de laudo, sem mudar a intenção técnica.",
 "A coluna \"Medida proposta marcada\" diz que tipo de proteção o inspetor escolheu no checklist. Ela manda no TIPO da medida: com proteção móvel intertravada marcada, a solução não pode propor proteção fixa. O texto de campo é o conteúdo; a medida marcada é a natureza dela.",
-"A coluna \"Texto da biblioteca - solução\" traz a frase que o aplicativo monta a partir da medida marcada no checklist, e ela termina com a referência normativa já conferida — por exemplo \"..., conforme NR-12, item 12.5.9 e item 12.5.11; ABNT NBR ISO 14120.\". Use essa frase para dar forma técnica ao que foi proposto em campo e TERMINE A SOLUÇÃO COM A CITAÇÃO DELA, reproduzida exatamente como está. Praticamente toda solução deve fechar com o item da norma.",
+"A coluna \"Sugestão Solução\" traz a frase que o aplicativo monta a partir da medida marcada no checklist, e ela termina com a referência normativa já conferida — por exemplo \"..., conforme NR-12, item 12.5.9 e item 12.5.11; ABNT NBR ISO 14120.\". Use essa frase para dar forma técnica ao que foi proposto em campo e TERMINE A SOLUÇÃO COM A CITAÇÃO DELA, reproduzida exatamente como está. Praticamente toda solução deve fechar com o item da norma.",
 "Quando essa coluna estiver vazia — o inspetor não marcou medida no checklist —, escreva a solução sem citação nenhuma. Não invente o item, não deduza pelo tipo de proteção, não traga de memória.",
 "Quando o risco for de alcance através de abertura (vão, grade, malha), a dimensão da abertura é o que define a distância de segurança. Se a linha não traz essa dimensão, não invente valor nem cite tabela: escreva a recomendação deixando a verificação dimensional a cargo do projeto — por exemplo \"...com abertura e distanciamento dimensionados para impedir o alcance da parte do corpo exposta\".",
 "",
@@ -15238,7 +15233,6 @@ function baseIACamposDaLinha(ctx){
     ? medidasExistentesDe(risco).map(k=> (medidaPorChave(k)||{}).rot || k).concat(outrosExistentesDe(risco))
     : [];
   const prop = risco ? medidaPorChave(String(risco.medidaPropostaTipo||"")) : null;
-  const sitMedida = MEDIDA_SITUACOES.find(x=> x.k === (risco && risco.medidaExistenteSituacao || "ok")) || MEDIDA_SITUACOES[0];
   const decid = [];
   LAUDO_CAMPOS_IMPORTAVEIS.forEach(c=>{
     if(c === "tarefa" && !tarefa) return;
@@ -15272,16 +15266,11 @@ function baseIACamposDaLinha(ctx){
     "HRN": h ? String(h.hrn) : "",
     "Nível de risco": h ? h.nivel : "",
     "Há medida existente?": risco ? (risco.medidaImplementada || "") : "",
-    "Descrição da medida existente (campo)": risco ? (risco.descMedida || "") : "",
-    /* So preenche quando existe algo instalado: "Atende" numa linha sem medida
-       nenhuma seria lido como se houvesse protecao aprovada. */
-    "Situação da medida existente": (risco && laudoTemMitigacaoExistente(risco)) ? sitMedida.rot : "",
-    "O que falta na medida existente": risco ? (risco.medidaExistenteRessalva || "") : "",
+    "Descrição da Mitigação Existente": risco ? (risco.descMedida || "") : "",
     "Medidas existentes marcadas": marcadas.join(" | "),
-    "Texto da biblioteca - mitigação existente": risco ? medidaTextoExistenteMulti(risco) : "",
-    "Sugestão de mitigação (campo)": risco ? (risco.sugestaoMitigacao || "") : "",
+    "Solução Editável": risco ? (risco.sugestaoMitigacao || "") : "",
     "Medida proposta marcada": prop ? prop.rot : "",
-    "Texto da biblioteca - solução": (risco && prop) ? medidaTextoProposto(risco, risco.medidaPropostaTipo) : "",
+    "Sugestão Solução": (risco && prop) ? medidaTextoProposto(risco, risco.medidaPropostaTipo) : "",
     "Já decidido no app": decid.join(" | "),
   };
 }
