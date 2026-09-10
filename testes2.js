@@ -11636,10 +11636,21 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(sol.indexOf("Situação da medida existente") > 0);
       ok(sol.indexOf("Ressalva da medida existente (campo)") > 0);
     });
-    /* Duas frases escritas a mao no mesmo campo podem divergir; sem uma regra
-       de desempate a IA escolhe sozinha, e o laudo fica a sorte. */
-    t("em divergencia entre ressalva e sugestao, prevalece a ressalva", ()=>{
-      ok(secao("Solução").indexOf("prevalece a RESSALVA") > 0);
+    /* Nao sao duas versoes da mesma coisa: a ressalva vem de LISTA FECHADA e
+       diz o que FALTA; a sugestao e texto livre e diz o que FAZER. Tratar as
+       duas como concorrentes (e criar precedencia entre elas) foi um erro meu,
+       corrigido em 10/09/2026 depois de o engenheiro mostrar as duas telas. */
+    t("ressalva e sugestao tem papeis diferentes, nao competem", ()=>{
+      const sol = secao("Solução");
+      ok(sol.indexOf("O QUE FALTA na proteção instalada, escolhido pelo inspetor numa lista fechada") > 0);
+      ok(sol.indexOf("O QUE FAZER, escrita à mão") > 0);
+      ok(sol.indexOf("resolver a ressalva E seguir a sugestão") > 0);
+      ok(sol.indexOf("prevalece a RESSALVA") < 0, "a regra de precedência não deve voltar");
+    });
+    /* Sem isto a IA completa a proposta por conta propria — ou seja, decide
+       engenharia no lugar de quem assina. */
+    t("sugestao que nao cobre a ressalva nao vira complemento inventado", ()=>{
+      ok(secao("Solução").indexOf("sem afirmar que o problema da ressalva fica resolvido") > 0);
     });
     t("Atende com proposta em campo vira melhoria, nao correcao", ()=>{
       ok(secao("Solução").indexOf("Como melhoria, recomenda-se") > 0,
@@ -11685,12 +11696,15 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(e.indexOf("Agrupe as parecidas") > 0);
       ok(e.indexOf("Sem dois-pontos e sem lista") > 0);
     });
-    /* O escopo descreve o equipamento. Registrar ali que a protecao nao atende
-       poria o mesmo defeito em dois lugares do laudo, com duas redacoes. */
-    t("o escopo fala so do que existe, nunca da insuficiencia", ()=>{
+    /* A protecao julgada insuficiente ESTA instalada: o escopo descreve o que o
+       equipamento tem, entao ela entra. O que fica de fora e o julgamento —
+       registra-lo aqui poria o mesmo defeito em dois lugares do laudo. */
+    t("protecao insuficiente ENTRA no escopo; o julgamento dela e que nao", ()=>{
       const e = secao("Escopo do equipamento", "Descrição da tarefa");
-      ok(e.indexOf("Fale apenas do que EXISTE") > 0);
+      ok(e.indexOf("Toda proteção instalada entra no escopo, inclusive a que foi julgada insuficiente") > 0);
+      ok(e.indexOf("O que NÃO entra no escopo é o julgamento sobre ela") > 0);
       ok(e.indexOf("a insuficiência é assunto da Mitigação existente e da Solução") > 0);
+      ok(e.indexOf("Fale apenas do que EXISTE") < 0, "a regra antiga excluía a proteção, não o julgamento");
     });
     t("encadeamento entre equipamentos so com apoio no texto de campo", ()=>{
       ok(PROMPT.indexOf("encadeamento deduzido por semelhança de nome não vale") > 0);

@@ -4384,7 +4384,7 @@ chk("a planilha leva a situacao da medida existente e a ressalva",
     '{ h:"Situação da medida existente", larg:18 },' in novo
     and '{ h:"Ressalva da medida existente (campo)", larg:40 },' in novo
     and '(risco && laudoTemMitigacaoExistente(risco)) ? sitMedida.rot : ""' in novo
-    and "prevalece a RESSALVA" in novo)
+    and "A solução precisa resolver a ressalva E seguir a sugestão" in novo)
 # Um equipamento aparece em varias linhas, uma por risco, e cada risco tem so um
 # pedaco da informacao. Escrever linha a linha joga o resto fora.
 chk("o prompt manda varrer antes de escrever, e escrever em camadas",
@@ -4398,8 +4398,20 @@ chk("o prompt manda varrer antes de escrever, e escrever em camadas",
 chk("o escopo filtra o codigo do nome, sem descartar o nome",
     "Filtre o nome, não o ignore" in novo
     and "sirva a QUALQUER equipamento daquela função" in novo
-    and "Fale apenas do que EXISTE" in novo
     and "Sem dois-pontos e sem lista" in novo)
+# A protecao julgada insuficiente ESTA instalada — o escopo descreve o que o
+# equipamento tem. O que fica de fora e o julgamento sobre ela.
+chk("protecao insuficiente entra no escopo; o julgamento dela e que nao entra",
+    "Toda proteção instalada entra no escopo, inclusive a que foi julgada insuficiente" in novo
+    and "O que NÃO entra no escopo é o julgamento sobre ela" in novo
+    and "Fale apenas do que EXISTE" not in novo)
+# Ressalva vem de lista fechada e diz o que FALTA; sugestao e texto livre e diz
+# o que FAZER. Nao sao duas versoes da mesma coisa, e nao precisam de desempate.
+chk("ressalva e sugestao tem papeis diferentes, sem regra de precedencia",
+    "O QUE FALTA na proteção instalada, escolhido pelo inspetor numa lista fechada" in novo
+    and "O QUE FAZER, escrita à mão" in novo
+    and "resolver a ressalva E seguir a sugestão" in novo
+    and "prevalece a RESSALVA" not in novo)
 chk("Grau do dano fica fora de texto, por pedido do engenheiro",
     "HRN, Probabilidade, Grau do dano e Nível de risco não entram em frase nenhuma" in novo
     and "nunca da classificação de Grau do dano" in novo)
