@@ -4378,13 +4378,20 @@ chk("seis colunas de resposta, e nenhuma coluna de duvida",
 # Sem coluna de duvida, a saida natural do modelo passa a ser comentar a falta
 # DENTRO do texto — e e exatamente isso que nao pode ir para um laudo assinado.
 # A planilha passou a levar o julgamento do engenheiro sobre a medida existente
-# e a ressalva escrita a mao. A Solucao e escrita em cima desse julgamento —
-# sem ele, a IA supunha que a medida existente nunca era suficiente.
-chk("a planilha leva a situacao da medida existente e a ressalva",
+# (Atende / Atende em parte / Nao atende) e o defeito apontado por ele. A
+# Solucao e escrita em cima desse julgamento — sem ele, a IA supunha que a
+# medida existente nunca era suficiente.
+# O cabecalho da coluna usa o MESMO rotulo da tela do risco ("O que falta"):
+# nome de coluna que nao existe no app e nome que confunde quem confere a
+# planilha contra o aplicativo. "Ressalva" so vive como identificador interno.
+_cols = novo[novo.index("const BASE_IA_COLUNAS = ["):]
+_cols = _cols[:_cols.index("\n];")]
+chk("a planilha leva a situacao da medida existente e o que falta nela",
     '{ h:"Situação da medida existente", larg:18 },' in novo
-    and '{ h:"Ressalva da medida existente (campo)", larg:40 },' in novo
+    and '{ h:"O que falta na medida existente", larg:40 },' in novo
+    and "essalva" not in _cols
     and '(risco && laudoTemMitigacaoExistente(risco)) ? sitMedida.rot : ""' in novo
-    and "A solução precisa resolver a ressalva E seguir a sugestão" in novo)
+    and '"O que falta na medida existente": risco ? (risco.medidaExistenteRessalva || "") : ""' in novo)
 # Um equipamento aparece em varias linhas, uma por risco, e cada risco tem so um
 # pedaco da informacao. Escrever linha a linha joga o resto fora.
 chk("o prompt manda varrer antes de escrever, e escrever em camadas",
@@ -4407,11 +4414,20 @@ chk("protecao insuficiente entra no escopo; o julgamento dela e que nao entra",
     and "Fale apenas do que EXISTE" not in novo)
 # Ressalva vem de lista fechada e diz o que FALTA; sugestao e texto livre e diz
 # o que FAZER. Nao sao duas versoes da mesma coisa, e nao precisam de desempate.
-chk("ressalva e sugestao tem papeis diferentes, sem regra de precedencia",
-    "O QUE FALTA na proteção instalada, escolhido pelo inspetor numa lista fechada" in novo
-    and "O QUE FAZER, escrita à mão" in novo
-    and "resolver a ressalva E seguir a sugestão" in novo
+chk("o texto escrito a mao manda; o defeito da medida so da precisao",
+    "O TEXTO PRINCIPAL é sempre a" in novo
+    and "não é uma segunda proposta" in novo
     and "prevalece a RESSALVA" not in novo)
+# MUDANCA DE DIRECAO (10/09/2026): a solucao passa a fechar com o item da norma.
+# So e segura porque a citacao vem PRONTA e conferida da BIBLIOTECA_MEDIDAS — o
+# modelo reproduz, nunca escolhe. Laudo assinado com ART: item errado e
+# responsabilidade tecnica, nao bug.
+chk("a solucao cita a norma, mas so reproduzindo a citacao da biblioteca",
+    "TERMINE A SOLUÇÃO COM A CITAÇÃO DELA, reproduzida exatamente como está" in novo
+    and "Praticamente toda solução deve fechar com o item da norma" in novo
+    and "Nunca INVENTAR citação de norma" in novo
+    and "escreva a solução sem citação nenhuma" in novo
+    and "Medida numérica tirada de norma (distância, abertura, altura) continua proibida" in novo)
 chk("Grau do dano fica fora de texto, por pedido do engenheiro",
     "HRN, Probabilidade, Grau do dano e Nível de risco não entram em frase nenhuma" in novo
     and "nunca da classificação de Grau do dano" in novo)

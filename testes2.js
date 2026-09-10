@@ -11614,11 +11614,16 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     const COLS = vm.runInContext("BASE_IA_COLUNAS", cxC);
 
     /* ---- as duas colunas novas ---- */
-    t("O PONTO: a planilha leva a situacao da medida e a ressalva", ()=>{
+    /* A coluna se chamava "Ressalva" — palavra que nao aparece em lugar nenhum
+       do aplicativo. Na tela do risco o campo se chama "O que falta", e quem
+       confere a planilha contra o app procurava por um nome que nao existia
+       (10/09/2026). */
+    t("O PONTO: a planilha leva a situacao da medida e o que falta nela", ()=>{
       ok(COLS.some(c=> c.h === "Situação da medida existente"), "faltou a coluna de situação");
-      ok(COLS.some(c=> c.h === "Ressalva da medida existente (campo)"), "faltou a coluna de ressalva");
+      ok(COLS.some(c=> c.h === "O que falta na medida existente"), "faltou a coluna do defeito");
+      ok(!COLS.some(c=> /ressalva/i.test(c.h)), "o nome 'ressalva' não existe na tela do app");
       const corpo = funcao("baseIACamposDaLinha");
-      ok(corpo.indexOf('"Ressalva da medida existente (campo)": risco ? (risco.medidaExistenteRessalva || "") : ""') > 0);
+      ok(corpo.indexOf('"O que falta na medida existente": risco ? (risco.medidaExistenteRessalva || "") : ""') > 0);
     });
     /* "Atende" numa linha sem medida nenhuma seria lido como protecao aprovada:
        MEDIDA_SITUACOES tem "ok" como padrao, e sem esta guarda o padrao vazaria
@@ -11632,25 +11637,41 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       const m = secao("Mitigação existente", "Solução");
       const sol = secao("Solução");
       ok(m.indexOf("Situação da medida existente") > 0);
-      ok(m.indexOf("Ressalva da medida existente (campo)") > 0);
+      ok(m.indexOf("O que falta na medida existente") > 0);
       ok(sol.indexOf("Situação da medida existente") > 0);
-      ok(sol.indexOf("Ressalva da medida existente (campo)") > 0);
+      ok(sol.indexOf("O que falta na medida existente") > 0);
     });
-    /* Nao sao duas versoes da mesma coisa: a ressalva vem de LISTA FECHADA e
-       diz o que FALTA; a sugestao e texto livre e diz o que FAZER. Tratar as
-       duas como concorrentes (e criar precedencia entre elas) foi um erro meu,
-       corrigido em 10/09/2026 depois de o engenheiro mostrar as duas telas. */
-    t("ressalva e sugestao tem papeis diferentes, nao competem", ()=>{
+    /* O texto escrito a mao pelo inspetor manda. "O que falta" nao e uma
+       segunda proposta — e o diagnostico do que esta instalado, e serve para dar
+       precisao a frase, nao para trocar a acao. */
+    t("a sugestao escrita a mao e o texto principal da solucao", ()=>{
       const sol = secao("Solução");
-      ok(sol.indexOf("O QUE FALTA na proteção instalada, escolhido pelo inspetor numa lista fechada") > 0);
-      ok(sol.indexOf("O QUE FAZER, escrita à mão") > 0);
-      ok(sol.indexOf("resolver a ressalva E seguir a sugestão") > 0);
-      ok(sol.indexOf("prevalece a RESSALVA") < 0, "a regra de precedência não deve voltar");
+      ok(sol.indexOf("O TEXTO PRINCIPAL é sempre a \\\"Sugestão de mitigação (campo)\\\"") > 0);
+      ok(sol.indexOf("Ela manda no conteúdo e na intenção") > 0);
+      ok(sol.indexOf("não é uma segunda proposta") > 0);
     });
     /* Sem isto a IA completa a proposta por conta propria — ou seja, decide
        engenharia no lugar de quem assina. */
-    t("sugestao que nao cobre a ressalva nao vira complemento inventado", ()=>{
-      ok(secao("Solução").indexOf("sem afirmar que o problema da ressalva fica resolvido") > 0);
+    t("sugestao que nao cobre o defeito nao vira complemento inventado", ()=>{
+      ok(secao("Solução").indexOf("sem afirmar que aquele defeito fica resolvido") > 0);
+    });
+    /* MUDANCA DE DIRECAO (10/09/2026): a solucao passa a fechar com o item da
+       norma. So e seguro porque a citacao ja vem PRONTA e conferida na coluna da
+       biblioteca — o modelo reproduz, nunca escolhe. Laudo assinado com ART. */
+    t("O PONTO DA NORMA: cita, mas so reproduzindo o que ja veio pronto", ()=>{
+      const sol = secao("Solução");
+      ok(sol.indexOf("TERMINE A SOLUÇÃO COM A CITAÇÃO DELA, reproduzida exatamente como está") > 0);
+      ok(sol.indexOf("Praticamente toda solução deve fechar com o item da norma") > 0);
+      ok(PROMPT.indexOf("Nunca INVENTAR citação de norma") > 0);
+      ok(PROMPT.indexOf("não deduz item nenhum a partir do tipo de proteção nem de memória") > 0);
+    });
+    /* Sem medida marcada no checklist nao existe citacao conferida — e a saida
+       certa e nao citar, nunca preencher a lacuna por conta propria. */
+    t("sem texto da biblioteca, a solucao sai SEM citacao", ()=>{
+      ok(secao("Solução").indexOf("escreva a solução sem citação nenhuma") > 0);
+      ok(PROMPT.indexOf("Medida numérica tirada de norma (distância, abertura, altura) continua proibida") > 0);
+      ok(PROMPT.indexOf("Toda citação de norma que aparece foi reproduzida de uma coluna da planilha") > 0,
+         "a conferência final precisa cobrar a origem da citação");
     });
     t("Atende com proposta em campo vira melhoria, nao correcao", ()=>{
       ok(secao("Solução").indexOf("Como melhoria, recomenda-se") > 0,
