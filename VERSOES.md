@@ -64,6 +64,40 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 11/09/2026 10:25
+
+**Correção na biblioteca de medidas: concordância e citação de norma.**
+
+Um defeito de português que afetava praticamente todo texto de mitigação e
+solução gerado pelo app: o alvo da frase já vinha com artigo próprio ("a
+correia", "o eixo"), e o modelo colocava a preposição antes dele sem
+contrair — o texto saía "instalada **em a** correia" em vez de "instalada
+**na** correia". Agora a preposição contrai corretamente com o artigo em
+todos os 31 modelos da biblioteca.
+
+Além disso, uma conferência das citações de norma contra o texto oficial da
+NR-12 encontrou quatro itens errados, agora corrigidos:
+
+- **Categoria do sistema de segurança** citava o item sobre queda de energia;
+  o item correto é o que fala em categoria por apreciação de risco.
+- **Sinalização de segurança** citava uma regra de precedência entre normas;
+  o item que exige a sinalização em si é outro.
+- **Capacitação dos trabalhadores** citava o item sobre autorização para
+  manutenção; a exigência de capacitação está em outro trecho da norma.
+- **Procedimento de trabalho** citava o item de bloqueio de energia (LOTO),
+  que é assunto de outra medida; o item correto é o de procedimentos de
+  trabalho e segurança.
+
+Também: a proteção fixa passou a citar o item que exige remoção só com
+ferramenta (faltava); a cerca de proteção deixou de citar um item específico
+de transmissão de força que não se aplica a ela; o aterramento trocou a
+citação de uma norma que rege instalações elétricas de edificações (e exclui
+máquinas) pela norma correta de equipamento elétrico de máquinas.
+
+A NR-10 saiu da lista de normas de apoio (o foco normativo do projeto é a
+NR-12) e a ABNT NBR ISO 12100 — a norma-mãe de segurança de máquinas —
+passou a constar como apoio na maior parte da biblioteca.
+
 ## 04/09/2026 18:09
 
 **Novo: o app avisa quando existe versão nova publicada.** Uma faixa amarela

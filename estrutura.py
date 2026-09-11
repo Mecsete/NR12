@@ -4549,6 +4549,59 @@ chk("a geracao em lote pede o nome na MESMA leva paralela dos outros",
 chk("e coisa nova: nao existia na versao anterior",
     '"nomeSug","nomeFin"' not in orig and 'campo==="nome"' not in orig)
 
+print("=== 133. BIBLIOTECA DE MEDIDAS: CONCORDANCIA E CITACOES CONFERIDAS (10/09/2026) ===")
+# {alvo} chega com o proprio artigo embutido ("a correia", "o eixo"). Os
+# modelos antepoem uma preposicao contraivel (em/de/a) ao marcador, e sem
+# contracao 55 modelos saiam "instalada em a correia" em vez de "na correia" —
+# apontado por revisao normativa externa e conferido pelo engenheiro.
+chk("existe a funcao de contracao, e ela substitui nos 4 pontos que usam {alvo}",
+    "function substituirAlvoNoModelo(modelo, alvoTexto){" in novo
+    and novo.count("substituirAlvoNoModelo(m.") + novo.count("substituirAlvoNoModelo(m.fs, alvo)") >= 3
+    and "partes.push(substituirAlvoNoModelo(m.ex, alvo));" in novo
+    and "const corpo = substituirAlvoNoModelo(m.prop, medidaAlvo(r));" in novo
+    and "let corpo = substituirAlvoNoModelo(m.ex, medidaAlvo(r));" in novo
+    and "return substituirAlvoNoModelo(m.fs, alvo);" in novo)
+chk("a contracao cobre em/de/a, e nao mexe nas preposicoes que nao contraem",
+    _corpoDe(novo, "substituirAlvoNoModelo").count('CONTRACAO') >= 2
+    and 'em:{ a:"na", o:"no", as:"nas", os:"nos" }' in novo
+    and 'de:{ a:"da", o:"do", as:"das", os:"dos" }' in novo
+    and 'a: { a:"à",  o:"ao", as:"às",  os:"aos" }' in novo)
+chk("{alvo} sem preposicao contraivel na frente ainda e substituido (nao pode vazar cru)",
+    'saida.split("{alvo}").join(alvoTexto)' in _corpoDe(novo, "substituirAlvoNoModelo"))
+
+# Tres citacoes de item da NR-12 estavam erradas — conferidas palavra por
+# palavra no PDF da norma (normas/) e cruzadas com revisao normativa externa.
+_bib = novo[novo.index("const BIBLIOTECA_MEDIDAS = ["):novo.index("function medidaPorChave")]
+chk("categoria: 12.5.5 (queda de energia) era o item errado — corrigido para 12.5.2",
+    '"categoria"' in _bib and 'nr:["12.5.2","12.5.17"]' in _bib and '"12.5.5"' not in _bib.split('k:"categoria"')[1][:200])
+chk("sinalizacao: 12.2.9 e regra de precedencia entre normas, nao a exigencia — corrigido para 12.12.1",
+    'nr:["12.12.1"], apoio:["NR-26"' in _bib)
+chk("capacitacao: 12.11.3 e sobre autorizacao para MANUTENCAO — corrigido para 12.16 (capacitacao)",
+    'k:"capacitacao"' in _bib and 'nr:["12.16.1","12.16.8"]' in _bib)
+chk("procedimento: 12.11.3 (bloqueio de energia) trocado por 12.14.1 (procedimento de trabalho)",
+    'k:"procedimento"' in _bib and 'nr:["12.11.2.1","12.14.1"]' in _bib)
+chk("prot_fixa passa a citar tambem 12.5.4 (fixacao so removivel com ferramenta)",
+    'k:"prot_fixa"' in _bib and 'nr:["12.5.4","12.5.9","12.5.11"]' in _bib)
+chk("cerca deixa de citar 12.5.9 (especifico de transmissao de forca)",
+    'k:"cerca"' in _bib and 'nr:["12.5.1","12.5.4","12.5.11"]' in _bib)
+chk("aterramento troca NBR 5410 (rege edificacoes, exclui maquina indl.) pela IEC 60204-1",
+    'k:"aterramento"' in _bib and "5410" not in _bib.split('k:"aterramento"')[1][:200]
+    and 'apoio:["ABNT NBR IEC 60204-1"' in _bib.split('k:"aterramento"')[1][:200])
+chk("adequar_vao deixa de citar ISO 13854 (folga anti-esmagamento, tema distinto)",
+    'k:"adequar_vao"' in _bib and "13854" not in _bib.split('k:"adequar_vao"')[1][:250])
+
+# NR-10 saiu de painel/aterramento/loto A PEDIDO DO ENGENHEIRO: o foco
+# normativo do projeto e a NR-12, e a energia eletrica ja e coberta pela
+# IEC 60204-1. ISO 12100 (norma-mae, tipo A) entrou como apoio na maior
+# parte da biblioteca, tambem a pedido.
+chk("NR-10 nao aparece mais em nenhuma medida",
+    '"NR-10"' not in _bib)
+chk("ISO 12100 vira apoio na maioria das medidas (pelo menos 25 das 31)",
+    _bib.count("ABNT NBR ISO 12100") >= 25)
+
+chk("a biblioteca continua com 31 medidas, nenhuma perdida na revisao",
+    _bib.count('{ k:"') == 31)
+
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")

@@ -1512,7 +1512,67 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(ap("cortina").indexOf("61496") >= 0 && ap("cortina").indexOf("13855") >= 0, "cortina sem 61496/13855");
     ok(ap("adequar_vao").indexOf("13857") >= 0, "distâncias sem a ISO 13857");
     ok(ap("guarda_corpo").indexOf("14122-3") >= 0, "guarda-corpo sem a ISO 14122-3");
-    ok(ap("loto").indexOf("NR-10") >= 0, "LOTO sem a NR-10");
+    /* NR-10 saiu de painel/aterramento/loto em 10/09/2026, a pedido do
+       engenheiro (o foco normativo do projeto é a NR-12; NR-10 tratava
+       energia elétrica de forma redundante com a IEC 60204-1, já citada).
+       ISO 12100 entrou como norma-mãe (tipo A) em quase toda a biblioteca. */
+    ok(ap("loto").indexOf("NR-10") < 0, "NR-10 deveria ter saído do LOTO");
+    ok(ap("loto").indexOf("12100") >= 0, "LOTO sem a ISO 12100");
+    ok(ap("painel").indexOf("NR-10") < 0, "NR-10 deveria ter saído do painel");
+    ok(ap("aterramento").indexOf("NR-10") < 0, "NR-10 deveria ter saído do aterramento");
+    ok(ap("aterramento").indexOf("5410") < 0, "NBR 5410 rege edificações, não máquina — deveria ter saído");
+    ok(ap("aterramento").indexOf("60204") >= 0, "aterramento deveria citar a IEC 60204-1");
+  });
+
+  console.log("\n=== t38b · concordância na substituição de {alvo} (10/09/2026) ===");
+  /* {alvo} chega com o artigo embutido ("a correia", "o eixo", "as
+     correntes", "os roletes" — ver medidaAlvo). 55 modelos da biblioteca
+     antepõem uma preposição contraível (em/de/a) ao marcador, e sem
+     contração isso saía "instalada em a correia" em vez de "na correia" —
+     apontado por revisão normativa externa em 10/09/2026. */
+  t("O PONTO: contrai em/de/a com o artigo do alvo, sem mexer no resto", ()=>{
+    const f = C.substituirAlvoNoModelo;
+    eq(f("Proteção fixa instalada em {alvo}, impedindo", "a correia"),
+       "Proteção fixa instalada na correia, impedindo");
+    eq(f("Adequação dos condutores de alimentação de {alvo}, com", "o motor"),
+       "Adequação dos condutores de alimentação do motor, com");
+    eq(f("Instalação de meio de acesso permanente e seguro a {alvo}, dimensionado", "as escadas"),
+       "Instalação de meio de acesso permanente e seguro às escadas, dimensionado", "crase: 'a' + 'as' -> 'às'");
+    eq(f("Instalação de proteção em {alvo} constituída", "os roletes"),
+       "Instalação de proteção nos roletes constituída");
+  });
+  t("preposições que não contraem em português ficam como estão", ()=>{
+    const f = C.substituirAlvoNoModelo;
+    eq(f("Instalação em local que não force {alvo} para nada", "a correia"),
+       "Instalação em local que não force a correia para nada", "'para' não contrai: fica intocado");
+    eq(f("Sistema montado sobre {alvo}, com folga", "o eixo"),
+       "Sistema montado sobre o eixo, com folga", "'sobre' não contrai: fica intocado");
+    eq(f("Chaves instaladas ao longo de {alvo}, trabalhando", "a correia"),
+       "Chaves instaladas ao longo da correia, trabalhando",
+       "'de' contrai mesmo dentro de 'ao longo de' — é a palavra imediatamente antes do marcador que importa");
+  });
+  t("{alvo} sem preposição contraível na frente continua sendo substituído", ()=>{
+    /* Sem este caso, {alvo} literal vazaria pro laudo — pior que o bug de
+       concordância que a função veio corrigir. */
+    eq(C.substituirAlvoNoModelo("o movimento perigoso {alvo} deve parar.", "a correia"),
+       "o movimento perigoso a correia deve parar.");
+  });
+  t("alvo sem artigo reconhecível (caso raro) não quebra: substitui puro", ()=>{
+    eq(C.substituirAlvoNoModelo("Instalação em {alvo}, com cuidado", "zona sem artigo"),
+       "Instalação em zona sem artigo, com cuidado");
+  });
+  t("a mitigação existente de verdade sai com a concordância certa", ()=>{
+    /* Mesmo caminho que um laudo real percorre: checklist marcado, texto
+       montado por medidaTextoExistenteMulti. */
+    const r = { componente:"Correia", medidasExistentes:["prot_fixa"] };
+    const txt = C.medidaTextoExistenteMulti(r);
+    ok(txt.indexOf("instalada na correia") > 0, "não contraiu 'em a' -> 'na': " + txt);
+    ok(txt.indexOf("em a correia") < 0, txt);
+  });
+  t("a função de segurança (PLr) também usa a substituição corrigida", ()=>{
+    const r = { componente:"Correia", medidaPropostaTipo:"prot_movel_int" };
+    const frase = C.plrFraseFuncao(r);
+    ok(frase.indexOf("{alvo}") < 0, "marcador não substituído: " + frase);
   });
 
   console.log("\n=== t39 · texto da mitigação proposta ===");
@@ -1521,8 +1581,12 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     const txt = C.medidaTextoProposto(r, "prot_fixa");
     ok(txt.indexOf("proteção fixa") > 0, "sem a medida");
     ok(txt.indexOf("a correia") > 0, "sem o alvo: " + txt);
-    ok(txt.indexOf("NR-12, item 12.5.9 e item 12.5.11") > 0, "citação errada: " + txt);
+    /* 12.5.4 entrou em 10/09/2026: e o item que exige fixacao removivel so
+       com ferramenta — exatamente o que o texto da protecao fixa promete,
+       e faltava na citacao. */
+    ok(txt.indexOf("NR-12, item 12.5.4, item 12.5.9 e item 12.5.11") > 0, "citação errada: " + txt);
     ok(txt.indexOf("ABNT NBR ISO 14120") > 0, "sem a norma de apoio");
+    ok(txt.indexOf("ABNT NBR ISO 12100") > 0, "sem a norma-mãe ISO 12100");
     ok(txt.slice(-1) === ".", "sem ponto final");
   });
   t("sem componente, usa o local como alvo", ()=>{

@@ -2937,7 +2937,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "10/09/2026 10:16";
+const APP_BUILD = "11/09/2026 10:25";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -10329,21 +10329,21 @@ const MEDIDA_RESSALVAS = [
 const BIBLIOTECA_MEDIDAS = [
   /* ---------------- Proteção física ---------------- */
   { k:"prot_fixa", g:"Proteção física", rot:"Proteção fixa",
-    nr:["12.5.9","12.5.11"], apoio:["ABNT NBR ISO 14120"],
+    nr:["12.5.4","12.5.9","12.5.11"], apoio:["ABNT NBR ISO 14120","ABNT NBR ISO 12100"],
     prop:"Instalação de proteção fixa enclausurando {alvo}, impedindo o acesso por todos os lados, com fixação que exija o uso de ferramenta para a remoção",
     ex:"Proteção fixa instalada em {alvo}, impedindo o acesso à zona de perigo e removível somente com o uso de ferramenta",
     comp:["Correia","Polia","Corrente","Engrenagem","Eixo","Rolo","Rosca","Motor","Redutor"],
     local:["Transmissão de potência"] },
 
   { k:"prot_movel_int", g:"Proteção física", rot:"Proteção móvel com intertravamento",
-    nr:["12.5.6","12.5.7"], apoio:["ABNT NBR ISO 14119","ABNT NBR ISO 14120"],
+    nr:["12.5.6","12.5.7"], apoio:["ABNT NBR ISO 14119","ABNT NBR ISO 14120","ABNT NBR ISO 12100"],
     pl:true, fs:"Ao se abrir a proteção móvel de acesso {alvo}, o acionamento deve parar.",
     prop:"Instalação de proteção móvel dotada de dispositivo de intertravamento em {alvo}, de modo que a máquina opere somente com a proteção fechada e paralise as funções perigosas quando ela for aberta",
     ex:"Proteção móvel com dispositivo de intertravamento instalada em {alvo}, paralisando as funções perigosas quando aberta",
     obs:"Aplicável quando o acesso à zona de perigo é requerido mais de uma vez por turno." },
 
   { k:"prot_movel_bloq", g:"Proteção física", rot:"Proteção móvel com intertravamento e bloqueio",
-    nr:["12.5.6","12.5.8","12.5.9.1"], apoio:["ABNT NBR ISO 14119"],
+    nr:["12.5.6","12.5.8","12.5.9.1"], apoio:["ABNT NBR ISO 14119","ABNT NBR ISO 12100"],
     pl:true, fs:"Ao se comandar a abertura da proteção {alvo}, o bloqueio só deve liberar após a parada completa do movimento.",
     prop:"Instalação de proteção móvel com dispositivo de intertravamento com bloqueio em {alvo}, mantendo-a fechada e bloqueada até a cessação completa do movimento",
     ex:"Proteção móvel com intertravamento e bloqueio instalada em {alvo}, mantida fechada até a parada completa do movimento",
@@ -10351,166 +10351,166 @@ const BIBLIOTECA_MEDIDAS = [
     comp:["Rolo","Volante","Ventilador","Disco","Serra"] },
 
   { k:"adequar_vao", soProposta:true, g:"Proteção física", rot:"Adequar proteção existente (vão / abertura)",
-    nr:["12.5.11","12.5.12"], apoio:["ABNT NBR ISO 13857","ABNT NBR ISO 13854"],
+    nr:["12.5.11","12.5.12"], apoio:["ABNT NBR ISO 13857","ABNT NBR ISO 12100"],
     prop:"Adequação da proteção existente de {alvo}, eliminando a abertura que permite alcançar a zona de perigo e observando as distâncias de segurança para material descontínuo",
     ex:"Proteção existente em {alvo} confeccionada em material descontínuo, com vãos na zona de perigo" },
 
   { k:"arestas", soProposta:true, g:"Proteção física", rot:"Eliminar arestas cortantes",
-    nr:["12.5.11"],
+    nr:["12.5.11"], apoio:["ABNT NBR ISO 12100"],
     prop:"Rebarbação e acabamento das extremidades de {alvo}, eliminando arestas cortantes e saliências perigosas",
     ex:"Extremidades de {alvo} com acabamento adequado, sem arestas cortantes ou saliências perigosas",
     evento:["Corte","Laceração","Perfuração"], comp:["Proteção"] },
 
   { k:"fixacao", soProposta:true, g:"Proteção física", rot:"Reforçar fixação da proteção",
-    nr:["12.5.11"], apoio:["ABNT NBR ISO 14120"],
+    nr:["12.5.11"], apoio:["ABNT NBR ISO 14120","ABNT NBR ISO 12100"],
     prop:"Reforço da fixação da proteção de {alvo}, garantindo estabilidade e resistência mecânica compatíveis com os esforços requeridos",
     ex:"Proteção de {alvo} com fixação firme, estável e resistente aos esforços requeridos" },
 
   { k:"cerca", g:"Proteção física", rot:"Cerca de proteção perimetral",
-    nr:["12.5.9","12.5.11"], apoio:["ABNT NBR ISO 14120","ABNT NBR ISO 13857"],
+    nr:["12.5.1","12.5.4","12.5.11"], apoio:["ABNT NBR ISO 14120","ABNT NBR ISO 13857","ABNT NBR ISO 12100"],
     prop:"Instalação de cerca de proteção delimitando o perímetro de {alvo}, com altura e distância de segurança que impeçam o alcance da zona de perigo",
     ex:"Cerca de proteção perimetral instalada em {alvo}, delimitando o acesso à zona de perigo",
     comp:["Correia","Esteira","Elevador","Rosca"], local:["Área de circulação"] },
 
   { k:"projecao", g:"Proteção física", rot:"Proteção contra projeção de materiais",
-    nr:["12.5.10","12.5.11"],
+    nr:["12.5.10","12.5.11"], apoio:["ABNT NBR ISO 12100"],
     prop:"Instalação de proteção em {alvo} constituída de material resistente à contenção de projeção de peças, materiais e partículas",
     ex:"Proteção instalada em {alvo} para contenção de projeção de peças, materiais e partículas",
     evento:["Projeção de partículas","Queda de material"] },
 
   { k:"cardan", g:"Proteção física", rot:"Proteção de eixo cardã",
-    nr:["12.5.9.2"],
+    nr:["12.5.9.2"], apoio:["ABNT NBR ISO 12100"],
     prop:"Instalação de proteção do eixo cardã em toda a sua extensão, fixada na tomada de força, desde a cruzeta até o acoplamento do implemento",
     ex:"Eixo cardã protegido em toda a extensão, desde a cruzeta até o acoplamento" },
 
   { k:"espelho_degrau", g:"Proteção física", rot:"Proteção no espelho dos degraus",
-    nr:["12.5.15"],
+    nr:["12.5.15"], apoio:["ABNT NBR ISO 12100"],
     prop:"Instalação de proteção no fundo dos degraus (espelhos) de {alvo}, impedindo que parte saliente do pé ou da mão contate a zona perigosa",
     ex:"Degraus de {alvo} com proteção no espelho, impedindo o contato com a zona perigosa" },
 
   /* ---------------- Dispositivos de segurança ---------------- */
   { k:"cortina", g:"Dispositivos de segurança", rot:"Cortina de luz (eletrossensível)",
-    nr:["12.5.13"], apoio:["ABNT NBR IEC 61496","ABNT NBR ISO 13855"],
+    nr:["12.5.13"], apoio:["ABNT NBR IEC 61496","ABNT NBR ISO 13855","ABNT NBR ISO 12100"],
     pl:true, fs:"Ao se interromper o feixe da cortina de luz no acesso {alvo}, o movimento perigoso deve parar.",
     prop:"Instalação de cortina de luz protegendo o acesso a {alvo}, posicionada conforme a distância de segurança calculada a partir do tempo de parada da máquina",
     ex:"Cortina de luz instalada no acesso a {alvo}, com posicionamento conforme distância de segurança" },
 
   { k:"tapete", g:"Dispositivos de segurança", rot:"Tapete ou sensor sensível à pressão",
-    nr:["12.5.13"], apoio:["ABNT NBR ISO 13856"],
+    nr:["12.5.13"], apoio:["ABNT NBR ISO 13856","ABNT NBR ISO 12100"],
     pl:true, fs:"Ao se detectar presença sobre o dispositivo sensível à pressão no acesso {alvo}, o movimento perigoso deve parar.",
     prop:"Instalação de dispositivo de proteção sensível à pressão no acesso a {alvo}, detectando a presença de pessoas na zona de perigo",
     ex:"Dispositivo sensível à pressão instalado no acesso a {alvo}" },
 
   { k:"reset", g:"Dispositivos de segurança", rot:"Rearme manual (reset) na entrada da zona",
-    nr:["12.5.13","12.5.13.1"],
+    nr:["12.5.13","12.5.13.1"], apoio:["ABNT NBR ISO 12100"],
     pl:true, fs:"Ao se atuar o rearme manual na entrada {alvo}, a máquina só deve ser liberada para partida, sem partir por si.",
     prop:"Instalação de atuador de rearme manual na entrada de {alvo}, localizado de modo a permitir a visão completa da zona protegida antes do religamento",
     ex:"Atuador de rearme manual instalado na entrada de {alvo}, com visão completa da zona protegida" },
 
   { k:"emergencia", g:"Dispositivos de segurança", rot:"Dispositivo de parada de emergência",
-    nr:["12.6.1","12.6.2","12.6.3"], apoio:["ABNT NBR ISO 13850"],
+    nr:["12.6.1","12.6.2","12.6.3"], apoio:["ABNT NBR ISO 13850","ABNT NBR ISO 12100"],
     pl:true, fs:"Ao se acionar o dispositivo de parada de emergência, o movimento perigoso {alvo} deve parar.",
     prop:"Instalação de dispositivo de parada de emergência em {alvo}, posicionado em local de fácil acesso e visualização, permanentemente desobstruído e prevalecendo sobre todos os demais comandos",
     ex:"Dispositivo de parada de emergência instalado em {alvo}, de fácil acesso e visualização, desobstruído" },
 
   { k:"emerg_cabo", g:"Dispositivos de segurança", rot:"Chave de emergência tipo cabo",
-    nr:["12.6.6","12.6.7"],
+    nr:["12.6.6","12.6.7"], apoio:["ABNT NBR ISO 12100"],
     pl:true, fs:"Ao se tracionar ou romper o cabo de emergência ao longo {alvo}, o acionamento deve parar.",
     prop:"Instalação de chaves de parada de emergência do tipo cabo ao longo de {alvo}, trabalhando tracionadas de modo a cessar as funções perigosas em caso de ruptura ou afrouxamento",
     ex:"Chaves de parada de emergência tipo cabo instaladas ao longo de {alvo}, trabalhando tracionadas",
     comp:["Correia","Rolo"] },
 
   { k:"bimanual", g:"Dispositivos de segurança", rot:"Comando bimanual",
-    nr:["12.4.3"], apoio:["ABNT NBR 14153","ABNT ISO 13849-1"],
+    nr:["12.4.3"], apoio:["ABNT NBR 14153","ABNT ISO 13849-1","ABNT NBR ISO 12100"],
     pl:true, fs:"Ao se liberar qualquer um dos botões do comando bimanual, o movimento perigoso {alvo} deve parar.",
     prop:"Instalação de dispositivo de acionamento bimanual com atuação síncrona em {alvo}, mantendo as mãos do operador fora da zona de perigo durante o ciclo",
     ex:"Dispositivo de acionamento bimanual instalado em {alvo}, mantendo as mãos fora da zona de perigo" },
 
   { k:"partida", soProposta:true, g:"Dispositivos de segurança", rot:"Adequar dispositivos de partida e parada",
-    nr:["12.4.1","12.4.2"],
+    nr:["12.4.1","12.4.2"], apoio:["ABNT NBR ISO 12100"],
     pl:true, fs:"Ao se restabelecer a energia, o acionamento {alvo} não deve partir por si.",
     prop:"Adequação dos dispositivos de partida, acionamento e parada de {alvo}, retirando-os da zona perigosa, impedindo o acionamento involuntário e o religamento automático na energização",
     ex:"Dispositivos de partida, acionamento e parada de {alvo} localizados fora da zona perigosa, com proteção contra acionamento involuntário" },
 
   { k:"categoria", soProposta:true, g:"Dispositivos de segurança", rot:"Adequar categoria do sistema de segurança",
-    nr:["12.5.5","12.5.17"], apoio:["ABNT NBR 14153","ABNT ISO 13849-1"],
+    nr:["12.5.2","12.5.17"], apoio:["ABNT NBR 14153","ABNT ISO 13849-1","ABNT NBR ISO 12100"],
     pl:true, fs:"Ao ocorrer defeito nas partes do comando relacionadas à segurança {alvo}, a função de segurança deve ser mantida.",
     prop:"Adequação das partes do sistema de comando relacionadas à segurança de {alvo} à categoria indicada pela apreciação de risco, com monitoramento por interface de segurança",
     ex:"Partes do sistema de comando relacionadas à segurança de {alvo} monitoradas por interface de segurança" },
 
   /* ---------------- Elétrica e energia ---------------- */
   { k:"painel", soProposta:true, g:"Elétrica e energia", rot:"Adequar quadro ou painel elétrico",
-    nr:["12.3.5","12.3.8"], apoio:["ABNT NBR IEC 60204-1","NR-10"],
+    nr:["12.3.5","12.3.8"], apoio:["ABNT NBR IEC 60204-1","ABNT NBR ISO 12100"],
     prop:"Fechamento permanente da porta do painel, eliminação das partes energizadas expostas, identificação dos circuitos e sinalização quanto ao perigo de choque elétrico com restrição de acesso",
     ex:"Painel elétrico com porta mantida fechada, circuitos identificados e sinalização de perigo de choque elétrico",
     comp:["Painel elétrico"], local:["Compartimento elétrico"], evento:["Choque elétrico"] },
 
   { k:"aterramento", g:"Elétrica e energia", rot:"Aterramento de carcaças e partes condutoras",
-    nr:["12.3.2"], apoio:["ABNT NBR 5410","NR-10"],
+    nr:["12.3.2"], apoio:["ABNT NBR IEC 60204-1","ABNT NBR ISO 12100"],
     prop:"Aterramento das carcaças, invólucros, blindagens e demais partes condutoras de {alvo} que possam ficar sob tensão",
     ex:"Carcaças e partes condutoras de {alvo} aterradas conforme normas técnicas vigentes",
     evento:["Choque elétrico"] },
 
   { k:"condutores", soProposta:true, g:"Elétrica e energia", rot:"Adequar condutores e cabeamento",
-    nr:["12.3.4"], apoio:["ABNT NBR IEC 60204-1"],
+    nr:["12.3.4"], apoio:["ABNT NBR IEC 60204-1","ABNT NBR ISO 12100"],
     prop:"Adequação dos condutores de alimentação de {alvo}, com proteção contra rompimento mecânico e contato abrasivo, afastados de partes móveis e cantos vivos",
     ex:"Condutores de alimentação de {alvo} protegidos contra rompimento mecânico e afastados de partes móveis" },
 
   { k:"loto", g:"Elétrica e energia", rot:"Bloqueio e etiquetagem de energias (LOTO)",
-    nr:["12.11.3"], apoio:["NR-10"],
+    nr:["12.11.3"], apoio:["ABNT NBR ISO 12100"],
     prop:"Implantação de procedimento de bloqueio e etiquetagem, com isolamento e descarga de todas as fontes de energia e cartão de bloqueio contendo horário, data, motivo da manutenção e nome do responsável",
     ex:"Procedimento de bloqueio e etiquetagem implantado, com isolamento e descarga das fontes de energia e cartão de bloqueio identificado",
     local:["Área de manutenção"] },
 
   { k:"modo_manut", g:"Elétrica e energia", rot:"Modo de operação para manutenção",
-    nr:["12.11.3.1"],
+    nr:["12.11.3.1"], apoio:["ABNT NBR ISO 12100"],
     pl:true, fs:"Ao se selecionar o modo de manutenção {alvo}, o comando automático deve ficar inoperante e o movimento só ocorrer por ação continuada.",
     prop:"Implantação de modo de operação específico para manutenção e ajuste em {alvo}, tornando inoperante o comando automático, com acionamento de ação continuada e velocidade reduzida, e seleção protegida contra uso não autorizado",
     ex:"Modo de operação específico para manutenção disponível em {alvo}, com comando de ação continuada e velocidade reduzida" },
 
   { k:"pressurizado", g:"Elétrica e energia", rot:"Proteger componentes pressurizados",
-    nr:["12.7.1","12.7.2","12.7.5"],
+    nr:["12.7.1","12.7.2","12.7.5"], apoio:["ABNT NBR ISO 12100"],
     prop:"Proteção e reposicionamento das mangueiras e tubulações pressurizadas de {alvo}, de modo que uma ruptura ou vazamento não possa ocasionar acidentes, e garantia de que a pressão residual não gere risco",
     ex:"Mangueiras e tubulações pressurizadas de {alvo} protegidas contra impacto e posicionadas de forma a não causar acidentes em caso de ruptura" },
 
   /* ---------------- Acesso e altura ---------------- */
   { k:"guarda_corpo", g:"Acesso e altura", rot:"Guarda-corpo com rodapé",
-    nr:["Anexo III, item 7"], apoio:["ABNT NBR ISO 14122-3","NR-35"],
+    nr:["Anexo III, item 7"], apoio:["ABNT NBR ISO 14122-3","NR-35","ABNT NBR ISO 12100"],
     prop:"Instalação de sistema de proteção contra quedas em {alvo}, com travessão superior entre 1,10 m e 1,20 m, travessão intermediário a 0,70 m e rodapé de no mínimo 0,20 m de altura",
     ex:"Sistema de proteção contra quedas instalado em {alvo}, com travessão superior, intermediário e rodapé",
     local:["Plataforma","Passarela","Escada"], evento:["Queda"] },
 
   { k:"acesso_seguro", g:"Acesso e altura", rot:"Meio de acesso permanente e seguro",
-    nr:["Anexo III, itens 1 e 5"], apoio:["ABNT NBR ISO 14122-1","ABNT NBR ISO 14122-2","ABNT NBR ISO 14122-3"],
+    nr:["Anexo III, itens 1 e 5"], apoio:["ABNT NBR ISO 14122-1","ABNT NBR ISO 14122-2","ABNT NBR ISO 14122-3","ABNT NBR ISO 12100"],
     prop:"Instalação de meio de acesso permanente e seguro a {alvo}, dimensionado e fixado de modo resistente, com piso e degraus antiderrapantes e mantido desobstruído",
     ex:"Meio de acesso permanente instalado em {alvo}, com superfície antiderrapante e mantido desobstruído",
     local:["Plataforma","Passarela","Escada"] },
 
   { k:"tela_queda", g:"Acesso e altura", rot:"Proteção contra queda de objetos",
-    nr:["Anexo III, item 8"],
+    nr:["Anexo III, item 8"], apoio:["ABNT NBR ISO 12100"],
     prop:"Instalação de proteção fixa, integral e resistente no vão entre o rodapé e o travessão superior do guarda-corpo de {alvo}, impedindo a queda de objetos e materiais",
     ex:"Vão do guarda-corpo de {alvo} fechado com proteção integral contra queda de objetos",
     evento:["Queda de material"] },
 
   /* ---------------- Organizacional ---------------- */
   { k:"sinalizacao", g:"Organizacional", rot:"Sinalização de segurança",
-    nr:["12.2.9"], apoio:["NR-26","ABNT NBR ISO 7010"],
+    nr:["12.12.1"], apoio:["NR-26","ABNT NBR ISO 7010","ABNT NBR ISO 12100"],
     prop:"Instalação de sinalização de segurança em {alvo}, advertindo quanto ao risco e à restrição de acesso, conforme as normas técnicas vigentes",
     ex:"Sinalização de segurança instalada em {alvo}, advertindo quanto ao risco",
     obs:"Medida auxiliar: não substitui proteção física (NR-12, item 12.5.16)." },
 
   { k:"procedimento", g:"Organizacional", rot:"Procedimento de trabalho e manutenção",
-    nr:["12.11.2","12.11.3"],
+    nr:["12.11.2.1","12.14.1"], apoio:["ABNT NBR ISO 12100"],
     prop:"Elaboração e implantação de procedimento de trabalho para {alvo}, com registro das manutenções disponível aos trabalhadores, à CIPA, ao SESMT e à fiscalização",
     ex:"Procedimento de trabalho e registro de manutenções implantados para {alvo}" },
 
   { k:"capacitacao", g:"Organizacional", rot:"Capacitação dos trabalhadores",
-    nr:["12.11.3"],
+    nr:["12.16.1","12.16.8"], apoio:["ABNT NBR ISO 12100"],
     prop:"Capacitação dos trabalhadores que intervêm em {alvo}, com autorização formal do empregador e reciclagem periódica documentada",
     ex:"Trabalhadores capacitados e formalmente autorizados para intervir em {alvo}" },
 
   { k:"projeto_hab", soProposta:true, g:"Organizacional", rot:"Projeto por profissional habilitado",
-    nr:["12.5.17"], apoio:["ABNT NBR 14153","ABNT ISO 13849-1"],
+    nr:["12.5.17"], apoio:["ABNT NBR 14153","ABNT ISO 13849-1","ABNT NBR ISO 12100"],
     prop:"Elaboração de projeto, diagrama ou representação esquemática dos sistemas de segurança de {alvo}, com especificações técnicas em língua portuguesa, por profissional legalmente habilitado",
     ex:"Projeto dos sistemas de segurança de {alvo} disponível, elaborado por profissional legalmente habilitado" },
 ];
@@ -10558,7 +10558,7 @@ function medidaTextoExistenteMulti(r){
   chaves.forEach(k=>{
     const m = medidaPorChave(k);
     if(!m) return;
-    partes.push(m.ex.replace(/\{alvo\}/g, alvo));
+    partes.push(substituirAlvoNoModelo(m.ex, alvo));
     const ref = medidaReferencia(m);
     if(ref && refs.indexOf(ref) < 0) refs.push(ref);
   });
@@ -10603,6 +10603,34 @@ function medidaAlvo(r){
   if(loc) return riscoArtigoEm(loc).replace(/^n/, "");
   return "a zona de perigo";
 }
+/* {alvo} sempre chega com o proprio artigo embutido (ver medidaAlvo acima:
+   "a correia", "o eixo", "as correntes", "os roletes"). Os modelos da
+   biblioteca antepoem uma preposicao ao marcador ("em {alvo}", "de {alvo}",
+   "a {alvo}"), e as tres contraem com artigo em portugues: "em a" -> "na",
+   "de a" -> "da", "a a" -> "à" (crase). Sem isto, todo modelo que usa uma
+   dessas tres preposicoes saia errado: "instalada em a correia" em vez de
+   "instalada na correia" — defeito presente nos 31 modelos da biblioteca,
+   apontado por revisao externa em 10/09/2026.
+   As demais preposicoes dos modelos (para, com, sem, sobre, entre, ao
+   longo de, conforme) nao contraem com artigo e ficam como estao — por
+   isso a troca so mexe em "em", "de" e "a" imediatamente antes do
+   marcador, nunca no resto da frase. */
+function substituirAlvoNoModelo(modelo, alvoTexto){
+  if(!modelo) return "";
+  const m = /^(as|os|a|o)\s+([\s\S]*)$/i.exec(String(alvoTexto||""));
+  if(!m) return modelo.split("{alvo}").join(alvoTexto||"");
+  const artigo = m[1].toLowerCase(), resto = m[2];
+  const CONTRACAO = {
+    em:{ a:"na", o:"no", as:"nas", os:"nos" },
+    de:{ a:"da", o:"do", as:"das", os:"dos" },
+    a: { a:"à",  o:"ao", as:"às",  os:"aos" },
+  };
+  const saida = modelo.replace(/\b(em|de|a)\s+\{alvo\}/gi, (bruto, prep)=>{
+    const tab = CONTRACAO[prep.toLowerCase()];
+    return (tab && tab[artigo]) ? (tab[artigo] + " " + resto) : (prep + " " + alvoTexto);
+  });
+  return saida.split("{alvo}").join(alvoTexto); // sobras sem preposicao contraivel
+}
 /* Referência normativa formatada: NR-12 primeiro (é a exigência legal), as
    normas técnicas depois (são o meio de atender). */
 function medidaReferencia(m){
@@ -10617,14 +10645,14 @@ function medidaReferencia(m){
 function medidaTextoProposto(r, chave){
   const m = medidaPorChave(chave);
   if(!m) return "";
-  const corpo = m.prop.replace(/\{alvo\}/g, medidaAlvo(r));
+  const corpo = substituirAlvoNoModelo(m.prop, medidaAlvo(r));
   return corpo + ", conforme " + medidaReferencia(m) + ".";
 }
 function medidaTextoExistente(r, chave, situacao, ressalva){
   const m = medidaPorChave(chave);
   if(!m) return "";
   const sit = MEDIDA_SITUACOES.find(s=>s.k===situacao) || MEDIDA_SITUACOES[0];
-  let corpo = m.ex.replace(/\{alvo\}/g, medidaAlvo(r));
+  let corpo = substituirAlvoNoModelo(m.ex, medidaAlvo(r));
   const obs = String(ressalva||"").trim();
   if(sit.k !== "ok" && obs) corpo += ", porém " + obs;
   return corpo + ". " + sit.frase + " na " + medidaReferencia(m) + ".";
@@ -10810,7 +10838,7 @@ function plrFraseFuncao(r){
   const m = plrMedidaDoRisco(r);
   if(!m || !m.fs) return "";
   const alvo = medidaAlvo(r);
-  return m.fs.replace(/\{alvo\}/g, alvo);
+  return substituirAlvoNoModelo(m.fs, alvo);
 }
 
 /* ---------- Bloco "Função de segurança" (campo e laudo) ---------- */
