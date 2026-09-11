@@ -11816,6 +11816,126 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  /* ---------- t160: hibernação das funções clássicas da IA (11/09/2026) ---
+     O fluxo virou planilha exportada -> respondida fora do app -> importada
+     de volta. A tela de IA em Laudo tinha 6 seções de conexão direta com um
+     provedor que deixaram de ser o caminho principal — mas o engenheiro
+     avisou que ainda pode precisar voltar atrás, então nada foi apagado:
+     só escondido atrás de um interruptor, ligado (escondido) por padrão. */
+  {
+    console.log("\n[t160] hibernação das funções clássicas da IA");
+    const tela = funcao("screenSimplesConfigIA");
+
+    /* O PONTO: por padrao (campo novo, sem valor salvo ainda), a tela
+       classica fica ESCONDIDA em qualquer aparelho que abrir depois desta
+       versao — sem precisar de nenhum toque. */
+    t("O PONTO: hibernado por padrao para quem ainda nao tem o campo salvo", ()=>{
+      const corpo = funcao("getIAConfig");
+      ok(corpo.indexOf('if(c.classicoHibernado===undefined) c.classicoHibernado = true;') > 0,
+         "sem o padrao ligado, cada aparelho que sincronizar de novo veria a tela cheia de volta");
+    });
+    /* As tres secoes do metodo por planilha (mais a de plaqueta, que nao e
+       assunto de IA-de-texto) ficam FORA do "if(classico)" — sempre visiveis,
+       hibernado ou nao. */
+    t("planilha, instrucoes da planilha e plaqueta ficam sempre visiveis", ()=>{
+      const ifClassico = tela.indexOf("${classico ? `");
+      ok(ifClassico > 0, "nao achei o ponto onde o classico comeca a ser condicionado");
+      const antes = tela.slice(0, ifClassico);
+      ["Planilha para responder fora do app", "Instruções da planilha respondida fora do app",
+       "Dados de plaqueta lidos fora do app", "Funções clássicas da IA"].forEach(marca=>
+        ok(antes.indexOf(marca) > 0, "deveria estar fora do bloco classico: " + marca));
+    });
+    /* As seis secoes classicas (Conexao/chave, Testar conexao, Alternar
+       sozinho, Textos .json, Aprender com laudos aprovados, os 5 prompts por
+       campo, Restaurar/Remover, Base de Normas) ficam DENTRO do condicional —
+       presentes no codigo (nada apagado), so nao renderizadas quando
+       hibernado. */
+    t("as secoes classicas continuam existindo, mas dentro do 'if(classico)'", ()=>{
+      const ifClassico = tela.indexOf("${classico ? `");
+      const depois = tela.slice(ifClassico);
+      ["<div class=\"section-title\">Conexão</div>", "Testar conexão",
+       "Alternar sozinho quando o limite for atingido",
+       "<div class=\"section-title\">Textos gerados fora do app</div>",
+       "Aprender com os laudos já aprovados",
+       "<div class=\"section-title\">Instruções para a IA (prompt por campo)</div>",
+       "Remover chave e desativar IA", "Base de Normas (PDF)"].forEach(marca=>
+        ok(depois.indexOf(marca) > 0, "sumiu do código, não devia — nada pode ser apagado: " + marca));
+      const antes = tela.slice(0, ifClassico);
+      ["Testar conexão", "Alternar sozinho quando o limite for atingido",
+       "Aprender com os laudos já aprovados", "Base de Normas (PDF)"].forEach(marca=>
+        ok(antes.indexOf(marca) < 0, "vazou para fora do condicional, apareceria mesmo hibernado: " + marca));
+    });
+    t("nenhuma funcao foi removida do App: so a tela que as mostra", ()=>{
+      ["testarIA(){", "onIAApiKeyInput(v){", "onIAConfigPromptInput(tipo, v){",
+       "removerChaveIA(", "restaurarPromptsIAPadrao(){", "toggleIAAlternarProvedor(){",
+       "toggleIAReferencias(){", "onUploadNormaPDF("].forEach(marca=>
+        ok(HTML.indexOf(marca) > 0, "método sumiu do App — hibernar não é apagar: " + marca));
+    });
+    t("o interruptor existe, sincroniza entre aparelhos e redesenha a tela", ()=>{
+      ok(HTML.indexOf('toggleIAClassicoHibernado(){ const c=getIAConfig(); c.classicoHibernado=!c.classicoHibernado; marcarIAAlterada(); render(); },') > 0);
+      ok(tela.indexOf('onchange="App.toggleIAClassicoHibernado()"') > 0);
+    });
+    /* A variavel que decide tudo precisa ser literalmente a negacao do
+       campo salvo — nao uma constante nem uma condicao trocada, senao o
+       interruptor da tela mentiria sobre o que está mostrando. */
+    t("'classico' é exatamente a negação de classicoHibernado, nada mais", ()=>{
+      ok(tela.indexOf("const classico = !cfg.classicoHibernado;") > 0);
+    });
+
+    /* PROVA DE VERDADE: executa a tela de verdade (nao so olha o texto-fonte)
+       com todo mundo em volta substituido por um toco simples, e confere o
+       HTML que sai nos dois estados. E o unico jeito de pegar um "${classico
+       ? ... : ...}" que existe no texto mas nao controla nada de verdade —
+       um teste so de posicao de string, como os de cima, nao pegaria isso. */
+    t("EXECUTADO: hibernado esconde as 6 secoes classicas; reativado, elas voltam", ()=>{
+      const cx = vm.createContext({ console, String, Object, Array, JSON });
+      vm.runInContext(`
+        var __cfgHibernado = true;
+        function escapeHtml(x){ return String(x==null?"":x); }
+        function ic(){ return ""; }
+        function getOneDriveConta(){ return null; }
+        const IA_PROVEDORES = { anthropic:{ nome:"Claude", dicaChave:"", linkChave:"", endpoint:"", modelo:"claude-sonnet-5" } };
+        const IA_PROVEDOR_PADRAO = "anthropic";
+        function getIAApiKey(){ return ""; }
+        function getIAApiKeysMapa(){ return {}; }
+        function getIAConfig(){
+          return { provedor:"anthropic", endpoint:"", modelo:"claude-sonnet-5",
+            classicoHibernado: __cfgHibernado, promptPlanilha:"",
+            prompts:{ equipamento:"", escopo:"", tarefa:"", risco:"", mitigacao:"" } };
+        }
+        var __ultimoTesteIA = null, __ultimoImporteTextos = null,
+            __ultimoImportePlanilhaIA = null, __ultimoImportePlaqueta = null;
+        function laudoUsaReferencias(){ return false; }
+        const LAUDO_CAMPOS = [];
+        function laudoExemplosAprovados(){ return []; }
+        const REFS_IA_MAX = 5;
+        function basePlanilhaPromptAtual(){ return "PROMPT"; }
+        function getNormasIA(){ return []; }
+        function fmtTamanhoTexto(){ return ""; }
+        function conferirNormasHtml(){ return ""; }
+      `, cx);
+      vm.runInContext(funcao("screenSimplesConfigIA"), cx);
+
+      vm.runInContext("__cfgHibernado = true;", cx);
+      const hibernado = vm.runInContext("screenSimplesConfigIA()", cx);
+      vm.runInContext("__cfgHibernado = false;", cx);
+      const reativado = vm.runInContext("screenSimplesConfigIA()", cx);
+
+      // sempre visivel, nos dois estados
+      ["Planilha para responder fora do app", "Dados de plaqueta lidos fora do app"].forEach(m=>{
+        ok(hibernado.indexOf(m) > 0, "sumiu mesmo hibernado: " + m);
+        ok(reativado.indexOf(m) > 0, "sumiu mesmo reativado: " + m);
+      });
+      // classico: some quando hibernado, volta quando reativado
+      ["Testar conexão", "Alternar sozinho quando o limite for atingido",
+       "Textos gerados fora do app", "Aprender com os laudos já aprovados",
+       "Base de Normas (PDF)"].forEach(m=>{
+        ok(hibernado.indexOf(m) < 0, "deveria estar escondido quando hibernado: " + m);
+        ok(reativado.indexOf(m) > 0, "deveria voltar ao reativar: " + m);
+      });
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

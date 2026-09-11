@@ -2937,7 +2937,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "11/09/2026 10:25";
+const APP_BUILD = "11/09/2026 11:01";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -13237,6 +13237,14 @@ function getIAConfig(){
   if(c.alternarIncluirPagos===undefined) c.alternarIncluirPagos = false;
   if(!c.prompts) c.prompts = {};
   ["equipamento","escopo","risco","mitigacao","tarefa","equipamento_xlsx","escopo_xlsx","tarefa_xlsx","risco_xlsx","mitigacao_xlsx"].forEach(k=>{ if(c.prompts[k]===undefined) c.prompts[k] = IA_PROMPTS_PADRAO[k]; });
+  /* HIBERNAÇÃO DAS FUNÇÕES CLÁSSICAS (11/09/2026): o fluxo passou a ser
+     planilha exportada -> respondida fora do app -> importada de volta.
+     Ligado por padrão para quem ainda não tem este campo — a tela some sem
+     precisar de nenhum toque, em todo aparelho que sincronizar. Nada é
+     apagado: chave, prompts e base de normas continuam intactos, só a
+     TELA de configuração clássica fica escondida; reversível a qualquer
+     momento pelo interruptor da própria tela. */
+  if(c.classicoHibernado===undefined) c.classicoHibernado = true;
   return c;
 }
 /* Troca o provedor ativo, preenchendo endpoint/modelo com o preset novo —
@@ -18606,15 +18614,56 @@ function screenSimplesConfigIA(){
   const cfg = getIAConfig();
   const temChave = !!getIAApiKey();
   const normas = getNormasIA();
+  /* HIBERNAÇÃO DAS FUNÇÕES CLÁSSICAS (11/09/2026).
+     O fluxo passou a ser: exportar planilha -> responder em qualquer IA ->
+     importar de volta. As funções de conexão direta com um provedor (chave,
+     prompt por campo, base de normas) ficam escondidas por padrão nesta
+     tela, mas NADA foi apagado — nenhum dado, nenhuma função. É reversível
+     de um toque, porque ainda não se sabe se o método por planilha vai
+     substituir o antigo de vez ou não. */
+  const classico = !cfg.classicoHibernado;
   return `
   <div class="card card-pad">
     <div style="font-weight:800;font-size:14.5px;margin-bottom:4px">Inteligência Artificial (opcional)</div>
     <div style="font-size:11.5px;color:var(--ink-dim);margin-bottom:8px">${getOneDriveConta()
-      ? "Tudo desta tela — chave, provedor, instruções e base de normas — é sincronizado pelo OneDrive com seus outros aparelhos. Configure uma vez só."
+      ? "Tudo desta tela — instruções, base de normas e, se você reativar, chave e provedor — é sincronizado pelo OneDrive com seus outros aparelhos."
       : "Conecte o OneDrive para que estas configurações sejam compartilhadas com seus outros aparelhos automaticamente."}</div>
-    <p style="font-size:13px;color:var(--ink-dim)">Quando configurada, a IA melhora automaticamente 5 campos de texto ao gerar o relatório em Excel ou Word: Descrição do Equipamento, Escopo, Descrição da Tarefa, Descrição do Risco e Mitigação. Ela nunca participa do cálculo de HRN — Probabilidade, Frequência, Grau e Nº de Pessoas continuam sendo escolhidos por você ou estimados pela lógica do app. Requer internet só na hora de gerar o relatório; sem chave configurada, tudo funciona offline como sempre.</p>
-    <p style="font-size:12px;color:var(--ink-dim);margin-top:8px">A chave de API fica salva só neste aparelho (nunca é incluída no backup .json).</p>
+    <p style="font-size:13px;color:var(--ink-dim)">O caminho de hoje: exporte a planilha com o que foi levantado em campo, responda em qualquer IA (ou à mão) e carregue de volta aqui — sem esbarrar em limite de requisições, porque a escrita não passa mais pela conexão direta deste app. As funções de conexão direta continuam no app, hibernadas logo abaixo, para o caso de precisarmos voltar a usá-las.</p>
   </div>
+  <div class="section-title">Planilha para responder fora do app</div>
+  <div class="card card-pad">
+    <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:8px">Sai uma planilha com o que foi levantado em campo — uma aba por área, uma linha por risco, e os IDs que fazem os textos voltarem para o lugar certo. As colunas <b>laranja</b> são as que a IA preenche; as demais são leitura. Responda em qualquer IA (ou à mão) e carregue de volta aqui. Vale a mesma regra de sempre: <b>entra como sugestão aguardando sua decisão</b>, campo já resolvido não é tocado, nenhum dado de campo é alterado.</p>
+    <button class="btn btn-secondary btn-block" onclick="App.exportarBaseIA()">${ic('download')} Exportar base para a IA (.xlsx)</button>
+    <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.copiarPromptPlanilhaIA()">${ic('copy')} Copiar as instruções para colar no chat</button>
+    <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="document.getElementById('filePlanilhaIA').click()">${ic('upload')} Importar planilha respondida (.xlsx)</button>
+    ${__ultimoImportePlanilhaIA ? `<div class="field-hint" style="margin-top:8px;color:${__ultimoImportePlanilhaIA.erro?'var(--danger, #c0392b)':'var(--ok, #2e7d32)'}">${escapeHtml(__ultimoImportePlanilhaIA.mensagem)}</div>` : ""}
+    <div class="field-hint" style="margin-top:8px">As instruções de preenchimento já vão <b>dentro do arquivo</b>, na primeira aba (<i>COMO PREENCHER</i>) — normalmente basta anexar a planilha. O botão acima copia o mesmo texto, para quando a IA não abrir a primeira aba sozinha.</div>
+    <div class="field-hint" style="margin-top:8px">Peça para a IA responder <b>por família de equipamento</b>, um bloco de cada vez. Ela pode devolver a planilha várias vezes, parcial: o que já entrou nunca é reimportado. O aviso acima diz quantas linhas voltaram <b>sem resposta</b> — é assim que se percebe que a IA parou no meio.</div>
+  </div>
+  <div class="section-title">Instruções da planilha respondida fora do app</div>
+  <div class="card card-pad">
+    <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:8px">É este o texto que sai na primeira aba da planilha exportada (<i>COMO PREENCHER</i>) e no botão de copiar. Ele fala das colunas pelo nome — ao mudar alguma coisa aqui, confira se os nomes citados continuam existindo na planilha. Deixar em branco volta ao texto padrão.</p>
+    <div class="field" style="margin-bottom:8px"><textarea style="min-height:260px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px" oninput="App.onIAPromptPlanilhaInput(this.value)">${escapeHtml(basePlanilhaPromptAtual())}</textarea></div>
+    <button class="btn btn-secondary btn-block" onclick="App.restaurarPromptPlanilha()">${ic('check')} Restaurar o texto padrão</button>
+    ${String(cfg.promptPlanilha||"").trim() ? `<div class="field-hint" style="margin-top:8px">Você está usando um texto próprio. Ele sincroniza para os seus outros aparelhos junto com o resto da configuração da IA.</div>` : `<div class="field-hint" style="margin-top:8px">Texto padrão do app — atualizado junto com as colunas da planilha a cada versão.</div>`}
+  </div>
+  <div class="section-title">Dados de plaqueta lidos fora do app</div>
+  <div class="card card-pad">
+    <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:8px">Modelo, marca, nº de série, ano de fabricação, capacidade e tensão normalmente são preenchidos olhando a foto da plaqueta no escritório, não em campo. Aqui você carrega esses dados já lidos fora do app (arquivo .json). <b>Só preenche o que estiver vazio</b> no cadastro do equipamento — campo que já tem valor nunca é sobrescrito.</p>
+    <button class="btn btn-secondary btn-block" onclick="document.getElementById('fileDadosPlaqueta').click()">${ic('upload')} Importar dados de plaqueta (.json)</button>
+    ${__ultimoImportePlaqueta ? `<div class="field-hint" style="margin-top:8px;color:${__ultimoImportePlaqueta.erro?'var(--danger, #c0392b)':'var(--ok, #2e7d32)'}">${escapeHtml(__ultimoImportePlaqueta.mensagem)}</div>` : ""}
+  </div>
+  <div class="card card-pad" style="margin-top:14px">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+      <div style="min-width:0">
+        <div style="font-weight:800;font-size:13.5px;margin-bottom:3px">Funções clássicas da IA (conexão direta com um provedor)</div>
+        <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:0">Hibernadas em 11/09/2026 ao migrar para o preenchimento por planilha — nada foi apagado. Chave, provedor, os 5 prompts antigos, "aprender com laudos aprovados" e a base de normas continuam guardados; reative aqui se precisar voltar a gerar texto direto no app.</p>
+      </div>
+      <label class="switch" style="flex-shrink:0"><input type="checkbox" ${classico?'checked':''} onchange="App.toggleIAClassicoHibernado()"><span class="switch-track"></span></label>
+    </div>
+    ${!classico ? `<div class="field-hint" style="margin-top:10px">${temChave? "Uma chave continua salva neste aparelho — só a tela para gerenciá-la está escondida." : "Nenhuma chave configurada."}</div>` : ""}
+  </div>
+  ${classico ? `
   <div class="section-title">Conexão</div>
   <div class="field">
     <label>Provedor de IA</label>
@@ -18680,22 +18729,6 @@ function screenSimplesConfigIA(){
     <button class="btn btn-secondary btn-block" onclick="document.getElementById('fileTextosLaudo').click()">${ic('upload')} Importar textos do laudo (.json)</button>
     ${__ultimoImporteTextos ? `<div class="field-hint" style="margin-top:8px;color:${__ultimoImporteTextos.erro?'var(--danger, #c0392b)':'var(--ok, #2e7d32)'}">${escapeHtml(__ultimoImporteTextos.mensagem)}</div>` : ""}
   </div>
-  <div class="section-title">Planilha para responder fora do app</div>
-  <div class="card card-pad">
-    <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:8px">Sai uma planilha com o que foi levantado em campo — uma aba por área, uma linha por risco, e os IDs que fazem os textos voltarem para o lugar certo. As colunas <b>laranja</b> são as que a IA preenche; as demais são leitura. Responda em qualquer IA (ou à mão) e carregue de volta aqui. Vale a mesma regra de sempre: <b>entra como sugestão aguardando sua decisão</b>, campo já resolvido não é tocado, nenhum dado de campo é alterado.</p>
-    <button class="btn btn-secondary btn-block" onclick="App.exportarBaseIA()">${ic('download')} Exportar base para a IA (.xlsx)</button>
-    <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.copiarPromptPlanilhaIA()">${ic('copy')} Copiar as instruções para colar no chat</button>
-    <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="document.getElementById('filePlanilhaIA').click()">${ic('upload')} Importar planilha respondida (.xlsx)</button>
-    ${__ultimoImportePlanilhaIA ? `<div class="field-hint" style="margin-top:8px;color:${__ultimoImportePlanilhaIA.erro?'var(--danger, #c0392b)':'var(--ok, #2e7d32)'}">${escapeHtml(__ultimoImportePlanilhaIA.mensagem)}</div>` : ""}
-    <div class="field-hint" style="margin-top:8px">As instruções de preenchimento já vão <b>dentro do arquivo</b>, na primeira aba (<i>COMO PREENCHER</i>) — normalmente basta anexar a planilha. O botão acima copia o mesmo texto, para quando a IA não abrir a primeira aba sozinha.</div>
-    <div class="field-hint" style="margin-top:8px">Peça para a IA responder <b>por família de equipamento</b>, um bloco de cada vez. Ela pode devolver a planilha várias vezes, parcial: o que já entrou nunca é reimportado. O aviso acima diz quantas linhas voltaram <b>sem resposta</b> — é assim que se percebe que a IA parou no meio.</div>
-  </div>
-  <div class="section-title">Dados de plaqueta lidos fora do app</div>
-  <div class="card card-pad">
-    <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:8px">Modelo, marca, nº de série, ano de fabricação, capacidade e tensão normalmente são preenchidos olhando a foto da plaqueta no escritório, não em campo. Aqui você carrega esses dados já lidos fora do app (arquivo .json). <b>Só preenche o que estiver vazio</b> no cadastro do equipamento — campo que já tem valor nunca é sobrescrito.</p>
-    <button class="btn btn-secondary btn-block" onclick="document.getElementById('fileDadosPlaqueta').click()">${ic('upload')} Importar dados de plaqueta (.json)</button>
-    ${__ultimoImportePlaqueta ? `<div class="field-hint" style="margin-top:8px;color:${__ultimoImportePlaqueta.erro?'var(--danger, #c0392b)':'var(--ok, #2e7d32)'}">${escapeHtml(__ultimoImportePlaqueta.mensagem)}</div>` : ""}
-  </div>
   <div class="section-title">Aprender com os laudos já aprovados</div>
   <div class="card card-pad">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
@@ -18720,13 +18753,6 @@ function screenSimplesConfigIA(){
   <div class="field"><label>Descrição da Tarefa</label><textarea oninput="App.onIAConfigPromptInput('tarefa', this.value)">${escapeHtml(cfg.prompts.tarefa)}</textarea></div>
   <div class="field"><label>Descrição do Risco</label><textarea oninput="App.onIAConfigPromptInput('risco', this.value)">${escapeHtml(cfg.prompts.risco)}</textarea></div>
   <div class="field"><label>Mitigação / Eliminação do Risco</label><textarea oninput="App.onIAConfigPromptInput('mitigacao', this.value)">${escapeHtml(cfg.prompts.mitigacao)}</textarea></div>
-  <div class="section-title">Instruções da planilha respondida fora do app</div>
-  <div class="card card-pad">
-    <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:8px">É este o texto que sai na primeira aba da planilha exportada (<i>COMO PREENCHER</i>) e no botão de copiar. Ele fala das colunas pelo nome — ao mudar alguma coisa aqui, confira se os nomes citados continuam existindo na planilha. Deixar em branco volta ao texto padrão.</p>
-    <div class="field" style="margin-bottom:8px"><textarea style="min-height:260px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px" oninput="App.onIAPromptPlanilhaInput(this.value)">${escapeHtml(basePlanilhaPromptAtual())}</textarea></div>
-    <button class="btn btn-secondary btn-block" onclick="App.restaurarPromptPlanilha()">${ic('check')} Restaurar o texto padrão</button>
-    ${String(cfg.promptPlanilha||"").trim() ? `<div class="field-hint" style="margin-top:8px">Você está usando um texto próprio. Ele sincroniza para os seus outros aparelhos junto com o resto da configuração da IA.</div>` : `<div class="field-hint" style="margin-top:8px">Texto padrão do app — atualizado junto com as colunas da planilha a cada versão.</div>`}
-  </div>
   <button class="btn btn-ghost btn-block" onclick="App.restaurarPromptsIAPadrao()">Restaurar instruções padrão</button>
   ${temChave? `<button class="btn btn-danger btn-block" style="margin-top:14px" onclick="App.removerChaveIA()">${ic('trash')} Remover chave e desativar IA</button>` : ""}
   <div class="section-title">Base de Normas (PDF)</div>
@@ -18748,6 +18774,7 @@ function screenSimplesConfigIA(){
     <button class="btn btn-danger" style="padding:9px;flex-shrink:0" onclick="App.removerNormaIA('${n.id}')">${ic('trash')}</button>
   </div>`).join("")}
   ${conferirNormasHtml()}
+  ` : ""}
   `;
 }
 /* CONFERIR O QUE A IA RECEBE DAS NORMAS
@@ -21172,6 +21199,7 @@ Devolver agora?`)) return;
     const sobrouAlguma = Object.values(getIAApiKeysMapa()).some(v=>String(v||"").trim());
     toast(sobrouAlguma ? `Chave de ${IA_PROVEDORES[provedor].nome} removida.` : "Chave removida — IA desativada");
   },
+  toggleIAClassicoHibernado(){ const c=getIAConfig(); c.classicoHibernado=!c.classicoHibernado; marcarIAAlterada(); render(); },
   toggleIAAlternarProvedor(){ const c=getIAConfig(); c.alternarProvedorAutomatico=!c.alternarProvedorAutomatico; marcarIAAlterada(); render(); },
   toggleIAAlternarPagos(){ const c=getIAConfig(); c.alternarIncluirPagos=!c.alternarIncluirPagos; marcarIAAlterada(); render(); },
   toggleIAExportacaoExcel(){ const c=getIAConfig(); c.usarNaExportacaoExcel=!c.usarNaExportacaoExcel; marcarIAAlterada(); render(); },

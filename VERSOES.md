@@ -64,6 +64,23 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 11/09/2026 11:01
+
+**A tela de IA em Laudo ficou limpa: só o método por planilha.**
+
+Com o preenchimento por planilha funcionando, a tela de Inteligência
+Artificial (Laudo → IA) estava cheia de configurações da conexão direta com
+um provedor de IA — chave, prompts por campo, base de normas — que deixaram
+de ser o caminho usado no dia a dia. Agora a tela mostra só o que o método
+por planilha precisa: exportar, copiar instruções, importar de volta, e os
+dados de plaqueta.
+
+As funções antigas não foram apagadas — ficaram **hibernadas** atrás de um
+interruptor ("Funções clássicas da IA"), porque ainda não se sabe se o
+método por planilha vai substituir o antigo de vez. Reative com um toque se
+precisar voltar a gerar texto direto no app; nada que já estava configurado
+(chave, prompts, normas) se perde enquanto isso.
+
 ## 11/09/2026 10:25
 
 **Correção na biblioteca de medidas: concordância e citação de norma.**

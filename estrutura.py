@@ -4602,6 +4602,43 @@ chk("ISO 12100 vira apoio na maioria das medidas (pelo menos 25 das 31)",
 chk("a biblioteca continua com 31 medidas, nenhuma perdida na revisao",
     _bib.count('{ k:"') == 31)
 
+print("=== 135. FUNÇÕES CLÁSSICAS DA IA HIBERNADAS NA TELA (11/09/2026) ===")
+# O fluxo virou planilha exportada -> respondida fora do app -> importada de
+# volta. A tela de IA em Laudo tinha 6 secoes de conexao direta com um
+# provedor que deixaram de ser o caminho principal — hibernadas (escondidas),
+# nunca apagadas: ainda nao se sabe se o metodo por planilha vai substituir o
+# antigo de vez, entao precisa ser reversivel de um toque.
+chk("hibernado por padrao para quem ainda nao tem o campo salvo",
+    "if(c.classicoHibernado===undefined) c.classicoHibernado = true;" in novo)
+chk("existe o interruptor, e ele sincroniza entre aparelhos (marcarIAAlterada)",
+    "toggleIAClassicoHibernado(){ const c=getIAConfig(); c.classicoHibernado=!c.classicoHibernado; marcarIAAlterada(); render(); }," in novo)
+_tela = _corpoDe(novo, "screenSimplesConfigIA")
+chk("'classico' e a negacao direta do campo salvo, sem constante nem gambiarra",
+    "const classico = !cfg.classicoHibernado;" in _tela)
+_ifClassico = _tela.index("${classico ? `")
+_antes, _depois = _tela[:_ifClassico], _tela[_ifClassico:]
+# As secoes do metodo por planilha (e a de plaqueta, que nao e assunto de
+# IA-de-texto) ficam sempre visiveis, hibernado ou nao.
+chk("planilha, instrucoes da planilha e plaqueta ficam FORA do condicional",
+    all(m in _antes for m in
+        ["Planilha para responder fora do app", "Instruções da planilha respondida fora do app",
+         "Dados de plaqueta lidos fora do app", "Funções clássicas da IA"]))
+# As seis secoes classicas continuam no CODIGO (nada apagado) mas so dentro
+# do condicional — e nao vazam para fora dele.
+_secoes_classicas = ['<div class="section-title">Conexão</div>', "Testar conexão",
+    "Alternar sozinho quando o limite for atingido",
+    '<div class="section-title">Textos gerados fora do app</div>',
+    "Aprender com os laudos já aprovados",
+    '<div class="section-title">Instruções para a IA (prompt por campo)</div>',
+    "Remover chave e desativar IA", "Base de Normas (PDF)"]
+chk("as 6 secoes classicas continuam no codigo, dentro do condicional",
+    all(m in _depois for m in _secoes_classicas))
+chk("as 6 secoes classicas NAO vazam para fora do condicional",
+    not any(m in _antes for m in _secoes_classicas))
+chk("nenhum metodo do App foi removido ao hibernar a tela",
+    all(m in novo for m in ["testarIA(){", "onIAApiKeyInput(v){", "onIAConfigPromptInput(tipo, v){",
+        "removerChaveIA(", "restaurarPromptsIAPadrao(){", "toggleIAReferencias(){", "onUploadNormaPDF("]))
+
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
