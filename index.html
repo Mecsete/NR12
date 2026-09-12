@@ -2980,7 +2980,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "12/09/2026 18:07";
+const APP_BUILD = "12/09/2026 19:25";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -24520,21 +24520,31 @@ Devolver agora?`)) return;
   },
   chkTirarFoto(itemId, daGaleria){
     // Câmera é a ação principal, de propósito: em campo o pedido é tocar e
-    // fotografar, sem confirmar nada — pode tocar várias vezes seguidas para
-    // anexar mais de uma foto ao mesmo item. Galeria fica como opção
-    // secundária, para quando a foto já existe no aparelho.
+    // fotografar, sem confirmar nada — cada foto é salva sozinha assim que
+    // sai da câmera. Galeria fica como opção secundária, para quando a foto
+    // já existe no aparelho (essa não reabre sozinha).
     const input = document.getElementById(daGaleria ? "fileGeneralGaleria" : "fileGeneral");
-    input.onchange = async ()=>{
+    input.onchange = ()=>{
       if(!input.files[0]) return;
-      const e = getCurrentChkExecucao(); if(!e){ input.value=""; return; }
-      const item = chkItemExec(e, itemId); if(!item){ input.value=""; return; }
-      const data = await comprimirImagem(input.files[0], 1920, 0.82);
-      salvarFotoNaGaleria(data, "apr_checklist");
-      item.fotos.push({ foto:data, tags:[] });
-      e.atualizadoEm = agoraSync();
-      marcarAlterado();
-      render();
+      const file = input.files[0];
       input.value = "";
+      /* REABRE A CÂMERA NA HORA, ainda dentro do mesmo evento — antes de
+         qualquer "await" — para a foto seguinte não depender de tocar no
+         botão de novo. Alguns navegadores (o Safari do iPhone entre eles)
+         exigem um toque novo a cada acesso à câmera e simplesmente ignoram
+         este clique — sem erro, sem travar nada: o botão continua ali e a
+         pessoa toca de novo pra próxima foto, exatamente como já funcionava. */
+      if(!daGaleria){ try{ input.click(); }catch(e){} }
+      (async ()=>{
+        const e = getCurrentChkExecucao(); if(!e) return;
+        const item = chkItemExec(e, itemId); if(!item) return;
+        const data = await comprimirImagem(file, 1920, 0.82);
+        salvarFotoNaGaleria(data, "apr_checklist");
+        item.fotos.push({ foto:data, tags:[] });
+        e.atualizadoEm = agoraSync();
+        marcarAlterado();
+        render();
+      })();
     };
     input.click();
   },

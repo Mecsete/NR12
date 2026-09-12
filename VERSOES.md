@@ -64,6 +64,17 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 12/09/2026 19:25
+
+**Checklist: foto salva sozinha e câmera tenta reabrir na hora para a próxima.**
+
+Ao tirar uma foto num item do Checklist, ela é salva automaticamente (sem
+precisar confirmar nada) e o app tenta abrir a câmera de novo na sequência,
+para fotografar vários pontos seguidos sem tocar no botão a cada foto. No
+iPhone o Safari pode bloquear essa reabertura automática por segurança (exige
+um toque a cada acesso à câmera) — quando isso acontece, nada trava: é só
+tocar no botão de novo para a próxima foto, como já era antes.
+
 ## 12/09/2026 18:07
 
 **Corrige tela em branco/erro ao abrir o Checklist em aparelho que já tinha o app instalado.**
