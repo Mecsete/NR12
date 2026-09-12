@@ -3954,7 +3954,9 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     const f = funcao("render");
     ok(f.indexOf("const mesmaTela = (chave === __telaDesenhada);") > 0, "sem a comparação de tela");
     ok(f.indexOf("if(mesmaTela && rolagem) window.scrollTo(0, rolagem);") > 0, "não devolve a rolagem");
-    eq((f.match(/devolverRolagem\(\)/g)||[]).length, 3, "os três caminhos de render precisam devolver");
+    // 4 a partir do módulo Checklist: ganhou seu próprio caminho de saída de
+    // render() (mesmo padrão do Completo/Simplificado), que também devolve a rolagem.
+    eq((f.match(/devolverRolagem\(\)/g)||[]).length, 4, "os quatro caminhos de render precisam devolver");
     ok(funcao("chaveDaTela").indexOf("u.laudoAba") > 0, "trocar de aba tem de contar como outra tela");
   });
   t("os controles ficam dentro da visualização", ()=>{

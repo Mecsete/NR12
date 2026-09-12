@@ -64,6 +64,41 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 12/09/2026 16:13
+
+**Novo módulo Checklist: terceiro cartão na tela inicial, com modelo próprio, motivos padrão e geração de laudo.**
+
+A tela inicial ganhou uma terceira opção, ao lado de "Módulo Completo" e
+"Módulo Simplificado": **Checklist**. É um módulo separado, pensado como base
+para o futuro módulo de Inspeção de Linhas de Vida, e não usa nem altera
+nenhum dado já cadastrado no Completo ou no Simplificado.
+
+Como funciona:
+
+- **Modelos** — cadastre um roteiro reutilizável de checklist, organizado em
+  blocos (seções) e itens. Cada item pode citar a norma de referência e ter
+  uma lista de **motivos padrão** para quando ele não for atendido em campo
+  (ex.: "Ancoragem corroída", "Ausência de proteção") — configurados uma vez,
+  na hora de montar o modelo.
+- **Bloco liga/desliga** — cada bloco tem um botão "esta seção não aplica":
+  ao desligar um bloco inteiro, todos os itens dele viram "não aplica" de uma
+  vez só, sem precisar marcar item por item quando aquele bloco simplesmente
+  não existe naquela inspeção.
+- **Execuções** — inicie uma execução a partir de um modelo, opcionalmente
+  vinculada a uma máquina já cadastrada no Completo ou no Simplificado (só
+  para referência; nada é alterado nessas máquinas).
+- **Preenchimento em campo** — cada item tem três respostas possíveis:
+  **Atende**, **Não atende** ou **Não aplica**. Ao marcar "Não atende", surge
+  a lista de motivos padrão daquele item; escolher um já preenche a
+  observação com o texto pronto (que pode ser editado dali). Cada item tem
+  um botão de câmera (ação principal — fotografa direto, sem confirmação,
+  quantas vezes for preciso) e um botão de galeria menor, ao lado, como
+  opção secundária para quando a foto já existe no aparelho. Cada foto pode
+  levar etiquetas rápidas (Risco, Ajustar, Substituir, Revisar).
+- **Finalização e laudo** — ao concluir, um resumo mostra o que ficou sem
+  resposta antes de fechar a execução; o laudo final é uma tela formatada
+  para imprimir ou salvar como PDF pelo próprio navegador.
+
 ## 12/09/2026 13:12
 
 **Instruções da planilha ajustadas: respostas mais completas, e sem cortar citação de norma.**

@@ -52,7 +52,13 @@ print("=== 3. ARQUITETURA DE FOTOS (CAMADA_FOTOS) ===")
 # +1: o unico store.delete(FOTO_KEY_PREFIXO + fid) do app fora da limpeza de
 # orfas. E a arquitetura sendo APLICADA (a foto sai da chave propria dela,
 # como sempre esteve), nao contornada -- o piso continua onde estava.
-_extra_fotos = {"foto:": 1}
+# MODULO CHECKLIST (novo): "idbfoto:" +2 e "foto:" +3 (chegando a 4 aqui, que
+# ja soma o +1 acima) -- comentarios do novo modulo explicando que ele segue a
+# MESMA CAMADA_FOTOS (nunca base64 embutido em STATE) e o campo de codigo
+# `fotos:[{foto:data,...}]` de chkTirarFoto. Arquitetura sendo REAPROVEITADA,
+# nao contornada. Zera quando original.html vier de um commit que ja inclua o
+# modulo Checklist.
+_extra_fotos = {"foto:": 4, "idbfoto:": 2}
 for marca in ["idbfoto:", "foto:", "CAMADA_FOTOS"]:
     a, b = orig.count(marca) + _extra_fotos.get(marca, 0), novo.count(marca)
     chk("ocorrencias de '%s' inalteradas (%d)" % (marca, a), a == b, "orig+extra=%d novo=%d" % (a, b))
@@ -119,7 +125,12 @@ for marca, n in [('body = screenSimplesLaudo();', 1),
                  ("onclick=\"App.go('simples-laudo')\"", 4),
                  ('function screenSimplesLaudo(', 1),
                  ('function screenSimplesLaudoItem(', 1),
-                 ('App.trocarModulo()', orig.count('App.trocarModulo()')),
+                 # +2 de proposito: modulo Checklist (novo) reaproveita o mesmo botao
+                 # "trocar modulo" nas suas duas telas-raiz (modelos e execucoes) --
+                 # mesma funcao generica que Completo/Simplificado ja chamavam, nao
+                 # duplicada. Zera no dia em que original.html vier de um commit que
+                 # ja inclui o modulo Checklist (mesmo padrao do _extra da secao 4).
+                 ('App.trocarModulo()', orig.count('App.trocarModulo()') + 2),
                  ('function laudoAbaRevisao(', 1),
                  ('function laudoAbaAreas(', 1),
                  ('function laudoAbaExportar(', 1),
@@ -160,7 +171,9 @@ for marca, n in [('body = screenSimplesLaudo();', 1),
                  ('blocoPLrHtml(r, "draft", tarefaCtx)', 1),
                  ('blocoPLrHtml(item.risco, "laudo", item.tarefa)', 1),
                  ('${blocoMontadorRiscoHtml(r)}', 1),
-                 ('screen-laudo', 10),
+                 # 11 a partir do modulo Checklist: a tela de laudo do Checklist
+                 # reaproveita a mesma classe screen-laudo do laudo do Simplificado.
+                 ('screen-laudo', 11),
                  ('<span>Laudo</span>', 1),
                  ('<b>Trocar de módulo</b>', 1)]:
     c = novo.count(marca)
@@ -1032,7 +1045,10 @@ print("\n=== 38. TELA IMPRIMIR, ROLAGEM E AJUSTES DO CARTAO ===")
 chk("a rolagem e devolvida quando continua a mesma tela",
     "const mesmaTela = (chave === __telaDesenhada);" in novo
     and "if(mesmaTela && rolagem) window.scrollTo(0, rolagem);" in novo
-    and novo.count("devolverRolagem()") == 3   # os tres caminhos de saida de render()
+    # 4 a partir do modulo Checklist: ganhou seu proprio caminho de saida de
+    # render() (mesmo padrao do Completo/Simplificado), entao devolverRolagem()
+    # e chamado ali tambem.
+    and novo.count("devolverRolagem()") == 4
     and "function chaveDaTela(" in novo)
 chk("os controles ficam dentro da visualizacao",
     '<div class="lp-visor-wrap">' in novo
@@ -4708,6 +4724,37 @@ chk("e coisa nova: nao existia na versao anterior",
     "Sem limite de linhas fixo: use o espaço que o conteúdo pedir" not in orig
     and "a Solução termina com TODAS elas, na mesma ordem" not in orig
     and "esse detalhe entra na frase" not in orig)
+
+
+print("\n=== 138. MODULO CHECKLIST: ISOLAMENTO DE PROJETOS/PROJETOSSIMPLES (12/09/2026) ===")
+# Regra do projeto: o modulo Checklist (STATE.checklists) so pode ESCREVER no
+# proprio namespace. Pode LER Completo/Simplificado (ex.: vincular execucao a
+# uma maquina ja cadastrada), mas nunca escrever/apagar/alterar nada das duas
+# arvores, nem direto nem por engano numa rotina generica.
+# Isto NAO e uma checagem de string: estrutura_checklist_isolamento.js extrai
+# as funcoes REAIS do Checklist deste mesmo arquivo (novo), monta um STATE de
+# teste com Completo e Simplificado ja preenchidos (com foto), executa uma
+# sequencia real de operacoes (criar modelo, editar secoes/itens, iniciar
+# execucao vinculada a uma maquina do Completo, marcar conformidade,
+# observacao, foto, tags, marcar/desmarcar secao N/A, navegar entre secoes,
+# finalizar, reabrir, excluir execucao e modelo) e compara byte a byte o JSON
+# de STATE.projetos e STATE.projetosSimples antes e depois. Confirmado que o
+# ensaio pega mutacao de verdade: rodado manualmente com uma linha sabotada
+# (STATE.projetos[0].empresa = "MUTOU!") e o processo saiu com erro, mostrando
+# o antes/depois divergente -- sem isso nao haveria prova de que o ensaio
+# testa algo (mesmo padrao dos ENSAIOs de banco.js).
+import subprocess as _subprocess
+_script_isolamento = os.path.join(os.path.dirname(os.path.abspath(caminho_novo)) or ".",
+                                   "estrutura_checklist_isolamento.js")
+if not os.path.isfile(_script_isolamento):
+    # o script pode nao estar do lado do arquivo comparado (ex.: caminho_novo
+    # aponta para uma copia solta) -- cai para a pasta deste proprio estrutura.py
+    _script_isolamento = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                       "estrutura_checklist_isolamento.js")
+_r = _subprocess.run(["node", _script_isolamento, caminho_novo], capture_output=True, text=True)
+chk("STATE.projetos e STATE.projetosSimples saem byte a byte identicos apos operar o Checklist",
+    _r.returncode == 0,
+    (_r.stdout.strip() + "\n" + _r.stderr.strip()).strip()[:600])
 
 
 print("\n---------------------------------------")
