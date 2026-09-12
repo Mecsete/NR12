@@ -64,6 +64,16 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 12/09/2026 18:07
+
+**Corrige tela em branco/erro ao abrir o Checklist em aparelho que já tinha o app instalado.**
+
+Quem já usava o app antes do Checklist existir tinha o dado salvo no formato
+antigo, sem esse novo espaço reservado — e a tela de Modelos quebrava com
+"Algo não carregou corretamente" ao abrir o módulo pela primeira vez. Corrigido:
+o app agora completa esse espaço sozinho, na hora de abrir, sem mexer em nada
+do que já estava salvo no Completo ou no Simplificado.
+
 ## 12/09/2026 16:13
 
 **Novo módulo Checklist: terceiro cartão na tela inicial, com modelo próprio, motivos padrão e geração de laudo.**

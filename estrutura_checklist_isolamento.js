@@ -78,6 +78,7 @@ const FUNCOES = [
   "getCurrentChkModelo", "getCurrentChkExecucao", "chkItemExec",
   "chkContarStatus", "chkProgresso", "chkTodasMaquinasParaVinculo",
   "chkBuscarMaquinaPorIdEmTodosProjetos", "chkMaquinaVinculada",
+  "chkGarantirNamespace",
 ];
 let fonte = "let __ultimoCarimboVisto = 0;\n";
 for(const nome of FUNCOES) fonte += funcao(nome) + "\n";
@@ -238,5 +239,35 @@ if(antesSimples !== depoisSimples){
   console.error("depois:", depoisSimples.slice(0, 400));
 }
 if(falhou){ process.exit(1); }
-console.log("ISOLAMENTO OK: STATE.projetos e STATE.projetosSimples byte a byte identicos apos criar/editar/salvar/sincronizar/excluir no Checklist");
+
+// ---------- migração: STATE salvo por versão anterior ao Checklist ----------
+// Reproduz o bug real encontrado em campo: um STATE já persistido (sem a
+// chave `checklists`) tem que ganhar o namespace vazio sem que nada em
+// projetos/projetosSimples mude. Isto é o que os 4 pontos de reatribuição de
+// STATE (abertura, bfcache, restauração de ponto x2) chamam agora.
+const estadoAntigo = {
+  modulo: "checklist",
+  projetos: JSON.parse(antesCompleto),
+  projetosSimples: JSON.parse(antesSimples),
+  ui: { screen: "checklist-modelos" },
+  // sem "checklists" -- exatamente o formato salvo antes deste módulo existir
+};
+const antesMigracaoCompleto = JSON.stringify(estadoAntigo.projetos);
+const antesMigracaoSimples = JSON.stringify(estadoAntigo.projetosSimples);
+vm.runInContext("chkGarantirNamespace(estadoAntigo);", Object.assign(sandbox, { estadoAntigo }), { filename: "checklist-migracao.js" });
+
+if(!estadoAntigo.checklists || !Array.isArray(estadoAntigo.checklists.modelos) || !Array.isArray(estadoAntigo.checklists.execucoes)){
+  console.error("FALHOU: chkGarantirNamespace nao criou STATE.checklists num STATE antigo");
+  process.exit(1);
+}
+if(estadoAntigo.ui.chkModeloId !== null || estadoAntigo.ui.chkExecucaoId !== null || estadoAntigo.ui.chkSecaoAtual !== 0){
+  console.error("FALHOU: chkGarantirNamespace nao preencheu os ponteiros de ui do Checklist");
+  process.exit(1);
+}
+if(JSON.stringify(estadoAntigo.projetos) !== antesMigracaoCompleto || JSON.stringify(estadoAntigo.projetosSimples) !== antesMigracaoSimples){
+  console.error("FALHOU: chkGarantirNamespace mudou projetos/projetosSimples de um STATE antigo");
+  process.exit(1);
+}
+
+console.log("ISOLAMENTO OK: STATE.projetos e STATE.projetosSimples byte a byte identicos apos criar/editar/salvar/sincronizar/excluir no Checklist, e a migracao de STATE antigo (sem checklists) preenche o namespace sem tocar nas duas arvores");
 process.exit(0);

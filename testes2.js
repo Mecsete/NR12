@@ -8148,7 +8148,10 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
     t("restaurar um ponto de restauração ANTIGO também não estoura mais", ()=>{
       const corpo = semComentarios(funcao("restaurarPontoDeRestauracao"));
-      ok(corpo.indexOf("STATE = clonarCompartilhandoFotos(ponto.dados);") > 0,
+      // chkGarantirNamespace envolve a chamada desde o módulo Checklist (preenche
+      // STATE.checklists quando falta, sem tocar em mais nada) — o clone em si
+      // continua sendo clonarCompartilhandoFotos, nunca JSON.stringify.
+      ok(corpo.indexOf("STATE = chkGarantirNamespace(clonarCompartilhandoFotos(ponto.dados));") > 0,
          "o caminho do ponto em formato antigo (fotos embutidas) voltou a clonar por texto");
       ok(corpo.indexOf("JSON.stringify") < 0);
     });

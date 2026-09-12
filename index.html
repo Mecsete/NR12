@@ -2931,13 +2931,13 @@ async function restaurarPontoDeRestauracao(ts){
   if(refsPonto.size > 0){
     const db = await dbOpen();
     const mapa = await fotosLerLote(db, refsPonto);
-    STATE = fotosReinserirDeMapa(ponto.dados, mapa);
+    STATE = chkGarantirNamespace(fotosReinserirDeMapa(ponto.dados, mapa));
   } else {
     /* Ponto no formato ANTIGO guarda as fotos embutidas. O clone por texto
        que existia aqui tinha o mesmo teto de ~512 MB do resto do app: num
        projeto grande, restaurar um ponto antigo falharia justamente na
        hora em que a pessoa mais precisa que funcione. */
-    STATE = clonarCompartilhandoFotos(ponto.dados);
+    STATE = chkGarantirNamespace(clonarCompartilhandoFotos(ponto.dados));
   }
   marcarAlterado();
   render();
@@ -2980,7 +2980,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "12/09/2026 16:13";
+const APP_BUILD = "12/09/2026 18:07";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -9151,6 +9151,25 @@ function chkMaquinaVinculada(execucao){
   if(execucao.vinculoTipo==="completo") return chkBuscarMaquinaPorIdEmTodosProjetos(execucao.maquinaVinculadaId);
   if(execucao.vinculoTipo==="simplificado") return buscarMaquinaSimplesPorId(execucao.maquinaVinculadaId);
   return null;
+}
+/* STATE é reatribuído inteiro em pelo menos QUATRO pontos do app: abertura
+   (carregarEstadoSalvo), volta pelo bfcache (pageshow) e restauração de ponto
+   (dois formatos). Um STATE salvo por uma versão anterior à existência deste
+   módulo não tem `checklists` — sem esta função, screenChkModelos() (tela
+   inicial do módulo) quebra com "undefined is not an object" assim que
+   alguém abre o Checklist num aparelho que já tinha o app instalado antes
+   desta entrega. Só ACRESCENTA o namespace quando falta; nunca toca em
+   nenhum outro campo do STATE recebido. */
+function chkGarantirNamespace(estado){
+  if(!estado || typeof estado !== "object") return estado;
+  if(!estado.checklists || typeof estado.checklists !== "object") estado.checklists = { modelos:[], execucoes:[] };
+  if(!Array.isArray(estado.checklists.modelos)) estado.checklists.modelos = [];
+  if(!Array.isArray(estado.checklists.execucoes)) estado.checklists.execucoes = [];
+  if(!estado.ui || typeof estado.ui !== "object") estado.ui = {};
+  if(estado.ui.chkModeloId === undefined) estado.ui.chkModeloId = null;
+  if(estado.ui.chkExecucaoId === undefined) estado.ui.chkExecucaoId = null;
+  if(estado.ui.chkSecaoAtual === undefined) estado.ui.chkSecaoAtual = 0;
+  return estado;
 }
 
 /* =========================================================================
@@ -25606,6 +25625,7 @@ let __estadoLocalCarregadoPromise = carregarEstadoSalvo().then(async saved=>{
     delete novoEstado.sincronizarEmDadosMoveis;
     if(novoEstado.modulo==="completo") novoEstado.ui.screen = "projetos";
     else if(novoEstado.modulo==="simplificado") novoEstado.ui.screen = "simples-projetos";
+    novoEstado = chkGarantirNamespace(novoEstado);
     await __arquivadosCarregados;   // antes do primeiro render — ver acima
     STATE = novoEstado;
     /* O GARGALO, aplicado também na abertura: um backup restaurado pode trazer
@@ -25889,7 +25909,7 @@ window.addEventListener("pageshow", (event) => {
     try{
       const maisRecente = await dbGet();
       if(maisRecente){
-        STATE = maisRecente;
+        STATE = chkGarantirNamespace(maisRecente);
         render();
         toast("Tela atualizada com os dados mais recentes");
       }

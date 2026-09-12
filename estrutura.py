@@ -3092,7 +3092,10 @@ chk("os DOIS clones da tela de revisao de importacao usam o clone que compartilh
     and "JSON.stringify" not in _corpo_prev)
 _corpo_rest = _sem_com(novo[novo.find("async function restaurarPontoDeRestauracao(ts){"):][:2000])
 chk("restaurar ponto de restauracao ANTIGO (fotos embutidas) nao clona mais por texto",
-    "STATE = clonarCompartilhandoFotos(ponto.dados);" in _corpo_rest
+    # chkGarantirNamespace (modulo Checklist) envolve a chamada para preencher
+    # STATE.checklists quando falta -- o clone continua sendo
+    # clonarCompartilhandoFotos, nunca JSON.stringify.
+    "STATE = chkGarantirNamespace(clonarCompartilhandoFotos(ponto.dados));" in _corpo_rest
     and "JSON.stringify" not in _corpo_rest)
 chk("abrir projeto/area/maquina/tarefa/risco para editar nao clona os bytes das fotos",
     all(("clonarCompartilhandoFotos" in novo[novo.find(m + "(id"): novo.find(m + "(id") + 700])
