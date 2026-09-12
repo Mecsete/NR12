@@ -64,6 +64,33 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 12/09/2026 13:12
+
+**Instruções da planilha ajustadas: respostas mais completas, e sem cortar citação de norma.**
+
+Conferindo planilhas já respondidas por IA fora do app, apareceu um padrão:
+em Descrição do risco e em Solução, a resposta costumava sair mais pobre do
+que o próprio texto de campo — às vezes até cortando parte da citação de
+norma que já vinha pronta e conferida (por exemplo, mantendo só o item da
+NR-12 e descartando as normas ABNT/ISO que vinham junto).
+
+As instruções da planilha ("COMO PREENCHER") foram ajustadas para corrigir
+os dois pontos:
+
+- Fica explícito que **só o campo Nome do risco tem limite de tamanho**
+  (3 a 4 palavras). Nenhum outro campo — Escopo, Tarefa, Descrição do
+  risco, Mitigação existente, Solução — tem limite de linhas ou de
+  caracteres; o único motivo para não repetir algo é ser redundante dentro
+  da mesma frase.
+- Quando a citação de norma que já vem pronta trouxer mais de uma norma
+  (NR-12 e uma ou mais ABNT/ISO), a Solução agora precisa reproduzir
+  **todas elas**, na ordem em que vêm — cortar para citar só uma é tratado
+  como o mesmo erro que inventar citação.
+- Descrição do risco passa a aproveitar de verdade os quatro campos
+  estruturados do risco (local, componente, evento, parte do corpo)
+  quando eles trazem um detalhe que a descrição livre não nomeia por
+  extenso, em vez de só usá-los para conferência.
+
 ## 12/09/2026 11:53
 
 **Agora dá para pedir uma resposta nova mesmo em item já aplicado no laudo.**

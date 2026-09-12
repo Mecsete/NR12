@@ -2937,7 +2937,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "12/09/2026 11:53";
+const APP_BUILD = "12/09/2026 13:12";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -15029,6 +15029,8 @@ const BASE_IA_PROMPT = [
 "",
 "COLUNA A COLUNA",
 "",
+"Só o Nome do risco tem limite de tamanho (3 a 4 palavras, ver abaixo). Nenhum outro campo desta planilha tem limite de caracteres ou de linhas — não corte informação disponível só para deixar o texto mais curto. O único motivo válido para não repetir algo é ser redundante dentro da mesma frase.",
+"",
 "RESPOSTA - Escopo do equipamento",
 "O mesmo equipamento (mesmo ID_Maquina) aparece em várias linhas: repita o mesmo texto em todas elas.",
 "Escreva um escopo que sirva a QUALQUER equipamento daquela função na área. É isso que permite um texto só atender os treze silos — e é isso que se perde se o texto citar a unidade.",
@@ -15040,7 +15042,7 @@ const BASE_IA_PROMPT = [
 "Toda proteção instalada entra no escopo, inclusive a que foi julgada insuficiente: ela existe, e o escopo descreve o que o equipamento tem.",
 "O que NÃO entra no escopo é o julgamento sobre ela. Nada de \"porém não atende\", \"com abertura\", \"danificada\", \"solta\". No escopo a proteção aparece só como existente; a insuficiência é assunto da Mitigação existente e da Solução, e repeti-la aqui poria o mesmo defeito em dois lugares do laudo, com duas redações.",
 "Use \"Tipo de equipamento\" como apoio; se a \"Descrição do equipamento (campo)\" disser outra coisa, ela manda — uma linha chamada \"Correia CNV-002\" cuja descrição diz \"mesa que alimenta a CV-3404\" é uma mesa, não um transportador.",
-"3 a 5 linhas.",
+"Sem limite de linhas fixo: use o espaço que o conteúdo pedir, sem repetir a mesma informação de outro jeito.",
 "",
 "RESPOSTA - Descrição da tarefa",
 "A mesma tarefa (mesmo ID_Tarefa) aparece em várias linhas: repita o mesmo texto.",
@@ -15050,7 +15052,7 @@ const BASE_IA_PROMPT = [
 "Cite a frequência ao final quando a coluna \"Frequência da tarefa\" tiver valor. Não cite quantidade de pessoas.",
 "Para \"Operação normal (todos os modos)\", o texto tem de transmitir este sentido: a máquina trabalha de forma contínua e sem intervenção humana direta, mas há circulação de pessoas ao redor e o acesso às proximidades permanece possível — acompanhamento do processo, inspeção visual ou trânsito entre equipamentos. É nessa condição de proximidade com a máquina em movimento que os riscos se apresentam.",
 "Para limpeza ou higienização, separe os dois tipos. A limpeza frequente é feita pela equipe de operação, que remove impurezas sem desmontar equipamento. A limpeza completa, menos frequente, exige bloqueio LOTO e é a MANUTENÇÃO quem remove as proteções fixas, com ferramenta, para que a limpeza seja feita. O texto nunca pode dar a entender que a operação remove proteção. Não é preciso explicar isso em toda linha — deixe claro onde a linha sustentar.",
-"2 a 4 linhas.",
+"Sem limite de linhas fixo: use o espaço que o conteúdo pedir, sem repetir a mesma informação de outro jeito.",
 "",
 "RESPOSTA - Nome do risco",
 "De 3 a 4 palavras, dizendo qual é o DANO, qual PARTE DO CORPO é atingida e em qual COMPONENTE do equipamento ocorre, com a concordância correta (\"na correia\", \"no eixo\", \"na comporta\"). Sem ponto final.",
@@ -15065,6 +15067,7 @@ const BASE_IA_PROMPT = [
 "Fontes: \"Descrição do risco (campo)\", os quatro campos \"Risco: local / componente / evento / parte do corpo\", o nome do risco — tanto o de campo quanto o que você acabou de escrever — e a \"Solução Editável\" quando ela revela o que será protegido.",
 "A coluna \"O que a probabilidade significa\" descreve como a pessoa alcança a zona de perigo e ajuda a escrever a exposição. Uma ressalva: quando ela disser \"Precisa deitar ou subir em algo para alcançar\", não afirme que a pessoa deita ou sobe — diga apenas que o acesso é bastante restrito.",
 "A consequência que fecha a frase vem do que o campo descreve — agarramento, corte, prensamento, queda — e nunca da classificação de Grau do dano, que sai na tabela do laudo e não em texto.",
+"Quando os quatro campos estruturados trouxerem um detalhe que a Descrição de campo não nomeia por extenso — o componente técnico certo, o evento exato, a parte do corpo —, esse detalhe entra na frase. O texto final precisa ficar pelo menos tão completo quanto a soma das fontes disponíveis, nunca mais pobre que a Descrição de campo sozinha.",
 "Exemplo. Campo: \"Proteção desparafusada, com acesso ao cilindro pneumático, com risco de prensamento dos dedos.\" Texto: \"A proteção do cilindro pneumático encontra-se desparafusada, permitindo o acesso das mãos à zona de acionamento e expondo os dedos do trabalhador ao prensamento durante o movimento do cilindro.\"",
 "",
 "RESPOSTA - Mitigação existente",
@@ -15084,6 +15087,7 @@ const BASE_IA_PROMPT = [
 "A [proposta] é a \"Solução Editável\" reescrita em linguagem de laudo, sem mudar a intenção técnica.",
 "A coluna \"Medida proposta marcada\" diz que tipo de proteção o inspetor escolheu no checklist. Ela manda no TIPO da medida: com proteção móvel intertravada marcada, a solução não pode propor proteção fixa. O texto de campo é o conteúdo; a medida marcada é a natureza dela.",
 "A coluna \"Sugestão Solução\" traz a frase que o aplicativo monta a partir da medida marcada no checklist, e ela termina com a referência normativa já conferida — por exemplo \"..., conforme NR-12, item 12.5.9 e item 12.5.11; ABNT NBR ISO 14120.\". Use essa frase para dar forma técnica ao que foi proposto em campo e TERMINE A SOLUÇÃO COM A CITAÇÃO DELA, reproduzida exatamente como está. Praticamente toda solução deve fechar com o item da norma.",
+"Quando essa citação trouxer mais de uma norma — NR-12 e uma ou mais ABNT/ISO, como no exemplo acima —, a Solução termina com TODAS elas, na mesma ordem, palavra por palavra. Cortar para citar só a NR-12 e descartar as ABNT/ISO é o mesmo erro que inventar uma citação: deixa o embasamento normativo incompleto.",
 "Quando essa coluna estiver vazia — o inspetor não marcou medida no checklist —, escreva a solução sem citação nenhuma. Não invente o item, não deduza pelo tipo de proteção, não traga de memória.",
 "Quando o risco for de alcance através de abertura (vão, grade, malha), a dimensão da abertura é o que define a distância de segurança. Se a linha não traz essa dimensão, não invente valor nem cite tabela: escreva a recomendação deixando a verificação dimensional a cargo do projeto — por exemplo \"...com abertura e distanciamento dimensionados para impedir o alcance da parte do corpo exposta\".",
 "",

@@ -4676,6 +4676,39 @@ chk("o toggle existe na tela, e o texto muda conforme o estado",
     'onchange="App.toggleIAReavaliarAplicados()"' in novo
     and "Permitir que a IA reavalie itens já aplicados" in novo)
 
+print("=== 137. RESPOSTAS DA PLANILHA MAIS RICAS: SO NOME DO RISCO TEM LIMITE (12/09/2026) ===")
+# Pedido do engenheiro apos conferir a planilha Paletizacao: a IA externa
+# estava devolvendo respostas mais pobres que o dado de campo em Descricao
+# do risco e Solucao, cortando ate citacao de norma ja conferida. Nenhuma
+# dessas duas causas era um limite tecnico do app (so "Ano de fabricacao"
+# tem maxlength no codigo) — era o proprio texto do prompt.
+chk("Escopo e Tarefa nao tem mais teto fixo de linhas",
+    '"3 a 5 linhas.",' not in novo
+    and '"2 a 4 linhas.",' not in novo
+    and novo.count("Sem limite de linhas fixo: use o espaço que o conteúdo pedir") == 2)
+_colunaAColuna = novo.find('"COLUNA A COLUNA",')
+chk("fica explicito que so Nome do risco tem limite, logo no topo de COLUNA A COLUNA",
+    _colunaAColuna > 0
+    and novo.find("Só o Nome do risco tem limite de tamanho") > _colunaAColuna
+    and novo.find("Só o Nome do risco tem limite de tamanho") < novo.find("RESPOSTA - Escopo do equipamento", _colunaAColuna))
+_descRiscoNoPrompt = novo.find("RESPOSTA - Descrição do risco", _colunaAColuna)
+_mitigNoPrompt = novo.find("RESPOSTA - Mitigação existente", _colunaAColuna)
+chk("Descricao do risco precisa aproveitar os 4 campos estruturados, nao só citá-los como fonte",
+    "esse detalhe entra na frase" in novo
+    and "nunca mais pobre que a Descrição de campo sozinha" in novo
+    and _descRiscoNoPrompt > 0 and _mitigNoPrompt > 0
+    and novo.find("esse detalhe entra na frase") > _descRiscoNoPrompt
+    and novo.find("esse detalhe entra na frase") < _mitigNoPrompt)
+chk("Solucao nao pode mais cortar citacao ABNT/ISO e ficar so com a da NR-12",
+    "a Solução termina com TODAS elas, na mesma ordem, palavra por palavra" in novo
+    and "é o mesmo erro que inventar uma citação" in novo)
+chk("a regra continua vindo DEPOIS do exemplo com citacao completa, pra nao contradizer",
+    novo.find("ABNT NBR ISO 14120.\\\". Use essa frase") < novo.find("a Solução termina com TODAS elas"))
+chk("e coisa nova: nao existia na versao anterior",
+    "Sem limite de linhas fixo: use o espaço que o conteúdo pedir" not in orig
+    and "a Solução termina com TODAS elas, na mesma ordem" not in orig
+    and "esse detalhe entra na frase" not in orig)
+
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
