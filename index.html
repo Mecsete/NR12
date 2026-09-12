@@ -2937,7 +2937,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "11/09/2026 11:01";
+const APP_BUILD = "12/09/2026 11:53";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -13245,6 +13245,14 @@ function getIAConfig(){
      TELA de configuração clássica fica escondida; reversível a qualquer
      momento pelo interruptor da própria tela. */
   if(c.classicoHibernado===undefined) c.classicoHibernado = true;
+  /* REAVALIAR ITENS JÁ APLICADOS (12/09/2026). Por padrão, importar uma
+     planilha (ou um .json) NUNCA toca em campo que já tem sugestão, texto
+     final ou decisão — essa é a garantia de sempre. Ligado, o import passa a
+     aceitar uma resposta nova mesmo por cima de "Aplicado"/"Editado", para o
+     engenheiro comparar a resposta nova com a que já está no laudo antes de
+     decidir. Desligado por padrão: é uma mudança de comportamento explícita,
+     não algo que deva valer sem a pessoa ter escolhido ligar. */
+  if(c.iaReavaliarAplicados===undefined) c.iaReavaliarAplicados = false;
   return c;
 }
 /* Troca o provedor ativo, preenchendo endpoint/modelo com o preset novo —
@@ -14850,8 +14858,15 @@ function laudoGet(item, campo){
      1. o texto entra como SUGESTÃO aguardando decisão (st:"pend"), igual ao
         que a IA produz — nada vai para o laudo sem você aprovar na tela de
         revisão;
-     2. só preenche campo VAZIO e ainda sem decisão. Texto que você já
-        aplicou, editou ou recusou nunca é tocado;
+     2. por padrão, só preenche campo VAZIO e ainda sem decisão. Texto que
+        você já aplicou, editou ou recusou nunca é tocado. Ligando "reavaliar
+        itens já aplicados" (Laudo → IA), passa a aceitar uma resposta nova
+        também por cima de Aplicado/Editado — mas NUNCA por cima de Recusado
+        (essa é uma decisão explícita em sentido contrário) e NUNCA
+        escrevendo direto no que já está aplicado: a resposta nova entra como
+        sugestão pendente, ao lado do texto que já está no laudo, para você
+        comparar e decidir de novo — "Vai para o laudo" continua mostrando o
+        texto de sempre até você aplicar a sugestão nova;
      3. não encosta em nenhum dado de campo (nome, descrição, fotos, HRN).
    ========================================================================= */
 const LAUDO_CAMPOS_IMPORTAVEIS = ["escopo", "tarefa", "nome", "risco", "existente", "solucao"];
@@ -14859,7 +14874,8 @@ const LAUDO_TEXTOS_FORMATO = "apr-textos-laudo-v1";
 function importarTextosLaudo(pacote){
   if(!pacote || typeof pacote !== "object") return null;
   if(pacote.formato !== LAUDO_TEXTOS_FORMATO || !Array.isArray(pacote.textos)) return null;
-  const res = { aplicados:0, pulados:0, naoAchados:0, invalidos:0, arquivados:0, porCampo:{} };
+  const reavaliar = !!getIAConfig().iaReavaliarAplicados;
+  const res = { aplicados:0, reavaliados:0, pulados:0, naoAchados:0, invalidos:0, arquivados:0, porCampo:{} };
   /* Um índice por nível: escopo é da MÁQUINA e tarefa é da TAREFA, então
      qualquer linha que passe por elas serve para localizá-las. */
   const porMaquina = new Map(), porTarefa = new Map(), porRisco = new Map();
@@ -14883,12 +14899,19 @@ function importarTextosLaudo(pacote){
        que não sincroniza mais: trabalho novo, preso só neste aparelho. */
     if(item.proj && projetoArquivado(item.proj.id)){ res.arquivados++; return; }
     const g = laudoGet(item, campo);
-    if(g.sug || g.fin || g.st){ res.pulados++; return; }  // já tem texto ou decisão: não mexe
+    /* Recusado é decisão explícita EM SENTIDO CONTRÁRIO ao que a IA propõe —
+       o modo reavaliação não mexe aqui, com ou sem o interruptor ligado. */
+    if(g.st === "no"){ res.pulados++; return; }
+    const jaTinhaAlgo = !!(g.sug || g.fin || g.st);
+    if(jaTinhaAlgo && !reavaliar){ res.pulados++; return; }  // regra de sempre: não mexe no que já tem decisão
+    /* NUNCA escreve em "fin": o que já está aplicado continua sendo o que
+       vai para o laudo até a pessoa, na tela de Revisão, decidir usar a
+       sugestão nova — reavaliar não é reaplicar sozinho. */
     laudoSet(item, campo, { sug: texto, st: "pend", duv: String((linha && linha.duvida) || "").trim() });
-    res.aplicados++;
+    if(jaTinhaAlgo) res.reavaliados++; else res.aplicados++;
     res.porCampo[campo] = (res.porCampo[campo] || 0) + 1;
   });
-  if(res.aplicados > 0) marcarAlterado();
+  if(res.aplicados > 0 || res.reavaliados > 0) marcarAlterado();
   return res;
 }
 
@@ -15076,6 +15099,15 @@ const BASE_IA_PROMPT = [
 "Se alguma linha não pôde ser respondida, liste-a na sua resposta do chat, FORA da planilha, dizendo o que faltou.",
 ].join("\n");
 const BASE_IA_ABA_INSTRUCOES = "COMO PREENCHER";
+/* Acrescentada ao fim das instrucoes SO quando "reavaliar itens ja
+   aplicados" esta ligado (ver getIAConfig().iaReavaliarAplicados). O item 6
+   de "MANUSEIO DO ARQUIVO" diz "escrever ali e trabalho perdido — o
+   aplicativo descarta": isso e verdade por padrao, mas deixa de ser verdade
+   quando a pessoa liga o modo reavaliacao — entao a exportacao precisa
+   avisar a IA disso, em vez de deixar as duas instrucoes se contradizendo
+   dentro do mesmo arquivo. */
+const BASE_IA_NOTA_REAVALIACAO =
+  "MODO REAVALIAÇÃO ATIVADO NESTA EXPORTAÇÃO: ignore o item 6 de \"MANUSEIO DO ARQUIVO\". Responda TODAS as células de resposta desta planilha, mesmo as que a coluna \"Já decidido no app\" mostrar como decididas — o engenheiro quer comparar a resposta nova com o que já está aplicado no laudo antes de decidir se troca.";
 /* O texto que de fato vai para a planilha e para o botao de copiar: o que o
    engenheiro escreveu, quando escreveu; senao o padrao acima.
 
@@ -15088,7 +15120,8 @@ const BASE_IA_ABA_INSTRUCOES = "COMO PREENCHER";
    com a instrucao de fabrica. */
 function basePlanilhaPromptAtual(){
   const v = String(getIAConfig().promptPlanilha || "").trim();
-  return v || BASE_IA_PROMPT;
+  const base = v || BASE_IA_PROMPT;
+  return getIAConfig().iaReavaliarAplicados ? (base + "\n\n" + BASE_IA_NOTA_REAVALIACAO) : base;
 }
 /* Cada texto tem UM dono, e nao e sempre o risco: escopo e do equipamento e
    tarefa e da tarefa. E por isso que a mesma maquina aparece em varias linhas
@@ -15246,6 +15279,7 @@ function baseIAMensagemImporte(resumo, r){
   let msg = r.aplicados + " texto" + (r.aplicados===1?"":"s") + " aplicado" + (r.aplicados===1?"":"s")
     + (partes.length ? " (" + partes.join(", ") + ")" : "")
     + ", de " + resumo.linhasLidas + " linha(s) lida(s) em " + resumo.abas + " aba(s).";
+  if(r.reavaliados)         msg += " " + r.reavaliados + " sugestão(ões) nova(s) para item(ns) já aplicado(s), aguardando sua revisão.";
   if(resumo.semResposta)    msg += " " + resumo.semResposta + " linha(s) voltaram SEM resposta nenhuma — confira se a IA parou no meio.";
   if(r.pulados)             msg += " " + r.pulados + " pulado(s) por já ter sua decisão.";
   if(r.naoAchados)          msg += " " + r.naoAchados + " sem item correspondente neste aparelho.";
@@ -15478,7 +15512,7 @@ async function importarPlanilhaRespostasIA(file){
   if(resumo.abas === 0) return { erro:true, mensagem:"Nenhuma aba com as colunas da base foi encontrada. Confira se a IA devolveu a planilha exportada pelo app, com a linha de cabeçalho e a coluna ID_Risco." };
   const r = importarTextosLaudo(pacote);
   if(!r) return { erro:true, mensagem:"Não foi possível montar o pacote de textos a partir da planilha." };
-  return { erro:false, mensagem:baseIAMensagemImporte(resumo, r), aplicados:r.aplicados };
+  return { erro:false, mensagem:baseIAMensagemImporte(resumo, r), aplicados:r.aplicados, reavaliados:r.reavaliados };
 }
 
 /* =========================================================================
@@ -18632,13 +18666,23 @@ function screenSimplesConfigIA(){
   </div>
   <div class="section-title">Planilha para responder fora do app</div>
   <div class="card card-pad">
-    <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:8px">Sai uma planilha com o que foi levantado em campo — uma aba por área, uma linha por risco, e os IDs que fazem os textos voltarem para o lugar certo. As colunas <b>laranja</b> são as que a IA preenche; as demais são leitura. Responda em qualquer IA (ou à mão) e carregue de volta aqui. Vale a mesma regra de sempre: <b>entra como sugestão aguardando sua decisão</b>, campo já resolvido não é tocado, nenhum dado de campo é alterado.</p>
+    <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:8px">Sai uma planilha com o que foi levantado em campo — uma aba por área, uma linha por risco, e os IDs que fazem os textos voltarem para o lugar certo. As colunas <b>laranja</b> são as que a IA preenche; as demais são leitura. Responda em qualquer IA (ou à mão) e carregue de volta aqui. Vale a mesma regra de sempre: <b>entra como sugestão aguardando sua decisão</b>, nenhum dado de campo é alterado${cfg.iaReavaliarAplicados ? ", e o interruptor abaixo está pedindo resposta nova mesmo onde já há decisão" : ", e campo já resolvido não é tocado"}.</p>
     <button class="btn btn-secondary btn-block" onclick="App.exportarBaseIA()">${ic('download')} Exportar base para a IA (.xlsx)</button>
     <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.copiarPromptPlanilhaIA()">${ic('copy')} Copiar as instruções para colar no chat</button>
     <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="document.getElementById('filePlanilhaIA').click()">${ic('upload')} Importar planilha respondida (.xlsx)</button>
     ${__ultimoImportePlanilhaIA ? `<div class="field-hint" style="margin-top:8px;color:${__ultimoImportePlanilhaIA.erro?'var(--danger, #c0392b)':'var(--ok, #2e7d32)'}">${escapeHtml(__ultimoImportePlanilhaIA.mensagem)}</div>` : ""}
     <div class="field-hint" style="margin-top:8px">As instruções de preenchimento já vão <b>dentro do arquivo</b>, na primeira aba (<i>COMO PREENCHER</i>) — normalmente basta anexar a planilha. O botão acima copia o mesmo texto, para quando a IA não abrir a primeira aba sozinha.</div>
     <div class="field-hint" style="margin-top:8px">Peça para a IA responder <b>por família de equipamento</b>, um bloco de cada vez. Ela pode devolver a planilha várias vezes, parcial: o que já entrou nunca é reimportado. O aviso acima diz quantas linhas voltaram <b>sem resposta</b> — é assim que se percebe que a IA parou no meio.</div>
+  </div>
+  <div class="card card-pad" style="margin-top:10px">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+      <div style="min-width:0">
+        <div style="font-weight:800;font-size:13.5px;margin-bottom:3px">Permitir que a IA reavalie itens já aplicados</div>
+        <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:0">Desligado, a planilha e o .json nunca tocam em campo que você já aplicou, editou ou recusou. Ligado, a resposta nova entra como <b>sugestão aguardando decisão</b> ao lado do que já está no laudo — nada muda no laudo até você aplicar a sugestão nova na aba Revisão. Item que você <b>recusou</b> nunca é reavaliado, ligado ou não: recusar é uma decisão explícita no sentido contrário.</p>
+      </div>
+      <label class="switch" style="flex-shrink:0"><input type="checkbox" ${cfg.iaReavaliarAplicados?'checked':''} onchange="App.toggleIAReavaliarAplicados()"><span class="switch-track"></span></label>
+    </div>
+    ${cfg.iaReavaliarAplicados ? `<div class="field-hint" style="margin-top:10px">Ligado — as instruções da planilha (abaixo) já avisam a IA para responder mesmo onde a coluna "Já decidido no app" mostrar decisão.</div>` : ""}
   </div>
   <div class="section-title">Instruções da planilha respondida fora do app</div>
   <div class="card card-pad">
@@ -21200,6 +21244,7 @@ Devolver agora?`)) return;
     toast(sobrouAlguma ? `Chave de ${IA_PROVEDORES[provedor].nome} removida.` : "Chave removida — IA desativada");
   },
   toggleIAClassicoHibernado(){ const c=getIAConfig(); c.classicoHibernado=!c.classicoHibernado; marcarIAAlterada(); render(); },
+  toggleIAReavaliarAplicados(){ const c=getIAConfig(); c.iaReavaliarAplicados=!c.iaReavaliarAplicados; marcarIAAlterada(); render(); },
   toggleIAAlternarProvedor(){ const c=getIAConfig(); c.alternarProvedorAutomatico=!c.alternarProvedorAutomatico; marcarIAAlterada(); render(); },
   toggleIAAlternarPagos(){ const c=getIAConfig(); c.alternarIncluirPagos=!c.alternarIncluirPagos; marcarIAAlterada(); render(); },
   toggleIAExportacaoExcel(){ const c=getIAConfig(); c.usarNaExportacaoExcel=!c.usarNaExportacaoExcel; marcarIAAlterada(); render(); },
@@ -24419,8 +24464,9 @@ document.getElementById("filePlanilhaIA").addEventListener("change", async funct
     __ultimoImportePlanilhaIA = r;
     if(r.erro){ toast("Planilha não reconhecida", false); }
     else{
-      toast(r.aplicados > 0 ? "Textos importados — revise na aba Revisão" : "Nada a importar: os campos já têm texto ou decisão");
-      if(r.aplicados > 0) await dbSet(STATE);
+      const trouxeAlgo = r.aplicados > 0 || r.reavaliados > 0;
+      toast(trouxeAlgo ? "Textos importados — revise na aba Revisão" : "Nada a importar: os campos já têm texto ou decisão");
+      if(trouxeAlgo) await dbSet(STATE);
     }
   }catch(e){
     __ultimoImportePlanilhaIA = { erro:true, mensagem:"Não foi possível ler a planilha: " + (e && e.message ? e.message : "erro desconhecido") };
@@ -24442,11 +24488,12 @@ document.getElementById("fileTextosLaudo").addEventListener("change", async func
       for(const c in r.porCampo){ partes.push(r.porCampo[c] + " de " + c); }
       const detalhe = partes.length ? " (" + partes.join(", ") + ")" : "";
       let msg = r.aplicados + " texto" + (r.aplicados===1?"":"s") + " aplicado" + (r.aplicados===1?"":"s") + detalhe + ".";
+      if(r.reavaliados) msg += " " + r.reavaliados + " sugestão(ões) nova(s) para item(ns) já aplicado(s), aguardando sua revisão.";
       if(r.pulados)    msg += " " + r.pulados + " pulado" + (r.pulados===1?"":"s") + " por já ter sua decisão.";
       if(r.naoAchados) msg += " " + r.naoAchados + " sem item correspondente neste aparelho.";
       if(r.invalidos)  msg += " " + r.invalidos + " linha(s) inválida(s).";
       __ultimoImporteTextos = { erro:false, mensagem: msg };
-      toast(r.aplicados > 0 ? "Textos importados — revise na aba Revisão" : "Nada a importar: os campos já têm texto ou decisão");
+      toast((r.aplicados > 0 || r.reavaliados > 0) ? "Textos importados — revise na aba Revisão" : "Nada a importar: os campos já têm texto ou decisão");
       await dbSet(STATE);
     }
   }catch(e){

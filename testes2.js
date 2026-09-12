@@ -11936,6 +11936,153 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  /* ---------- t161: reavaliar itens ja aplicados (12/09/2026) --------------
+     Pedido do engenheiro: comparar a resposta nova da IA (planilha ou .json)
+     com o que ja esta aplicado no laudo, mesmo em campo ja decidido. Usa a
+     mesma importarTextosLaudo() de sempre (BLOCO_A, ja carregada em ctx/C) —
+     so muda o interruptor getIAConfig().iaReavaliarAplicados, exatamente
+     como o app faz. Desligado por padrao: nao pode mudar nada do que os
+     testes do t113 ja garantem. */
+  {
+    console.log("\n[t161] reavaliar itens já aplicados");
+    const T = 2000;
+    const mk = (id, e) => Object.assign({ id, criadoEm:T, atualizadoEm:T }, e||{});
+    function arvoreReavaliacao(){
+      STATE.projetosSimples = [ mk("pr", { empresa:"X", areas:[
+        mk("ar", { nome:"A", maquinas:[
+          mk("mr", { nome:"Maq", fotosOutras:[], tarefas:[
+            mk("tr", { tarefa:"Tar", tarefaOutro:"", riscos:[
+              mk("rr", { nome:"R", descricao:"desc de campo", fotosOutras:[] }) ]}) ]}) ]}) ]}) ];
+      STATE.ui.areasSelecionadasExport = ["ar"]; STATE.ui.areasExportConhecidas = ["ar"];
+      return C.linhasEscopoSimples()[0];
+    }
+    const pac = (textos)=>({ formato:"apr-textos-laudo-v1", textos });
+    const ligar = (v)=> vm.runInContext("getIAConfig().iaReavaliarAplicados = " + v + ";", ctx);
+
+    /* O PONTO: desligado (o padrao), nada muda — a regra de sempre continua
+       valendo, ligado nunca ligado de verdade e um risco maior que qualquer
+       comparacao de textos. */
+    t("O PONTO: desligado, reimportar sobre 'Aplicado' continua pulando, como sempre", ()=>{
+      ligar(false);
+      const it = arvoreReavaliacao();
+      C.laudoSet(it, "risco", { fin:"DECISÃO DO ENGENHEIRO", st:"ok" });
+      ctx.__p = pac([ {id:"rr",campo:"risco",texto:"TEXTO NOVO"} ]);
+      const r = vm.runInContext("importarTextosLaudo(__p)", ctx);
+      eq(r.aplicados, 0); eq(r.reavaliados, 0); eq(r.pulados, 1);
+      eq(C.laudoGet(it,"risco").sug, "", "nao pode escrever sugestao com o interruptor desligado");
+      eq(C.laudoTextoFinal(it, "risco"), "DECISÃO DO ENGENHEIRO");
+    });
+    t("ligado: 'Aplicado' vira sugestao NOVA, sem tocar no que ja esta no laudo", ()=>{
+      ligar(true);
+      const it = arvoreReavaliacao();
+      C.laudoSet(it, "risco", { fin:"DECISÃO DO ENGENHEIRO", st:"ok" });
+      ctx.__p = pac([ {id:"rr",campo:"risco",texto:"TEXTO NOVO"} ]);
+      const r = vm.runInContext("importarTextosLaudo(__p)", ctx);
+      eq(r.aplicados, 0, "isto nao e um texto NOVO, e uma reavaliacao — conta separado");
+      eq(r.reavaliados, 1, JSON.stringify(r));
+      const g = C.laudoGet(it, "risco");
+      eq(g.sug, "TEXTO NOVO", "a sugestao nova precisa entrar");
+      eq(g.st, "pend", "precisa voltar a pedir decisao — reavaliar nao decide sozinho");
+      eq(g.fin, "DECISÃO DO ENGENHEIRO", "NUNCA pode mexer em fin — e o que continua valendo no laudo");
+      eq(C.laudoTextoFinal(it, "risco"), "DECISÃO DO ENGENHEIRO",
+         "o laudo so muda quando o engenheiro aplicar a sugestao nova, nunca sozinho");
+      ligar(false);
+    });
+    t("ligado: 'Editado' tambem e reavaliado, preservando o texto editado", ()=>{
+      ligar(true);
+      const it = arvoreReavaliacao();
+      C.laudoSet(it, "risco", { fin:"MEU TEXTO EDITADO À MÃO", st:"edit" });
+      ctx.__p = pac([ {id:"rr",campo:"risco",texto:"TEXTO NOVO"} ]);
+      const r = vm.runInContext("importarTextosLaudo(__p)", ctx);
+      eq(r.reavaliados, 1);
+      eq(C.laudoGet(it,"risco").fin, "MEU TEXTO EDITADO À MÃO");
+      eq(C.laudoGet(it,"risco").st, "pend");
+      ligar(false);
+    });
+    /* Recusar e uma decisao explicita NO SENTIDO CONTRARIO ao que a IA propos
+       — reavaliar por cima disso seria o unico caso realmente perigoso, e por
+       isso continua bloqueado com ou sem o interruptor. */
+    t("ligado: 'Recusado' continua INTOCÁVEL — é decisão em sentido contrário", ()=>{
+      ligar(true);
+      const it = arvoreReavaliacao();
+      C.laudoSet(it, "risco", { fin:"", st:"no" });
+      ctx.__p = pac([ {id:"rr",campo:"risco",texto:"TEXTO NOVO"} ]);
+      const r = vm.runInContext("importarTextosLaudo(__p)", ctx);
+      eq(r.reavaliados, 0); eq(r.aplicados, 0); eq(r.pulados, 1);
+      eq(C.laudoGet(it,"risco").sug, "");
+      eq(C.laudoGet(it,"risco").st, "no");
+      ligar(false);
+    });
+    t("ligado: uma sugestão pendente antiga (nunca decidida) também é substituída", ()=>{
+      ligar(true);
+      const it = arvoreReavaliacao();
+      C.laudoSet(it, "risco", { sug:"SUGESTÃO ANTIGA" });   // pend, nunca decidido
+      ctx.__p = pac([ {id:"rr",campo:"risco",texto:"SUGESTÃO NOVA"} ]);
+      const r = vm.runInContext("importarTextosLaudo(__p)", ctx);
+      eq(r.reavaliados, 1, "sugestao pendente tambem conta como algo que ja existia");
+      eq(C.laudoGet(it,"risco").sug, "SUGESTÃO NOVA");
+      ligar(false);
+    });
+    t("a mensagem final conta reavaliados separado de aplicados novos", ()=>{
+      const resumo = { linhasLidas:1, abas:1, semResposta:0, divergentes:0, semId:0 };
+      const msg = C.baseIAMensagemImporte(resumo, { aplicados:0, reavaliados:2, pulados:0, naoAchados:0, arquivados:0, porCampo:{} });
+      ok(msg.indexOf("2 sugestão(ões) nova(s) para item(ns) já aplicado(s)") > 0, msg);
+    });
+    t("desligar de novo volta exatamente ao comportamento padrão (reversível)", ()=>{
+      ligar(false);
+      const it = arvoreReavaliacao();
+      C.laudoSet(it, "risco", { fin:"DECISÃO", st:"ok" });
+      ctx.__p = pac([ {id:"rr",campo:"risco",texto:"X"} ]);
+      const r = vm.runInContext("importarTextosLaudo(__p)", ctx);
+      eq(r.pulados, 1); eq(r.reavaliados, 0);
+    });
+
+    /* PROVA EXECUTADA (não só posição de string): a planilha exportada
+       precisa avisar a IA quando o modo esta ligado, senao ela segue a
+       instrução padrão ("não precisa responder") e o interruptor do app não
+       teria efeito nenhum na prática. Roda a função real, isolada, com
+       getIAConfig/BASE_IA_PROMPT/BASE_IA_NOTA_REAVALIACAO substituídos por
+       tocos simples — o mesmo motivo do teste "EXECUTADO" do t160. */
+    t("EXECUTADO: a nota de reavaliação só entra no texto quando o interruptor está ligado", ()=>{
+      const cxProm = vm.createContext({ String });
+      vm.runInContext(`
+        var __cfgProm = { promptPlanilha:"", iaReavaliarAplicados:false };
+        function getIAConfig(){ return __cfgProm; }
+        const BASE_IA_PROMPT = "TEXTO PADRÃO DA PLANILHA";
+        const BASE_IA_NOTA_REAVALIACAO = "NOTA DE REAVALIAÇÃO";
+      `, cxProm);
+      vm.runInContext(funcao("basePlanilhaPromptAtual"), cxProm);
+
+      vm.runInContext("__cfgProm.iaReavaliarAplicados = false;", cxProm);
+      eq(vm.runInContext("basePlanilhaPromptAtual()", cxProm), "TEXTO PADRÃO DA PLANILHA",
+         "desligado, a nota nao pode aparecer");
+
+      vm.runInContext("__cfgProm.iaReavaliarAplicados = true;", cxProm);
+      eq(vm.runInContext("basePlanilhaPromptAtual()", cxProm), "TEXTO PADRÃO DA PLANILHA\n\nNOTA DE REAVALIAÇÃO",
+         "ligado, a nota precisa vir ao final");
+
+      vm.runInContext('getIAConfig().promptPlanilha = "MEU TEXTO PRÓPRIO";', cxProm);
+      eq(vm.runInContext("basePlanilhaPromptAtual()", cxProm), "MEU TEXTO PRÓPRIO\n\nNOTA DE REAVALIAÇÃO",
+         "a nota precisa entrar mesmo com prompt personalizado, senão a IA nunca saberia do modo");
+    });
+    t("a nota real, de verdade, cita as duas coisas que precisa citar", ()=>{
+      const i = HTML.indexOf("const BASE_IA_NOTA_REAVALIACAO =");
+      const fim = HTML.indexOf(";\n", i);
+      const nota = HTML.slice(i, fim);
+      ok(nota.indexOf("Já decidido no app") > 0, "sem citar a coluna, a IA nao sabe o que reavaliar");
+      ok(nota.indexOf("item 6") > 0, "sem citar o item que esta sendo revogado, as duas instrucoes se contradizem");
+    });
+
+    /* Interruptor na tela: existe, sincroniza, e o texto explicativo muda
+       conforme o estado — coberto de forma estrutural (execução completa da
+       tela já é coberta pelo teste EXECUTADO do t160, com stubs próprios;
+       aqui só confirmamos que ESTE interruptor específico está cabeado). */
+    t("o interruptor da tela está cabeado no método certo", ()=>{
+      ok(HTML.indexOf('onchange="App.toggleIAReavaliarAplicados()"') > 0);
+      ok(HTML.indexOf('toggleIAReavaliarAplicados(){ const c=getIAConfig(); c.iaReavaliarAplicados=!c.iaReavaliarAplicados; marcarIAAlterada(); render(); },') > 0);
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

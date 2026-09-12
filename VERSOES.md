@@ -64,6 +64,27 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 12/09/2026 11:53
+
+**Agora dá para pedir uma resposta nova mesmo em item já aplicado no laudo.**
+
+Até aqui, reimportar uma planilha respondida (ou um `.json` de textos) nunca
+tocava em nenhum campo que já tivesse sugestão, texto aplicado, editado ou
+recusado — era a garantia de sempre contra sobrescrever decisão do
+engenheiro. Só que às vezes o objetivo é justamente esse: pedir para a IA
+tentar de novo um campo que já foi decidido, para comparar com o que está
+lá antes de trocar.
+
+Agora existe um interruptor em Laudo → IA, "Permitir que a IA reavalie
+itens já aplicados" — **desligado por padrão**. Ligado, reimportar volta a
+aceitar resposta nova por cima de Aplicado/Editado, mas ela entra como
+**sugestão nova aguardando decisão**, ao lado do texto que já está no
+laudo — nada no laudo muda sozinho, o texto atual continua valendo até
+você comparar e aplicar a sugestão nova na tela de Revisão, do jeito que
+sempre funcionou. Item **Recusado** nunca é reavaliado, ligado ou não o
+interruptor — recusar é uma decisão do engenheiro em sentido contrário, e
+essa continua intocável.
+
 ## 11/09/2026 11:01
 
 **A tela de IA em Laudo ficou limpa: só o método por planilha.**

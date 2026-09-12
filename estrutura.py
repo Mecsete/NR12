@@ -2026,8 +2026,11 @@ chk("existe a funcao de importacao, com formato proprio e campos declarados",
     and 'const LAUDO_CAMPOS_IMPORTAVEIS = ["escopo", "tarefa", "nome", "risco", "existente", "solucao"];' in novo)
 chk("o texto entra como SUGESTAO a decidir, nunca como decisao tomada",
     'laudoSet(item, campo, { sug: texto, st: "pend", duv: String((linha && linha.duvida) || "").trim() });' in novo)
-chk("campo que ja tem texto ou decisao NAO e tocado",
-    "if(g.sug || g.fin || g.st){ res.pulados++; return; }" in novo)
+chk("por padrao, campo que ja tem texto ou decisao NAO e tocado",
+    "const jaTinhaAlgo = !!(g.sug || g.fin || g.st);" in novo
+    and "if(jaTinhaAlgo && !reavaliar){ res.pulados++; return; }" in novo)
+chk("recusado NUNCA e reavaliado, ligado ou nao o interruptor",
+    'if(g.st === "no"){ res.pulados++; return; }' in novo)
 chk("arquivo de outro formato e recusado inteiro, sem aplicar nada",
     "if(pacote.formato !== LAUDO_TEXTOS_FORMATO || !Array.isArray(pacote.textos)) return null;" in novo)
 chk("a importacao passa por laudoSet — ou seja, carimba para sincronizar",
@@ -2042,11 +2045,15 @@ chk("botao, seletor de arquivo e aviso de resultado estao na tela",
 # de dado (descricao, nome, foto). Se algum dia alguem acrescentar uma, esta
 # checagem cai — que e exatamente o ponto.
 _ini71 = novo.find("function importarTextosLaudo(pacote){")
-_corpo71 = novo[_ini71:novo.find("\n}", novo.find("if(res.aplicados > 0)", _ini71))]
+_corpo71 = novo[_ini71:novo.find("\n}", novo.find("if(res.aplicados > 0 || res.reavaliados > 0)", _ini71))]
 chk("a importacao nao escreve em nenhum campo de dado de campo",
     _ini71 > 0
     and ".descricao =" not in _corpo71 and ".nome =" not in _corpo71
     and ".foto" not in _corpo71 and "atualizadoEm =" not in _corpo71)
+# NUNCA escreve em "fin" — reavaliar nao pode reaplicar sozinho, so oferecer a
+# sugestao nova ao lado do que ja esta no laudo.
+chk("reavaliar nunca escreve em 'fin': o que ja esta no laudo continua ate a pessoa decidir de novo",
+    "fin:" not in _corpo71)
 
 print("\n=== 72. IMPORTAR DADOS DE PLAQUETA LIDOS FORA DO APP ===")
 # Modelo, marca, numero de serie, ano, capacidade e tensao nao sao dados de
@@ -4638,6 +4645,36 @@ chk("as 6 secoes classicas NAO vazam para fora do condicional",
 chk("nenhum metodo do App foi removido ao hibernar a tela",
     all(m in novo for m in ["testarIA(){", "onIAApiKeyInput(v){", "onIAConfigPromptInput(tipo, v){",
         "removerChaveIA(", "restaurarPromptsIAPadrao(){", "toggleIAReferencias(){", "onUploadNormaPDF("]))
+
+print("=== 136. REAVALIAR ITENS JA APLICADOS NA PLANILHA/.JSON (12/09/2026) ===")
+# Pedido do engenheiro: comparar a resposta nova da IA com o que ja esta
+# aplicado no laudo, mesmo em campo ja decidido. Desligado por padrao — e
+# uma mudanca de comportamento explicita, nao algo que passa a valer sozinho.
+chk("desligado por padrao, e o interruptor sincroniza como o resto da config",
+    "if(c.iaReavaliarAplicados===undefined) c.iaReavaliarAplicados = false;" in novo
+    and "toggleIAReavaliarAplicados(){ const c=getIAConfig(); c.iaReavaliarAplicados=!c.iaReavaliarAplicados; marcarIAAlterada(); render(); }," in novo)
+_imp = _corpoDe(novo, "importarTextosLaudo")
+chk("o interruptor e lido dentro da propria importacao, vale para .json e planilha",
+    'const reavaliar = !!getIAConfig().iaReavaliarAplicados;' in _imp)
+chk("ligado, aceita sobrescrever sugestao/aplicado/editado — mas continua sem tocar em recusado",
+    'if(g.st === "no"){ res.pulados++; return; }' in _imp
+    and 'if(jaTinhaAlgo && !reavaliar){ res.pulados++; return; }' in _imp)
+# Contador proprio: a mensagem de resultado precisa distinguir "texto novo"
+# de "sugestao nova por cima de algo que ja existia" — sao situacoes bem
+# diferentes para quem esta lendo o resultado do import.
+chk("reavaliados conta separado de aplicados, nos dois formatos de resultado",
+    "aplicados:0, reavaliados:0," in novo
+    and "sugestão(ões) nova(s) para item(ns) já aplicado(s)" in novo)
+# A exportacao (planilha) precisa avisar a IA de que, desta vez, ela DEVE
+# responder celula ja marcada como decidida — senao ela segue a instrucao
+# padrao ("nao precisa responder, o app descarta") e ligar o interruptor no
+# app nao teria efeito nenhum na pratica.
+chk("a planilha exportada avisa a IA quando o modo reavaliacao esta ligado",
+    "MODO REAVALIAÇÃO ATIVADO NESTA EXPORTAÇÃO" in novo
+    and "return getIAConfig().iaReavaliarAplicados ? (base + \"\\n\\n\" + BASE_IA_NOTA_REAVALIACAO) : base;" in novo)
+chk("o toggle existe na tela, e o texto muda conforme o estado",
+    'onchange="App.toggleIAReavaliarAplicados()"' in novo
+    and "Permitir que a IA reavalie itens já aplicados" in novo)
 
 
 print("\n---------------------------------------")
