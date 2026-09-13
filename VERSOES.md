@@ -64,6 +64,29 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 12/09/2026 20:05
+
+**Checklist reorganizado em Projeto > Setor > Linha de vida; resumo colorido; edição de checklist finalizado; tirado o vínculo a máquina; correção na foto.**
+
+- **Hierarquia nova**: cada inspeção agora fica em **Projeto** (o serviço para
+  uma empresa) → **Setor** (setor dentro da empresa) → **Linha de vida**
+  (cada item a ser inspecionado — é nela que o checklist é preenchido). O
+  antigo cadastro "vincular a uma máquina do Completo/Simplificado" foi
+  removido — são assuntos diferentes.
+- **Resumo colorido**: na tela de finalização, cada item aparece numa lista
+  com a descrição, o motivo/observação e a cor do status (verde/vermelho/
+  cinza) — dá pra ver de relance o que ficou pendente antes de fechar.
+- **Editar um checklist já finalizado**: a tela de Laudo ganhou um botão
+  "Editar" que reabre a linha de vida para corrigir respostas.
+- **Foto**: corrigida a ordem — agora a foto é sempre salva primeiro, e só
+  depois o app tenta reabrir a câmera para a próxima (antes a tentativa de
+  reabrir vinha primeiro, o que podia atrapalhar o salvamento em alguns
+  aparelhos).
+
+Quem já tinha modelos/execuções criados na versão anterior não perde nada:
+as execuções antigas (formato em lista simples) viram automaticamente linhas
+de vida dentro de um projeto "Dados migrados", na primeira abertura.
+
 ## 12/09/2026 19:25
 
 **Checklist: foto salva sozinha e câmera tenta reabrir na hora para a próxima.**

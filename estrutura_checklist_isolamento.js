@@ -5,10 +5,13 @@
    do próprio index.html), monta um STATE de teste com dados já preenchidos
    de Módulo Completo (STATE.projetos) e Módulo Simplificado
    (STATE.projetosSimples), executa uma sequência real de operações do
-   Checklist (criar modelo, editar seções/itens, iniciar execução vinculada a
-   uma máquina do Completo, marcar conformidade, observação, foto, tags,
-   marcar seção N/A, navegar, finalizar, reabrir, excluir), e compara byte a
-   byte o JSON de STATE.projetos e STATE.projetosSimples antes e depois.
+   Checklist (criar modelo, editar seções/itens, motivos padrão, criar
+   projeto → setor → linha de vida, marcar conformidade, observação, foto,
+   tags, marcar seção N/A, navegar, finalizar, reabrir, excluir), e compara
+   byte a byte o JSON de STATE.projetos e STATE.projetosSimples antes e
+   depois. Também confere as duas migrações de chkGarantirNamespace (STATE
+   sem `checklists`, e STATE com o formato antigo de execuções em lista
+   plana) sem tocar nas duas árvores.
    Sai com código 0 e imprime "ISOLAMENTO OK" se nada mudou; sai com código 1
    e imprime a diferença se qualquer byte mudou, ou se qualquer operação
    lançar exceção. */
@@ -74,15 +77,15 @@ function letObjeto(nome){
 const FUNCOES = [
   "uid", "hoje", "ehFotoDataUrlPersist", "clonarCompartilhandoFotos",
   "agoraSync", "__carregarUltimoCarimbo",
-  "novoChkModelo", "novoChkSecao", "novoChkItem", "novoChkExecucao",
-  "getCurrentChkModelo", "getCurrentChkExecucao", "chkItemExec",
-  "chkContarStatus", "chkProgresso", "chkTodasMaquinasParaVinculo",
-  "chkBuscarMaquinaPorIdEmTodosProjetos", "chkMaquinaVinculada",
+  "novoChkModelo", "novoChkSecao", "novoChkItem",
+  "novoChkProjeto", "novoChkSetor", "novoChkLinha",
+  "getCurrentChkModelo", "getCurrentChkProjeto", "getCurrentChkSetor", "getCurrentChkLinha",
+  "chkItemExec", "chkContarStatus", "chkProgresso",
   "chkGarantirNamespace",
 ];
 let fonte = "let __ultimoCarimboVisto = 0;\n";
 for(const nome of FUNCOES) fonte += funcao(nome) + "\n";
-fonte += letObjeto("__chkNovaExecDraft") + "\n";
+fonte += letObjeto("__chkNovaLinhaDraft") + "\n";
 const metodosApp = trecho(
   "/* ---------- Checklist — só lê/escreve STATE.checklists ---------- */",
   "\n};\nwindow.App = App;"
@@ -138,8 +141,8 @@ sandbox.STATE = {
   modulo: "checklist",
   projetos: [mkProjetoCompleto()],
   projetosSimples: [mkProjetoSimples()],
-  checklists: { modelos: [], execucoes: [] },
-  ui: { chkModeloId: null, chkExecucaoId: null, chkSecaoAtual: 0 },
+  checklists: { modelos: [], projetos: [] },
+  ui: { chkModeloId: null, chkProjetoId: null, chkSetorId: null, chkLinhaId: null, chkSecaoAtual: 0 },
 };
 
 const antesCompleto = JSON.stringify(sandbox.STATE.projetos);
@@ -171,18 +174,24 @@ App.chkSetMotivoPadrao(sec1.id, sec1.itens[0].id, 0, "Ancoragem corroida");
 App.chkSetMotivoPadrao(sec1.id, sec1.itens[0].id, 1, "Ausencia de ancoragem");
 App.chkRemoverMotivoPadrao(sec1.id, sec1.itens[0].id, 1);
 
-App.chkSetNovaExecDraft("modeloId", modelo.id);
-App.chkSetNovaExecDraft("empresaNome", "Cliente Teste");
-App.chkSetNovaExecDraft("responsavelNome", "Inspetor Teste");
-const maquinaCompleto = STATE.projetos[0].areas[0].maquinas[0];
-App.chkSetNovaExecDraft("vinculoMaquina", "completo::" + maquinaCompleto.id);
-App.chkIniciarExecucao();
-const exec = STATE.checklists.execucoes[0];
-if(!exec) throw new Error("execucao nao foi criada");
-const vinculada = chkMaquinaVinculada(exec);
-if(!vinculada || vinculada.id !== maquinaCompleto.id) throw new Error("vinculo de maquina (leitura) falhou");
+// Hierarquia Projeto > Setor > Linha de vida — sem nenhum vinculo a maquina
+// do Completo/Simplificado (removido de proposito, sao assuntos diferentes).
+App.chkNovoProjeto();
+const proj = STATE.checklists.projetos[0];
+if(!proj) throw new Error("projeto nao foi criado");
+App.chkSetProjetoField("empresa", "Cliente Teste Checklist");
+App.chkSetProjetoField("responsavel", "Inspetor Teste");
+App.chkNovoSetor();
+const setor = proj.setores[0];
+if(!setor) throw new Error("setor nao foi criado");
+App.chkSetSetorField("nome", "Silo 2");
+App.chkSetNovaLinhaDraft("nome", "LV-014");
+App.chkSetNovaLinhaDraft("modeloId", modelo.id);
+App.chkCriarLinha();
+const linha = setor.linhas[0];
+if(!linha) throw new Error("linha de vida nao foi criada");
 
-const item1 = exec.itens[0];
+const item1 = linha.itens[0];
 App.chkSetConforme(item1.itemId, "atende");
 App.chkSetConforme(item1.itemId, "naoAtende");
 App.chkAplicarMotivoPadrao(item1.itemId, "Ancoragem corroida");
@@ -193,31 +202,38 @@ App.chkToggleTagFoto(item1.itemId, 0, "Risco");
 App.chkToggleTagFoto(item1.itemId, 0, "Risco");
 App.chkRemoverFoto(item1.itemId, 0);
 
-App.chkToggleSecaoNA(exec.modeloSnapshot[1].id);
-App.chkToggleSecaoNA(exec.modeloSnapshot[1].id);
+App.chkToggleSecaoNA(linha.modeloSnapshot[1].id);
+App.chkToggleSecaoNA(linha.modeloSnapshot[1].id);
 App.chkIrSecao(1);
 App.chkIrSecao(-1);
 
 App.chkSetConclusao("Inspecao concluida sem pendencias criticas.");
 App.chkFinalizar();
-App.chkReabrirExecucao();
+App.chkReabrirLinha();
 
+// Segundo projeto/setor/linha e um segundo modelo, so pra exercitar exclusao
+// em todos os niveis da hierarquia.
 const modelo2 = novoChkModelo();
 STATE.checklists.modelos.push(modelo2);
 STATE.ui.chkModeloId = modelo2.id;
 App.chkNovaSecao();
 App.chkNovoItem(modelo2.secoes[0].id);
-App.chkSetNovaExecDraft("modeloId", modelo2.id);
-App.chkSetNovaExecDraft("vinculoMaquina", "");
-App.chkIniciarExecucao();
-if(STATE.checklists.execucoes.length !== 2) throw new Error("segunda execucao nao foi criada");
-App.chkExcluirExecucao(STATE.checklists.execucoes[1].id);
+App.chkNovoProjeto();
+const proj2 = STATE.checklists.projetos[1];
+STATE.ui.chkProjetoId = proj2.id;
+App.chkNovoSetor();
+const setor2 = proj2.setores[0];
+STATE.ui.chkSetorId = setor2.id;
+App.chkSetNovaLinhaDraft("nome", "LV-999");
+App.chkSetNovaLinhaDraft("modeloId", modelo2.id);
+App.chkCriarLinha();
+if(setor2.linhas.length !== 1) throw new Error("linha de vida do segundo setor nao foi criada");
+App.chkExcluirLinha(setor2.linhas[0].id);
+App.chkExcluirSetor(setor2.id);
+App.chkExcluirProjeto(proj2.id);
 App.chkExcluirModelo(modelo2.id);
+STATE.ui.chkProjetoId = proj.id; STATE.ui.chkSetorId = setor.id;
 App.chkRemoverSecao(sec2.id);
-
-const chamada = chkTodasMaquinasParaVinculo();
-if(!chamada.some(m => m.origem === "completo") || !chamada.some(m => m.origem === "simplificado"))
-  throw new Error("chkTodasMaquinasParaVinculo nao enxergou as duas arvores");
 `;
 vm.runInContext(operar, sandbox, { filename: "checklist-operacoes.js" });
 
@@ -240,34 +256,64 @@ if(antesSimples !== depoisSimples){
 }
 if(falhou){ process.exit(1); }
 
-// ---------- migração: STATE salvo por versão anterior ao Checklist ----------
-// Reproduz o bug real encontrado em campo: um STATE já persistido (sem a
-// chave `checklists`) tem que ganhar o namespace vazio sem que nada em
-// projetos/projetosSimples mude. Isto é o que os 4 pontos de reatribuição de
-// STATE (abertura, bfcache, restauração de ponto x2) chamam agora.
-const estadoAntigo = {
+// ---------- migração 1: STATE salvo por versão anterior ao Checklist (sem `checklists`) ----------
+const estadoSemChecklists = {
   modulo: "checklist",
   projetos: JSON.parse(antesCompleto),
   projetosSimples: JSON.parse(antesSimples),
   ui: { screen: "checklist-modelos" },
   // sem "checklists" -- exatamente o formato salvo antes deste módulo existir
 };
-const antesMigracaoCompleto = JSON.stringify(estadoAntigo.projetos);
-const antesMigracaoSimples = JSON.stringify(estadoAntigo.projetosSimples);
-vm.runInContext("chkGarantirNamespace(estadoAntigo);", Object.assign(sandbox, { estadoAntigo }), { filename: "checklist-migracao.js" });
+const antesMig1Completo = JSON.stringify(estadoSemChecklists.projetos);
+const antesMig1Simples = JSON.stringify(estadoSemChecklists.projetosSimples);
+vm.runInContext("chkGarantirNamespace(estadoSemChecklists);", Object.assign(sandbox, { estadoSemChecklists }), { filename: "checklist-migracao1.js" });
 
-if(!estadoAntigo.checklists || !Array.isArray(estadoAntigo.checklists.modelos) || !Array.isArray(estadoAntigo.checklists.execucoes)){
-  console.error("FALHOU: chkGarantirNamespace nao criou STATE.checklists num STATE antigo");
+if(!estadoSemChecklists.checklists || !Array.isArray(estadoSemChecklists.checklists.modelos) || !Array.isArray(estadoSemChecklists.checklists.projetos)){
+  console.error("FALHOU: chkGarantirNamespace nao criou STATE.checklists (modelos/projetos) num STATE sem a chave");
   process.exit(1);
 }
-if(estadoAntigo.ui.chkModeloId !== null || estadoAntigo.ui.chkExecucaoId !== null || estadoAntigo.ui.chkSecaoAtual !== 0){
+if(estadoSemChecklists.ui.chkModeloId !== null || estadoSemChecklists.ui.chkProjetoId !== null
+   || estadoSemChecklists.ui.chkSetorId !== null || estadoSemChecklists.ui.chkLinhaId !== null
+   || estadoSemChecklists.ui.chkSecaoAtual !== 0){
   console.error("FALHOU: chkGarantirNamespace nao preencheu os ponteiros de ui do Checklist");
   process.exit(1);
 }
-if(JSON.stringify(estadoAntigo.projetos) !== antesMigracaoCompleto || JSON.stringify(estadoAntigo.projetosSimples) !== antesMigracaoSimples){
-  console.error("FALHOU: chkGarantirNamespace mudou projetos/projetosSimples de um STATE antigo");
+if(JSON.stringify(estadoSemChecklists.projetos) !== antesMig1Completo || JSON.stringify(estadoSemChecklists.projetosSimples) !== antesMig1Simples){
+  console.error("FALHOU: chkGarantirNamespace (sem checklists) mudou projetos/projetosSimples de um STATE antigo");
   process.exit(1);
 }
 
-console.log("ISOLAMENTO OK: STATE.projetos e STATE.projetosSimples byte a byte identicos apos criar/editar/salvar/sincronizar/excluir no Checklist, e a migracao de STATE antigo (sem checklists) preenche o namespace sem tocar nas duas arvores");
+// ---------- migração 2: STATE com o formato antigo (execuções em lista plana) ----------
+const estadoExecucoesPlanas = {
+  modulo: "checklist",
+  projetos: JSON.parse(antesCompleto),
+  projetosSimples: JSON.parse(antesSimples),
+  checklists: {
+    modelos: [],
+    execucoes: [{ id: "exec-antiga", modeloId: "m-antigo", modeloNome: "Modelo antigo",
+      modeloSnapshot: [], status: "finalizado", dataInicio: "2026-08-01", dataFinalizacao: "2026-08-02",
+      secoesNA: [], itens: [], conclusaoTexto: "Texto antigo", empresaNome: "Empresa antiga",
+      criadoEm: 1, atualizadoEm: 2 }],
+  },
+  ui: { screen: "checklist-modelos" },
+};
+const antesMig2Completo = JSON.stringify(estadoExecucoesPlanas.projetos);
+const antesMig2Simples = JSON.stringify(estadoExecucoesPlanas.projetosSimples);
+vm.runInContext("chkGarantirNamespace(estadoExecucoesPlanas);", Object.assign(sandbox, { estadoExecucoesPlanas }), { filename: "checklist-migracao2.js" });
+
+if(estadoExecucoesPlanas.checklists.execucoes !== undefined){
+  console.error("FALHOU: chkGarantirNamespace nao removeu o formato antigo (execucoes) apos migrar");
+  process.exit(1);
+}
+const linhaMigrada = (estadoExecucoesPlanas.checklists.projetos[0] || {}).setores?.[0]?.linhas?.[0];
+if(!linhaMigrada || linhaMigrada.id !== "exec-antiga" || linhaMigrada.conclusaoTexto !== "Texto antigo"){
+  console.error("FALHOU: a execucao antiga (formato em lista plana) nao virou Linha de vida corretamente");
+  process.exit(1);
+}
+if(JSON.stringify(estadoExecucoesPlanas.projetos) !== antesMig2Completo || JSON.stringify(estadoExecucoesPlanas.projetosSimples) !== antesMig2Simples){
+  console.error("FALHOU: chkGarantirNamespace (execucoes antigas) mudou projetos/projetosSimples de um STATE antigo");
+  process.exit(1);
+}
+
+console.log("ISOLAMENTO OK: STATE.projetos e STATE.projetosSimples byte a byte identicos apos criar/editar/salvar/vincular/finalizar/excluir na hierarquia Projeto>Setor>Linha do Checklist, e as duas migracoes de STATE antigo preenchem/reorganizam o namespace sem tocar nas duas arvores");
 process.exit(0);
