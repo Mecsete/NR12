@@ -648,6 +648,14 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-resumo-desc{font-size:13px;font-weight:600;}
 .chk-resumo-motivo{font-size:12.5px;color:var(--ink-dim);margin-top:2px;}
 .chk-resumo-status{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;display:block;margin-top:4px;}
+.chk-laudo-grid{display:grid;grid-template-columns:1fr;gap:14px;font-size:12.5px;color:var(--ink-dim);margin-top:10px;}
+.chk-laudo-grid > div > div{margin-bottom:2px;}
+.chk-laudo-subtitulo{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);margin-bottom:4px;}
+.chk-laudo-obs{background:var(--bg-soft);border-radius:8px;padding:8px 10px;font-size:13px;margin-top:8px;}
+.chk-laudo-assinatura{margin-top:24px;padding-top:14px;border-top:1px solid var(--line);font-size:13px;}
+.chk-laudo-assinatura-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px;text-align:center;font-size:12.5px;}
+.chk-laudo-assinatura-linha{border-top:1px solid var(--ink-dim);margin-bottom:6px;}
+@media (min-width:640px){.chk-laudo-grid{grid-template-columns:1fr 1fr 1fr;}}
 @media print{.chk-status-btn,.chk-photo-add,.chk-photo-remove{display:none!important;}}
 </style>
 <script>
@@ -2985,7 +2993,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "12/09/2026 20:05";
+const APP_BUILD = "13/09/2026 11:00";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -9091,7 +9099,20 @@ function novoChkModelo(){
 function novoChkSecao(){ return { id:uid(), titulo:"", itens:[] }; }
 function novoChkItem(){ return { id:uid(), normativo:"", descricao:"", motivosPadrao:[] }; }
 function novoChkProjeto(){
-  return { id:uid(), empresa:"", responsavel:"", data:hoje(), setores:[], criadoEm:Date.now(), atualizadoEm:Date.now() };
+  return {
+    id:uid(), empresa:"", responsavel:"", data:hoje(), setores:[],
+    /* Dados do laudo (relatório final do projeto) — editáveis na tela do
+       projeto, aparecem juntos na hora de gerar o laudo. Dados do
+       Responsável Técnico (empresa, CREA etc.) NÃO ficam aqui: são lidos de
+       getMecseteConfig() (Configurações → Empresa e Responsáveis), que já
+       existe e é compartilhada com os outros módulos — evita digitar de
+       novo em cada projeto o que é sempre o mesmo. */
+    numeroDocumento:"", art:"", dataInspecao:hoje(), validadeInspecao:"",
+    solicitanteCpfCnpj:"", solicitanteEndereco:"", solicitanteCidade:"", solicitanteTelefone:"", solicitanteCargo:"",
+    inspetorNome:"", inspetorCargo:"",
+    objetivo:"", conclusaoGeral:"",
+    criadoEm:Date.now(), atualizadoEm:Date.now(),
+  };
 }
 function novoChkSetor(){
   return { id:uid(), nome:"", descricao:"", linhas:[], criadoEm:Date.now(), atualizadoEm:Date.now() };
@@ -12115,9 +12136,9 @@ function topBarChk(){
     "checklist-laudo": ["Laudo", "Relatório da inspeção"],
   };
   let [title, sub] = TITULOS_CHK[s] || ["Checklist",""];
-  if(["checklist-setores","checklist-setor-form"].includes(s)){ const p=getCurrentChkProjeto(); if(p) title = p.empresa || title; }
+  if(["checklist-setores","checklist-setor-form","checklist-laudo"].includes(s)){ const p=getCurrentChkProjeto(); if(p) title = p.empresa || title; }
   if(["checklist-linhas","checklist-nova-linha"].includes(s)){ const st=getCurrentChkSetor(); if(st) title = st.nome || title; }
-  const linhaAtual = ["checklist-preencher","checklist-finalizar","checklist-laudo"].includes(s) ? getCurrentChkLinha() : null;
+  const linhaAtual = ["checklist-preencher","checklist-finalizar"].includes(s) ? getCurrentChkLinha() : null;
   if(linhaAtual) title = linhaAtual.nome || linhaAtual.modeloNome || title;
   const showBack = s!=="checklist-modelos" && s!=="checklist-projetos";
   let backTarget = "checklist-modelos";
@@ -12129,13 +12150,13 @@ function topBarChk(){
   if(s==="checklist-nova-linha") backTarget = "checklist-linhas";
   if(s==="checklist-preencher") backTarget = "checklist-linhas";
   if(s==="checklist-finalizar") backTarget = "checklist-preencher";
-  if(s==="checklist-laudo") backTarget = "checklist-linhas";
+  if(s==="checklist-laudo") backTarget = "checklist-setores";
   let action = "";
   if(s==="checklist-modelos") action = `<button class="icon-btn" style="color:var(--on-bar)" onclick="App.trocarModulo()" title="Trocar módulo">${ic('layers')}</button><button class="topbar-action" onclick="App.chkNovoModelo()">${ic('plus')} Novo</button>`;
   if(s==="checklist-projetos") action = `<button class="icon-btn" style="color:var(--on-bar)" onclick="App.trocarModulo()" title="Trocar módulo">${ic('layers')}</button><button class="topbar-action" onclick="App.chkNovoProjeto()">${ic('plus')} Novo</button>`;
-  if(s==="checklist-setores") action = `<button class="topbar-action" onclick="App.chkNovoSetor()">${ic('plus')} Setor</button>`;
+  if(s==="checklist-setores") action = `<button class="topbar-action" onclick="App.go('checklist-laudo')">${ic('print')} Laudo</button><button class="topbar-action" onclick="App.chkNovoSetor()">${ic('plus')} Setor</button>`;
   if(s==="checklist-linhas") action = `<button class="topbar-action" onclick="App.go('checklist-nova-linha')">${ic('plus')} Linha</button>`;
-  if(s==="checklist-laudo") action = (linhaAtual && linhaAtual.status==="finalizado" ? `<button class="topbar-action" onclick="App.chkReabrirLinha()">${ic('edit')} Editar</button>` : "") + `<button class="topbar-action" onclick="window.print()">${ic('print')} Imprimir</button>`;
+  if(s==="checklist-laudo") action = `<button class="topbar-action" onclick="window.print()">${ic('print')} Imprimir</button>`;
   return `
   <div class="topbar">
     <div class="topbar-row">
@@ -12152,12 +12173,13 @@ function crumbBarChk(){
   const s = STATE.ui.screen;
   if(!["checklist-setores","checklist-setor-form","checklist-linhas","checklist-nova-linha","checklist-preencher","checklist-finalizar","checklist-laudo"].includes(s)) return "";
   const proj = getCurrentChkProjeto(); if(!proj) return "";
-  const setor = getCurrentChkSetor();
-  const linha = ["checklist-preencher","checklist-finalizar","checklist-laudo"].includes(s) ? getCurrentChkLinha() : null;
+  const setor = s!=="checklist-laudo" ? getCurrentChkSetor() : null;
+  const linha = ["checklist-preencher","checklist-finalizar"].includes(s) ? getCurrentChkLinha() : null;
   const parts = [{label:"Projetos", icon:"table", go:["checklist-projetos",{}]}];
   parts.push({label:(proj.empresa||"Projeto"), go:["checklist-setores",{chkProjetoId:proj.id, chkSetorId:null, chkLinhaId:null}]});
   if(setor) parts.push({label:setor.nome||"Setor", go:["checklist-linhas",{chkSetorId:setor.id, chkLinhaId:null}]});
   if(linha) parts.push({label:linha.nome||"Linha", go:["checklist-preencher",{chkLinhaId:linha.id}]});
+  if(s==="checklist-laudo") parts.push({label:"Laudo", go:["checklist-laudo",{}]});
   const lastIdx = parts.length-1;
   const html = parts.map((seg,i)=>{
     const cur = i===lastIdx;
@@ -12273,10 +12295,39 @@ function screenChkProjetos(){
 function screenChkProjetoForm(){
   const p = getCurrentChkProjeto();
   if(!p){ go("checklist-projetos"); return ""; }
+  const mc = getMecseteConfig();
   return `
-  <div class="field"><label>Empresa <span class="req">*</span></label><input type="text" placeholder="Ex.: Cooperativa Agrícola XYZ" value="${escapeHtml(p.empresa)}" oninput="App.chkSetProjetoField('empresa',this.value)"></div>
-  <div class="field"><label>Responsável</label><input type="text" value="${escapeHtml(p.responsavel)}" oninput="App.chkSetProjetoField('responsavel',this.value)"></div>
-  <div class="field"><label>Data</label><input type="date" value="${escapeHtml(p.data)}" oninput="App.chkSetProjetoField('data',this.value)"></div>
+  <div class="section-title" style="margin-top:0">Dados do solicitante</div>
+  <div class="field"><label>Empresa <span class="req">*</span></label><input type="text" placeholder="Ex.: Fazenda Santa Mônica" value="${escapeHtml(p.empresa)}" oninput="App.chkSetProjetoField('empresa',this.value)"></div>
+  <div class="field"><label>CPF/CNPJ</label><input type="text" value="${escapeHtml(p.solicitanteCpfCnpj)}" oninput="App.chkSetProjetoField('solicitanteCpfCnpj',this.value)"></div>
+  <div class="field"><label>Endereço</label><input type="text" value="${escapeHtml(p.solicitanteEndereco)}" oninput="App.chkSetProjetoField('solicitanteEndereco',this.value)"></div>
+  <div class="field"><label>Cidade</label><input type="text" value="${escapeHtml(p.solicitanteCidade)}" oninput="App.chkSetProjetoField('solicitanteCidade',this.value)"></div>
+  <div class="field"><label>Telefone</label><input type="text" value="${escapeHtml(p.solicitanteTelefone)}" oninput="App.chkSetProjetoField('solicitanteTelefone',this.value)"></div>
+  <div class="field"><label>Nome do responsável</label><input type="text" value="${escapeHtml(p.responsavel)}" oninput="App.chkSetProjetoField('responsavel',this.value)"></div>
+  <div class="field"><label>Cargo do responsável</label><input type="text" placeholder="Ex.: Proprietário" value="${escapeHtml(p.solicitanteCargo)}" oninput="App.chkSetProjetoField('solicitanteCargo',this.value)"></div>
+
+  <div class="section-title">Dados do documento</div>
+  <div class="field"><label>Nº do documento</label><input type="text" value="${escapeHtml(p.numeroDocumento)}" oninput="App.chkSetProjetoField('numeroDocumento',this.value)"></div>
+  <div class="field"><label>ART</label><input type="text" value="${escapeHtml(p.art)}" oninput="App.chkSetProjetoField('art',this.value)"></div>
+  <div class="field"><label>Data da inspeção</label><input type="date" value="${escapeHtml(p.dataInspecao)}" oninput="App.chkSetProjetoField('dataInspecao',this.value)"></div>
+  <div class="field"><label>Validade da inspeção</label><input type="date" value="${escapeHtml(p.validadeInspecao)}" oninput="App.chkSetProjetoField('validadeInspecao',this.value)"></div>
+  <div class="field"><label>Nome do inspetor</label><input type="text" value="${escapeHtml(p.inspetorNome)}" oninput="App.chkSetProjetoField('inspetorNome',this.value)"></div>
+  <div class="field"><label>Cargo do inspetor</label><input type="text" value="${escapeHtml(p.inspetorCargo)}" oninput="App.chkSetProjetoField('inspetorCargo',this.value)"></div>
+
+  <div class="section-title">Objetivo e conclusão do laudo</div>
+  <div class="field"><label>Objetivo</label><textarea placeholder="Ex.: Inspeção para validação da linha de vida flexível... considerando as normas NBR14626:2010, NBR6327:2006..." oninput="App.chkSetProjetoField('objetivo',this.value)">${escapeHtml(p.objetivo)}</textarea></div>
+  <div class="field"><label>Conclusão geral</label><textarea placeholder="Parecer final sobre o conjunto de linhas de vida inspecionadas neste projeto" oninput="App.chkSetProjetoField('conclusaoGeral',this.value)">${escapeHtml(p.conclusaoGeral)}</textarea></div>
+
+  <div class="section-title">Responsável técnico</div>
+  <div class="card card-pad" style="margin-bottom:14px">
+    <div style="font-size:13px;line-height:1.7">
+      <div><b>${escapeHtml(mc.respNome)}</b> — ${escapeHtml(mc.respFuncao)} (CREA ${escapeHtml(mc.respCREA)})</div>
+      <div>${escapeHtml(mc.empresa)} · ${escapeHtml(mc.endereco)} · ${escapeHtml(mc.cidade)}</div>
+      <div>${escapeHtml(mc.telefone)} · ${escapeHtml(mc.email)}</div>
+    </div>
+    <p style="font-size:12px;color:var(--ink-faint);margin:8px 0 0">Estes dados vêm de <b>Configurações → Empresa e Responsáveis</b> e valem para todos os módulos — para corrigir, edite lá.</p>
+  </div>
+
   <button class="btn btn-primary btn-block" onclick="App.go('checklist-setores',{chkProjetoId:'${p.id}'})">${ic('check')} Salvar e ver setores</button>
   `;
 }
@@ -12466,53 +12517,110 @@ function screenChkFinalizar(){
   </div>` : ""}
   <div class="section-title">Resumo do checklist</div>
   ${chkResumoHtml(l)}
-  <div class="field"><label>Conclusão</label><textarea placeholder="Observações finais sobre esta inspeção (opcional)" oninput="App.chkSetConclusao(this.value)">${escapeHtml(l.conclusaoTexto)}</textarea></div>
-  <button class="btn btn-primary btn-block" onclick="App.chkFinalizar()">${ic('check')} Finalizar checklist</button>
+  <div class="field"><label>Observação</label><textarea placeholder="Observações finais sobre esta linha de vida (opcional) — aparece no laudo" oninput="App.chkSetConclusao(this.value)">${escapeHtml(l.conclusaoTexto)}</textarea></div>
+  ${l.status==="finalizado"
+    ? `<button class="btn btn-block" onclick="App.chkReabrirLinha()">${ic('edit')} Reabrir para editar</button>
+       <button class="btn btn-primary btn-block" style="margin-top:8px" onclick="App.go('checklist-laudo')">${ic('print')} Ver laudo do projeto</button>`
+    : `<button class="btn btn-primary btn-block" onclick="App.chkFinalizar()">${ic('check')} Finalizar checklist</button>`}
   `;
 }
+const CHK_MESES = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
+function chkDataExtenso(iso){
+  if(!iso) return "";
+  const partes = iso.split("-").map(Number);
+  const ano=partes[0], mes=partes[1], dia=partes[2];
+  if(!ano||!mes||!dia) return iso;
+  return `${String(dia).padStart(2,"0")} de ${CHK_MESES[mes-1]} de ${ano}`;
+}
+/* Laudo é do PROJETO inteiro (todas as linhas de vida de todos os setores),
+   não de uma linha isolada — é assim que o relatório real do engenheiro é
+   estruturado: um documento por serviço/empresa, cobrindo cada linha de vida
+   inspecionada. Dados do responsável técnico vêm de getMecseteConfig()
+   (SÓ LEITURA — config compartilhada com os outros módulos, nunca escrita
+   por aqui). */
 function screenChkLaudo(){
-  const l = getCurrentChkLinha();
-  if(!l){ go("checklist-linhas"); return ""; }
   const proj = getCurrentChkProjeto();
-  const setor = getCurrentChkSetor();
-  const secoesHtml = l.modeloSnapshot.map((s,si)=>{
-    const isNA = l.secoesNA.includes(s.id);
-    if(isNA) return `<div class="chk-laudo-secao"><h3>${si+1}. ${escapeHtml(s.titulo||'Seção')}</h3><p style="color:var(--ink-faint)">Não aplicável.</p></div>`;
-    const itensHtml = s.itens.map((it,ii)=>{
-      const ie = chkItemExec(l, it.id) || {conforme:null,observacao:"",fotos:[]};
-      const meta = ie.conforme? CHK_STATUS_META[ie.conforme] : {label:"Sem resposta", cor:"#999"};
-      const fotosHtml = (ie.fotos||[]).map(f=>{
-        const ref = imgReg(f.foto);
-        return `<img data-imgref="${ref}" class="chk-laudo-foto" onclick="App.verFotoReg(this)">`;
+  if(!proj){ go("checklist-projetos"); return ""; }
+  const mc = getMecseteConfig();
+  const linhasHtml = proj.setores.flatMap(setor => setor.linhas.map(l => ({ setor, l }))).map(({l})=>{
+    const secoesHtml = l.modeloSnapshot.map(s=>{
+      const isNA = l.secoesNA.includes(s.id);
+      if(isNA) return "";
+      return s.itens.map(it=>{
+        const ie = chkItemExec(l, it.id) || {conforme:null,observacao:"",fotos:[]};
+        const meta = ie.conforme? CHK_STATUS_META[ie.conforme] : {label:"Sem resposta", cor:"#999"};
+        const fotosHtml = (ie.fotos||[]).map(f=>{
+          const ref = imgReg(f.foto);
+          return `<img data-imgref="${ref}" class="chk-laudo-foto" onclick="App.verFotoReg(this)">`;
+        }).join("");
+        return `
+        <div class="chk-laudo-item" style="border-left:4px solid ${meta.cor}">
+          <div class="chk-laudo-item-head">
+            <b>${escapeHtml(it.descricao)}</b>
+            <span class="stat-pill" style="color:${meta.cor};margin-left:auto">${meta.label}</span>
+          </div>
+          ${it.normativo? `<div class="chk-item-norma" style="margin:2px 0">${escapeHtml(it.normativo)}</div>`:""}
+          ${ie.observacao? `<p style="margin:4px 0 0;font-size:13px">${escapeHtml(ie.observacao)}</p>`:""}
+          ${fotosHtml? `<div class="chk-laudo-fotos">${fotosHtml}</div>`:""}
+        </div>`;
       }).join("");
-      return `
-      <div class="chk-laudo-item" style="border-left:4px solid ${meta.cor}">
-        <div class="chk-laudo-item-head">
-          <b>${si+1}.${ii+1}</b> ${it.normativo? '<b>['+escapeHtml(it.normativo)+']</b>':''} ${escapeHtml(it.descricao)}
-          <span class="stat-pill" style="color:${meta.cor};margin-left:auto">${meta.label}</span>
-        </div>
-        ${ie.observacao? `<p style="margin:4px 0 0;font-size:13px">${escapeHtml(ie.observacao)}</p>`:""}
-        ${fotosHtml? `<div class="chk-laudo-fotos">${fotosHtml}</div>`:""}
-      </div>`;
     }).join("");
-    return `<div class="chk-laudo-secao"><h3>${si+1}. ${escapeHtml(s.titulo||'Seção')}</h3>${itensHtml}</div>`;
+    return `
+    <div class="chk-laudo-secao">
+      <h3>LINHA DE VIDA — ${escapeHtml(l.nome||l.modeloNome||'Sem nome')}${l.status!=="finalizado"? ` <span class="stat-pill alert">em andamento</span>`:''}</h3>
+      ${secoesHtml}
+      ${l.conclusaoTexto? `<div class="chk-laudo-obs"><b>Observação:</b> ${escapeHtml(l.conclusaoTexto)}</div>`:""}
+    </div>`;
   }).join("");
+  const temLinha = proj.setores.some(s=>s.linhas.length);
   return `
   <div class="chk-laudo-header">
-    <h1>${escapeHtml(l.nome||l.modeloNome||'Checklist')}</h1>
-    <div class="chk-laudo-meta">
-      ${proj? `<div><b>Empresa:</b> ${escapeHtml(proj.empresa||'')}</div>`:""}
-      ${proj && proj.responsavel? `<div><b>Responsável:</b> ${escapeHtml(proj.responsavel)}</div>`:""}
-      ${setor? `<div><b>Setor:</b> ${escapeHtml(setor.nome||'')}</div>`:""}
-      <div><b>Modelo:</b> ${escapeHtml(l.modeloNome||'')}</div>
-      <div><b>Início:</b> ${escapeHtml(l.dataInicio||'')}</div>
-      ${l.dataFinalizacao? `<div><b>Finalização:</b> ${escapeHtml(l.dataFinalizacao)}</div>`:""}
-      <div><b>Status:</b> ${l.status==="finalizado"?"Finalizado":"Em andamento"}</div>
+    <h1>Laudo — ${escapeHtml(proj.empresa||'Checklist')}</h1>
+    <div class="chk-laudo-grid">
+      <div>
+        <div class="chk-laudo-subtitulo">Dados do solicitante</div>
+        <div><b>Empresa:</b> ${escapeHtml(proj.empresa||'')}</div>
+        ${proj.solicitanteCpfCnpj? `<div><b>CPF/CNPJ:</b> ${escapeHtml(proj.solicitanteCpfCnpj)}</div>`:""}
+        ${proj.solicitanteEndereco? `<div><b>Endereço:</b> ${escapeHtml(proj.solicitanteEndereco)}</div>`:""}
+        ${proj.solicitanteCidade? `<div><b>Cidade:</b> ${escapeHtml(proj.solicitanteCidade)}</div>`:""}
+        ${proj.solicitanteTelefone? `<div><b>Telefone:</b> ${escapeHtml(proj.solicitanteTelefone)}</div>`:""}
+        ${proj.responsavel? `<div><b>Responsável:</b> ${escapeHtml(proj.responsavel)}</div>`:""}
+        ${proj.solicitanteCargo? `<div><b>Cargo:</b> ${escapeHtml(proj.solicitanteCargo)}</div>`:""}
+      </div>
+      <div>
+        <div class="chk-laudo-subtitulo">Dados do responsável</div>
+        <div><b>Empresa:</b> ${escapeHtml(mc.empresa)}</div>
+        <div><b>Endereço:</b> ${escapeHtml(mc.endereco)}</div>
+        <div><b>Cidade:</b> ${escapeHtml(mc.cidade)}</div>
+        <div><b>Contato:</b> ${escapeHtml(mc.telefone)}</div>
+        <div><b>Email:</b> ${escapeHtml(mc.email)}</div>
+        <div><b>Nome Resp.:</b> ${escapeHtml(mc.respNome)}</div>
+        <div><b>Função Resp.:</b> ${escapeHtml(mc.respFuncao)}</div>
+        <div><b>CREA:</b> ${escapeHtml(mc.respCREA)}</div>
+        ${proj.inspetorNome? `<div><b>Nome Inspetor:</b> ${escapeHtml(proj.inspetorNome)}</div>`:""}
+        ${proj.inspetorCargo? `<div><b>Cargo Inspetor:</b> ${escapeHtml(proj.inspetorCargo)}</div>`:""}
+      </div>
+      <div>
+        <div class="chk-laudo-subtitulo">Documento</div>
+        ${proj.numeroDocumento? `<div><b>Nº Documento:</b> ${escapeHtml(proj.numeroDocumento)}</div>`:""}
+        ${proj.art? `<div><b>ART:</b> ${escapeHtml(proj.art)}</div>`:""}
+        ${proj.dataInspecao? `<div><b>Data da inspeção:</b> ${chkDataExtenso(proj.dataInspecao)}</div>`:""}
+        ${proj.validadeInspecao? `<div><b>Validade:</b> ${chkDataExtenso(proj.validadeInspecao)}</div>`:""}
+      </div>
     </div>
   </div>
-  ${secoesHtml}
-  ${l.conclusaoTexto? `<div class="chk-laudo-secao"><h3>Conclusão</h3><p>${escapeHtml(l.conclusaoTexto)}</p></div>`:""}
-  ${l.status!=="finalizado"? `<div class="export-row" style="margin-top:16px"><button class="btn btn-primary btn-block" onclick="App.go('checklist-finalizar')">Ir para finalização</button></div>`:""}
+  ${proj.objetivo? `<div class="chk-laudo-secao"><h3>Objetivo</h3><p>${escapeHtml(proj.objetivo)}</p></div>`:""}
+  ${temLinha? linhasHtml : `<div class="empty"><p>Nenhuma linha de vida cadastrada ainda neste projeto.</p></div>`}
+  ${proj.conclusaoGeral? `<div class="chk-laudo-secao"><h3>Conclusão</h3><p>${escapeHtml(proj.conclusaoGeral)}</p></div>`:""}
+  <div class="chk-laudo-assinatura">
+    <p>Relatório documentado perante o CREA${proj.art? ` na ART ${escapeHtml(proj.art)}`:''}.</p>
+    <p>${escapeHtml(mc.cidade||'')}, ${chkDataExtenso(hoje())}.</p>
+    <div class="chk-laudo-assinatura-grid">
+      <div><div class="chk-laudo-assinatura-linha"></div>${escapeHtml(proj.responsavel||'Solicitante')}<br>${escapeHtml(proj.solicitanteCargo||'')}<br>${escapeHtml(proj.empresa||'')}</div>
+      <div><div class="chk-laudo-assinatura-linha"></div>${escapeHtml(mc.respNome)}<br>${escapeHtml(mc.respFuncao)}<br>${escapeHtml(mc.empresa)}</div>
+    </div>
+  </div>
+  <div class="export-row" style="margin-top:16px"><button class="btn btn-block" onclick="App.go('checklist-setores')">${ic('back')} Voltar aos setores</button></div>
   `;
 }
 
@@ -24531,7 +24639,9 @@ Devolver agora?`)) return;
     const l = setor.linhas.find(x=>x.id===id); if(!l) return;
     STATE.ui.chkLinhaId = id;
     STATE.ui.chkSecaoAtual = 0;
-    go(l.status==="finalizado" ? "checklist-laudo" : "checklist-preencher");
+    // Laudo agora é do projeto inteiro (ver screenChkLaudo) — uma linha
+    // finalizada abre na revisão dela mesma, com opção de reabrir para editar.
+    go(l.status==="finalizado" ? "checklist-finalizar" : "checklist-preencher");
   },
   chkExcluirLinha(id){
     const setor = getCurrentChkSetor(); if(!setor) return;

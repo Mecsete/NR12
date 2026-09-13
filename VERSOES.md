@@ -64,6 +64,33 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 13/09/2026 11:00
+
+**Laudo do Checklist reformulado: agora é o relatório do projeto inteiro, no formato usado nos laudos de linha de vida.**
+
+O Laudo deixou de ser por linha de vida isolada e passou a reunir **todas as
+linhas de todos os setores de um projeto** num só relatório, no formato já
+usado nos laudos de Linha de Vida: capa com dados do solicitante e do
+responsável técnico, seção "LINHA DE VIDA — [nome]" para cada item
+inspecionado, observação de cada componente, conclusão geral e assinatura.
+Acessa-se pelo botão **Laudo** na tela de Setores do projeto.
+
+O projeto ganhou os campos que alimentam esse laudo — todos editáveis:
+
+- **Dados do solicitante**: CPF/CNPJ, endereço, cidade, telefone, cargo do
+  responsável (empresa e nome já existiam).
+- **Dados do documento**: nº do documento, ART, data e validade da inspeção,
+  nome e cargo do inspetor.
+- **Objetivo** e **Conclusão geral**, em texto livre.
+
+Os dados do **responsável técnico** (empresa, CREA, endereço, contato) não
+precisam ser digitados a cada projeto — vêm automaticamente de
+**Configurações → Empresa e Responsáveis**, a mesma tela já usada pelos
+outros módulos.
+
+Cada linha de vida também ganhou uma tela de revisão quando já finalizada,
+com botões para **reabrir e corrigir** ou **ver o laudo do projeto**.
+
 ## 12/09/2026 20:05
 
 **Checklist reorganizado em Projeto > Setor > Linha de vida; resumo colorido; edição de checklist finalizado; tirado o vínculo a máquina; correção na foto.**
