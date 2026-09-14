@@ -64,6 +64,32 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 14/09/2026 10:29
+
+**Checklist: texto padrão de laudo por item (atende / não atende), e o Laudo ganhou capa e visual novos, no padrão do APR Campo.**
+
+Cada item do modelo do Checklist agora tem um lugar para cadastrar o texto
+que vai para o laudo — um parágrafo padrão para quando o item **atende**, e
+um parágrafo próprio para **cada motivo** de "não atende". Esses textos só
+existem no cadastro do modelo: quem preenche o checklist em campo continua
+vendo só os botões de Atende/Não atende/Não aplica e a lista curta de
+motivos, exatamente como antes — o parágrafo comprido nunca aparece na tela
+de preenchimento nem no resumo. Ele só entra, automaticamente, na hora de
+montar o laudo, escolhido pelo motivo que foi marcado em campo (ou pelo
+texto de "atende", quando não há problema).
+
+O modelo pronto "Linhas de Vida (NR-35)" já vem com esses textos preenchidos
+nos 45 itens — reaproveitando, nos itens de cabo de aço, grampos/terminação,
+olhal, sapatilha, ancoragem estrutural e esticador, a mesma redação já usada
+em laudos reais já entregues, e com texto novo, no mesmo padrão, para
+documentação, viga e trólei.
+
+O Laudo gerado ao final também ganhou capa e visual novos, seguindo o mesmo
+padrão do modelo "APR Campo": capa com o nome do cliente em destaque, tabela
+com documento/ART/responsável técnico, e o corpo organizado em blocos com
+cabeçalho colorido — Informações Iniciais, Dados do Solicitante e Dados do
+Responsável — antes do relatório de cada linha de vida inspecionada.
+
 ## 14/09/2026 00:50
 
 **Modelo "Linhas de Vida (NR-35)" já vem pronto no Checklist: 9 seções, 45 itens, com sugestões de motivo prontas para cada um.**

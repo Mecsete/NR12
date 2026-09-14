@@ -635,8 +635,6 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-motivo-row{display:flex;gap:6px;margin-bottom:6px;}
 .chk-motivo-row input{flex:1;}
 .chk-motivo-select{width:100%;margin-bottom:10px;border:1px solid var(--accent);border-radius:9px;padding:8px;font-size:13px;background:var(--accent-soft);}
-.chk-laudo-header{padding:16px 4px;border-bottom:2px solid var(--line);margin-bottom:14px;}
-.chk-laudo-meta{font-size:13px;color:var(--ink-dim);display:grid;gap:2px;margin-top:6px;}
 .chk-laudo-secao{margin-bottom:18px;break-inside:avoid;}
 .chk-laudo-secao h3{font-size:14px;border-bottom:1px solid var(--line);padding-bottom:4px;margin-bottom:8px;}
 .chk-laudo-item{padding:8px 0;border-bottom:1px dashed var(--line);font-size:13px;break-inside:avoid;}
@@ -648,15 +646,36 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-resumo-desc{font-size:13px;font-weight:600;}
 .chk-resumo-motivo{font-size:12.5px;color:var(--ink-dim);margin-top:2px;}
 .chk-resumo-status{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;display:block;margin-top:4px;}
-.chk-laudo-grid{display:grid;grid-template-columns:1fr;gap:14px;font-size:12.5px;color:var(--ink-dim);margin-top:10px;}
-.chk-laudo-grid > div > div{margin-bottom:2px;}
-.chk-laudo-subtitulo{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);margin-bottom:4px;}
 .chk-laudo-obs{background:var(--bg-soft);border-radius:8px;padding:8px 10px;font-size:13px;margin-top:8px;}
 .chk-laudo-assinatura{margin-top:24px;padding-top:14px;border-top:1px solid var(--line);font-size:13px;}
 .chk-laudo-assinatura-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px;text-align:center;font-size:12.5px;}
 .chk-laudo-assinatura-linha{border-top:1px solid var(--ink-dim);margin-bottom:6px;}
-@media (min-width:640px){.chk-laudo-grid{grid-template-columns:1fr 1fr 1fr;}}
-@media print{.chk-status-btn,.chk-photo-add,.chk-photo-remove{display:none!important;}}
+/* ---------- Laudo do Checklist — capa e blocos no visual do APR Campo ---------- */
+.chk-laudo-capa{position:relative;background:#fff;color:#1a1a2e;padding:44px 28px 36px 30px;margin:-14px -14px 22px;border-left:14px solid var(--bar);min-height:60vh;display:flex;flex-direction:column;}
+.chk-laudo-capa h1{color:var(--bar);font-size:21px;font-weight:800;line-height:1.25;margin:0 0 44px;}
+.chk-laudo-capa .cliente-label{font-size:10.5px;font-weight:800;letter-spacing:.12em;color:var(--ink-faint);border-left:3px solid var(--accent);padding-left:8px;margin-bottom:4px;}
+.chk-laudo-capa .cliente-nome{font-size:18px;font-weight:800;color:var(--bar);margin:0 0 18px 11px;}
+.chk-laudo-capa .escopo{font-size:14px;font-weight:700;color:var(--ink-dim);margin:0 0 34px;}
+.chk-laudo-capa-tabela{border-top:1px solid var(--line);font-size:12.5px;margin-top:auto;}
+.chk-laudo-capa-tabela .linha{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);}
+.chk-laudo-capa-tabela .rotulo{color:var(--ink-faint);}
+.chk-laudo-capa-tabela .valor{font-weight:700;text-align:right;}
+.chk-laudo-capa-rodape{margin-top:36px;text-align:center;font-size:12px;color:var(--ink-dim);}
+.chk-laudo-capa-logo{font-weight:800;color:var(--bar);font-size:15px;}
+.chk-laudo-capa-logo span{color:var(--accent);}
+.chk-laudo-corpo{padding-top:4px;}
+.chk-laudo-titulo-corpo{font-size:15px;font-weight:800;text-align:center;color:var(--bar);margin:0 0 14px;}
+.chk-laudo-bloco{margin-bottom:14px;border-radius:8px;overflow:hidden;border:1px solid var(--line);break-inside:avoid;}
+.chk-laudo-bloco-titulo{background:var(--bar);color:#fff;font-size:12px;font-weight:800;padding:8px 12px;}
+.chk-laudo-bloco-corpo{padding:10px 12px;display:grid;grid-template-columns:1fr 1fr;gap:5px 18px;font-size:12.5px;}
+.chk-laudo-bloco-corpo div{overflow-wrap:anywhere;}
+.chk-laudo-bloco-corpo b{font-weight:600;color:var(--ink-faint);}
+@media (min-width:640px){.chk-laudo-corpo{padding:0 8px;}}
+@media print{
+  .chk-status-btn,.chk-photo-add,.chk-photo-remove{display:none!important;}
+  .chk-laudo-capa{page-break-after:always;min-height:100vh;margin:0;padding:56px 36px 40px 38px;}
+  .chk-laudo-bloco-titulo{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+}
 </style>
 <script>
 /*! @azure/msal-browser v2.38.3 2023-10-27 */
@@ -2993,7 +3012,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "14/09/2026 00:50";
+const APP_BUILD = "14/09/2026 10:29";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -9097,7 +9116,11 @@ function novoChkModelo(){
   return { id:uid(), nome:"", descricao:"", secoes:[], criadoEm:Date.now(), atualizadoEm:Date.now() };
 }
 function novoChkSecao(){ return { id:uid(), titulo:"", itens:[] }; }
-function novoChkItem(){ return { id:uid(), normativo:"", descricao:"", motivosPadrao:[] }; }
+/* motivosPadrao: [{motivo, texto}] — "motivo" é o rótulo curto que aparece
+   no seletor rápido em campo; "texto" é o parágrafo padrão que só aparece no
+   laudo (nunca na tela de preenchimento). textoAtende é o parágrafo padrão
+   para quando o item atende — mesma regra: só aparece no laudo. */
+function novoChkItem(){ return { id:uid(), normativo:"", descricao:"", textoAtende:"", motivosPadrao:[] }; }
 function novoChkProjeto(){
   return {
     id:uid(), empresa:"", responsavel:"", data:hoje(), setores:[],
@@ -9108,7 +9131,7 @@ function novoChkProjeto(){
        existe e é compartilhada com os outros módulos — evita digitar de
        novo em cada projeto o que é sempre o mesmo. */
     numeroDocumento:"", art:"", dataInspecao:hoje(), validadeInspecao:"",
-    solicitanteCpfCnpj:"", solicitanteEndereco:"", solicitanteCidade:"", solicitanteTelefone:"", solicitanteCargo:"",
+    solicitanteCpfCnpj:"", solicitanteEndereco:"", solicitanteCidade:"", solicitanteTelefone:"", solicitanteCargo:"", solicitanteEmail:"",
     inspetorNome:"", inspetorCargo:"",
     objetivo:"", conclusaoGeral:"",
     criadoEm:Date.now(), atualizadoEm:Date.now(),
@@ -9131,7 +9154,8 @@ function novoChkLinha(modelo){
     itens: modelo.secoes.flatMap(s => s.itens.map(it => ({
       itemId: it.id,
       conforme: null, // 'atende' | 'naoAtende' | 'na' | null (pendente)
-      observacao: "",
+      motivoSelecionado: null, // rótulo do motivo escolhido (só quando naoAtende) — chave para achar o texto padrão no laudo
+      observacao: "", // nota livre do usuário, opcional, ADICIONAL ao texto padrão (nunca o substitui)
       fotos: [], // [{foto: dataURL/idbfoto:<id>, tags:[]}]
     }))),
     conclusaoTexto: "",
@@ -9152,6 +9176,19 @@ function chkContarStatus(linha){
 function chkProgresso(linha){
   const c = chkContarStatus(linha);
   return c.total ? Math.round((c.total-c.pendente)/c.total*100) : 0;
+}
+/* Texto padrão que vai para o laudo — nunca aparece na tela de preenchimento.
+   Atende usa o textoAtende do item do modelo; Não atende procura, na lista
+   de motivos padrão do item do modelo, o texto do motivo que foi escolhido
+   em campo (por rótulo — o rótulo é a chave, guardada em motivoSelecionado). */
+function chkTextoLaudoItem(itemModelo, itemExec){
+  if(!itemModelo || !itemExec) return "";
+  if(itemExec.conforme === "atende") return itemModelo.textoAtende || "";
+  if(itemExec.conforme === "naoAtende"){
+    const mp = (itemModelo.motivosPadrao||[]).find(m => m.motivo === itemExec.motivoSelecionado);
+    return mp ? (mp.texto || "") : "";
+  }
+  return "";
 }
 /* STATE é reatribuído inteiro em pelo menos QUATRO pontos do app: abertura
    (carregarEstadoSalvo), volta pelo bfcache (pageshow) e restauração de ponto
@@ -9211,27 +9248,36 @@ function chkGarantirNamespace(estado){
   return estado;
 }
 /* Modelo pronto "Linhas de Vida (NR-35)" — baseado no checklist de campo já
-   usado pela MecSete ("Checklist Linha de Vida.pdf"), reorganizado em itens
-   de resposta consistente (toda pergunta responde "Atende" para o estado
-   CONFORME — corrigida a única inversão do original, o item da viga sobre
-   deformação) e com motivos padrão por item, sugeridos a partir dos modos de
-   falha mais comuns de cada componente, para agilizar o preenchimento em
-   campo. Os 7 sub-itens de identificação da ancoragem (a a g) do documento
-   original viraram um item só, com cada marcação faltante como motivo padrão
-   — mais fiel ao que se verifica de fato numa plaqueta em campo. */
+   usado pela MecSete ("Checklist Linha de Vida.pdf") e nos laudos reais já
+   emitidos (Fazenda Santa Mônica, Grupo Cereal — mesma redação, ver ENSAIO
+   nenhum aqui, é conteúdo, não código). Reorganizado em itens de resposta
+   consistente (toda pergunta responde "Atende" para o estado CONFORME —
+   corrigida a única inversão do original, o item da viga sobre deformação).
+   Os 7 sub-itens de identificação da ancoragem (a a g) do documento original
+   viraram um item só, com cada marcação faltante como motivo padrão — mais
+   fiel ao que se verifica de fato numa plaqueta em campo.
+
+   Cada item carrega DOIS tipos de texto padrão que só aparecem no LAUDO,
+   nunca na tela de preenchimento em campo (lá só aparece o rótulo curto do
+   motivo, pra escolha rápida): textoAtende (parágrafo pra quando o item
+   atende) e, para cada motivo de "Não atende", seu próprio parágrafo. Onde
+   havia parágrafo real de laudo já emitido, ele foi reaproveitado palavra por
+   palavra; o restante foi escrito no mesmo estilo técnico. */
 const CHK_MODELO_PADRAO_ID = "chk-modelo-padrao-linhas-de-vida";
 function chkModeloPadraoLinhasDeVida(){
   const m = novoChkModelo();
   m.id = CHK_MODELO_PADRAO_ID; // fixo — evita duplicar entre aparelhos e permite reconhecê-lo depois
   m.nome = "Linhas de Vida (NR-35)";
   m.descricao = "Checklist de inspeção de linha de vida flexível — documentação, ancoragem, esticador, olhal, sapatilha, cabo de aço, grampos, viga e trólei.";
-  const secao = (titulo, itens)=>{
+  const mo = (motivo, texto) => ({ motivo, texto });
+  const secao = (titulo, itens) => {
     const s = novoChkSecao();
     s.titulo = titulo;
-    s.itens = itens.map(([normativo, descricao, motivosPadrao])=>{
+    s.itens = itens.map(([normativo, descricao, textoAtende, motivosPadrao]) => {
       const it = novoChkItem();
       it.normativo = normativo;
       it.descricao = descricao;
+      it.textoAtende = textoAtende;
       it.motivosPadrao = motivosPadrao;
       return it;
     });
@@ -9240,111 +9286,225 @@ function chkModeloPadraoLinhasDeVida(){
   m.secoes = [
     secao("Documentação", [
       ["NR-35 8.2", "A empresa possui o projeto da estrutura a ser inspecionada?",
-        ["Projeto da estrutura não apresentado", "Projeto apresentado não corresponde à estrutura instalada"]],
+        "A empresa apresentou o projeto da estrutura de ancoragem da linha de vida, permitindo a verificação das condições previstas para a instalação.",
+        [mo("Projeto da estrutura não apresentado", "A empresa não apresentou o projeto da estrutura de ancoragem da linha de vida. A ausência do projeto impede a verificação das condições previstas para a instalação e deve ser regularizada."),
+         mo("Projeto apresentado não corresponde à estrutura instalada", "O projeto apresentado pela empresa não corresponde à estrutura de ancoragem efetivamente instalada em campo, sendo necessária sua revisão ou a elaboração de um novo projeto compatível com a condição real.")]],
       ["NR-35 8.2", "A empresa possui relatório de inspeção periódica do sistema de proteção contra quedas (intervalo máximo de 12 meses)?",
-        ["Relatório de inspeção periódica inexistente", "Última inspeção há mais de 12 meses", "Relatório não contempla todos os pontos de ancoragem"]],
+        "A empresa apresentou relatório de inspeção periódica do sistema de proteção contra quedas, realizado dentro do intervalo máximo de 12 meses previsto na NR-35.",
+        [mo("Relatório de inspeção periódica inexistente", "A empresa não possui relatório de inspeção periódica do sistema de proteção contra quedas. É recomendado implementar rotina de inspeção com intervalos não superiores a 12 meses, conforme a NR-35."),
+         mo("Última inspeção há mais de 12 meses", "A última inspeção periódica registrada do sistema de proteção contra quedas foi realizada há mais de 12 meses, extrapolando o intervalo máximo previsto na NR-35."),
+         mo("Relatório não contempla todos os pontos de ancoragem", "O relatório de inspeção periódica apresentado não contempla todos os pontos de ancoragem da linha de vida, sendo necessária sua complementação.")]],
       ["NBR14626:2010", "A ancoragem possui identificação legível e indelével do fabricante (razão social, CNPJ, modelo/código, número de série, material, indicação de carga, número máximo de usuários ou força máxima e pictograma de leitura obrigatória)?",
-        ["Falta identificação do fabricante e CNPJ", "Falta modelo ou código do produto", "Falta número de fabricação/série", "Falta indicação do material constituinte", "Falta indicação de carga", "Falta indicação do número máximo de usuários ou força máxima aplicável", "Falta pictograma de leitura obrigatória", "Identificação existente, porém ilegível ou apagada"]],
+        "A ancoragem apresenta identificação legível e indelével do fabricante, contendo razão social, CNPJ, modelo/código, número de série, material constituinte, indicação de carga, número máximo de usuários ou força máxima aplicável e pictograma de leitura obrigatória, conforme a NBR14626:2010.",
+        [mo("Falta identificação do fabricante e CNPJ", "A ancoragem não apresenta identificação da razão social e do CNPJ do fabricante, em desacordo com a NBR14626:2010."),
+         mo("Falta modelo ou código do produto", "A ancoragem não apresenta identificação do modelo ou código do produto, em desacordo com a NBR14626:2010."),
+         mo("Falta número de fabricação/série", "A ancoragem não apresenta identificação do número de fabricação/série, comprometendo a rastreabilidade do componente."),
+         mo("Falta indicação do material constituinte", "A ancoragem não apresenta indicação do material do qual é constituída."),
+         mo("Falta indicação de carga", "A ancoragem não apresenta indicação de carga, informação obrigatória conforme a NBR14626:2010."),
+         mo("Falta indicação do número máximo de usuários ou força máxima aplicável", "A ancoragem não indica o número máximo de trabalhadores que podem ser conectados simultaneamente, nem a força máxima aplicável."),
+         mo("Falta pictograma de leitura obrigatória", "A ancoragem não apresenta o pictograma indicando que o usuário deve ler as informações fornecidas pelo fabricante."),
+         mo("Identificação existente, porém ilegível ou apagada", "A identificação do fabricante existe na ancoragem, porém está ilegível ou apagada, impossibilitando sua conferência.")]],
       ["NBR14626:2010", "O sistema está corretamente classificado e dimensionado para o uso a que se destina (retenção de quedas ou restrição de movimento)?",
-        ["Sistema usado como retenção de quedas sem considerar fator de queda e zona livre", "Sistema usado como restrição de movimento não impede fisicamente o acesso à borda", "Uso do sistema não corresponde ao projeto original"]],
+        "O sistema está corretamente classificado e dimensionado para o uso a que se destina, seja como retenção de quedas ou como restrição de movimento, em conformidade com a NBR14626:2010.",
+        [mo("Sistema usado como retenção de quedas sem considerar fator de queda e zona livre", "O sistema é utilizado como retenção de quedas sem que tenham sido considerados o fator de queda e a zona livre de queda necessários, o que pode comprometer a eficácia da proteção em caso de queda."),
+         mo("Sistema usado como restrição de movimento não impede fisicamente o acesso à borda", "O sistema é utilizado como restrição de movimento, porém não impede fisicamente o acesso do trabalhador à borda ou à zona de risco de queda."),
+         mo("Uso do sistema não corresponde ao projeto original", "O uso dado ao sistema em campo não corresponde à classificação prevista no projeto original, sendo necessária reavaliação técnica.")]],
       ["NR-35 8.2", "A instalação possui plano esquemático documentado?",
-        ["Plano esquemático de instalação inexistente", "Plano esquemático não reflete a instalação real"]],
+        "A instalação possui plano esquemático documentado, permitindo a identificação clara dos pontos de ancoragem e da configuração da linha de vida.",
+        [mo("Plano esquemático de instalação inexistente", "Não foi apresentado plano esquemático da instalação da linha de vida, dificultando a identificação dos pontos de ancoragem e a rastreabilidade do sistema."),
+         mo("Plano esquemático não reflete a instalação real", "O plano esquemático apresentado não reflete fielmente a instalação real da linha de vida em campo, sendo necessária sua atualização.")]],
     ]),
     secao("Ancoragem Estrutural", [
       ["NR-35 8.2", "O ponto de ancoragem garante segurança adequada ao sistema?",
-        ["Ponto de ancoragem insuficiente para o esforço do sistema", "Não dimensionado para múltiplos usuários simultâneos", "Ausência de ensaio ou memorial que comprove a capacidade"]],
+        "A linha de vida está devidamente fixada na estrutura metálica, a qual se encontra em bom estado de conservação, sem sinais de corrosão ou cortes na região de junção dos componentes. A integridade estrutural está preservada, garantindo resistência mecânica adequada sob esforço. Há evidência de ensaios de carga e laudo técnico que comprovam a capacidade da estrutura como ponto de ancoragem. A instalação está em conformidade com a NR-35, atendendo às exigências de segurança e contando com plano de manutenção preventiva implementado.",
+        [mo("Ponto de ancoragem insuficiente para o esforço do sistema", "O ponto de ancoragem avaliado não apresenta capacidade suficiente para o esforço exigido pelo sistema, comprometendo a segurança em caso de queda."),
+         mo("Não dimensionado para múltiplos usuários simultâneos", "O ponto de ancoragem não foi dimensionado para suportar múltiplos usuários conectados simultaneamente, condição observada em campo."),
+         mo("Ausência de ensaio ou memorial que comprove a capacidade", "Não há evidência de ensaio de carga ou memorial de cálculo que comprove a capacidade do ponto de ancoragem para a finalidade a que se destina.")]],
       ["", "O ponto de ancoragem não apresenta oxidação?",
-        ["Oxidação superficial leve", "Oxidação avançada com perda de seção", "Corrosão localizada na base de fixação"]],
+        "O ponto de ancoragem não apresenta sinais de oxidação, mantendo sua integridade superficial.",
+        [mo("Oxidação superficial leve", "Foi identificada oxidação superficial leve no ponto de ancoragem, sem comprometimento aparente da resistência estrutural, sendo recomendado tratamento preventivo."),
+         mo("Oxidação avançada com perda de seção", "Foi identificada oxidação avançada no ponto de ancoragem, com perda de seção do material, comprometendo sua capacidade estrutural."),
+         mo("Corrosão localizada na base de fixação", "Foi identificada corrosão localizada na base de fixação do ponto de ancoragem, sendo necessária avaliação da integridade estrutural remanescente.")]],
       ["", "O ponto de ancoragem não possui fissuras no concreto?",
-        ["Fissuras próximas ao chumbador", "Fissuras em toda a extensão da base", "Sinais de arrancamento do chumbador"]],
+        "O ponto de ancoragem não apresenta fissuras no concreto da base, mantendo a integridade estrutural do sistema de fixação.",
+        [mo("Fissuras próximas ao chumbador", "Foram identificadas fissuras no concreto próximas ao chumbador do ponto de ancoragem, podendo comprometer sua capacidade de fixação."),
+         mo("Fissuras em toda a extensão da base", "Foram identificadas fissuras no concreto ao longo de toda a extensão da base do ponto de ancoragem, indicando possível comprometimento estrutural."),
+         mo("Sinais de arrancamento do chumbador", "Foram observados sinais de início de arrancamento do chumbador na base de concreto, condição que representa risco iminente e exige intervenção imediata.")]],
       ["", "O ponto de ancoragem não possui trincas na solda?",
-        ["Trinca visível no cordão de solda", "Solda com porosidade aparente", "Falta de penetração na solda"]],
+        "O ponto de ancoragem não apresenta trincas na solda, mantendo a integridade das juntas soldadas.",
+        [mo("Trinca visível no cordão de solda", "Foi identificada trinca visível no cordão de solda do ponto de ancoragem, comprometendo a integridade da junta soldada."),
+         mo("Solda com porosidade aparente", "A solda do ponto de ancoragem apresenta porosidade aparente, indicando possível falha no processo de soldagem."),
+         mo("Falta de penetração na solda", "Foi identificada falta de penetração na solda do ponto de ancoragem, condição que reduz sua resistência mecânica.")]],
       ["NR-35 8.2", "O ponto de ancoragem possui projeto de instalação e memorial de cálculo?",
-        ["Projeto de instalação inexistente", "Memorial de cálculo inexistente", "Projeto sem ART de profissional habilitado"]],
+        "O ponto de ancoragem possui projeto de instalação e memorial de cálculo que comprovam sua capacidade estrutural, elaborados por profissional legalmente habilitado.",
+        [mo("Projeto de instalação inexistente", "Não foi apresentado projeto de instalação do ponto de ancoragem."),
+         mo("Memorial de cálculo inexistente", "Não foi apresentado memorial de cálculo que comprove a capacidade estrutural do ponto de ancoragem."),
+         mo("Projeto sem ART de profissional habilitado", "O projeto do ponto de ancoragem não possui ART de profissional legalmente habilitado, em desacordo com a NR-35.")]],
     ]),
     secao("Esticador", [
       ["", "O esticador é constituído de material adequado (aço forjado ou ferro fundido nodular)?",
-        ["Material não identificável", "Peça aparentemente improvisada ou inadequada"]],
+        "O esticador é constituído de material adequado, conforme especificação técnica aplicável.",
+        [mo("Material não identificável", "Não foi possível identificar o material constituinte do esticador em campo."),
+         mo("Peça aparentemente improvisada ou inadequada", "O esticador aparenta ser peça improvisada, sem características de fabricação adequadas à aplicação em sistema de linha de vida.")]],
       ["", "O esticador possui acabamento galvanizado?",
-        ["Sem galvanização, material exposto", "Galvanização removida ou desgastada em pontos"]],
+        "O esticador possui acabamento galvanizado, adequado à exposição do componente.",
+        [mo("Sem galvanização, material exposto", "O esticador não possui acabamento galvanizado, com o material exposto às intempéries."),
+         mo("Galvanização removida ou desgastada em pontos", "A galvanização do esticador encontra-se removida ou desgastada em pontos localizados, reduzindo a proteção contra corrosão.")]],
       ["", "O esticador não apresenta oxidação?",
-        ["Oxidação superficial", "Oxidação com perda de material na rosca"]],
+        "O esticador utilizado no sistema de linha de vida está em conformidade com os requisitos técnicos, sem sinais de oxidação em sua extensão.",
+        [mo("Oxidação superficial", "Foi identificada oxidação superficial no esticador."),
+         mo("Oxidação com perda de material na rosca", "Foi identificada oxidação com perda de material na rosca do esticador, comprometendo seu funcionamento e resistência.")]],
       ["", "O esticador não apresenta deformidades em sua extensão?",
-        ["Corpo do esticador empenado", "Rosca danificada", "Olhal do esticador deformado"]],
+        "O esticador não apresenta deformidades em sua extensão, mantendo sua integridade estrutural.",
+        [mo("Corpo do esticador empenado", "O corpo do esticador apresenta-se empenado, condição que compromete seu funcionamento adequado."),
+         mo("Rosca danificada", "A rosca do esticador apresenta-se danificada, comprometendo o ajuste de tensão do cabo."),
+         mo("Olhal do esticador deformado", "O olhal do esticador apresenta-se deformado, condição que compromete a fixação do cabo de aço.")]],
       ["", "O esticador possui identificação em relevo (fabricante, diâmetro nominal e rastreabilidade)?",
-        ["Identificação inexistente", "Identificação ilegível"]],
+        "O esticador apresenta identificação em relevo, contendo nome do fabricante, diâmetro nominal e rastreabilidade, conforme exigido pelo projeto e normas aplicáveis.",
+        [mo("Identificação inexistente", "O esticador não possui identificação em relevo do fabricante, diâmetro nominal ou rastreabilidade."),
+         mo("Identificação ilegível", "A identificação em relevo do esticador está ilegível, impossibilitando a conferência do fabricante e da rastreabilidade.")]],
     ]),
     secao("Olhal", [
       ["", "O olhal é constituído de material adequado (galvanizado ou aço inox)?",
-        ["Material não identificável", "Sinais de material improvisado"]],
+        "O olhal é constituído de material adequado (galvanizado ou aço inox).",
+        [mo("Material não identificável", "Não foi possível identificar o material constituinte do olhal em campo."),
+         mo("Sinais de material improvisado", "O olhal aparenta ser peça improvisada, sem características de fabricação adequadas à aplicação em ponto de ancoragem.")]],
       ["", "O olhal não apresenta oxidação?",
-        ["Oxidação superficial", "Oxidação avançada com perda de seção"]],
-      ["", "O olhal não apresenta deformidades em sua extensão?",
-        ["Olhal ovalizado", "Sinais de esforço além do previsto (abertura do anel)"]],
+        "Também não foram observados sinais de oxidação no olhal, que é constituído de material adequado (galvanizado ou aço inox).",
+        [mo("Oxidação superficial", "Foi identificada oxidação superficial no olhal."),
+         mo("Oxidação avançada com perda de seção", "Foi identificada oxidação avançada no olhal, com perda de seção do material, comprometendo sua capacidade estrutural.")]],
+      ["", "O olhal não apresenta fraturas, deformidades ou sinais de fadiga em sua estrutura?",
+        "Foi inspecionado o olhal metálico utilizado como ponto de ancoragem, estando em conformidade com os requisitos técnicos. O componente não apresenta fraturas, deformidades ou sinais de fadiga, mantendo sua integridade estrutural.",
+        [mo("Corte na seção estrutural", "Foi constatado, durante a inspeção, que o olhal metálico utilizado como ponto de ancoragem apresenta corte em sua seção estrutural, comprometendo a continuidade e a integridade do componente. A condição observada pode reduzir significativamente sua capacidade de resistência e segurança para a finalidade a que se destina, podendo ocasionar ruptura do ponto de ancoragem durante sua utilização. Recomenda-se a substituição imediata do olhal por componente íntegro, adequado à aplicação e devidamente especificado pelo fabricante/projeto, não sendo permitida sua utilização enquanto permanecer nessa condição."),
+         mo("Sinais de esforço além do previsto (abertura do anel)", "O olhal apresenta sinais de abertura além do previsto, indicando esforço acima da capacidade nominal do componente.")]],
       ["", "O olhal possui identificação em relevo (fabricante, diâmetro nominal e rastreabilidade)?",
-        ["Identificação inexistente", "Identificação ilegível"]],
+        "A peça possui identificação em relevo, contendo nome do fabricante, diâmetro nominal e rastreabilidade.",
+        [mo("Identificação inexistente", "O olhal não possui identificação em relevo do fabricante, diâmetro nominal ou rastreabilidade."),
+         mo("Identificação ilegível", "A identificação em relevo do olhal está ilegível, impossibilitando a conferência do fabricante e da rastreabilidade.")]],
     ]),
     secao("Sapatilha", [
       ["", "A sapatilha não apresenta defeitos como extremidades cortantes?",
-        ["Sapatilha com rebarbas cortantes", "Sapatilha trincada ou quebrada"]],
+        "A sapatilha não apresenta defeitos como extremidades cortantes, estando em condição adequada de uso.",
+        [mo("Sapatilha com rebarbas cortantes", "A sapatilha apresenta rebarbas cortantes, condição que pode danificar o cabo de aço e representar risco de corte ao manuseio."),
+         mo("Sapatilha trincada ou quebrada", "A sapatilha encontra-se trincada ou quebrada, não cumprindo sua função de proteção do cabo.")]],
       ["", "A sapatilha não apresenta oxidação?",
-        ["Oxidação superficial", "Oxidação avançada comprometendo o perfil"]],
-      ["", "A sapatilha está instalada de maneira adequada?",
-        ["Sapatilha ausente em laço do cabo", "Sapatilha de tamanho incompatível com o cabo", "Sapatilha solta, sem fixação adequada"]],
+        "A sapatilha não apresenta sinais de oxidação.",
+        [mo("Oxidação superficial", "Foi identificada oxidação superficial na sapatilha."),
+         mo("Oxidação avançada comprometendo o perfil", "Foi identificada oxidação avançada na sapatilha, comprometendo o perfil de proteção do cabo de aço.")]],
+      ["", "A sapatilha está instalada de maneira adequada nos laços do cabo?",
+        "Foi verificada a fixação do cabo de aço junto à estrutura e ao olhal, constatando-se a utilização de sapatilhas adequadamente instaladas nos laços do cabo, proporcionando o correto apoio e acomodação do cabo na região de fixação. As sapatilhas encontram-se devidamente posicionadas, evitando o contato direto do cabo de aço com as superfícies da estrutura e reduzindo a possibilidade de desgaste, deformação ou danos decorrentes de atrito e contato com as quinas.",
+        [mo("Laço sem uso de sapatilha", "O cabo de aço está devidamente laçado na estrutura, porém observa-se que o laço foi realizado sem o uso de sapatilha, o que pode reduzir a durabilidade do cabo em função do atrito direto com a estrutura. Além disso, não há proteção contra as quinas da estrutura, o que representa um ponto de atenção quanto à integridade do cabo e à segurança do sistema. Recomenda-se a adoção de medidas corretivas, como o uso de sapatilhas e proteção nas quinas, para garantir maior confiabilidade ao ponto de ancoragem."),
+         mo("Sapatilha de tamanho incompatível com o cabo", "A sapatilha instalada é de tamanho incompatível com o diâmetro do cabo de aço, não desempenhando adequadamente sua função de proteção."),
+         mo("Sapatilha solta, sem fixação adequada", "A sapatilha encontra-se solta no laço do cabo, sem fixação adequada, podendo se deslocar e expor o cabo ao atrito direto com a estrutura.")]],
     ]),
     secao("Cabo de Aço", [
       ["", "O cabo de aço é constituído de material adequado (galvanizado ou aço inox)?",
-        ["Material não identificável", "Cabo sem proteção galvânica aparente"]],
+        "O cabo de aço é constituído de material adequado (galvanizado ou aço inox), conforme especificação da NBR6327:2006.",
+        [mo("Material não identificável", "Não foi possível identificar o material constituinte do cabo de aço em campo."),
+         mo("Cabo sem proteção galvânica aparente", "O cabo de aço não apresenta proteção galvânica aparente, condição que reduz sua resistência à corrosão.")]],
       ["NBR6327:2006", "O cabo de aço não apresenta oxidação em sua extensão?",
-        ["Oxidação superficial pontual", "Oxidação avançada com perda de fios", "Oxidação interna entre pernas do cabo"]],
+        "O cabo de aço não apresenta sinais de oxidação em sua extensão.",
+        [mo("Oxidação superficial pontual", "Foi identificada oxidação superficial pontual no cabo de aço."),
+         mo("Oxidação avançada com perda de fios", "Foi identificada oxidação avançada no cabo de aço, com perda de fios, comprometendo sua resistência."),
+         mo("Oxidação interna entre pernas do cabo", "Foi identificada oxidação interna entre as pernas do cabo de aço, condição de difícil percepção visual que compromete significativamente a resistência do componente.")]],
       ["NBR6327:2006", "O cabo de aço não apresenta desfiamento em sua extensão?",
-        ["Fios rompidos isolados", "Desfiamento concentrado em um trecho", "Coroa de fios rompidos (\"gaiola de passarinho\")"]],
+        "O cabo de aço não apresenta desfiamento em sua extensão.",
+        [mo("Fios rompidos isolados", "Foram identificados fios rompidos isolados ao longo da extensão do cabo de aço."),
+         mo("Desfiamento concentrado em um trecho", "Foi identificado desfiamento concentrado em um trecho específico do cabo de aço, indicando ponto de atrito ou sobrecarga localizada."),
+         mo("Coroa de fios rompidos (\"gaiola de passarinho\")", "Foi identificada coroa de fios rompidos (\"gaiola de passarinho\") no cabo de aço, condição que compromete severamente sua resistência e exige substituição imediata.")]],
       ["NBR6327:2006", "O cabo de aço não apresenta deformidades em sua extensão?",
-        ["Amassamento localizado", "Achatamento do cabo", "Dobra permanente (vinco)"]],
+        "O cabo de aço não apresenta deformidades em sua extensão.",
+        [mo("Amassamento localizado", "Foi identificado amassamento localizado no cabo de aço."),
+         mo("Achatamento do cabo", "Foi identificado achatamento em trecho do cabo de aço, condição que reduz sua capacidade de carga."),
+         mo("Dobra permanente (vinco)", "Foi identificada dobra permanente (vinco) no cabo de aço, condição que compromete sua integridade estrutural.")]],
       ["NBR6327:2006", "O cabo de aço não apresenta torções ou nós em sua extensão?",
-        ["Torção localizada (coca)", "Nó formado no cabo"]],
+        "O cabo de aço não apresenta torções ou nós em sua extensão.",
+        [mo("Torção localizada (coca)", "Foi identificada torção localizada (coca) no cabo de aço."),
+         mo("Nó formado no cabo", "Foi identificado nó formado no cabo de aço, condição que compromete sua resistência e deve ser corrigida.")]],
       ["NBR6327:2006", "O cabo de aço não apresenta redução do diâmetro (cabo 3/8\" ou 5/16\")?",
-        ["Redução de diâmetro por desgaste ou abrasão", "Diâmetro divergente do especificado em projeto"]],
+        "O cabo de aço não apresenta redução do diâmetro, mantendo a seção especificada em projeto (cabo 3/8\" ou 5/16\").",
+        [mo("Redução de diâmetro por desgaste ou abrasão", "Foi identificada redução do diâmetro do cabo de aço por desgaste ou abrasão."),
+         mo("Diâmetro divergente do especificado em projeto", "O diâmetro do cabo de aço instalado diverge do especificado em projeto.")]],
       ["", "A extremidade do cabo de aço é protegida por fita de auto fusão?",
-        ["Extremidade exposta, sem proteção", "Proteção existente porém danificada ou solta"]],
+        "A extremidade do cabo de aço encontra-se devidamente protegida com fita de autofusão, prevenindo ferimentos e a degradação do material.",
+        [mo("Extremidade exposta, sem proteção", "A extremidade do cabo está sem proteção adequada. Recomenda-se que seja enrolada e protegida com fita de autofusão ou outro método que evite ferimentos e degradação do material."),
+         mo("Proteção existente porém danificada ou solta", "A extremidade do cabo possui proteção, porém esta se encontra danificada ou solta, não cumprindo adequadamente sua função.")]],
     ]),
     secao("Grampos", [
       ["", "Os grampos são constituídos de material adequado (galvanizado ou aço inox)?",
-        ["Material não identificável", "Grampos aparentemente não certificados"]],
+        "Os grampos são constituídos de material adequado (galvanizado ou aço inox).",
+        [mo("Material não identificável", "Não foi possível identificar o material constituinte dos grampos em campo."),
+         mo("Grampos aparentemente não certificados", "Os grampos aparentam ser peças não certificadas, sem características de fabricação adequadas à aplicação.")]],
       ["", "Os grampos não apresentam oxidação?",
-        ["Oxidação superficial", "Oxidação avançada comprometendo a rosca"]],
+        "Os grampos não apresentam sinais de oxidação.",
+        [mo("Oxidação superficial", "Foi identificada oxidação superficial nos grampos."),
+         mo("Oxidação avançada comprometendo a rosca", "Foi identificada oxidação avançada nos grampos, comprometendo a rosca e o funcionamento adequado da fixação.")]],
       ["", "Possui a quantidade de grampos conforme projeto (no mínimo 3)?",
-        ["Menos de 3 grampos instalados", "Quantidade divergente do projeto"]],
+        "Foi verificada a terminação do cabo de aço da linha de vida, constatando-se a utilização de 03 (três) grampos tipo clip, devidamente instalados e posicionados conforme o sistema de fixação especificado.",
+        [mo("Menos de 3 grampos instalados", "Foi observada a instalação de grampos tipo clip para fixação do cabo de aço. No entanto, a quantidade de grampos aparenta ser inferior ao mínimo recomendado (três unidades), o que pode comprometer a resistência da fixação."),
+         mo("Quantidade divergente do projeto", "Foi observada a instalação de grampos tipo clip para fixação do cabo de aço. A quantidade de grampos instalada aparenta ser inferior ao mínimo recomendado, sendo identificadas apenas duas unidades.")]],
       ["", "A distância entre grampos está conforme projeto?",
-        ["Espaçamento entre grampos menor que o recomendado", "Espaçamento irregular entre grampos"]],
+        "A distância entre os grampos está conforme especificado em projeto.",
+        [mo("Espaçamento entre grampos menor que o recomendado", "O espaçamento entre os grampos instalados é menor que o recomendado, podendo comprometer a resistência da terminação."),
+         mo("Espaçamento irregular entre grampos", "Foi observado espaçamento irregular entre os grampos instalados, em desacordo com as boas práticas de montagem.")]],
       ["", "A posição da clipagem está no sentido correto (sela voltada para o cabo ativo)?",
-        ["Sela voltada para o lado incorreto (cabo morto)", "Grampos montados em sentidos alternados"]],
+        "Os grampos encontram-se orientados no sentido correto, com a sela do grampo posicionada sobre a parte ativa do cabo e o parafuso em \"U\" sobre a extremidade livre (chicote), condição adequada para a montagem da terminação.",
+        [mo("Sela voltada para o lado incorreto (cabo morto)", "Os grampos encontram-se instalados na posição incorreta, com a sela voltada para o lado inadequado do cabo, comprometendo a eficiência e a segurança da fixação."),
+         mo("Grampos montados em sentidos alternados", "Os grampos encontram-se montados em sentidos alternados entre si, condição que compromete a uniformidade e a segurança da fixação.")]],
       ["", "O torque de aperto dos grampos está conforme especificação do fabricante?",
-        ["Grampos frouxos, sem torque adequado", "Aperto não verificado com torquímetro calibrado", "Grampos excessivamente apertados, com marca de esmagamento no cabo"]],
+        "O torque de aperto dos grampos está conforme especificado pelo fabricante ou projeto, verificado com torquímetro calibrado.",
+        [mo("Torque não verificado com torquímetro calibrado", "Recomenda-se verificar e aplicar o torque de aperto dos grampos conforme especificações do fabricante ou projeto, utilizando torquímetro calibrado para garantir a segurança da conexão."),
+         mo("Grampos frouxos, sem torque adequado", "Os grampos encontram-se frouxos, sem o torque de aperto adequado, comprometendo a segurança da terminação."),
+         mo("Grampos excessivamente apertados, com marca de esmagamento no cabo", "Os grampos encontram-se excessivamente apertados, deixando marca de esmagamento visível no cabo de aço, condição que também compromete sua resistência.")]],
     ]),
     secao("Viga", [
       ["", "A viga não apresenta deformações?",
-        ["Viga com flecha (deformação) visível", "Empenamento da viga", "Amassamento localizado"]],
+        "A viga não apresenta deformações, mantendo sua geometria original.",
+        [mo("Viga com flecha (deformação) visível", "A viga apresenta flecha (deformação) visível em sua extensão, condição que deve ser avaliada quanto à capacidade estrutural remanescente."),
+         mo("Empenamento da viga", "Foi identificado empenamento da viga, condição que compromete o deslocamento adequado do trólei."),
+         mo("Amassamento localizado", "Foi identificado amassamento localizado na viga.")]],
       ["", "A viga não apresenta oxidação?",
-        ["Oxidação superficial", "Oxidação avançada com perda de seção"]],
+        "A viga não apresenta sinais de oxidação.",
+        [mo("Oxidação superficial", "Foi identificada oxidação superficial na viga."),
+         mo("Oxidação avançada com perda de seção", "Foi identificada oxidação avançada na viga, com perda de seção do material, comprometendo sua capacidade estrutural.")]],
       ["", "A viga está bem soldada ou parafusada na estrutura?",
-        ["Solda de fixação trincada", "Parafusos de fixação frouxos ou ausentes", "Sinais de fadiga nos pontos de fixação"]],
+        "A viga está devidamente soldada ou parafusada na estrutura, sem sinais de folga ou fadiga nos pontos de fixação.",
+        [mo("Solda de fixação trincada", "A solda de fixação da viga apresenta-se trincada, comprometendo a integridade da junta."),
+         mo("Parafusos de fixação frouxos ou ausentes", "Foram identificados parafusos de fixação da viga frouxos ou ausentes."),
+         mo("Sinais de fadiga nos pontos de fixação", "Foram observados sinais de fadiga nos pontos de fixação da viga.")]],
       ["", "A viga está na posição conforme o projeto?",
-        ["Viga fora do alinhamento previsto em projeto", "Viga instalada em local diferente do projetado"]],
+        "A viga está instalada na posição prevista em projeto.",
+        [mo("Viga fora do alinhamento previsto em projeto", "A viga encontra-se fora do alinhamento previsto em projeto."),
+         mo("Viga instalada em local diferente do projetado", "A viga está instalada em local diferente do projetado, sendo necessária reavaliação técnica da instalação.")]],
       ["", "A viga possui os batentes de fim de curso dos dois lados?",
-        ["Batente ausente em uma das extremidades", "Batentes ausentes nas duas extremidades", "Batente existente porém sem fixação adequada"]],
+        "A viga possui batentes de fim de curso instalados nas duas extremidades.",
+        [mo("Batente ausente em uma das extremidades", "A viga possui batente de fim de curso ausente em uma das extremidades, permitindo o descarrilamento do trólei nesse ponto."),
+         mo("Batentes ausentes nas duas extremidades", "A viga não possui batentes de fim de curso em nenhuma das extremidades, permitindo o descarrilamento do trólei."),
+         mo("Batente existente porém sem fixação adequada", "O batente de fim de curso existe, porém não está adequadamente fixado, podendo se soltar sob impacto.")]],
     ]),
     secao("Trólei", [
       ["", "O trólei possui indicação de capacidade de carga (mínimo 1.500 kg)?",
-        ["Indicação de capacidade inexistente", "Capacidade indicada inferior a 1.500 kg", "Indicação ilegível"]],
+        "O trólei possui indicação de capacidade de carga (mínimo 1.500 kg), conforme exigido para o sistema.",
+        [mo("Indicação de capacidade inexistente", "O trólei não possui indicação de capacidade de carga."),
+         mo("Capacidade indicada inferior a 1.500 kg", "A capacidade de carga indicada no trólei é inferior a 1.500 kg, valor mínimo recomendado para o sistema."),
+         mo("Indicação ilegível", "A indicação de capacidade de carga do trólei está ilegível.")]],
       ["", "O trólei possui plaqueta de identificação do fabricante e número de rastreio?",
-        ["Plaqueta inexistente", "Plaqueta ilegível ou danificada"]],
+        "O trólei possui plaqueta de identificação do fabricante e número de rastreio, em condição legível.",
+        [mo("Plaqueta inexistente", "O trólei não possui plaqueta de identificação do fabricante nem número de rastreio."),
+         mo("Plaqueta ilegível ou danificada", "A plaqueta de identificação do trólei está ilegível ou danificada, impossibilitando a conferência dos dados do fabricante.")]],
       ["", "O trólei não possui deformações?",
-        ["Estrutura do trólei deformada", "Rodas do trólei deformadas ou ovalizadas"]],
+        "O trólei não apresenta deformações, mantendo sua geometria original.",
+        [mo("Estrutura do trólei deformada", "A estrutura do trólei apresenta-se deformada."),
+         mo("Rodas do trólei deformadas ou ovalizadas", "As rodas do trólei apresentam-se deformadas ou ovalizadas, comprometendo seu deslocamento na viga.")]],
       ["", "O trólei não possui oxidação?",
-        ["Oxidação superficial", "Oxidação avançada nas rodas ou eixos"]],
+        "O trólei não apresenta sinais de oxidação.",
+        [mo("Oxidação superficial", "Foi identificada oxidação superficial no trólei."),
+         mo("Oxidação avançada nas rodas ou eixos", "Foi identificada oxidação avançada nas rodas ou eixos do trólei, comprometendo seu funcionamento.")]],
       ["", "O trólei movimenta-se livremente na viga?",
-        ["Trólei travado ou emperrado em algum trecho", "Rodas do trólei não giram livremente", "Ruído anormal durante o deslocamento"]],
+        "O trólei movimenta-se livremente na viga, sem pontos de travamento ou resistência anormal.",
+        [mo("Trólei travado ou emperrado em algum trecho", "O trólei apresenta-se travado ou emperrado em algum trecho da viga, dificultando seu deslocamento."),
+         mo("Rodas do trólei não giram livremente", "As rodas do trólei não giram livremente, condição que exige lubrificação ou manutenção."),
+         mo("Ruído anormal durante o deslocamento", "Foi identificado ruído anormal durante o deslocamento do trólei, indicando possível desgaste de componentes internos.")]],
     ]),
   ];
   return m;
@@ -12224,16 +12384,19 @@ const CHK_STATUS_META = {
 let __chkNovaLinhaDraft = { modeloId:null, nome:"" };
 /* Lista colorida "resumo do checklist": usada na finalização e no laudo —
    cada linha mostra a descrição, o motivo/observação e a cor do status. */
+/* Resumo RÁPIDO (tela de Finalizar) — mostra só o rótulo curto do motivo
+   escolhido, não o texto padrão inteiro (esse fica reservado pro laudo). */
 function chkResumoHtml(linha){
   const linhasHtml = linha.modeloSnapshot.flatMap((s,si)=>{
     const isNA = linha.secoesNA.includes(s.id);
     return s.itens.map((it,ii)=>{
-      const ie = chkItemExec(linha, it.id) || {conforme:null, observacao:""};
+      const ie = chkItemExec(linha, it.id) || {conforme:null, motivoSelecionado:null, observacao:""};
       const status = isNA ? "na" : ie.conforme;
       const meta = status ? CHK_STATUS_META[status] : {label:"Sem resposta", cor:"#999"};
+      const nota = [ie.motivoSelecionado, ie.observacao].filter(Boolean).join(" — ");
       return `<div class="chk-resumo-linha" style="border-left-color:${meta.cor}">
         <div class="chk-resumo-desc">${escapeHtml(it.descricao)}</div>
-        ${ie.observacao? `<div class="chk-resumo-motivo">${escapeHtml(ie.observacao)}</div>`:""}
+        ${nota? `<div class="chk-resumo-motivo">${escapeHtml(nota)}</div>`:""}
         <span class="chk-resumo-status" style="color:${meta.cor}">${meta.label}</span>
       </div>`;
     });
@@ -12381,7 +12544,10 @@ function screenChkModeloForm(){
     const itensHtml = s.itens.map((it,ii)=>{
       const motivosHtml = (it.motivosPadrao||[]).map((mp,mi)=>`
           <div class="chk-motivo-row">
-            <input type="text" placeholder="Ex.: Ancoragem corroída" value="${escapeHtml(mp)}" oninput="App.chkSetMotivoPadrao('${s.id}','${it.id}',${mi},this.value)">
+            <div style="flex:1">
+              <input type="text" placeholder="Rótulo curto (aparece em campo) — Ex.: Ancoragem corroída" value="${escapeHtml(mp.motivo)}" style="margin-bottom:4px" oninput="App.chkSetMotivoPadrao('${s.id}','${it.id}',${mi},'motivo',this.value)">
+              <textarea placeholder="Texto padrão deste motivo (só aparece no laudo)" oninput="App.chkSetMotivoPadrao('${s.id}','${it.id}',${mi},'texto',this.value)">${escapeHtml(mp.texto)}</textarea>
+            </div>
             <button class="icon-btn" onclick="App.chkRemoverMotivoPadrao('${s.id}','${it.id}',${mi})">${ic('trash')}</button>
           </div>`).join("");
       return `
@@ -12391,7 +12557,11 @@ function screenChkModeloForm(){
           <input type="text" placeholder="Norma/referência (opcional)" value="${escapeHtml(it.normativo)}" style="margin-bottom:6px" oninput="App.chkSetItemField('${s.id}','${it.id}','normativo',this.value)">
           <textarea placeholder="Descrição do item a verificar" oninput="App.chkSetItemField('${s.id}','${it.id}','descricao',this.value)">${escapeHtml(it.descricao)}</textarea>
           <div class="chk-motivos-padrao">
-            <div class="chk-motivos-label">Motivos padrão para "Não atende" (opcional — viram opções prontas no campo)</div>
+            <div class="chk-motivos-label">Texto padrão para "Atende" (opcional — só aparece no laudo, nunca em campo)</div>
+            <textarea placeholder="Ex.: Foi inspecionado o olhal metálico... estando em conformidade com os requisitos técnicos." oninput="App.chkSetItemField('${s.id}','${it.id}','textoAtende',this.value)">${escapeHtml(it.textoAtende)}</textarea>
+          </div>
+          <div class="chk-motivos-padrao">
+            <div class="chk-motivos-label">Motivos padrão para "Não atende" (rótulo curto pro campo + texto completo pro laudo)</div>
             ${motivosHtml}
             <button class="btn" style="margin-top:4px" onclick="App.chkNovoMotivoPadrao('${s.id}','${it.id}')">${ic('plus')} Motivo padrão</button>
           </div>
@@ -12457,6 +12627,7 @@ function screenChkProjetoForm(){
   <div class="field"><label>Telefone</label><input type="text" value="${escapeHtml(p.solicitanteTelefone)}" oninput="App.chkSetProjetoField('solicitanteTelefone',this.value)"></div>
   <div class="field"><label>Nome do responsável</label><input type="text" value="${escapeHtml(p.responsavel)}" oninput="App.chkSetProjetoField('responsavel',this.value)"></div>
   <div class="field"><label>Cargo do responsável</label><input type="text" placeholder="Ex.: Proprietário" value="${escapeHtml(p.solicitanteCargo)}" oninput="App.chkSetProjetoField('solicitanteCargo',this.value)"></div>
+  <div class="field"><label>Email do responsável</label><input type="email" value="${escapeHtml(p.solicitanteEmail)}" oninput="App.chkSetProjetoField('solicitanteEmail',this.value)"></div>
 
   <div class="section-title">Dados do documento</div>
   <div class="field"><label>Nº do documento</label><input type="text" value="${escapeHtml(p.numeroDocumento)}" oninput="App.chkSetProjetoField('numeroDocumento',this.value)"></div>
@@ -12568,7 +12739,7 @@ function screenChkNovaLinha(){
   `;
 }
 function chkRenderItem(linha, item, numero){
-  const ie = chkItemExec(linha, item.id) || {conforme:null, observacao:"", fotos:[]};
+  const ie = chkItemExec(linha, item.id) || {conforme:null, motivoSelecionado:null, observacao:"", fotos:[]};
   const statusBtns = Object.keys(CHK_STATUS_META).map(k=>{
     const meta = CHK_STATUS_META[k];
     const on = ie.conforme===k;
@@ -12588,9 +12759,9 @@ function chkRenderItem(linha, item, numero){
   }).join("");
   const motivos = item.motivosPadrao||[];
   const motivoDropdown = (ie.conforme==="naoAtende" && motivos.length) ? `
-    <select class="chk-motivo-select" onchange="App.chkAplicarMotivoPadrao('${item.id}',this.value); this.selectedIndex=0;">
-      <option value="">Escolher motivo padrão…</option>
-      ${motivos.map(m=>`<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join("")}
+    <select class="chk-motivo-select" onchange="App.chkSelecionarMotivo('${item.id}',this.value)">
+      <option value="">Escolher motivo…</option>
+      ${motivos.map(m=>`<option value="${escapeHtml(m.motivo)}" ${ie.motivoSelecionado===m.motivo?'selected':''}>${escapeHtml(m.motivo)}</option>`).join("")}
     </select>` : "";
   return `
   <div class="card card-pad chk-item-card">
@@ -12603,7 +12774,7 @@ function chkRenderItem(linha, item, numero){
     </div>
     <div class="chk-status-row">${statusBtns}</div>
     ${motivoDropdown}
-    <textarea placeholder="Observação (opcional)" oninput="App.chkSetObservacao('${item.id}',this.value)">${escapeHtml(ie.observacao)}</textarea>
+    <textarea placeholder="Nota adicional (opcional) — o texto padrão do motivo já vai sozinho pro laudo" oninput="App.chkSetObservacao('${item.id}',this.value)">${escapeHtml(ie.observacao)}</textarea>
     <div class="chk-photo-grid">${fotosHtml}
       <button class="chk-photo-add" onclick="App.chkTirarFoto('${item.id}',false)">${ic('camera')}<span>Foto</span></button>
       <button class="chk-photo-add secundario" onclick="App.chkTirarFoto('${item.id}',true)" title="Escolher da galeria">${ic('gallery')}<span>Galeria</span></button>
@@ -12690,17 +12861,27 @@ function chkDataExtenso(iso){
    inspecionada. Dados do responsável técnico vêm de getMecseteConfig()
    (SÓ LEITURA — config compartilhada com os outros módulos, nunca escrita
    por aqui). */
+function chkLinhaGrid(pares){
+  // pares: [[rotulo, valor], ...] — pula pares sem valor.
+  return pares.filter(p=>p[1]).map(([rotulo,valor])=>`<div><b>${escapeHtml(rotulo)}:</b> ${escapeHtml(valor)}</div>`).join("");
+}
+function chkBlocoLaudo(titulo, corpoHtml){
+  if(!corpoHtml) return "";
+  return `<div class="chk-laudo-bloco"><div class="chk-laudo-bloco-titulo">${escapeHtml(titulo)}</div><div class="chk-laudo-bloco-corpo">${corpoHtml}</div></div>`;
+}
 function screenChkLaudo(){
   const proj = getCurrentChkProjeto();
   if(!proj){ go("checklist-projetos"); return ""; }
   const mc = getMecseteConfig();
+  const escopo = proj.setores.map(s=>s.nome).filter(Boolean).join(", ");
   const linhasHtml = proj.setores.flatMap(setor => setor.linhas.map(l => ({ setor, l }))).map(({l})=>{
     const secoesHtml = l.modeloSnapshot.map(s=>{
       const isNA = l.secoesNA.includes(s.id);
       if(isNA) return "";
       return s.itens.map(it=>{
-        const ie = chkItemExec(l, it.id) || {conforme:null,observacao:"",fotos:[]};
+        const ie = chkItemExec(l, it.id) || {conforme:null, motivoSelecionado:null, observacao:"", fotos:[]};
         const meta = ie.conforme? CHK_STATUS_META[ie.conforme] : {label:"Sem resposta", cor:"#999"};
+        const textoPadrao = chkTextoLaudoItem(it, ie);
         const fotosHtml = (ie.fotos||[]).map(f=>{
           const ref = imgReg(f.foto);
           return `<img data-imgref="${ref}" class="chk-laudo-foto" onclick="App.verFotoReg(this)">`;
@@ -12712,7 +12893,8 @@ function screenChkLaudo(){
             <span class="stat-pill" style="color:${meta.cor};margin-left:auto">${meta.label}</span>
           </div>
           ${it.normativo? `<div class="chk-item-norma" style="margin:2px 0">${escapeHtml(it.normativo)}</div>`:""}
-          ${ie.observacao? `<p style="margin:4px 0 0;font-size:13px">${escapeHtml(ie.observacao)}</p>`:""}
+          ${textoPadrao? `<p style="margin:4px 0 0;font-size:13px">${escapeHtml(textoPadrao)}</p>`:""}
+          ${ie.observacao? `<p style="margin:4px 0 0;font-size:12.5px;font-style:italic;color:var(--ink-dim)">${escapeHtml(ie.observacao)}</p>`:""}
           ${fotosHtml? `<div class="chk-laudo-fotos">${fotosHtml}</div>`:""}
         </div>`;
       }).join("");
@@ -12725,54 +12907,75 @@ function screenChkLaudo(){
     </div>`;
   }).join("");
   const temLinha = proj.setores.some(s=>s.linhas.length);
+
+  const capa = `
+  <div class="chk-laudo-capa">
+    <h1>LAUDO DE INSPEÇÃO<br>LINHA DE VIDA</h1>
+    <div class="cliente-label">CLIENTE</div>
+    <div class="cliente-nome">${escapeHtml(proj.empresa||'')}</div>
+    ${escopo? `<div class="escopo">${escapeHtml(escopo)}</div>` : ""}
+    <div class="chk-laudo-capa-tabela">
+      <div class="linha"><span class="rotulo">Documento</span><span class="valor">${escapeHtml(proj.numeroDocumento||'-')}</span></div>
+      <div class="linha"><span class="rotulo">ART</span><span class="valor">${escapeHtml(proj.art||'-')}</span></div>
+      <div class="linha"><span class="rotulo">Responsável Técnico</span><span class="valor">${escapeHtml(mc.respNome)}</span></div>
+      <div class="linha"><span class="rotulo">Solicitante</span><span class="valor">${escapeHtml(proj.responsavel||'-')}</span></div>
+    </div>
+    <div class="chk-laudo-capa-rodape">
+      <div class="chk-laudo-capa-logo">M7 <span>MecSe7e</span> Engenharia</div>
+      <div style="margin-top:14px">${escapeHtml(mc.cidade||'')}<br>${chkDataExtenso(proj.dataInspecao||hoje())}</div>
+    </div>
+  </div>`;
+
+  const infoIniciais = chkLinhaGrid([
+    ["Data da Inspeção", proj.dataInspecao? chkDataExtenso(proj.dataInspecao):""],
+    ["Nº Documento", proj.numeroDocumento],
+    ["Validade da Inspeção", proj.validadeInspecao? chkDataExtenso(proj.validadeInspecao):""],
+    ["Número da ART", proj.art],
+  ]);
+  const dadosSolicitante = chkLinhaGrid([
+    ["Empresa", proj.empresa],
+    ["Responsável", proj.responsavel],
+    ["CPF/CNPJ", proj.solicitanteCpfCnpj],
+    ["Email", proj.solicitanteEmail],
+    ["Cidade", proj.solicitanteCidade],
+    ["Cargo", proj.solicitanteCargo],
+    ["Telefone", proj.solicitanteTelefone],
+    ["", ""],
+    ["Endereço", proj.solicitanteEndereco],
+  ]);
+  const dadosResponsavel = chkLinhaGrid([
+    ["Empresa", mc.empresa],
+    ["Nome Resp.", mc.respNome],
+    ["End.", mc.endereco],
+    ["Função Resp.", mc.respFuncao],
+    ["Cidade", mc.cidade],
+    ["CREA", mc.respCREA],
+    ["Contato", mc.telefone],
+    ["Nome Inspetor", proj.inspetorNome||mc.respNome],
+    ["Email", mc.email],
+    ["Cargo Inspetor", proj.inspetorCargo||mc.respFuncao],
+  ]);
+
   return `
-  <div class="chk-laudo-header">
-    <h1>Laudo — ${escapeHtml(proj.empresa||'Checklist')}</h1>
-    <div class="chk-laudo-grid">
-      <div>
-        <div class="chk-laudo-subtitulo">Dados do solicitante</div>
-        <div><b>Empresa:</b> ${escapeHtml(proj.empresa||'')}</div>
-        ${proj.solicitanteCpfCnpj? `<div><b>CPF/CNPJ:</b> ${escapeHtml(proj.solicitanteCpfCnpj)}</div>`:""}
-        ${proj.solicitanteEndereco? `<div><b>Endereço:</b> ${escapeHtml(proj.solicitanteEndereco)}</div>`:""}
-        ${proj.solicitanteCidade? `<div><b>Cidade:</b> ${escapeHtml(proj.solicitanteCidade)}</div>`:""}
-        ${proj.solicitanteTelefone? `<div><b>Telefone:</b> ${escapeHtml(proj.solicitanteTelefone)}</div>`:""}
-        ${proj.responsavel? `<div><b>Responsável:</b> ${escapeHtml(proj.responsavel)}</div>`:""}
-        ${proj.solicitanteCargo? `<div><b>Cargo:</b> ${escapeHtml(proj.solicitanteCargo)}</div>`:""}
-      </div>
-      <div>
-        <div class="chk-laudo-subtitulo">Dados do responsável</div>
-        <div><b>Empresa:</b> ${escapeHtml(mc.empresa)}</div>
-        <div><b>Endereço:</b> ${escapeHtml(mc.endereco)}</div>
-        <div><b>Cidade:</b> ${escapeHtml(mc.cidade)}</div>
-        <div><b>Contato:</b> ${escapeHtml(mc.telefone)}</div>
-        <div><b>Email:</b> ${escapeHtml(mc.email)}</div>
-        <div><b>Nome Resp.:</b> ${escapeHtml(mc.respNome)}</div>
-        <div><b>Função Resp.:</b> ${escapeHtml(mc.respFuncao)}</div>
-        <div><b>CREA:</b> ${escapeHtml(mc.respCREA)}</div>
-        ${proj.inspetorNome? `<div><b>Nome Inspetor:</b> ${escapeHtml(proj.inspetorNome)}</div>`:""}
-        ${proj.inspetorCargo? `<div><b>Cargo Inspetor:</b> ${escapeHtml(proj.inspetorCargo)}</div>`:""}
-      </div>
-      <div>
-        <div class="chk-laudo-subtitulo">Documento</div>
-        ${proj.numeroDocumento? `<div><b>Nº Documento:</b> ${escapeHtml(proj.numeroDocumento)}</div>`:""}
-        ${proj.art? `<div><b>ART:</b> ${escapeHtml(proj.art)}</div>`:""}
-        ${proj.dataInspecao? `<div><b>Data da inspeção:</b> ${chkDataExtenso(proj.dataInspecao)}</div>`:""}
-        ${proj.validadeInspecao? `<div><b>Validade:</b> ${chkDataExtenso(proj.validadeInspecao)}</div>`:""}
+  ${capa}
+  <div class="chk-laudo-corpo">
+    <h2 class="chk-laudo-titulo-corpo">Laudo de Inspeção — Linha de Vida</h2>
+    ${chkBlocoLaudo("Informações Iniciais", infoIniciais)}
+    ${chkBlocoLaudo("Dados do Solicitante", dadosSolicitante)}
+    ${chkBlocoLaudo("Dados do Responsável", dadosResponsavel)}
+    ${proj.objetivo? `<div class="chk-laudo-bloco"><div class="chk-laudo-bloco-titulo">Objetivo</div><div class="chk-laudo-bloco-corpo" style="display:block"><p style="margin:0">${escapeHtml(proj.objetivo)}</p></div></div>`:""}
+    ${temLinha? linhasHtml : `<div class="empty"><p>Nenhuma linha de vida cadastrada ainda neste projeto.</p></div>`}
+    ${proj.conclusaoGeral? `<div class="chk-laudo-bloco"><div class="chk-laudo-bloco-titulo">Conclusão</div><div class="chk-laudo-bloco-corpo" style="display:block"><p style="margin:0">${escapeHtml(proj.conclusaoGeral)}</p></div></div>`:""}
+    <div class="chk-laudo-assinatura">
+      <p>Relatório documentado perante o CREA${proj.art? ` na ART ${escapeHtml(proj.art)}`:''}.</p>
+      <p>${escapeHtml(mc.cidade||'')}, ${chkDataExtenso(hoje())}.</p>
+      <div class="chk-laudo-assinatura-grid">
+        <div><div class="chk-laudo-assinatura-linha"></div>${escapeHtml(proj.responsavel||'Solicitante')}<br>${escapeHtml(proj.solicitanteCargo||'')}<br>${escapeHtml(proj.empresa||'')}</div>
+        <div><div class="chk-laudo-assinatura-linha"></div>${escapeHtml(mc.respNome)}<br>${escapeHtml(mc.respFuncao)}<br>${escapeHtml(mc.empresa)}</div>
       </div>
     </div>
+    <div class="export-row" style="margin-top:16px"><button class="btn btn-block" onclick="App.go('checklist-setores')">${ic('back')} Voltar aos setores</button></div>
   </div>
-  ${proj.objetivo? `<div class="chk-laudo-secao"><h3>Objetivo</h3><p>${escapeHtml(proj.objetivo)}</p></div>`:""}
-  ${temLinha? linhasHtml : `<div class="empty"><p>Nenhuma linha de vida cadastrada ainda neste projeto.</p></div>`}
-  ${proj.conclusaoGeral? `<div class="chk-laudo-secao"><h3>Conclusão</h3><p>${escapeHtml(proj.conclusaoGeral)}</p></div>`:""}
-  <div class="chk-laudo-assinatura">
-    <p>Relatório documentado perante o CREA${proj.art? ` na ART ${escapeHtml(proj.art)}`:''}.</p>
-    <p>${escapeHtml(mc.cidade||'')}, ${chkDataExtenso(hoje())}.</p>
-    <div class="chk-laudo-assinatura-grid">
-      <div><div class="chk-laudo-assinatura-linha"></div>${escapeHtml(proj.responsavel||'Solicitante')}<br>${escapeHtml(proj.solicitanteCargo||'')}<br>${escapeHtml(proj.empresa||'')}</div>
-      <div><div class="chk-laudo-assinatura-linha"></div>${escapeHtml(mc.respNome)}<br>${escapeHtml(mc.respFuncao)}<br>${escapeHtml(mc.empresa)}</div>
-    </div>
-  </div>
-  <div class="export-row" style="margin-top:16px"><button class="btn btn-block" onclick="App.go('checklist-setores')">${ic('back')} Voltar aos setores</button></div>
   `;
 }
 
@@ -24841,11 +25044,13 @@ Devolver agora?`)) return;
     item.observacao = valor;
     marcarAlterado();
   },
-  chkAplicarMotivoPadrao(itemId, texto){
-    if(!texto) return;
+  chkSelecionarMotivo(itemId, motivo){
+    // Só guarda QUAL motivo foi escolhido (a chave) — o texto padrão completo
+    // fica no modelo e só é buscado na hora de montar o laudo (chkTextoLaudoItem).
+    // Não mexe em observação: aquele campo é só a nota extra do usuário.
     const l = getCurrentChkLinha(); if(!l) return;
     const item = chkItemExec(l, itemId); if(!item) return;
-    item.observacao = texto; // frase padrão entra pronta no campo; usuário pode editar dali
+    item.motivoSelecionado = motivo || null;
     l.atualizadoEm = agoraSync();
     marcarAlterado();
     render();
@@ -24989,16 +25194,16 @@ Devolver agora?`)) return;
     const s = m.secoes.find(x=>x.id===secaoId); if(!s) return;
     const it = s.itens.find(i=>i.id===itemId); if(!it) return;
     if(!it.motivosPadrao) it.motivosPadrao = [];
-    it.motivosPadrao.push("");
+    it.motivosPadrao.push({ motivo:"", texto:"" });
     m.atualizadoEm = agoraSync();
     marcarAlterado();
     render();
   },
-  chkSetMotivoPadrao(secaoId, itemId, idx, valor){
+  chkSetMotivoPadrao(secaoId, itemId, idx, campo, valor){
     const m = getCurrentChkModelo(); if(!m) return;
     const s = m.secoes.find(x=>x.id===secaoId); if(!s) return;
-    const it = s.itens.find(i=>i.id===itemId); if(!it || !it.motivosPadrao) return;
-    it.motivosPadrao[idx] = valor;
+    const it = s.itens.find(i=>i.id===itemId); if(!it || !it.motivosPadrao || !it.motivosPadrao[idx]) return;
+    it.motivosPadrao[idx][campo] = valor;
     m.atualizadoEm = agoraSync();
     marcarAlterado();
   },

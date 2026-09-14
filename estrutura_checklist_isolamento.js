@@ -87,7 +87,7 @@ const FUNCOES = [
   "novoChkModelo", "novoChkSecao", "novoChkItem", "chkModeloPadraoLinhasDeVida",
   "novoChkProjeto", "novoChkSetor", "novoChkLinha",
   "getCurrentChkModelo", "getCurrentChkProjeto", "getCurrentChkSetor", "getCurrentChkLinha",
-  "chkItemExec", "chkContarStatus", "chkProgresso",
+  "chkItemExec", "chkContarStatus", "chkProgresso", "chkTextoLaudoItem",
   "chkGarantirNamespace",
 ];
 let fonte = "let __ultimoCarimboVisto = 0;\n";
@@ -173,13 +173,17 @@ App.chkNovoItem(sec1.id);
 App.chkNovoItem(sec2.id);
 App.chkSetItemField(sec1.id, sec1.itens[0].id, "descricao", "Verificar fixacao da ancoragem");
 App.chkSetItemField(sec1.id, sec1.itens[0].id, "normativo", "NR-35 8.2.1");
+App.chkSetItemField(sec1.id, sec1.itens[0].id, "textoAtende", "A ancoragem esta fixada corretamente, sem sinais de folga.");
 App.chkSetItemField(sec1.id, sec1.itens[1].id, "descricao", "Verificar torque dos parafusos");
 App.chkSetItemField(sec2.id, sec2.itens[0].id, "descricao", "Verificar integridade do cabo de aco");
+App.chkSetItemField(sec2.id, sec2.itens[0].id, "textoAtende", "O cabo de aco esta integro, sem sinais de desgaste.");
 App.chkRemoverItem(sec1.id, sec1.itens[1].id);
 App.chkNovoMotivoPadrao(sec1.id, sec1.itens[0].id);
 App.chkNovoMotivoPadrao(sec1.id, sec1.itens[0].id);
-App.chkSetMotivoPadrao(sec1.id, sec1.itens[0].id, 0, "Ancoragem corroida");
-App.chkSetMotivoPadrao(sec1.id, sec1.itens[0].id, 1, "Ausencia de ancoragem");
+App.chkSetMotivoPadrao(sec1.id, sec1.itens[0].id, 0, "motivo", "Ancoragem corroida");
+App.chkSetMotivoPadrao(sec1.id, sec1.itens[0].id, 0, "texto", "A ancoragem apresenta oxidacao avancada, comprometendo sua resistencia estrutural.");
+App.chkSetMotivoPadrao(sec1.id, sec1.itens[0].id, 1, "motivo", "Ausencia de ancoragem");
+App.chkSetMotivoPadrao(sec1.id, sec1.itens[0].id, 1, "texto", "Nao foi identificado ponto de ancoragem na estrutura avaliada.");
 App.chkRemoverMotivoPadrao(sec1.id, sec1.itens[0].id, 1);
 
 // Hierarquia Projeto > Setor > Linha de vida — sem nenhum vinculo a maquina
@@ -215,13 +219,29 @@ if(!linha) throw new Error("linha de vida nao foi criada");
 const item1 = linha.itens[0];
 App.chkSetConforme(item1.itemId, "atende");
 App.chkSetConforme(item1.itemId, "naoAtende");
-App.chkAplicarMotivoPadrao(item1.itemId, "Ancoragem corroida");
+App.chkSelecionarMotivo(item1.itemId, "Ancoragem corroida");
 App.chkSetObservacao(item1.itemId, "Parafuso frouxo, ajustado em campo");
 item1.fotos.push({ foto: "data:image/jpeg;base64,ZZZZ", tags: [] });
 App.chkToggleTagFoto(item1.itemId, 0, "Ajustar");
 App.chkToggleTagFoto(item1.itemId, 0, "Risco");
 App.chkToggleTagFoto(item1.itemId, 0, "Risco");
 App.chkRemoverFoto(item1.itemId, 0);
+
+// Texto padrao do laudo: nunca aparece em campo (so o rotulo curto do motivo
+// aparece na tela de preenchimento) -- prova que o rotulo escolhido em campo
+// (motivoSelecionado) acha o texto certo cadastrado no modelo, com a mesma
+// funcao usada de verdade por screenChkLaudo.
+const item1Modelo = linha.modeloSnapshot[0].itens[0];
+const textoItem1 = chkTextoLaudoItem(item1Modelo, item1);
+if(textoItem1 !== "A ancoragem apresenta oxidacao avancada, comprometendo sua resistencia estrutural.")
+  throw new Error("chkTextoLaudoItem nao recuperou o texto do motivo selecionado em item1: " + JSON.stringify(textoItem1));
+
+const item2 = linha.itens[1];
+App.chkSetConforme(item2.itemId, "atende");
+const item2Modelo = linha.modeloSnapshot[1].itens[0];
+const textoItem2 = chkTextoLaudoItem(item2Modelo, item2);
+if(textoItem2 !== "O cabo de aco esta integro, sem sinais de desgaste.")
+  throw new Error("chkTextoLaudoItem nao recuperou o textoAtende de item2: " + JSON.stringify(textoItem2));
 
 App.chkToggleSecaoNA(linha.modeloSnapshot[1].id);
 App.chkToggleSecaoNA(linha.modeloSnapshot[1].id);
@@ -316,6 +336,39 @@ const totalItensPadrao = modeloPadrao.secoes.reduce((n, s) => n + s.itens.length
 if(totalItensPadrao < 40) throw new Error("modelo padrao com poucos itens: " + totalItensPadrao);
 if(modeloPadrao.secoes.some(s => s.itens.some(it => !it.motivosPadrao || !it.motivosPadrao.length)))
   throw new Error("algum item do modelo padrao ficou sem motivos padrao");
+// Cada item carrega texto padrao pra AMBOS os desfechos (atende / cada motivo
+// de nao atende) -- e esse texto so aparece no laudo, nunca em campo. Aqui se
+// confere que nada ficou esquecido e que a busca por rotulo (o mesmo caminho
+// de screenChkLaudo, via chkTextoLaudoItem) realmente acha o texto certo —
+// inclusive que nenhum item tem dois motivos com o mesmo rotulo (o que
+// deixaria o texto de um deles inacessivel para quem preenche em campo).
+if(modeloPadrao.secoes.some(s => s.itens.some(it => !it.textoAtende || !it.textoAtende.trim())))
+  throw new Error("algum item do modelo padrao ficou sem textoAtende (texto padrao para quando o item atende)");
+if(modeloPadrao.secoes.some(s => s.itens.some(it => it.motivosPadrao.some(mp => !mp.motivo || !mp.motivo.trim() || !mp.texto || !mp.texto.trim()))))
+  throw new Error("algum motivo padrao do modelo padrao ficou sem rotulo (motivo) ou sem texto padrao (texto)");
+modeloPadrao.secoes.forEach(s => s.itens.forEach(it => {
+  const rotulos = it.motivosPadrao.map(mp => mp.motivo);
+  if(new Set(rotulos).size !== rotulos.length)
+    throw new Error('item "' + it.descricao + '" do modelo padrao tem motivos padrao com rotulo repetido -- o texto de um deles fica inacessivel');
+}));
+// chkTextoLaudoItem só existe dentro do sandbox (foi extraído pro `fonte` lá
+// em cima) — roda aqui via vm, no mesmo contexto, pra provar de verdade que a
+// busca por rótulo acha o texto certo de cada item/motivo do modelo padrão.
+vm.runInContext(`
+(function(){
+  const modeloPadrao = estadoSemChecklists.checklists.modelos.find(m => m.id === "${MODELO_PADRAO_ID}");
+  modeloPadrao.secoes.forEach(s => s.itens.forEach(it => {
+    it.motivosPadrao.forEach(mp => {
+      const achado = chkTextoLaudoItem(it, { conforme: "naoAtende", motivoSelecionado: mp.motivo });
+      if(achado !== mp.texto)
+        throw new Error('chkTextoLaudoItem nao recuperou o texto do motivo "' + mp.motivo + '" do item "' + it.descricao + '"');
+    });
+    const achadoAtende = chkTextoLaudoItem(it, { conforme: "atende" });
+    if(achadoAtende !== it.textoAtende)
+      throw new Error('chkTextoLaudoItem nao recuperou o textoAtende do item "' + it.descricao + '"');
+  }));
+})();
+`, sandbox, { filename: "checklist-validar-textos-modelo-padrao.js" });
 // Abrir o app de novo (segunda chamada) não duplica o modelo.
 vm.runInContext("chkGarantirNamespace(estadoSemChecklists);", sandbox, { filename: "checklist-seed-2a-chamada.js" });
 if(estadoSemChecklists.checklists.modelos.filter(m => m.id === MODELO_PADRAO_ID).length !== 1)
