@@ -58,7 +58,10 @@ print("=== 3. ARQUITETURA DE FOTOS (CAMADA_FOTOS) ===")
 # `fotos:[{foto:data,...}]` de chkTirarFoto. Arquitetura sendo REAPROVEITADA,
 # nao contornada. Zera quando original.html vier de um commit que ja inclua o
 # modulo Checklist.
-_extra_fotos = {"foto:": 4, "idbfoto:": 2}
+# Zerado em 14/09/2026: original.html regerado a partir de HEAD, que ja inclui
+# o modulo Checklist -- o delta acima ja esta no original, somar de novo
+# contaria duas vezes.
+_extra_fotos = {"foto:": 0, "idbfoto:": 0}
 for marca in ["idbfoto:", "foto:", "CAMADA_FOTOS"]:
     a, b = orig.count(marca) + _extra_fotos.get(marca, 0), novo.count(marca)
     chk("ocorrencias de '%s' inalteradas (%d)" % (marca, a), a == b, "orig+extra=%d novo=%d" % (a, b))
@@ -128,9 +131,10 @@ for marca, n in [('body = screenSimplesLaudo();', 1),
                  # +2 de proposito: modulo Checklist (novo) reaproveita o mesmo botao
                  # "trocar modulo" nas suas duas telas-raiz (modelos e execucoes) --
                  # mesma funcao generica que Completo/Simplificado ja chamavam, nao
-                 # duplicada. Zera no dia em que original.html vier de um commit que
-                 # ja inclui o modulo Checklist (mesmo padrao do _extra da secao 4).
-                 ('App.trocarModulo()', orig.count('App.trocarModulo()') + 2),
+                 # duplicada. Zerado em 14/09/2026: original.html regerado a partir de
+                 # HEAD, que ja inclui o modulo Checklist (mesmo padrao do _extra da
+                 # secao 4).
+                 ('App.trocarModulo()', orig.count('App.trocarModulo()')),
                  ('function laudoAbaRevisao(', 1),
                  ('function laudoAbaAreas(', 1),
                  ('function laudoAbaExportar(', 1),
@@ -4380,8 +4384,11 @@ _fim = novo.index("FIM DO MÓDULO DE IMPRESSÃO DO LAUDO")
 chk("vive inteiro dentro do modulo de impressao (bloco removivel)",
     _ini < novo.index("function lpMaiorPLrDoEquipamento") < _fim
     and _ini < novo.index(".lp-apr-plr{") < _fim)
-chk("e coisa nova: nao existia na versao anterior",
-    "lpMaiorPLrDoEquipamento" not in orig)
+# Checagem "e coisa nova" removida em 14/09/2026: original.html foi regerado a
+# partir de um commit que ja inclui esta entrega (07/09/2026), entao provar
+# que "nao existia antes" ficaria sempre falso dali pra frente -- nao e uma
+# regressao, e o proprio proposito da checagem (provar UMA entrega especifica)
+# ja cumprido. Mesmo padrao do "Zerado" ja usado nos deltas de foto/modulo.
 
 
 print("=== 131. BASE PARA A IA EM PLANILHA (07/09/2026) ===")
@@ -4520,8 +4527,8 @@ chk("nome de aba dentro do que o Excel aceita, e sem repetir",
 chk("todo equipamento entra, mesmo sem tarefa ou risco",
     "if(tarefas.length === 0)" in _corpoDe(novo, "baseIAGruposParaExportar")
     and "if(riscos.length === 0)" in _corpoDe(novo, "baseIAGruposParaExportar"))
-chk("e coisa nova: nao existia na versao anterior",
-    "baseIAGruposParaExportar" not in orig and "BASE_IA_COLUNAS" not in orig)
+# "e coisa nova" removida em 14/09/2026 -- mesmo motivo da secao 130 acima:
+# original.html regerado ja inclui esta entrega (07/09/2026).
 
 
 print("=== 132. NOME DO RISCO COMO CAMPO DO LAUDO (07/09/2026) ===")
@@ -4577,8 +4584,8 @@ chk("a IA e a planilha ensinam a nomear pelo dano, nao pela condicao",
 chk("a geracao em lote pede o nome na MESMA leva paralela dos outros",
     'for(const campo of ["nome","risco","existente","solucao"]){' in novo
     and 'if(laudoPrecisaGerar(it, "nome", refazer)) n++;' in novo)
-chk("e coisa nova: nao existia na versao anterior",
-    '"nomeSug","nomeFin"' not in orig and 'campo==="nome"' not in orig)
+# "e coisa nova" removida em 14/09/2026 -- mesmo motivo da secao 130 acima:
+# original.html regerado ja inclui esta entrega (07/09/2026).
 
 print("=== 133. BIBLIOTECA DE MEDIDAS: CONCORDANCIA E CITACOES CONFERIDAS (10/09/2026) ===")
 # {alvo} chega com o proprio artigo embutido ("a correia", "o eixo"). Os
@@ -4728,10 +4735,8 @@ chk("Solucao nao pode mais cortar citacao ABNT/ISO e ficar so com a da NR-12",
     and "é o mesmo erro que inventar uma citação" in novo)
 chk("a regra continua vindo DEPOIS do exemplo com citacao completa, pra nao contradizer",
     novo.find("ABNT NBR ISO 14120.\\\". Use essa frase") < novo.find("a Solução termina com TODAS elas"))
-chk("e coisa nova: nao existia na versao anterior",
-    "Sem limite de linhas fixo: use o espaço que o conteúdo pedir" not in orig
-    and "a Solução termina com TODAS elas, na mesma ordem" not in orig
-    and "esse detalhe entra na frase" not in orig)
+# "e coisa nova" removida em 14/09/2026 -- mesmo motivo da secao 130 acima:
+# original.html regerado ja inclui esta entrega (12/09/2026 13:12).
 
 
 print("\n=== 138. MODULO CHECKLIST: ISOLAMENTO DE PROJETOS/PROJETOSSIMPLES (12/09/2026) ===")
@@ -4763,6 +4768,31 @@ _r = _subprocess.run(["node", _script_isolamento, caminho_novo], capture_output=
 chk("STATE.projetos e STATE.projetosSimples saem byte a byte identicos apos operar o Checklist",
     _r.returncode == 0,
     (_r.stdout.strip() + "\n" + _r.stderr.strip()).strip()[:600])
+
+print("\n=== 139. 'CORPO INTEIRO' NAO E FORCADO EM QUEDA/ATROPELAMENTO (14/09/2026) ===")
+# Pedido do engenheiro apos conferir a planilha Paletizacao: "Queda do corpo
+# na plataforma" e "com lesao no corpo inteiro" soam redundantes -- numa
+# queda a pessoa inteira e afetada por natureza, entao "parte do corpo" =
+# "Corpo inteiro" nao precisa virar texto. A ressalva so vale para esse caso;
+# lesao localizada (maos, dedos, cabeca) continua sendo citada normalmente.
+_nomeNoPrompt = novo.find("RESPOSTA - Nome do risco", _colunaAColuna)
+chk("a ressalva existe no Nome do risco, depois da regra de nao inventar parte do corpo",
+    _nomeNoPrompt > 0
+    and "não force isso no nome" in novo
+    and novo.find("Não invente componente nem parte do corpo", _nomeNoPrompt) > 0
+    and novo.find("não force isso no nome") > novo.find("Não invente componente nem parte do corpo", _nomeNoPrompt)
+    and novo.find("não force isso no nome") < _descRiscoNoPrompt)
+chk("a mesma ressalva existe na Descricao do risco, depois da regra dos 4 campos estruturados",
+    "Mesma ressalva vale aqui" in novo
+    and novo.find("Mesma ressalva vale aqui") > novo.find("esse detalhe entra na frase")
+    and novo.find("Mesma ressalva vale aqui") < novo.find("Exemplo. Campo:", _descRiscoNoPrompt))
+chk("a ressalva nomeia os eventos de corpo inteiro por natureza, sem proibir parte do corpo em geral",
+    "queda, atropelamento, esmagamento por veículo" in novo
+    and novo.count("queda, atropelamento, esmagamento por veículo") == 2
+    and "Cite a parte do corpo quando ela for uma lesão localizada" in novo)
+chk("e coisa nova: nao existia na versao anterior",
+    "não force isso no nome" not in orig
+    and "Mesma ressalva vale aqui" not in orig)
 
 
 print("\n---------------------------------------")

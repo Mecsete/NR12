@@ -3027,7 +3027,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "14/09/2026 13:24";
+const APP_BUILD = "14/09/2026 19:18";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -16232,6 +16232,7 @@ const BASE_IA_PROMPT = [
 "O nome diz o que VAI ACONTECER, nunca por que o risco está acessível. \"Proteção desparafusada\" é condição, não nome de risco — isso pertence à Descrição do risco.",
 "Fontes: \"Nome do risco (campo)\", os quatro campos \"Risco: local / componente / evento / parte do corpo\", a \"Descrição do risco (campo)\" e, quando ela revela o que será protegido, a \"Solução Editável\".",
 "Quando o nome de campo já estiver bom, devolva-o igual. Não invente componente nem parte do corpo que não estejam informados.",
+"Quando \"Risco: parte do corpo\" vier \"Corpo inteiro\" — típico de queda, atropelamento, esmagamento por veículo —, não force isso no nome. Numa queda a pessoa inteira é afetada por natureza, e escrever \"Queda do corpo\" soa redundante. Só cite a parte do corpo quando ela for informação real: uma lesão localizada (mãos, dedos, cabeça, perna).",
 "",
 "RESPOSTA - Descrição do risco",
 "Uma frase corrida combinando componente + condição observada + como a pessoa se expõe + consequência. Só com o que está na linha.",
@@ -16239,6 +16240,7 @@ const BASE_IA_PROMPT = [
 "A coluna \"O que a probabilidade significa\" descreve como a pessoa alcança a zona de perigo e ajuda a escrever a exposição. Uma ressalva: quando ela disser \"Precisa deitar ou subir em algo para alcançar\", não afirme que a pessoa deita ou sobe — diga apenas que o acesso é bastante restrito.",
 "A consequência que fecha a frase vem do que o campo descreve — agarramento, corte, prensamento, queda — e nunca da classificação de Grau do dano, que sai na tabela do laudo e não em texto.",
 "Quando os quatro campos estruturados trouxerem um detalhe que a Descrição de campo não nomeia por extenso — o componente técnico certo, o evento exato, a parte do corpo —, esse detalhe entra na frase. O texto final precisa ficar pelo menos tão completo quanto a soma das fontes disponíveis, nunca mais pobre que a Descrição de campo sozinha.",
+"Mesma ressalva vale aqui: \"parte do corpo\" = \"Corpo inteiro\" não precisa aparecer na frase quando o evento já implica isso por natureza (queda, atropelamento, esmagamento por veículo) — \"com lesão no corpo inteiro\" é redundante nesses casos. Cite a parte do corpo quando ela for uma lesão localizada.",
 "Exemplo. Campo: \"Proteção desparafusada, com acesso ao cilindro pneumático, com risco de prensamento dos dedos.\" Texto: \"A proteção do cilindro pneumático encontra-se desparafusada, permitindo o acesso das mãos à zona de acionamento e expondo os dedos do trabalhador ao prensamento durante o movimento do cilindro.\"",
 "",
 "RESPOSTA - Mitigação existente",

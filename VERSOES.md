@@ -64,6 +64,24 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 14/09/2026 19:18
+
+**Instruções da planilha ajustadas: "queda" não força mais "corpo inteiro" no texto.**
+
+Conferindo uma planilha respondida por IA, apareceram frases como "Queda do
+corpo na plataforma" e "com lesão no corpo inteiro" — redundantes, porque
+uma queda por natureza já afeta a pessoa inteira; não precisa dizer isso.
+Essa fala apareceu porque uma instrução recente (12/09/2026) pedia para
+aproveitar sempre os quatro campos estruturados do risco, inclusive "parte
+do corpo", no Nome e na Descrição do risco.
+
+As instruções da planilha ganharam uma ressalva: quando "Risco: parte do
+corpo" vier "Corpo inteiro" — típico de queda, atropelamento, esmagamento
+por veículo —, esse dado não precisa mais aparecer no texto. A regra de
+aproveitar os campos estruturados continua valendo normalmente para lesão
+localizada (mãos, dedos, cabeça, perna), onde a informação é real e vale a
+pena citar.
+
 ## 14/09/2026 13:24
 
 **Corrige aparelhos que abriram o Checklist antes do texto padrão existir: o modelo "Linhas de Vida (NR-35)" já salvo neles agora é completado sozinho.**
