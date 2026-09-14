@@ -3027,7 +3027,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "14/09/2026 11:40";
+const APP_BUILD = "14/09/2026 13:24";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -9259,6 +9259,44 @@ function chkGarantirNamespace(estado){
     const jaTem = estado.checklists.modelos.some(m=>m.id===CHK_MODELO_PADRAO_ID);
     if(!jaTem) estado.checklists.modelos.push(chkModeloPadraoLinhasDeVida());
     estado.ui.chkModeloPadraoAplicado = true;
+  }
+  /* Upgrade do texto padrão no modelo pronto — só entra em aparelhos que
+     abriram o Checklist na janela em que o modelo já nascia pronto mas o
+     texto padrão (textoAtende + motivosPadrao como {motivo,texto}) ainda não
+     existia (14/09/2026, madrugada até meio da manhã): esses aparelhos
+     seguem com uma cópia "antiga" do modelo — motivosPadrao em texto simples
+     (string[]) e sem textoAtende nenhum — e a regra de "só semeia uma vez"
+     acima nunca mais encosta nela. Aqui só ACRESCENTA o que falta, e só
+     quando a estrutura do modelo (título de cada seção, na mesma ordem, e a
+     mesma quantidade de itens em cada) ainda bate exatamente com o modelo
+     original — sinal forte de que ninguém adicionou/removeu nada à mão; do
+     contrário não mexe em nada, para não arriscar sobrescrever uma edição
+     do usuário. O rótulo de cada motivo que já existia é sempre preservado
+     (só o texto novo é acrescentado ao lado dele); roda uma única vez por
+     aparelho (chkModeloPadraoTextoAplicado), para nunca mais tocar no modelo
+     depois de ele já estar completo ou de o usuário editar os textos à mão. */
+  if(!estado.ui.chkModeloPadraoTextoAplicado){
+    const modeloAntigo = estado.checklists.modelos.find(m=>m.id===CHK_MODELO_PADRAO_ID);
+    if(modeloAntigo){
+      const modeloAtual = chkModeloPadraoLinhasDeVida();
+      const estruturaBate = modeloAntigo.secoes.length === modeloAtual.secoes.length
+        && modeloAntigo.secoes.every((s,si)=> s.titulo===modeloAtual.secoes[si].titulo && s.itens.length===modeloAtual.secoes[si].itens.length);
+      if(estruturaBate){
+        modeloAntigo.secoes.forEach((s,si)=>{
+          s.itens.forEach((it,ii)=>{
+            const itAtual = modeloAtual.secoes[si].itens[ii];
+            if(!it.textoAtende) it.textoAtende = itAtual.textoAtende;
+            it.motivosPadrao = (it.motivosPadrao||[]).map((mp,mi)=>{
+              if(mp && typeof mp === "object") return mp; // já no formato novo — não mexe
+              const texto = (itAtual.motivosPadrao[mi]||{}).texto || "";
+              return { motivo: mp, texto }; // rótulo antigo preservado, texto novo acrescentado
+            });
+          });
+        });
+        modeloAntigo.atualizadoEm = agoraSync();
+      }
+    }
+    estado.ui.chkModeloPadraoTextoAplicado = true;
   }
   return estado;
 }

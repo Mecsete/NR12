@@ -64,6 +64,25 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 14/09/2026 13:24
+
+**Corrige aparelhos que abriram o Checklist antes do texto padrão existir: o modelo "Linhas de Vida (NR-35)" já salvo neles agora é completado sozinho.**
+
+O modelo pronto "Linhas de Vida (NR-35)" nasce automaticamente na primeira
+vez que alguém abre o Checklist num aparelho — e isso já acontecia desde
+cedo no dia de hoje, algumas horas antes de os textos padrão (o parágrafo de
+"Atende" e o de cada motivo de "Não atende") terem sido cadastrados nele.
+Quem abriu o Checklist nessa janela ficou com uma cópia do modelo sem esses
+textos, e como o modelo só é semeado uma vez por aparelho, ela nunca seria
+completada sozinha.
+
+Agora, na próxima vez que o app abrir, essa cópia antiga é completada
+automaticamente com os textos padrão — sem apagar nada que a pessoa já
+tenha editado nela (título de seção, rótulo de motivo etc.), e sem mexer se
+alguém já tiver alterado a estrutura do modelo (adicionado ou removido
+seção/item). Quem já abriu o Checklist depois que os textos padrão foram
+publicados não é afetado — o modelo já estava completo.
+
 ## 14/09/2026 11:40
 
 **Laudo do Checklist aproveita a tela do computador, e os textos do modelo "Linhas de Vida (NR-35)" ficaram mais completos.**

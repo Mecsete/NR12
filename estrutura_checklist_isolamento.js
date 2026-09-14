@@ -411,5 +411,81 @@ if(JSON.stringify(estadoExecucoesPlanas.projetos) !== antesMig2Completo || JSON.
   process.exit(1);
 }
 
-console.log("ISOLAMENTO OK: STATE.projetos e STATE.projetosSimples byte a byte identicos apos criar/editar/salvar/vincular/finalizar/excluir na hierarquia Projeto>Setor>Linha do Checklist, e as duas migracoes de STATE antigo preenchem/reorganizam o namespace sem tocar nas duas arvores");
+// ---------- migração 3: upgrade do texto padrão em modelo semeado ANTES do
+// recurso existir (motivosPadrao ainda em string[], sem textoAtende) --
+// aparelho que abriu o Checklist entre o modelo nascer pronto e o texto
+// padrão chegar (mesmo dia, janela de horas) ----------
+const estadoModeloAntigo = {
+  modulo: "checklist",
+  projetos: JSON.parse(antesCompleto),
+  projetosSimples: JSON.parse(antesSimples),
+  checklists: { modelos: [], projetos: [] },
+  ui: { chkModeloId: null, chkProjetoId: null, chkSetorId: null, chkLinhaId: null, chkSecaoAtual: 0,
+        chkModeloPadraoAplicado: true }, // já tinha sido semeado antes -- não pode semear de novo
+};
+vm.runInContext(`
+(function(){
+  const atual = chkModeloPadraoLinhasDeVida();
+  const antigo = JSON.parse(JSON.stringify(atual));
+  antigo.secoes.forEach(s => s.itens.forEach(it => {
+    delete it.textoAtende;
+    it.motivosPadrao = it.motivosPadrao.map(mp => mp.motivo); // string[] -- formato de antes do recurso
+  }));
+  // Simula um rótulo editado à mão pelo usuário antes do recurso existir --
+  // esse texto tem que sobreviver ao upgrade, nunca ser substituído.
+  antigo.secoes[0].itens[0].motivosPadrao[0] = "Projeto NAO apresentado (editado pelo usuario)";
+  estadoModeloAntigo.checklists.modelos.push(antigo);
+})();
+`, Object.assign(sandbox, { estadoModeloAntigo }), { filename: "checklist-migracao3-prep.js" });
+
+const antesMig3Completo = JSON.stringify(estadoModeloAntigo.projetos);
+const antesMig3Simples = JSON.stringify(estadoModeloAntigo.projetosSimples);
+vm.runInContext("chkGarantirNamespace(estadoModeloAntigo);", sandbox, { filename: "checklist-migracao3.js" });
+
+const modeloUpgradeado = estadoModeloAntigo.checklists.modelos.find(m => m.id === MODELO_PADRAO_ID);
+if(!modeloUpgradeado) throw new Error("modelo antigo sumiu depois do upgrade de texto padrao");
+if(modeloUpgradeado.secoes[0].itens[0].motivosPadrao[0].motivo !== "Projeto NAO apresentado (editado pelo usuario)")
+  throw new Error("upgrade de texto padrao NAO preservou o rotulo de motivo editado pelo usuario");
+if(!modeloUpgradeado.secoes[0].itens[0].motivosPadrao[0].texto)
+  throw new Error("upgrade de texto padrao nao acrescentou o texto do motivo, mesmo com o rotulo editado preservado");
+if(modeloUpgradeado.secoes.some(s => s.itens.some(it => !it.textoAtende || (it.motivosPadrao||[]).some(mp => typeof mp === "string"))))
+  throw new Error("upgrade de texto padrao deixou algum item sem textoAtende ou com motivosPadrao ainda em string");
+if(JSON.stringify(estadoModeloAntigo.projetos) !== antesMig3Completo || JSON.stringify(estadoModeloAntigo.projetosSimples) !== antesMig3Simples)
+  throw new Error("upgrade de texto padrao do modelo antigo mudou projetos/projetosSimples de um STATE antigo");
+
+// idempotente: abrir o app de novo (segunda chamada) nao muda mais nada.
+const modeloAntesDaSegundaChamada = JSON.stringify(modeloUpgradeado);
+vm.runInContext("chkGarantirNamespace(estadoModeloAntigo);", sandbox, { filename: "checklist-migracao3-2a-chamada.js" });
+if(JSON.stringify(estadoModeloAntigo.checklists.modelos.find(m => m.id === MODELO_PADRAO_ID)) !== modeloAntesDaSegundaChamada)
+  throw new Error("upgrade de texto padrao rodou de novo numa segunda chamada (deveria ser uma unica vez por aparelho)");
+
+// controle negativo: se a ESTRUTURA do modelo antigo foi alterada pelo
+// usuário (um item a menos numa seção), o upgrade tem que ficar de fora --
+// pra não arriscar reescrever por cima de uma edição de verdade.
+const estadoModeloEditado = {
+  modulo: "checklist",
+  projetos: JSON.parse(antesCompleto),
+  projetosSimples: JSON.parse(antesSimples),
+  checklists: { modelos: [], projetos: [] },
+  ui: { chkModeloId: null, chkProjetoId: null, chkSetorId: null, chkLinhaId: null, chkSecaoAtual: 0,
+        chkModeloPadraoAplicado: true },
+};
+vm.runInContext(`
+(function(){
+  const atual = chkModeloPadraoLinhasDeVida();
+  const antigo = JSON.parse(JSON.stringify(atual));
+  antigo.secoes.forEach(s => s.itens.forEach(it => {
+    delete it.textoAtende;
+    it.motivosPadrao = it.motivosPadrao.map(mp => mp.motivo);
+  }));
+  antigo.secoes[0].itens.pop(); // usuario removeu um item -- estrutura nao bate mais
+  estadoModeloEditado.checklists.modelos.push(antigo);
+})();
+`, Object.assign(sandbox, { estadoModeloEditado }), { filename: "checklist-migracao3-editado-prep.js" });
+vm.runInContext("chkGarantirNamespace(estadoModeloEditado);", sandbox, { filename: "checklist-migracao3-editado.js" });
+const modeloEditadoDepois = estadoModeloEditado.checklists.modelos.find(m => m.id === MODELO_PADRAO_ID);
+if(modeloEditadoDepois.secoes[0].itens.some(it => it.textoAtende || (it.motivosPadrao||[]).some(mp => typeof mp === "object")))
+  throw new Error("upgrade de texto padrao mexeu num modelo cuja estrutura o usuario ja tinha alterado -- deveria ter ficado de fora");
+
+console.log("ISOLAMENTO OK: STATE.projetos e STATE.projetosSimples byte a byte identicos apos criar/editar/salvar/vincular/finalizar/excluir na hierarquia Projeto>Setor>Linha do Checklist, e as tres migracoes de STATE antigo (namespace ausente, execucoes em lista plana, e modelo padrao sem texto padrao) preenchem/reorganizam/atualizam o namespace sem tocar nas duas arvores");
 process.exit(0);
