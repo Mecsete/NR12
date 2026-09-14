@@ -671,6 +671,21 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-laudo-bloco-corpo div{overflow-wrap:anywhere;}
 .chk-laudo-bloco-corpo b{font-weight:600;color:var(--ink-faint);}
 @media (min-width:640px){.chk-laudo-corpo{padding:0 8px;}}
+/* ===== Computador: revisão do laudo aproveita a tela mais larga — o fluxo é
+   marcar o checklist e tirar foto em campo (celular) e revisar/finalizar o
+   laudo no escritório (computador), mesmas faixas de largura já usadas pelo
+   laudo do Completo/Simplificado (".screen-laudo", ver "Computador: mais
+   largura e duas colunas" acima) ===== */
+@media (min-width:900px){
+  .screen.screen-laudo .chk-laudo-capa{max-width:820px;margin:-14px auto 22px;}
+  .screen.screen-laudo .chk-laudo-blocos-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start;}
+  .screen.screen-laudo .chk-laudo-blocos-grid .chk-laudo-bloco{margin-bottom:0;}
+  .screen.screen-laudo .chk-laudo-itens-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 18px;align-items:start;}
+  .screen.screen-laudo .chk-laudo-itens-grid .chk-laudo-item{border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--surface);}
+}
+@media (min-width:1360px){
+  .screen.screen-laudo .chk-laudo-blocos-grid{grid-template-columns:1fr 1fr 1fr;}
+}
 @media print{
   .chk-status-btn,.chk-photo-add,.chk-photo-remove{display:none!important;}
   .chk-laudo-capa{page-break-after:always;min-height:100vh;margin:0;padding:56px 36px 40px 38px;}
@@ -3012,7 +3027,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "14/09/2026 10:29";
+const APP_BUILD = "14/09/2026 11:40";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -9366,7 +9381,7 @@ function chkModeloPadraoLinhasDeVida(){
     ]),
     secao("Olhal", [
       ["", "O olhal é constituído de material adequado (galvanizado ou aço inox)?",
-        "O olhal é constituído de material adequado (galvanizado ou aço inox).",
+        "O olhal é constituído de material adequado (galvanizado ou aço inox), compatível com as exigências de resistência à corrosão do sistema.",
         [mo("Material não identificável", "Não foi possível identificar o material constituinte do olhal em campo."),
          mo("Sinais de material improvisado", "O olhal aparenta ser peça improvisada, sem características de fabricação adequadas à aplicação em ponto de ancoragem.")]],
       ["", "O olhal não apresenta oxidação?",
@@ -9388,7 +9403,7 @@ function chkModeloPadraoLinhasDeVida(){
         [mo("Sapatilha com rebarbas cortantes", "A sapatilha apresenta rebarbas cortantes, condição que pode danificar o cabo de aço e representar risco de corte ao manuseio."),
          mo("Sapatilha trincada ou quebrada", "A sapatilha encontra-se trincada ou quebrada, não cumprindo sua função de proteção do cabo.")]],
       ["", "A sapatilha não apresenta oxidação?",
-        "A sapatilha não apresenta sinais de oxidação.",
+        "A sapatilha não apresenta sinais de oxidação, preservando sua função de proteção mecânica do cabo de aço.",
         [mo("Oxidação superficial", "Foi identificada oxidação superficial na sapatilha."),
          mo("Oxidação avançada comprometendo o perfil", "Foi identificada oxidação avançada na sapatilha, comprometendo o perfil de proteção do cabo de aço.")]],
       ["", "A sapatilha está instalada de maneira adequada nos laços do cabo?",
@@ -9403,22 +9418,22 @@ function chkModeloPadraoLinhasDeVida(){
         [mo("Material não identificável", "Não foi possível identificar o material constituinte do cabo de aço em campo."),
          mo("Cabo sem proteção galvânica aparente", "O cabo de aço não apresenta proteção galvânica aparente, condição que reduz sua resistência à corrosão.")]],
       ["NBR6327:2006", "O cabo de aço não apresenta oxidação em sua extensão?",
-        "O cabo de aço não apresenta sinais de oxidação em sua extensão.",
+        "O cabo de aço não apresenta sinais de oxidação em sua extensão, preservando a integridade dos fios que o compõem.",
         [mo("Oxidação superficial pontual", "Foi identificada oxidação superficial pontual no cabo de aço."),
          mo("Oxidação avançada com perda de fios", "Foi identificada oxidação avançada no cabo de aço, com perda de fios, comprometendo sua resistência."),
          mo("Oxidação interna entre pernas do cabo", "Foi identificada oxidação interna entre as pernas do cabo de aço, condição de difícil percepção visual que compromete significativamente a resistência do componente.")]],
       ["NBR6327:2006", "O cabo de aço não apresenta desfiamento em sua extensão?",
-        "O cabo de aço não apresenta desfiamento em sua extensão.",
+        "O cabo de aço não apresenta desfiamento em sua extensão, com todos os fios íntegros e sem rompimentos.",
         [mo("Fios rompidos isolados", "Foram identificados fios rompidos isolados ao longo da extensão do cabo de aço."),
          mo("Desfiamento concentrado em um trecho", "Foi identificado desfiamento concentrado em um trecho específico do cabo de aço, indicando ponto de atrito ou sobrecarga localizada."),
          mo("Coroa de fios rompidos (\"gaiola de passarinho\")", "Foi identificada coroa de fios rompidos (\"gaiola de passarinho\") no cabo de aço, condição que compromete severamente sua resistência e exige substituição imediata.")]],
       ["NBR6327:2006", "O cabo de aço não apresenta deformidades em sua extensão?",
-        "O cabo de aço não apresenta deformidades em sua extensão.",
+        "O cabo de aço não apresenta deformidades em sua extensão, mantendo sua seção original e capacidade de carga.",
         [mo("Amassamento localizado", "Foi identificado amassamento localizado no cabo de aço."),
          mo("Achatamento do cabo", "Foi identificado achatamento em trecho do cabo de aço, condição que reduz sua capacidade de carga."),
          mo("Dobra permanente (vinco)", "Foi identificada dobra permanente (vinco) no cabo de aço, condição que compromete sua integridade estrutural.")]],
       ["NBR6327:2006", "O cabo de aço não apresenta torções ou nós em sua extensão?",
-        "O cabo de aço não apresenta torções ou nós em sua extensão.",
+        "O cabo de aço não apresenta torções ou nós em sua extensão, condição que preserva sua resistência nominal.",
         [mo("Torção localizada (coca)", "Foi identificada torção localizada (coca) no cabo de aço."),
          mo("Nó formado no cabo", "Foi identificado nó formado no cabo de aço, condição que compromete sua resistência e deve ser corrigida.")]],
       ["NBR6327:2006", "O cabo de aço não apresenta redução do diâmetro (cabo 3/8\" ou 5/16\")?",
@@ -9432,11 +9447,11 @@ function chkModeloPadraoLinhasDeVida(){
     ]),
     secao("Grampos", [
       ["", "Os grampos são constituídos de material adequado (galvanizado ou aço inox)?",
-        "Os grampos são constituídos de material adequado (galvanizado ou aço inox).",
+        "Os grampos são constituídos de material adequado (galvanizado ou aço inox), compatível com a exposição do sistema às intempéries.",
         [mo("Material não identificável", "Não foi possível identificar o material constituinte dos grampos em campo."),
          mo("Grampos aparentemente não certificados", "Os grampos aparentam ser peças não certificadas, sem características de fabricação adequadas à aplicação.")]],
       ["", "Os grampos não apresentam oxidação?",
-        "Os grampos não apresentam sinais de oxidação.",
+        "Os grampos não apresentam sinais de oxidação, preservando a integridade da rosca e o torque de aperto aplicado.",
         [mo("Oxidação superficial", "Foi identificada oxidação superficial nos grampos."),
          mo("Oxidação avançada comprometendo a rosca", "Foi identificada oxidação avançada nos grampos, comprometendo a rosca e o funcionamento adequado da fixação.")]],
       ["", "Possui a quantidade de grampos conforme projeto (no mínimo 3)?",
@@ -9444,7 +9459,7 @@ function chkModeloPadraoLinhasDeVida(){
         [mo("Menos de 3 grampos instalados", "Foi observada a instalação de grampos tipo clip para fixação do cabo de aço. No entanto, a quantidade de grampos aparenta ser inferior ao mínimo recomendado (três unidades), o que pode comprometer a resistência da fixação."),
          mo("Quantidade divergente do projeto", "Foi observada a instalação de grampos tipo clip para fixação do cabo de aço. A quantidade de grampos instalada aparenta ser inferior ao mínimo recomendado, sendo identificadas apenas duas unidades.")]],
       ["", "A distância entre grampos está conforme projeto?",
-        "A distância entre os grampos está conforme especificado em projeto.",
+        "A distância entre os grampos está conforme especificado em projeto, garantindo a resistência adequada da terminação.",
         [mo("Espaçamento entre grampos menor que o recomendado", "O espaçamento entre os grampos instalados é menor que o recomendado, podendo comprometer a resistência da terminação."),
          mo("Espaçamento irregular entre grampos", "Foi observado espaçamento irregular entre os grampos instalados, em desacordo com as boas práticas de montagem.")]],
       ["", "A posição da clipagem está no sentido correto (sela voltada para o cabo ativo)?",
@@ -9464,7 +9479,7 @@ function chkModeloPadraoLinhasDeVida(){
          mo("Empenamento da viga", "Foi identificado empenamento da viga, condição que compromete o deslocamento adequado do trólei."),
          mo("Amassamento localizado", "Foi identificado amassamento localizado na viga.")]],
       ["", "A viga não apresenta oxidação?",
-        "A viga não apresenta sinais de oxidação.",
+        "A viga não apresenta sinais de oxidação, preservando sua seção e capacidade estrutural.",
         [mo("Oxidação superficial", "Foi identificada oxidação superficial na viga."),
          mo("Oxidação avançada com perda de seção", "Foi identificada oxidação avançada na viga, com perda de seção do material, comprometendo sua capacidade estrutural.")]],
       ["", "A viga está bem soldada ou parafusada na estrutura?",
@@ -9473,11 +9488,11 @@ function chkModeloPadraoLinhasDeVida(){
          mo("Parafusos de fixação frouxos ou ausentes", "Foram identificados parafusos de fixação da viga frouxos ou ausentes."),
          mo("Sinais de fadiga nos pontos de fixação", "Foram observados sinais de fadiga nos pontos de fixação da viga.")]],
       ["", "A viga está na posição conforme o projeto?",
-        "A viga está instalada na posição prevista em projeto.",
+        "A viga está instalada na posição prevista em projeto, garantindo o alinhamento adequado do sistema.",
         [mo("Viga fora do alinhamento previsto em projeto", "A viga encontra-se fora do alinhamento previsto em projeto."),
          mo("Viga instalada em local diferente do projetado", "A viga está instalada em local diferente do projetado, sendo necessária reavaliação técnica da instalação.")]],
       ["", "A viga possui os batentes de fim de curso dos dois lados?",
-        "A viga possui batentes de fim de curso instalados nas duas extremidades.",
+        "A viga possui batentes de fim de curso instalados nas duas extremidades, impedindo o descarrilamento do trólei.",
         [mo("Batente ausente em uma das extremidades", "A viga possui batente de fim de curso ausente em uma das extremidades, permitindo o descarrilamento do trólei nesse ponto."),
          mo("Batentes ausentes nas duas extremidades", "A viga não possui batentes de fim de curso em nenhuma das extremidades, permitindo o descarrilamento do trólei."),
          mo("Batente existente porém sem fixação adequada", "O batente de fim de curso existe, porém não está adequadamente fixado, podendo se soltar sob impacto.")]],
@@ -9497,7 +9512,7 @@ function chkModeloPadraoLinhasDeVida(){
         [mo("Estrutura do trólei deformada", "A estrutura do trólei apresenta-se deformada."),
          mo("Rodas do trólei deformadas ou ovalizadas", "As rodas do trólei apresentam-se deformadas ou ovalizadas, comprometendo seu deslocamento na viga.")]],
       ["", "O trólei não possui oxidação?",
-        "O trólei não apresenta sinais de oxidação.",
+        "O trólei não apresenta sinais de oxidação, preservando o funcionamento adequado de rodas e eixos.",
         [mo("Oxidação superficial", "Foi identificada oxidação superficial no trólei."),
          mo("Oxidação avançada nas rodas ou eixos", "Foi identificada oxidação avançada nas rodas ou eixos do trólei, comprometendo seu funcionamento.")]],
       ["", "O trólei movimenta-se livremente na viga?",
@@ -12902,7 +12917,7 @@ function screenChkLaudo(){
     return `
     <div class="chk-laudo-secao">
       <h3>LINHA DE VIDA — ${escapeHtml(l.nome||l.modeloNome||'Sem nome')}${l.status!=="finalizado"? ` <span class="stat-pill alert">em andamento</span>`:''}</h3>
-      ${secoesHtml}
+      <div class="chk-laudo-itens-grid">${secoesHtml}</div>
       ${l.conclusaoTexto? `<div class="chk-laudo-obs"><b>Observação:</b> ${escapeHtml(l.conclusaoTexto)}</div>`:""}
     </div>`;
   }).join("");
@@ -12960,9 +12975,11 @@ function screenChkLaudo(){
   ${capa}
   <div class="chk-laudo-corpo">
     <h2 class="chk-laudo-titulo-corpo">Laudo de Inspeção — Linha de Vida</h2>
-    ${chkBlocoLaudo("Informações Iniciais", infoIniciais)}
-    ${chkBlocoLaudo("Dados do Solicitante", dadosSolicitante)}
-    ${chkBlocoLaudo("Dados do Responsável", dadosResponsavel)}
+    <div class="chk-laudo-blocos-grid">
+      ${chkBlocoLaudo("Informações Iniciais", infoIniciais)}
+      ${chkBlocoLaudo("Dados do Solicitante", dadosSolicitante)}
+      ${chkBlocoLaudo("Dados do Responsável", dadosResponsavel)}
+    </div>
     ${proj.objetivo? `<div class="chk-laudo-bloco"><div class="chk-laudo-bloco-titulo">Objetivo</div><div class="chk-laudo-bloco-corpo" style="display:block"><p style="margin:0">${escapeHtml(proj.objetivo)}</p></div></div>`:""}
     ${temLinha? linhasHtml : `<div class="empty"><p>Nenhuma linha de vida cadastrada ainda neste projeto.</p></div>`}
     ${proj.conclusaoGeral? `<div class="chk-laudo-bloco"><div class="chk-laudo-bloco-titulo">Conclusão</div><div class="chk-laudo-bloco-corpo" style="display:block"><p style="margin:0">${escapeHtml(proj.conclusaoGeral)}</p></div></div>`:""}

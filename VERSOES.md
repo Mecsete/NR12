@@ -64,6 +64,25 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 14/09/2026 11:40
+
+**Laudo do Checklist aproveita a tela do computador, e os textos do modelo "Linhas de Vida (NR-35)" ficaram mais completos.**
+
+O fluxo pensado para o Checklist é marcar e fotografar em campo, pelo
+celular, e revisar/finalizar o laudo depois, no escritório, no computador.
+A tela do laudo agora usa essa tela maior: a capa fica centralizada num
+tamanho de página, os três blocos de dados do início (Informações Iniciais,
+Dados do Solicitante, Dados do Responsável) ficam lado a lado em vez de
+empilhados, e os itens de cada linha de vida passam a ocupar duas colunas —
+a mesma ideia já usada há tempos no laudo do Módulo Simplificado. No celular
+nada muda: a tela continua exatamente como antes, em uma coluna só.
+
+Além disso, os textos padrão do modelo pronto "Linhas de Vida (NR-35)"
+(entregues na versão anterior) foram revisados: os parágrafos de "Atende"
+mais curtos — que só repetiam a pergunta — ganharam uma frase a mais
+explicando o efeito prático da conformidade (por exemplo, o de oxidação do
+cabo de aço passou a dizer também que isso preserva a integridade dos fios).
+
 ## 14/09/2026 10:29
 
 **Checklist: texto padrão de laudo por item (atende / não atende), e o Laudo ganhou capa e visual novos, no padrão do APR Campo.**

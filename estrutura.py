@@ -171,9 +171,14 @@ for marca, n in [('body = screenSimplesLaudo();', 1),
                  ('blocoPLrHtml(r, "draft", tarefaCtx)', 1),
                  ('blocoPLrHtml(item.risco, "laudo", item.tarefa)', 1),
                  ('${blocoMontadorRiscoHtml(r)}', 1),
-                 # 11 a partir do modulo Checklist: a tela de laudo do Checklist
-                 # reaproveita a mesma classe screen-laudo do laudo do Simplificado.
-                 ('screen-laudo', 11),
+                 # 18 a partir da revisao do laudo do Checklist otimizada pra
+                 # computador (14/09/2026): alem da classe no HTML (1) que
+                 # reaproveita o "screen-laudo" do laudo do Simplificado, a
+                 # capa, o grid dos 3 blocos (Iniciais/Solicitante/Responsavel)
+                 # e o grid dos itens de cada linha agora tem regras CSS
+                 # proprias escopadas em ".screen.screen-laudo ..." (7 novas
+                 # ocorrencias do texto, eram 11, agora 18).
+                 ('screen-laudo', 18),
                  ('<span>Laudo</span>', 1),
                  ('<b>Trocar de módulo</b>', 1)]:
     c = novo.count(marca)
