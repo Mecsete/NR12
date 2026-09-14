@@ -64,6 +64,22 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 14/09/2026 19:56
+
+**Instruções da planilha ajustadas: código de TAG não pode mais aparecer no Escopo, mesmo colado ao nome.**
+
+Conferindo uma planilha respondida por IA, um equipamento chamado "Esteira
+entre Descarga e Despalha 3-CV-1304" teve o código `3-CV-1304` mantido
+dentro do Escopo, entre parênteses — algo que a regra já proibia, mas só
+dava exemplo de código separado do nome por espaço (como "Correia
+CNV-002"), não colado ao final de um nome descritivo longo. Isso quebra o
+propósito do Escopo: ele precisa servir a qualquer equipamento daquela
+função, e um código específico ali reduz o reaproveitamento do texto.
+
+As instruções ganharam um exemplo cobrindo esse formato específico — nome
+descritivo seguido de código de TAG, sem separador — deixando claro que o
+código descarta mesmo assim.
+
 ## 14/09/2026 19:18
 
 **Instruções da planilha ajustadas: "queda" não força mais "corpo inteiro" no texto.**

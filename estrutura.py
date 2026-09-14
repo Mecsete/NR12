@@ -4794,6 +4794,22 @@ chk("e coisa nova: nao existia na versao anterior",
     "não force isso no nome" not in orig
     and "Mesma ressalva vale aqui" not in orig)
 
+print("\n=== 140. CODIGO DE TAG COLADO AO NOME TAMBEM E FILTRADO NO ESCOPO (14/09/2026) ===")
+# Pedido do engenheiro apos conferir a planilha Descarga 300/200: uma IA
+# externa manteve "(3-CV-1304)" dentro do Escopo de "Esteira entre Descarga e
+# Despalha 3-CV-1304" -- a regra ja proibia TAG no escopo, mas so dava exemplo
+# de TAG separada do nome por espaco ("Correia CNV-002"), nao colada ao final
+# de um nome descritivo longo. O exemplo novo cobre esse formato.
+_escopoNoPrompt = novo.find("RESPOSTA - Escopo do equipamento", _colunaAColuna)
+chk("o exemplo novo cobre TAG colada ao nome, logo depois da regra geral de TAG",
+    "3-CV-1304" in novo
+    and novo.find("O filtro vale mesmo quando o código vem colado ao nome") > novo.find("descarte \\\"CNV-002\\\"")
+    and _escopoNoPrompt < novo.find("O filtro vale mesmo quando o código vem colado ao nome") < novo.find("RESPOSTA - Descrição da tarefa", _colunaAColuna))
+chk("o exemplo mostra o erro por extenso -- parenteses logo apos o nome -- nao so a regra abstrata",
+    "repetir o código entre parênteses no começo do texto é o mesmo erro de citar a TAG" in novo)
+chk("e coisa nova: nao existia na versao anterior",
+    "O filtro vale mesmo quando o código vem colado ao nome" not in orig)
+
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
