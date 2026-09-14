@@ -64,6 +64,31 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 14/09/2026 00:50
+
+**Modelo "Linhas de Vida (NR-35)" já vem pronto no Checklist: 9 seções, 45 itens, com sugestões de motivo prontas para cada um.**
+
+O Checklist já nasce com um modelo completo cadastrado — "Linhas de Vida
+(NR-35)" — baseado no checklist de campo já usado (documentação, ancoragem
+estrutural, esticador, olhal, sapatilha, cabo de aço, grampos, viga e
+trólei). Não precisa apertar nenhum botão nem importar nada: ele aparece
+sozinho na tela de Modelos assim que você abrir o módulo, como se tivesse
+sido montado à mão. Depois disso é um modelo igual a qualquer outro — pode
+editar, renomear ou apagar à vontade.
+
+Cada um dos 45 itens já vem com **motivos padrão sugeridos** para quando a
+resposta for "Não atende" — por exemplo, no cabo de aço: "Fios rompidos
+isolados", "Coroa de fios rompidos (gaiola de passarinho)", "Redução de
+diâmetro por desgaste ou abrasão". É só marcar "Não atende" em campo e
+escolher o motivo mais próximo, sem precisar digitar.
+
+Duas correções em relação ao checklist original: o item da viga sobre
+deformação estava com a pergunta invertida (corrigido, para "Atende" sempre
+significar conforme) e os 7 sub-itens de identificação da ancoragem viraram
+um item só, com cada marcação que pode estar faltando (CNPJ, modelo, nº de
+série etc.) como opção de motivo — mais parecido com o que se confere de
+fato numa plaqueta em campo.
+
 ## 13/09/2026 11:00
 
 **Laudo do Checklist reformulado: agora é o relatório do projeto inteiro, no formato usado nos laudos de linha de vida.**

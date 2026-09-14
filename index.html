@@ -2993,7 +2993,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "13/09/2026 11:00";
+const APP_BUILD = "14/09/2026 00:50";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -9165,7 +9165,9 @@ function chkProgresso(linha){
    Também migra o formato antigo (STATE.checklists.execucoes, lista plana,
    sem a hierarquia Projeto > Setor > Linha de vida): nenhuma execução já
    feita é descartada — cada uma vira uma Linha de vida dentro de um projeto/
-   setor criados só para acolhê-las ("Dados migrados"). */
+   setor criados só para acolhê-las ("Dados migrados"). E semeia o modelo
+   pronto "Linhas de Vida (NR-35)" uma única vez por aparelho (ver o fim da
+   função). */
 function chkGarantirNamespace(estado){
   if(!estado || typeof estado !== "object") return estado;
   if(!estado.checklists || typeof estado.checklists !== "object") estado.checklists = { modelos:[], projetos:[] };
@@ -9195,7 +9197,157 @@ function chkGarantirNamespace(estado){
   if(estado.ui.chkSetorId === undefined) estado.ui.chkSetorId = null;
   if(estado.ui.chkLinhaId === undefined) estado.ui.chkLinhaId = null;
   if(estado.ui.chkSecaoAtual === undefined) estado.ui.chkSecaoAtual = 0;
+  /* Modelo pronto "Linhas de Vida (NR-35)" — entra sozinho, uma única vez por
+     aparelho, exatamente como se tivesse sido montado à mão pela tela normal
+     de modelo. Depois dessa primeira vez o aparelho nunca mais mexe nisso:
+     apagar ou editar o modelo é decisão do usuário e fica valendo (mesmo
+     padrão de "só aplica uma vez" já usado para os inspetores padrão, ver
+     getUsuariosInspetores/INSPETORES_PADRAO). */
+  if(!estado.ui.chkModeloPadraoAplicado){
+    const jaTem = estado.checklists.modelos.some(m=>m.id===CHK_MODELO_PADRAO_ID);
+    if(!jaTem) estado.checklists.modelos.push(chkModeloPadraoLinhasDeVida());
+    estado.ui.chkModeloPadraoAplicado = true;
+  }
   return estado;
+}
+/* Modelo pronto "Linhas de Vida (NR-35)" — baseado no checklist de campo já
+   usado pela MecSete ("Checklist Linha de Vida.pdf"), reorganizado em itens
+   de resposta consistente (toda pergunta responde "Atende" para o estado
+   CONFORME — corrigida a única inversão do original, o item da viga sobre
+   deformação) e com motivos padrão por item, sugeridos a partir dos modos de
+   falha mais comuns de cada componente, para agilizar o preenchimento em
+   campo. Os 7 sub-itens de identificação da ancoragem (a a g) do documento
+   original viraram um item só, com cada marcação faltante como motivo padrão
+   — mais fiel ao que se verifica de fato numa plaqueta em campo. */
+const CHK_MODELO_PADRAO_ID = "chk-modelo-padrao-linhas-de-vida";
+function chkModeloPadraoLinhasDeVida(){
+  const m = novoChkModelo();
+  m.id = CHK_MODELO_PADRAO_ID; // fixo — evita duplicar entre aparelhos e permite reconhecê-lo depois
+  m.nome = "Linhas de Vida (NR-35)";
+  m.descricao = "Checklist de inspeção de linha de vida flexível — documentação, ancoragem, esticador, olhal, sapatilha, cabo de aço, grampos, viga e trólei.";
+  const secao = (titulo, itens)=>{
+    const s = novoChkSecao();
+    s.titulo = titulo;
+    s.itens = itens.map(([normativo, descricao, motivosPadrao])=>{
+      const it = novoChkItem();
+      it.normativo = normativo;
+      it.descricao = descricao;
+      it.motivosPadrao = motivosPadrao;
+      return it;
+    });
+    return s;
+  };
+  m.secoes = [
+    secao("Documentação", [
+      ["NR-35 8.2", "A empresa possui o projeto da estrutura a ser inspecionada?",
+        ["Projeto da estrutura não apresentado", "Projeto apresentado não corresponde à estrutura instalada"]],
+      ["NR-35 8.2", "A empresa possui relatório de inspeção periódica do sistema de proteção contra quedas (intervalo máximo de 12 meses)?",
+        ["Relatório de inspeção periódica inexistente", "Última inspeção há mais de 12 meses", "Relatório não contempla todos os pontos de ancoragem"]],
+      ["NBR14626:2010", "A ancoragem possui identificação legível e indelével do fabricante (razão social, CNPJ, modelo/código, número de série, material, indicação de carga, número máximo de usuários ou força máxima e pictograma de leitura obrigatória)?",
+        ["Falta identificação do fabricante e CNPJ", "Falta modelo ou código do produto", "Falta número de fabricação/série", "Falta indicação do material constituinte", "Falta indicação de carga", "Falta indicação do número máximo de usuários ou força máxima aplicável", "Falta pictograma de leitura obrigatória", "Identificação existente, porém ilegível ou apagada"]],
+      ["NBR14626:2010", "O sistema está corretamente classificado e dimensionado para o uso a que se destina (retenção de quedas ou restrição de movimento)?",
+        ["Sistema usado como retenção de quedas sem considerar fator de queda e zona livre", "Sistema usado como restrição de movimento não impede fisicamente o acesso à borda", "Uso do sistema não corresponde ao projeto original"]],
+      ["NR-35 8.2", "A instalação possui plano esquemático documentado?",
+        ["Plano esquemático de instalação inexistente", "Plano esquemático não reflete a instalação real"]],
+    ]),
+    secao("Ancoragem Estrutural", [
+      ["NR-35 8.2", "O ponto de ancoragem garante segurança adequada ao sistema?",
+        ["Ponto de ancoragem insuficiente para o esforço do sistema", "Não dimensionado para múltiplos usuários simultâneos", "Ausência de ensaio ou memorial que comprove a capacidade"]],
+      ["", "O ponto de ancoragem não apresenta oxidação?",
+        ["Oxidação superficial leve", "Oxidação avançada com perda de seção", "Corrosão localizada na base de fixação"]],
+      ["", "O ponto de ancoragem não possui fissuras no concreto?",
+        ["Fissuras próximas ao chumbador", "Fissuras em toda a extensão da base", "Sinais de arrancamento do chumbador"]],
+      ["", "O ponto de ancoragem não possui trincas na solda?",
+        ["Trinca visível no cordão de solda", "Solda com porosidade aparente", "Falta de penetração na solda"]],
+      ["NR-35 8.2", "O ponto de ancoragem possui projeto de instalação e memorial de cálculo?",
+        ["Projeto de instalação inexistente", "Memorial de cálculo inexistente", "Projeto sem ART de profissional habilitado"]],
+    ]),
+    secao("Esticador", [
+      ["", "O esticador é constituído de material adequado (aço forjado ou ferro fundido nodular)?",
+        ["Material não identificável", "Peça aparentemente improvisada ou inadequada"]],
+      ["", "O esticador possui acabamento galvanizado?",
+        ["Sem galvanização, material exposto", "Galvanização removida ou desgastada em pontos"]],
+      ["", "O esticador não apresenta oxidação?",
+        ["Oxidação superficial", "Oxidação com perda de material na rosca"]],
+      ["", "O esticador não apresenta deformidades em sua extensão?",
+        ["Corpo do esticador empenado", "Rosca danificada", "Olhal do esticador deformado"]],
+      ["", "O esticador possui identificação em relevo (fabricante, diâmetro nominal e rastreabilidade)?",
+        ["Identificação inexistente", "Identificação ilegível"]],
+    ]),
+    secao("Olhal", [
+      ["", "O olhal é constituído de material adequado (galvanizado ou aço inox)?",
+        ["Material não identificável", "Sinais de material improvisado"]],
+      ["", "O olhal não apresenta oxidação?",
+        ["Oxidação superficial", "Oxidação avançada com perda de seção"]],
+      ["", "O olhal não apresenta deformidades em sua extensão?",
+        ["Olhal ovalizado", "Sinais de esforço além do previsto (abertura do anel)"]],
+      ["", "O olhal possui identificação em relevo (fabricante, diâmetro nominal e rastreabilidade)?",
+        ["Identificação inexistente", "Identificação ilegível"]],
+    ]),
+    secao("Sapatilha", [
+      ["", "A sapatilha não apresenta defeitos como extremidades cortantes?",
+        ["Sapatilha com rebarbas cortantes", "Sapatilha trincada ou quebrada"]],
+      ["", "A sapatilha não apresenta oxidação?",
+        ["Oxidação superficial", "Oxidação avançada comprometendo o perfil"]],
+      ["", "A sapatilha está instalada de maneira adequada?",
+        ["Sapatilha ausente em laço do cabo", "Sapatilha de tamanho incompatível com o cabo", "Sapatilha solta, sem fixação adequada"]],
+    ]),
+    secao("Cabo de Aço", [
+      ["", "O cabo de aço é constituído de material adequado (galvanizado ou aço inox)?",
+        ["Material não identificável", "Cabo sem proteção galvânica aparente"]],
+      ["NBR6327:2006", "O cabo de aço não apresenta oxidação em sua extensão?",
+        ["Oxidação superficial pontual", "Oxidação avançada com perda de fios", "Oxidação interna entre pernas do cabo"]],
+      ["NBR6327:2006", "O cabo de aço não apresenta desfiamento em sua extensão?",
+        ["Fios rompidos isolados", "Desfiamento concentrado em um trecho", "Coroa de fios rompidos (\"gaiola de passarinho\")"]],
+      ["NBR6327:2006", "O cabo de aço não apresenta deformidades em sua extensão?",
+        ["Amassamento localizado", "Achatamento do cabo", "Dobra permanente (vinco)"]],
+      ["NBR6327:2006", "O cabo de aço não apresenta torções ou nós em sua extensão?",
+        ["Torção localizada (coca)", "Nó formado no cabo"]],
+      ["NBR6327:2006", "O cabo de aço não apresenta redução do diâmetro (cabo 3/8\" ou 5/16\")?",
+        ["Redução de diâmetro por desgaste ou abrasão", "Diâmetro divergente do especificado em projeto"]],
+      ["", "A extremidade do cabo de aço é protegida por fita de auto fusão?",
+        ["Extremidade exposta, sem proteção", "Proteção existente porém danificada ou solta"]],
+    ]),
+    secao("Grampos", [
+      ["", "Os grampos são constituídos de material adequado (galvanizado ou aço inox)?",
+        ["Material não identificável", "Grampos aparentemente não certificados"]],
+      ["", "Os grampos não apresentam oxidação?",
+        ["Oxidação superficial", "Oxidação avançada comprometendo a rosca"]],
+      ["", "Possui a quantidade de grampos conforme projeto (no mínimo 3)?",
+        ["Menos de 3 grampos instalados", "Quantidade divergente do projeto"]],
+      ["", "A distância entre grampos está conforme projeto?",
+        ["Espaçamento entre grampos menor que o recomendado", "Espaçamento irregular entre grampos"]],
+      ["", "A posição da clipagem está no sentido correto (sela voltada para o cabo ativo)?",
+        ["Sela voltada para o lado incorreto (cabo morto)", "Grampos montados em sentidos alternados"]],
+      ["", "O torque de aperto dos grampos está conforme especificação do fabricante?",
+        ["Grampos frouxos, sem torque adequado", "Aperto não verificado com torquímetro calibrado", "Grampos excessivamente apertados, com marca de esmagamento no cabo"]],
+    ]),
+    secao("Viga", [
+      ["", "A viga não apresenta deformações?",
+        ["Viga com flecha (deformação) visível", "Empenamento da viga", "Amassamento localizado"]],
+      ["", "A viga não apresenta oxidação?",
+        ["Oxidação superficial", "Oxidação avançada com perda de seção"]],
+      ["", "A viga está bem soldada ou parafusada na estrutura?",
+        ["Solda de fixação trincada", "Parafusos de fixação frouxos ou ausentes", "Sinais de fadiga nos pontos de fixação"]],
+      ["", "A viga está na posição conforme o projeto?",
+        ["Viga fora do alinhamento previsto em projeto", "Viga instalada em local diferente do projetado"]],
+      ["", "A viga possui os batentes de fim de curso dos dois lados?",
+        ["Batente ausente em uma das extremidades", "Batentes ausentes nas duas extremidades", "Batente existente porém sem fixação adequada"]],
+    ]),
+    secao("Trólei", [
+      ["", "O trólei possui indicação de capacidade de carga (mínimo 1.500 kg)?",
+        ["Indicação de capacidade inexistente", "Capacidade indicada inferior a 1.500 kg", "Indicação ilegível"]],
+      ["", "O trólei possui plaqueta de identificação do fabricante e número de rastreio?",
+        ["Plaqueta inexistente", "Plaqueta ilegível ou danificada"]],
+      ["", "O trólei não possui deformações?",
+        ["Estrutura do trólei deformada", "Rodas do trólei deformadas ou ovalizadas"]],
+      ["", "O trólei não possui oxidação?",
+        ["Oxidação superficial", "Oxidação avançada nas rodas ou eixos"]],
+      ["", "O trólei movimenta-se livremente na viga?",
+        ["Trólei travado ou emperrado em algum trecho", "Rodas do trólei não giram livremente", "Ruído anormal durante o deslocamento"]],
+    ]),
+  ];
+  return m;
 }
 
 /* =========================================================================
@@ -25925,6 +26077,13 @@ let __estadoLocalCarregadoPromise = carregarEstadoSalvo().then(async saved=>{
     /* Primeira checagem de versão, fora do caminho da abertura: 15 s depois,
        para não disputar rede com a carga inicial nem atrasar a primeira tela. */
     setTimeout(()=>{ verificarVersaoPublicada(true).catch(()=>{}); }, 15000);
+  } else {
+    // Aparelho realmente novo (nunca abriu o app antes): não existe "saved"
+    // nenhum para passar por chkGarantirNamespace, então o modelo pronto do
+    // Checklist nunca nasceria sozinho sem este ramo — STATE aqui já é o
+    // literal padrão do topo do arquivo, só falta receber o mesmo tratamento.
+    chkGarantirNamespace(STATE);
+    marcarAlterado();
   }
   // Ponto de restauração automático de "início de sessão" — só se já fizer
   // tempo desde o último (evita empilhar pontos toda vez que a pessoa só

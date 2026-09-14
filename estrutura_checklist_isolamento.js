@@ -73,17 +73,25 @@ function letObjeto(nome){
   throw new Error("nao fechou let: " + nome);
 }
 
+function constString(nome){
+  const re = new RegExp("\\nconst " + nome + '\\s*=\\s*"[^"]*";');
+  const m = re.exec(HTML);
+  if(!m) throw new Error("const string nao encontrada: " + nome);
+  return m[0].slice(1) + "\n"; // tira a quebra de linha inicial usada só pra ancorar
+}
+
 // ---------- monta o código a testar, extraído de verdade do arquivo ----------
 const FUNCOES = [
   "uid", "hoje", "ehFotoDataUrlPersist", "clonarCompartilhandoFotos",
   "agoraSync", "__carregarUltimoCarimbo",
-  "novoChkModelo", "novoChkSecao", "novoChkItem",
+  "novoChkModelo", "novoChkSecao", "novoChkItem", "chkModeloPadraoLinhasDeVida",
   "novoChkProjeto", "novoChkSetor", "novoChkLinha",
   "getCurrentChkModelo", "getCurrentChkProjeto", "getCurrentChkSetor", "getCurrentChkLinha",
   "chkItemExec", "chkContarStatus", "chkProgresso",
   "chkGarantirNamespace",
 ];
 let fonte = "let __ultimoCarimboVisto = 0;\n";
+fonte += constString("CHK_MODELO_PADRAO_ID");
 for(const nome of FUNCOES) fonte += funcao(nome) + "\n";
 fonte += letObjeto("__chkNovaLinhaDraft") + "\n";
 const metodosApp = trecho(
@@ -295,6 +303,28 @@ if(JSON.stringify(estadoSemChecklists.projetos) !== antesMig1Completo || JSON.st
   console.error("FALHOU: chkGarantirNamespace (sem checklists) mudou projetos/projetosSimples de um STATE antigo");
   process.exit(1);
 }
+
+// ---------- modelo pronto "Linhas de Vida (NR-35)": semeado sozinho, sem botão ----------
+// Reaproveita o mesmo estadoSemChecklists (aparelho novo) que a migração 1
+// acabou de rodar: já passou por UM chkGarantirNamespace, então já deveria
+// ter recebido o modelo pronto.
+const MODELO_PADRAO_ID = "chk-modelo-padrao-linhas-de-vida";
+const modeloPadrao = estadoSemChecklists.checklists.modelos.find(m => m.id === MODELO_PADRAO_ID);
+if(!modeloPadrao) throw new Error("modelo padrao Linhas de Vida nao foi semeado num aparelho novo");
+if(modeloPadrao.secoes.length !== 9) throw new Error("modelo padrao deveria ter 9 secoes, tem " + modeloPadrao.secoes.length);
+const totalItensPadrao = modeloPadrao.secoes.reduce((n, s) => n + s.itens.length, 0);
+if(totalItensPadrao < 40) throw new Error("modelo padrao com poucos itens: " + totalItensPadrao);
+if(modeloPadrao.secoes.some(s => s.itens.some(it => !it.motivosPadrao || !it.motivosPadrao.length)))
+  throw new Error("algum item do modelo padrao ficou sem motivos padrao");
+// Abrir o app de novo (segunda chamada) não duplica o modelo.
+vm.runInContext("chkGarantirNamespace(estadoSemChecklists);", sandbox, { filename: "checklist-seed-2a-chamada.js" });
+if(estadoSemChecklists.checklists.modelos.filter(m => m.id === MODELO_PADRAO_ID).length !== 1)
+  throw new Error("modelo padrao duplicou numa segunda chamada de chkGarantirNamespace");
+// Usuário decide apagar o modelo padrão -- não pode voltar sozinho depois.
+estadoSemChecklists.checklists.modelos = estadoSemChecklists.checklists.modelos.filter(m => m.id !== MODELO_PADRAO_ID);
+vm.runInContext("chkGarantirNamespace(estadoSemChecklists);", sandbox, { filename: "checklist-seed-3a-chamada.js" });
+if(estadoSemChecklists.checklists.modelos.some(m => m.id === MODELO_PADRAO_ID))
+  throw new Error("modelo padrao voltou sozinho depois de o usuario te-lo apagado");
 
 // ---------- migração 2: STATE com o formato antigo (execuções em lista plana) ----------
 const estadoExecucoesPlanas = {
