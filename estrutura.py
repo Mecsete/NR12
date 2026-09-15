@@ -2046,7 +2046,7 @@ print("\n=== 71. IMPORTAR TEXTOS DO LAUDO GERADOS FORA DO APP ===")
 # fora do app. O que ele NUNCA pode fazer e passar por cima de decisao do
 # engenheiro ou encostar em dado de campo — e disso que tratam as checagens.
 chk("existe a funcao de importacao, com formato proprio e campos declarados",
-    novo.count("function importarTextosLaudo(pacote){") == 1
+    novo.count("function importarTextosLaudo(pacote, opts){") == 1
     and 'const LAUDO_TEXTOS_FORMATO = "apr-textos-laudo-v1";' in novo
     and 'const LAUDO_CAMPOS_IMPORTAVEIS = ["escopo", "tarefa", "nome", "risco", "existente", "solucao"];' in novo)
 chk("o texto entra como SUGESTAO a decidir, nunca como decisao tomada",
@@ -2069,8 +2069,8 @@ chk("botao, seletor de arquivo e aviso de resultado estao na tela",
 # O corpo da funcao so escreve via laudoSet: nenhuma atribuicao direta a campo
 # de dado (descricao, nome, foto). Se algum dia alguem acrescentar uma, esta
 # checagem cai — que e exatamente o ponto.
-_ini71 = novo.find("function importarTextosLaudo(pacote){")
-_corpo71 = novo[_ini71:novo.find("\n}", novo.find("if(res.aplicados > 0 || res.reavaliados > 0)", _ini71))]
+_ini71 = novo.find("function importarTextosLaudo(pacote, opts){")
+_corpo71 = novo[_ini71:novo.find("\n}", novo.find("if(!simular && (res.aplicados > 0 || res.reavaliados > 0))", _ini71))]
 chk("a importacao nao escreve em nenhum campo de dado de campo",
     _ini71 > 0
     and ".descricao =" not in _corpo71 and ".nome =" not in _corpo71
@@ -4403,8 +4403,8 @@ chk("a ida e a volta existem, com os dois botoes na aba IA",
 # A PROTECAO MORA NUM LUGAR SO. Se a volta gravasse por conta propria, existiriam
 # duas portas para o mesmo dado, cada uma com a sua regra para manter em dia.
 _v = _corpoDe(novo, "importarPlanilhaRespostasIA")
-chk("a volta so traduz: quem grava continua sendo importarTextosLaudo",
-    "importarTextosLaudo(pacote)" in _v
+chk("a volta so traduz: quem grava continua sendo importarTextosLaudo, e repassa a simulacao",
+    "importarTextosLaudo(pacote, opts)" in _v
     and "laudoSet(" not in _v and "marcarAlterado(" not in _v and "STATE." not in _v)
 # Cada texto tem UM dono. Mandar escopo para o risco encheria o laudo de textos
 # repetidos no lugar errado.
@@ -4843,6 +4843,46 @@ chk("o exemplo mostra o erro por extenso -- parenteses logo apos o nome -- nao s
     "repetir o código entre parênteses no começo do texto é o mesmo erro de citar a TAG" in novo)
 chk("e coisa nova: nao existia na versao anterior",
     "O filtro vale mesmo quando o código vem colado ao nome" not in orig)
+
+print("\n=== 141. DIMENSAO DE ABERTURA JA ESCRITA EM CAMPO E PRESERVADA + CONFIRMACAO ANTES DE REAVALIAR (15/09/2026) ===")
+# Pedido do engenheiro apos conferir planilha real: a regra de "nao invente
+# dimensao de abertura" estava cortando um numero que o inspetor MESMO
+# escreveu ("abertura maxima de 4 mm", "menor que 20mm"). A proibicao valia
+# so para dimensao FALTANTE, nunca deveria valer para dimensao que a linha
+# ja traz.
+chk("a dimensao de abertura so e proibida quando falta na linha, nunca quando o inspetor ja escreveu",
+    'Se a \\"Solução Editável\\" JÁ TRAZ essa dimensão' in novo
+    and "reproduza o valor exatamente como o inspetor escreveu" in novo
+    and "A proibição de inventar vale só quando a linha NÃO traz dimensão nenhuma" in novo)
+
+# Segundo pedido, mais importante: nunca tirar campo de Aplicado/Editado sem
+# avisar e esperar aprovacao -- REGRA ZERO do projeto aplicada aqui. A
+# simulacao roda ANTES de qualquer escrita real (mesmo pacote/arquivo, dois
+# passes), e so pergunta quando ha de verdade algo a reavaliar.
+chk("importarTextosLaudo tem modo simulacao que conta sem gravar",
+    "const simular = !!(opts && opts.simular);" in novo
+    and 'if(!simular) laudoSet(item, campo, { sug: texto, st: "pend"' in novo
+    and "if(!simular && (res.aplicados > 0 || res.reavaliados > 0)) marcarAlterado();" in novo)
+chk("existe o modal de confirmacao, e ele so aparece quando ha reavaliados de verdade",
+    "function confirmarReavaliacaoAntesDeImportar(qtd, aoConfirmar, aoCancelar){" in novo
+    and "voltar a ficar pendente" in novo
+    and "confirmarReavaliacaoImporte(){" in novo
+    and "cancelarReavaliacaoImporte(){" in novo)
+chk("a planilha (.xlsx) simula antes, e so grava de verdade apos confirmar (ou direto, se nao ha reavaliados)",
+    "importarPlanilhaRespostasIA(file, { simular:true })" in novo
+    and "if(!preview.erro && preview.reavaliados > 0){" in novo
+    and "confirmarReavaliacaoAntesDeImportar(preview.reavaliados," in novo
+    and novo.count("importarPlanilhaIADeVerdade(file)") >= 2)
+chk("o .json segue a mesma regra, com o mesmo pacote ja parseado (sem ler o arquivo duas vezes)",
+    "importarTextosLaudo(pacote, { simular:true })" in novo
+    and "if(preview && preview.reavaliados > 0){" in novo
+    and novo.count("importarTextosLaudoDeVerdade(pacote)") >= 2)
+chk("cancelar a reavaliacao avisa e nao grava nada (fica so no toast)",
+    'toast("Importação cancelada"); render(); });' in novo
+    and novo.count('toast("Importação cancelada"); render(); });') == 2)
+chk("e coisa nova: nao existia na versao anterior",
+    "confirmarReavaliacaoAntesDeImportar" not in orig
+    and "const simular = !!(opts && opts.simular);" not in orig)
 
 
 print("\n---------------------------------------")

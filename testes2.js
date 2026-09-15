@@ -11473,9 +11473,9 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     /* ---- a volta nao pode ter gravacao propria ---- */
     /* Se a planilha gravasse sozinha, existiriam duas portas para o mesmo
        dado, cada uma com a sua protecao para manter em dia. */
-    t("a volta so traduz: quem grava continua sendo importarTextosLaudo", ()=>{
+    t("a volta so traduz: quem grava continua sendo importarTextosLaudo, e repassa a simulacao", ()=>{
       const f = funcao("importarPlanilhaRespostasIA");
-      ok(f.indexOf("importarTextosLaudo(pacote)") > 0);
+      ok(f.indexOf("importarTextosLaudo(pacote, opts)") > 0, "precisa repassar opts (simular) adiante");
       ["laudoSet(", "marcarAlterado(", "st: \"pend\"", "STATE."].forEach(x=>
         ok(f.indexOf(x) < 0, "a volta não pode gravar por conta própria: " + x));
     });
@@ -12083,6 +12083,29 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ctx.__p = pac([ {id:"rr",campo:"risco",texto:"X"} ]);
       const r = vm.runInContext("importarTextosLaudo(__p)", ctx);
       eq(r.pulados, 1); eq(r.reavaliados, 0);
+    });
+    /* PROVA EXECUTADA: modo simulacao (opts.simular) precisa contar EXATAMENTE
+       igual ao modo real, mas sem escrever nada -- e a base da confirmacao
+       "antes de tirar de Aplicado, avisa e espera aprovacao" pedida pelo
+       engenheiro em 15/09/2026. Se a simulacao mentisse na contagem, o modal
+       mostraria um numero errado; se ela gravasse algo, a pessoa teria a
+       decisao alterada antes mesmo de confirmar. */
+    t("EXECUTADO: modo simulacao conta certo, mas nao grava nada (nem sug, nem st, nem fin)", ()=>{
+      ligar(true);
+      const it = arvoreReavaliacao();
+      C.laudoSet(it, "risco", { fin:"DECISÃO DO ENGENHEIRO", st:"ok" });
+      ctx.__p = pac([ {id:"rr",campo:"risco",texto:"TEXTO NOVO"} ]);
+      ctx.__opts = { simular:true };
+      const r = vm.runInContext("importarTextosLaudo(__p, __opts)", ctx);
+      eq(r.reavaliados, 1, "a contagem simulada precisa bater com o que o modo real contaria");
+      const g = C.laudoGet(it, "risco");
+      eq(g.sug, "", "simulação não pode escrever sugestão nenhuma");
+      eq(g.st, "ok", "simulação não pode mudar o status — continua Aplicado até a pessoa confirmar");
+      eq(g.fin, "DECISÃO DO ENGENHEIRO");
+      const r2 = vm.runInContext("importarTextosLaudo(__p)", ctx);
+      eq(r2.reavaliados, 1, "sem simular, a MESMA entrada agora aplica de verdade");
+      eq(C.laudoGet(it, "risco").st, "pend");
+      ligar(false);
     });
 
     /* PROVA EXECUTADA (não só posição de string): a planilha exportada

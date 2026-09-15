@@ -3027,7 +3027,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "15/09/2026 11:18";
+const APP_BUILD = "15/09/2026 16:39";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -16042,9 +16042,15 @@ function laudoGet(item, campo){
    ========================================================================= */
 const LAUDO_CAMPOS_IMPORTAVEIS = ["escopo", "tarefa", "nome", "risco", "existente", "solucao"];
 const LAUDO_TEXTOS_FORMATO = "apr-textos-laudo-v1";
-function importarTextosLaudo(pacote){
+function importarTextosLaudo(pacote, opts){
   if(!pacote || typeof pacote !== "object") return null;
   if(pacote.formato !== LAUDO_TEXTOS_FORMATO || !Array.isArray(pacote.textos)) return null;
+  /* MODO SIMULAÇÃO (12/09/2026): conta exatamente o que aconteceria, sem
+     gravar nada — usado para perguntar ANTES de reavaliar itens já
+     aplicados (ver confirmarReavaliacaoAntesDeImportar). O pedido do
+     engenheiro foi explícito: nunca tirar um campo de "Aplicado" sem
+     avisar e esperar aprovação primeiro. */
+  const simular = !!(opts && opts.simular);
   const reavaliar = !!getIAConfig().iaReavaliarAplicados;
   const res = { aplicados:0, reavaliados:0, pulados:0, naoAchados:0, invalidos:0, arquivados:0, porCampo:{} };
   /* Um índice por nível: escopo é da MÁQUINA e tarefa é da TAREFA, então
@@ -16077,13 +16083,37 @@ function importarTextosLaudo(pacote){
     if(jaTinhaAlgo && !reavaliar){ res.pulados++; return; }  // regra de sempre: não mexe no que já tem decisão
     /* NUNCA escreve em "fin": o que já está aplicado continua sendo o que
        vai para o laudo até a pessoa, na tela de Revisão, decidir usar a
-       sugestão nova — reavaliar não é reaplicar sozinho. */
-    laudoSet(item, campo, { sug: texto, st: "pend", duv: String((linha && linha.duvida) || "").trim() });
+       sugestão nova — reavaliar não é reaplicar sozinho. Em modo simulação
+       nem isso é gravado: só a contagem importa. */
+    if(!simular) laudoSet(item, campo, { sug: texto, st: "pend", duv: String((linha && linha.duvida) || "").trim() });
     if(jaTinhaAlgo) res.reavaliados++; else res.aplicados++;
     res.porCampo[campo] = (res.porCampo[campo] || 0) + 1;
   });
-  if(res.aplicados > 0 || res.reavaliados > 0) marcarAlterado();
+  if(!simular && (res.aplicados > 0 || res.reavaliados > 0)) marcarAlterado();
   return res;
+}
+/* Guarda o que fazer quando a pessoa decidir, no modal de confirmação de
+   reavaliação abaixo — mesmo padrão de __acaoGerarPendente. */
+let __acaoReavaliarPendente = null;
+/* ANTES de tirar qualquer campo de "Aplicado"/"Editado", avisa e espera
+   aprovação — pedido explícito do engenheiro (12/09/2026), na mesma linha
+   da REGRA ZERO do projeto: só destruir/alterar decisão já tomada com
+   intenção explícita da pessoa. "Tirar de Aplicado" aqui só quer dizer que
+   o campo passa a aparecer como pendente de novo (st:"pend") — o texto que
+   já está no laudo (fin) nunca é tocado, mas ainda assim é uma mudança de
+   status que a pessoa pode não estar esperando, então pergunta primeiro. */
+function confirmarReavaliacaoAntesDeImportar(qtd, aoConfirmar, aoCancelar){
+  const plural = qtd === 1 ? "" : "s";
+  abrirOverlay(`<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.cancelarReavaliacaoImporte()"><div class="modal-card">
+    <h3>${ic('warn')} ${qtd} campo${plural} aplicado${plural} vai${qtd===1?'':'ão'} voltar a ficar pendente${plural}</h3>
+    <p style="font-size:13.5px;color:var(--ink-dim);margin:6px 0 4px">A IA respondeu de novo ${qtd===1?'um campo que já tinha':'campos que já tinham'} decisão tomada no app (Aplicado ou Editado). Nada muda no laudo sozinho — a sugestão nova entra como pendente, ao lado do texto atual, na aba Revisão, esperando você comparar e decidir.</p>
+    <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:14px">Mas ${qtd===1?'esse campo deixa':'esses campos deixam'} de aparecer como "Aplicado" até você revisar. Quer continuar a importação?</p>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="App.cancelarReavaliacaoImporte()">Cancelar</button>
+      <button class="btn btn-primary" onclick="App.confirmarReavaliacaoImporte()">Continuar</button>
+    </div>
+  </div></div>`);
+  __acaoReavaliarPendente = { aoConfirmar, aoCancelar };
 }
 
 /* =========================================================================
@@ -16266,7 +16296,7 @@ const BASE_IA_PROMPT = [
 "A coluna \"Sugestão Solução\" traz a frase que o aplicativo monta a partir da medida marcada no checklist, e ela termina com a referência normativa já conferida — por exemplo \"..., conforme NR-12, item 12.5.9 e item 12.5.11; ABNT NBR ISO 14120.\". Use essa frase para dar forma técnica ao que foi proposto em campo e TERMINE A SOLUÇÃO COM A CITAÇÃO DELA, reproduzida exatamente como está. Praticamente toda solução deve fechar com o item da norma.",
 "Quando essa citação trouxer mais de uma norma — NR-12 e uma ou mais ABNT/ISO, como no exemplo acima —, a Solução termina com TODAS elas, na mesma ordem, palavra por palavra. Cortar para citar só a NR-12 e descartar as ABNT/ISO é o mesmo erro que inventar uma citação: deixa o embasamento normativo incompleto.",
 "Quando essa coluna estiver vazia — o inspetor não marcou medida no checklist —, olhe a própria \"Solução Editável\": se ela já trouxer uma citação escrita à mão pelo inspetor (por exemplo \"...conforme NR-12 item 12.5.9\"), essa citação TAMBÉM é reproduzida palavra por palavra — ela veio do campo, não foi inventada pela IA. Só quando NENHUMA das três colunas (\"Sugestão Solução\", \"Descrição da Mitigação Existente\", \"Solução Editável\") trouxer citação nenhuma é que a solução fica mesmo sem citar norma. Nunca invente o item, nunca deduza pelo tipo de proteção, nunca traga de memória.",
-"Quando o risco for de alcance através de abertura (vão, grade, malha), a dimensão da abertura é o que define a distância de segurança. Se a linha não traz essa dimensão, não invente valor nem cite tabela: escreva a recomendação deixando a verificação dimensional a cargo do projeto — por exemplo \"...com abertura e distanciamento dimensionados para impedir o alcance da parte do corpo exposta\".",
+"Quando o risco for de alcance através de abertura (vão, grade, malha), a dimensão da abertura é o que define a distância de segurança. Se a \"Solução Editável\" JÁ TRAZ essa dimensão — por exemplo \"abertura máx. de 4 mm\" ou \"menor que 20mm\" —, reproduza o valor exatamente como o inspetor escreveu: não é a IA inventando, o campo já trouxe a medida. A proibição de inventar vale só quando a linha NÃO traz dimensão nenhuma — nesse caso, e só nesse caso, não invente valor nem cite tabela: escreva a recomendação deixando a verificação dimensional a cargo do projeto — por exemplo \"...com abertura e distanciamento dimensionados para impedir o alcance da parte do corpo exposta\".",
 "",
 "ANTES DE ENTREGAR CADA BLOCO, confira e relate:",
 "1. A varredura foi feita antes de escrever, e o escopo de cada equipamento cita as mitigações levantadas em TODOS os riscos dele?",
@@ -16688,7 +16718,7 @@ async function exportarBaseIAXlsx(){
     n + " linha(s) em " + grupos.length + " aba(s)");
 }
 /* A volta. So traduz e entrega — quem grava e importarTextosLaudo. */
-async function importarPlanilhaRespostasIA(file){
+async function importarPlanilhaRespostasIA(file, opts){
   const bytes = new Uint8Array(await file.arrayBuffer());
   const zip = new window.PizZip(bytes);
   const arqSst = zip.file("xl/sharedStrings.xml");
@@ -16699,7 +16729,7 @@ async function importarPlanilhaRespostasIA(file){
   });
   const { pacote, resumo } = baseIAPacoteDasAbas(abas);
   if(resumo.abas === 0) return { erro:true, mensagem:"Nenhuma aba com as colunas da base foi encontrada. Confira se a IA devolveu a planilha exportada pelo app, com a linha de cabeçalho e a coluna ID_Risco." };
-  const r = importarTextosLaudo(pacote);
+  const r = importarTextosLaudo(pacote, opts);
   if(!r) return { erro:true, mensagem:"Não foi possível montar o pacote de textos a partir da planilha." };
   return { erro:false, mensagem:baseIAMensagemImporte(resumo, r), aplicados:r.aplicados, reavaliados:r.reavaliados };
 }
@@ -22967,6 +22997,8 @@ Devolver agora?`)) return;
   toggleExtrasProjeto(){ __extrasProjetoAberto = !__extrasProjetoAberto; renderModalEntidade(); },
   toggleExtrasMaquina(){ __extrasMaquinaAberto = !__extrasMaquinaAberto; renderModalEntidade(); },
   confirmarGerarMesmoAssim(){ if(__acaoGerarPendente) __acaoGerarPendente(); __acaoGerarPendente = null; },
+  confirmarReavaliacaoImporte(){ const a = __acaoReavaliarPendente; __acaoReavaliarPendente = null; App.fecharModal(); if(a && a.aoConfirmar) a.aoConfirmar(); },
+  cancelarReavaliacaoImporte(){ const a = __acaoReavaliarPendente; __acaoReavaliarPendente = null; App.fecharModal(); if(a && a.aoCancelar) a.aoCancelar(); },
   tirarFotoDraft(field){
     const input = document.getElementById("fileGeneral");
     input.onchange = async ()=>{
@@ -25939,9 +25971,7 @@ const LIMITE_IMPORTACAO_V2_BYTES = (EH_DISPOSITIVO_MOVEL ? 300 : 4096) * 1024 * 
 let __ultimoImporteTextos = null;
 /* Resultado do ultimo importe por planilha, mostrado na propria aba IA. */
 let __ultimoImportePlanilhaIA = null;
-document.getElementById("filePlanilhaIA").addEventListener("change", async function(){
-  const file = this.files[0]; if(!file) return;
-  this.value = "";
+async function importarPlanilhaIADeVerdade(file){
   try{
     const r = await importarPlanilhaRespostasIA(file);
     __ultimoImportePlanilhaIA = r;
@@ -25956,12 +25986,27 @@ document.getElementById("filePlanilhaIA").addEventListener("change", async funct
     toast("Não foi possível ler a planilha", false);
   }
   render();
-});
-document.getElementById("fileTextosLaudo").addEventListener("change", async function(){
+}
+document.getElementById("filePlanilhaIA").addEventListener("change", async function(){
   const file = this.files[0]; if(!file) return;
   this.value = "";
+  /* Antes de gravar, uma passada em modo simulação SÓ PARA SABER se algo
+     vai sair de "Aplicado"/"Editado" — pedido explícito do engenheiro: nunca
+     tirar decisão já tomada sem avisar e esperar aprovação. Erro na
+     simulação não impede nada: cai no caminho normal, que relata o erro. */
   try{
-    const pacote = JSON.parse(await file.text());
+    const preview = await importarPlanilhaRespostasIA(file, { simular:true });
+    if(!preview.erro && preview.reavaliados > 0){
+      confirmarReavaliacaoAntesDeImportar(preview.reavaliados,
+        ()=> importarPlanilhaIADeVerdade(file),
+        ()=>{ toast("Importação cancelada"); render(); });
+      return;
+    }
+  }catch(e){ /* segue para o caminho normal, que relata o erro certinho */ }
+  await importarPlanilhaIADeVerdade(file);
+});
+async function importarTextosLaudoDeVerdade(pacote){
+  try{
     const r = importarTextosLaudo(pacote);
     if(!r){
       __ultimoImporteTextos = { erro:true, mensagem:"Arquivo não reconhecido. Esperado um .json no formato de textos do laudo (apr-textos-laudo-v1)." };
@@ -25984,6 +26029,30 @@ document.getElementById("fileTextosLaudo").addEventListener("change", async func
     toast("Não foi possível ler o arquivo", false);
   }
   render();
+}
+document.getElementById("fileTextosLaudo").addEventListener("change", async function(){
+  const file = this.files[0]; if(!file) return;
+  this.value = "";
+  let pacote = null;
+  try{
+    pacote = JSON.parse(await file.text());
+    /* Mesma pergunta ANTES de gravar, e pelo mesmo motivo, que a planilha
+       (.xlsx) logo acima: nunca tirar campo de "Aplicado"/"Editado" sem
+       avisar e esperar aprovação. */
+    const preview = importarTextosLaudo(pacote, { simular:true });
+    if(preview && preview.reavaliados > 0){
+      confirmarReavaliacaoAntesDeImportar(preview.reavaliados,
+        ()=> importarTextosLaudoDeVerdade(pacote),
+        ()=>{ toast("Importação cancelada"); render(); });
+      return;
+    }
+  }catch(e){
+    __ultimoImporteTextos = { erro:true, mensagem:"Não foi possível ler o arquivo: " + (e && e.message ? e.message : "erro desconhecido") };
+    toast("Não foi possível ler o arquivo", false);
+    render();
+    return;
+  }
+  await importarTextosLaudoDeVerdade(pacote);
 });
 /* Resultado do ultimo importe de plaqueta, mostrado na propria aba IA. */
 let __ultimoImportePlaqueta = null;

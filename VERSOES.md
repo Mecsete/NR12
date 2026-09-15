@@ -64,6 +64,31 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 15/09/2026 16:39
+
+**Antes de tirar um campo de "Aplicado", o app agora avisa e espera você aprovar. E dimensão de abertura escrita em campo deixa de ser apagada.**
+
+Duas correções pedidas pelo engenheiro, conferindo a planilha de "Descarga 100" (bloco respondido pela IA).
+
+**1. Confirmação antes de reavaliar itens já aplicados.** Com o interruptor
+"Permitir que a IA reavalie itens já aplicados" ligado (Laudo → IA),
+importar uma planilha ou um `.json` que responde de novo um campo já
+decidido fazia esse campo voltar a aparecer como pendente — sem avisar.
+Nada no laudo mudava sozinho (a regra de sempre continua: o texto que já
+está aplicado nunca é sobrescrito direto), mas o status saía de "Aplicado"
+sem a pessoa saber. Agora, antes disso acontecer, o app mostra quantos
+campos vão voltar a ficar pendentes e espera você confirmar — só depois da
+sua aprovação é que a importação é gravada de verdade. Cancelar não muda
+nada.
+
+**2. Dimensão de abertura escrita pelo inspetor deixa de ser apagada.** A
+regra que proíbe a IA de inventar uma medida de abertura (ex.: "4 mm",
+"20 mm") quando ela falta estava sendo aplicada até quando a medida **já
+estava escrita** no campo — apagando um número que o próprio inspetor
+tinha registrado. Agora a IA só fica proibida de inventar quando a linha
+realmente não traz a medida; quando traz, reproduz exatamente como foi
+escrita.
+
 ## 15/09/2026 11:18
 
 **Duas correções na planilha de IA: a decisão "melhoria ou correção" deixa de ser adivinhada, e citação escrita à mão deixa de ser apagada.**
