@@ -3027,7 +3027,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "14/09/2026 19:56";
+const APP_BUILD = "15/09/2026 11:18";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -16134,6 +16134,8 @@ const BASE_IA_COLUNAS = [
   { h:"Há medida existente?", larg:14 },
   { h:"Descrição da Mitigação Existente", larg:44 },
   { h:"Medidas existentes marcadas", larg:30 },
+  { h:"Situação da mitigação existente", larg:20 },
+  { h:"O que falta na mitigação existente", larg:34 },
   { h:"Solução Editável", larg:44 },
   { h:"Medida proposta marcada", larg:26 },
   { h:"Sugestão Solução", larg:44 },
@@ -16188,7 +16190,7 @@ const BASE_IA_PROMPT = [
 "O QUE NUNCA FAZER",
 "1. Nunca inventar dado. Se a linha não diz a altura, a potência, a dimensão ou o modo de operar, isso não entra no texto.",
 "2. Nunca escrever que um dado falta. Não existe coluna de dúvida nesta planilha: escreva de forma afirmativa e técnica apenas o que a linha sustenta, e pare aí. Frases como \"não foi registrada a altura, devendo ser confirmada\" não podem ir para um laudo assinado.",
-"3. Nunca INVENTAR citação de norma. Você não escolhe item de norma e não deduz item nenhum a partir do tipo de proteção nem de memória. A citação que aparece no texto é SEMPRE reproduzida de onde já veio pronta: da coluna \"Sugestão Solução\" ou da coluna \"Descrição da Mitigação Existente\" — nesse caso palavra por palavra. Sem uma dessas fontes, o texto não cita norma alguma. Medida numérica tirada de norma (distância, abertura, altura) continua proibida em qualquer caso.",
+"3. Nunca INVENTAR citação de norma. Você não escolhe item de norma e não deduz item nenhum a partir do tipo de proteção nem de memória. A citação que aparece no texto é SEMPRE reproduzida de onde já veio pronta: da coluna \"Sugestão Solução\", da coluna \"Descrição da Mitigação Existente\", ou da própria \"Solução Editável\" quando o inspetor já escreveu a citação nela — nesses casos, sempre palavra por palavra. Sem nenhuma dessas três fontes, o texto não cita norma alguma. Medida numérica tirada de norma (distância, abertura, altura) continua proibida em qualquer caso.",
 "4. Nunca mudar a intenção técnica do que foi proposto em campo. Você reescreve a redação, não a decisão de engenharia: se o inspetor escreveu \"aumentar a plataforma 40 cm para a esquerda\", continua sendo 40 cm à esquerda.",
 "5. Nunca deixar em branco uma célula de resposta que a linha permitia escrever.",
 "6. Nunca citar no texto os números da avaliação: HRN, Probabilidade, Grau do dano e Nível de risco não entram em frase nenhuma. Eles já saem no laudo, na tabela própria, e repeti-los em texto cria duas versões do mesmo julgamento.",
@@ -16249,20 +16251,21 @@ const BASE_IA_PROMPT = [
 "Se essa coluna estiver vazia e \"Há medida existente?\" for Não, escreva exatamente: Não há medida de proteção implantada para esta exposição.",
 "Caso contrário, reescreva o texto dela em português correto e com fluidez de laudo, preservando integralmente o sentido e a citação de norma que já esteja lá, palavra por palavra. Não acrescente julgamento que o texto não traga, e não reordene a citação para outro lugar da frase.",
 "A coluna \"Medidas existentes marcadas\" serve de conferência: o que estiver marcado ali precisa estar contemplado no texto. Se a descrição não mencionar algo que está marcado, inclua — sem inventar como aquilo foi instalado.",
+"NÃO use \"Situação da mitigação existente\" nem \"O que falta na mitigação existente\" aqui: são a fonte da DECISÃO na Solução (ver abaixo), não texto para repetir nesta frase. Quando a Descrição já disser \"atende\"/\"não atende\" com outras palavras, escrever a mesma coisa de novo aqui é redundância.",
 "Corrija os erros conhecidos do texto de origem: \"instalada em a zona de perigo\" vira \"instalada na zona de perigo\"; \"em o cilindro\" vira \"no cilindro\"; \"mais\" no lugar de \"mas\"; \"correira\" vira \"correia\".",
 "",
 "RESPOSTA - Solução",
 "O TEXTO PRINCIPAL é sempre a \"Solução Editável\": foi escrita à mão por quem esteve na máquina e decidiu o que fazer. Ela manda no conteúdo e na intenção — você reescreve a redação, nunca a decisão.",
-"Precisa citar o que já existe antes de propor. Leia a \"Descrição da Mitigação Existente\" para saber o que há na máquina e se aquilo atende:",
-"— A descrição registra que a proteção não atende, ou atende só em parte: \"Já há, no equipamento, [o que existe]. Como a medida existente não elimina a exposição, recomenda-se [proposta].\"",
-"— A descrição registra que atende, e ainda assim há proposta em campo: a proposta é melhoria, não correção — \"Já há, no equipamento, [o que existe]. Como melhoria, recomenda-se [proposta].\"",
-"— Sem mitigação existente: recomende a proposta direto, em linguagem técnica e português correto.",
+"Precisa citar o que já existe antes de propor. A \"Descrição da Mitigação Existente\" diz O QUE há na máquina; a coluna \"Situação da mitigação existente\" diz SE aquilo atende — use essa coluna para decidir entre os três casos abaixo, nunca infira o julgamento a partir da redação livre da Descrição:",
+"— Situação \"Não atende\" ou \"Atende em parte\": \"Já há, no equipamento, [o que existe]. Como a medida existente não elimina a exposição, recomenda-se [proposta].\"",
+"— Situação \"Atende\", e ainda assim há proposta em campo: a proposta é melhoria, não correção — \"Já há, no equipamento, [o que existe]. Como melhoria, recomenda-se [proposta].\"",
+"— Sem mitigação existente (\"Situação da mitigação existente\" vazia): recomende a proposta direto, em linguagem técnica e português correto.",
 "Quando o que existe for frase livre do inspetor (por exemplo \"existe a tampa, mas está desparafusada\"), use \"Constatado em campo: ...\" para a frase não ficar duplicada.",
 "A [proposta] é a \"Solução Editável\" reescrita em linguagem de laudo, sem mudar a intenção técnica.",
 "A coluna \"Medida proposta marcada\" diz que tipo de proteção o inspetor escolheu no checklist. Ela manda no TIPO da medida: com proteção móvel intertravada marcada, a solução não pode propor proteção fixa. O texto de campo é o conteúdo; a medida marcada é a natureza dela.",
 "A coluna \"Sugestão Solução\" traz a frase que o aplicativo monta a partir da medida marcada no checklist, e ela termina com a referência normativa já conferida — por exemplo \"..., conforme NR-12, item 12.5.9 e item 12.5.11; ABNT NBR ISO 14120.\". Use essa frase para dar forma técnica ao que foi proposto em campo e TERMINE A SOLUÇÃO COM A CITAÇÃO DELA, reproduzida exatamente como está. Praticamente toda solução deve fechar com o item da norma.",
 "Quando essa citação trouxer mais de uma norma — NR-12 e uma ou mais ABNT/ISO, como no exemplo acima —, a Solução termina com TODAS elas, na mesma ordem, palavra por palavra. Cortar para citar só a NR-12 e descartar as ABNT/ISO é o mesmo erro que inventar uma citação: deixa o embasamento normativo incompleto.",
-"Quando essa coluna estiver vazia — o inspetor não marcou medida no checklist —, escreva a solução sem citação nenhuma. Não invente o item, não deduza pelo tipo de proteção, não traga de memória.",
+"Quando essa coluna estiver vazia — o inspetor não marcou medida no checklist —, olhe a própria \"Solução Editável\": se ela já trouxer uma citação escrita à mão pelo inspetor (por exemplo \"...conforme NR-12 item 12.5.9\"), essa citação TAMBÉM é reproduzida palavra por palavra — ela veio do campo, não foi inventada pela IA. Só quando NENHUMA das três colunas (\"Sugestão Solução\", \"Descrição da Mitigação Existente\", \"Solução Editável\") trouxer citação nenhuma é que a solução fica mesmo sem citar norma. Nunca invente o item, nunca deduza pelo tipo de proteção, nunca traga de memória.",
 "Quando o risco for de alcance através de abertura (vão, grade, malha), a dimensão da abertura é o que define a distância de segurança. Se a linha não traz essa dimensão, não invente valor nem cite tabela: escreva a recomendação deixando a verificação dimensional a cargo do projeto — por exemplo \"...com abertura e distanciamento dimensionados para impedir o alcance da parte do corpo exposta\".",
 "",
 "ANTES DE ENTREGAR CADA BLOCO, confira e relate:",
@@ -16480,6 +16483,12 @@ function baseIACamposDaLinha(ctx){
   const marcadas = risco
     ? medidasExistentesDe(risco).map(k=> (medidaPorChave(k)||{}).rot || k).concat(outrosExistentesDe(risco))
     : [];
+  /* A mesma regra de default que a tela usa (blocoMedidaExistenteHtml): a
+     situacao so existe de fato quando ha algo marcado como existente, e
+     ali o padrao e "ok" (Atende) ate a pessoa trocar. Exportar sem repetir
+     esse default deixaria a coluna vazia bem no caso mais comum. */
+  const medExistSitK = risco ? (risco.medidaExistenteSituacao || (marcadas.length ? "ok" : "")) : "";
+  const medExistSit = MEDIDA_SITUACOES.find(s=> s.k === medExistSitK);
   const prop = risco ? medidaPorChave(String(risco.medidaPropostaTipo||"")) : null;
   const decid = [];
   LAUDO_CAMPOS_IMPORTAVEIS.forEach(c=>{
@@ -16516,6 +16525,8 @@ function baseIACamposDaLinha(ctx){
     "Há medida existente?": risco ? (risco.medidaImplementada || "") : "",
     "Descrição da Mitigação Existente": risco ? (risco.descMedida || "") : "",
     "Medidas existentes marcadas": marcadas.join(" | "),
+    "Situação da mitigação existente": medExistSit ? medExistSit.rot : "",
+    "O que falta na mitigação existente": risco ? (risco.medidaExistenteRessalva || "") : "",
     "Solução Editável": risco ? (risco.sugestaoMitigacao || "") : "",
     "Medida proposta marcada": prop ? prop.rot : "",
     "Sugestão Solução": (risco && prop) ? medidaTextoProposto(risco, risco.medidaPropostaTipo) : "",

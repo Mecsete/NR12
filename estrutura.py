@@ -4431,16 +4431,39 @@ chk("a tela usa exatamente os mesmos nomes das colunas",
     "<label>Solução Editável</label>" in novo
     and novo.count("<label>Descrição da Mitigação Existente</label>") == 2
     and novo.count('<div class="medida-rot">Sugestão Solução</div>') == 2)
-# Atende/Nao atende e "O que falta" sao apoio de CAMPO: o proprio app ja escreve
-# os dois DENTRO da Descricao da Mitigacao Existente (sincronizarDescMedida
-# Existente). Colunas separadas levavam a IA a repetir o mesmo julgamento.
-chk("situacao e 'o que falta' saem da planilha: ja estao na Descricao",
-    "Situação da medida existente" not in novo
-    and "O que falta na medida existente" not in novo
-    and "sitMedida" not in novo)
-chk("a Mitigacao existente tem UMA fonte declarada",
+# DECISAO REVISTA em 15/09/2026 (a nota abaixo, de antes dessa data, descrevia
+# a versao anterior — mantida para quem procurar o historico). Atende/Nao
+# atende so entra sozinho em descMedida enquanto ninguem editar o campo a mao
+# (ver sincronizarDescMedidaExistente: so reescreve se descMedida estiver
+# vazio OU ainda igual ao ultimo texto automatico). No dia a dia o inspetor
+# reescreve com frequencia, e ai o julgamento se perde da Descricao -- foi
+# assim, numa planilha real (Descarga 100/200/300), que a IA teve que
+# ADIVINHAR se "Chapa xadrez no piso." atendia ou nao, e a resposta mudava
+# dependendo da leitura. As duas colunas voltam, mas so alimentam a DECISAO
+# da Solucao (melhoria x correcao) -- a Mitigacao existente continua com UMA
+# fonte so para o TEXTO, e ganhou uma proibicao explicita de repetir o
+# julgamento ali, pra nao reabrir o problema original de redundancia.
+_colunaAColunaLocal = novo.find('"COLUNA A COLUNA",')
+_mitigNoPromptLocal = novo.find("RESPOSTA - Mitigação existente", _colunaAColunaLocal)
+_solNoPromptLocal = novo.find("RESPOSTA - Solução", _colunaAColunaLocal)
+chk("Situacao e Ressalva SAO colunas novas, mas so entram na decisao da Solucao",
+    '{ h:"Situação da mitigação existente", larg:20 },' in novo
+    and '{ h:"O que falta na mitigação existente", larg:34 },' in novo
+    and _mitigNoPromptLocal > 0 and _solNoPromptLocal > _mitigNoPromptLocal
+    and novo.find('"Situação da mitigação existente"', _solNoPromptLocal) > _solNoPromptLocal)
+chk("a Mitigacao existente PROIBE explicitamente repetir o julgamento das colunas novas",
+    'NÃO use \\"Situação da mitigação existente\\" nem \\"O que falta na mitigação existente\\" aqui' in novo
+    and _mitigNoPromptLocal < novo.find('NÃO use \\"Situação da mitigação existente\\"') < _solNoPromptLocal)
+chk("a Mitigacao existente continua com UMA fonte so para o texto (nao mudou)",
     "A FONTE É UMA SÓ: a coluna" in novo
     and "serve de conferência" in novo)
+chk("a Solucao decide melhoria/correcao pela coluna, nao mais adivinhando da Descricao",
+    "use essa coluna para decidir entre os três casos abaixo, nunca infira o julgamento" in novo
+    and 'Situação \\"Não atende\\" ou \\"Atende em parte\\"' in novo
+    and 'Situação \\"Atende\\", e ainda assim há proposta em campo' in novo
+    and "para saber o que há na máquina e se aquilo atende" not in novo)
+chk("a exportacao replica o default 'Atende' da propria tela quando a situacao nunca foi tocada",
+    "const medExistSitK = risco ? (risco.medidaExistenteSituacao || (marcadas.length ? \"ok\" : \"\")) : \"\";" in novo)
 
 # Um equipamento aparece em varias linhas, uma por risco, e cada risco tem so um
 # pedaco da informacao. Escrever linha a linha joga o resto fora.
@@ -4467,7 +4490,7 @@ chk("protecao insuficiente entra no escopo; o julgamento dela e que nao entra",
 chk("a Solucao Editavel e o texto principal, e a abertura sai da Descricao",
     "O TEXTO PRINCIPAL é sempre a" in novo
     and "você reescreve a redação, nunca a decisão" in novo
-    and "para saber o que há na máquina e se aquilo atende" in novo
+    and "use essa coluna para decidir entre os três casos abaixo, nunca infira o julgamento" in novo
     and "prevalece a RESSALVA" not in novo)
 # MUDANCA DE DIRECAO (10/09/2026): a solucao passa a fechar com o item da norma.
 # So e segura porque a citacao vem PRONTA e conferida da BIBLIOTECA_MEDIDAS — o
@@ -4477,8 +4500,19 @@ chk("a solucao cita a norma, mas so reproduzindo a citacao da biblioteca",
     "TERMINE A SOLUÇÃO COM A CITAÇÃO DELA, reproduzida exatamente como está" in novo
     and "Praticamente toda solução deve fechar com o item da norma" in novo
     and "Nunca INVENTAR citação de norma" in novo
-    and "escreva a solução sem citação nenhuma" in novo
+    and "é que a solução fica mesmo sem citar norma" in novo
     and "Medida numérica tirada de norma (distância, abertura, altura) continua proibida" in novo)
+# 15/09/2026 -- planilha real (Descarga 100) mostrou citacao escrita a mao
+# em "Solucao Editavel" sendo apagada sempre que "Sugestao Solucao" vinha
+# vazia (inspetor nao usou o checklist). A regra so citava DUAS fontes
+# validas; a propria Solucao Editavel, quando ja tem citacao do inspetor,
+# vira a terceira.
+chk("citacao escrita a mao na propria Solucao Editavel tambem e preservada",
+    'da própria \\"Solução Editável\\" quando o inspetor já escreveu a citação nela' in novo
+    and "Sem nenhuma dessas três fontes, o texto não cita norma alguma" in novo)
+chk("a regra da Solucao (paragrafo especifico) tambem aceita citar da Solucao Editavel",
+    'olhe a própria \\"Solução Editável\\": se ela já trouxer uma citação escrita à mão pelo inspetor' in novo
+    and 'Só quando NENHUMA das três colunas' in novo)
 chk("Grau do dano fica fora de texto, por pedido do engenheiro",
     "HRN, Probabilidade, Grau do dano e Nível de risco não entram em frase nenhuma" in novo
     and "nunca da classificação de Grau do dano" in novo)

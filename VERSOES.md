@@ -64,6 +64,35 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 15/09/2026 11:18
+
+**Duas correções na planilha de IA: a decisão "melhoria ou correção" deixa de ser adivinhada, e citação escrita à mão deixa de ser apagada.**
+
+Revisão profunda pedida pelo engenheiro, comparando o prompt inteiro com o
+formulário de cadastro do Módulo Simplificado, campo a campo.
+
+**1. A planilha ganhou duas colunas novas: "Situação da mitigação existente"
+(Atende / Atende em parte / Não atende) e "O que falta na mitigação
+existente".** Esse julgamento já existe no app — é o que o inspetor marca ao
+avaliar uma proteção existente — mas até aqui só chegava até a IA quando
+embutido dentro do texto livre da "Descrição da Mitigação Existente", e o
+app só escreve isso ali enquanto ninguém edita o campo à mão. Como
+inspetores reescrevem esse campo com frequência, a IA vinha tendo que
+adivinhar se uma proteção "atendia" ou não a partir de descrições vagas tipo
+"Chapa xadrez no piso." — e às vezes acertava, às vezes não. Agora a decisão
+entre "Como melhoria, recomenda-se..." e "Como a medida existente não
+elimina a exposição, recomenda-se..." lê direto da coluna nova, sem
+inferência. A Mitigação existente continua tendo uma fonte só para o
+texto (evita repetir o mesmo julgamento duas vezes na mesma frase).
+
+**2. Citação de norma escrita à mão pelo próprio inspetor deixa de ser
+apagada.** Quando o inspetor não usa o checklist de medidas do app mas já
+escreve a citação com a própria mão dentro de "Solução Editável" (ex.:
+"...conforme NR-12 item 12.5.9"), essa citação agora é preservada — antes,
+a regra só reconhecia citação vinda da biblioteca do app, e apagava
+qualquer uma escrita livremente. Numa planilha real conferida nesta revisão,
+16 de 24 soluções perderam a citação por esse motivo.
+
 ## 14/09/2026 19:56
 
 **Instruções da planilha ajustadas: código de TAG não pode mais aparecer no Escopo, mesmo colado ao nome.**
