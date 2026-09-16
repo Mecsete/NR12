@@ -61,7 +61,16 @@ print("=== 3. ARQUITETURA DE FOTOS (CAMADA_FOTOS) ===")
 # Zerado em 14/09/2026: original.html regerado a partir de HEAD, que ja inclui
 # o modulo Checklist -- o delta acima ja esta no original, somar de novo
 # contaria duas vezes.
-_extra_fotos = {"foto:": 0, "idbfoto:": 0}
+# EDITOR DE MODELO (painel dividido) + campo `info` do item, 16/09/2026:
+# "idbfoto:" +1 (comentario de novoChkItem explicando o formato de
+# fotos:[{foto:...}] do campo novo, cita "idbfoto:<id>" por extenso) e
+# "foto:" +3 (o mesmo comentario tem "foto:" duas vezes -- uma vez sozinho e
+# outra vez embutido dentro do proprio "idbfoto:", que contem "foto:" como
+# substring -- mais +1 de App.chkInfoFotoAdicionar, que grava a foto igual a
+# App.chkTirarFoto ja faz: `it.info.fotos.push({foto:data})`, MESMA CAMADA_
+# FOTOS (nunca base64 solto em STATE fora dela). Arquitetura reaproveitada,
+# nao contornada.
+_extra_fotos = {"foto:": 3, "idbfoto:": 1}
 for marca in ["idbfoto:", "foto:", "CAMADA_FOTOS"]:
     a, b = orig.count(marca) + _extra_fotos.get(marca, 0), novo.count(marca)
     chk("ocorrencias de '%s' inalteradas (%d)" % (marca, a), a == b, "orig+extra=%d novo=%d" % (a, b))

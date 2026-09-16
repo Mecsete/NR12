@@ -10,10 +10,13 @@
    escolha, observação, foto, tags, travas de confirmação, navegar entre
    seções por aba, marcar seção N/A, finalizar, reabrir, excluir), e compara
    byte a byte o JSON de STATE.projetos e STATE.projetosSimples antes e
-   depois. Também confere as quatro migrações de chkGarantirNamespace (STATE
+   depois. Também confere as cinco migrações de chkGarantirNamespace (STATE
    sem `checklists`; STATE com o formato antigo de execuções em lista plana;
    modelo padrão semeado antes do texto padrão existir; linha com motivo
-   único do formato antigo) sem tocar nas duas árvores.
+   único do formato antigo; item de modelo sem o campo `info`) sem tocar nas
+   duas árvores, e que App.chkInfoItem (ⓘ da tela de preenchimento) lê a
+   informação do item sempre do modeloSnapshot CONGELADO da linha, nunca do
+   modelo vivo.
    Sai com código 0 e imprime "ISOLAMENTO OK" se nada mudou; sai com código 1
    e imprime a diferença se qualquer byte mudou, ou se qualquer operação
    lançar exceção. */
@@ -92,7 +95,7 @@ function letEscalar(nome){
 // ---------- monta o código a testar, extraído de verdade do arquivo ----------
 const FUNCOES = [
   "uid", "hoje", "ehFotoDataUrlPersist", "clonarCompartilhandoFotos",
-  "agoraSync", "__carregarUltimoCarimbo",
+  "agoraSync", "__carregarUltimoCarimbo", "imgReg",
   "novoChkModelo", "novoChkSecao", "novoChkItem", "chkModeloPadraoLinhasDeVida",
   "novoChkProjeto", "novoChkSetor", "novoChkLinha",
   "getCurrentChkModelo", "getCurrentChkProjeto", "getCurrentChkSetor", "getCurrentChkLinha",
@@ -102,6 +105,7 @@ const FUNCOES = [
 ];
 let fonte = "let __ultimoCarimboVisto = 0;\n";
 fonte += "let __buscaAtual = '';\n"; // usado por chkAbrirSetor (lista de linhas) -- nao testado aqui, so pra nao faltar
+fonte += "let __imgReg = [];\n"; // registro de fotos pra exibicao (imgReg/data-imgref) -- usado por App.chkInfoItem
 fonte += constString("CHK_MODELO_PADRAO_ID");
 fonte += letEscalar("__chkAcaoConfirmada");
 for(const nome of FUNCOES) fonte += funcao(nome) + "\n";
@@ -123,7 +127,7 @@ const sandbox = {
   go: () => {},
   ic: () => "",
   escapeHtml: (s) => String(s == null ? "" : s),
-  abrirOverlay: () => {}, // chkAbrirConfirmacao chama isso pra "mostrar" o modal -- aqui só ignora o HTML e guarda a ação pendente, que é o que este ensaio testa
+  abrirOverlay: (html) => { sandbox.__ultimoOverlayHtml = html; }, // chkAbrirConfirmacao/chkInfoItem chamam isso pra "mostrar" o modal -- guarda o HTML pra dar pra inspecionar o que teria sido exibido
   window: { scrollTo: () => {} },
 };
 vm.createContext(sandbox);
@@ -166,7 +170,8 @@ sandbox.STATE = {
   projetos: [mkProjetoCompleto()],
   projetosSimples: [mkProjetoSimples()],
   checklists: { modelos: [], projetos: [] },
-  ui: { chkModeloId: null, chkProjetoId: null, chkSetorId: null, chkLinhaId: null, chkSecaoAtual: 0, chkItemAberto: null },
+  ui: { chkModeloId: null, chkProjetoId: null, chkSetorId: null, chkLinhaId: null, chkSecaoAtual: 0, chkItemAberto: null,
+        chkModeloSecaoSel: null, chkModeloItemSel: null },
 };
 
 const antesCompleto = JSON.stringify(sandbox.STATE.projetos);
@@ -205,6 +210,27 @@ App.chkSetMotivoPadrao(sec1.id, sec1.itens[0].id, 2, "motivo", "Fixacao com folg
 App.chkSetMotivoPadrao(sec1.id, sec1.itens[0].id, 2, "texto", "A fixacao apresenta folga perceptivel ao manuseio.");
 App.chkRemoverMotivoPadrao(sec1.id, sec1.itens[0].id, 2);
 
+// Campo novo info (sem crase de proposito -- este bloco inteiro roda dentro
+// de um template literal, ver mais abaixo) do item do MODELO (orientacao +
+// fotos de referencia pro inspetor em campo, ver App.chkInfoItem) --
+// aditivo, todo item novo ja nasce com ele, sem precisar de migracao de
+// formato.
+if(!sec1.itens[0].info || sec1.itens[0].info.texto !== "" || !Array.isArray(sec1.itens[0].info.fotos) || sec1.itens[0].info.fotos.length !== 0)
+  throw new Error("item novo do MODELO deveria nascer com info:{texto:'',fotos:[]}: " + JSON.stringify(sec1.itens[0].info));
+App.chkSelecionarModeloItem(sec1.id, sec1.itens[0].id);
+if(STATE.ui.chkModeloSecaoSel !== sec1.id || STATE.ui.chkModeloItemSel !== sec1.itens[0].id)
+  throw new Error("chkSelecionarModeloItem nao marcou a selecao da arvore do editor de modelo");
+App.chkSetItemInfoTexto(sec1.id, sec1.itens[0].id, "Verificar torque com torquimetro calibrado.");
+// Simula uma foto de referencia anexada no editor -- o upload de verdade via
+// câmera/galeria usa File/DOM, fora do alcance deste ensaio de dados (mesma
+// razão pela qual item1.fotos é preenchido direto mais abaixo, sem passar
+// por App.chkTirarFoto).
+sec1.itens[0].info.fotos.push({ foto: "data:image/jpeg;base64,INFOFOTO1" });
+sec1.itens[0].info.fotos.push({ foto: "data:image/jpeg;base64,INFOFOTO2" });
+App.chkInfoFotoRemover(sec1.id, sec1.itens[0].id, 0);
+if(sec1.itens[0].info.fotos.length !== 1 || sec1.itens[0].info.fotos[0].foto !== "data:image/jpeg;base64,INFOFOTO2")
+  throw new Error("chkInfoFotoRemover nao removeu a foto certa da info do item: " + JSON.stringify(sec1.itens[0].info.fotos));
+
 // Hierarquia Projeto > Setor > Linha de vida — sem nenhum vinculo a maquina
 // do Completo/Simplificado (removido de proposito, sao assuntos diferentes).
 App.chkNovoProjeto();
@@ -238,6 +264,25 @@ if(linha.itens[0].motivosSelecionados === undefined || !Array.isArray(linha.iten
   throw new Error("item novo da linha deveria nascer com motivosSelecionados como array");
 
 const item1 = linha.itens[0];
+
+// App.chkInfoItem (tela real de preenchimento) lê a informação do item do
+// modeloSnapshot CONGELADO da linha, nunca do modelo "vivo" em
+// STATE.checklists.modelos -- mesma regra que já vale pra descrição/motivos
+// (ver comentário de novoChkLinha). Prova as duas pontas: o conteúdo certo
+// aparece primeiro, e editar o modelo DEPOIS não vaza pra linha já criada.
+App.chkInfoItem(item1.itemId);
+if(!__ultimoOverlayHtml || !__ultimoOverlayHtml.includes("Verificar torque com torquimetro calibrado."))
+  throw new Error("chkInfoItem nao mostrou o texto de info cadastrado no modelo no momento em que a linha foi criada");
+if(!__ultimoOverlayHtml.includes('data-imgref="0"'))
+  throw new Error("chkInfoItem nao mostrou a foto de info cadastrada no modelo (data-imgref)");
+App.chkSetItemInfoTexto(sec1.id, sec1.itens[0].id, "Texto novo, editado no modelo DEPOIS da linha ja criada.");
+__ultimoOverlayHtml = null;
+App.chkInfoItem(item1.itemId);
+if(__ultimoOverlayHtml.includes("Texto novo, editado no modelo DEPOIS"))
+  throw new Error("chkInfoItem vazou a edicao do modelo VIVO pra linha ja criada -- deveria ter ficado congelado no modeloSnapshot");
+if(!__ultimoOverlayHtml.includes("Verificar torque com torquimetro calibrado."))
+  throw new Error("chkInfoItem deveria continuar mostrando o texto congelado no modeloSnapshot, mesmo apos editar o modelo vivo");
+
 App.chkSetConforme(item1.itemId, "atende");
 App.chkSetConforme(item1.itemId, "naoAtende");
 App.chkSelecionarMotivo(item1.itemId, "Ancoragem corroida");
@@ -605,5 +650,47 @@ vm.runInContext("chkGarantirNamespace(estadoMotivoAntigo);", sandbox, { filename
 if(JSON.stringify(estadoMotivoAntigo.checklists.projetos[0].setores[0].linhas[0]) !== linhaAntesDaSegundaChamada)
   throw new Error("upgrade de motivo unico rodou de novo numa segunda chamada (deveria ser uma unica vez por aparelho)");
 
-console.log("ISOLAMENTO OK: STATE.projetos e STATE.projetosSimples byte a byte identicos apos criar/editar/salvar/vincular/finalizar/excluir na hierarquia Projeto>Setor>Linha do Checklist (motivo de multipla escolha, travas de confirmacao e abas de secao incluidos), e as quatro migracoes de STATE antigo (namespace ausente, execucoes em lista plana, modelo padrao sem texto padrao, e linha com motivo unico do formato antigo) preenchem/reorganizam/atualizam o namespace sem tocar nas duas arvores");
+// ---------- migração 5 (aditiva): campo `info` do item do MODELO (texto +
+// fotos de referência pro inspetor) -- item de modelo salvo ANTES deste
+// campo existir não tem `info` nenhum; diferente das migrações 1-4 acima,
+// não há formato antigo pra CONVERTER, só um campo ausente pra ACRESCENTAR
+// -- por isso roda em toda chamada, sem flag "uma vez" (idempotente por
+// natureza: uma vez presente, a condição nunca mais é verdadeira) ----------
+const estadoSemInfo = {
+  modulo: "checklist",
+  projetos: JSON.parse(antesCompleto),
+  projetosSimples: JSON.parse(antesSimples),
+  checklists: {
+    modelos: [{
+      id: "modelo-sem-info", nome: "Modelo antigo sem info", descricao: "", criadoEm: 1, atualizadoEm: 1,
+      secoes: [{
+        id: "sec-sem-info", titulo: "Secao", itens: [
+          { id: "item-sem-info", normativo: "", descricao: "Item sem info nenhum (formato anterior a este campo)", textoAtende: "", motivosPadrao: [] },
+          { id: "item-com-info", normativo: "", descricao: "Item que ja tinha info preenchido", textoAtende: "", motivosPadrao: [],
+            info: { texto: "Info ja cadastrada, nao pode ser sobrescrita", fotos: [{ foto: "data:image/jpeg;base64,JAEXISTIA" }] } },
+        ],
+      }],
+    }],
+    projetos: [],
+  },
+  ui: { screen: "checklist-modelos" },
+};
+const antesMigInfoCompleto = JSON.stringify(estadoSemInfo.projetos);
+const antesMigInfoSimples = JSON.stringify(estadoSemInfo.projetosSimples);
+vm.runInContext("chkGarantirNamespace(estadoSemInfo);", Object.assign(sandbox, { estadoSemInfo }), { filename: "checklist-migracao-info.js" });
+
+const [itemSemInfoMigrado, itemComInfoMigrado] = estadoSemInfo.checklists.modelos[0].secoes[0].itens;
+if(!itemSemInfoMigrado.info || itemSemInfoMigrado.info.texto !== "" || !Array.isArray(itemSemInfoMigrado.info.fotos) || itemSemInfoMigrado.info.fotos.length !== 0)
+  throw new Error("migracao aditiva nao acrescentou info:{texto:'',fotos:[]} no item que nao tinha: " + JSON.stringify(itemSemInfoMigrado));
+if(itemComInfoMigrado.info.texto !== "Info ja cadastrada, nao pode ser sobrescrita" || itemComInfoMigrado.info.fotos.length !== 1)
+  throw new Error("migracao aditiva MEXEU num item que ja tinha info (deveria ter ficado intocado): " + JSON.stringify(itemComInfoMigrado));
+if(JSON.stringify(estadoSemInfo.projetos) !== antesMigInfoCompleto || JSON.stringify(estadoSemInfo.projetosSimples) !== antesMigInfoSimples)
+  throw new Error("migracao aditiva do campo info mudou projetos/projetosSimples de um STATE antigo");
+// idempotente: segunda chamada nao mexe mais em nada (nem no item que acabou de ganhar info).
+const itemSemInfoAntesDaSegunda = JSON.stringify(itemSemInfoMigrado);
+vm.runInContext("chkGarantirNamespace(estadoSemInfo);", sandbox, { filename: "checklist-migracao-info-2a-chamada.js" });
+if(JSON.stringify(estadoSemInfo.checklists.modelos[0].secoes[0].itens[0]) !== itemSemInfoAntesDaSegunda)
+  throw new Error("migracao aditiva do campo info rodou de novo na segunda chamada e mudou o item");
+
+console.log("ISOLAMENTO OK: STATE.projetos e STATE.projetosSimples byte a byte identicos apos criar/editar/salvar/vincular/finalizar/excluir na hierarquia Projeto>Setor>Linha do Checklist (motivo de multipla escolha, travas de confirmacao, abas de secao e o painel dividido do editor de modelo com info/foto por item incluidos), e as cinco migracoes de STATE antigo (namespace ausente, execucoes em lista plana, modelo padrao sem texto padrao, linha com motivo unico do formato antigo, e item de modelo sem o campo info) preenchem/reorganizam/atualizam o namespace sem tocar nas duas arvores");
 process.exit(0);

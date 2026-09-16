@@ -64,6 +64,30 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 16/09/2026 15:02
+
+**Checklist: tela de elaboração de modelo redesenhada para computador, e o ícone de informação (ⓘ) do item ganhou conteúdo de verdade.**
+
+A tela onde se monta um modelo de checklist (Modelos → abrir um modelo) foi
+refeita, depois de 5 propostas de protótipo — escolhido o "painel dividido":
+
+- Uma **árvore de seções e itens** fica fixa à esquerda (numeração automática,
+  tipo "1.2"), e o item que você toca abre um editor grande à direita — em
+  telas maiores as duas colunas ficam lado a lado, aproveitando o espaço do
+  computador; no celular continua uma coisa de cada vez (lista, depois o
+  item), com um botão para voltar.
+- **Novo campo por item: Informação.** Um texto e fotos de apoio para quem
+  está inspecionando em campo — é o conteúdo que aparece atrás do ícone ⓘ na
+  tela de preenchimento, que até agora só mostrava um aviso de "em breve".
+  Quem preenche um checklist já vê essa orientação de verdade; editar o
+  modelo depois não muda o que uma linha de vida já criada está mostrando
+  (mesma regra que já valia para a pergunta e os motivos).
+- Botões de **"Importar via XLSX" / "Baixar modelo padrão"** já aparecem na
+  tela, prontos para receber essa função numa entrega futura.
+
+Quem já tinha modelos cadastrados não perde nada: todo item ganha o campo de
+Informação vazio automaticamente, sem mexer no resto.
+
 ## 16/09/2026 11:19
 
 **Checklist: tela de preenchimento em campo redesenhada, e a lista de linhas de vida ganhou busca e filtro.**

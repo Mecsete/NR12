@@ -603,9 +603,6 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 @media print{.topbar,.crumbbar,.bottomnav,.fab-wrap,.export-row,.scope-toggle,.toast{display:none!important;}body{background:#fff;}.screen{padding:0;max-width:none;}.card,.obj-card{box-shadow:none;border:1px solid #ccc;break-inside:avoid;}}
 
 /* ---------- Módulo Checklist ---------- */
-.chk-item-row{display:flex;gap:8px;align-items:flex-start;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--line);}
-.chk-item-row:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0;}
-.chk-item-num{font-size:11px;font-weight:800;color:var(--ink-faint);min-width:28px;padding-top:8px;}
 .chk-item-card{margin-bottom:12px;}
 .chk-item-card.st-atende{background:#e4f1e5;border-color:#2e7d32;}
 .chk-item-card.st-naoAtende{background:#fbe7e4;border-color:#c0392b;}
@@ -661,11 +658,52 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-status-pill.st-finalizado{color:#2e7d32;}
 .chk-status-pill.st-andamento{color:#c98a0a;}
 .chk-status-pill.st-pendente{color:#78788c;}
-.chk-motivos-padrao{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);}
-.chk-motivos-label{font-size:11px;color:var(--ink-faint);margin-bottom:6px;}
-.chk-motivo-row{display:flex;gap:6px;margin-bottom:6px;}
-.chk-motivo-row input{flex:1;}
 .chk-motivo-select{width:100%;margin-bottom:10px;border:1px solid var(--accent);border-radius:9px;padding:8px;font-size:13px;background:var(--accent-soft);}
+/* ---------- Editor de modelo — painel dividido (árvore + editor do item) ---------- */
+.chk-modelo-hint{font-size:11px;color:var(--ink-faint);margin-bottom:8px;}
+.chk-modelo-head{display:flex;flex-wrap:wrap;gap:0 14px;}
+.chk-modelo-head .field{flex:1;min-width:220px;}
+.chk-modelo-toolbar{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-bottom:14px;}
+.chk-modelo-split{display:flex;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--surface);box-shadow:var(--shadow-sm);}
+.chk-modelo-tree{width:100%;flex-shrink:0;overflow-y:auto;max-height:72vh;}
+.chk-modelo-tree-secao{display:flex;align-items:center;gap:6px;padding:10px 10px 8px;background:var(--bg-soft);}
+.chk-modelo-tree-secao:not(:first-child){margin-top:6px;}
+.chk-modelo-tree-secao input{flex:1;border:none;background:transparent;font-weight:700;font-size:13px;color:var(--ink);padding:4px 2px;}
+.chk-modelo-tree-secao input:focus{outline:none;box-shadow:0 0 0 2px var(--accent-soft);border-radius:4px;}
+.chk-modelo-tree-item{display:flex;gap:8px;align-items:flex-start;padding:9px 12px;border-left:3px solid transparent;cursor:pointer;}
+.chk-modelo-tree-item:hover{background:var(--bg-soft);}
+.chk-modelo-tree-item.sel{border-left-color:var(--accent);background:var(--accent-soft);}
+.chk-modelo-tree-num{font-size:11px;font-weight:800;color:var(--ink-faint);flex-shrink:0;padding-top:1px;}
+.chk-modelo-tree-item.sel .chk-modelo-tree-num{color:var(--accent-ink);}
+.chk-modelo-tree-prev{font-size:12.5px;color:var(--ink-dim);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.chk-modelo-tree-prev em{color:var(--ink-faint);}
+.chk-modelo-tree-empty{padding:6px 14px 10px;font-size:12px;color:var(--ink-faint);font-style:italic;}
+.chk-modelo-tree-add{width:100%;text-align:left;background:none;border:none;color:var(--accent-ink);font-size:12.5px;font-weight:700;padding:8px 14px;display:flex;align-items:center;gap:6px;}
+.chk-modelo-tree-nova-secao{width:100%;text-align:left;background:var(--bg-soft);border:none;border-top:1px solid var(--line);color:var(--ink-dim);font-size:12.5px;font-weight:700;padding:12px 14px;display:flex;align-items:center;gap:6px;}
+.chk-modelo-editor{display:none;flex:1;min-width:0;padding:16px;overflow-y:auto;max-height:72vh;}
+.chk-modelo-split.item-aberto .chk-modelo-tree{display:none;}
+.chk-modelo-split.item-aberto .chk-modelo-editor{display:block;}
+.chk-modelo-editor-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;}
+.chk-modelo-back{background:none;border:none;color:var(--ink-faint);font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:5px;padding:0;}
+.chk-motivo-card{display:flex;gap:8px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px dashed var(--line);}
+.chk-motivo-card:last-of-type{border-bottom:none;padding-bottom:0;}
+.chk-info-fotos{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px;}
+.chk-info-foto{position:relative;width:56px;height:56px;flex-shrink:0;}
+.chk-info-foto img{width:56px;height:56px;object-fit:cover;border-radius:8px;cursor:pointer;background:var(--bg-soft);}
+.chk-info-foto .chk-photo-remove{position:absolute;top:-6px;right:-6px;width:20px;height:20px;background:#fff;border-radius:999px;box-shadow:var(--shadow-sm);padding:0;}
+.chk-info-foto-add{width:56px;height:56px;flex-shrink:0;border:1.5px dashed var(--line-strong);border-radius:8px;background:none;color:var(--ink-faint);display:flex;align-items:center;justify-content:center;}
+/* Acima de ~720px a árvore ganha largura fixa e fica lado a lado com o
+   editor, os dois sempre visíveis; abaixo disso é lista→detalhe (só uma
+   coluna por vez, ver .item-aberto acima), com o botão "Seções e itens"
+   voltando pra lista. */
+@media (min-width:721px){
+  .chk-modelo-tree{width:300px;border-right:1px solid var(--line);display:block!important;}
+  .chk-modelo-editor{display:block!important;padding:20px 26px;}
+  .chk-modelo-back{display:none;}
+}
+@media (min-width:900px){
+  .screen.screen-chk-modelo{max-width:1180px;}
+}
 .chk-laudo-secao{margin-bottom:18px;break-inside:avoid;}
 .chk-laudo-secao h3{font-size:14px;border-bottom:1px solid var(--line);padding-bottom:4px;margin-bottom:8px;}
 .chk-laudo-item{padding:8px 0;border-bottom:1px dashed var(--line);font-size:13px;break-inside:avoid;}
@@ -3059,7 +3097,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "16/09/2026 11:19";
+const APP_BUILD = "16/09/2026 15:02";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -9167,7 +9205,11 @@ function novoChkSecao(){ return { id:uid(), titulo:"", itens:[] }; }
    no seletor rápido em campo; "texto" é o parágrafo padrão que só aparece no
    laudo (nunca na tela de preenchimento). textoAtende é o parágrafo padrão
    para quando o item atende — mesma regra: só aparece no laudo. */
-function novoChkItem(){ return { id:uid(), normativo:"", descricao:"", textoAtende:"", motivosPadrao:[] }; }
+/* info: orientação pro inspetor em campo (texto + fotos de referência),
+   mostrada atrás do ⓘ na tela de preenchimento — nunca vai pro laudo, é só
+   apoio visual/textual pra quem está inspecionando. fotos no mesmo formato
+   de referência usado no resto do app: {foto: dataURL/idbfoto:<id>}. */
+function novoChkItem(){ return { id:uid(), normativo:"", descricao:"", textoAtende:"", motivosPadrao:[], info:{texto:"", fotos:[]} }; }
 function novoChkProjeto(){
   return {
     id:uid(), empresa:"", responsavel:"", data:hoje(), setores:[],
@@ -9211,6 +9253,19 @@ function novoChkLinha(modelo){
   };
 }
 function getCurrentChkModelo(){ return STATE.checklists.modelos.find(m=>m.id===STATE.ui.chkModeloId); }
+/* Resolve a seleção da árvore (painel dividido do editor de modelo): usa
+   STATE.ui.chkModeloSecaoSel/chkModeloItemSel quando ainda existem no
+   modelo; senão cai pro primeiro item da primeira seção com item. Nunca
+   quebra a tela quando a seção/item selecionado foi removido por outra
+   aba/dispositivo. */
+function getChkModeloSelecao(m){
+  if(!m || !m.secoes.length) return { secao:null, item:null };
+  let secao = m.secoes.find(s=>s.id===STATE.ui.chkModeloSecaoSel) || null;
+  let item = secao && secao.itens.find(i=>i.id===STATE.ui.chkModeloItemSel);
+  if(secao && item) return { secao, item };
+  for(const s of m.secoes){ if(s.itens.length) return { secao:s, item:s.itens[0] }; }
+  return { secao:m.secoes[0], item:null };
+}
 function getCurrentChkProjeto(){ return STATE.checklists.projetos.find(p=>p.id===STATE.ui.chkProjetoId); }
 function getCurrentChkSetor(){ const p=getCurrentChkProjeto(); return p && p.setores.find(s=>s.id===STATE.ui.chkSetorId); }
 function getCurrentChkLinha(){ const s=getCurrentChkSetor(); return s && s.linhas.find(l=>l.id===STATE.ui.chkLinhaId); }
@@ -9303,6 +9358,8 @@ function chkGarantirNamespace(estado){
   if(estado.ui.chkLinhaId === undefined) estado.ui.chkLinhaId = null;
   if(estado.ui.chkSecaoAtual === undefined) estado.ui.chkSecaoAtual = 0;
   if(estado.ui.chkItemAberto === undefined) estado.ui.chkItemAberto = null;
+  if(estado.ui.chkModeloSecaoSel === undefined) estado.ui.chkModeloSecaoSel = null;
+  if(estado.ui.chkModeloItemSel === undefined) estado.ui.chkModeloItemSel = null;
   /* Modelo pronto "Linhas de Vida (NR-35)" — entra sozinho, uma única vez por
      aparelho, exatamente como se tivesse sido montado à mão pela tela normal
      de modelo. Depois dessa primeira vez o aparelho nunca mais mexe nisso:
@@ -9375,6 +9432,20 @@ function chkGarantirNamespace(estado){
     });
     estado.ui.chkMotivoArrayMigrado = true;
   }
+  /* Campo novo `info` (orientação + fotos de referência pro inspetor, ver
+     App.chkInfoItem) no item do MODELO — ao contrário da migração de motivo
+     acima, aqui não existe formato antigo pra converter: é só um campo que
+     não existia antes. Só ACRESCENTA quando falta, em todo item de todo
+     modelo já salvo; idempotente por natureza (uma vez presente, a condição
+     nunca mais é verdadeira pra aquele item), por isso não precisa de flag
+     "rodou uma vez". */
+  estado.checklists.modelos.forEach(m=>{
+    (m.secoes||[]).forEach(s=>{
+      (s.itens||[]).forEach(it=>{
+        if(!it.info || typeof it.info !== "object") it.info = {texto:"", fotos:[]};
+      });
+    });
+  });
   return estado;
 }
 /* Modelo pronto "Linhas de Vida (NR-35)" — baseado no checklist de campo já
@@ -12578,7 +12649,7 @@ function renderChecklistModulo(){
     <div class="hazard-stripe"></div>
     ${topBarChk()}
     ${crumbBarChk()}
-    <div class="screen ${s==='checklist-laudo'?'screen-laudo chk-laudo-print':''}">${body}</div>
+    <div class="screen ${s==='checklist-laudo'?'screen-laudo chk-laudo-print':s==='checklist-modelo-form'?'screen-chk-modelo':''}">${body}</div>
     ${s==='checklist-laudo' ? '' : bottomNavChk()}
   `;
   setSaveChip(false);
@@ -12685,54 +12756,118 @@ function screenChkModelos(){
   return `<div class="section-title">${modelos.length} modelo${modelos.length===1?'':'s'}</div>${cards}
     <div class="fab-wrap"><button class="fab" onclick="App.chkNovoModelo()">${ic('plus')}</button></div>`;
 }
+/* Painel dividido: árvore de seções/itens à esquerda, editor do item
+   selecionado à direita — escolhido entre 5 propostas de mockup (ver
+   memória do projeto) por aproveitar melhor a tela do computador, onde a
+   elaboração do modelo normalmente acontece (o preenchimento em campo é
+   outra tela, feita pro celular). Empilha em lista→detalhe abaixo de
+   ~720px (ver CSS .chk-modelo-split). */
 function screenChkModeloForm(){
   const m = getCurrentChkModelo();
   if(!m){ go("checklist-modelos"); return ""; }
-  const secoesHtml = m.secoes.map((s,si)=>{
-    const itensHtml = s.itens.map((it,ii)=>{
-      const motivosHtml = (it.motivosPadrao||[]).map((mp,mi)=>`
-          <div class="chk-motivo-row">
-            <div style="flex:1">
-              <input type="text" placeholder="Rótulo curto (aparece em campo) — Ex.: Ancoragem corroída" value="${escapeHtml(mp.motivo)}" style="margin-bottom:4px" oninput="App.chkSetMotivoPadrao('${s.id}','${it.id}',${mi},'motivo',this.value)">
-              <textarea placeholder="Texto padrão deste motivo (só aparece no laudo)" oninput="App.chkSetMotivoPadrao('${s.id}','${it.id}',${mi},'texto',this.value)">${escapeHtml(mp.texto)}</textarea>
-            </div>
-            <button class="icon-btn" onclick="App.chkRemoverMotivoPadrao('${s.id}','${it.id}',${mi})">${ic('trash')}</button>
-          </div>`).join("");
+  const cabecalhoHtml = `
+  <div class="chk-modelo-head">
+    <div class="field"><label>Nome do modelo <span class="req">*</span></label><input type="text" placeholder="Ex.: Inspeção de linha de vida" value="${escapeHtml(m.nome)}" oninput="App.chkSetModeloField('nome',this.value)"></div>
+    <div class="field"><label>Descrição</label><input type="text" placeholder="Objetivo/escopo deste checklist" value="${escapeHtml(m.descricao)}" oninput="App.chkSetModeloField('descricao',this.value)"></div>
+  </div>
+  <div class="chk-modelo-toolbar">
+    <button class="btn btn-secondary" onclick="App.chkImportarModeloXLSX()">${ic('upload')} Importar via XLSX</button>
+    <button class="btn btn-secondary" onclick="App.chkBaixarModeloXLSX()">${ic('download')} Baixar modelo padrão</button>
+  </div>`;
+  if(!m.secoes.length){
+    return `${cabecalhoHtml}
+    <div class="empty">${ic('folder')}<h3>Nenhuma seção ainda</h3><p>Organize os itens do checklist em seções (ex.: "Ancoragem", "Cabo", "EPIs").</p></div>
+    <button class="btn btn-primary btn-block" style="margin-top:10px" onclick="App.chkNovaSecao()">${ic('plus')} Nova seção</button>
+    `;
+  }
+  const { secao: secaoSel, item: itemSel } = getChkModeloSelecao(m);
+  // "Explícito" (pro modo lista→detalhe do celular) é diferente do fallback
+  // acima: no computador as duas colunas ficam sempre visíveis, então o
+  // fallback (primeiro item) já deixa o editor preenchido; no celular só
+  // uma coluna aparece por vez, e o fallback não deve, sozinho, pular a
+  // lista — só uma escolha de verdade (toque no item, ou criar um novo)
+  // abre o editor.
+  const temSelecaoExplicita = !!(STATE.ui.chkModeloItemSel && itemSel && itemSel.id===STATE.ui.chkModeloItemSel);
+
+  const arvoreHtml = m.secoes.map((s,si)=>{
+    const itensHtml = s.itens.length ? s.itens.map((it,ii)=>{
+      const sel = itemSel && itemSel.id===it.id;
       return `
-      <div class="chk-item-row">
-        <div class="chk-item-num">${si+1}.${ii+1}</div>
+      <div class="chk-modelo-tree-item ${sel?'sel':''}" onclick="App.chkSelecionarModeloItem('${s.id}','${it.id}')">
+        <span class="chk-modelo-tree-num">${si+1}.${ii+1}</span>
+        <span class="chk-modelo-tree-prev">${it.descricao? escapeHtml(it.descricao) : '<em>Pergunta ainda não escrita</em>'}</span>
+      </div>`;
+    }).join("") : `<div class="chk-modelo-tree-empty">Nenhum item ainda.</div>`;
+    return `
+    <div class="chk-modelo-tree-secao">
+      <input type="text" placeholder="Título da seção" value="${escapeHtml(s.titulo)}" oninput="App.chkSetSecaoTitulo('${s.id}',this.value)">
+      <button class="icon-btn" title="Remover seção" onclick="App.chkRemoverSecao('${s.id}')">${ic('trash')}</button>
+    </div>
+    ${itensHtml}
+    <button class="chk-modelo-tree-add" onclick="App.chkNovoItem('${s.id}')">${ic('plus')} Item</button>`;
+  }).join("");
+
+  let editorHtml = `<div class="empty" style="padding:30px 14px"><p>Selecione um item na lista ao lado (ou crie um) para editar.</p></div>`;
+  if(secaoSel && itemSel){
+    const s = secaoSel, it = itemSel;
+    const si = m.secoes.indexOf(s), ii = s.itens.indexOf(it);
+    const motivosHtml = (it.motivosPadrao||[]).map((mp,mi)=>`
+      <div class="chk-motivo-card">
         <div style="flex:1">
-          <input type="text" placeholder="Norma/referência (opcional)" value="${escapeHtml(it.normativo)}" style="margin-bottom:6px" oninput="App.chkSetItemField('${s.id}','${it.id}','normativo',this.value)">
-          <textarea placeholder="Descrição do item a verificar" oninput="App.chkSetItemField('${s.id}','${it.id}','descricao',this.value)">${escapeHtml(it.descricao)}</textarea>
-          <div class="chk-motivos-padrao">
-            <div class="chk-motivos-label">Texto padrão para "Atende" (opcional — só aparece no laudo, nunca em campo)</div>
-            <textarea placeholder="Ex.: Foi inspecionado o olhal metálico... estando em conformidade com os requisitos técnicos." oninput="App.chkSetItemField('${s.id}','${it.id}','textoAtende',this.value)">${escapeHtml(it.textoAtende)}</textarea>
-          </div>
-          <div class="chk-motivos-padrao">
-            <div class="chk-motivos-label">Motivos padrão para "Não atende" (rótulo curto pro campo + texto completo pro laudo)</div>
-            ${motivosHtml}
-            <button class="btn" style="margin-top:4px" onclick="App.chkNovoMotivoPadrao('${s.id}','${it.id}')">${ic('plus')} Motivo padrão</button>
-          </div>
+          <input type="text" placeholder="Rótulo curto (aparece em campo) — Ex.: Ancoragem corroída" value="${escapeHtml(mp.motivo)}" style="margin-bottom:4px" oninput="App.chkSetMotivoPadrao('${s.id}','${it.id}',${mi},'motivo',this.value)">
+          <textarea placeholder="Texto padrão deste motivo (só aparece no laudo)" oninput="App.chkSetMotivoPadrao('${s.id}','${it.id}',${mi},'texto',this.value)">${escapeHtml(mp.texto)}</textarea>
         </div>
-        <button class="icon-btn" onclick="App.chkRemoverItem('${s.id}','${it.id}')">${ic('trash')}</button>
+        <button class="icon-btn" onclick="App.chkRemoverMotivoPadrao('${s.id}','${it.id}',${mi})">${ic('trash')}</button>
+      </div>`).join("");
+    const info = it.info || {texto:"", fotos:[]};
+    const fotosInfoHtml = (info.fotos||[]).map((f,fi)=>{
+      const ref = imgReg(f.foto);
+      return `<div class="chk-info-foto">
+        <img data-imgref="${ref}" onclick="App.verFotoReg(this)">
+        <button class="icon-btn chk-photo-remove" onclick="App.chkInfoFotoRemover('${s.id}','${it.id}',${fi})">${ic('trash')}</button>
       </div>`;
     }).join("");
-    return `
-    <div class="card card-pad" style="margin-bottom:12px">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-        <input type="text" placeholder="Título da seção" value="${escapeHtml(s.titulo)}" style="flex:1;font-weight:700" oninput="App.chkSetSecaoTitulo('${s.id}',this.value)">
-        <button class="icon-btn" onclick="App.chkRemoverSecao('${s.id}')">${ic('trash')}</button>
+    editorHtml = `
+    <div class="chk-modelo-editor-head">
+      <button class="chk-modelo-back" onclick="App.chkSelecionarModeloItem(null,null)">${ic('back')} Seções e itens</button>
+      <span class="chk-item-code">Item ${si+1}.${ii+1}</span>
+    </div>
+    <div class="field"><label>Pergunta <span class="req">*</span></label><textarea placeholder="O que verificar neste item" oninput="App.chkSetItemField('${s.id}','${it.id}','descricao',this.value)">${escapeHtml(it.descricao)}</textarea></div>
+    <div class="field"><label>Norma/referência (opcional)</label><input type="text" placeholder="Ex.: NBR 16325-2" value="${escapeHtml(it.normativo)}" oninput="App.chkSetItemField('${s.id}','${it.id}','normativo',this.value)"></div>
+    <div class="chk-modelo-editor-grid">
+      <div class="field" style="margin-bottom:0">
+        <label>Motivos padrão para "Não atende"</label>
+        <div class="chk-modelo-hint">Rótulo curto pro campo + texto completo pro laudo.</div>
+        ${motivosHtml}
+        <button class="btn" style="margin-top:4px" onclick="App.chkNovoMotivoPadrao('${s.id}','${it.id}')">${ic('plus')} Motivo padrão</button>
       </div>
-      ${itensHtml || `<div class="empty" style="padding:16px 8px"><p>Nenhum item nesta seção ainda.</p></div>`}
-      <button class="btn" style="margin-top:8px" onclick="App.chkNovoItem('${s.id}')">${ic('plus')} Item</button>
-    </div>`;
-  }).join("");
-  return `
-  <div class="field"><label>Nome do modelo <span class="req">*</span></label><input type="text" placeholder="Ex.: Inspeção de linha de vida" value="${escapeHtml(m.nome)}" oninput="App.chkSetModeloField('nome',this.value)"></div>
-  <div class="field"><label>Descrição</label><textarea placeholder="Objetivo/escopo deste checklist" oninput="App.chkSetModeloField('descricao',this.value)">${escapeHtml(m.descricao)}</textarea></div>
-  <div class="section-title">Seções e itens</div>
-  ${secoesHtml || `<div class="empty">${ic('folder')}<h3>Nenhuma seção ainda</h3><p>Organize os itens do checklist em seções (ex.: "Ancoragem", "Cabo", "EPIs").</p></div>`}
-  <button class="btn btn-primary btn-block" style="margin-top:10px" onclick="App.chkNovaSecao()">${ic('plus')} Nova seção</button>
+      <div class="field" style="margin-bottom:0">
+        <label>Informação do item</label>
+        <div class="chk-modelo-hint">Aparece no ⓘ durante o preenchimento em campo — texto e fotos de apoio pro inspetor (nunca vai pro laudo).</div>
+        <textarea placeholder="Ex.: Verificar torque dos parafusos com torquímetro calibrado." oninput="App.chkSetItemInfoTexto('${s.id}','${it.id}',this.value)">${escapeHtml(info.texto)}</textarea>
+        <div class="chk-info-fotos">
+          ${fotosInfoHtml}
+          <button class="chk-info-foto-add" onclick="App.chkInfoFotoAdicionar('${s.id}','${it.id}',true)" title="Escolher da galeria">${ic('gallery')}</button>
+          <button class="chk-info-foto-add" onclick="App.chkInfoFotoAdicionar('${s.id}','${it.id}',false)" title="Tirar foto">${ic('camera')}</button>
+        </div>
+      </div>
+    </div>
+    <div class="field">
+      <label>Texto padrão para "Atende" (opcional — só aparece no laudo, nunca em campo)</label>
+      <textarea placeholder="Ex.: Foi inspecionado o olhal metálico... estando em conformidade com os requisitos técnicos." oninput="App.chkSetItemField('${s.id}','${it.id}','textoAtende',this.value)">${escapeHtml(it.textoAtende)}</textarea>
+    </div>
+    <button class="btn btn-secondary" onclick="App.chkRemoverItem('${s.id}','${it.id}')">${ic('trash')} Remover este item</button>
+    `;
+  }
+
+  return `${cabecalhoHtml}
+  <div class="chk-modelo-split ${temSelecaoExplicita?'item-aberto':''}">
+    <div class="chk-modelo-tree">
+      ${arvoreHtml}
+      <button class="chk-modelo-tree-nova-secao" onclick="App.chkNovaSecao()">${ic('plus')} Nova seção</button>
+    </div>
+    <div class="chk-modelo-editor">${editorHtml}</div>
+  </div>
   `;
 }
 function screenChkProjetos(){
@@ -12956,7 +13091,7 @@ function chkRenderItem(linha, item, secaoIdx, itemIdx){
     <div class="chk-item-detail" onclick="event.stopPropagation()">
       <div class="chk-item-statusrow">
         ${statusBtns}
-        <button type="button" class="info-btn" style="margin-left:auto;width:26px;height:26px" onclick="App.chkInfoItem()" title="Informações do item">${ic('info')}</button>
+        <button type="button" class="info-btn" style="margin-left:auto;width:26px;height:26px" onclick="App.chkInfoItem('${item.id}')" title="Informações do item">${ic('info')}</button>
       </div>
       ${motivosHtml}
       <textarea placeholder="Nota adicional (opcional) — o texto padrão do motivo já vai sozinho pro laudo" oninput="App.chkSetObservacao('${item.id}',this.value)">${escapeHtml(ie.observacao)}</textarea>
@@ -25368,7 +25503,28 @@ Devolver agora?`)) return;
     __chkAcaoConfirmada = null;
     if(fn) fn();
   },
-  chkInfoItem(){ toast('Em breve: orientações e fotos de referência para este item'); },
+  /* Mostra a orientação de campo cadastrada no MODELO pra este item — texto
+     +  fotos de referência (ver App.chkSetItemInfoTexto/chkInfoFotoAdicionar
+     na elaboração do modelo). Lê sempre de linha.modeloSnapshot (a cópia
+     congelada no momento em que a linha foi criada), nunca do modelo "vivo"
+     em STATE.checklists.modelos — mesma regra de congelamento que já vale
+     pra descrição e motivos: editar o modelo depois não muda linha já
+     criada. */
+  chkInfoItem(itemId){
+    const l = getCurrentChkLinha(); if(!l) return;
+    const itemModelo = (l.modeloSnapshot||[]).flatMap(s=>s.itens).find(it=>it.id===itemId);
+    const info = (itemModelo && itemModelo.info) || {texto:"", fotos:[]};
+    const fotosHtml = (info.fotos||[]).map(f=>{
+      const ref = imgReg(f.foto);
+      return `<img data-imgref="${ref}" style="width:84px;height:84px;object-fit:cover;border-radius:8px;cursor:pointer" onclick="App.verFotoReg(this)">`;
+    }).join("");
+    abrirOverlay(`<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card">
+      <h3>${ic('info')} Informação do item</h3>
+      ${info.texto ? `<p style="font-size:13.5px;color:var(--ink-dim);line-height:1.5;margin:8px 0;white-space:pre-line">${escapeHtml(info.texto)}</p>` : `<p class="sheet-sub">Nenhuma orientação cadastrada para este item.</p>`}
+      ${fotosHtml ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">${fotosHtml}</div>` : ""}
+      <button class="btn btn-ghost btn-block" style="margin-top:14px" onclick="App.fecharModal()">Fechar</button>
+    </div></div>`);
+  },
   chkTirarFoto(itemId, daGaleria){
     // Câmera é a ação principal, de propósito: em campo o pedido é tocar e
     // fotografar, sem confirmar nada — cada foto é salva sozinha assim que
@@ -25444,10 +25600,17 @@ Devolver agora?`)) return;
     const m = novoChkModelo();
     STATE.checklists.modelos.push(m);
     STATE.ui.chkModeloId = m.id;
+    STATE.ui.chkModeloSecaoSel = null;
+    STATE.ui.chkModeloItemSel = null;
     marcarAlterado();
     go("checklist-modelo-form");
   },
-  chkAbrirModelo(id){ STATE.ui.chkModeloId = id; go("checklist-modelo-form"); },
+  chkAbrirModelo(id){
+    STATE.ui.chkModeloId = id;
+    STATE.ui.chkModeloSecaoSel = null;
+    STATE.ui.chkModeloItemSel = null;
+    go("checklist-modelo-form");
+  },
   chkExcluirModelo(id){
     if(!confirm("Excluir este modelo de checklist? Execuções já criadas a partir dele não são afetadas (cada uma guarda sua própria cópia das seções e itens).")) return;
     STATE.checklists.modelos = STATE.checklists.modelos.filter(m=>m.id!==id);
@@ -25461,7 +25624,10 @@ Devolver agora?`)) return;
   },
   chkNovaSecao(){
     const m = getCurrentChkModelo(); if(!m) return;
-    m.secoes.push(novoChkSecao());
+    const s = novoChkSecao();
+    m.secoes.push(s);
+    STATE.ui.chkModeloSecaoSel = s.id;
+    STATE.ui.chkModeloItemSel = null;
     m.atualizadoEm = agoraSync();
     marcarAlterado();
     render();
@@ -25470,6 +25636,7 @@ Devolver agora?`)) return;
     const m = getCurrentChkModelo(); if(!m) return;
     if(!confirm("Remover esta seção e todos os itens dela do modelo?")) return;
     m.secoes = m.secoes.filter(s=>s.id!==secaoId);
+    if(STATE.ui.chkModeloSecaoSel===secaoId){ STATE.ui.chkModeloSecaoSel = null; STATE.ui.chkModeloItemSel = null; }
     m.atualizadoEm = agoraSync();
     marcarAlterado();
     render();
@@ -25483,7 +25650,10 @@ Devolver agora?`)) return;
   chkNovoItem(secaoId){
     const m = getCurrentChkModelo(); if(!m) return;
     const s = m.secoes.find(x=>x.id===secaoId); if(!s) return;
-    s.itens.push(novoChkItem());
+    const it = novoChkItem();
+    s.itens.push(it);
+    STATE.ui.chkModeloSecaoSel = secaoId;
+    STATE.ui.chkModeloItemSel = it.id;
     m.atualizadoEm = agoraSync();
     marcarAlterado();
     render();
@@ -25492,8 +25662,14 @@ Devolver agora?`)) return;
     const m = getCurrentChkModelo(); if(!m) return;
     const s = m.secoes.find(x=>x.id===secaoId); if(!s) return;
     s.itens = s.itens.filter(i=>i.id!==itemId);
+    if(STATE.ui.chkModeloItemSel===itemId) STATE.ui.chkModeloItemSel = null;
     m.atualizadoEm = agoraSync();
     marcarAlterado();
+    render();
+  },
+  chkSelecionarModeloItem(secaoId, itemId){
+    STATE.ui.chkModeloSecaoSel = secaoId;
+    STATE.ui.chkModeloItemSel = itemId;
     render();
   },
   chkSetItemField(secaoId, itemId, campo, valor){
@@ -25502,6 +25678,44 @@ Devolver agora?`)) return;
     const it = s.itens.find(i=>i.id===itemId); if(!it) return;
     it[campo] = valor; m.atualizadoEm = agoraSync();
     marcarAlterado();
+  },
+  chkSetItemInfoTexto(secaoId, itemId, valor){
+    const m = getCurrentChkModelo(); if(!m) return;
+    const s = m.secoes.find(x=>x.id===secaoId); if(!s) return;
+    const it = s.itens.find(i=>i.id===itemId); if(!it) return;
+    if(!it.info) it.info = {texto:"", fotos:[]};
+    it.info.texto = valor; m.atualizadoEm = agoraSync();
+    marcarAlterado();
+  },
+  chkInfoFotoAdicionar(secaoId, itemId, daGaleria){
+    const input = document.getElementById(daGaleria ? "fileGeneralGaleria" : "fileGeneral");
+    input.onchange = async ()=>{
+      if(!input.files[0]) return;
+      const file = input.files[0];
+      input.value = "";
+      const m = getCurrentChkModelo();
+      const s = m && m.secoes.find(x=>x.id===secaoId);
+      const it = s && s.itens.find(i=>i.id===itemId);
+      if(it){
+        const data = await comprimirImagem(file, 1600, 0.8);
+        salvarFotoNaGaleria(data, "apr_checklist_modelo");
+        if(!it.info) it.info = {texto:"", fotos:[]};
+        it.info.fotos.push({ foto:data });
+        m.atualizadoEm = agoraSync();
+        marcarAlterado();
+        render();
+      }
+    };
+    input.click();
+  },
+  chkInfoFotoRemover(secaoId, itemId, idx){
+    const m = getCurrentChkModelo(); if(!m) return;
+    const s = m.secoes.find(x=>x.id===secaoId); if(!s) return;
+    const it = s.itens.find(i=>i.id===itemId); if(!it || !it.info) return;
+    it.info.fotos.splice(idx,1);
+    m.atualizadoEm = agoraSync();
+    marcarAlterado();
+    render();
   },
   chkNovoMotivoPadrao(secaoId, itemId){
     const m = getCurrentChkModelo(); if(!m) return;
@@ -25530,6 +25744,13 @@ Devolver agora?`)) return;
     marcarAlterado();
     render();
   },
+  // Importação/exportação de modelo via .xlsx ainda não existe — fica pra
+  // uma entrega própria (planilha grande demais pra entrar junto do
+  // redesenho da tela). Os botões já aparecem pra deixar claro que o
+  // caminho existe, mesmo padrão que o ⓘ do item teve antes de ganhar
+  // conteúdo de verdade.
+  chkImportarModeloXLSX(){ toast("Em breve: importar seções e itens de uma planilha .xlsx"); },
+  chkBaixarModeloXLSX(){ toast("Em breve: baixar um modelo .xlsx pronto pra preencher"); },
 };
 window.App = App;
 
