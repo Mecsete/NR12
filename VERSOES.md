@@ -64,6 +64,38 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 16/09/2026 11:19
+
+**Checklist: tela de preenchimento em campo redesenhada, e a lista de linhas de vida ganhou busca e filtro.**
+
+As telas de preenchimento do Checklist foram refeitas do zero, depois de
+várias rodadas de protótipo:
+
+- A navegação entre seções virou **abas** no topo — cada uma colorida pelo
+  andamento (cinza = vazia, âmbar = com item pendente, verde = completa,
+  cinza escuro = marcada "não aplica") — em vez de só "Anterior/Próxima".
+- Cada item aparece fechado, mostrando só a pergunta com o número
+  ("Item 2.2 - ...") e, discretamente, quantas fotos tem e um aviso amarelo
+  quando está marcado "Não atende" sem motivo nem nota escrita. Os botões de
+  Atende/Não atende/Não aplica só aparecem depois de abrir o item — menos
+  risco de tocar em algo sem querer, e cabe mais checklist na tela.
+- **Motivo de "Não atende" agora aceita mais de um** por item.
+- Tirar foto e escolher da galeria viraram botões flutuantes no canto da
+  tela, que só aparecem com um item aberto — a foto vai direto pra ele.
+- Novas confirmações: marcar um item ou uma seção inteira como "Não aplica"
+  agora pede confirmação (avisando se já havia resposta ou foto ali), e
+  fechar um item "Não atende" sem motivo nem nota também confirma antes.
+- Um ícone de informação (ⓘ) foi colocado em cada item, pronto para receber
+  orientações e fotos de referência no futuro.
+
+A lista de linhas de vida de um setor ganhou um campo de busca por nome e
+chips para filtrar por status (Não iniciadas / Em andamento / Finalizadas),
+além de cada card agora mostrar uma cor na lateral de acordo com o status.
+
+Quem já tinha checklist preenchido num aparelho não perde nada: o motivo
+único que já estava escolhido em algum item vira automaticamente o primeiro
+de uma lista, na próxima vez que o app abrir.
+
 ## 15/09/2026 16:39
 
 **Antes de tirar um campo de "Aplicado", o app agora avisa e espera você aprovar. E dimensão de abertura escrita em campo deixa de ser apagada.**

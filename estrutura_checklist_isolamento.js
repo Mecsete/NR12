@@ -6,12 +6,14 @@
    de Módulo Completo (STATE.projetos) e Módulo Simplificado
    (STATE.projetosSimples), executa uma sequência real de operações do
    Checklist (criar modelo, editar seções/itens, motivos padrão, criar
-   projeto → setor → linha de vida, marcar conformidade, observação, foto,
-   tags, marcar seção N/A, navegar, finalizar, reabrir, excluir), e compara
+   projeto → setor → linha de vida, marcar conformidade, motivo de múltipla
+   escolha, observação, foto, tags, travas de confirmação, navegar entre
+   seções por aba, marcar seção N/A, finalizar, reabrir, excluir), e compara
    byte a byte o JSON de STATE.projetos e STATE.projetosSimples antes e
-   depois. Também confere as duas migrações de chkGarantirNamespace (STATE
-   sem `checklists`, e STATE com o formato antigo de execuções em lista
-   plana) sem tocar nas duas árvores.
+   depois. Também confere as quatro migrações de chkGarantirNamespace (STATE
+   sem `checklists`; STATE com o formato antigo de execuções em lista plana;
+   modelo padrão semeado antes do texto padrão existir; linha com motivo
+   único do formato antigo) sem tocar nas duas árvores.
    Sai com código 0 e imprime "ISOLAMENTO OK" se nada mudou; sai com código 1
    e imprime a diferença se qualquer byte mudou, ou se qualquer operação
    lançar exceção. */
@@ -72,12 +74,19 @@ function letObjeto(nome){
   }
   throw new Error("nao fechou let: " + nome);
 }
-
 function constString(nome){
   const re = new RegExp("\\nconst " + nome + '\\s*=\\s*"[^"]*";');
   const m = re.exec(HTML);
   if(!m) throw new Error("const string nao encontrada: " + nome);
   return m[0].slice(1) + "\n"; // tira a quebra de linha inicial usada só pra ancorar
+}
+function letEscalar(nome){
+  // pra `let nome = valorSimples;` (null, string, numero...) -- diferente de
+  // letObjeto(), que só sabe balancear {...}/[...].
+  const re = new RegExp("\\n(let " + nome + "\\s*=\\s*[^;]+;)");
+  const m = re.exec(HTML);
+  if(!m) throw new Error("let escalar nao encontrado: " + nome);
+  return m[1] + "\n";
 }
 
 // ---------- monta o código a testar, extraído de verdade do arquivo ----------
@@ -87,13 +96,17 @@ const FUNCOES = [
   "novoChkModelo", "novoChkSecao", "novoChkItem", "chkModeloPadraoLinhasDeVida",
   "novoChkProjeto", "novoChkSetor", "novoChkLinha",
   "getCurrentChkModelo", "getCurrentChkProjeto", "getCurrentChkSetor", "getCurrentChkLinha",
-  "chkItemExec", "chkContarStatus", "chkProgresso", "chkTextoLaudoItem",
+  "chkItemExec", "chkContarStatus", "chkProgresso", "chkStatusAbaSecao", "chkStatusLinha",
+  "chkTextoLaudoItem", "chkAbrirConfirmacao",
   "chkGarantirNamespace",
 ];
 let fonte = "let __ultimoCarimboVisto = 0;\n";
+fonte += "let __buscaAtual = '';\n"; // usado por chkAbrirSetor (lista de linhas) -- nao testado aqui, so pra nao faltar
 fonte += constString("CHK_MODELO_PADRAO_ID");
+fonte += letEscalar("__chkAcaoConfirmada");
 for(const nome of FUNCOES) fonte += funcao(nome) + "\n";
 fonte += letObjeto("__chkNovaLinhaDraft") + "\n";
+fonte += letEscalar("__chkLinhasFiltro");
 const metodosApp = trecho(
   "/* ---------- Checklist — só lê/escreve STATE.checklists ---------- */",
   "\n};\nwindow.App = App;"
@@ -108,6 +121,9 @@ const sandbox = {
   marcarAlterado: () => {},
   render: () => {},
   go: () => {},
+  ic: () => "",
+  escapeHtml: (s) => String(s == null ? "" : s),
+  abrirOverlay: () => {}, // chkAbrirConfirmacao chama isso pra "mostrar" o modal -- aqui só ignora o HTML e guarda a ação pendente, que é o que este ensaio testa
   window: { scrollTo: () => {} },
 };
 vm.createContext(sandbox);
@@ -150,7 +166,7 @@ sandbox.STATE = {
   projetos: [mkProjetoCompleto()],
   projetosSimples: [mkProjetoSimples()],
   checklists: { modelos: [], projetos: [] },
-  ui: { chkModeloId: null, chkProjetoId: null, chkSetorId: null, chkLinhaId: null, chkSecaoAtual: 0 },
+  ui: { chkModeloId: null, chkProjetoId: null, chkSetorId: null, chkLinhaId: null, chkSecaoAtual: 0, chkItemAberto: null },
 };
 
 const antesCompleto = JSON.stringify(sandbox.STATE.projetos);
@@ -180,11 +196,14 @@ App.chkSetItemField(sec2.id, sec2.itens[0].id, "textoAtende", "O cabo de aco est
 App.chkRemoverItem(sec1.id, sec1.itens[1].id);
 App.chkNovoMotivoPadrao(sec1.id, sec1.itens[0].id);
 App.chkNovoMotivoPadrao(sec1.id, sec1.itens[0].id);
+App.chkNovoMotivoPadrao(sec1.id, sec1.itens[0].id);
 App.chkSetMotivoPadrao(sec1.id, sec1.itens[0].id, 0, "motivo", "Ancoragem corroida");
 App.chkSetMotivoPadrao(sec1.id, sec1.itens[0].id, 0, "texto", "A ancoragem apresenta oxidacao avancada, comprometendo sua resistencia estrutural.");
 App.chkSetMotivoPadrao(sec1.id, sec1.itens[0].id, 1, "motivo", "Ausencia de ancoragem");
 App.chkSetMotivoPadrao(sec1.id, sec1.itens[0].id, 1, "texto", "Nao foi identificado ponto de ancoragem na estrutura avaliada.");
-App.chkRemoverMotivoPadrao(sec1.id, sec1.itens[0].id, 1);
+App.chkSetMotivoPadrao(sec1.id, sec1.itens[0].id, 2, "motivo", "Fixacao com folga");
+App.chkSetMotivoPadrao(sec1.id, sec1.itens[0].id, 2, "texto", "A fixacao apresenta folga perceptivel ao manuseio.");
+App.chkRemoverMotivoPadrao(sec1.id, sec1.itens[0].id, 2);
 
 // Hierarquia Projeto > Setor > Linha de vida — sem nenhum vinculo a maquina
 // do Completo/Simplificado (removido de proposito, sao assuntos diferentes).
@@ -215,11 +234,20 @@ App.chkSetNovaLinhaDraft("modeloId", modelo.id);
 App.chkCriarLinha();
 const linha = setor.linhas[0];
 if(!linha) throw new Error("linha de vida nao foi criada");
+if(linha.itens[0].motivosSelecionados === undefined || !Array.isArray(linha.itens[0].motivosSelecionados))
+  throw new Error("item novo da linha deveria nascer com motivosSelecionados como array");
 
 const item1 = linha.itens[0];
 App.chkSetConforme(item1.itemId, "atende");
 App.chkSetConforme(item1.itemId, "naoAtende");
 App.chkSelecionarMotivo(item1.itemId, "Ancoragem corroida");
+App.chkSelecionarMotivo(item1.itemId, "Ausencia de ancoragem");
+if(item1.motivosSelecionados.length !== 2)
+  throw new Error("motivo de multipla escolha deveria aceitar os dois motivos selecionados: " + JSON.stringify(item1.motivosSelecionados));
+App.chkSelecionarMotivo(item1.itemId, "Ancoragem corroida"); // seleciona nao atende de novo -- alterna (remove)
+if(item1.motivosSelecionados.length !== 1 || item1.motivosSelecionados[0] !== "Ausencia de ancoragem")
+  throw new Error("selecionar o mesmo motivo de novo deveria REMOVER (alternar), nao duplicar: " + JSON.stringify(item1.motivosSelecionados));
+App.chkSelecionarMotivo(item1.itemId, "Ancoragem corroida"); // adiciona de volta -- fica com os dois outra vez
 App.chkSetObservacao(item1.itemId, "Parafuso frouxo, ajustado em campo");
 item1.fotos.push({ foto: "data:image/jpeg;base64,ZZZZ", tags: [] });
 App.chkToggleTagFoto(item1.itemId, 0, "Ajustar");
@@ -228,25 +256,59 @@ App.chkToggleTagFoto(item1.itemId, 0, "Risco");
 App.chkRemoverFoto(item1.itemId, 0);
 
 // Texto padrao do laudo: nunca aparece em campo (so o rotulo curto do motivo
-// aparece na tela de preenchimento) -- prova que o rotulo escolhido em campo
-// (motivoSelecionado) acha o texto certo cadastrado no modelo, com a mesma
-// funcao usada de verdade por screenChkLaudo.
+// aparece na tela de preenchimento) -- prova que motivo de multipla escolha
+// devolve o texto de CADA motivo selecionado (chkTextoLaudoItem agora sempre
+// devolve array), com a mesma funcao usada de verdade por screenChkLaudo.
 const item1Modelo = linha.modeloSnapshot[0].itens[0];
-const textoItem1 = chkTextoLaudoItem(item1Modelo, item1);
-if(textoItem1 !== "A ancoragem apresenta oxidacao avancada, comprometendo sua resistencia estrutural.")
-  throw new Error("chkTextoLaudoItem nao recuperou o texto do motivo selecionado em item1: " + JSON.stringify(textoItem1));
+const textosItem1 = chkTextoLaudoItem(item1Modelo, item1);
+if(!Array.isArray(textosItem1) || textosItem1.length !== 2)
+  throw new Error("chkTextoLaudoItem deveria devolver os textos dos DOIS motivos selecionados em item1: " + JSON.stringify(textosItem1));
+if(!textosItem1.includes("A ancoragem apresenta oxidacao avancada, comprometendo sua resistencia estrutural.") ||
+   !textosItem1.includes("Nao foi identificado ponto de ancoragem na estrutura avaliada."))
+  throw new Error("chkTextoLaudoItem nao recuperou os textos certos dos motivos selecionados em item1: " + JSON.stringify(textosItem1));
 
 const item2 = linha.itens[1];
 App.chkSetConforme(item2.itemId, "atende");
 const item2Modelo = linha.modeloSnapshot[1].itens[0];
-const textoItem2 = chkTextoLaudoItem(item2Modelo, item2);
-if(textoItem2 !== "O cabo de aco esta integro, sem sinais de desgaste.")
-  throw new Error("chkTextoLaudoItem nao recuperou o textoAtende de item2: " + JSON.stringify(textoItem2));
+const textosItem2 = chkTextoLaudoItem(item2Modelo, item2);
+if(!Array.isArray(textosItem2) || textosItem2.length !== 1 || textosItem2[0] !== "O cabo de aco esta integro, sem sinais de desgaste.")
+  throw new Error("chkTextoLaudoItem deveria devolver array de 1 com o textoAtende de item2: " + JSON.stringify(textosItem2));
 
+// Trava de seguranca: marcar item como "Nao aplica" pede confirmacao SEMPRE
+// -- o estado so muda depois de App.chkConfirmarAcao() (simula o toque no
+// botao "Marcar mesmo assim" do modal).
+const item1AntesNA = JSON.stringify(item1);
+App.chkSetConforme(item1.itemId, "na");
+if(JSON.stringify(item1) !== item1AntesNA)
+  throw new Error("marcar item como Nao aplica NAO deveria mudar nada antes de confirmar");
+App.chkConfirmarAcao();
+if(item1.conforme !== "na" || item1.motivosSelecionados.length !== 0)
+  throw new Error("marcar item como Nao aplica nao aplicou depois de confirmado: " + JSON.stringify(item1));
+
+// chkStatusAbaSecao/chkStatusLinha -- usados pra colorir aba de secao e card
+// da lista de linhas de vida.
+if(chkStatusAbaSecao(linha, linha.modeloSnapshot[0]) !== "completa")
+  throw new Error("secao 1 (com o unico item respondido) deveria estar 'completa'");
+if(chkStatusAbaSecao(linha, linha.modeloSnapshot[1]) !== "completa")
+  throw new Error("secao 2 tem 1 unico item, ja respondido (atende) -- deveria estar 'completa'");
+if(chkStatusLinha(linha) !== "andamento")
+  throw new Error("linha com progresso >0% e nao finalizada deveria ser 'andamento'");
+
+// Trava de seguranca: marcar SECAO como "Nao aplica" com item ja respondido
+// pede confirmacao -- sec2 tem item2 respondido (atende).
+const secoesNAAntes = linha.secoesNA.length;
 App.chkToggleSecaoNA(linha.modeloSnapshot[1].id);
-App.chkToggleSecaoNA(linha.modeloSnapshot[1].id);
-App.chkIrSecao(1);
-App.chkIrSecao(-1);
+if(linha.secoesNA.length !== secoesNAAntes)
+  throw new Error("marcar secao como Nao aplica com item respondido NAO deveria mudar nada antes de confirmar");
+App.chkConfirmarAcao();
+if(!linha.secoesNA.includes(linha.modeloSnapshot[1].id))
+  throw new Error("marcar secao como Nao aplica nao aplicou depois de confirmado");
+if(chkStatusAbaSecao(linha, linha.modeloSnapshot[1]) !== "naoaplica")
+  throw new Error("secao marcada Nao aplica deveria ter status 'naoaplica' na aba");
+App.chkToggleSecaoNA(linha.modeloSnapshot[1].id); // desliga de novo -- sem item respondido (foi resetado), sem trava
+
+App.chkIrParaSecao(1);
+App.chkIrParaSecao(0);
 
 App.chkSetConclusao("Inspecao concluida sem pendencias criticas.");
 App.chkFinalizar();
@@ -315,7 +377,7 @@ if(!estadoSemChecklists.checklists || !Array.isArray(estadoSemChecklists.checkli
 }
 if(estadoSemChecklists.ui.chkModeloId !== null || estadoSemChecklists.ui.chkProjetoId !== null
    || estadoSemChecklists.ui.chkSetorId !== null || estadoSemChecklists.ui.chkLinhaId !== null
-   || estadoSemChecklists.ui.chkSecaoAtual !== 0){
+   || estadoSemChecklists.ui.chkSecaoAtual !== 0 || estadoSemChecklists.ui.chkItemAberto !== null){
   console.error("FALHOU: chkGarantirNamespace nao preencheu os ponteiros de ui do Checklist");
   process.exit(1);
 }
@@ -353,18 +415,19 @@ modeloPadrao.secoes.forEach(s => s.itens.forEach(it => {
 }));
 // chkTextoLaudoItem só existe dentro do sandbox (foi extraído pro `fonte` lá
 // em cima) — roda aqui via vm, no mesmo contexto, pra provar de verdade que a
-// busca por rótulo acha o texto certo de cada item/motivo do modelo padrão.
+// busca por rótulo acha o texto certo de cada item/motivo do modelo padrão
+// (agora sempre como array — devolve array de 1 pro motivo unico daqui).
 vm.runInContext(`
 (function(){
   const modeloPadrao = estadoSemChecklists.checklists.modelos.find(m => m.id === "${MODELO_PADRAO_ID}");
   modeloPadrao.secoes.forEach(s => s.itens.forEach(it => {
     it.motivosPadrao.forEach(mp => {
-      const achado = chkTextoLaudoItem(it, { conforme: "naoAtende", motivoSelecionado: mp.motivo });
-      if(achado !== mp.texto)
+      const achado = chkTextoLaudoItem(it, { conforme: "naoAtende", motivosSelecionados: [mp.motivo] });
+      if(!Array.isArray(achado) || achado.length !== 1 || achado[0] !== mp.texto)
         throw new Error('chkTextoLaudoItem nao recuperou o texto do motivo "' + mp.motivo + '" do item "' + it.descricao + '"');
     });
     const achadoAtende = chkTextoLaudoItem(it, { conforme: "atende" });
-    if(achadoAtende !== it.textoAtende)
+    if(!Array.isArray(achadoAtende) || achadoAtende.length !== 1 || achadoAtende[0] !== it.textoAtende)
       throw new Error('chkTextoLaudoItem nao recuperou o textoAtende do item "' + it.descricao + '"');
   }));
 })();
@@ -487,5 +550,60 @@ const modeloEditadoDepois = estadoModeloEditado.checklists.modelos.find(m => m.i
 if(modeloEditadoDepois.secoes[0].itens.some(it => it.textoAtende || (it.motivosPadrao||[]).some(mp => typeof mp === "object")))
   throw new Error("upgrade de texto padrao mexeu num modelo cuja estrutura o usuario ja tinha alterado -- deveria ter ficado de fora");
 
-console.log("ISOLAMENTO OK: STATE.projetos e STATE.projetosSimples byte a byte identicos apos criar/editar/salvar/vincular/finalizar/excluir na hierarquia Projeto>Setor>Linha do Checklist, e as tres migracoes de STATE antigo (namespace ausente, execucoes em lista plana, e modelo padrao sem texto padrao) preenchem/reorganizam/atualizam o namespace sem tocar nas duas arvores");
+// ---------- migração 4: linha de vida salva com o formato antigo de motivo
+// único (motivoSelecionado: string|null) -- aparelho que preencheu um
+// checklist antes do motivo de múltipla escolha existir ----------
+const estadoMotivoAntigo = {
+  modulo: "checklist",
+  projetos: JSON.parse(antesCompleto),
+  projetosSimples: JSON.parse(antesSimples),
+  checklists: {
+    modelos: [],
+    projetos: [{
+      id: "proj-antigo", empresa: "Empresa com linha antiga", responsavel: "", data: "2026-09-01",
+      setores: [{
+        id: "setor-antigo", nome: "Setor antigo", descricao: "", criadoEm: 1, atualizadoEm: 1,
+        linhas: [{
+          id: "linha-antiga", nome: "LV-ANTIGA", modeloId: "m-x", modeloNome: "Modelo x",
+          modeloSnapshot: [], status: "em_andamento", dataInicio: "2026-09-01", dataFinalizacao: null,
+          secoesNA: [],
+          itens: [
+            { itemId: "it1", conforme: "naoAtende", motivoSelecionado: "Motivo antigo escolhido em campo", observacao: "", fotos: [] },
+            { itemId: "it2", conforme: "atende", motivoSelecionado: null, observacao: "", fotos: [] },
+            { itemId: "it3", conforme: null, motivosSelecionados: [], observacao: "", fotos: [] }, // item que ja tinha sido migrado (idempotencia)
+          ],
+          conclusaoTexto: "", criadoEm: 1, atualizadoEm: 1,
+        }],
+      }],
+      numeroDocumento: "", art: "", dataInspecao: "2026-09-01", validadeInspecao: "",
+      solicitanteCpfCnpj: "", solicitanteEndereco: "", solicitanteCidade: "", solicitanteTelefone: "", solicitanteCargo: "", solicitanteEmail: "",
+      inspetorNome: "", inspetorCargo: "", objetivo: "", conclusaoGeral: "",
+      criadoEm: 1, atualizadoEm: 1,
+    }],
+  },
+  ui: { screen: "checklist-modelos" },
+};
+const antesMig4Completo = JSON.stringify(estadoMotivoAntigo.projetos);
+const antesMig4Simples = JSON.stringify(estadoMotivoAntigo.projetosSimples);
+vm.runInContext("chkGarantirNamespace(estadoMotivoAntigo);", Object.assign(sandbox, { estadoMotivoAntigo }), { filename: "checklist-migracao4.js" });
+
+const linhaAntigaMigrada = estadoMotivoAntigo.checklists.projetos[0].setores[0].linhas[0];
+const [it1Mig, it2Mig, it3Mig] = linhaAntigaMigrada.itens;
+if(!Array.isArray(it1Mig.motivosSelecionados) || it1Mig.motivosSelecionados.length !== 1 || it1Mig.motivosSelecionados[0] !== "Motivo antigo escolhido em campo")
+  throw new Error("upgrade de motivo unico nao preservou o motivo ja escolhido em campo: " + JSON.stringify(it1Mig));
+if(it1Mig.motivoSelecionado !== undefined)
+  throw new Error("upgrade de motivo unico deveria ter removido o campo antigo motivoSelecionado");
+if(!Array.isArray(it2Mig.motivosSelecionados) || it2Mig.motivosSelecionados.length !== 0)
+  throw new Error("item sem motivo (null) deveria virar array vazio: " + JSON.stringify(it2Mig));
+if(!Array.isArray(it3Mig.motivosSelecionados) || it3Mig.motivosSelecionados.length !== 0)
+  throw new Error("item ja migrado (array) nao deveria ser mexido de novo: " + JSON.stringify(it3Mig));
+if(JSON.stringify(estadoMotivoAntigo.projetos) !== antesMig4Completo || JSON.stringify(estadoMotivoAntigo.projetosSimples) !== antesMig4Simples)
+  throw new Error("upgrade de motivo unico mudou projetos/projetosSimples de um STATE antigo");
+// idempotente: segunda chamada nao mexe mais em nada.
+const linhaAntesDaSegundaChamada = JSON.stringify(linhaAntigaMigrada);
+vm.runInContext("chkGarantirNamespace(estadoMotivoAntigo);", sandbox, { filename: "checklist-migracao4-2a-chamada.js" });
+if(JSON.stringify(estadoMotivoAntigo.checklists.projetos[0].setores[0].linhas[0]) !== linhaAntesDaSegundaChamada)
+  throw new Error("upgrade de motivo unico rodou de novo numa segunda chamada (deveria ser uma unica vez por aparelho)");
+
+console.log("ISOLAMENTO OK: STATE.projetos e STATE.projetosSimples byte a byte identicos apos criar/editar/salvar/vincular/finalizar/excluir na hierarquia Projeto>Setor>Linha do Checklist (motivo de multipla escolha, travas de confirmacao e abas de secao incluidos), e as quatro migracoes de STATE antigo (namespace ausente, execucoes em lista plana, modelo padrao sem texto padrao, e linha com motivo unico do formato antigo) preenchem/reorganizam/atualizam o namespace sem tocar nas duas arvores");
 process.exit(0);
