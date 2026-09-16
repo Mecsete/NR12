@@ -7,16 +7,20 @@
    (STATE.projetosSimples), executa uma sequência real de operações do
    Checklist (criar modelo, editar seções/itens, motivos padrão, criar
    projeto → setor → linha de vida, marcar conformidade, motivo de múltipla
-   escolha, observação, foto, tags, travas de confirmação, navegar entre
+   escolha, observação, foto, travas de confirmação, navegar entre
    seções por aba, marcar seção N/A, finalizar, reabrir, excluir), e compara
    byte a byte o JSON de STATE.projetos e STATE.projetosSimples antes e
    depois. Também confere as cinco migrações de chkGarantirNamespace (STATE
    sem `checklists`; STATE com o formato antigo de execuções em lista plana;
    modelo padrão semeado antes do texto padrão existir; linha com motivo
    único do formato antigo; item de modelo sem o campo `info`) sem tocar nas
-   duas árvores, e que App.chkInfoItem (ⓘ da tela de preenchimento) lê a
+   duas árvores, que App.chkInfoItem (ⓘ da tela de preenchimento) lê a
    informação do item sempre do modeloSnapshot CONGELADO da linha, nunca do
-   modelo vivo.
+   modelo vivo, e que a importação de modelo via XLSX (chkModeloXLSXLinhasParaSecoes,
+   rodando por cima do baseIALerCelulas REAL sobre um <sheetData> montado à
+   mão) reconhece linha de continuação (mais de um motivo por item), item
+   sem motivo nenhum e linha órfã (motivo sem item aberto ainda), e só
+   ACRESCENTA ao modelo — nunca mexe no que já existia.
    Sai com código 0 e imprime "ISOLAMENTO OK" se nada mudou; sai com código 1
    e imprime a diferença se qualquer byte mudou, ou se qualquer operação
    lançar exceção. */
@@ -91,6 +95,25 @@ function letEscalar(nome){
   if(!m) throw new Error("let escalar nao encontrado: " + nome);
   return m[1] + "\n";
 }
+function constObjeto(nome){
+  // igual letObjeto(), só que pra `const nome = {...}`/`[...]` em vez de `let`.
+  const re = new RegExp("\\nconst " + nome + "\\s*=");
+  const m = re.exec(HTML);
+  if(!m) throw new Error("const objeto/array nao encontrado: " + nome);
+  const iniLinha = m.index + 1;
+  let k = HTML.indexOf("=", iniLinha), d = 0, str = null, ini = null;
+  while(k < HTML.length){
+    const ch = HTML[k];
+    if(str){ if(ch === "\\"){ k += 2; continue; } if(ch === str) str = null; }
+    else{
+      if(ch === '"' || ch === "'" || ch === "`") str = ch;
+      else if(ch === "{" || ch === "["){ if(ini === null) ini = ch; d++; }
+      else if(ch === "}" || ch === "]"){ d--; if(d === 0) return HTML.slice(iniLinha, k + 1) + ";"; }
+    }
+    k++;
+  }
+  throw new Error("nao fechou const: " + nome);
+}
 
 // ---------- monta o código a testar, extraído de verdade do arquivo ----------
 const FUNCOES = [
@@ -102,12 +125,20 @@ const FUNCOES = [
   "chkItemExec", "chkContarStatus", "chkProgresso", "chkStatusAbaSecao", "chkStatusLinha",
   "chkTextoLaudoItem", "chkAbrirConfirmacao",
   "chkGarantirNamespace",
+  // Import/export de modelo via .xlsx: baseIATextosDe/baseIADesescapar são
+  // dependência interna de baseIALerSst/baseIALerCelulas (leitura genérica de
+  // célula/linha de planilha .xlsx já descompactada, construída pra
+  // importação da IA e reaproveitada aqui tal como está — ver comentário de
+  // chkModeloXLSXLinhasParaSecoes).
+  "baseIATextosDe", "baseIADesescapar", "baseIALerSst", "baseIALerCelulas", "baseIANormalizarCabecalho",
+  "chkModeloXLSXAcharCabecalho", "chkModeloXLSXLinhasParaSecoes",
 ];
 let fonte = "let __ultimoCarimboVisto = 0;\n";
 fonte += "let __buscaAtual = '';\n"; // usado por chkAbrirSetor (lista de linhas) -- nao testado aqui, so pra nao faltar
 fonte += "let __imgReg = [];\n"; // registro de fotos pra exibicao (imgReg/data-imgref) -- usado por App.chkInfoItem
 fonte += constString("CHK_MODELO_PADRAO_ID");
 fonte += letEscalar("__chkAcaoConfirmada");
+fonte += constObjeto("CHK_MODELO_XLSX_COLUNAS") + "\n";
 for(const nome of FUNCOES) fonte += funcao(nome) + "\n";
 fonte += letObjeto("__chkNovaLinhaDraft") + "\n";
 fonte += letEscalar("__chkLinhasFiltro");
@@ -295,9 +326,6 @@ if(item1.motivosSelecionados.length !== 1 || item1.motivosSelecionados[0] !== "A
 App.chkSelecionarMotivo(item1.itemId, "Ancoragem corroida"); // adiciona de volta -- fica com os dois outra vez
 App.chkSetObservacao(item1.itemId, "Parafuso frouxo, ajustado em campo");
 item1.fotos.push({ foto: "data:image/jpeg;base64,ZZZZ", tags: [] });
-App.chkToggleTagFoto(item1.itemId, 0, "Ajustar");
-App.chkToggleTagFoto(item1.itemId, 0, "Risco");
-App.chkToggleTagFoto(item1.itemId, 0, "Risco");
 App.chkRemoverFoto(item1.itemId, 0);
 
 // Texto padrao do laudo: nunca aparece em campo (so o rotulo curto do motivo
@@ -382,6 +410,58 @@ App.chkExcluirProjeto(proj2.id);
 App.chkExcluirModelo(modelo2.id);
 STATE.ui.chkProjetoId = proj.id; STATE.ui.chkSetorId = setor.id;
 App.chkRemoverSecao(sec2.id);
+
+// Restaura o modelo em foco -- o teste do segundo modelo (excluido acima)
+// deixou STATE.ui.chkModeloId apontando pra um modelo que nao existe mais.
+STATE.ui.chkModeloId = modelo.id;
+
+// Importar modelo via XLSX -- so a parte PURA (sem PizZip/DOM, ver
+// App.chkImportarModeloXLSX) e testavel aqui: monta um <sheetData> minimo a
+// mao (celulas t="inlineStr", sem precisar de tabela de strings), roda
+// pelas funcoes REAIS extraidas (baseIALerCelulas -> chkModeloXLSXLinhasParaSecoes),
+// e confere linha de continuacao (2 motivos pro mesmo item), item sem
+// motivo nenhum, linha em branco ignorada, e motivo orfao (sem item aberto
+// ainda) contado como invalida -- exatamente as regras do formato.
+const modeloXlsxSheetXml = '<sheetData>' +
+  '<row r="1"><c r="A1" t="inlineStr"><is><t>Seção</t></is></c><c r="B1" t="inlineStr"><is><t>Item</t></is></c><c r="C1" t="inlineStr"><is><t>Norma/Referência</t></is></c><c r="D1" t="inlineStr"><is><t>Motivo</t></is></c><c r="E1" t="inlineStr"><is><t>Texto do Motivo</t></is></c><c r="F1" t="inlineStr"><is><t>Texto Quando Atende</t></is></c><c r="G1" t="inlineStr"><is><t>Informação</t></is></c></row>' +
+  '<row r="2"><c r="D2" t="inlineStr"><is><t>Motivo orfao (sem item aberto)</t></is></c></row>' +
+  '<row r="3"><c r="A3" t="inlineStr"><is><t>Ancoragem Teste</t></is></c><c r="B3" t="inlineStr"><is><t>Pergunta teste 1?</t></is></c><c r="C3" t="inlineStr"><is><t>NBR-X</t></is></c><c r="D3" t="inlineStr"><is><t>Motivo 1</t></is></c><c r="E3" t="inlineStr"><is><t>Texto motivo 1</t></is></c><c r="F3" t="inlineStr"><is><t>Atende texto</t></is></c><c r="G3" t="inlineStr"><is><t>Info texto</t></is></c></row>' +
+  '<row r="4"><c r="D4" t="inlineStr"><is><t>Motivo 2</t></is></c><c r="E4" t="inlineStr"><is><t>Texto motivo 2</t></is></c></row>' +
+  '<row r="5"><c r="B5" t="inlineStr"><is><t>Pergunta teste 2 sem motivo?</t></is></c></row>' +
+  '<row r="6"></row>' +
+  '</sheetData>';
+const linhasXlsx = baseIALerCelulas(modeloXlsxSheetXml, []);
+const resultadoXlsx = chkModeloXLSXLinhasParaSecoes(linhasXlsx);
+if(resultadoXlsx.erro) throw new Error("chkModeloXLSXLinhasParaSecoes nao reconheceu o cabecalho de teste");
+if(resultadoXlsx.contagem.secoes !== 1 || resultadoXlsx.contagem.itens !== 2 || resultadoXlsx.contagem.motivos !== 2 || resultadoXlsx.contagem.linhasInvalidas !== 1)
+  throw new Error("contagem do import de xlsx saiu errada: " + JSON.stringify(resultadoXlsx.contagem));
+const secaoImportada = resultadoXlsx.secoes[0];
+if(secaoImportada.titulo !== "Ancoragem Teste") throw new Error("titulo da secao importada errado: " + secaoImportada.titulo);
+if(secaoImportada.itens.length !== 2) throw new Error("secao importada deveria ter 2 itens, tem " + secaoImportada.itens.length);
+const [itImp1, itImp2] = secaoImportada.itens;
+if(itImp1.descricao !== "Pergunta teste 1?" || itImp1.normativo !== "NBR-X" || itImp1.textoAtende !== "Atende texto" || itImp1.info.texto !== "Info texto")
+  throw new Error("item 1 importado com campo errado: " + JSON.stringify(itImp1));
+if(itImp1.motivosPadrao.length !== 2 || itImp1.motivosPadrao[0].motivo !== "Motivo 1" || itImp1.motivosPadrao[1].motivo !== "Motivo 2" || itImp1.motivosPadrao[1].texto !== "Texto motivo 2")
+  throw new Error("motivos do item 1 importado (linha de continuacao) sairam errados: " + JSON.stringify(itImp1.motivosPadrao));
+if(itImp2.descricao !== "Pergunta teste 2 sem motivo?" || itImp2.motivosPadrao.length !== 0)
+  throw new Error("item 2 importado (sem motivo nenhum) saiu errado: " + JSON.stringify(itImp2));
+// Aplica pelo método REAL (App.chkAplicarImportModeloXLSX, chamado pelo
+// listener do input de arquivo) -- não reimplementa "só acrescenta" aqui:
+// chama o mesmo código que roda de verdade, pra sabotagem nele ser pega.
+const secoesAntesImport = modelo.secoes.length;
+const itensAntesImport = JSON.stringify(modelo.secoes);
+const msgImport = App.chkAplicarImportModeloXLSX(resultadoXlsx);
+if(!msgImport || !msgImport.includes("1 seção") || !msgImport.includes("2 itens") || !msgImport.includes("2 motivos") || !msgImport.includes("1 linha"))
+  throw new Error("mensagem de retorno da importacao nao bate com a contagem esperada: " + JSON.stringify(msgImport));
+if(modelo.secoes.length !== secoesAntesImport + 1)
+  throw new Error("import de xlsx nao ACRESCENTOU exatamente uma secao nova ao modelo: tinha " + secoesAntesImport + ", ficou com " + modelo.secoes.length);
+if(JSON.stringify(modelo.secoes.slice(0, secoesAntesImport)) !== itensAntesImport)
+  throw new Error("import de xlsx mexeu nas secoes que ja existiam no modelo, deveria so ter acrescentado");
+if(modelo.secoes[secoesAntesImport].titulo !== "Ancoragem Teste")
+  throw new Error("secao importada nao foi acrescentada no modelo");
+// Sem resultado (aba sem cabecalho reconhecivel) nao aplica nada e devolve null.
+if(App.chkAplicarImportModeloXLSX(null) !== null)
+  throw new Error("chkAplicarImportModeloXLSX deveria devolver null quando nao ha resultado (arquivo nao reconhecido)");
 `;
 vm.runInContext(operar, sandbox, { filename: "checklist-operacoes.js" });
 
@@ -692,5 +772,5 @@ vm.runInContext("chkGarantirNamespace(estadoSemInfo);", sandbox, { filename: "ch
 if(JSON.stringify(estadoSemInfo.checklists.modelos[0].secoes[0].itens[0]) !== itemSemInfoAntesDaSegunda)
   throw new Error("migracao aditiva do campo info rodou de novo na segunda chamada e mudou o item");
 
-console.log("ISOLAMENTO OK: STATE.projetos e STATE.projetosSimples byte a byte identicos apos criar/editar/salvar/vincular/finalizar/excluir na hierarquia Projeto>Setor>Linha do Checklist (motivo de multipla escolha, travas de confirmacao, abas de secao e o painel dividido do editor de modelo com info/foto por item incluidos), e as cinco migracoes de STATE antigo (namespace ausente, execucoes em lista plana, modelo padrao sem texto padrao, linha com motivo unico do formato antigo, e item de modelo sem o campo info) preenchem/reorganizam/atualizam o namespace sem tocar nas duas arvores");
+console.log("ISOLAMENTO OK: STATE.projetos e STATE.projetosSimples byte a byte identicos apos criar/editar/salvar/vincular/finalizar/excluir na hierarquia Projeto>Setor>Linha do Checklist (motivo de multipla escolha, travas de confirmacao, abas de secao, o painel dividido do editor de modelo com info/foto por item, e a importacao de modelo via XLSX -- linha de continuacao, item sem motivo e linha orfa incluidos), e as cinco migracoes de STATE antigo (namespace ausente, execucoes em lista plana, modelo padrao sem texto padrao, linha com motivo unico do formato antigo, e item de modelo sem o campo info) preenchem/reorganizam/atualizam o namespace sem tocar nas duas arvores");
 process.exit(0);

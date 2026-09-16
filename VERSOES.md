@@ -64,6 +64,14 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 16/09/2026 16:46
+
+**Checklist: importar/baixar modelo via planilha Excel, de verdade — e as etiquetas de foto (Risco/Ajustar/Substituir/Revisar) saíram da tela.**
+
+- **"Baixar modelo padrão"** agora baixa uma planilha .xlsx de verdade, com uma aba de instruções e uma aba "Modelo" já com um exemplo preenchido, mostrando como cadastrar seção, item, motivos de "não atende" (inclusive mais de um por item) e a informação de apoio ao inspetor.
+- **"Importar via XLSX"** agora lê essa planilha preenchida e acrescenta as seções/itens dela ao modelo aberto — nunca apaga nem substitui o que já existia. No fim, mostra quantas seções, itens e motivos entraram.
+- Removidas as etiquetas **Risco/Ajustar/Substituir/Revisar** que apareciam embaixo de cada foto tirada em campo — não tinham nenhuma função ainda (não iam pro laudo, não filtravam nada), e geravam dúvida sobre o que faziam.
+
 ## 16/09/2026 15:02
 
 **Checklist: tela de elaboração de modelo redesenhada para computador, e o ícone de informação (ⓘ) do item ganhou conteúdo de verdade.**

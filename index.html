@@ -624,7 +624,6 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-photo-card{position:relative;width:72px;}
 .chk-photo-card img{width:72px;height:72px;object-fit:cover;border-radius:8px;background:var(--bg-soft);cursor:pointer;}
 .chk-photo-remove{position:absolute;top:-6px;right:-6px;background:#fff;border-radius:999px;box-shadow:var(--shadow-sm);width:24px;height:24px;padding:0;}
-.chk-photo-tags{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px;}
 .chk-tag-chip{font-size:10px;padding:2px 6px;border-radius:999px;border:1px solid var(--line);background:var(--bg-soft);color:var(--ink-faint);}
 .chk-tag-chip.on{background:var(--accent);color:#fff;border-color:var(--accent);}
 .chk-progress-bar{height:6px;background:var(--bg-soft);border-radius:999px;overflow:hidden;margin-bottom:14px;}
@@ -844,6 +843,7 @@ var st,ct,ut,lt,dt,ht,pt,gt,ft,mt=function(){function t(e,t,r){this.networkInter
 <input type="file" id="fileImport" accept="application/json" hidden>
 <input type="file" id="fileTextosLaudo" accept="application/json,.json" hidden>
 <input type="file" id="filePlanilhaIA" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+<input type="file" id="fileModeloXLSX" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
 <input type="file" id="fileDadosPlaqueta" accept="application/json,.json" hidden>
 <input type="file" id="fileFotosRecuperadas" accept="application/json,.json" hidden>
 <div id="toast" class="toast"></div>
@@ -3097,7 +3097,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "16/09/2026 15:02";
+const APP_BUILD = "16/09/2026 16:46";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -9712,6 +9712,170 @@ function chkModeloPadraoLinhasDeVida(){
 }
 
 /* =========================================================================
+   MODELO DE CHECKLIST — IMPORTAR/BAIXAR VIA XLSX
+
+   Formato da planilha: uma linha por MOTIVO de "não atende", com Seção/Item
+   preenchidos só na primeira linha do item (convenção comum de planilha
+   para lista de tamanho variável — deixar em branco pra "repetir o de
+   cima"). Reaproveita a leitura de célula/linha já usada pela planilha da
+   IA (baseIALerSst/baseIALerCelulas, ver ~linha 16600) e o casamento de
+   cabeçalho por nome (baseIANormalizarCabecalho) — nada de posição fixa de
+   coluna, pra planilha reordenada por acidente no Excel continuar
+   funcionando. As funções abaixo que recebem `linhas` (não bytes de
+   arquivo) são puras — sem PizZip nem DOM — e por isso testáveis direto no
+   ensaio de isolamento.
+   ========================================================================= */
+const CHK_MODELO_XLSX_COLUNAS = [
+  { chave:"secao", cabecalho:"Seção" },
+  { chave:"item", cabecalho:"Item" },
+  { chave:"norma", cabecalho:"Norma/Referência" },
+  { chave:"motivo", cabecalho:"Motivo" },
+  { chave:"textoMotivo", cabecalho:"Texto do Motivo" },
+  { chave:"textoAtende", cabecalho:"Texto Quando Atende" },
+  { chave:"info", cabecalho:"Informação" },
+];
+/* Acha a linha de cabeçalho (a primeira que tem "Seção" E "Item", ignorando
+   acento/caixa/espaço) e monta o mapa coluna->letra a partir dela — mesma
+   ideia de baseIARespostasDaAba, adaptada pras colunas do modelo. */
+function chkModeloXLSXAcharCabecalho(linhas){
+  for(const l of (linhas||[])){
+    const normalizados = {};
+    for(const letra in l.cells) normalizados[baseIANormalizarCabecalho(l.cells[letra])] = letra;
+    if(normalizados[baseIANormalizarCabecalho("Seção")] && normalizados[baseIANormalizarCabecalho("Item")]){
+      const mapa = {};
+      CHK_MODELO_XLSX_COLUNAS.forEach(c=>{ mapa[c.chave] = normalizados[baseIANormalizarCabecalho(c.cabecalho)] || null; });
+      return { linhaCabecalho:l.n, mapa };
+    }
+  }
+  return null;
+}
+function chkModeloXLSXLinhasParaSecoes(linhas){
+  const achado = chkModeloXLSXAcharCabecalho(linhas);
+  if(!achado) return { secoes:[], contagem:{secoes:0,itens:0,motivos:0,linhasInvalidas:0}, erro:true };
+  const { linhaCabecalho, mapa } = achado;
+  const get = (l, chave)=>{ const letra = mapa[chave]; return letra ? String(l.cells[letra]||"").trim() : ""; };
+  const secoes = [];
+  let secaoAtual = null, itemAtual = null;
+  const contagem = { secoes:0, itens:0, motivos:0, linhasInvalidas:0 };
+  (linhas||[]).forEach(l=>{
+    if(l.n <= linhaCabecalho) return;
+    const secaoTxt = get(l,"secao"), itemTxt = get(l,"item"), motivoTxt = get(l,"motivo");
+    if(!secaoTxt && !itemTxt && !motivoTxt) return; // linha em branco
+    if(secaoTxt){
+      secaoAtual = novoChkSecao();
+      secaoAtual.titulo = secaoTxt;
+      secoes.push(secaoAtual);
+      contagem.secoes++;
+      itemAtual = null;
+    }
+    if(itemTxt){
+      if(!secaoAtual){
+        secaoAtual = novoChkSecao();
+        secoes.push(secaoAtual);
+        contagem.secoes++;
+      }
+      itemAtual = novoChkItem();
+      itemAtual.descricao = itemTxt;
+      itemAtual.normativo = get(l,"norma");
+      itemAtual.textoAtende = get(l,"textoAtende");
+      itemAtual.info = { texto: get(l,"info"), fotos:[] };
+      secaoAtual.itens.push(itemAtual);
+      contagem.itens++;
+      if(motivoTxt){
+        itemAtual.motivosPadrao.push({ motivo:motivoTxt, texto:get(l,"textoMotivo") });
+        contagem.motivos++;
+      }
+      return;
+    }
+    if(motivoTxt){
+      if(!itemAtual){ contagem.linhasInvalidas++; return; }
+      itemAtual.motivosPadrao.push({ motivo:motivoTxt, texto:get(l,"textoMotivo") });
+      contagem.motivos++;
+    }
+  });
+  return { secoes, contagem, erro:false };
+}
+/* Gera os bytes do arquivo .xlsx baixável em "Baixar modelo padrão" — duas
+   abas (Instruções + Modelo com cabeçalho e um exemplo pronto). Não usa
+   buildXlsxPackage (aquela função embute foto/âncora de desenho, que este
+   arquivo nunca tem) — monta o pacote com as mesmas peças de baixo nível
+   (buildSstHelper/buildZip/as constantes XLSX_* genéricas), só que sem a
+   parte de "drawing". */
+function chkModeloXLSXTemplatePacote(){
+  const sst = buildSstHelper();
+  const instrucoes = [
+    "Como preencher esta planilha para importar no Checklist",
+    "",
+    "Cada linha é um MOTIVO de \"não atende\". Preencha Seção e Item só na primeira linha de cada item; deixe as duas em branco nas linhas seguintes para acrescentar mais um motivo ao mesmo item (veja o exemplo na aba Modelo).",
+    "",
+    "Colunas:",
+    "Seção — título da seção (ex.: Ancoragem Estrutural). Preencha só quando muda de seção.",
+    "Item — a pergunta do item. Preencha só na primeira linha do item.",
+    "Norma/Referência — opcional (ex.: NBR 16325-2).",
+    "Motivo — rótulo curto do motivo de \"não atende\" (aparece em campo).",
+    "Texto do Motivo — parágrafo completo desse motivo; só aparece no laudo.",
+    "Texto Quando Atende — parágrafo para quando o item atende; só aparece no laudo.",
+    "Informação — orientação de apoio para o inspetor; aparece no ícone (i) durante o preenchimento em campo.",
+    "",
+    "Item sem nenhum motivo? Deixe as colunas de Motivo em branco na linha dele.",
+    "Ao importar, os dados desta planilha são ACRESCENTADOS ao modelo aberto no app — nada do que já existe é apagado ou substituído.",
+  ];
+  const sheet1Xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<cols><col min="1" max="1" width="110" customWidth="1"/></cols>
+<sheetData>${instrucoes.map((t,i)=>`<row r="${i+1}">${sst.cell(1,i+1,t,null)}</row>`).join("")}</sheetData>
+</worksheet>`;
+  const headers = CHK_MODELO_XLSX_COLUNAS.map(c=>c.cabecalho);
+  const exemplo = [
+    ["Ancoragem Estrutural","Os pontos de ancoragem suportam a carga mínima de 1.500 kgf exigida?","NBR 16325-2","Ancoragem corroída","A ancoragem apresenta oxidação avançada, comprometendo sua resistência estrutural.","Os pontos de ancoragem foram inspecionados e estão em conformidade.","Verificar torque dos parafusos com torquímetro calibrado."],
+    ["","","","Fixação solta ou frouxa","A fixação apresenta folga perceptível ao manuseio.","",""],
+    ["","Os olhais e argolas apresentam corrosão, trinca ou deformação?","","","","Olhais e argolas inspecionados, sem sinais de corrosão ou deformação.",""],
+  ];
+  const headerRow = `<row r="1">${headers.map((h,i)=>sst.cell(i+1,1,h,1)).join("")}</row>`;
+  const dataRows = exemplo.map((linha,idx)=>{
+    const rn = idx+2;
+    return `<row r="${rn}">${linha.map((v,i)=>sst.cell(i+1,rn,v,null)).join("")}</row>`;
+  }).join("");
+  const sheet2Xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<cols>${headers.map((h,i)=>`<col min="${i+1}" max="${i+1}" width="28" customWidth="1"/>`).join("")}</cols>
+<sheetData>${headerRow}${dataRows}</sheetData>
+</worksheet>`;
+  const workbookXml = buildWorkbookXml([{name:"Instruções", sheetId:1, rId:"rId1"},{name:"Modelo", sheetId:2, rId:"rId2"}]);
+  const workbookRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>
+<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+<Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>
+</Relationships>`;
+  const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Default Extension="xml" ContentType="application/xml"/>
+<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+<Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>
+<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+<Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
+</Types>`;
+  return buildZip([
+    {name:"[Content_Types].xml", data: strToBytes(contentTypes)},
+    {name:"_rels/.rels", data: strToBytes(XLSX_RELS_ROOT)},
+    {name:"docProps/core.xml", data: strToBytes(XLSX_CORE_PROPS)},
+    {name:"docProps/app.xml", data: strToBytes(XLSX_APP_PROPS)},
+    {name:"xl/workbook.xml", data: strToBytes(workbookXml)},
+    {name:"xl/_rels/workbook.xml.rels", data: strToBytes(workbookRels)},
+    {name:"xl/styles.xml", data: strToBytes(XLSX_STYLES)},
+    {name:"xl/sharedStrings.xml", data: strToBytes(buildSstXml(sst.getStrings()))},
+    {name:"xl/worksheets/sheet1.xml", data: strToBytes(sheet1Xml)},
+    {name:"xl/worksheets/sheet2.xml", data: strToBytes(sheet2Xml)},
+  ]);
+}
+
+/* =========================================================================
    CARIMBO DE TEMPO À PROVA DE RELÓGIO ERRADO
 
    Date.now() JÁ é um instante global: ele conta milissegundos desde 1970 em
@@ -13077,13 +13241,8 @@ function chkRenderItem(linha, item, secaoIdx, itemIdx){
       </div>` : "";
     const fotosHtml = (ie.fotos||[]).map((f,fi)=>{
       const ref = imgReg(f.foto);
-      const tagsHtml = ["Risco","Ajustar","Substituir","Revisar"].map(tag=>{
-        const on = (f.tags||[]).includes(tag);
-        return `<button class="chk-tag-chip ${on?'on':''}" onclick="event.stopPropagation();App.chkToggleTagFoto('${item.id}',${fi},'${tag}')">${tag}</button>`;
-      }).join("");
       return `<div class="chk-photo-card">
         <img data-imgref="${ref}" onclick="event.stopPropagation();App.verFotoReg(this)">
-        <div class="chk-photo-tags">${tagsHtml}</div>
         <button class="icon-btn chk-photo-remove" onclick="event.stopPropagation();App.chkRemoverFoto('${item.id}',${fi})">${ic('trash')}</button>
       </div>`;
     }).join("");
@@ -25564,16 +25723,6 @@ Devolver agora?`)) return;
     marcarAlterado();
     render();
   },
-  chkToggleTagFoto(itemId, fotoIdx, tag){
-    const l = getCurrentChkLinha(); if(!l) return;
-    const item = chkItemExec(l, itemId); if(!item) return;
-    const f = item.fotos[fotoIdx]; if(!f) return;
-    if(!f.tags) f.tags = [];
-    const i = f.tags.indexOf(tag);
-    if(i>=0) f.tags.splice(i,1); else f.tags.push(tag);
-    marcarAlterado();
-    render();
-  },
   chkSetConclusao(valor){
     const l = getCurrentChkLinha(); if(!l) return;
     l.conclusaoTexto = valor;
@@ -25744,13 +25893,32 @@ Devolver agora?`)) return;
     marcarAlterado();
     render();
   },
-  // Importação/exportação de modelo via .xlsx ainda não existe — fica pra
-  // uma entrega própria (planilha grande demais pra entrar junto do
-  // redesenho da tela). Os botões já aparecem pra deixar claro que o
-  // caminho existe, mesmo padrão que o ⓘ do item teve antes de ganhar
-  // conteúdo de verdade.
-  chkImportarModeloXLSX(){ toast("Em breve: importar seções e itens de uma planilha .xlsx"); },
-  chkBaixarModeloXLSX(){ toast("Em breve: baixar um modelo .xlsx pronto pra preencher"); },
+  chkImportarModeloXLSX(){
+    if(!getCurrentChkModelo()) return;
+    document.getElementById("fileModeloXLSX").click();
+  },
+  /* Separado do listener do input (que lida com PizZip/File, fora do
+     alcance do ensaio de isolamento) exatamente pra essa parte — a que
+     decide "só acrescenta, nunca substitui o que já existe" — poder ser
+     testada de verdade, chamando o método real em vez de reimplementar a
+     regra dentro do teste. */
+  chkAplicarImportModeloXLSX(resultado){
+    const m = getCurrentChkModelo();
+    if(!m || !resultado || resultado.contagem.itens === 0) return null;
+    m.secoes.push(...resultado.secoes);
+    m.atualizadoEm = agoraSync();
+    marcarAlterado();
+    const c = resultado.contagem;
+    let msg = `${c.secoes} seç${c.secoes===1?'ão':'ões'} e ${c.itens} ${c.itens===1?'item':'itens'} importado${c.itens===1?'':'s'}`;
+    if(c.motivos) msg += `, ${c.motivos} motivo${c.motivos===1?'':'s'}`;
+    if(c.linhasInvalidas) msg += ` — ${c.linhasInvalidas} linha(s) fora de ordem foi(ram) ignorada(s)`;
+    return msg + ".";
+  },
+  chkBaixarModeloXLSX(){
+    const bytes = chkModeloXLSXTemplatePacote();
+    const blob = new Blob([bytes], { type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    compartilharOuBaixarBlob(blob, "modelo-checklist-padrao.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Modelo baixado");
+  },
 };
 window.App = App;
 
@@ -26438,6 +26606,37 @@ document.getElementById("filePlanilhaIA").addEventListener("change", async funct
     }
   }catch(e){ /* segue para o caminho normal, que relata o erro certinho */ }
   await importarPlanilhaIADeVerdade(file);
+});
+/* Importa seções/itens/motivos de um .xlsx no formato de
+   chkModeloXLSXTemplatePacote (ver App.chkBaixarModeloXLSX) — mesmo padrão
+   de leitura de PizZip já usado em importarPlanilhaRespostasIA: varre TODAS
+   as abas do arquivo (o usuário pode ter deixado a aba "Instruções" na
+   frente, ou renomeado a aba de dados) e usa a primeira cujo cabeçalho bate.
+   Só ACRESCENTA seções novas ao modelo aberto — nunca apaga nem substitui
+   o que já existe. */
+document.getElementById("fileModeloXLSX").addEventListener("change", async function(){
+  const file = this.files[0]; if(!file) return;
+  this.value = "";
+  if(!getCurrentChkModelo()) return;
+  try{
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const zip = new window.PizZip(bytes);
+    const arqSst = zip.file("xl/sharedStrings.xml");
+    const sst = arqSst ? baseIALerSst(arqSst.asText()) : [];
+    const abas = zip.file(/^xl\/worksheets\/sheet\d+\.xml$/) || [];
+    let resultado = null;
+    for(const f of abas){
+      const linhas = baseIALerCelulas(f.asText(), sst);
+      const r = chkModeloXLSXLinhasParaSecoes(linhas);
+      if(!r.erro){ resultado = r; break; }
+    }
+    const msg = App.chkAplicarImportModeloXLSX(resultado);
+    if(!msg){ toast("Arquivo não reconhecido. Baixe o modelo padrão para ver o formato esperado.", false); return; }
+    toast(msg);
+    render();
+  }catch(e){
+    toast("Não foi possível ler o arquivo: " + (e && e.message ? e.message : "erro desconhecido"), false);
+  }
 });
 async function importarTextosLaudoDeVerdade(pacote){
   try{

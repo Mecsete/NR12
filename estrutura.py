@@ -70,7 +70,17 @@ print("=== 3. ARQUITETURA DE FOTOS (CAMADA_FOTOS) ===")
 # App.chkTirarFoto ja faz: `it.info.fotos.push({foto:data})`, MESMA CAMADA_
 # FOTOS (nunca base64 solto em STATE fora dela). Arquitetura reaproveitada,
 # nao contornada.
-_extra_fotos = {"foto:": 3, "idbfoto:": 1}
+# Zerado em 16/09/2026 (segunda vez no dia): original.html regerado a partir
+# do commit do editor de modelo (81fe60d), que ja inclui o +3/+1 acima --
+# somar de novo contaria duas vezes, mesma armadilha de sempre.
+# REMOCAO das etiquetas de foto (Risco/Ajustar/Substituir/Revisar) e
+# IMPORTAR/BAIXAR MODELO VIA XLSX, 16/09/2026: nenhuma das duas mexe em
+# "foto:"/"idbfoto:" -- a importacao/exportacao de planilha nao grava foto
+# nenhuma (o campo Informacao do item importado sempre nasce com
+# `info:{...,fotos:[]}` vazio, sem nenhuma ocorrencia nova da palavra), e a
+# remocao das etiquetas tirou codigo que nao continha essas palavras. Delta
+# zero, fica exatamente zerado.
+_extra_fotos = {"foto:": 0, "idbfoto:": 0}
 for marca in ["idbfoto:", "foto:", "CAMADA_FOTOS"]:
     a, b = orig.count(marca) + _extra_fotos.get(marca, 0), novo.count(marca)
     chk("ocorrencias de '%s' inalteradas (%d)" % (marca, a), a == b, "orig+extra=%d novo=%d" % (a, b))
