@@ -4913,6 +4913,26 @@ chk("cancelar a reavaliacao avisa e nao grava nada (fica so no toast)",
 # partir de um commit que ja inclui esta entrega (15/09/2026) -- mesmo motivo
 # da secao 139 acima.
 
+print("\n=== 142. NOME/DESCRICAO EVITAM \"MEMBROS\" GENERICO; TAREFA NAO CITA FREQUENCIA (17/09/2026) ===")
+# Pedido do engenheiro conferindo o laudo: "membros" saia demais no lugar de
+# dedo/mao/braco/pe especifico, e a frequencia da tarefa nao devia mais
+# aparecer no texto (ja tem campo proprio no laudo).
+_nomeNoPrompt2 = novo.find("RESPOSTA - Nome do risco", _colunaAColuna)
+_descRiscoNoPrompt2 = novo.find("RESPOSTA - Descrição do risco", _colunaAColuna)
+_mitigNoPrompt2 = novo.find("RESPOSTA - Mitigação existente", _colunaAColuna)
+chk("Nome do risco evita 'membros' generico, preferindo Risco: parte do corpo ou a Descricao",
+    'Evite a palavra genérica \\"membros\\"/\\"membro\\": é vaga demais para um laudo' in novo
+    and _nomeNoPrompt2 < novo.find('Evite a palavra genérica \\"membros\\"') < _descRiscoNoPrompt2)
+chk("Descricao do risco tem a mesma regra contra 'membros' generico",
+    'Mesma regra do Nome do risco vale aqui: \\"membros\\"/\\"membro\\" é vago demais' in novo
+    and _descRiscoNoPrompt2 < novo.find('Mesma regra do Nome do risco vale aqui') < _mitigNoPrompt2)
+chk("a Tarefa NAO cita mais a frequencia no texto (so a quantidade de pessoas era proibida antes)",
+    "Não cite a frequência da tarefa (\\\"Frequência da tarefa\\\") nem a quantidade de pessoas no texto" in novo
+    and "Cite a frequência ao final quando a coluna" not in novo)
+chk("e coisa nova: nao existia na versao anterior",
+    'Evite a palavra genérica \\"membros\\"' not in orig
+    and "Não cite a frequência da tarefa" not in orig)
+
 
 print("\n---------------------------------------")
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")

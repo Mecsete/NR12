@@ -3121,7 +3121,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "17/09/2026 11:16";
+const APP_BUILD = "17/09/2026 17:37";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -16887,7 +16887,7 @@ const BASE_IA_PROMPT = [
 "Use como apoio o Escopo que você já escreveu para aquele ID_Maquina: a tarefa é executada NAQUELE equipamento, e o texto fica mais preciso sabendo o que a máquina faz e onde a pessoa fica. Aproveite o entendimento, não as frases — não repita o escopo dentro da tarefa.",
 "Antes de escrever, olhe as tarefas de equipamentos quase idênticos na mesma área, para reunir mais informação.",
 "Se \"Descrição da tarefa (campo)\" tiver conteúdo, ele PRECISA aparecer no texto: é observação de quem esteve lá e vale mais que o texto genérico. Incorpore com naturalidade.",
-"Cite a frequência ao final quando a coluna \"Frequência da tarefa\" tiver valor. Não cite quantidade de pessoas.",
+"Não cite a frequência da tarefa (\"Frequência da tarefa\") nem a quantidade de pessoas no texto — os dois já aparecem em campo próprio do laudo, e repeti-los aqui cria duas versões da mesma informação.",
 "Para \"Operação normal (todos os modos)\", o texto tem de transmitir este sentido: a máquina trabalha de forma contínua e sem intervenção humana direta, mas há circulação de pessoas ao redor e o acesso às proximidades permanece possível — acompanhamento do processo, inspeção visual ou trânsito entre equipamentos. É nessa condição de proximidade com a máquina em movimento que os riscos se apresentam.",
 "Para limpeza ou higienização, separe os dois tipos. A limpeza frequente é feita pela equipe de operação, que remove impurezas sem desmontar equipamento. A limpeza completa, menos frequente, exige bloqueio LOTO e é a MANUTENÇÃO quem remove as proteções fixas, com ferramenta, para que a limpeza seja feita. O texto nunca pode dar a entender que a operação remove proteção. Não é preciso explicar isso em toda linha — deixe claro onde a linha sustentar.",
 "Sem limite de linhas fixo: use o espaço que o conteúdo pedir, sem repetir a mesma informação de outro jeito.",
@@ -16899,6 +16899,7 @@ const BASE_IA_PROMPT = [
 "O nome diz o que VAI ACONTECER, nunca por que o risco está acessível. \"Proteção desparafusada\" é condição, não nome de risco — isso pertence à Descrição do risco.",
 "Fontes: \"Nome do risco (campo)\", os quatro campos \"Risco: local / componente / evento / parte do corpo\", a \"Descrição do risco (campo)\" e, quando ela revela o que será protegido, a \"Solução Editável\".",
 "Quando o nome de campo já estiver bom, devolva-o igual. Não invente componente nem parte do corpo que não estejam informados.",
+"Evite a palavra genérica \"membros\"/\"membro\": é vaga demais para um laudo. Quando \"Risco: parte do corpo\" trouxer o valor específico (dedos, mãos, braços, pés, pernas...), use esse valor no nome. Sem esse campo preenchido, procure a parte específica na \"Descrição do risco (campo)\" antes de recorrer a \"membros\" — só use o termo genérico quando a linha, em lugar nenhum, nomear uma parte específica.",
 "Quando \"Risco: parte do corpo\" vier \"Corpo inteiro\" — típico de queda, atropelamento, esmagamento por veículo —, não force isso no nome. Numa queda a pessoa inteira é afetada por natureza, e escrever \"Queda do corpo\" soa redundante. Só cite a parte do corpo quando ela for informação real: uma lesão localizada (mãos, dedos, cabeça, perna).",
 "",
 "RESPOSTA - Descrição do risco",
@@ -16908,6 +16909,7 @@ const BASE_IA_PROMPT = [
 "A consequência que fecha a frase vem do que o campo descreve — agarramento, corte, prensamento, queda — e nunca da classificação de Grau do dano, que sai na tabela do laudo e não em texto.",
 "Quando os quatro campos estruturados trouxerem um detalhe que a Descrição de campo não nomeia por extenso — o componente técnico certo, o evento exato, a parte do corpo —, esse detalhe entra na frase. O texto final precisa ficar pelo menos tão completo quanto a soma das fontes disponíveis, nunca mais pobre que a Descrição de campo sozinha.",
 "Mesma ressalva vale aqui: \"parte do corpo\" = \"Corpo inteiro\" não precisa aparecer na frase quando o evento já implica isso por natureza (queda, atropelamento, esmagamento por veículo) — \"com lesão no corpo inteiro\" é redundante nesses casos. Cite a parte do corpo quando ela for uma lesão localizada.",
+"Mesma regra do Nome do risco vale aqui: \"membros\"/\"membro\" é vago demais. Prefira o valor específico de \"Risco: parte do corpo\" (dedos, mãos, braços, pés, pernas...) ou o que a Descrição de campo já nomear por extenso. Só mantenha \"membros\" quando a linha, em lugar nenhum, trouxer uma parte específica.",
 "Exemplo. Campo: \"Proteção desparafusada, com acesso ao cilindro pneumático, com risco de prensamento dos dedos.\" Texto: \"A proteção do cilindro pneumático encontra-se desparafusada, permitindo o acesso das mãos à zona de acionamento e expondo os dedos do trabalhador ao prensamento durante o movimento do cilindro.\"",
 "",
 "RESPOSTA - Mitigação existente",

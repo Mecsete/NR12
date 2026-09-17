@@ -64,6 +64,21 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 17/09/2026 17:37
+
+**Instruções da planilha ajustadas: nome do membro específico em vez de "membros", e a Tarefa deixa de citar a frequência.**
+
+Duas correções pedidas pelo engenheiro conferindo o laudo:
+
+- **"Membros" genérico deixa de ser aceito quando dá pra ser específico.**
+  Nome e Descrição do risco agora preferem o valor exato de "Risco: parte
+  do corpo" (dedos, mãos, braços, pés, pernas...) ou o que a descrição de
+  campo já nomear — "membros" só continua valendo quando a linha realmente
+  não traz nenhuma parte específica em lugar nenhum.
+- **A Descrição da tarefa deixa de citar a frequência da tarefa no texto.**
+  Ela já aparece em campo próprio do laudo; repetir criava duas versões da
+  mesma informação.
+
 ## 17/09/2026 11:16
 
 **Checklist: laudo agora sai com narrativa de verdade — sumário, descrição do trabalho, texto corrido por seção com fotos numeradas, tabela-resumo e conclusão em dois níveis.**
