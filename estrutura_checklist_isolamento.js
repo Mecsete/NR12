@@ -131,7 +131,11 @@ const FUNCOES = [
   // importação da IA e reaproveitada aqui tal como está — ver comentário de
   // chkModeloXLSXLinhasParaSecoes).
   "baseIATextosDe", "baseIADesescapar", "baseIALerSst", "baseIALerCelulas", "baseIANormalizarCabecalho",
-  "chkModeloXLSXAcharCabecalho", "chkModeloXLSXLinhasParaSecoes",
+  "chkModeloXLSXAcharCabecalho", "chkModeloXLSXLinhasParaSecoes", "chkModeloXLSXLinhasDoModelo",
+  // Laudo narrativo (Modelo 3): funções puras que montam a narrativa por
+  // seção, a numeração de fotos e a tabela-resumo do checklist -- nunca
+  // guardam nada, só leem modelo+execução, mesmo espírito de chkTextoLaudoItem.
+  "chkFotosDaSecao", "chkNarrativaSecao", "chkChecklistLinhaRows",
 ];
 let fonte = "let __ultimoCarimboVisto = 0;\n";
 fonte += "let __buscaAtual = '';\n"; // usado por chkAbrirSetor (lista de linhas) -- nao testado aqui, so pra nao faltar
@@ -772,5 +776,178 @@ vm.runInContext("chkGarantirNamespace(estadoSemInfo);", sandbox, { filename: "ch
 if(JSON.stringify(estadoSemInfo.checklists.modelos[0].secoes[0].itens[0]) !== itemSemInfoAntesDaSegunda)
   throw new Error("migracao aditiva do campo info rodou de novo na segunda chamada e mudou o item");
 
-console.log("ISOLAMENTO OK: STATE.projetos e STATE.projetosSimples byte a byte identicos apos criar/editar/salvar/vincular/finalizar/excluir na hierarquia Projeto>Setor>Linha do Checklist (motivo de multipla escolha, travas de confirmacao, abas de secao, o painel dividido do editor de modelo com info/foto por item, e a importacao de modelo via XLSX -- linha de continuacao, item sem motivo e linha orfa incluidos), e as cinco migracoes de STATE antigo (namespace ausente, execucoes em lista plana, modelo padrao sem texto padrao, linha com motivo unico do formato antigo, e item de modelo sem o campo info) preenchem/reorganizam/atualizam o namespace sem tocar nas duas arvores");
+// ---------- exportar modelo via XLSX (chkModeloXLSXLinhasDoModelo) e
+// reimportar (chkModeloXLSXLinhasParaSecoes) -- prova que as duas funções
+// são inversas de verdade: serializa um modelo com um item de 2 motivos,
+// um item sem motivo e uma SEÇÃO VAZIA (sem item nenhum), converte pra XML
+// mínimo (mesma leitura real de célula/linha, baseIALerCelulas) e confere
+// que volta exatamente a mesma estrutura -- rodando por cima das funções
+// REAIS extraídas, não reimplementando a serialização aqui. ----------
+vm.runInContext(`
+(function(){
+  function colLetraTeste(n){ let s=""; while(n>0){ const m=(n-1)%26; s=String.fromCharCode(65+m)+s; n=Math.floor((n-1)/26); } return s; }
+  function escXmlTeste(v){ return String(v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+  function linhasParaSheetDataXmlTeste(linhasArr){
+    let xml = "<sheetData>";
+    linhasArr.forEach((linha, idx)=>{
+      const rn = idx+1;
+      let cells = "";
+      linha.forEach((v,ci)=>{
+        if(!v) return;
+        cells += '<c r="'+colLetraTeste(ci+1)+rn+'" t="inlineStr"><is><t>'+escXmlTeste(v)+'</t></is></c>';
+      });
+      xml += '<row r="'+rn+'">'+cells+'</row>';
+    });
+    return xml + "</sheetData>";
+  }
+
+  const modeloExport = novoChkModelo();
+  const secA = novoChkSecao(); secA.titulo = "Seção com itens";
+  const itA1 = novoChkItem();
+  itA1.descricao = "Item A1, com dois motivos?";
+  itA1.normativo = "NORMA-A1";
+  itA1.textoAtende = "Texto de atende do item A1.";
+  itA1.info = { texto: "Info do item A1.", fotos: [] };
+  itA1.motivosPadrao = [ { motivo: "Motivo X", texto: "Texto do motivo X." }, { motivo: "Motivo Y", texto: "Texto do motivo Y." } ];
+  const itA2 = novoChkItem();
+  itA2.descricao = "Item A2, sem motivo nenhum?";
+  secA.itens = [itA1, itA2];
+  const secVazia = novoChkSecao(); secVazia.titulo = "Seção vazia (sem item)";
+  modeloExport.secoes = [secA, secVazia];
+
+  const linhasExportadas = chkModeloXLSXLinhasDoModelo(modeloExport);
+  const cabecalho = ["Seção","Item","Norma/Referência","Motivo","Texto do Motivo","Texto Quando Atende","Informação"];
+  const xmlGerado = linhasParaSheetDataXmlTeste([cabecalho, ...linhasExportadas]);
+  const linhasRelidas = baseIALerCelulas(xmlGerado, []);
+  const resultadoRoundTrip = chkModeloXLSXLinhasParaSecoes(linhasRelidas);
+  if(resultadoRoundTrip.erro) throw new Error("exportar+reimportar modelo: cabecalho gerado nao foi reconhecido de volta");
+  if(resultadoRoundTrip.contagem.secoes !== 2 || resultadoRoundTrip.contagem.itens !== 2 || resultadoRoundTrip.contagem.motivos !== 2)
+    throw new Error("exportar+reimportar modelo: contagem nao bateu -- " + JSON.stringify(resultadoRoundTrip.contagem));
+  const [secARelida, secVaziaRelida] = resultadoRoundTrip.secoes;
+  if(secARelida.titulo !== "Seção com itens" || secARelida.itens.length !== 2)
+    throw new Error("exportar+reimportar modelo: primeira secao voltou errada -- " + JSON.stringify(secARelida));
+  const [itA1Relido, itA2Relido] = secARelida.itens;
+  if(itA1Relido.descricao !== itA1.descricao || itA1Relido.normativo !== itA1.normativo || itA1Relido.textoAtende !== itA1.textoAtende || itA1Relido.info.texto !== itA1.info.texto)
+    throw new Error("exportar+reimportar modelo: campos do item A1 nao bateram -- " + JSON.stringify(itA1Relido));
+  if(itA1Relido.motivosPadrao.length !== 2 || itA1Relido.motivosPadrao[0].motivo !== "Motivo X" || itA1Relido.motivosPadrao[1].motivo !== "Motivo Y" || itA1Relido.motivosPadrao[1].texto !== "Texto do motivo Y.")
+    throw new Error("exportar+reimportar modelo: motivos do item A1 (linha de continuacao) nao bateram -- " + JSON.stringify(itA1Relido.motivosPadrao));
+  if(itA2Relido.descricao !== itA2.descricao || itA2Relido.motivosPadrao.length !== 0)
+    throw new Error("exportar+reimportar modelo: item A2 (sem motivo) nao bateu -- " + JSON.stringify(itA2Relido));
+  if(secVaziaRelida.titulo !== "Seção vazia (sem item)" || secVaziaRelida.itens.length !== 0)
+    throw new Error("exportar+reimportar modelo: secao vazia nao bateu -- " + JSON.stringify(secVaziaRelida));
+})();
+`, sandbox, { filename: "checklist-export-xlsx-roundtrip.js" });
+
+// ---------- laudo narrativo (Modelo 3): chkFotosDaSecao/chkNarrativaSecao/
+// chkChecklistLinhaRows -- modelo+linha construídos do zero (não reaproveita
+// o `modelo`/`item1` do operar principal, que por essa altura já foi
+// marcado "não aplica" pelas travas de confirmação testadas antes; aqui
+// preciso de um item "atende", um "não atende" com foto, e um "não aplica"
+// bem definidos, sem depender do estado final daquela sequência). ----------
+vm.runInContext(`
+(function(){
+  const modeloTeste = novoChkModelo();
+  const secTeste = novoChkSecao();
+  secTeste.titulo = "Ancoragem Teste";
+  secTeste.contexto = "Contexto de teste da seção.";
+  const itA = novoChkItem();
+  itA.descricao = "Item OK"; itA.normativo = "NORMA-A"; itA.textoAtende = "Texto de atende A.";
+  const itB = novoChkItem();
+  itB.descricao = "Item NOK"; itB.normativo = "NORMA-B";
+  itB.motivosPadrao = [{ motivo: "Motivo 1", texto: "Texto do motivo 1." }];
+  const itC = novoChkItem();
+  itC.descricao = "Item nao aplica"; itC.normativo = "NORMA-C"; itC.textoAtende = "Nunca deveria aparecer na narrativa nem na tabela.";
+  secTeste.itens = [itA, itB, itC];
+  modeloTeste.secoes = [secTeste];
+
+  const linhaTeste = novoChkLinha(modeloTeste);
+  const ieA = linhaTeste.itens.find(i=>i.itemId===itA.id); ieA.conforme = "atende";
+  const ieB = linhaTeste.itens.find(i=>i.itemId===itB.id); ieB.conforme = "naoAtende"; ieB.motivosSelecionados = ["Motivo 1"]; ieB.fotos = [{ foto: "data:image/jpeg;base64,FOTOB" }];
+  const ieC = linhaTeste.itens.find(i=>i.itemId===itC.id); ieC.conforme = "na";
+
+  const { fotos: fotosSecao, porItem } = chkFotosDaSecao(secTeste, linhaTeste);
+  if(fotosSecao.length !== 1 || fotosSecao[0] !== "data:image/jpeg;base64,FOTOB")
+    throw new Error("chkFotosDaSecao nao achou a foto certa: " + JSON.stringify(fotosSecao));
+  if(!porItem[itB.id] || porItem[itB.id].length !== 1 || porItem[itB.id][0] !== 1)
+    throw new Error("chkFotosDaSecao nao numerou a foto do item B certo: " + JSON.stringify(porItem));
+  if(porItem[itA.id])
+    throw new Error("chkFotosDaSecao nao deveria ter entrada pro item A, que nao tem foto nenhuma");
+
+  const { html: narrHtml, fotos: narrFotos } = chkNarrativaSecao(secTeste, linhaTeste);
+  if(!narrHtml.includes("Texto de atende A."))
+    throw new Error("narrativa nao incluiu o texto do item atende: " + narrHtml);
+  if(narrHtml.includes('<mark class="nc">Texto de atende A.'))
+    throw new Error("narrativa destacou (mark) um item que ATENDE -- so nao atende deveria ficar destacado: " + narrHtml);
+  if(!narrHtml.includes('<mark class="nc">Texto do motivo 1. (Foto 1)</mark>'))
+    throw new Error("narrativa nao destacou o item nao atende com a citacao da foto certa: " + narrHtml);
+  if(narrHtml.includes("Nunca deveria aparecer"))
+    throw new Error("narrativa incluiu texto de um item marcado nao aplica, que nao deveria aparecer: " + narrHtml);
+  if(narrFotos.length !== 1)
+    throw new Error("chkNarrativaSecao devolveu lista de fotos errada: " + JSON.stringify(narrFotos));
+
+  const rows = chkChecklistLinhaRows(linhaTeste);
+  if(rows.length !== 2)
+    throw new Error("tabela do checklist deveria ter 2 linhas (excluindo o item nao aplica): " + JSON.stringify(rows));
+  if(rows[0].status !== "atende" || rows[0].normativo !== "NORMA-A" || rows[1].status !== "naoAtende" || rows[1].normativo !== "NORMA-B")
+    throw new Error("linhas da tabela do checklist sairam com o conteudo errado: " + JSON.stringify(rows));
+})();
+`, sandbox, { filename: "checklist-laudo-narrativo.js" });
+
+// ---------- migração aditiva: secao.contexto (modelo) e linha.descricao
+// (linha) -- mesmo espírito da migração do campo info: sem formato antigo
+// pra converter, só acrescenta quando falta ----------
+const estadoSemContextoDescricao = {
+  modulo: "checklist",
+  projetos: JSON.parse(antesCompleto),
+  projetosSimples: JSON.parse(antesSimples),
+  checklists: {
+    modelos: [{
+      id: "modelo-sem-contexto", nome: "Modelo sem contexto", descricao: "", criadoEm: 1, atualizadoEm: 1,
+      secoes: [
+        { id: "sec-sem-contexto", titulo: "Secao sem contexto", itens: [] },
+        { id: "sec-com-contexto", titulo: "Secao com contexto", itens: [], contexto: "Contexto ja cadastrado, nao pode ser sobrescrito" },
+      ],
+    }],
+    projetos: [{
+      id: "proj-sem-descricao", empresa: "Empresa X", responsavel: "", data: "2026-09-17",
+      setores: [{ id: "setor-x", nome: "Setor X", descricao: "", criadoEm: 1, atualizadoEm: 1,
+        linhas: [
+          { id: "linha-sem-descricao", nome: "LV-SEM-DESC", modeloId: "m-x", modeloNome: "M", modeloSnapshot: [], status: "em_andamento", dataInicio: "2026-09-17", dataFinalizacao: null, secoesNA: [], itens: [], conclusaoTexto: "", criadoEm: 1, atualizadoEm: 1 },
+          { id: "linha-com-descricao", nome: "LV-COM-DESC", modeloId: "m-x", modeloNome: "M", modeloSnapshot: [], status: "em_andamento", dataInicio: "2026-09-17", dataFinalizacao: null, secoesNA: [], itens: [], conclusaoTexto: "", descricao: "Descricao ja cadastrada, nao pode ser sobrescrita", criadoEm: 1, atualizadoEm: 1 },
+        ],
+      }],
+      numeroDocumento: "", art: "", dataInspecao: "2026-09-17", validadeInspecao: "",
+      solicitanteCpfCnpj: "", solicitanteEndereco: "", solicitanteCidade: "", solicitanteTelefone: "", solicitanteCargo: "", solicitanteEmail: "",
+      inspetorNome: "", inspetorCargo: "", objetivo: "", conclusaoGeral: "",
+      criadoEm: 1, atualizadoEm: 1,
+    }],
+  },
+  ui: { screen: "checklist-modelos" },
+};
+const antesMigCDCompleto = JSON.stringify(estadoSemContextoDescricao.projetos);
+const antesMigCDSimples = JSON.stringify(estadoSemContextoDescricao.projetosSimples);
+vm.runInContext("chkGarantirNamespace(estadoSemContextoDescricao);", Object.assign(sandbox, { estadoSemContextoDescricao }), { filename: "checklist-migracao-contexto-descricao.js" });
+
+const [secSemCtx, secComCtx] = estadoSemContextoDescricao.checklists.modelos[0].secoes;
+if(secSemCtx.contexto !== "")
+  throw new Error("migracao aditiva nao deu contexto vazio pra secao sem contexto: " + JSON.stringify(secSemCtx));
+if(secComCtx.contexto !== "Contexto ja cadastrado, nao pode ser sobrescrito")
+  throw new Error("migracao aditiva MEXEU num contexto ja cadastrado (deveria ter ficado intocado): " + JSON.stringify(secComCtx));
+
+const [linhaSemDesc, linhaComDesc] = estadoSemContextoDescricao.checklists.projetos[0].setores[0].linhas;
+if(linhaSemDesc.descricao !== "")
+  throw new Error("migracao aditiva nao deu descricao vazia pra linha sem descricao: " + JSON.stringify(linhaSemDesc));
+if(linhaComDesc.descricao !== "Descricao ja cadastrada, nao pode ser sobrescrita")
+  throw new Error("migracao aditiva MEXEU numa descricao ja cadastrada (deveria ter ficado intocada): " + JSON.stringify(linhaComDesc));
+
+if(JSON.stringify(estadoSemContextoDescricao.projetos) !== antesMigCDCompleto || JSON.stringify(estadoSemContextoDescricao.projetosSimples) !== antesMigCDSimples)
+  throw new Error("migracao aditiva de contexto/descricao mudou projetos/projetosSimples de um STATE antigo");
+// idempotente: segunda chamada nao mexe mais em nada.
+const secSemCtxAntes = JSON.stringify(secSemCtx);
+const linhaSemDescAntes = JSON.stringify(linhaSemDesc);
+vm.runInContext("chkGarantirNamespace(estadoSemContextoDescricao);", sandbox, { filename: "checklist-migracao-contexto-descricao-2a.js" });
+if(JSON.stringify(secSemCtx) !== secSemCtxAntes || JSON.stringify(linhaSemDesc) !== linhaSemDescAntes)
+  throw new Error("migracao aditiva de contexto/descricao rodou de novo na segunda chamada");
+
+console.log("ISOLAMENTO OK: STATE.projetos e STATE.projetosSimples byte a byte identicos apos criar/editar/salvar/vincular/finalizar/excluir na hierarquia Projeto>Setor>Linha do Checklist (motivo de multipla escolha, travas de confirmacao, abas de secao, o painel dividido do editor de modelo com info/foto por item, a importacao de modelo via XLSX -- linha de continuacao, item sem motivo e linha orfa incluidos -- o roundtrip exportar/reimportar modelo via XLSX incluindo secao vazia, e o laudo narrativo -- narrativa com destaque e citacao de foto do item nao atende, item nao aplica fora da narrativa e da tabela do checklist), e as seis migracoes de STATE antigo (namespace ausente, execucoes em lista plana, modelo padrao sem texto padrao, linha com motivo unico do formato antigo, item de modelo sem o campo info, e secao/linha sem contexto/descricao do laudo narrativo) preenchem/reorganizam/atualizam o namespace sem tocar nas duas arvores");
 process.exit(0);

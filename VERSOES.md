@@ -64,6 +64,28 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 17/09/2026 11:16
+
+**Checklist: laudo agora sai com narrativa de verdade — sumário, descrição do trabalho, texto corrido por seção com fotos numeradas, tabela-resumo e conclusão em dois níveis.**
+
+O laudo gerado a partir de um projeto de Checklist (Linhas de Vida) foi reestruturado por completo:
+
+- **Sumário** — página própria, com links para cada linha de vida e suas seções.
+- **Descrição do Trabalho** — página nova, com a metodologia e as normas aplicadas (reaproveita o campo "Objetivo" do projeto, agora chamado assim no formulário).
+- **Cada linha de vida** ganhou um campo de **descrição** (função, quantas pessoas, local) editável na tela de finalizar a linha.
+- **Cada seção do modelo** ganhou um campo de **contexto** ("como deve estar"), editável na tela de elaboração do modelo — aparece no laudo antes do texto da seção.
+- Em vez de listar item por item, cada seção agora mostra um **texto corrido**, montado automaticamente a partir dos textos padrão de atende/não atende de cada item, com os trechos de não-conformidade destacados em azul-marinho e citando a foto correspondente (ex: "não há ancoragem adequada (Foto 2)").
+- As **fotos de cada seção** aparecem numeradas ao lado do texto, na ordem dos itens.
+- Depois das seções de cada linha, uma tabela **Checklist — Resumo** com 4 colunas (nº do item, norma, pergunta, OK/Não OK) — itens marcados "não se aplica" não entram na tabela, e cada linha da tabela é colorida verde ou vermelha pelo resultado.
+- **Conclusão da linha** (renomeada de "Observação") fecha cada bloco de linha, e uma **Conclusão Geral** do projeto fecha o laudo inteiro, antes das assinaturas.
+- Capa, dados do solicitante/responsável técnico e assinaturas continuam exatamente como já eram.
+
+## 16/09/2026 17:13
+
+**Checklist: novo botão para baixar a planilha de um modelo já existente, com o conteúdo dele — não só o exemplo em branco.**
+
+Na tela de um modelo com pelo menos uma seção, apareceu o botão **"Baixar esta planilha"** ao lado de "Baixar modelo padrão". Ele gera o mesmo tipo de planilha (.xlsx), mas já preenchida com as seções, itens, motivos e informações **daquele modelo específico** — útil para reaproveitar um modelo pronto como ponto de partida de um modelo novo: baixa a planilha do modelo existente, ajusta o que for preciso no Excel, e importa num modelo novo (ou no mesmo) pelo botão "Importar via XLSX".
+
 ## 16/09/2026 16:46
 
 **Checklist: importar/baixar modelo via planilha Excel, de verdade — e as etiquetas de foto (Risco/Ajustar/Substituir/Revisar) saíram da tela.**

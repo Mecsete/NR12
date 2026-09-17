@@ -201,7 +201,15 @@ for marca, n in [('body = screenSimplesLaudo();', 1),
                  # e o grid dos itens de cada linha agora tem regras CSS
                  # proprias escopadas em ".screen.screen-laudo ..." (7 novas
                  # ocorrencias do texto, eram 11, agora 18).
-                 ('screen-laudo', 18),
+                 # 17 a partir do laudo narrativo (17/09/2026, Modelo 3 -- ver
+                 # secao 138): a regra ".screen.screen-laudo .chk-laudo-itens-grid"
+                 # (e sua filha ".chk-laudo-item") saiu porque a lista plana de
+                 # itens que ela deixava em 2 colunas no computador nao existe
+                 # mais -- virou a narrativa por secao. Entrou UMA regra nova,
+                 # ".screen.screen-laudo .chk-laudo-fotos-col" (a coluna de
+                 # fotos numeradas fica mais larga no computador). Saldo: -2+1,
+                 # 18 vira 17.
+                 ('screen-laudo', 17),
                  ('<span>Laudo</span>', 1),
                  ('<b>Trocar de módulo</b>', 1)]:
     c = novo.count(marca)
@@ -4843,9 +4851,10 @@ chk("a ressalva nomeia os eventos de corpo inteiro por natureza, sem proibir par
     "queda, atropelamento, esmagamento por veículo" in novo
     and novo.count("queda, atropelamento, esmagamento por veículo") == 2
     and "Cite a parte do corpo quando ela for uma lesão localizada" in novo)
-chk("e coisa nova: nao existia na versao anterior",
-    "não force isso no nome" not in orig
-    and "Mesma ressalva vale aqui" not in orig)
+# Checagem "e coisa nova" removida em 17/09/2026: original.html foi regerado a
+# partir de um commit que ja inclui esta entrega (14/09/2026), entao provar
+# que "nao existia antes" ficaria sempre falso dali pra frente -- mesmo padrao
+# das remocoes anteriores (secoes 130 etc.) acima.
 
 print("\n=== 140. CODIGO DE TAG COLADO AO NOME TAMBEM E FILTRADO NO ESCOPO (14/09/2026) ===")
 # Pedido do engenheiro apos conferir a planilha Descarga 300/200: uma IA
@@ -4860,8 +4869,9 @@ chk("o exemplo novo cobre TAG colada ao nome, logo depois da regra geral de TAG"
     and _escopoNoPrompt < novo.find("O filtro vale mesmo quando o código vem colado ao nome") < novo.find("RESPOSTA - Descrição da tarefa", _colunaAColuna))
 chk("o exemplo mostra o erro por extenso -- parenteses logo apos o nome -- nao so a regra abstrata",
     "repetir o código entre parênteses no começo do texto é o mesmo erro de citar a TAG" in novo)
-chk("e coisa nova: nao existia na versao anterior",
-    "O filtro vale mesmo quando o código vem colado ao nome" not in orig)
+# Checagem "e coisa nova" removida em 17/09/2026: original.html foi regerado a
+# partir de um commit que ja inclui esta entrega (14/09/2026) -- mesmo motivo
+# da secao 139 acima.
 
 print("\n=== 141. DIMENSAO DE ABERTURA JA ESCRITA EM CAMPO E PRESERVADA + CONFIRMACAO ANTES DE REAVALIAR (15/09/2026) ===")
 # Pedido do engenheiro apos conferir planilha real: a regra de "nao invente
@@ -4899,9 +4909,9 @@ chk("o .json segue a mesma regra, com o mesmo pacote ja parseado (sem ler o arqu
 chk("cancelar a reavaliacao avisa e nao grava nada (fica so no toast)",
     'toast("Importação cancelada"); render(); });' in novo
     and novo.count('toast("Importação cancelada"); render(); });') == 2)
-chk("e coisa nova: nao existia na versao anterior",
-    "confirmarReavaliacaoAntesDeImportar" not in orig
-    and "const simular = !!(opts && opts.simular);" not in orig)
+# Checagem "e coisa nova" removida em 17/09/2026: original.html foi regerado a
+# partir de um commit que ja inclui esta entrega (15/09/2026) -- mesmo motivo
+# da secao 139 acima.
 
 
 print("\n---------------------------------------")
