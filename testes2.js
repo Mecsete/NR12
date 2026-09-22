@@ -7456,20 +7456,31 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       var salvamentosRetentados = 0, __salvamentoPendente = false;
       function persistir(){ salvamentosRetentados++; __salvamentoPendente = false; }
       function tentarSalvarSePendente(){ if(__salvamentoPendente) persistir(); }
+      /* Aparelho simulado: por padrao um iPhone (campo) — todos os cenarios
+         abaixo que nao trocam o aparelho provam que o CAMPO nao mudou. */
+      var navigator = { userAgent:"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0)", maxTouchPoints:5 };
+      var __uploadAutoRodando = false;
+      var __edicaoGeracao = 0, __edicaoGeracaoEnviada = 0, __envioUltimoAndou = true;
+      var passadasCompletas = 0, falhar = false;
       async function sincronizarIncrementalOneDrive(){
         chamadasEnvio++;
+        if(falhar) return;   // saiu cedo / falhou: o carimbo de passada completa NAO muda
         var envia = Math.min(porPassada, restantes);
         for(var i=0;i<envia;i++) __enviosDesdeUltimaConferencia++;
         restantes -= envia;
+        STATE.ultimaSincronizacaoOneDriveEm = ++passadasCompletas;
       }
       function reset(fila){
         pedidosTela=0; soltouTela=0; chamadasEnvio=0; restantes=fila;
         __envioContinuoSegurandoTela=false; __envioContinuoAtivo=false;
         __wakeLock=null; __sincronizandoAgora=false; visivel="visible";
         STATE.envioContinuo = undefined; conta = { email:"x" };
+        navigator.userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0)"; navigator.maxTouchPoints = 5;
+        __uploadAutoRodando = false; falhar = false;
+        __edicaoGeracao = 0; __edicaoGeracaoEnviada = 0; __envioUltimoAndou = true;
       }
     `, ctxE);
-    ["envioContinuoLigado","envioContinuoSoltarTela","envioContinuoTique"]
+    ["envioContinuoLigado","envioContinuoSoltarTela","envioContinuoTique","ehComputadorDeMesa","envioDesktopTemEdicaoPendente"]
       .forEach(n=> vm.runInContext(funcao(n), ctxE));
     vm.runInContext("var __envioContinuoSegurandoTela=false, __envioContinuoAtivo=false, __envioContinuoTimer=null;", ctxE);
     const tique = ()=> vm.runInContext("envioContinuoTique()", ctxE);
@@ -7525,6 +7536,103 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       t("sem OneDrive conectado: nao faz nada", ()=>{
         eq(ler("chamadasEnvio"), 0);
         ok(ler("__envioContinuoSegurandoTela") === false);
+      });
+
+      /* ---- COMPUTADOR (22/09/2026): so varre quando ha o que subir ----
+         Cada passada varre a arvore inteira e regrava o STATE inteiro. No
+         computador do escritorio isso rodava a cada 20s o dia todo, mesmo
+         sem nada para enviar — era o que deixava o navegador pesado. */
+      const PC = "navigator.userAgent='Mozilla/5.0 (Windows NT 10.0; Win64; x64)'; navigator.maxTouchPoints=0;";
+      vm.runInContext("reset(0);" + PC, ctxE);
+      await tique();
+      const pc1 = ler("chamadasEnvio");
+      await tique(); await tique(); await tique();
+      t("O PONTO: computador parado, sem edicao e sem fila, NAO varre a arvore a cada 20s", ()=>{
+        eq(pc1, 1, "a primeira passada precisa conferir a fila (pode haver pendencia de antes)");
+        eq(ler("chamadasEnvio"), 1, "continuou varrendo a arvore inteira sem nada para enviar");
+      });
+
+      vm.runInContext("__edicaoGeracao += 3;", ctxE);   // 3 cliques em Aplicar
+      await tique();
+      const pcDepoisEdicao = ler("chamadasEnvio");
+      await tique();
+      t("varias edicoes seguidas sobem numa passada SO, no tique seguinte", ()=>{
+        eq(pcDepoisEdicao, 2, "a edicao nao disparou a subida");
+        eq(ler("__edicaoGeracaoEnviada"), 3, "a passada completa nao deu as edicoes por enviadas");
+        eq(ler("chamadasEnvio"), 2, "continuou passando depois de a edicao ja ter subido");
+      });
+
+      vm.runInContext("reset(7);" + PC, ctxE);
+      await tique(); await tique(); await tique(); await tique();
+      t("com fila de verdade, o computador esvazia ate o fim, como antes", ()=>{
+        eq(ler("restantes"), 0, "a fila parou no meio no computador");
+      });
+
+      vm.runInContext("reset(0);" + PC + " __envioUltimoAndou=false; __edicaoGeracao=1; falhar=true;", ctxE);
+      await tique(); await tique();
+      t("passada que FALHA nao da a edicao por enviada — tenta de novo no tique seguinte", ()=>{
+        eq(ler("chamadasEnvio"), 2, "desistiu da edicao depois de uma passada que falhou");
+        eq(ler("__edicaoGeracaoEnviada"), 0, "marcou como enviada uma edicao que nao subiu");
+      });
+
+      vm.runInContext("reset(0);" + PC + " __envioUltimoAndou=false; __edicaoGeracao=1; __uploadAutoRodando=true;", ctxE);
+      await tique();
+      t("com outra passada automatica em curso, o computador nao empilha uma segunda", ()=>{
+        eq(ler("chamadasEnvio"), 0);
+        eq(ler("__edicaoGeracaoEnviada"), 0, "a edicao nao pode ser dada por enviada sem passada");
+      });
+
+      vm.runInContext("reset(0); navigator.userAgent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'; navigator.maxTouchPoints=5; __envioUltimoAndou=false;", ctxE);
+      await tique(); await tique();
+      t("iPad no modo desktop (se apresenta como Macintosh) continua com o ritmo de CAMPO", ()=>{
+        eq(ler("chamadasEnvio"), 2, "o iPad foi tratado como computador");
+      });
+      vm.runInContext("reset(0); __envioUltimoAndou=false;", ctxE);
+      await tique(); await tique();
+      t("celular continua passando a cada tique, exatamente como antes", ()=>{
+        eq(ler("chamadasEnvio"), 2);
+      });
+    })();
+
+    /* A edicao no computador nao dispara passada propria (o tique junta),
+       mas o salvamento LOCAL continua imediato, e sair da aba sobe na hora. */
+    await (async ()=>{
+      const ctxP = vm.createContext({ console, Promise });
+      vm.runInContext(`
+        var STATE = {};
+        var subidas = 0, pasta = 0, gravacoes = 0, pc = true;
+        var __saveTimer = null, __salvamentoPendente = true, __ultimoErroSalvar = false, __storageMode = "indexeddb";
+        var __edicaoGeracao = 5, __edicaoGeracaoEnviada = 0;
+        function clearTimeout(){}
+        async function dbSet(){ gravacoes++; return true; }
+        function setSaveChip(){}
+        function sincronizarIncrementalNaPasta(){ pasta++; }
+        function sincronizarIncrementalOneDrive(){ subidas++; }
+        function ehComputadorDeMesa(){ return pc; }
+        function flushDraftPendente(){}
+      `, ctxP);
+      ["persistir","flushSalvamentoPendente","flushTudoAntesDeSair","envioDesktopTemEdicaoPendente"]
+        .forEach(n=> vm.runInContext(funcao(n), ctxP));
+      await vm.runInContext("persistir()", ctxP);
+      const r1 = vm.runInContext("({g:gravacoes, s:subidas})", ctxP);
+      t("computador: cada edicao GRAVA no aparelho na hora, sem disparar varredura da nuvem", ()=>{
+        eq(r1.g, 1, "o salvamento local deixou de acontecer");
+        eq(r1.s, 0, "a edicao ainda dispara uma passada propria no computador");
+      });
+      vm.runInContext("__salvamentoPendente = false;", ctxP);
+      vm.runInContext("flushTudoAntesDeSair()", ctxP);
+      t("computador: ao sair da aba, o que estava pendente sobe NA HORA", ()=>{
+        eq(vm.runInContext("subidas", ctxP), 1, "saiu da aba com edicao pendente e nada subiu");
+      });
+      vm.runInContext("subidas = 0; __edicaoGeracaoEnviada = 5; flushTudoAntesDeSair();", ctxP);
+      t("computador: sem nada pendente, sair da aba nao dispara varredura a toa", ()=>{
+        eq(vm.runInContext("subidas", ctxP), 0);
+      });
+      vm.runInContext("subidas = 0; gravacoes = 0; pc = false; __salvamentoPendente = true;", ctxP);
+      await vm.runInContext("persistir()", ctxP);
+      t("celular: cada edicao continua gravando E subindo na hora, como sempre", ()=>{
+        eq(vm.runInContext("gravacoes", ctxP), 1);
+        eq(vm.runInContext("subidas", ctxP), 1, "o campo perdeu a subida imediata");
       });
     })();
   }

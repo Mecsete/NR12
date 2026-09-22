@@ -64,6 +64,29 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 22/09/2026 20:47
+
+**No computador, o app para de trabalhar à toa em segundo plano — era o que deixava o navegador pesado.**
+
+Com o app aberto no computador, a cada 20 segundos (e de novo a cada
+edição) ele conferia o projeto inteiro contra a nuvem e regravava todos os
+dados no aparelho — mesmo quando não havia nada novo para enviar. Num
+projeto grande, isso rodando o dia inteiro deixava o navegador lento até
+travar.
+
+Agora, **só no computador**, essa conferência acontece apenas quando há
+de fato algo para subir: uma edição ainda não enviada, ou uma fila que
+ainda está esvaziando. Vários cliques seguidos em "Aplicar" sobem juntos,
+numa passada só, em até 20 segundos.
+
+O que **não** mudou, e garante que nada se perde:
+- cada edição continua sendo **gravada no aparelho na hora**, como sempre;
+- ao **sair da aba ou fechar o app**, o que estiver pendente sobe na hora;
+- a conferência completa de **2 em 2 minutos** continua rodando sempre,
+  como rede de segurança — qualquer caso raro sobe em até 2 minutos;
+- **celular e tablet (iPad incluído) não mudam nada**: em campo, a fila
+  continua andando a cada 20 segundos, com a tela acesa, até esvaziar.
+
 ## 17/09/2026 17:37
 
 **Instruções da planilha ajustadas: nome do membro específico em vez de "membros", e a Tarefa deixa de citar a frequência.**

@@ -4929,9 +4929,35 @@ chk("Descricao do risco tem a mesma regra contra 'membros' generico",
 chk("a Tarefa NAO cita mais a frequencia no texto (so a quantidade de pessoas era proibida antes)",
     "Não cite a frequência da tarefa (\\\"Frequência da tarefa\\\") nem a quantidade de pessoas no texto" in novo
     and "Cite a frequência ao final quando a coluna" not in novo)
+# "e coisa nova" removida em 22/09/2026: original.html regerado a partir de um
+# commit que ja inclui esta entrega (17/09/2026) -- mesmo motivo da secao 139.
+
+print("\n=== 143. COMPUTADOR SO VARRE A NUVEM QUANDO HA O QUE SUBIR (22/09/2026) ===")
+# Reportado no escritorio: navegador pesado ate travar com o app aberto. A causa
+# medida no codigo: cada passada de envio varre a arvore inteira do projeto e
+# regrava o STATE inteiro no banco -- e isso rodava a cada 20s o dia todo, mesmo
+# sem nada para enviar, e de novo a cada edicao. So o COMPUTADOR mudou; campo
+# (celular/tablet, iPad incluido) fica exatamente como era. Prova em t125.
+_tique = _corpoDe(novo, "envioContinuoTique")
+chk("o detector de computador existe, e iPad em modo desktop NAO conta como computador",
+    "function ehComputadorDeMesa(){" in novo
+    and "if(/Android|iPhone|iPad|iPod/i.test(ua)) return false;" in novo
+    and "if(/Macintosh/i.test(ua) && Number(nav.maxTouchPoints) > 1) return false;" in novo)
+chk("no computador o tique de 20s so passa com edicao pendente ou fila andando",
+    "if(noComputador && (__uploadAutoRodando || (!envioDesktopTemEdicaoPendente() && !__envioUltimoAndou))) return;" in _tique)
+chk("a edicao so e dada por enviada quando a passada TERMINOU (carimbo mudou)",
+    "if(STATE.ultimaSincronizacaoOneDriveEm !== passadaAntes && geracaoAntes > __edicaoGeracaoEnviada) __edicaoGeracaoEnviada = geracaoAntes;" in _tique)
+chk("cada edicao conta como pendencia",
+    "__edicaoGeracao++;" in _corpoDe(novo, "marcarAlterado"))
+chk("o salvamento LOCAL de cada edicao nao mudou; so a subida imediata saiu, e so no computador",
+    "const ok = await dbSet(STATE);" in _corpoDe(novo, "persistir")
+    and "if(!ehComputadorDeMesa()) sincronizarIncrementalOneDrive();" in _corpoDe(novo, "persistir"))
+chk("ao sair da aba, o computador sobe na hora o que estiver pendente",
+    "if(ehComputadorDeMesa() && envioDesktopTemEdicaoPendente()) sincronizarIncrementalOneDrive();" in _corpoDe(novo, "flushTudoAntesDeSair"))
+chk("o ciclo de 2 minutos continua SEM condicao -- e a rede de seguranca",
+    'if(document.visibilityState==="visible"){ tentarSalvarSePendente(); sincronizarIncrementalNaPasta(); sincronizarIncrementalOneDrive(); sincronizarDownloadOneDrive();' in novo)
 chk("e coisa nova: nao existia na versao anterior",
-    'Evite a palavra genérica \\"membros\\"' not in orig
-    and "Não cite a frequência da tarefa" not in orig)
+    "function ehComputadorDeMesa(){" not in orig)
 
 
 print("\n---------------------------------------")

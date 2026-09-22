@@ -3121,7 +3121,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "17/09/2026 17:37";
+const APP_BUILD = "22/09/2026 20:47";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -8248,6 +8248,32 @@ document.addEventListener("visibilitychange", ()=>{
    chave para desligar, e a tela é solta assim que a fila esvazia — não fica
    acesa à toa. O ciclo normal de 2 minutos continua existindo por baixo. */
 const ENVIO_CONTINUO_INTERVALO_MS = 20000;
+/* NO COMPUTADOR, SÓ SOBE QUANDO HÁ O QUE SUBIR (22/09/2026).
+   Cada passada de envio varre a árvore inteira do projeto e, no fim, regrava
+   o STATE inteiro no banco (sincronizarIncrementalOneDrive). Isso acontecia
+   a cada 20 segundos, o dia todo, mesmo com NADA para enviar — e de novo a
+   cada edição (persistir). No computador do escritório, com projeto grande
+   aberto na revisão do laudo, era esse trabalho repetido que deixava o
+   navegador pesado até travar.
+   O que muda, SÓ no computador: a passada de 20s só roda quando há edição
+   ainda não confirmada na nuvem, ou quando a passada anterior ainda estava
+   esvaziando fila; e a edição não dispara passada própria — o tique junta
+   tudo numa passada só, em até 20s. Ao sair da aba, sobe na hora, como
+   sempre. O ciclo de 2 minutos continua rodando sem condição nenhuma: é a
+   rede de segurança — qualquer caso que escape daqui sobe em até 2 min.
+   Celular e tablet NÃO mudam: em campo, a fila precisa andar sempre. */
+function ehComputadorDeMesa(){
+  const nav = (typeof navigator !== "undefined") ? navigator : {};
+  const ua = String(nav.userAgent || "");
+  if(/Android|iPhone|iPad|iPod/i.test(ua)) return false;
+  // iPad no Safari em modo desktop se apresenta como "Macintosh"; a tela de toque denuncia.
+  if(/Macintosh/i.test(ua) && Number(nav.maxTouchPoints) > 1) return false;
+  return true;
+}
+var __edicaoGeracao = 0;          // sobe a cada edição (marcarAlterado)
+var __edicaoGeracaoEnviada = 0;   // última geração confirmada por uma passada completa
+var __envioUltimoAndou = true;    // começa ligado: a 1ª passada sempre confere a fila
+function envioDesktopTemEdicaoPendente(){ return __edicaoGeracao > __edicaoGeracaoEnviada; }
 let __envioContinuoTimer = null;
 let __envioContinuoSegurandoTela = false;
 let __envioContinuoAtivo = false;   // só para a tela poder mostrar que está trabalhando
@@ -8273,9 +8299,20 @@ async function envioContinuoTique(){
   }
   // A manual já faz tudo e tem o próprio painel — sai da frente e tenta depois.
   if(__sincronizandoAgora) return;
+  const noComputador = ehComputadorDeMesa();
+  if(noComputador && (__uploadAutoRodando || (!envioDesktopTemEdicaoPendente() && !__envioUltimoAndou))) return;
+  const geracaoAntes = __edicaoGeracao, passadaAntes = STATE.ultimaSincronizacaoOneDriveEm;
   __enviosDesdeUltimaConferencia = 0;
   await sincronizarIncrementalOneDrive();
   const andou = __enviosDesdeUltimaConferencia > 0;
+  if(noComputador){
+    /* A edição só é dada por enviada se a passada TERMINOU: o carimbo
+       ultimaSincronizacaoOneDriveEm só muda no fim de uma passada completa.
+       Passada que falhou ou saiu cedo deixa a edição pendente — o próximo
+       tique tenta de novo. */
+    if(STATE.ultimaSincronizacaoOneDriveEm !== passadaAntes && geracaoAntes > __edicaoGeracaoEnviada) __edicaoGeracaoEnviada = geracaoAntes;
+    __envioUltimoAndou = andou;
+  }
   if(andou){
     /* Tem fila subindo: segura a tela para o iPhone não congelar o
        temporizador no meio. Pedir de novo quando já se tem é inofensivo,
@@ -10115,6 +10152,7 @@ function marcarSubarvoreTarefaAlterada(tarefa){
 }
 function marcarAlterado(){
   clearTimeout(__saveTimer);
+  __edicaoGeracao++;   // no computador, é o sinal de "há o que subir" para o tique de 20s
   __salvamentoPendente = true;
   __ultimoErroSalvar = false;
   setSaveChip("salvando");
@@ -10155,7 +10193,10 @@ async function persistir(){
     setSaveChip("erro");
   }
   sincronizarIncrementalNaPasta(); // em segundo plano, não atrasa nem depende do salvamento local
-  sincronizarIncrementalOneDrive(); // idem, independente da pasta local — funciona mesmo sem ela configurada
+  /* No computador a subida não sai a cada edição: o tique de 20s junta as
+     edições numa passada só (ver ehComputadorDeMesa). O salvamento LOCAL
+     acima não muda em nada. Celular e tablet sobem na hora, como sempre. */
+  if(!ehComputadorDeMesa()) sincronizarIncrementalOneDrive(); // idem, independente da pasta local — funciona mesmo sem ela configurada
 }
 // Salva imediatamente, pulando a fila de 300ms — chamado quando a tela sai de
 // foco (troca de app, apaga a tela, fecha a aba). É a proteção real contra
@@ -10248,6 +10289,9 @@ function tentarSalvarSePendente(){
 function flushTudoAntesDeSair(){
   flushSalvamentoPendente();
   flushDraftPendente();
+  /* No computador a subida de cada edição espera o tique de 20s; ao sair da
+     aba ela não espera — sobe já, exatamente como antes desta mudança. */
+  if(ehComputadorDeMesa() && envioDesktopTemEdicaoPendente()) sincronizarIncrementalOneDrive();
 }
 document.addEventListener("visibilitychange", ()=>{
   if(document.visibilityState==="hidden") flushTudoAntesDeSair();
