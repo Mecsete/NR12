@@ -3649,7 +3649,7 @@ chk("o texto padrao virou constante e continua sendo o do laudo",
     novo.count("const LAUDO_CONCLUSAO_PADRAO =") == 1
     and "Hazard Rating Number" in novo
     and "vida útil da máquina" in novo)
-_bc = novo[novo.find("  function blocoConclusao(d){"):]
+_bc = novo[novo.find("  function blocoConclusao(d, soFecho){"):]
 _bc = _bc[:_bc.find("  /* ---------- paginador ---------- */")]
 chk("o bloco do laudo le a conclusao da AREA, sem texto fixo dentro",
     "conclusaoDaArea(d.area)" in _bc
@@ -3888,7 +3888,7 @@ chk("o ponto de restauracao clona o STATE, entao tambem nao a leva",
     "fotosExtrairParaRefs(STATE" in novo)
 # No documento: sobre a linha, so do lado do responsavel, com a caixa existindo
 # nos dois lados para as linhas ficarem no mesmo nivel da folha.
-_bc = novo[novo.find("  function blocoConclusao(d){"):]
+_bc = novo[novo.find("  function blocoConclusao(d, soFecho){"):]
 _bc = _bc[:_bc.find("/* ---------- paginador ---------- */")]
 chk("sai sobre a linha e SO do lado do responsavel tecnico",
     '<div class="assin">${assinaturaLaudo()? `<img src="${assinaturaLaudo()}" alt="">` : ""}</div><div class="linha"></div>${esc(d.m.respNome' in _bc
@@ -5171,6 +5171,31 @@ chk("Resumo limpo ganha 'Foto do Equipamento' e as colunas HRN acompanham",
     '"Foto do Equipamento","Foto do Risco","Área"' in novo
     and "RESUMO_COL_PO=9,RESUMO_COL_FE=10,RESUMO_COL_GPD=11,RESUMO_COL_NP=12,RESUMO_COL_HRN=13,RESUMO_COL_NIVEL=14" in novo
     and "new Set([1,2])" in novo and "item.maquina.fotoGeral||'Sem foto'," in novo)
+
+print("\n=== 153. CONCLUSAO COM TABELA DE RISCOS POR HRN (23/09/2026) ===")
+# Pedido do engenheiro: a Conclusao ganha uma tabela (Maquina / Foto do Risco /
+# Descricao / Nivel) do maior HRN para o menor, com frase curta no lugar do
+# texto padrao (que fica desligado, ligavel por area), data por extenso e as
+# assinaturas depois da tabela. Provas em t165.
+_ini_imp = novo.find("INÍCIO DO MÓDULO DE IMPRESSÃO DO LAUDO")
+_fim_imp = novo.find("FIM DO MÓDULO DE IMPRESSÃO DO LAUDO")
+def _dentro(marca):
+    p = novo.find(marca)
+    return _ini_imp < p < _fim_imp
+chk("tudo o que a tabela acrescentou vive dentro do modulo removivel de impressao",
+    all(_dentro(m) for m in ["LAUDO_CONCLUSAO_BREVE", "function conclusaoLigada(", "function ordenarRiscosPorHRN(",
+                             "async function blocosConclusao(", "table.lp-rt{", 'id="lpConcLiga"']))
+chk("o laudo monta a conclusao por blocosConclusao, com o texto padrao ainda no arquivo (desligado)",
+    "(await blocosConclusao(d, itensLaudo)).forEach(b=>blocos.push(b));" in novo
+    and novo.count("const LAUDO_CONCLUSAO_PADRAO =") == 1
+    and "conclusaoLigada(d.area) ? conclusaoDaArea(d.area) : LAUDO_CONCLUSAO_BREVE" in novo)
+chk("o paginador repete o cabecalho da tabela quando ela atravessa a pagina",
+    "b.cabRepete && !b.cabPrimeiro && atual.length === 0" in novo)
+chk("a data da conclusao sai por extenso",
+    "dataExtensoLaudo()" in novo and 'month:"long"' in novo)
+chk("a foto da tabela mantem a proporcao e a coluna Nivel e estreita",
+    "table.lp-rt td.ft img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block}" in novo
+    and '<col style="width:20%"><col style="width:17%"><col style="width:53%"><col style="width:10%">' in novo)
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

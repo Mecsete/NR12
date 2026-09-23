@@ -64,6 +64,21 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 23/09/2026 18:58
+
+**Conclusão do laudo ganha a tabela de riscos, do mais perigoso para o mais brando.**
+
+- Abaixo da Conclusão vem uma tabela com Máquina, Foto do Risco, Descrição do
+  Risco (texto inteiro) e Nível do Risco (número do HRN e faixa, na cor da
+  faixa), ordenada do maior para o menor HRN. Riscos com o mesmo HRN ficam na
+  ordem em que aparecem no laudo. Quando a tabela passa de uma página, o
+  cabeçalho se repete. As assinaturas vêm depois da tabela.
+- O texto padrão da Conclusão continua no app, mas **desligado**: sai só uma
+  frase curta explicando a tabela. Em Imprimir → Conclusão há o interruptor
+  "Usar este texto na Conclusão" (por área); escrever no editor liga sozinho.
+  Área que já tinha texto próprio continua ligada.
+- A data do laudo sai por extenso ("23 de setembro de 2026").
+
 ## 23/09/2026 18:40
 
 **Exportar Excel: corrigido o erro "lastRowResumo is not defined", e as planilhas parciais ganham as cores do nível de risco e a foto do equipamento.**

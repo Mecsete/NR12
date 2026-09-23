@@ -3181,7 +3181,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "23/09/2026 18:40";
+const APP_BUILD = "23/09/2026 18:58";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -28336,6 +28336,17 @@ window.addEventListener("pageshow", (event) => {
 .lp-tab th,.lp-tab td{border:1px solid #999;padding:3px 5px}
 .lp-tab th{font-weight:800;text-align:center}
 .lp-tab td.c{text-align:center}
+table.lp-rt{width:100%;border-collapse:collapse;table-layout:fixed;font-size:10px}
+table.lp-rt th{background:${NAVY};color:#fff;font-weight:800;padding:5px;border:1px solid ${NAVY};text-align:center}
+table.lp-rt td{border:1px solid #999;border-top:0;padding:4px 5px;vertical-align:middle}
+table.lp-rt td.mq{font-weight:700}
+table.lp-rt td.ft{text-align:center;padding:3px}
+table.lp-rt td.ft img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block}
+table.lp-rt td.ds{text-align:left;font-size:9.5px;line-height:1.3}
+table.lp-rt td.nv{text-align:center;padding:4px 2px}
+table.lp-rt td.nv .n{font-weight:800;font-size:13px;line-height:1.1}
+table.lp-rt td.nv .c{font-size:7.5px;font-weight:700;letter-spacing:.01em}
+table.lp-rt .sf{font-size:9px;color:#777}
 .lp-formula{border:2px solid #333;text-align:center;font-weight:800;font-size:13px;padding:8px;margin:10px auto;width:70%}
 /* --- inventário --- */
 /* table-layout:fixed é o que faz a largura do <colgroup> valer de verdade e
@@ -29111,19 +29122,76 @@ function lpMaiorPLrDoEquipamento(itens){
   function conclusaoFoiEditada(area){
     return !!(area && String(area.conclusaoLaudo||"").trim());
   }
-  function blocoConclusao(d){
-    return { paginaInteira:true, html:`
-      <div class="lp-faixa">CONCLUSÃO</div>
-      <div class="lp-conc">${conclusaoDaArea(d.area)}</div>
-      <p class="lp-par" style="margin-top:${Math.round(20*MM)}px">${esc(d.proj.cidade||"")}, ${esc(d.hoje)}</p>
-      <div class="lp-assin">
+  /* A conclusao so vira texto no laudo quando esta LIGADA. Desligada, sai uma
+     frase curta e a tabela de riscos. Area que ja tinha texto proprio antes
+     desta opcao existir continua ligada — ninguem perde o que escreveu. */
+  const LAUDO_CONCLUSAO_BREVE =
+    "<p>Os riscos identificados neste laudo estão relacionados na tabela abaixo, em ordem do mais perigoso para o mais brando (do maior para o menor HRN). O detalhamento de cada um está no capítulo de riscos por equipamento.</p>";
+  function conclusaoLigada(area){
+    if(area && area.conclusaoLigada !== undefined && area.conclusaoLigada !== null) return !!area.conclusaoLigada;
+    return conclusaoFoiEditada(area);
+  }
+  /* "23 de setembro de 2026" — a data do laudo sai por extenso. */
+  function dataExtensoLaudo(dt){
+    const x = dt || new Date();
+    try{ return x.toLocaleDateString("pt-BR", { day:"numeric", month:"long", year:"numeric" }); }
+    catch(e){ return x.toLocaleDateString("pt-BR"); }
+  }
+  /* Do maior HRN para o menor; empate mantem a ordem em que os riscos
+     aparecem no laudo. */
+  function ordenarRiscosPorHRN(itens){
+    return itens.map((it,i)=>({ it, i, h: Number(hrnDoItem({ tarefa:it.tarefa, risco:it.risco }).hrn) || 0 }))
+      .sort((a,b)=> (b.h - a.h) || (a.i - b.i))
+      .map(x=>x.it);
+  }
+  /* soFecho: so a data e as assinaturas, para vir logo depois da tabela de
+     riscos. Sem ele, e a pagina inteira de sempre (texto + data + assinaturas). */
+  function blocoConclusao(d, soFecho){
+    const fecho = `
+      <p class="lp-par" style="margin-top:${Math.round((soFecho?12:20)*MM)}px">${esc(d.proj.cidade||"")}, ${esc(dataExtensoLaudo())}</p>
+      <div class="lp-assin"${soFecho?` style="margin-top:${Math.round(20*MM)}px"`:""}>
         <!-- Lado do cliente: caixa vazia, para assinar à mão. Ela existe só
              para manter as duas linhas no mesmo nível da folha. -->
         <div><div class="assin"></div><div class="linha"></div>${esc(d.proj.responsavel||"")}<br>${esc(d.proj.cargoResponsavel||"")}<br>${esc(d.proj.empresa||"")}</div>
         <!-- Lado do responsável técnico: a assinatura enviada neste aparelho,
              pousada sobre a linha. Sem imagem, fica igual ao lado do cliente. -->
         <div><div class="assin">${assinaturaLaudo()? `<img src="${assinaturaLaudo()}" alt="">` : ""}</div><div class="linha"></div>${esc(d.m.respNome||"")}<br>${esc(d.m.respFuncao||"")}<br>${esc(d.m.empresa||"")}</div>
-      </div>` };
+      </div>`;
+    if(soFecho) return { html: fecho };
+    return { paginaInteira:true, html:`
+      <div class="lp-faixa">CONCLUSÃO</div>
+      <div class="lp-conc">${conclusaoDaArea(d.area)}</div>` + fecho };
+  }
+  /* CONCLUSAO COM TABELA DE RISCOS. Frase curta (ou o texto da conclusao, se
+     ligado) + tabela do mais perigoso para o mais brando + data + assinaturas.
+     Cada linha e um bloco: o paginador quebra entre linhas e repete o
+     cabecalho na pagina seguinte. Sem nenhum risco no laudo, volta a pagina
+     de sempre. */
+  async function blocosConclusao(d, itens){
+    const lista = ordenarRiscosPorHRN(itens.filter(it=> !it.maquina.ocultoLaudo && !it.risco.ocultoLaudo));
+    if(!lista.length) return [blocoConclusao(d)];
+    const col = `<colgroup><col style="width:20%"><col style="width:17%"><col style="width:53%"><col style="width:10%"></colgroup>`;
+    const cab = `<table class="lp-rt">${col}<tr><th>Máquina</th><th>Foto do Risco</th><th>Descrição do Risco</th><th>Nível do Risco</th></tr></table>`;
+    const texto = conclusaoLigada(d.area) ? conclusaoDaArea(d.area) : LAUDO_CONCLUSAO_BREVE;
+    const blocos = [{ quebrarAntes:true, grudaNoProximo:true, html:`
+      <div class="lp-faixa">CONCLUSÃO</div>
+      <div class="lp-conc">${texto}</div>${cab}` }];
+    for(let i=0;i<lista.length;i++){
+      const it = lista[i], r = it.risco;
+      const h = hrnDoItem({ tarefa:it.tarefa, risco:r });
+      const meta = NIVEL_HRN_META[h.nivel] || { cor:"#EEE", texto:"#111" };
+      const foto = await reduzirFoto(r.foto, 320);
+      const nomeRisco = laudoTextoFinal(it, "nome") || "Risco";
+      const desc = laudoTextoFinal(it, "risco") || r.descricao || "";
+      blocos.push({ cabRepete: cab, cabPrimeiro: i === 0, html:`<table class="lp-rt">${col}<tr>
+        <td class="mq">${esc(nomeMaquinaS(it.maquina))}</td>
+        <td class="ft">${foto? `<img src="${foto}">` : `<span class="sf">Sem foto</span>`}</td>
+        <td class="ds"><b>${esc(nomeRisco)}</b><br>${esc(desc)}</td>
+        <td class="nv" style="background:${meta.cor};color:${meta.texto}"><div class="n">${esc(hrnNumeroBR(h.hrn))}</div><div class="c">${esc(h.nivel)}</div></td>
+      </tr></table>` });
+    }
+    blocos.push(blocoConclusao(d, true));
+    return blocos;
   }
 
   /* ---------- paginador ---------- */
@@ -29175,6 +29243,14 @@ function lpMaiorPLrDoEquipamento(itens){
         await esperarImagens(med);
         const hProx = Math.ceil(med.getBoundingClientRect().height);
         if(altura + h + hProx > teto) fechar();
+      }
+      /* CABECALHO REPETIDO: linha de tabela que abre pagina nova traz o
+         cabecalho junto (b.cabRepete), menos a primeira, que ja o tem. */
+      if(b.cabRepete && !b.cabPrimeiro && atual.length === 0){
+        med.innerHTML = b.cabRepete;
+        await esperarImagens(med);
+        const hc = Math.ceil(med.getBoundingClientRect().height);
+        atual.push({ html:b.cabRepete }); altura += hc;
       }
       atual.push(b); altura += h;
     }
@@ -29450,7 +29526,7 @@ function lpMaiorPLrDoEquipamento(itens){
         (await blocosInventario(itensLaudo, d)).forEach(b=>blocos.push(b));
         blocos.push(blocoContraCapa());
         (await blocosEquipamentos(itensLaudo)).forEach(b=>blocos.push(b));
-        blocos.push(blocoConclusao(d));
+        (await blocosConclusao(d, itensLaudo)).forEach(b=>blocos.push(b));
         __lpPaginas = await paginar(blocos);
         __lpHtml = montarDoc(__lpPaginas, d);
         render();
@@ -29591,7 +29667,7 @@ function lpMaiorPLrDoEquipamento(itens){
         `<button type="button" title="${titulo}" onmousedown="event.preventDefault()" onclick="App.lpFmt('${cmd}')">${rot}</button>`;
       abrirOverlay(`<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card" style="max-width:660px">
         <h3>Conclusão do laudo</h3>
-        <div class="sheet-sub">Vale só para a área <b>${escapeHtml(area.nome||"área")}</b> — cada área guarda a sua. O texto sai no fim do laudo, acima das assinaturas.</div>
+        <div class="sheet-sub">Vale só para a área <b>${escapeHtml(area.nome||"área")}</b> — cada área guarda a sua. Quando ligado, o texto sai no início da Conclusão, acima da tabela de riscos.</div>
         <div class="lp-fmt">
           ${btn("bold","<b>N</b>","Negrito")}
           ${btn("italic","<i>I</i>","Itálico")}
@@ -29600,7 +29676,11 @@ function lpMaiorPLrDoEquipamento(itens){
           ${btn("insertOrderedList","1. —","Lista numerada")}
           ${btn("removeFormat","Tx","Tirar a formatação")}
         </div>
-        <div class="lp-editor" id="lpConcEditor" contenteditable="true" spellcheck="true">${atual}</div>
+        <label style="display:flex;gap:9px;align-items:flex-start;margin:0 0 10px;font-size:13px;cursor:pointer">
+          <input type="checkbox" id="lpConcLiga" ${conclusaoLigada(area)?"checked":""} style="margin-top:3px">
+          <span><b>Usar este texto na Conclusão</b><br><span style="color:var(--ink-dim)">Desligado: a Conclusão traz só uma frase curta e a tabela de riscos. Ligado: o texto abaixo entra no lugar da frase curta.</span></span>
+        </label>
+        <div class="lp-editor" id="lpConcEditor" contenteditable="true" spellcheck="true" oninput="var c=document.getElementById('lpConcLiga');if(c)c.checked=true">${atual}</div>
         <div class="field-hint" style="margin-top:7px">${editada
           ? "Este texto foi editado para esta área. O botão abaixo devolve o texto padrão."
           : "Este é o texto padrão do laudo. Ajuste o que precisar — o original pode ser devolvido depois."}</div>
@@ -29636,6 +29716,8 @@ function lpMaiorPLrDoEquipamento(itens){
       }else{
         area.conclusaoLaudo = limpo;
       }
+      const liga = document.getElementById("lpConcLiga");
+      if(liga) area.conclusaoLigada = !!liga.checked;
       /* Carimbo de sincronização: sem ele, o texto ficaria só neste aparelho.
          É o mesmo carimbo que qualquer edição de área usa. */
       area.atualizadoEm = agoraSync();

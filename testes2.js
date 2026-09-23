@@ -12701,6 +12701,112 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  /* ---------- t165: tabela de riscos na Conclusao do laudo (23/09/2026) -----
+     Pedido do engenheiro: a Conclusao passa a trazer uma tabela com todos os
+     riscos, do maior HRN para o menor (Maquina / Foto / Descricao / Nivel),
+     uma frase curta no lugar do texto padrao, a data por extenso e as
+     assinaturas depois da tabela. O texto de conclusao continua existindo,
+     mas DESLIGADO por padrao; area com texto proprio de antes continua
+     ligada. */
+  {
+    console.log("\n[t165] conclusao: tabela de riscos por HRN, texto ligavel, data por extenso");
+    const cx = vm.createContext({ console, String, Object, Array, JSON, Number, Date });
+    vm.runInContext("function conclusaoFoiEditada(a){ return !!(a && String(a.conclusaoLaudo||'').trim()); }", cx);
+    vm.runInContext("function hrnDoItem(x){ return { hrn: x.risco.h }; }", cx);
+    ["conclusaoLigada","dataExtensoLaudo","ordenarRiscosPorHRN"].forEach(n=> vm.runInContext(funcao(n), cx));
+    const lig = (a)=>{ cx.__a = a; return vm.runInContext("conclusaoLigada(__a)", cx); };
+
+    t("conclusao vem DESLIGADA por padrao", ()=>{
+      eq(lig({ id:"a1" }), false);
+      eq(lig({ id:"a1", conclusaoLaudo:"" }), false);
+      eq(lig(null), false);
+    });
+    t("area com texto proprio de antes continua LIGADA (ninguem perde o que escreveu)", ()=>{
+      eq(lig({ id:"a1", conclusaoLaudo:"<p>Meu texto</p>" }), true);
+    });
+    t("a escolha explicita vale mais que o texto gravado, nos dois sentidos", ()=>{
+      eq(lig({ id:"a1", conclusaoLaudo:"<p>x</p>", conclusaoLigada:false }), false);
+      eq(lig({ id:"a1", conclusaoLigada:true }), true);
+    });
+    t("a data sai por extenso", ()=>{
+      cx.__d = new Date(2026, 8, 23, 12, 0, 0);
+      eq(vm.runInContext("dataExtensoLaudo(__d)", cx), "23 de setembro de 2026");
+      cx.__d = new Date(2026, 0, 5, 12, 0, 0);
+      eq(vm.runInContext("dataExtensoLaudo(__d)", cx), "5 de janeiro de 2026");
+    });
+    t("riscos saem do maior HRN para o menor; empate mantem a ordem do laudo", ()=>{
+      const mk = (id,h)=>({ id, tarefa:{}, risco:{ h } });
+      cx.__l = [mk("a",10), mk("b",300), mk("c",10), mk("d",1000), mk("e",300), mk("f",0.01)];
+      const ids = vm.runInContext("ordenarRiscosPorHRN(__l).map(x=>x.id).join(',')", cx);
+      eq(ids, "d,b,e,a,c,f");
+    });
+    t("nao mexe na lista original (ordenar copia)", ()=>{
+      const mk = (id,h)=>({ id, tarefa:{}, risco:{ h } });
+      cx.__l = [mk("a",1), mk("b",2)];
+      vm.runInContext("ordenarRiscosPorHRN(__l)", cx);
+      eq(cx.__l.map(x=>x.id).join(","), "a,b");
+    });
+    t("frase curta da conclusao explica a ordem e nao traz o texto padrao", ()=>{
+      const i = HTML.indexOf("const LAUDO_CONCLUSAO_BREVE =");
+      ok(i > 0, "sumiu a frase curta");
+      const trecho = HTML.slice(i, HTML.indexOf(";\n", i));
+      ok(trecho.indexOf("mais perigoso para o mais brando") > 0);
+      ok(trecho.indexOf("Hazard Rating Number") < 0, "a frase curta nao pode ser o texto padrao");
+    });
+    t("o texto padrao continua no arquivo (so ficou desligado)", ()=>{
+      ok(HTML.indexOf("const LAUDO_CONCLUSAO_PADRAO =") > 0);
+      const b = funcao("blocosConclusao");
+      ok(b.indexOf("conclusaoLigada(d.area) ? conclusaoDaArea(d.area) : LAUDO_CONCLUSAO_BREVE") > 0,
+         "ligado usa o texto da area; desligado usa a frase curta");
+    });
+    t("a tabela tem as 4 colunas pedidas e a cor do nivel vem do HRN_FAIXAS (NIVEL_HRN_META)", ()=>{
+      const b = funcao("blocosConclusao");
+      ["Máquina","Foto do Risco","Descrição do Risco","Nível do Risco"].forEach(c=> ok(b.indexOf("<th>"+c+"</th>") > 0, "faltou a coluna " + c));
+      ok(b.indexOf("NIVEL_HRN_META[h.nivel]") > 0, "a cor do nivel precisa ser a mesma da tela e do PDF");
+      ok(b.indexOf("ordenarRiscosPorHRN(") > 0);
+    });
+    t("descricao inteira, sem cortar o texto", ()=>{
+      const b = funcao("blocosConclusao");
+      ok(b.indexOf('laudoTextoFinal(it, "risco") || r.descricao') > 0, "usa o texto final do laudo, como o capitulo do equipamento");
+      ok(b.indexOf(".slice(") < 0 && b.indexOf("substring") < 0 && b.indexOf("…") < 0, "nao pode truncar a descricao");
+    });
+    t("risco oculto do laudo nao entra na tabela", ()=>{
+      ok(funcao("blocosConclusao").indexOf("!it.maquina.ocultoLaudo && !it.risco.ocultoLaudo") > 0);
+    });
+    t("o laudo monta a conclusao pela funcao nova, e a assinatura vem depois da tabela", ()=>{
+      ok(HTML.indexOf("(await blocosConclusao(d, itensLaudo)).forEach(b=>blocos.push(b));") > 0);
+      ok(funcao("blocosConclusao").indexOf("blocos.push(blocoConclusao(d, true));") > 0);
+      ok(funcao("blocoConclusao").indexOf("dataExtensoLaudo()") > 0, "a data tem que sair por extenso");
+    });
+    t("o paginador repete o cabecalho da tabela na pagina seguinte", ()=>{
+      const p = funcao("paginar");
+      ok(p.indexOf("b.cabRepete && !b.cabPrimeiro && atual.length === 0") > 0);
+      ok(p.indexOf("atual.push({ html:b.cabRepete })") > 0);
+    });
+    t("a foto nao e achatada: proporcao 4:3 fixa", ()=>{
+      ok(HTML.indexOf("table.lp-rt td.ft img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block}") > 0);
+    });
+    t("coluna Nivel estreita (10%) e descricao larga (53%)", ()=>{
+      ok(funcao("blocosConclusao").indexOf('<col style="width:20%"><col style="width:17%"><col style="width:53%"><col style="width:10%">') > 0);
+    });
+    t("o editor tem o interruptor e ele grava no campo da area", ()=>{
+      const abrir = HTML.slice(HTML.indexOf("    lpAbrirConclusao(){"), HTML.indexOf("    lpFmt(cmd){"));
+      ok(abrir.indexOf('id="lpConcLiga"') > 0);
+      ok(abrir.indexOf("conclusaoLigada(area)?\"checked\"") > 0, "abre refletindo o estado atual");
+      ok(abrir.indexOf("c.checked=true") > 0, "escrever no editor liga o texto");
+      const salvar = HTML.slice(HTML.indexOf("    lpSalvarConclusao(){"), HTML.indexOf("    lpConclusaoPadrao(){"));
+      ok(salvar.indexOf("area.conclusaoLigada = !!liga.checked;") > 0);
+    });
+    t("tudo isto vive DENTRO do modulo removivel de impressao", ()=>{
+      const ini = HTML.indexOf("INÍCIO DO MÓDULO DE IMPRESSÃO DO LAUDO");
+      const fim = HTML.indexOf("FIM DO MÓDULO DE IMPRESSÃO DO LAUDO");
+      ["LAUDO_CONCLUSAO_BREVE","function conclusaoLigada(","function ordenarRiscosPorHRN(","function blocosConclusao(","table.lp-rt{"].forEach(m=>{
+        const p = HTML.indexOf(m);
+        ok(p > ini && p < fim, m + " ficou FORA do bloco removivel");
+      });
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);
