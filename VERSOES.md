@@ -64,6 +64,27 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 23/09/2026 09:54
+
+**Revisar textos do laudo: o texto editado não some mais, e aplicar em lote com confirmação.**
+
+- **Os três cartões ficam.** Depois de editar um texto, o cartão "Seu texto
+  editado" continua na tela mesmo que você escolha a sugestão da IA ou o
+  texto de campo — nada é apagado e não aparece mais aviso. Para voltar ao
+  texto editado, é só clicar nele.
+- **Aplicar da linha com três opções.** O botão "Aplicar" do topo abre:
+  aplicar os cartões verdes, aplicar a sugestão da IA ou aplicar o texto
+  de campo — cada um mostra quantos campos vai atingir.
+- **Aplicar sugestões da IA na área.** Na lista da Revisão, novo botão
+  "Aplicar sugestões da IA nos pendentes (N)", que vale para toda a área
+  (e o equipamento/tarefa, se estiverem filtrados). Pensado para depois de
+  conferir as respostas na planilha e importar. Projetos arquivados ficam
+  de fora.
+- **Sempre com confirmação e só nos pendentes.** Todas essas aplicações
+  mostram antes quantos campos serão atingidos e pedem confirmação. Campo
+  já aplicado, editado ou recusado nunca é alterado. O atalho Ctrl+Enter
+  fora da edição também passa pela confirmação.
+
 ## 23/09/2026 07:20
 
 **Revisar textos do laudo: menos rolagem e ir direto ao que falta.**

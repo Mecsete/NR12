@@ -4978,9 +4978,12 @@ chk("o quadro 'Vai para o laudo' repetido saiu da revisao",
 chk("o botao Gerar saiu do cabecalho da revisao",
     "App.laudoGerarLinha(" not in _corpoDe(novo, "screenSimplesLaudoItem"))
 chk("clicar num cartao so escolhe (aguardando), quem decide e o Aplicar",
-    'laudoSet(item, campo, { fin:texto, st:"pend" });' in novo)
-chk("trocar de cartao com texto editado valendo pede confirmacao",
-    '!confirm("O seu texto editado deixa de valer e será descartado. Trocar mesmo assim?")' in novo)
+    'const patch = { fin:texto, st:"pend" };' in novo)
+# 23/09/2026: a confirmacao saiu a pedido do engenheiro -- trocar de cartao
+# nao descarta mais o texto editado (fica guardado em "ed", secao 146).
+chk("trocar de cartao guarda o texto editado em vez de perguntar",
+    "Trocar mesmo assim?" not in novo
+    and 'if(laudoFonteSelecionada(item, campo)==="edit") patch.ed = String(laudoGet(item, campo).fin||"").trim();' in novo)
 chk("Aplicar N do cabecalho nunca aplica por cima do que ja foi decidido",
     'if(g.st==="ok" || g.st==="edit" || g.st==="no") return false;' in _corpoDe(novo, "laudoCamposAguardandoDaLinha")
     and "const campos = laudoCamposAguardandoDaLinha(item);" in novo)
@@ -5011,8 +5014,28 @@ chk("atalhos nunca agem com janela aberta, fora da tela ou enquanto se digita",
     'if(!STATE || !STATE.ui || STATE.ui.screen !== "simples-laudo-item") return;' in novo
     and 'if(document.getElementById("overlayInner") || document.getElementById("laudoViewer")) return;' in novo
     and "if(digitando || e.ctrlKey || e.metaKey || e.altKey) return;" in novo)
+# "e coisa nova" removida em 23/09/2026: original.html regerado a partir do
+# commit que ja inclui esta entrega (ffab4d5) -- mesmo motivo da secao 139.
+
+print("\n=== 146. EDITADO FICA NA TELA E APLICAR EM LOTE COM CONFIRMACAO (23/09/2026) ===")
+# Pedido do engenheiro: depois de editar, os 3 cartoes ficam (escolher a IA
+# nao apaga o editado); o Aplicar da linha ganha tres modos (cartoes verdes,
+# IA, campo); a lista ganha "Aplicar sugestoes da IA nos pendentes" da area.
+# Tudo com confirmacao e so em campo pendente. Prova em t147.
+chk("o texto editado tem campo proprio nos 6 campos do laudo",
+    all(("if(patch.ed!==undefined) l.%sEd = patch.ed;" % b) in novo for b in ["escopo","tarefa","nome","risco","existente","solucao"])
+    and all(("ed:l.%sEd||\"\"" % b) in novo for b in ["escopo","tarefa","nome","risco","existente","solucao"]))
+chk("salvar a edicao grava tambem o texto editado a parte",
+    'laudoSet(item, campo, { fin: el.value.trim(), st:"edit", ed: el.value.trim() });' in novo)
+chk("os modos de aplicar nunca tocam campo decidido",
+    'if(st==="ok" || st==="edit" || st==="no") return false;' in _corpoDe(novo, "laudoCamposPendentesModo"))
+chk("aplicar em lote sempre passa por confirmacao",
+    novo.count("laudoAbrirConfirmacao(") == 3
+    and 'App.laudoAplicarLinhaModo(rid, "sel"); }' in novo)
+chk("aplicar na area deixa de fora projeto arquivado",
+    ".filter(it=> !projetoArquivado((it.proj||{}).id));" in novo)
 chk("e coisa nova: nao existia na versao anterior",
-    "function laudoPosProximaPendente(" not in orig)
+    "function laudoCamposPendentesModo(" not in orig)
 
 
 print("\n---------------------------------------")

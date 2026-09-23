@@ -530,6 +530,12 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .laudo-opcao textarea{width:100%;min-height:130px;font:inherit;font-size:13px;line-height:1.45;color:var(--ink);background:var(--surface);border:1px solid var(--line-strong);border-radius:7px;padding:8px;resize:vertical;box-sizing:border-box;}
 .laudo-biblioteca{border:1px solid var(--line);border-radius:10px;padding:10px 11px;margin-top:10px;background:var(--bg-soft);}
 .laudo-biblioteca select{width:100%;max-width:100%;}
+.laudo-menu-aplicar-op{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;background:var(--surface);border:1.5px solid var(--line-strong);border-radius:10px;padding:10px 12px;cursor:pointer;color:var(--ink);}
+.laudo-menu-aplicar-op b{font-size:13.5px;}
+.laudo-menu-aplicar-op span{font-size:12px;color:var(--ink-dim);}
+.laudo-menu-aplicar-op:hover:not(:disabled){border-color:#2E7D32;background:#E3F4E4;}
+.laudo-menu-aplicar-op:disabled{opacity:.45;cursor:default;}
+.laudo-btn-aplicar-ia{border-color:#2F6FE4 !important;color:#2F6FE4 !important;}
 .laudo-ajustar-btn{display:inline-flex;align-items:center;gap:6px;background:none;border:1px solid var(--line-strong);border-radius:8px;padding:6px 10px;font-size:12px;font-weight:700;color:var(--ink-dim);cursor:pointer;margin:0 0 10px;}
 .laudo-ajustar-btn svg{width:14px;height:14px;}
 .laudo-ajustar-btn:hover{color:var(--accent);border-color:var(--accent);}
@@ -3165,7 +3171,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "23/09/2026 07:20";
+const APP_BUILD = "23/09/2026 09:54";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -16735,12 +16741,12 @@ function laudoEntradaComReferencias(item, campo, entrada, exemplos){
 /* Lê o trio (sugestão / texto final / estado) + a dúvida de um campo, sem
    precisar saber em qual nível ele está guardado. */
 function laudoGet(item, campo){
-  if(campo==="escopo"){ const l = getLaudoMaquina(item.maquina); return { sug:l.escopoSug, fin:l.escopoFin, st:l.escopoSt, duv:l.duvEscopo, refs:l.escopoRefs||[] }; }
-  if(campo==="tarefa"){ const l = getLaudoTarefa(item.tarefa);   return { sug:l.tarefaSug, fin:l.tarefaFin, st:l.tarefaSt, duv:l.duvTarefa, refs:l.tarefaRefs||[] }; }
-  if(campo==="nome"){   const l = getLaudoRisco(item.risco);     return { sug:l.nomeSug, fin:l.nomeFin, st:l.nomeSt, duv:l.duvNome, refs:l.nomeRefs||[] }; }
-  if(campo==="risco"){  const l = getLaudoRisco(item.risco);     return { sug:l.riscoSug, fin:l.riscoFin, st:l.riscoSt, duv:l.duvRisco, refs:l.riscoRefs||[] }; }
-  if(campo==="existente"){ const l = getLaudoRisco(item.risco);  return { sug:l.existenteSug, fin:l.existenteFin, st:l.existenteSt, duv:l.duvExistente, refs:l.existenteRefs||[] }; }
-  const l = getLaudoRisco(item.risco);                           return { sug:l.solucaoSug, fin:l.solucaoFin, st:l.solucaoSt, duv:l.duvSolucao, refs:l.solucaoRefs||[] };
+  if(campo==="escopo"){ const l = getLaudoMaquina(item.maquina); return { sug:l.escopoSug, fin:l.escopoFin, st:l.escopoSt, duv:l.duvEscopo, refs:l.escopoRefs||[], ed:l.escopoEd||"" }; }
+  if(campo==="tarefa"){ const l = getLaudoTarefa(item.tarefa);   return { sug:l.tarefaSug, fin:l.tarefaFin, st:l.tarefaSt, duv:l.duvTarefa, refs:l.tarefaRefs||[], ed:l.tarefaEd||"" }; }
+  if(campo==="nome"){   const l = getLaudoRisco(item.risco);     return { sug:l.nomeSug, fin:l.nomeFin, st:l.nomeSt, duv:l.duvNome, refs:l.nomeRefs||[], ed:l.nomeEd||"" }; }
+  if(campo==="risco"){  const l = getLaudoRisco(item.risco);     return { sug:l.riscoSug, fin:l.riscoFin, st:l.riscoSt, duv:l.duvRisco, refs:l.riscoRefs||[], ed:l.riscoEd||"" }; }
+  if(campo==="existente"){ const l = getLaudoRisco(item.risco);  return { sug:l.existenteSug, fin:l.existenteFin, st:l.existenteSt, duv:l.duvExistente, refs:l.existenteRefs||[], ed:l.existenteEd||"" }; }
+  const l = getLaudoRisco(item.risco);                           return { sug:l.solucaoSug, fin:l.solucaoFin, st:l.solucaoSt, duv:l.duvSolucao, refs:l.solucaoRefs||[], ed:l.solucaoEd||"" };
 }
 /* =========================================================================
    IMPORTAR TEXTOS DO LAUDO GERADOS FORA DO APP
@@ -17646,6 +17652,7 @@ function laudoSet(item, campo, patch){
     if(patch.st !==undefined) l.escopoSt  = patch.st;
     if(patch.duv!==undefined) l.duvEscopo = patch.duv;
     if(patch.refs!==undefined) l.escopoRefs = patch.refs;
+    if(patch.ed!==undefined) l.escopoEd = patch.ed;
     l.em = agora;
     if(patch.st!==undefined && !estavaAplicado && laudoCampoAplicado(patch.st)) registrarAplicacaoLaudo(item, campo);
     return;
@@ -17657,6 +17664,7 @@ function laudoSet(item, campo, patch){
     if(patch.st !==undefined) l.tarefaSt  = patch.st;
     if(patch.duv!==undefined) l.duvTarefa = patch.duv;
     if(patch.refs!==undefined) l.tarefaRefs = patch.refs;
+    if(patch.ed!==undefined) l.tarefaEd = patch.ed;
     l.em = agora;
     if(patch.st!==undefined && !estavaAplicado && laudoCampoAplicado(patch.st)) registrarAplicacaoLaudo(item, campo);
     return;
@@ -17668,24 +17676,28 @@ function laudoSet(item, campo, patch){
     if(patch.st !==undefined) l.nomeSt  = patch.st;
     if(patch.duv!==undefined) l.duvNome = patch.duv;
     if(patch.refs!==undefined) l.nomeRefs = patch.refs;
+    if(patch.ed!==undefined) l.nomeEd = patch.ed;
   }else if(campo==="risco"){
     if(patch.sug!==undefined) l.riscoSug = patch.sug;
     if(patch.fin!==undefined) l.riscoFin = patch.fin;
     if(patch.st !==undefined) l.riscoSt  = patch.st;
     if(patch.duv!==undefined) l.duvRisco = patch.duv;
     if(patch.refs!==undefined) l.riscoRefs = patch.refs;
+    if(patch.ed!==undefined) l.riscoEd = patch.ed;
   }else if(campo==="existente"){
     if(patch.sug!==undefined) l.existenteSug = patch.sug;
     if(patch.fin!==undefined) l.existenteFin = patch.fin;
     if(patch.st !==undefined) l.existenteSt  = patch.st;
     if(patch.duv!==undefined) l.duvExistente = patch.duv;
     if(patch.refs!==undefined) l.existenteRefs = patch.refs;
+    if(patch.ed!==undefined) l.existenteEd = patch.ed;
   }else{
     if(patch.sug!==undefined) l.solucaoSug = patch.sug;
     if(patch.fin!==undefined) l.solucaoFin = patch.fin;
     if(patch.st !==undefined) l.solucaoSt  = patch.st;
     if(patch.duv!==undefined) l.duvSolucao = patch.duv;
     if(patch.refs!==undefined) l.solucaoRefs = patch.refs;
+    if(patch.ed!==undefined) l.solucaoEd = patch.ed;
   }
   l.em = agora;
   if(patch.st!==undefined && !estavaAplicado && laudoCampoAplicado(patch.st)) registrarAplicacaoLaudo(item, campo);
@@ -17814,6 +17826,72 @@ function laudoCamposAguardandoDaLinha(item){
 }
 /* Linha pendente = tem campo aguardando decisao OU algum dos campos do
    laudo ainda sem decisao nenhuma (mesma regra das "linhas prontas"). */
+/* Campos da linha que ainda NAO foram decididos (nem aplicados, nem
+   editados, nem recusados) e que tem texto na origem pedida:
+     "sel"   -> o cartao verde (o que ja foi escolhido)
+     "ia"    -> a sugestao da IA
+     "campo" -> o texto escrito em campo
+   Nenhum modo toca campo ja decidido. */
+function laudoCamposPendentesModo(item, modo){
+  if(modo === "sel") return laudoCamposAguardandoDaLinha(item);
+  return LAUDO_CAMPOS_IMPORTAVEIS.filter(c=>{
+    const st = laudoGet(item, c).st;
+    if(st==="ok" || st==="edit" || st==="no") return false;
+    return !!laudoTextoDaFonte(item, c, modo);
+  });
+}
+/* Escopo e da maquina e Tarefa e da tarefa: varias linhas apontam para o
+   mesmo texto. A chave evita contar (e aplicar) duas vezes. */
+function laudoChaveDoCampo(item, campo){
+  return campo==="escopo" ? "e:" + item.maquina.id : campo==="tarefa" ? "t:" + item.tarefa.id : campo + ":" + item.risco.id;
+}
+function laudoAlvosAplicarModo(itens, modo){
+  const vistos = new Set(), alvos = [];
+  itens.forEach(it=> laudoCamposPendentesModo(it, modo).forEach(c=>{
+    const k = laudoChaveDoCampo(it, c);
+    if(vistos.has(k)) return;
+    vistos.add(k); alvos.push({ item:it, campo:c });
+  }));
+  return alvos;
+}
+const LAUDO_MODOS_APLICAR = {
+  sel:   { rot:"Aplicar os cartões verdes", desc:"o texto que está selecionado (verde) em cada campo" },
+  ia:    { rot:"Aplicar a sugestão da IA", desc:"a sugestão da IA de cada campo" },
+  campo: { rot:"Aplicar o texto de campo", desc:"o texto escrito em campo de cada campo" },
+};
+function laudoAplicarAlvos(alvos, modo){
+  alvos.forEach(a=>{
+    const texto = modo==="sel" ? String(laudoTextoFinal(a.item, a.campo)||"").trim() : laudoTextoDaFonte(a.item, a.campo, modo);
+    if(texto) laudoSet(a.item, a.campo, { fin:texto, st:"ok" });
+  });
+}
+let __laudoAcaoConfirmada = null;
+function laudoAbrirConfirmacao(titulo, texto, rotuloOk, aoConfirmar){
+  __laudoAcaoConfirmada = aoConfirmar;
+  abrirOverlay(`<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card">
+    <h3>${ic('check')} ${escapeHtml(titulo)}</h3>
+    <p style="font-size:13px;color:var(--ink-dim);margin:6px 0 14px;white-space:pre-line">${escapeHtml(texto)}</p>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="App.fecharModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="App.fecharModal();App.laudoConfirmarAcao()">${escapeHtml(rotuloOk)}</button>
+    </div>
+  </div></div>`);
+}
+function laudoMenuAplicarHtml(item){
+  const rid = item.risco.id;
+  const op = (modo)=>{
+    const n = laudoCamposPendentesModo(item, modo).length;
+    const m = LAUDO_MODOS_APLICAR[modo];
+    return `<button class="laudo-menu-aplicar-op" ${n? "" : "disabled"} onclick="App.fecharModal();App.laudoAplicarLinhaModo('${rid}','${modo}')">
+      <b>${escapeHtml(m.rot)}</b><span>${n? `${n} campo${n>1?"s":""} pendente${n>1?"s":""}` : "nenhum campo pendente"}</span></button>`;
+  };
+  return `<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card">
+    <h3>${ic('check')} Aplicar nesta linha</h3>
+    <p style="font-size:12.5px;color:var(--ink-dim);margin:4px 0 10px">Só os campos que ainda aguardam decisão. O que já foi aplicado, editado ou recusado não muda.</p>
+    <div style="display:flex;flex-direction:column;gap:8px">${op("sel")}${op("ia")}${op("campo")}</div>
+    <div class="modal-actions" style="margin-top:12px"><button class="btn btn-secondary" onclick="App.fecharModal()">Cancelar</button></div>
+  </div></div>`;
+}
 function laudoLinhaPendente(item){
   if(laudoCamposAguardandoDaLinha(item).length) return true;
   const r = laudoResumoItem(item);
@@ -19256,6 +19334,7 @@ function laudoAbaRevisao(){
   const visiveis = lista.slice(0, limite);
   const temIA = !!getIAApiKey();
   const faltando = laudoLinhasComPendencia(base).length;
+  const nIAPendente = laudoAlvosAplicarModo(base, "ia").length;
   const temEscolha = !!(STATE.ui.laudoFiltroArea || STATE.ui.laudoFiltroMaq || STATE.ui.laudoFiltroTar);
 
   const chips = LAUDO_FILTROS.map(f=>{
@@ -19312,6 +19391,9 @@ function laudoAbaRevisao(){
       <button class="btn btn-primary" onclick="App.laudoGerarFaltantes()">${ic('shield')} ${faltando>0? `Gerar o que falta (${faltando})` : "Tudo já gerado"}</button>
       <button class="btn btn-secondary" onclick="App.laudoGerarTudoDeNovo()">${ic('copy')} Refazer sugestões</button>
     </div>`}
+  ${nIAPendente? `<div class="laudo-acoes" style="margin-top:8px">
+      <button class="btn btn-secondary laudo-btn-aplicar-ia" onclick="App.laudoAplicarIANaArea()" title="Aplica a sugestão da IA só nos campos que ainda aguardam decisão, em todas as linhas do filtro de área/equipamento/tarefa. Pede confirmação antes.">${ic('check')} Aplicar sugestões da IA nos pendentes (${nIAPendente})</button>
+    </div>` : ""}
   <div class="laudo-barra">
     <div class="search-wrap">
       <input type="text" id="buscaInput" class="search-input" placeholder="Buscar por máquina, tarefa ou risco…" value="${escapeHtml(__buscaAtual)}" oninput="App.onBuscaChange(this.value)">
@@ -19698,10 +19780,17 @@ function laudoFonteSelecionada(item, campo){
   }
   return sug ? "ia" : "campo";
 }
+/* O texto editado mora em "<campo>Ed" (23/09/2026): depois de editar, o
+   terceiro cartao fica na tela mesmo escolhendo outro cartao — trocar nao
+   apaga mais nada. Enquanto ele e o que vale, manda o texto que esta indo
+   para o laudo (pode ter vindo de "Copiar de outro" ou "Aplicar em varios",
+   que gravam so o final); senao, o ultimo texto editado guardado. */
 function laudoTextoDaFonte(item, campo, fonte){
   if(fonte==="ia") return String(laudoGet(item, campo).sug||"").trim();
   if(fonte==="campo") return String(laudoTextoOriginal(item, campo)||"").trim();
-  return String(laudoTextoFinal(item, campo)||"").trim();
+  const g = laudoGet(item, campo);
+  if(laudoFonteSelecionada(item, campo)==="edit") return String(g.fin||"").trim();
+  return String(g.ed||"").trim();
 }
 function laudoBlocoCampo(item, campo){
   const def = laudoCampoDef(campo);
@@ -19755,8 +19844,9 @@ function laudoBlocoCampo(item, campo){
         <button class="btn btn-secondary btn-sm" onclick="App.laudoCancelarEdicao()">Cancelar</button>
       </div>
     </div>`;
-  }else if(fonte==="edit"){
-    cartaoEdit = cartao("edit", "Seu texto editado", String(g.fin||"").trim(), "");
+  }else{
+    const textoEd = laudoTextoDaFonte(item, campo, "edit");
+    if(textoEd) cartaoEdit = cartao("edit", "Seu texto editado", textoEd, "");
   }
 
   const acoes = [];
@@ -19901,7 +19991,7 @@ window.addEventListener("keydown", (e)=>{
       }
       if(digitando) return;
       const item = laudoItemPorId(rid);
-      if(item && laudoCamposAguardandoDaLinha(item).length){ e.preventDefault(); App.laudoAprovarLinha(rid); }
+      if(item && laudoCamposAguardandoDaLinha(item).length){ e.preventDefault(); App.laudoAplicarLinhaModo(rid, "sel"); }
       return;
     }
     if(digitando || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -19922,7 +20012,7 @@ function screenSimplesLaudoItem(){
       <button class="btn btn-primary" style="margin-top:12px" onclick="App.go('simples-laudo')">${ic('back')} Voltar ao laudo</button></div>`;
   }
   const nomeRisco = nomeRiscoNaTela(item.risco);
-  const aguardando = laudoCamposAguardandoDaLinha(item).length;
+  const aguardando = new Set([].concat(laudoCamposPendentesModo(item, "sel"), laudoCamposPendentesModo(item, "ia"), laudoCamposPendentesModo(item, "campo"))).size;
   const lm = getLaudoMaquina(item.maquina);
   const fotos = laudoFotosDoItem(item);
   const lista = laudoListaAtual();
@@ -19946,7 +20036,7 @@ function screenSimplesLaudoItem(){
       <span class="laudo-topo-hrn" style="background:${metaHrn.cor};color:${metaHrn.texto}" title="HRN ${escapeHtml(String(hrn.hrn))} — ${escapeHtml(hrn.nivel)}">${escapeHtml(String(hrn.hrn))}</span>
     </div>
     <div class="laudo-topo-acoes">
-      <button class="btn btn-primary" ${aguardando? "" : "disabled"} onclick="App.laudoAprovarLinha('${item.risco.id}')" title="${aguardando? `Aplicar o cartão verde dos ${aguardando} campos que aguardam sua decisão` : "Nenhum campo aguardando decisão nesta linha"}">${ic('check')} Aplicar ${aguardando}</button>
+      <button class="btn btn-primary" ${aguardando? "" : "disabled"} onclick="App.laudoMenuAplicar('${item.risco.id}')" title="${aguardando? `Escolher o que aplicar nos ${aguardando} campos que aguardam sua decisão` : "Nenhum campo aguardando decisão nesta linha"}">${ic('check')} Aplicar ${aguardando}</button>
       ${fotos.length? `<button class="btn btn-secondary" onclick="App.laudoAbrirGaleria('${item.risco.id}')" title="Ver as ${fotos.length} fotos desta linha">${ic('gallery')} ${fotos.length}</button>`:""}
       ${temOutraPendente? `<button class="btn btn-secondary" onclick="App.laudoProximoPendente()" title="Ir para a próxima linha que ainda tem campo sem decisão (tecla P)">${ic('arrowR')} Próximo pendente</button>`:""}
       <button class="btn btn-secondary" onclick="App.menuLaudoCard('${item.risco.id}','${item.tarefa.id}')" title="Mais opções">${ic('dots')}</button>
@@ -19974,7 +20064,7 @@ function screenSimplesLaudoItem(){
   </div>
   <div class="card card-pad" style="background:var(--bg-soft)">
     <div style="font-size:12.5px;color:var(--ink-dim)">O <b>Escopo</b> vale para toda a máquina e a <b>Tarefa</b> para toda a tarefa: aprovar aqui já resolve as outras linhas que compartilham a mesma máquina ou a mesma tarefa.</div>
-    <div class="laudo-atalhos">Atalhos no computador: <kbd>←</kbd> <kbd>→</kbd> linha anterior/próxima · <kbd>P</kbd> próximo pendente · <kbd>Ctrl</kbd>+<kbd>Enter</kbd> aplica (o texto em edição ou o “Aplicar N” do topo).</div>
+    <div class="laudo-atalhos">Atalhos no computador: <kbd>←</kbd> <kbd>→</kbd> linha anterior/próxima · <kbd>P</kbd> próximo pendente · <kbd>Ctrl</kbd>+<kbd>Enter</kbd> aplica o texto em edição (ou, fora dela, os cartões verdes da linha, com confirmação).</div>
   </div>
   ${fotos.length? `<button class="laudo-fab" onclick="App.laudoAbrirGaleria('${item.risco.id}')" title="Ver fotos desta linha" aria-label="Ver fotos">${ic('gallery')}<span>${fotos.length}</span></button>`:""}
   `;
@@ -25379,6 +25469,46 @@ Devolver agora?`)) return;
     render(); window.scrollTo(0,0);
   },
   laudoToggleInfoHrn(campo){ __laudoInfoHrn[campo] = !__laudoInfoHrn[campo]; render(); },
+  laudoConfirmarAcao(){ const f = __laudoAcaoConfirmada; __laudoAcaoConfirmada = null; if(typeof f === "function") f(); },
+  laudoMenuAplicar(rid){
+    const item = laudoItemPorId(rid); if(!item) return;
+    abrirOverlay(laudoMenuAplicarHtml(item));
+  },
+  /* Os tres modos pedem confirmacao antes, e so tocam campo pendente. */
+  laudoAplicarLinhaModo(rid, modo){
+    const item = laudoItemPorId(rid); if(!item || !LAUDO_MODOS_APLICAR[modo]) return;
+    const n = laudoCamposPendentesModo(item, modo).length;
+    if(!n){ toast("Nenhum campo pendente para isso nesta linha", false); return; }
+    const m = LAUDO_MODOS_APLICAR[modo];
+    laudoAbrirConfirmacao(m.rot + "?",
+      `Vai aplicar ${m.desc} em ${n} campo${n>1?"s":""} desta linha que ainda aguarda${n>1?"m":""} decisão.\nO que já foi aplicado, editado ou recusado não muda.`,
+      "Aplicar", ()=>{
+        if(modo === "sel"){ App.laudoAprovarLinha(rid); return; }
+        laudoAplicarAlvos(laudoAlvosAplicarModo([item], modo), modo);
+        marcarAlterado(); render();
+        toast(`${n} campo(s) aplicado(s)`);
+      });
+  },
+  /* Pagina da lista: sugestao da IA em TODA a area/equipamento/tarefa
+     escolhidos nos filtros (a busca e as abas de estado nao entram — vale
+     o que o filtro de area mostra). Pensado para depois de conferir as
+     respostas na planilha e importar. */
+  laudoAplicarIANaArea(){
+    /* Projeto arquivado e so leitura: fica fora mesmo se estiver no escopo. */
+    const base = laudoItensFiltradosPorEscolha(laudoItensDoEscopo()).filter(it=> !projetoArquivado((it.proj||{}).id));
+    const alvos = laudoAlvosAplicarModo(base, "ia");
+    if(!alvos.length){ toast("Nenhuma sugestão da IA pendente nesta seleção", false); return; }
+    const areas = new Set(base.map(it=> it.area.nome || "Área sem nome"));
+    const onde = areas.size === 1 ? `na área "${[...areas][0]}"` : `em ${areas.size} áreas`;
+    const filtroExtra = (STATE.ui.laudoFiltroMaq || STATE.ui.laudoFiltroTar) ? " (respeitando o filtro de equipamento/tarefa)" : "";
+    laudoAbrirConfirmacao("Aplicar a sugestão da IA?",
+      `Vai aplicar a sugestão da IA em ${alvos.length} campo${alvos.length>1?"s":""} pendente${alvos.length>1?"s":""} ${onde}${filtroExtra}, em ${base.length} linha${base.length>1?"s":""}.\nSó entram campos que ainda aguardam decisão: o que já foi aplicado, editado ou recusado não muda.`,
+      "Aplicar a IA", ()=>{
+        laudoAplicarAlvos(alvos, "ia");
+        marcarAlterado(); render();
+        toast(`${alvos.length} campo(s) aplicado(s) com a sugestão da IA`);
+      });
+  },
   laudoToggleChecklistExistente(){ __laudoChecklistExistenteAberto = !__laudoChecklistExistenteAberto; render(); },
   laudoTogglePlaqueta(mid, aberta){ __laudoPlaquetaAberta[mid] = !!aberta; render(); },
   /* Pula para a proxima linha da lista (na ordem da tela, dando a volta) que
@@ -25400,10 +25530,12 @@ Devolver agora?`)) return;
   laudoSelecionar(rid, campo, fonte){
     const item = laudoItemPorId(rid); if(!item) return;
     const texto = laudoTextoDaFonte(item, campo, fonte);
-    if(!texto || (fonte!=="campo" && fonte!=="ia")) return;
-    if(laudoFonteSelecionada(item, campo)==="edit" && STATE.ui.laudoEditandoCampo!==campo
-       && !confirm("O seu texto editado deixa de valer e será descartado. Trocar mesmo assim?")) return;
-    laudoSet(item, campo, { fin:texto, st:"pend" });
+    if(!texto || (fonte!=="campo" && fonte!=="ia" && fonte!=="edit")) return;
+    const patch = { fin:texto, st:"pend" };
+    /* Sair do cartao editado nao descarta: o texto dele fica guardado em
+       "ed" e o cartao continua na tela para voltar a ele com um clique. */
+    if(laudoFonteSelecionada(item, campo)==="edit") patch.ed = String(laudoGet(item, campo).fin||"").trim();
+    laudoSet(item, campo, patch);
     if(STATE.ui.laudoEditandoCampo===campo){ STATE.ui.laudoEditandoCampo = null; __laudoRascunho = null; }
     marcarAlterado(); render();
   },
@@ -25434,7 +25566,7 @@ Devolver agora?`)) return;
     const el = document.getElementById("laudoEdit_"+campo);
     const item = laudoItemPorId(rid);
     if(!el || !item) return;
-    laudoSet(item, campo, { fin: el.value.trim(), st:"edit" });
+    laudoSet(item, campo, { fin: el.value.trim(), st:"edit", ed: el.value.trim() });
     STATE.ui.laudoEditandoCampo = null; __laudoRascunho = null;
     marcarAlterado(); render(); toast("Texto salvo no app");
   },

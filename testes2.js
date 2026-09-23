@@ -928,8 +928,10 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
      era sempre 4 e aplicava a sugestao por cima do que ja estava decidido. */
   t("ações ficam no cabeçalho, em versão compacta", ()=>{
     const h = C.screenSimplesLaudoItem();
-    const n = C.laudoCamposAguardandoDaLinha(C.laudoItemPorId("r1")).length;
-    ok(h.indexOf("laudoAprovarLinha('r1')") > 0);
+    /* 23/09/2026: o Aplicar do topo abre o menu (verdes / IA / campo). */
+    const it = C.laudoItemPorId("r1");
+    const n = new Set([].concat(C.laudoCamposPendentesModo(it, "sel"), C.laudoCamposPendentesModo(it, "ia"), C.laudoCamposPendentesModo(it, "campo"))).size;
+    ok(h.indexOf("laudoMenuAplicar('r1')") > 0);
     ok(h.indexOf("laudoGerarLinha('r1')") < 0, "o botão Gerar voltou ao cabeçalho");
     ok(h.indexOf("laudoAbrirGaleria('r1')") > 0);
     ok(new RegExp("Aplicar " + n + "\\s*<\\/button>").test(h), "rótulo visível deveria ser curto e contar o que aguarda decisão");
@@ -9885,12 +9887,60 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ["laudoSelecionar(rid, campo, fonte){", "laudoEditarDe(rid, campo, fonte){", "laudoEscolherMedida(rid, tipo){"]
         .forEach(m=> ok(HTML.indexOf(m) > 0, "faltou o metodo " + m));
     });
-    t("trocar de cartao com texto editado valendo pede confirmacao", ()=>{
+    /* 23/09/2026: trocar de cartao nao descarta mais o texto editado — ele
+       fica guardado em "ed" e o 3o cartao continua na tela. */
+    t("trocar de cartao guarda o texto editado e o 3o cartao continua", ()=>{
       const i = HTML.indexOf("laudoSelecionar(rid, campo, fonte){");
       const corpo = HTML.slice(i, HTML.indexOf("laudoEditarDe(rid, campo, fonte){", i));
-      ok(corpo.indexOf('laudoFonteSelecionada(item, campo)==="edit"') > 0 && corpo.indexOf("confirm(") > 0,
-         "descartaria o texto editado sem perguntar");
+      ok(corpo.indexOf("confirm(") < 0, "voltou a perguntar antes de trocar");
+      ok(corpo.indexOf('if(laudoFonteSelecionada(item, campo)==="edit") patch.ed = String(laudoGet(item, campo).fin||"").trim();') > 0,
+         "trocar descartaria o texto editado");
       ok(corpo.indexOf('st:"pend"') > 0, "escolher um cartao nao pode aplicar sozinho");
+      /* O caso real, executado: editar, escolher a IA, o editado continua na tela. */
+      const it = novoItem("rc13", "Sugestão da IA.");
+      C.laudoSet(it, "risco", { fin:"Meu texto.", st:"edit", ed:"Meu texto." });
+      C.laudoSet(it, "risco", { fin:"Sugestão da IA.", st:"pend" });   // o que laudoSelecionar grava
+      const h = C.laudoBlocoCampo(it, "risco");
+      eq(sel(h).join(), "ia");
+      ok(h.indexOf("Meu texto.") > 0, "o cartao editado sumiu ao escolher a IA");
+      ok(h.indexOf("App.laudoSelecionar('rc13','risco','edit')") > 0, "nao da para voltar ao editado com um clique");
+    });
+    t("texto editado legado (so no final) e guardado ao trocar", ()=>{
+      const it = novoItem("rc14", "Sugestão da IA.");
+      C.laudoSet(it, "risco", { fin:"Copiado de outro.", st:"edit" });
+      eq(C.laudoTextoDaFonte(it, "risco", "edit"), "Copiado de outro.");
+      eq(C.laudoFonteSelecionada(it, "risco"), "edit");
+    });
+    t("modos de aplicar: so pendentes, e cada um pela sua origem", ()=>{
+      const it = novoItem("rc15", "Sugestão da IA.");
+      C.laudoSet(it, "solucao", { sug:"Solução IA", fin:"Minha solução", st:"edit" });
+      const ia = C.laudoCamposPendentesModo(it, "ia");
+      ok(ia.indexOf("risco") >= 0, "faltou o risco pendente");
+      ok(ia.indexOf("solucao") < 0, "aplicaria a IA por cima de texto editado");
+      const campo = C.laudoCamposPendentesModo(it, "campo");
+      ok(campo.indexOf("risco") >= 0 && campo.indexOf("solucao") < 0);
+      C.laudoAplicarAlvos(C.laudoAlvosAplicarModo([it], "campo"), "campo");
+      eq(C.laudoGet(it, "risco").fin, "Texto de campo.");
+      eq(C.laudoGet(it, "risco").st, "ok");
+      eq(C.laudoGet(it, "solucao").fin, "Minha solução", "mexeu no que ja estava decidido");
+    });
+    t("aplicar na area nao conta duas vezes o escopo/tarefa compartilhados", ()=>{
+      const a = novoItem("rc16", "IA 16"), b = novoItem("rc17", "IA 17");
+      b.maquina = a.maquina; b.tarefa = a.tarefa;
+      C.laudoSet(a, "escopo", { sug:"Escopo IA", st:"pend" });
+      C.laudoSet(a, "tarefa", { sug:"Tarefa IA", st:"pend" });
+      const alvos = C.laudoAlvosAplicarModo([a, b], "ia");
+      eq(alvos.filter(x=>x.campo==="escopo").length, 1);
+      eq(alvos.filter(x=>x.campo==="tarefa").length, 1);
+      eq(alvos.filter(x=>x.campo==="risco").length, 2);
+    });
+    t("toda aplicacao em lote pede confirmacao antes", ()=>{
+      ["laudoAplicarLinhaModo(rid, modo){", "laudoAplicarIANaArea(){"].forEach(m=>{
+        const i = HTML.indexOf(m);
+        ok(i > 0, "faltou " + m);
+        ok(HTML.slice(i, i + 1500).indexOf("laudoAbrirConfirmacao(") > 0, "sem confirmacao: " + m);
+      });
+      ok(HTML.indexOf('App.laudoAplicarLinhaModo(rid, "sel"); }') > 0, "o Ctrl+Enter pularia a confirmacao");
     });
   }
 
