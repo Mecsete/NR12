@@ -934,7 +934,9 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(h.indexOf("laudoMenuAplicar('r1')") > 0);
     ok(h.indexOf("laudoGerarLinha('r1')") < 0, "o botão Gerar voltou ao cabeçalho");
     ok(h.indexOf("laudoAbrirGaleria('r1')") > 0);
-    ok(new RegExp("Aplicar " + n + "\\s*<\\/button>").test(h), "rótulo visível deveria ser curto e contar o que aguarda decisão");
+    /* 23/09/2026: ganhou uma setinha dentro do botao, marcando que ele abre
+       um menu (verdes/IA/campo/editados) -- antes parecia acao unica. */
+    ok(new RegExp("Aplicar " + n + " <span class=\"laudo-btn-seta\">").test(h), "rótulo visível deveria ser curto, contar o que aguarda decisão e indicar o menu");
     ok(h.indexOf(">Aplicar as ") < 0, "rótulo longo não pode ser o texto do botão");
   });
   t("navegação entre linhas fica no cabeçalho", ()=>{
@@ -4776,7 +4778,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   t("cabeçalho do risco reaproveita laudoSiglaChip para os 4 selos (mesma cor que a lista de cartões usa)",
     ()=>{
-      ok(HTML.indexOf('<div class="laudo-topo-siglas">${LAUDO_CAMPOS.map(c=>laudoSiglaChip(item, c.k, c.sigla)).join("")}</div>') > 0);
+      ok(HTML.indexOf('<div class="laudo-topo-siglas">${LAUDO_CAMPOS.map(c=>laudoSiglaChip(item, c.k, c.sigla)).join("")}') > 0);
     });
 
   console.log("\n=== t101 · geração em lote da IA para cedo e avisa o motivo na hora ===");
@@ -6738,6 +6740,20 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ["escopo","tarefa","nome","risco","solucao"].forEach(c=> C.laudoSet(it, c, { fin:"x", st:"ok" }));
       eq(C.laudoFiltrar([it], "falta").length, 0, "existente vazio nao pode virar 'sem texto' para sempre");
       eq(C.laudoFiltrar([it], "ok").length, 1, "essa linha tem que aparecer em Prontas");
+    });
+    /* Pedido em campo: os selos do cabecalho e do cartao da lista so
+       mostravam E/T/R/S (os 4 de LAUDO_CAMPOS) -- Nome e Mitigacao
+       Existente pendentes nao apareciam ali, so dentro do item aberto.
+       Agora os dois selos extras (N, M) entram, sem mexer em LAUDO_CAMPOS. */
+    t("selo N (Nome) e M (Mitigação existente) no cartão da lista", ()=>{
+      ok(HTML.indexOf('${LAUDO_CAMPOS.map(c=>laudoSiglaChip(it, c.k, c.sigla)).join("")}${laudoSiglaChip(it,"nome","N")}${laudoSiglaChip(it,"existente","M")}') > 0,
+         "faltou N/M no cartao da lista");
+    });
+    t("selo N e M no topo do item", ()=>{
+      ok(HTML.indexOf('${LAUDO_CAMPOS.map(c=>laudoSiglaChip(item, c.k, c.sigla)).join("")}${laudoSiglaChip(item,"nome","N")}${laudoSiglaChip(item,"existente","M")}') > 0);
+    });
+    t("LAUDO_CAMPOS continua com 4 — os selos extras nao entraram no array", ()=>{
+      eq(vm.runInContext("LAUDO_CAMPOS.length", ctx), 4);
     });
   }
 

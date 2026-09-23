@@ -279,7 +279,11 @@ d = len(novo) - len(orig)
 # nunca foi a defesa real contra "nao mudou nada" -- essa defesa sao as
 # checagens por funcionalidade de cada secao, que exigem o texto exato do
 # que entrou. O piso so pega o arquivo trocado por engano por um identico.
-chk("crescimento coerente com o que a entrega mexeu (%d bytes)" % d, 500 < d < 700000, "delta=%d" % d)
+# Piso de 500 para 200 bytes: a secao 149 (dois selos novos + uma setinha
+# num botao + CSS) cresceu 374 bytes -- entrega legitima, so pequena. O piso
+# continua sem ser a defesa real (essa e por secao, acima); so pega d<=0 ou
+# perto disso, sinal de arquivo repetido.
+chk("crescimento coerente com o que a entrega mexeu (%d bytes)" % d, 200 < d < 700000, "delta=%d" % d)
 chk("nada foi removido do original por engano",
     all(novo.count(m) >= 1 for m in ["exportarMasterXLSXFotos", "gerarBytesXlsmCorteva", "montarItensInventario", "gerarBytesDocxSimples"]))
 
@@ -1632,7 +1636,7 @@ chk("selos E-T-R-S comecam escondidos (mobile) e so aparecem a partir de 900px",
     ".laudo-topo-siglas{display:none;flex-shrink:0;gap:4px;}" in novo
     and ".laudo-topo-siglas{display:flex;}" in novo)
 chk("cabecalho do risco desenha os 4 selos reaproveitando laudoSiglaChip (mesma logica de cor da lista)",
-    '<div class="laudo-topo-siglas">${LAUDO_CAMPOS.map(c=>laudoSiglaChip(item, c.k, c.sigla)).join("")}</div>' in novo)
+    '<div class="laudo-topo-siglas">${LAUDO_CAMPOS.map(c=>laudoSiglaChip(item, c.k, c.sigla)).join("")}' in novo)
 
 print("\n=== 58. GERACAO EM LOTE DA IA PARA CEDO E AVISA O MOTIVO NA HORA ===")
 # Usuario relatou: a IA tinha estourado o limite de uso, mas a geracao em
@@ -5099,5 +5103,18 @@ chk("LAUDO_CAMPOS continua com 4 (sigla, Excel, progresso de geracao) — nao vi
 chk("o menu Aplicar ganhou o 4o modo, Editados",
     '"Aplicar os textos editados"' in novo
     and '${op("sel")}${op("ia")}${op("campo")}${op("edit")}' in novo)
+
+print("\n=== 149. SELOS N/M NOS CARTOES E MENU DO APLICAR MAIS VISIVEL (23/09/2026) ===")
+# Relatado em campo, junto com a secao 148: os selos do cartao da lista e do
+# topo do item so mostravam E/T/R/S (os 4 de LAUDO_CAMPOS) -- Nome do risco
+# e Mitigacao Existente pendentes nao apareciam ali. E o botao "Aplicar N"
+# do topo, que ja abre o menu com 4 modos, parecia um botao de acao unica
+# (foi reportado como "esses botoes nao existem aqui"). Prova em t164.
+chk("selos N e M entram ao lado de E/T/R/S, sem alterar LAUDO_CAMPOS",
+    novo.count('${laudoSiglaChip(it,"nome","N")}${laudoSiglaChip(it,"existente","M")}') == 1
+    and novo.count('${laudoSiglaChip(item,"nome","N")}${laudoSiglaChip(item,"existente","M")}') == 1
+    and "LAUDO_CAMPOS.length" not in _corpoDe(novo, "laudoResumoItem"))
+chk("o botao Aplicar do topo mostra uma setinha, marcando que abre um menu",
+    'Aplicar ${aguardando} <span class="laudo-btn-seta">${ic(\'chev\')}</span></button>' in novo)
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

@@ -64,6 +64,21 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 23/09/2026 11:07
+
+**Selos N e M nos cartões, e o botão "Aplicar" agora mostra que abre um menu.**
+
+- Os cartões da Revisão (lista e topo do item) mostravam só 4 selos —
+  E/T/R/S. Nome do risco e Mitigação Existente pendentes não apareciam
+  ali, só dentro do item aberto. Agora os dois selos extras, **N** e
+  **M**, aparecem ao lado dos outros quatro, com a mesma cor/estado de
+  sempre (cinza = não gerado, amarelo = aguardando, verde = aplicado).
+- O botão **"Aplicar N"** do topo do item já abria, desde a entrega de
+  ontem, um menu com 4 opções (cartões verdes, sugestão da IA, texto de
+  campo, editados) — mas parecia um botão de ação única, sem nenhum
+  sinal visual de que era um menu. Agora tem uma setinha, deixando claro
+  que há opções por trás do clique.
+
 ## 23/09/2026 10:51
 
 **Painel de pendências corrigido — o "A decidir" agora bate com o botão de aplicar em lote. E chegou "Editados" no Aplicar da linha.**
