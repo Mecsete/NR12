@@ -64,6 +64,17 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 23/09/2026 11:19
+
+**Ordem dos selos corrigida — agora bate com a ordem dos cartões.**
+
+Os selos N e M, acrescentados na entrega anterior, saíam colados no fim
+(E T R S N M) em vez de seguirem a ordem em que os cartões realmente
+aparecem na tela de revisão (Escopo, Tarefa, **Nome**, Descrição do
+risco, **Mitigação existente**, Solução). Agora os selos seguem essa
+mesma ordem: **E T N R M S**, tanto no cartão da lista quanto no topo do
+item.
+
 ## 23/09/2026 11:07
 
 **Selos N e M nos cartões, e o botão "Aplicar" agora mostra que abre um menu.**

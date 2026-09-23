@@ -3181,7 +3181,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "23/09/2026 11:07";
+const APP_BUILD = "23/09/2026 11:19";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -19600,7 +19600,7 @@ function laudoAbaRevisao(){
             <span style="flex-shrink:0;font-size:10px;font-weight:800;padding:3px 7px;border-radius:6px;background:${meta.cor};color:${meta.texto}">${escapeHtml(String(hrn.hrn))}</span>
           </div>
           <div style="display:flex;align-items:center;gap:5px;margin-top:9px;flex-wrap:wrap">
-            ${LAUDO_CAMPOS.map(c=>laudoSiglaChip(it, c.k, c.sigla)).join("")}${laudoSiglaChip(it,"nome","N")}${laudoSiglaChip(it,"existente","M")}
+            ${laudoSiglaChip(it,"escopo","E")}${laudoSiglaChip(it,"tarefa","T")}${laudoSiglaChip(it,"nome","N")}${laudoSiglaChip(it,"risco","R")}${laudoSiglaChip(it,"existente","M")}${laudoSiglaChip(it,"solucao","S")}
             ${nFotos>0? `<span style="font-size:10.5px;font-weight:700;color:var(--ink-faint);margin-left:2px">${nFotos} foto${nFotos>1?'s':''}</span>`:""}
             ${r.duv>0? `<span style="font-size:10.5px;font-weight:700;color:#B26A00;margin-left:2px">${r.duv} dúvida${r.duv>1?'s':''}</span>` : ""}
           </div>
@@ -20266,7 +20266,7 @@ function screenSimplesLaudoItem(){
         <span class="lt-area" title="${escapeHtml(trilha)}">${escapeHtml(trilha)}</span>
         <span class="lt-risco" title="${escapeHtml(nomeRisco||"")}">${escapeHtml(nomeRisco||"Risco sem nome")}</span>
       </div>
-      <div class="laudo-topo-siglas">${LAUDO_CAMPOS.map(c=>laudoSiglaChip(item, c.k, c.sigla)).join("")}${laudoSiglaChip(item,"nome","N")}${laudoSiglaChip(item,"existente","M")}</div>
+      <div class="laudo-topo-siglas">${laudoSiglaChip(item,"escopo","E")}${laudoSiglaChip(item,"tarefa","T")}${laudoSiglaChip(item,"nome","N")}${laudoSiglaChip(item,"risco","R")}${laudoSiglaChip(item,"existente","M")}${laudoSiglaChip(item,"solucao","S")}</div>
       <span class="laudo-topo-hrn" style="background:${metaHrn.cor};color:${metaHrn.texto}" title="HRN ${escapeHtml(String(hrn.hrn))} — ${escapeHtml(hrn.nivel)}">${escapeHtml(String(hrn.hrn))}</span>
     </div>
     <div class="laudo-topo-acoes">

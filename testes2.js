@@ -4776,9 +4776,9 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(HTML.indexOf(".laudo-topo-siglas{display:none;flex-shrink:0;gap:4px;}") > 0);
       ok(HTML.indexOf(".laudo-topo-siglas{display:flex;}") > 0);
     });
-  t("cabeçalho do risco reaproveita laudoSiglaChip para os 4 selos (mesma cor que a lista de cartões usa)",
+  t("cabeçalho do risco reaproveita laudoSiglaChip para os selos (mesma cor que a lista de cartões usa)",
     ()=>{
-      ok(HTML.indexOf('<div class="laudo-topo-siglas">${LAUDO_CAMPOS.map(c=>laudoSiglaChip(item, c.k, c.sigla)).join("")}') > 0);
+      ok(HTML.indexOf('<div class="laudo-topo-siglas">${laudoSiglaChip(item,"escopo","E")}') > 0);
     });
 
   console.log("\n=== t101 · geração em lote da IA para cedo e avisa o motivo na hora ===");
@@ -6745,12 +6745,33 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
        mostravam E/T/R/S (os 4 de LAUDO_CAMPOS) -- Nome e Mitigacao
        Existente pendentes nao apareciam ali, so dentro do item aberto.
        Agora os dois selos extras (N, M) entram, sem mexer em LAUDO_CAMPOS. */
-    t("selo N (Nome) e M (Mitigação existente) no cartão da lista", ()=>{
-      ok(HTML.indexOf('${LAUDO_CAMPOS.map(c=>laudoSiglaChip(it, c.k, c.sigla)).join("")}${laudoSiglaChip(it,"nome","N")}${laudoSiglaChip(it,"existente","M")}') > 0,
-         "faltou N/M no cartao da lista");
+    /* 23/09/2026, corrigido no mesmo dia: os selos apareciam na ordem
+       E T R S N M (LAUDO_CAMPOS primeiro, N/M colados no fim) — mas os
+       CARTOES da tela de revisao ficam na ordem Escopo, Tarefa, Nome,
+       Risco, Existente, Solucao. Reportado em campo. Os selos tem que
+       seguir a MESMA ordem dos cartoes: E T N R M S. */
+    const ORDEM_SELOS = ["escopo","tarefa","nome","risco","existente","solucao"];
+    t("selos N (Nome) e M (Mitigação existente) aparecem no cartão da lista", ()=>{
+      ORDEM_SELOS.forEach((c,i)=>{
+        const sig = ["E","T","N","R","M","S"][i];
+        ok(HTML.indexOf(`laudoSiglaChip(it,"${c}","${sig}")`) > 0, "faltou o selo " + sig + " (" + c + ")");
+      });
     });
-    t("selo N e M no topo do item", ()=>{
-      ok(HTML.indexOf('${LAUDO_CAMPOS.map(c=>laudoSiglaChip(item, c.k, c.sigla)).join("")}${laudoSiglaChip(item,"nome","N")}${laudoSiglaChip(item,"existente","M")}') > 0);
+    t("selos N e M aparecem no topo do item", ()=>{
+      ORDEM_SELOS.forEach((c,i)=>{
+        const sig = ["E","T","N","R","M","S"][i];
+        ok(HTML.indexOf(`laudoSiglaChip(item,"${c}","${sig}")`) > 0, "faltou o selo " + sig + " (" + c + ")");
+      });
+    });
+    t("O CASO REAL: a ordem dos 6 selos bate com a ordem dos cartoes na tela", ()=>{
+      // A ordem dos cartoes vem literal desta linha do render (LAUDO_CAMPOS
+      // com "nome" inserido antes de risco e "existente" antes de solucao).
+      const ordemCartoes = ["escopo","tarefa","nome","risco","existente","solucao"];
+      const linhaSelos = HTML.slice(HTML.indexOf('<div class="laudo-topo-siglas">'), HTML.indexOf('</div>', HTML.indexOf('<div class="laudo-topo-siglas">')));
+      const posicoes = ordemCartoes.map(c=> linhaSelos.indexOf(`laudoSiglaChip(item,"${c}"`));
+      ok(posicoes.every(p=>p>=0), "algum campo sumiu da linha de selos");
+      for(let i=1;i<posicoes.length;i++) ok(posicoes[i] > posicoes[i-1],
+         "selo de '" + ordemCartoes[i] + "' veio antes de '" + ordemCartoes[i-1] + "' — fora da ordem dos cartoes");
     });
     t("LAUDO_CAMPOS continua com 4 — os selos extras nao entraram no array", ()=>{
       eq(vm.runInContext("LAUDO_CAMPOS.length", ctx), 4);

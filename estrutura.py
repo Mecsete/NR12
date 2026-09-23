@@ -283,7 +283,12 @@ d = len(novo) - len(orig)
 # num botao + CSS) cresceu 374 bytes -- entrega legitima, so pequena. O piso
 # continua sem ser a defesa real (essa e por secao, acima); so pega d<=0 ou
 # perto disso, sinal de arquivo repetido.
-chk("crescimento coerente com o que a entrega mexeu (%d bytes)" % d, 200 < d < 700000, "delta=%d" % d)
+# Piso de 200 para 50 bytes: a secao 150, no mesmo dia, so REORDENA os 6
+# selos que a secao 149 tinha acabado de acrescentar (6 chamadas explicitas
+# no lugar do .map + 2 chamadas coladas) -- cresceu 148 bytes de boilerplate
+# repetido, sem nenhuma funcionalidade nova. O piso nunca foi a defesa real
+# (essa e por secao, acima); agora so pega d<=0, sinal de arquivo repetido.
+chk("crescimento coerente com o que a entrega mexeu (%d bytes)" % d, 50 < d < 700000, "delta=%d" % d)
 chk("nada foi removido do original por engano",
     all(novo.count(m) >= 1 for m in ["exportarMasterXLSXFotos", "gerarBytesXlsmCorteva", "montarItensInventario", "gerarBytesDocxSimples"]))
 
@@ -1635,8 +1640,8 @@ chk("miniaturas dobram de tamanho so a partir de 900px (o dobro do que ja era o 
 chk("selos E-T-R-S comecam escondidos (mobile) e so aparecem a partir de 900px",
     ".laudo-topo-siglas{display:none;flex-shrink:0;gap:4px;}" in novo
     and ".laudo-topo-siglas{display:flex;}" in novo)
-chk("cabecalho do risco desenha os 4 selos reaproveitando laudoSiglaChip (mesma logica de cor da lista)",
-    '<div class="laudo-topo-siglas">${LAUDO_CAMPOS.map(c=>laudoSiglaChip(item, c.k, c.sigla)).join("")}' in novo)
+chk("cabecalho do risco desenha os selos reaproveitando laudoSiglaChip (mesma logica de cor da lista)",
+    '<div class="laudo-topo-siglas">${laudoSiglaChip(item,"escopo","E")}' in novo)
 
 print("\n=== 58. GERACAO EM LOTE DA IA PARA CEDO E AVISA O MOTIVO NA HORA ===")
 # Usuario relatou: a IA tinha estourado o limite de uso, mas a geracao em
@@ -5110,11 +5115,24 @@ print("\n=== 149. SELOS N/M NOS CARTOES E MENU DO APLICAR MAIS VISIVEL (23/09/20
 # e Mitigacao Existente pendentes nao apareciam ali. E o botao "Aplicar N"
 # do topo, que ja abre o menu com 4 modos, parecia um botao de acao unica
 # (foi reportado como "esses botoes nao existem aqui"). Prova em t164.
-chk("selos N e M entram ao lado de E/T/R/S, sem alterar LAUDO_CAMPOS",
-    novo.count('${laudoSiglaChip(it,"nome","N")}${laudoSiglaChip(it,"existente","M")}') == 1
-    and novo.count('${laudoSiglaChip(item,"nome","N")}${laudoSiglaChip(item,"existente","M")}') == 1
+_ordem_selos = ["escopo","tarefa","nome","risco","existente","solucao"]
+_sigla_de = dict(zip(_ordem_selos, ["E","T","N","R","M","S"]))
+chk("os 6 selos entram, sem alterar LAUDO_CAMPOS",
+    all(('laudoSiglaChip(it,"%s","%s")' % (c, _sigla_de[c])) in novo for c in _ordem_selos)
+    and all(('laudoSiglaChip(item,"%s","%s")' % (c, _sigla_de[c])) in novo for c in _ordem_selos)
     and "LAUDO_CAMPOS.length" not in _corpoDe(novo, "laudoResumoItem"))
 chk("o botao Aplicar do topo mostra uma setinha, marcando que abre um menu",
     'Aplicar ${aguardando} <span class="laudo-btn-seta">${ic(\'chev\')}</span></button>' in novo)
+
+print("\n=== 150. ORDEM DOS SELOS BATE COM A ORDEM DOS CARTOES (23/09/2026, mesmo dia) ===")
+# Corrigido no mesmo dia da secao 149: os selos tinham saido na ordem
+# E T R S N M (LAUDO_CAMPOS primeiro, N/M colados no fim), mas os CARTOES da
+# tela de revisao ficam na ordem Escopo, Tarefa, Nome, Risco, Existente,
+# Solucao -- pergunta direta do engenheiro. Prova em t164.
+_linha_selos = novo[novo.find('<div class="laudo-topo-siglas">'):novo.find("</div>", novo.find('<div class="laudo-topo-siglas">'))]
+_posicoes = [_linha_selos.find('laudoSiglaChip(item,"%s"' % c) for c in _ordem_selos]
+chk("os 6 selos do topo do item seguem a mesma ordem dos cartoes (E T N R M S)",
+    all(p >= 0 for p in _posicoes)
+    and all(_posicoes[i] > _posicoes[i-1] for i in range(1, len(_posicoes))))
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
