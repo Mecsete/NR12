@@ -64,6 +64,29 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 23/09/2026 07:20
+
+**Revisar textos do laudo: menos rolagem e ir direto ao que falta.**
+
+- **Mitigação existente:** o checklist das medidas fica recolhido. Em cima
+  dos cartões aparece só o resumo (situação e medidas marcadas); o botão
+  **Ajustar o que existe** abre o checklist completo. A descrição não
+  aparece mais repetida — ela está no cartão "Descrição de campo".
+- **Escopo:** o quadro "Equipamento" não repete mais o nome e a descrição
+  que já estão no cartão de campo. Eles só aparecem quando **faltam**, como
+  aviso; o Tipo aparece sempre.
+- **Plaqueta:** quando já tem foto ou algum dado, aparece **recolhida**
+  numa linha só (miniatura, resumo e contador). Um clique abre. Sem nada
+  preenchido, continua aberta.
+- **Próximo pendente:** novo botão no topo que pula direto para a próxima
+  linha que ainda tem campo sem decisão (dá a volta na lista).
+- **Atalhos no computador:** setas ← → trocam de linha, **P** vai ao
+  próximo pendente, **Ctrl+Enter** aplica o texto em edição (ou o
+  "Aplicar N" do topo). Os atalhos não agem enquanto se digita num campo
+  nem com uma janela aberta por cima.
+
+Nenhum dado muda: só a forma de mostrar.
+
 ## 22/09/2026 23:51
 
 **Revisar textos do laudo: nova tela, com os textos lado a lado e o escolhido em verde.**

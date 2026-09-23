@@ -241,7 +241,7 @@ const BLOCO_B = trecho("/* =====================================================
    e caixas de informacao do HRN (App.laudoToggleInfoHrn), ambos lidos sem
    condicao nenhuma dentro do render — sem isto, qualquer teste que desenhe
    laudoBlocoCampo ou laudoBlocoHRN quebra com ReferenceError. */
-vm.runInContext("let __laudoRascunho = null; let __laudoInfoHrn = { po:false, fe:false, gpd:false, np:false }; let __laudoRefazendo = null; let __laudoGrupoExistenteAberto = {};", ctx);
+vm.runInContext("let __laudoRascunho = null; let __laudoInfoHrn = { po:false, fe:false, gpd:false, np:false }; let __laudoRefazendo = null; let __laudoGrupoExistenteAberto = {}; let __laudoChecklistExistenteAberto = false; let __laudoPlaquetaAberta = {};", ctx);
 /* diaLocalBR é usada por registrarAplicacaoLaudo, dentro do BLOCO_A — precisa
    existir no contexto antes dele rodar. diaBRCurto só é usada pela tela do
    relatório (fora dos blocos), mas é extraída junto por ser a mesma dupla. */
@@ -829,6 +829,9 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   });
 
   console.log("\n=== t25 · plaqueta do equipamento ===");
+  /* 23/09/2026: plaqueta com foto/dado nasce RECOLHIDA na revisão. Estes
+     testes conferem o conteúdo da plaqueta aberta; t162 cobre o recolhimento. */
+  vm.runInContext("__laudoPlaquetaAberta = { m1:true };", ctx);
   t("bloco mostra os 6 campos editáveis", ()=>{
     STATE.ui.laudoRiscoId = "r1";
     const h = C.laudoBlocoPlaqueta(C.linhasEscopoSimples()[0]);
@@ -1126,6 +1129,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   });
   t("a explicacao na tela diz os dois momentos", ()=>{
     STATE.ui.laudoRiscoId = "r1";
+    vm.runInContext("__laudoPlaquetaAberta = { m1:true };", ctx);
     const h = C.laudoBlocoPlaqueta(C.linhasEscopoSimples()[0]);
     ok(h.indexOf("automaticamente logo depois de fotografar") > 0);
     ok(h.indexOf("sempre que você tocar no botão") > 0);
@@ -3403,7 +3407,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
        wrapper à parte — mesmo motor genérico dos outros 4, mas FORA de
        LAUDO_CAMPOS (não conta no "X de 4 campos" nem ganha coluna no
        Excel — ver laudoCampoDef). */
-    ok(HTML.indexOf('function laudoBlocoMedidaExistenteEditavelHtml(item){') > 0);
+    ok(HTML.indexOf('function laudoBlocoMedidaExistenteEditavelHtml(item, soChecklist){') > 0);
     ok(HTML.indexOf('c.k==="solucao"? laudoBlocoCampo(item,"existente") : ""') > 0,
        "o loop da tela não insere mais o cartão de existente antes da solução");
   });
@@ -4435,7 +4439,10 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   t("o cartão de existente traz o checklist editável, igual ao cadastro em campo", ()=>{
     const item = { risco:{ id:"rChk1", medidasExistentes:["prot_fixa"], medidaExistenteSituacao:"ok" },
       maquina:{}, tarefa:{ frequencia:"Diário", numPessoas:"2" } };
+    /* 23/09/2026: o checklist fica atrás de "Ajustar o que existe". */
+    vm.runInContext("__laudoChecklistExistenteAberto = true;", ctx);
     const html = C.laudoBlocoCampo(item, "existente");
+    vm.runInContext("__laudoChecklistExistenteAberto = false;", ctx);
     ok(html.indexOf("App.laudoToggleMedidaExistente('rChk1','prot_fixa')") > 0, "faltou o toggle da medida marcada");
     ok(html.indexOf("App.laudoAcrescentarOutroExistente('rChk1')") > 0, "faltou o botão de acrescentar outro");
     ok(html.indexOf("App.laudoSetMedidaExistenteCampo('rChk1','situacao'") > 0, "faltou a escolha de situação");
@@ -6035,7 +6042,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(h.indexOf(OUTRO) < 0, "vazou o valor interno do 'Outro'");
   });
   t("o cartão do Escopo usa a identificação; os outros campos seguem como antes", ()=>{
-    ok(HTML.indexOf(': campo==="escopo" ? laudoBlocoIdentificacaoEquipamento(item) : ""') > 0,
+    ok(HTML.indexOf(': campo==="escopo" ? laudoBlocoIdentificacaoEquipamento(item, true) : ""') > 0,
        "o cartão do escopo não passou a usar a identificação");
     ok(HTML.indexOf('const rotCampo = campo==="solucao" ? "O que você propôs em campo"') > 0,
        "os demais campos perderam o rótulo de sempre");
@@ -9873,7 +9880,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
     t("sem IA, nada foi removido: copiar, replicar e biblioteca continuam", ()=>{
       const f = funcao("laudoBlocoCampo");
-      ["App.laudoAbrirCopiar(", "App.laudoAbrirReplicar(", "laudoBlocoMedidaHtml(item)", "laudoBlocoMedidaExistenteEditavelHtml(item)"]
+      ["App.laudoAbrirCopiar(", "App.laudoAbrirReplicar(", "laudoBlocoMedidaHtml(item)", "laudoBlocoMedidaExistenteEditavelHtml(item, true)"]
         .forEach(m=> ok(f.indexOf(m) > 0, "sumiu " + m));
       ["laudoSelecionar(rid, campo, fonte){", "laudoEditarDe(rid, campo, fonte){", "laudoEscolherMedida(rid, tipo){"]
         .forEach(m=> ok(HTML.indexOf(m) > 0, "faltou o metodo " + m));
@@ -9884,6 +9891,69 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(corpo.indexOf('laudoFonteSelecionada(item, campo)==="edit"') > 0 && corpo.indexOf("confirm(") > 0,
          "descartaria o texto editado sem perguntar");
       ok(corpo.indexOf('st:"pend"') > 0, "escolher um cartao nao pode aplicar sozinho");
+    });
+  }
+
+  /* ---------- t162: revisao do laudo com menos rolagem (23/09/2026) -------
+     Mitigacao existente com checklist recolhido, Escopo sem repetir nome e
+     descricao, plaqueta recolhida quando ja tem dado, proximo pendente. */
+  {
+    console.log("\n[t162] revisao do laudo: menos rolagem e proximo pendente");
+    const itEx = ()=>({ risco:{ id:"rX1", medidasExistentes:["prot_fixa"], medidaExistenteSituacao:"ok", descMedida:"Grade parafusada.", laudoIA:{} }, maquina:{ id:"mX1", laudoIA:{} }, tarefa:{ id:"tX1", laudoIA:{} } });
+    t("existente: fechado mostra so o resumo e o botao Ajustar", ()=>{
+      vm.runInContext("__laudoChecklistExistenteAberto = false;", ctx);
+      const h = C.laudoBlocoCampo(itEx(), "existente");
+      ok(h.indexOf("Mitigação existente na máquina") > 0, "sem o resumo");
+      ok(h.indexOf("App.laudoToggleChecklistExistente()") > 0, "sem o botao de abrir");
+      ok(h.indexOf("App.laudoToggleMedidaExistente(") < 0, "o checklist apareceu fechado");
+      eq(h.split("Grade parafusada.").length - 1, 1, "a descricao repetiu fora do cartao de campo");
+    });
+    t("existente: aberto traz o checklist sem repetir o resumo", ()=>{
+      vm.runInContext("__laudoChecklistExistenteAberto = true;", ctx);
+      const h = C.laudoBlocoCampo(itEx(), "existente");
+      vm.runInContext("__laudoChecklistExistenteAberto = false;", ctx);
+      ok(h.indexOf("App.laudoToggleMedidaExistente('rX1','prot_fixa')") > 0);
+      eq(h.split("Mitigação existente na máquina").length - 1, 1, "o resumo apareceu duas vezes");
+    });
+    t("o checklist fecha ao trocar de linha", ()=>{
+      eq((HTML.match(/__laudoChecklistExistenteAberto = false;/g)||[]).length, 3, "declaracao + laudoAbrirItem + laudoIrPara");
+    });
+    t("escopo compacto: nome/descricao preenchidos nao repetem; vazio avisa", ()=>{
+      const h = C.laudoBlocoIdentificacaoEquipamento({ maquina:{ id:"m9", nome:"Guilhotina B", descricao:"" }, risco:{id:"r9"} }, true);
+      ok(h.indexOf("Guilhotina B") < 0, "o nome repetiu");
+      ok(h.indexOf("Descrição:") > 0 && h.indexOf("não preenchido em campo") > 0, "a falta da descricao nao foi avisada");
+      ok(h.indexOf("Tipo:") > 0);
+    });
+    t("plaqueta com dado nasce recolhida; sem nada, aberta", ()=>{
+      vm.runInContext("__laudoPlaquetaAberta = {};", ctx);
+      const com = { maquina:{ id:"mP1", modelo:"XYZ", laudoIA:{} }, risco:{ id:"rP1" }, tarefa:{} };
+      const sem = { maquina:{ id:"mP2", laudoIA:{} }, risco:{ id:"rP2" }, tarefa:{} };
+      const hc = C.laudoBlocoPlaqueta(com), hs = C.laudoBlocoPlaqueta(sem);
+      ok(hc.indexOf("laudo-plaqueta-fechada") > 0 && hc.indexOf("XYZ") > 0, "com dado deveria vir recolhida com o resumo");
+      ok(hc.indexOf("App.laudoTogglePlaqueta('mP1', true)") > 0);
+      ok(hs.indexOf("laudo-plaqueta-fechada") < 0 && hs.indexOf("laudoSetPlaqueta('rP2','modelo'") > 0, "sem nada tem de vir aberta");
+      vm.runInContext("__laudoPlaquetaAberta = { mP1:true };", ctx);
+      ok(C.laudoBlocoPlaqueta(com).indexOf("laudoSetPlaqueta('rP1','modelo'") > 0, "abrir nao abriu");
+      vm.runInContext("__laudoPlaquetaAberta = {};", ctx);
+    });
+    t("proximo pendente: pula linhas prontas e da a volta", ()=>{
+      const mk = (id, pronta)=>{
+        const it = { risco:{ id, laudoIA:{} }, maquina:{ id:"m"+id, laudoIA:{} }, tarefa:{ id:"t"+id, laudoIA:{} } };
+        if(pronta) ["escopo","tarefa","risco","solucao"].forEach(c=> C.laudoSet(it, c, { fin:"x", st:"ok" }));
+        return it;
+      };
+      const lista = [mk("L0", false), mk("L1", true), mk("L2", true), mk("L3", false)];
+      eq(C.laudoPosProximaPendente(lista, 0), 3);
+      eq(C.laudoPosProximaPendente(lista, 3), 0, "nao deu a volta");
+      eq(C.laudoPosProximaPendente([mk("L4", true), mk("L5", true)], 0), -1);
+    });
+    t("atalhos so fora de campos de texto; Ctrl+Enter aplica a edicao", ()=>{
+      const i = HTML.indexOf('window.addEventListener("keydown", (e)=>{');
+      const corpo = HTML.slice(i, HTML.indexOf("\n});", i));
+      ok(i > 0 && corpo.indexOf('STATE.ui.screen !== "simples-laudo-item"') > 0, "atalho valeria em outras telas");
+      ok(corpo.indexOf('if(digitando || e.ctrlKey || e.metaKey || e.altKey) return;') > 0, "seta mexeria ao digitar");
+      ok(corpo.indexOf("App.laudoSalvarEdicao(rid,") > 0);
+      ok(corpo.indexOf('document.getElementById("overlayInner")') > 0, "atalho valeria com janela aberta");
     });
   }
 

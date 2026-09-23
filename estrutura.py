@@ -1394,7 +1394,8 @@ chk("o laudo impresso (A4) le o texto aprovado de existente em vez de recalcular
     'const existente = laudoTextoFinal(it, "existente");' in novo
     and "const existente = medidaTextoExistenteMulti(r) || String(r.descMedida||\"\").trim();" not in novo)
 chk("laudoBlocoCampo troca o texto cru pelo checklist editavel so no campo existente",
-    '${campo==="existente" ? laudoBlocoMedidaExistenteEditavelHtml(item)' in novo)
+    # 23/09/2026: o checklist fica atras de "Ajustar o que existe" (secao 145).
+    '(__laudoChecklistExistenteAberto ? laudoBlocoMedidaExistenteEditavelHtml(item, true) : "")' in novo)
 chk("os 5 handlers do checklist (laudo-scoped) existem, paralelos aos do cadastro em campo",
     all(novo.count(h) == 1 for h in [
         "laudoToggleMedidaExistente(rid, chave){",
@@ -4983,8 +4984,35 @@ chk("trocar de cartao com texto editado valendo pede confirmacao",
 chk("Aplicar N do cabecalho nunca aplica por cima do que ja foi decidido",
     'if(g.st==="ok" || g.st==="edit" || g.st==="no") return false;' in _corpoDe(novo, "laudoCamposAguardandoDaLinha")
     and "const campos = laudoCamposAguardandoDaLinha(item);" in novo)
+# "e coisa nova" removida em 23/09/2026: original.html regerado a partir do
+# commit que ja inclui esta entrega (35550a6) -- mesmo motivo da secao 139.
+
+print("\n=== 145. REVISAO DO LAUDO COM MENOS ROLAGEM (23/09/2026) ===")
+# Mitigacao existente com checklist recolhido, Escopo sem repetir nome e
+# descricao, plaqueta recolhida quando ja tem dado, "Proximo pendente" e
+# atalhos de teclado. Prova em t162.
+chk("checklist da mitigacao existente comeca fechado e fecha ao trocar de linha",
+    "let __laudoChecklistExistenteAberto = false;" in novo
+    and novo.count("__laudoChecklistExistenteAberto = false;") == 3)
+chk("o resumo do que existe nao repete a descricao (ela ja esta no cartao de campo)",
+    "${desc && !compacto? `<div" in novo
+    and "laudoBlocoExistenteHtml(item, true)" in _corpoDe(novo, "laudoBlocoCampo"))
+chk("escopo compacto so mostra nome/descricao quando faltam",
+    "laudoBlocoIdentificacaoEquipamento(item, true)" in novo
+    and '${compacto && String(m.nome||"").trim() ? "" : linha("Nome:", m.nome||"")}' in novo)
+chk("plaqueta recolhida so quando ja tem foto ou dado; o estado vive so em memoria",
+    "const temAlgo = !!foto || preenchidos > 0;" in novo
+    and "let __laudoPlaquetaAberta = {};" in novo
+    and "STATE.ui.laudoPlaquetaAberta" not in novo)
+chk("proximo pendente usa a mesma regra das linhas prontas",
+    "return r.ok + r.no < r.total;" in _corpoDe(novo, "laudoLinhaPendente")
+    and "App.laudoProximoPendente()" in _corpoDe(novo, "screenSimplesLaudoItem"))
+chk("atalhos nunca agem com janela aberta, fora da tela ou enquanto se digita",
+    'if(!STATE || !STATE.ui || STATE.ui.screen !== "simples-laudo-item") return;' in novo
+    and 'if(document.getElementById("overlayInner") || document.getElementById("laudoViewer")) return;' in novo
+    and "if(digitando || e.ctrlKey || e.metaKey || e.altKey) return;" in novo)
 chk("e coisa nova: nao existia na versao anterior",
-    "function laudoFonteSelecionada(item, campo){" not in orig)
+    "function laudoPosProximaPendente(" not in orig)
 
 
 print("\n---------------------------------------")
