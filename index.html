@@ -2547,7 +2547,7 @@ async function liberarFotosDoProjetoArquivado(projId, onProgresso){
       try{
         const tx = db.transaction(DB_STORE,"readwrite");
         tx.objectStore(DB_STORE).put(pontos, DB_KEY_PONTOS_RESTAURACAO);
-        tx.oncomplete = ()=>resolve(); tx.onerror = ()=>resolve();
+        tx.oncomplete = ()=>{ __pontosMetaDe(pontos); resolve(); }; tx.onerror = ()=>{ __pontosMeta = null; resolve(); };
       }catch(e){ resolve(); }
     });
   }
@@ -3021,6 +3021,12 @@ function resumoContagemEstado(state){
   });
   return { projetos: projetos.length, areas, maquinas, tarefas, riscos };
 }
+/* Resumo em memoria (quantos pontos e o mais recente). Ler a lista inteira
+   custa ~0,4 s de tela travada com os dados reais (cada ponto e uma copia do
+   STATE), e o ciclo de 2 minutos fazia isso so para descobrir que nao havia
+   nada a fazer. Toda leitura e toda gravacao da lista atualizam o resumo. */
+let __pontosMeta = null;
+function __pontosMetaDe(lista){ __pontosMeta = { n: lista.length, maisRecente: lista[0] ? (lista[0].ts || 0) : 0 }; }
 async function listarPontosDeRestauracao(){
   if(!temIndexedDB()) return [];
   try{
@@ -3028,7 +3034,7 @@ async function listarPontosDeRestauracao(){
     return await new Promise((resolve)=>{
       const tx = db.transaction(DB_STORE,"readonly");
       const rq = tx.objectStore(DB_STORE).get(DB_KEY_PONTOS_RESTAURACAO);
-      rq.onsuccess=()=>resolve(Array.isArray(rq.result) ? rq.result : []);
+      rq.onsuccess=()=>{ const l = Array.isArray(rq.result) ? rq.result : []; __pontosMetaDe(l); resolve(l); };
       rq.onerror=()=>resolve([]);
     });
   }catch(e){ return []; }
@@ -3062,7 +3068,7 @@ async function salvarPontoDeRestauracao(motivo){
       const store = tx.objectStore(DB_STORE);
       for(const [fid, dataUrl] of novas) store.put(dataUrl, FOTO_KEY_PREFIXO + fid);
       store.put(lista, DB_KEY_PONTOS_RESTAURACAO);
-      tx.oncomplete=()=>{ for(const [fid] of novas) indice.add(fid); resolve(true); };
+      tx.oncomplete=()=>{ for(const [fid] of novas) indice.add(fid); __pontosMetaDe(lista); resolve(true); };
       tx.onerror=()=>reject(tx.error);
     });
     return true;
@@ -3083,6 +3089,7 @@ async function criarPontoDeRestauracaoSeNecessario(motivo){
   // esse pico é o tipo de coisa que faz o celular matar o app. O ponto fica
   // para o próximo ciclo, já em águas calmas.
   if(__sincronizandoAgora || __downloadAutoRodando) return false;
+  if(__pontosMeta && __pontosMeta.maisRecente && (Date.now() - __pontosMeta.maisRecente) < INTERVALO_MIN_ENTRE_PONTOS_MS) return false;
   const atuais = await listarPontosDeRestauracao();
   const maisRecente = atuais[0];
   if(maisRecente && (Date.now() - maisRecente.ts) < INTERVALO_MIN_ENTRE_PONTOS_MS) return false;
@@ -3097,14 +3104,15 @@ async function criarPontoDeRestauracaoSeNecessario(motivo){
 async function podarPontosDeRestauracaoAgora(){
   if(!temIndexedDB()) return;
   try{
-    const atuais = await listarPontosDeRestauracao();
     const limite = await limitePontosRestauracaoAgora();
+    if(__pontosMeta && __pontosMeta.n <= limite) return;
+    const atuais = await listarPontosDeRestauracao();
     if(atuais.length <= limite) return;
     const db = await dbOpen();
     await new Promise((resolve,reject)=>{
       const tx = db.transaction(DB_STORE,"readwrite");
       tx.objectStore(DB_STORE).put(atuais.slice(0, limite), DB_KEY_PONTOS_RESTAURACAO);
-      tx.oncomplete=()=>resolve(true);
+      tx.oncomplete=()=>{ __pontosMetaDe(atuais.slice(0, limite)); resolve(true); };
       tx.onerror=()=>reject(tx.error);
     });
   }catch(e){ console.error("Não foi possível podar pontos de restauração antigos", e); }
@@ -3171,7 +3179,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "23/09/2026 09:54";
+const APP_BUILD = "23/09/2026 10:21";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -3405,6 +3413,7 @@ async function escolherPastaBase(){
     STATE.pastaConfigNome = handle.name;
     persistir();
     __assinaturasSimples = { mapa:null }; __assinaturasCompleto = { mapa:null }; // força tratar todos os itens existentes como pendentes
+    __assinaturasPastaCarregadas = true; await assinaturasPastaApagar(); // pasta escolhida agora: nada do que foi gravado antes vale para ela
     __avisouPermissaoExpirada = false;
     sincronizarIncrementalNaPasta();
     toast(`Pasta "${handle.name}" configurada`);
@@ -3729,7 +3738,11 @@ async function sincronizarModuloNaPasta(base, raizModulo, listarItens, mapaAssin
   const idsAtuais = new Set(itensAtuais.map(it=>it.id));
 
   const idsExcluidos = [];
-  assinaturas.forEach((registro, id)=>{ if(!idsAtuais.has(id)) idsExcluidos.push(id); });
+  /* Projeto ARQUIVADO sai da lista mas nao foi apagado — com as assinaturas
+     agora guardadas entre sessoes, sem esta protecao arquivar apagaria os
+     arquivos dele da pasta (mesma trava do caminho do OneDrive). */
+  const protegidos = raizModulo === "Simplificado" ? idsProtegidosPorArquivamento() : new Set();
+  assinaturas.forEach((registro, id)=>{ if(!idsAtuais.has(id) && !protegidos.has(id)) idsExcluidos.push(id); });
   // Mesmo freio da nuvem: sumiço em massa nunca se propaga sozinho para a
   // pasta local (esta sincronização é sempre automática, não há variante
   // manual aqui — a exclusão em massa fica bloqueada até a situação ser
@@ -3750,6 +3763,9 @@ async function sincronizarModuloNaPasta(base, raizModulo, listarItens, mapaAssin
     try{
       await gravarItemNaPasta(base, {...item, pasta:[raizModulo, ...item.pasta]});
       assinaturas.set(item.id, {atualizadoEm:item.atualizadoEm, pasta:item.pasta, arquivo:item.arquivo});
+      /* Numa passada grande (primeira vez numa pasta), guarda o progresso a
+         cada 50 arquivos: fechar o app no meio nao obriga a recomecar. */
+      if(++__pastaGravadosDesdeCheckpoint >= 50){ __pastaGravadosDesdeCheckpoint = 0; await assinaturasPastaGravar(); }
     }catch(e){
       // Falha pontual num item não interrompe os demais; tenta de novo na próxima alteração.
     }
@@ -3758,7 +3774,130 @@ async function sincronizarModuloNaPasta(base, raizModulo, listarItens, mapaAssin
 }
 let __assinaturasSimples = { mapa:null };
 let __assinaturasCompleto = { mapa:null };
+/* LENTIDAO DO COMPUTADOR — CAUSA MEDIDA EM 23/09/2026.
+   Com os dados reais (1.896 itens), cada abertura do app regravava TODOS os
+   arquivos na pasta de Backup — que fica dentro do OneDrive. Cada arquivo
+   gravado pelo navegador passa pela checagem de seguranca do Chrome, e cada
+   arquivo novo na pasta faz o OneDrive e o antivirus trabalharem: ~1
+   arquivo por segundo, ~30 minutos de disco e CPU ocupados. Pior: nada
+   impedia uma passada nova de comecar com a anterior ainda rodando — cada
+   edicao, cada volta para a aba e o ciclo de 2 minutos empilhavam mais uma
+   varredura, todas regravando os mesmos arquivos. So hoje foram 1.827
+   arquivos regravados sem nenhuma mudanca.
+   Duas travas resolvem:
+     1. UMA PASSADA POR VEZ. Pedido que chega com uma em andamento so marca
+        "roda de novo no fim" — a segunda passada ja encontra quase tudo
+        gravado e escreve so o que mudou.
+     2. O QUE JA FOI GRAVADO FICA GUARDADO no banco do aparelho (chave
+        propria, fora do STATE — e dado deste aparelho e desta pasta). Ao
+        reabrir o app, so vai para a pasta o que mudou de verdade.
+   O conteudo gravado e exatamente o mesmo de antes; so deixa de ser
+   regravado sem necessidade. */
+const DB_KEY_ASSINATURAS_PASTA = "assinaturasPastaLocal";
+let __pastaSyncRodando = false;
+let __pastaSyncDeNovo = false;
+let __assinaturasPastaCarregadas = false;
+let __pastaGravadosDesdeCheckpoint = 0;
+async function assinaturasPastaLer(){
+  if(!temIndexedDB()) return null;
+  try{
+    const db = await dbOpen();
+    return await new Promise((resolve)=>{
+      const tx = db.transaction(DB_STORE,"readonly");
+      const rq = tx.objectStore(DB_STORE).get(DB_KEY_ASSINATURAS_PASTA);
+      rq.onsuccess = ()=>resolve(rq.result || null);
+      rq.onerror   = ()=>resolve(null);
+    });
+  }catch(e){ return null; }
+}
+async function assinaturasPastaGravar(){
+  if(!temIndexedDB() || !STATE.pastaConfigNome) return false;
+  const pacote = { pasta: STATE.pastaConfigNome, em: Date.now(),
+    simples: __assinaturasSimples.mapa ? [...__assinaturasSimples.mapa] : [],
+    completo: __assinaturasCompleto.mapa ? [...__assinaturasCompleto.mapa] : [] };
+  try{
+    const db = await dbOpen();
+    return await new Promise((resolve)=>{
+      const tx = db.transaction(DB_STORE,"readwrite");
+      tx.objectStore(DB_STORE).put(pacote, DB_KEY_ASSINATURAS_PASTA);
+      tx.oncomplete = ()=>resolve(true);
+      tx.onerror    = ()=>resolve(false);
+    });
+  }catch(e){ return false; }
+}
+async function assinaturasPastaApagar(){
+  if(!temIndexedDB()) return;
+  try{
+    const db = await dbOpen();
+    await new Promise((resolve)=>{
+      const tx = db.transaction(DB_STORE,"readwrite");
+      tx.objectStore(DB_STORE).delete(DB_KEY_ASSINATURAS_PASTA);
+      tx.oncomplete = ()=>resolve(); tx.onerror = ()=>resolve();
+    });
+  }catch(e){}
+}
+/* Carrega uma vez por sessao, e so se for da MESMA pasta configurada — uma
+   pasta nova (ou escolhida de novo) comeca do zero e recebe tudo. */
+async function assinaturasPastaCarregarSeNecessario(){
+  if(__assinaturasPastaCarregadas) return;
+  __assinaturasPastaCarregadas = true;
+  if(__assinaturasSimples.mapa || __assinaturasCompleto.mapa) return;
+  const g = await assinaturasPastaLer();
+  if(!g || g.pasta !== STATE.pastaConfigNome) return;
+  if(!__assinaturasSimples.mapa) __assinaturasSimples.mapa = new Map(Array.isArray(g.simples) ? g.simples : []);
+  if(!__assinaturasCompleto.mapa) __assinaturasCompleto.mapa = new Map(Array.isArray(g.completo) ? g.completo : []);
+}
+/* Sem nada guardado ainda (primeira abertura depois desta correcao, ou pasta
+   escolhida de novo): em vez de regravar os ~1.900 arquivos — mais meia hora
+   de disco, OneDrive e antivirus —, confere o que JA esta na pasta. So conta
+   como em dia o arquivo cujo conteudo e IDENTICO ao que seria gravado agora
+   (comparar datas nao basta: um item baixado da nuvem pode trazer um carimbo
+   mais antigo que o arquivo). So leitura; nenhuma gravacao. O que faltar ou
+   estiver diferente continua pendente e e gravado normalmente. */
+async function assinaturasPastaSemearDoDisco(base, raizModulo, listarItens, ref){
+  if(ref.mapa) return 0;
+  const mapa = new Map();
+  let raiz = null;
+  try{
+    raiz = await (await base.getDirectoryHandle(SUBPASTA_BACKUP, {create:false})).getDirectoryHandle(raizModulo, {create:false});
+  }catch(e){ raiz = null; }
+  if(raiz){
+    const dirs = new Map();
+    const dirDe = async (partes)=>{
+      const chave = partes.join("/");
+      if(dirs.has(chave)) return dirs.get(chave);
+      let d = raiz;
+      for(const p of partes) d = await d.getDirectoryHandle(p, {create:false});
+      dirs.set(chave, d);
+      return d;
+    };
+    for(const it of listarItens()){
+      try{
+        const d = await dirDe(it.pasta);
+        const arq = await (await d.getFileHandle(it.arquivo, {create:false})).getFile();
+        if(arq.size > 0 && (await arq.text()) === JSON.stringify(it.dados, null, 0))
+          mapa.set(it.id, {atualizadoEm:it.atualizadoEm, pasta:it.pasta, arquivo:it.arquivo});
+      }catch(e){ /* nao esta la: fica pendente e sera gravado */ }
+    }
+  }
+  ref.mapa = mapa;
+  return mapa.size;
+}
 async function sincronizarIncrementalNaPasta(){
+  if(__pastaSyncRodando){ __pastaSyncDeNovo = true; return; }
+  __pastaSyncRodando = true;
+  try{
+    let r;
+    do{
+      __pastaSyncDeNovo = false;
+      r = await __sincronizarPastaUmaPassada();
+    }while(__pastaSyncDeNovo);
+    return r;
+  }finally{
+    __pastaSyncRodando = false;
+  }
+}
+async function __sincronizarPastaUmaPassada(){
   if(!suportaPastaLocal()){
     __syncStatusAtual = "nao-suportado";
     atualizarChipSync();
@@ -3788,8 +3927,18 @@ async function sincronizarIncrementalNaPasta(){
     // e não houver nenhum item novo para gravar, nada tocaria o disco e a
     // exclusão nunca seria percebida — o selo ficaria "ok" indefinidamente.
     await base.getDirectoryHandle(SUBPASTA_BACKUP, {create:false});
+    await assinaturasPastaCarregarSeNecessario();
+    if(!__assinaturasSimples.mapa || !__assinaturasCompleto.mapa){
+      await assinaturasPastaSemearDoDisco(base, "Simplificado", listarItensSincronizaveisSimples, __assinaturasSimples);
+      await assinaturasPastaSemearDoDisco(base, "Completo", listarItensSincronizaveisCompleto, __assinaturasCompleto);
+      await assinaturasPastaGravar();
+    }
     const resultadoSimples = await sincronizarModuloNaPasta(base, "Simplificado", listarItensSincronizaveisSimples, __assinaturasSimples);
     const resultadoCompleto = await sincronizarModuloNaPasta(base, "Completo", listarItensSincronizaveisCompleto, __assinaturasCompleto);
+    if(resultadoSimples.gravados + resultadoSimples.excluidos + resultadoCompleto.gravados + resultadoCompleto.excluidos > 0){
+      __pastaGravadosDesdeCheckpoint = 0;
+      await assinaturasPastaGravar();
+    }
     __syncStatusAtual = "ok";
     __avisouPermissaoExpirada = false;
     // Guarda o horário só em memória; ele é persistido "de carona" na próxima
@@ -12304,7 +12453,7 @@ function formRiscoSHtml(){
 function outrasFotosHtml(label, fotos){
   const lista = fotos||[];
   const grid = lista.length
-    ? `<div class="photo-grid">${lista.map((f,i)=>`<div class="photo-thumb"><img data-imgref="${imgReg(f)}" onclick="App.verFotoReg(this)"><button class="rm" onclick="App.removerFotoOutraDraft(${i})">${ic('close')}</button></div>`).join("")}</div>`
+    ? `<div class="photo-grid">${lista.map((f,i)=>`<div class="photo-thumb"><img data-mini data-imgref="${imgReg(f)}" onclick="App.verFotoReg(this)"><button class="rm" onclick="App.removerFotoOutraDraft(${i})">${ic('close')}</button></div>`).join("")}</div>`
     : "";
   return `<div class="photo-extra-head">
       <label>${escapeHtml(label)}</label>
@@ -12319,7 +12468,7 @@ function checklistFotoHtml(field, label, foto){
   const pend = !foto;
   return `<div class="checklist-item" ${pend?`onclick="App.tirarFotoDraft('${field}')"`:''}>
     ${foto
-      ? `<img data-imgref="${imgReg(foto)}" onclick="event.stopPropagation();App.verFotoReg(this)">`
+      ? `<img data-mini data-imgref="${imgReg(foto)}" onclick="event.stopPropagation();App.verFotoReg(this)">`
       : `<div class="checklist-icon">${ic('camera')}</div>`}
     <div class="checklist-txt" ${!pend?`onclick="event.stopPropagation();App.verFoto('${foto}')"`:''}><b>${label}</b><span style="${pend?'color:#C23F12;font-weight:700':''}">${pend?'Pendente — toque para fotografar':'Adicionada — toque para ver'}</span></div>
     ${pend
@@ -12456,23 +12605,82 @@ async function __hidratarPendentesDoBanco(pendentes){
   try{
     const db = await dbOpen();
     const mapa = await fotosLerLote(db, new Set(pendentes.keys()));
+    const minis = [];
     pendentes.forEach((els, fid)=>{
       const f = mapa.get(fid);
       els.forEach(el=>{
         // A tela pode ter sido trocada enquanto a leitura acontecia — um
         // elemento que saiu da página não precisa mais da foto.
         if(!el.isConnected) return;
-        if(f) el.src = f; else __marcarQuadroPerdido(el);
+        if(!f){ __marcarQuadroPerdido(el); return; }
+        if(__ehMini(el)){ minis.push([fid, f, el]); return; }
+        el.src = f;
       });
     });
     /* Solta o mapa: cada <img> que precisava já ficou com a sua própria
        referência para a string. O que não está na tela não ocupa memória —
        que é o ponto inteiro desta mudança. */
     mapa.clear();
+    /* Miniaturas: uma de cada vez (decodificar 30 fotos grandes juntas era
+       justamente o pico de memoria). Sem miniatura possivel, usa a foto. */
+    for(const [fid, f, el] of minis){
+      const u = await __miniGerar(fid, f);
+      if(el.isConnected) el.src = u || f;
+    }
   }catch(e){
     pendentes.forEach(els=> els.forEach(el=>{ if(el.isConnected) __marcarQuadroPerdido(el); }));
   }
 }
+/* MINIATURAS DE VERDADE (23/09/2026). Medido com os dados reais: cada
+   quadrinho de 64x48 da lista do laudo recebia a foto inteira (1920x1440,
+   ~700 KB) — 30 fotos = ~316 MB de imagem decodificada so para uma lista, e
+   tudo relido do banco a cada redesenho. Agora os quadros marcados com
+   data-mini recebem uma copia reduzida (360 px), feita uma vez por foto e
+   guardada so na memoria desta aba (nada muda no banco nem na nuvem). A foto
+   em tamanho real continua sendo a que abre ao tocar (data-fotoref), e
+   impressao/laudo nunca usam miniatura. */
+const MINI_LADO_PX = 360;
+const MINI_MAX_CACHE = 1500;
+const __miniCache = new Map();   // id da foto -> miniatura (data:image/jpeg, ~40 KB)
+let __miniFila = Promise.resolve();
+function __miniGerar(fid, dataUrl){
+  /* Teto de 8 s para cada foto — uma que nao carregue nunca pode emperrar a fila
+     (sem miniatura, o quadro recebe a foto inteira, como antes). */
+  const job = __miniFila.then(()=> Promise.race([__miniGerarAgora(fid, dataUrl), new Promise(r=>setTimeout(()=>r(null), 8000))]));
+  __miniFila = job.catch(()=>{});
+  return job;
+}
+async function __miniGerarAgora(fid, dataUrl){
+  if(__miniCache.has(fid)) return __miniCache.get(fid);
+  try{
+    const img = new Image();
+    /* onload, e nao img.decode(): com a aba em segundo plano o decode() so
+       responde quando ela volta a ficar visivel (medido) — e a fila parava. */
+    await new Promise((ok, falha)=>{ img.onload = ok; img.onerror = falha; img.src = dataUrl; });
+    const w = img.naturalWidth, h = img.naturalHeight;
+    if(!w || !h) return null;
+    const esc = MINI_LADO_PX / Math.max(w, h);
+    if(esc >= 1) return null;           // ja e pequena: fica a propria foto
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(w * esc));
+    c.height = Math.max(1, Math.round(h * esc));
+    const ctx = c.getContext("2d");
+    if(!ctx) return null;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, 0, 0, c.width, c.height);
+    img.src = "";
+    /* toDataURL e sincrono: toBlob espera a vez na fila do navegador e, com
+       a aba em segundo plano, levava ~1 s por foto (medido). A miniatura tem
+       ~40 KB — pequena o bastante para ficar como texto. */
+    const url = c.toDataURL("image/jpeg", 0.8);
+    c.width = c.height = 0;
+    if(!url || url.indexOf("data:image/jpeg") !== 0) return null;
+    __miniCache.set(fid, url);
+    if(__miniCache.size > MINI_MAX_CACHE) __miniCache.delete(__miniCache.keys().next().value);
+    return url;
+  }catch(e){ return null; }
+}
+function __ehMini(el){ return !!(el && typeof el.hasAttribute === "function" && el.hasAttribute("data-mini")); }
 function hidratarImagens(){
   /* Fotos que ainda são referência: agrupadas por id para uma leitura só do
      banco, mesmo quando a mesma foto aparece em vários quadros da tela. */
@@ -12482,6 +12690,11 @@ function hidratarImagens(){
     el.removeAttribute("data-imgref");
     if(ehFotoRefPersist(f)){
       const fid = f.slice(FOTO_REF_PREFIXO.length);
+      if(__ehMini(el)){
+        el.dataset.fotoref = f;             // tocar abre a foto em tamanho real
+        const u = __miniCache.get(fid);
+        if(u){ el.src = u; return; }        // ja tem miniatura: nem abre o banco
+      }
       if(!pendentes.has(fid)) pendentes.set(fid, []);
       pendentes.get(fid).push(el);
       return;
@@ -14428,7 +14641,7 @@ function screenSimplesMaquinas(){
     return `<div class="card list-card ${selClass('maquinaS',m.id)} ${classeRecemMovido('maquinaS',m.id)}" data-sel-tipo="maquinaS" data-sel-id="${m.id}" data-sel-ctx='{"areaSId":"${a.id}"}' onclick="App.cardClickGenerico(event,this)" data-card-open="App.abrirMaquinaS('${m.id}')" data-card-edit="App.tocarMaquinaS('${m.id}','${a.id}')" data-card-photo="App.tocarFotoMaquinaS('${m.id}','${a.id}',${m.fotoGeral? imgReg(m.fotoGeral) : -1})" data-card-menu="App.menuMaquinaS(event,'${m.id}')">
       ${selCheckHtml('maquinaS',m.id)}
       ${dragHandleHtml('maquinaS',m.id)}
-      <div class="list-thumb lg" data-card-role="photo">${m.fotoGeral? `<img data-imgref="${imgReg(m.fotoGeral)}">` : (m.__fotosOmitidas? (()=>{ const pf = pendenteFotosDoItem(m.id); return `<div class="thumb-download" onclick="event.stopPropagation();App.onedriveBaixarFotosDeItem('${m.id}')" title="${pf? 'Toque para baixar as fotos agora ('+fmtBytes(pf.tamanho)+') — em dados móveis, pede confirmação' : 'Fotos ainda no outro aparelho — chegam quando ele tiver Wi-Fi'}">${ic('download')}<span>${pf? fmtBytes(pf.tamanho) : 'fotos'}</span></div>`; })() : ic('shield'))}</div>
+      <div class="list-thumb lg" data-card-role="photo">${m.fotoGeral? `<img data-mini data-imgref="${imgReg(m.fotoGeral)}">` : (m.__fotosOmitidas? (()=>{ const pf = pendenteFotosDoItem(m.id); return `<div class="thumb-download" onclick="event.stopPropagation();App.onedriveBaixarFotosDeItem('${m.id}')" title="${pf? 'Toque para baixar as fotos agora ('+fmtBytes(pf.tamanho)+') — em dados móveis, pede confirmação' : 'Fotos ainda no outro aparelho — chegam quando ele tiver Wi-Fi'}">${ic('download')}<span>${pf? fmtBytes(pf.tamanho) : 'fotos'}</span></div>`; })() : ic('shield'))}</div>
       <div class="list-body">
         <div class="list-name" data-card-role="name">${escapeHtml(nomeMaquinaS(m).slice(0,40) || 'Sem nome (toque para editar)')}</div>
         ${m.descricao? `<div class="list-tag" style="font-family:inherit">${escapeHtml(m.descricao.slice(0,60))}</div>` : ""}
@@ -14502,7 +14715,7 @@ function screenSimplesRiscos(){
     return `<div class="card list-card risk-strip ${selClass('riscoS',r.id)} ${classeRecemMovido('riscoS',r.id)}" style="border-left-color:${hrnMeta.cor}" data-sel-tipo="riscoS" data-sel-id="${r.id}" data-sel-ctx='{"tarefaSId":"${t.id}"}' onclick="App.cardClickGenerico(event,this)" data-card-open="App.abrirModalRiscoS('${r.id}','${t.id}')" data-card-edit="App.abrirModalRiscoS('${r.id}','${t.id}')" data-card-photo="App.tocarFotoRiscoS('${r.id}','${t.id}',${r.foto? imgReg(r.foto) : -1})" data-card-menu="App.menuRiscoS(event,'${r.id}','${t.id}')">
       ${selCheckHtml('riscoS',r.id)}
       ${dragHandleHtml('riscoS',r.id)}
-      <div class="list-thumb lg" data-card-role="photo">${r.foto? `<img data-imgref="${imgReg(r.foto)}">` : (r.__fotosOmitidas? (()=>{ const pf = pendenteFotosDoItem(r.id); return `<div class="thumb-download" onclick="event.stopPropagation();App.onedriveBaixarFotosDeItem('${r.id}')" title="${pf? 'Toque para baixar as fotos agora ('+fmtBytes(pf.tamanho)+') — em dados móveis, pede confirmação' : 'Fotos ainda no outro aparelho — chegam quando ele tiver Wi-Fi'}">${ic('download')}<span>${pf? fmtBytes(pf.tamanho) : 'fotos'}</span></div>`; })() : ic('warn'))}</div>
+      <div class="list-thumb lg" data-card-role="photo">${r.foto? `<img data-mini data-imgref="${imgReg(r.foto)}">` : (r.__fotosOmitidas? (()=>{ const pf = pendenteFotosDoItem(r.id); return `<div class="thumb-download" onclick="event.stopPropagation();App.onedriveBaixarFotosDeItem('${r.id}')" title="${pf? 'Toque para baixar as fotos agora ('+fmtBytes(pf.tamanho)+') — em dados móveis, pede confirmação' : 'Fotos ainda no outro aparelho — chegam quando ele tiver Wi-Fi'}">${ic('download')}<span>${pf? fmtBytes(pf.tamanho) : 'fotos'}</span></div>`; })() : ic('warn'))}</div>
       <div class="list-body">
         <div class="list-name" data-card-role="name">${escapeHtml(nomeRiscoNaTela(r)||('Risco '+String(i+1).padStart(2,'0')))}</div>
         <div class="list-tag" style="font-family:inherit">${escapeHtml((r.descricao||'sem descrição').slice(0,60))}</div>
@@ -14537,7 +14750,7 @@ function screenSimplesTabela(){
     return `<div class="card obj-card risk-strip" style="border-left-color:${pend?'#FF0000':'#92D050'}">
       <div class="obj-head">
         <div><div class="obj-machine">${escapeHtml(area.nome||'—')} · ${escapeHtml((nomeMaquinaS(maquina)||'—').slice(0,30))}</div><div class="obj-task">${escapeHtml(tarefaTxt||'—')}</div></div>
-        ${r.foto? `<img data-imgref="${imgReg(r.foto)}" style="width:44px;height:44px;border-radius:9px;object-fit:cover;flex-shrink:0">` : ''}
+        ${r.foto? `<img data-mini data-imgref="${imgReg(r.foto)}" style="width:44px;height:44px;border-radius:9px;object-fit:cover;flex-shrink:0">` : ''}
       </div>
       <div class="obj-grid">
         <div class="row"><span class="lab">Empresa</span><span class="val">${escapeHtml(proj.empresa||'—')}</span></div>
@@ -19640,7 +19853,7 @@ function laudoMiniatura(item, tipo){
   const rot = tipo==="equipamento" ? "EQUIP." : "RISCO";
   if(!foto) return `<span class="laudo-th vazia" title="Sem foto de ${tipo}">${ic('camera')}<em>${rot}</em></span>`;
   return `<span class="laudo-th" onclick="event.stopPropagation();App.laudoAbrirGaleria('${item.risco.id}')" title="Ver fotos desta linha">
-      <img data-imgref="${imgReg(foto)}"><em>${rot}</em></span>`;
+      <img data-mini data-imgref="${imgReg(foto)}"><em>${rot}</em></span>`;
 }
 /* ---------- Plaqueta de identificação do equipamento ---------- */
 const LAUDO_PLAQUETA_CAMPOS = [
@@ -19675,7 +19888,7 @@ function laudoBlocoPlaqueta(item){
     .filter(Boolean).slice(0, 4).join(" · ");
   if(!aberta){
     return `<div class="card card-pad laudo-bloco laudo-plaqueta-fechada" role="button" tabindex="0" onclick="App.laudoTogglePlaqueta('${m.id}', true)" onkeydown="if(event.key==='Enter')this.click()" title="Abrir a plaqueta">
-      ${foto? `<span class="laudo-plaqueta-mini"><img data-imgref="${imgReg(foto)}"></span>` : ""}
+      ${foto? `<span class="laudo-plaqueta-mini"><img data-mini data-imgref="${imgReg(foto)}"></span>` : ""}
       <div style="flex:1;min-width:0">
         <div style="font-weight:800;font-size:14.5px">Plaqueta do equipamento</div>
         <div style="font-size:12.5px;color:var(--ink-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(resumo || "Só a foto — dados ainda não preenchidos")}</div>
@@ -20078,7 +20291,7 @@ function laudoSheetGaleriaHtml(item){
   __laudoGaleriaItemId = item.risco.id;
   const nomeRisco = nomeRiscoNaTela(item.risco);
   const grid = fotos.map((f,i)=>`<button onclick="App.laudoVerFotoGaleria(${i})" title="${escapeHtml(f.rot)}">
-      <img data-imgref="${imgReg(f.src)}"><em>${escapeHtml(f.rot)}</em></button>`).join("");
+      <img data-mini data-imgref="${imgReg(f.src)}"><em>${escapeHtml(f.rot)}</em></button>`).join("");
   return `<div class="sheet-overlay" id="overlayInner" onclick="if(event.target===this)App.fecharModal()">
     <div class="sheet" style="max-height:82vh;overflow:auto">
       <div class="sheet-handle"></div>
@@ -25281,7 +25494,12 @@ Devolver agora?`)) return;
     document.getElementById("hazard-photo-grid").innerHTML = renderHazardPhotos(p);
     hidratarImagens();
   },
-  verFotoReg(el){ if(el && el.src) App.verFoto(el.src); },
+  verFotoReg(el){
+    /* Miniatura (data-mini) guarda a referencia da foto real: abrir mostra a
+       foto em tamanho real, nunca a copia reduzida. */
+    if(el && el.dataset && el.dataset.fotoref){ App.verFoto(el.dataset.fotoref); return; }
+    if(el && el.src) App.verFoto(el.src);
+  },
   async verFoto(src){
     /* CARGA SOB DEMANDA: a foto pode chegar aqui como referência — é o caso
        de quem toca num item cuja foto ainda não passou pela tela. Buscar

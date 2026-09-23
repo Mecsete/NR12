@@ -5034,8 +5034,51 @@ chk("aplicar em lote sempre passa por confirmacao",
     and 'App.laudoAplicarLinhaModo(rid, "sel"); }' in novo)
 chk("aplicar na area deixa de fora projeto arquivado",
     ".filter(it=> !projetoArquivado((it.proj||{}).id));" in novo)
+# "e coisa nova" removida em 23/09/2026: original.html regerado a partir do
+# commit que ja inclui esta entrega (bff90e0) -- mesmo motivo da secao 139.
+
+print("\n=== 147. LENTIDAO DO COMPUTADOR: PASTA LOCAL, PONTOS E MINIATURAS (23/09/2026) ===")
+# Medido no Chrome com os dados reais: cada abertura do app regravava os 1.896
+# arquivos da pasta de Backup (dentro do OneDrive), ~1 por segundo, e passadas
+# se empilhavam (edicao, volta para a aba, ciclo de 2 min). 1.827 arquivos
+# regravados so em 23/09. Tambem: o ciclo de 2 min relia a lista inteira de
+# pontos de restauracao (~0,4 s de tela travada) e cada quadrinho de 64 px
+# recebia a foto inteira (~316 MB de imagem numa lista de 30). Prova em t163.
+_pasta = _corpoDe(novo, "sincronizarIncrementalNaPasta")
+chk("pasta local: uma passada por vez, pedido no meio vira UMA repeticao",
+    "if(__pastaSyncRodando){ __pastaSyncDeNovo = true; return; }" in _pasta
+    and "}while(__pastaSyncDeNovo);" in _pasta
+    and "__pastaSyncRodando = false;" in _pasta)
+chk("pasta local: o que ja foi gravado fica guardado no banco, fora do STATE",
+    'const DB_KEY_ASSINATURAS_PASTA = "assinaturasPastaLocal";' in novo
+    and "STATE.assinaturasPasta" not in novo
+    and "await assinaturasPastaCarregarSeNecessario();" in _corpoDe(novo, "__sincronizarPastaUmaPassada"))
+chk("pasta local: sem nada guardado, confere a pasta SO LENDO, e so conta arquivo identico",
+    "(await arq.text()) === JSON.stringify(it.dados, null, 0)" in _corpoDe(novo, "assinaturasPastaSemearDoDisco")
+    and "createWritable" not in _corpoDe(novo, "assinaturasPastaSemearDoDisco")
+    and "create:true" not in _corpoDe(novo, "assinaturasPastaSemearDoDisco"))
+chk("pasta local: so herda o que foi gravado na MESMA pasta",
+    "if(!g || g.pasta !== STATE.pastaConfigNome) return;" in _corpoDe(novo, "assinaturasPastaCarregarSeNecessario"))
+chk("pasta local: projeto arquivado nao tem arquivos apagados",
+    "!protegidos.has(id)" in _corpoDe(novo, "sincronizarModuloNaPasta"))
+chk("pasta local: o conteudo gravado de cada item nao mudou",
+    "const conteudo = JSON.stringify(item.dados, null, 0);" in _corpoDe(novo, "gravarItemNaPasta")
+    and _corpoDe(novo, "gravarItemNaPasta") == _corpoDe(orig, "gravarItemNaPasta"))
+chk("pontos de restauracao: o ciclo de 2 min so le a lista quando precisa",
+    "if(__pontosMeta && __pontosMeta.n <= limite) return;" in _corpoDe(novo, "podarPontosDeRestauracaoAgora")
+    and "(Date.now() - __pontosMeta.maisRecente) < INTERVALO_MIN_ENTRE_PONTOS_MS) return false;" in _corpoDe(novo, "criarPontoDeRestauracaoSeNecessario"))
+chk("pontos de restauracao: o que eles guardam nao mudou",
+    "const novo = { ts: Date.now(), motivo, resumo: resumoContagemEstado(STATE), dados: dadosEnxutos };" in novo)
+chk("miniaturas: so em quadros marcados, nunca no modulo de impressao",
+    novo.count("<img data-mini ") == 8
+    and "data-mini" not in novo[novo.find("INÍCIO DO MÓDULO DE IMPRESSÃO DO LAUDO"):novo.find("FIM DO MÓDULO DE IMPRESSÃO DO LAUDO")])
+chk("miniaturas: vivem so na memoria da aba (nada no banco nem na nuvem)",
+    "const __miniCache = new Map();" in novo
+    and "FOTO_KEY_PREFIXO + " not in _corpoDe(novo, "__miniGerarAgora"))
+chk("miniaturas: tocar abre a foto real",
+    "if(el && el.dataset && el.dataset.fotoref){ App.verFoto(el.dataset.fotoref); return; }" in novo)
 chk("e coisa nova: nao existia na versao anterior",
-    "function laudoCamposPendentesModo(" not in orig)
+    "__pastaSyncRodando" not in orig)
 
 
 print("\n---------------------------------------")

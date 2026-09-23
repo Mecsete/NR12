@@ -6453,7 +6453,8 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
                  setAttribute: function(k,v){ this.atributos[k] = v; } };
       }
     `, ctx);
-    ["ehFotoRefPersist","__marcarQuadroPerdido","hidratarImagens"]
+    vm.runInContext("var __miniCache = new Map();", ctx);
+    ["ehFotoRefPersist","__marcarQuadroPerdido","__ehMini","hidratarImagens"]
       .forEach(n=> vm.runInContext(funcao(n), ctx));
     t("foto presente entra pelo src, como sempre", ()=>{
       vm.runInContext(`
@@ -6516,6 +6517,163 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
         hidratarImagens();
       `, ctx);
       eq(vm.runInContext("__pedidosAoBanco.length", ctx), 0, "foi ao banco sem precisar");
+    });
+    /* MINIATURAS (23/09/2026): quadro pequeno com miniatura ja feita nao
+       abre o banco nem decodifica a foto inteira; e guarda a referencia da
+       foto real para abrir em tamanho real ao tocar. */
+    vm.runInContext(`
+      function elMini(ref){ const e = elFalso(ref); e.atributos["data-mini"] = ""; e.hasAttribute = function(k){ return k in this.atributos; }; return e; }
+    `, ctx);
+    t("miniatura ja feita: vai direto, sem ler o banco", ()=>{
+      vm.runInContext(`
+        __miniCache = new Map([["abc-123", "blob:mini-abc"]]);
+        __imgReg = ["idbfoto:abc-123"];
+        __els = [elMini(0)];
+        __pedidosAoBanco = [];
+        hidratarImagens();
+      `, ctx);
+      eq(vm.runInContext("__els[0].src", ctx), "blob:mini-abc");
+      eq(vm.runInContext("__pedidosAoBanco.length", ctx), 0, "leu a foto inteira do banco para um quadrinho");
+      eq(vm.runInContext("__els[0].dataset.fotoref", ctx), "idbfoto:abc-123", "tocar abriria a miniatura em vez da foto real");
+    });
+    t("miniatura ainda nao feita: busca no banco uma vez", ()=>{
+      vm.runInContext(`
+        __miniCache = new Map();
+        __imgReg = ["idbfoto:abc-123"];
+        __els = [elMini(0)];
+        __pedidosAoBanco = [];
+        hidratarImagens();
+      `, ctx);
+      eq(vm.runInContext("__pedidosAoBanco.length", ctx), 1);
+    });
+    t("quadro sem data-mini continua recebendo a foto inteira (laudo, impressao)", ()=>{
+      vm.runInContext(`
+        __miniCache = new Map([["abc-123", "blob:mini-abc"]]);
+        __imgReg = ["idbfoto:abc-123"];
+        __els = [elFalso(0)];
+        __pedidosAoBanco = [];
+        hidratarImagens();
+      `, ctx);
+      eq(vm.runInContext("__pedidosAoBanco.length", ctx), 1, "quadro grande nao pode usar miniatura");
+      eq(vm.runInContext("__els[0].src", ctx), null);
+    });
+  }
+
+  /* ---------- t163: LENTIDAO DO COMPUTADOR (23/09/2026) -------------------
+     Medido com os dados reais: cada abertura do app regravava os 1.896
+     arquivos da pasta de Backup (dentro do OneDrive), a ~1 por segundo, e
+     varias passadas rodavam ao mesmo tempo. Aqui: a trava de UMA passada por
+     vez, as assinaturas guardadas entre sessoes e o resumo dos pontos de
+     restauracao, rodando o codigo real do arquivo. */
+  {
+    console.log("\n[t163] lentidao: pasta local, pontos de restauracao e miniaturas");
+    const ctx = vm.createContext({ console, Set, Map, Promise, Array, Object, String, Date, JSON, setTimeout });
+    vm.runInContext(`
+      var STATE = { pastaConfigNome: "Backup APR NR-12" };
+      var __assinaturasSimples = { mapa:null }, __assinaturasCompleto = { mapa:null };
+      var __pastaSyncRodando = false, __pastaSyncDeNovo = false, __assinaturasPastaCarregadas = false;
+      var __passadas = 0, __emAndamento = 0, __maxSimultaneas = 0, __gravado = null;
+      async function __sincronizarPastaUmaPassada(){
+        __passadas++; __emAndamento++; __maxSimultaneas = Math.max(__maxSimultaneas, __emAndamento);
+        await new Promise(r=>setTimeout(r, 20));
+        __emAndamento--;
+        return { gravados:0, excluidos:0 };
+      }
+      async function assinaturasPastaLer(){ return __gravado; }
+    `, ctx);
+    ["sincronizarIncrementalNaPasta","assinaturasPastaCarregarSeNecessario","__pontosMetaDe"].forEach(n=> vm.runInContext(funcao(n), ctx));
+    async function ta(nome, fn){
+      total++;
+      try{ await fn(); console.log("  ok  " + nome); }
+      catch(e){ falhas++; console.log("  ERRO " + nome + " -> " + (e && e.message ? e.message : e)); }
+    }
+    await ta("A CAUSA: 4 pedidos seguidos = 1 passada + 1 repeticao, nunca simultaneas", async ()=>{
+      vm.runInContext("__passadas = 0; __maxSimultaneas = 0;", ctx);
+      await vm.runInContext("Promise.all([sincronizarIncrementalNaPasta(), sincronizarIncrementalNaPasta(), sincronizarIncrementalNaPasta(), sincronizarIncrementalNaPasta()])", ctx);
+      eq(vm.runInContext("__maxSimultaneas", ctx), 1, "passadas rodaram ao mesmo tempo — era isso que regravava tudo varias vezes");
+      eq(vm.runInContext("__passadas", ctx), 2, "pedido feito durante a passada precisa gerar UMA repeticao no fim, nao se perder nem empilhar");
+      eq(vm.runInContext("__pastaSyncRodando", ctx), false, "a trava ficou presa");
+    });
+    await ta("assinaturas guardadas voltam ao reabrir, so para a MESMA pasta", async ()=>{
+      vm.runInContext(`__gravado = { pasta:"Backup APR NR-12", simples:[["risco:r1",{atualizadoEm:5,pasta:["P"],arquivo:"risco_r1.json"}]], completo:[] };
+        __assinaturasSimples = { mapa:null }; __assinaturasCompleto = { mapa:null }; __assinaturasPastaCarregadas = false;`, ctx);
+      await vm.runInContext("assinaturasPastaCarregarSeNecessario()", ctx);
+      eq(vm.runInContext("__assinaturasSimples.mapa.get('risco:r1').atualizadoEm", ctx), 5, "reabrir voltaria a regravar tudo");
+    });
+    await ta("pasta diferente nao herda as assinaturas (recebe tudo)", async ()=>{
+      vm.runInContext(`__gravado = { pasta:"Outra pasta", simples:[["risco:r1",{atualizadoEm:5}]], completo:[] };
+        __assinaturasSimples = { mapa:null }; __assinaturasCompleto = { mapa:null }; __assinaturasPastaCarregadas = false;`, ctx);
+      await vm.runInContext("assinaturasPastaCarregarSeNecessario()", ctx);
+      eq(vm.runInContext("__assinaturasSimples.mapa", ctx), null, "gravaria so parte numa pasta nova");
+    });
+    /* Primeira abertura depois da correcao: confere a pasta, so lendo, e
+       so conta como em dia o arquivo IDENTICO ao que seria gravado. */
+    vm.runInContext(funcao("assinaturasPastaSemearDoDisco"), ctx);
+    vm.runInContext(`
+      var SUBPASTA_BACKUP = "Backup";
+      var __escritas = 0;
+      function fsFalso(no){ return {
+        getDirectoryHandle: async function(n){ if(!no || typeof no[n] !== "object") throw new Error("NotFound"); return fsFalso(no[n]); },
+        getFileHandle: async function(n, o){ if(o && o.create) __escritas++; if(typeof no[n] !== "string") throw new Error("NotFound"); const txt = no[n];
+          return { getFile: async function(){ return { size: txt.length, text: async function(){ return txt; } }; } }; }
+      }; }
+    `, ctx);
+    await ta("semear pela pasta: identico conta, diferente ou ausente fica pendente, nada e gravado", async ()=>{
+      vm.runInContext(`
+        var __r1 = { id:"r1", nome:"A" }, __r2 = { id:"r2", nome:"B novo" }, __r3 = { id:"r3", nome:"C" };
+        var __base = fsFalso({ Backup: { Simplificado: { P: { T: {
+          "risco_r1.json": JSON.stringify(__r1, null, 0),
+          "risco_r2.json": JSON.stringify({ id:"r2", nome:"B velho" }, null, 0) } } } } });
+        var __itens = function(){ return [
+          { id:"risco:r1", atualizadoEm:1, pasta:["P","T"], arquivo:"risco_r1.json", dados:__r1 },
+          { id:"risco:r2", atualizadoEm:1, pasta:["P","T"], arquivo:"risco_r2.json", dados:__r2 },
+          { id:"risco:r3", atualizadoEm:1, pasta:["P","T"], arquivo:"risco_r3.json", dados:__r3 } ]; };
+        var __ref = { mapa:null };
+      `, ctx);
+      const n = await vm.runInContext('assinaturasPastaSemearDoDisco(__base, "Simplificado", __itens, __ref)', ctx);
+      eq(n, 1);
+      ok(vm.runInContext("__ref.mapa.has('risco:r1')", ctx), "o arquivo identico seria regravado a toa");
+      ok(!vm.runInContext("__ref.mapa.has('risco:r2')", ctx), "arquivo com conteudo velho seria dado como em dia");
+      ok(!vm.runInContext("__ref.mapa.has('risco:r3')", ctx), "arquivo que falta seria dado como gravado");
+      eq(vm.runInContext("__escritas", ctx), 0, "conferir a pasta nao pode gravar nada");
+    });
+    await ta("pasta ainda sem a subpasta do modulo: tudo fica pendente, sem erro", async ()=>{
+      vm.runInContext('var __ref2 = { mapa:null };', ctx);
+      const n = await vm.runInContext('assinaturasPastaSemearDoDisco(fsFalso({}), "Completo", __itens, __ref2)', ctx);
+      eq(n, 0);
+      eq(vm.runInContext("__ref2.mapa.size", ctx), 0);
+    });
+    t("arquivar projeto nao apaga os arquivos dele da pasta", ()=>{
+      const f = funcao("sincronizarModuloNaPasta");
+      ok(f.indexOf('const protegidos = raizModulo === "Simplificado" ? idsProtegidosPorArquivamento() : new Set();') > 0);
+      ok(f.indexOf("!protegidos.has(id)") > 0);
+    });
+    t("escolher a pasta de novo descarta as assinaturas guardadas", ()=>{
+      ok(HTML.indexOf("__assinaturasPastaCarregadas = true; await assinaturasPastaApagar();") > 0);
+    });
+    t("pontos de restauracao: o ciclo de 2 min nao le a lista inteira a toa", ()=>{
+      const criar = funcao("criarPontoDeRestauracaoSeNecessario");
+      const podar = funcao("podarPontosDeRestauracaoAgora");
+      ok(criar.indexOf("(Date.now() - __pontosMeta.maisRecente) < INTERVALO_MIN_ENTRE_PONTOS_MS) return false;") > 0
+         && criar.indexOf("__pontosMeta") < criar.indexOf("await listarPontosDeRestauracao()"), "criar ainda le a lista antes de saber se precisa");
+      ok(podar.indexOf("if(__pontosMeta && __pontosMeta.n <= limite) return;") > 0
+         && podar.indexOf("__pontosMeta.n") < podar.indexOf("await listarPontosDeRestauracao()"), "podar ainda le a lista antes de saber se precisa");
+      vm.runInContext("__pontosMetaDe([{ts:30},{ts:20},{ts:10}])", ctx);
+      eq(vm.runInContext("__pontosMeta.n", ctx), 3);
+      eq(vm.runInContext("__pontosMeta.maisRecente", ctx), 30);
+    });
+    t("toda gravacao da lista de pontos atualiza o resumo", ()=>{
+      ok(funcao("salvarPontoDeRestauracao").indexOf("__pontosMetaDe(lista)") > 0);
+      ok(funcao("podarPontosDeRestauracaoAgora").indexOf("__pontosMetaDe(atuais.slice(0, limite))") > 0);
+      ok(funcao("listarPontosDeRestauracao").indexOf("__pontosMetaDe(l)") > 0);
+      ok(HTML.indexOf("tx.oncomplete = ()=>{ __pontosMetaDe(pontos); resolve(); }; tx.onerror = ()=>{ __pontosMeta = null; resolve(); };") > 0);
+    });
+    t("miniatura nunca vai para impressao, laudo impresso nem Checklist", ()=>{
+      const ini = HTML.indexOf("INÍCIO DO MÓDULO DE IMPRESSÃO DO LAUDO");
+      const fim = HTML.indexOf("FIM DO MÓDULO DE IMPRESSÃO DO LAUDO");
+      ok(ini > 0 && fim > ini && HTML.slice(ini, fim).indexOf("data-mini") < 0, "impressao usaria foto reduzida");
+      ok(HTML.indexOf("if(el && el.dataset && el.dataset.fotoref){ App.verFoto(el.dataset.fotoref); return; }") > 0,
+         "tocar na miniatura abriria a copia reduzida");
     });
   }
 

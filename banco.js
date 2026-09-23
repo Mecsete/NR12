@@ -135,6 +135,9 @@ function novoAparelho(nome, nuvem){
   vm.runInContext("var LAPIDES_SYNC_INTERVALO_AUTO_MS = 600000; var __lapidesSyncUltimaVerificacao=0; var __lapidesSyncEmAndamento=false; var __avisoLapidesMassaEm=0;", ctx);
   /* Arquivamento por aparelho (03/09/2026) — ver o mesmo trecho em testes2.js. */
   vm.runInContext("var __projArquivados = new Set();", ctx);
+  /* 23/09/2026: gravar a lista de pontos atualiza o resumo em memoria
+     (__pontosMetaDe) — o ciclo de 2 min deixou de reler a lista inteira. */
+  vm.runInContext("var __pontosMeta = null;", ctx);
   /* O contador percorre os dois modulos; a bancada so monta o Simplificado.
      Uma lista vazia para o Completo e fiel: aparelho sem projeto la. */
   vm.runInContext("function listarItensSincronizaveisCompleto(){ return []; } var __assinaturasOneDriveCompleto={mapa:null,chaveEstado:'oneDriveAssinaturasCompleto'};", ctx);
@@ -162,7 +165,7 @@ function novoAparelho(nome, nuvem){
     "segmentoPastaComId","extrairSufixoDoNome","idBateComSufixo",
     "projetoArquivado","projetosArquivadosDoAparelho","projetosAtivosDoAparelho",
     // Liberar fotos de projeto arquivado (03/09/2026) — ENSAIO 32.
-    "liberarFotosDoProjetoArquivado","__soltarRefsLiberadas","__zerarFotosDoItem",
+    "liberarFotosDoProjetoArquivado","__soltarRefsLiberadas","__zerarFotosDoItem","__pontosMetaDe",
     "__enderecoDosItensDoProjeto","fotosColetarIdsEmbutidas","pendenteFotosDoItem",
     "comFotosCarregadas","onedriveBaixarFotosDeItem",
 

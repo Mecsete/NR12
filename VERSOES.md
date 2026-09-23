@@ -64,6 +64,44 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 23/09/2026 10:21
+
+**Lentidão do computador: achada e corrigida a causa — o app regravava o backup inteiro a cada abertura.**
+
+Medido no Chrome, com os dados reais (1.896 itens): a cada abertura do app,
+a sincronização com a pasta de Backup (que fica dentro do OneDrive)
+regravava **todos os arquivos**, um por segundo — cerca de meia hora de
+disco ocupado, com o OneDrive e o antivírus processando cada arquivo. E
+nada impedia uma nova varredura de começar com a anterior ainda rodando:
+cada edição, cada volta para a aba do app e o ciclo de 2 minutos
+empilhavam mais uma. Só em 23/09 foram 1.827 arquivos regravados sem
+nenhuma mudança. Era isso que travava o computador inteiro, e não só o
+navegador.
+
+O que mudou:
+- **Uma varredura da pasta por vez.** Pedido que chega no meio de uma
+  varredura espera ela terminar e roda uma vez só, gravando apenas o que
+  mudou.
+- **O app lembra o que já gravou na pasta**, também depois de fechar e
+  abrir de novo. Só vai para a pasta o que mudou de verdade.
+- **Na primeira abertura depois desta versão**, em vez de regravar tudo
+  uma última vez, o app compara os arquivos que já estão na pasta (só
+  lendo) e grava apenas os que estiverem diferentes ou faltando.
+- **Miniaturas de verdade.** Cada quadrinho de foto (lista do laudo,
+  cartões, galeria, plaqueta) recebia a foto inteira (1920×1440): uma lista
+  de 15 linhas ocupava ~316 MB de memória só com imagens, e tudo era relido
+  do banco a cada clique. Agora os quadrinhos usam uma cópia reduzida,
+  feita uma vez e guardada só na memória da aba: ~11 MB, e a lista abre em
+  ~30 ms depois da primeira vez. Tocar na foto continua abrindo a foto em
+  tamanho real; laudo impresso e Checklist não mudam.
+- **Ciclo de 2 minutos mais leve.** Ele relia a lista inteira de pontos de
+  restauração (cada ponto é uma cópia de todos os dados) só para descobrir
+  que não havia nada a fazer — ~0,4 s de tela travada a cada 2 minutos.
+  Agora só lê quando precisa.
+
+O que não mudou: o conteúdo dos arquivos do backup, o que é enviado ao
+OneDrive, os pontos de restauração e as fotos no aparelho.
+
 ## 23/09/2026 09:54
 
 **Revisar textos do laudo: o texto editado não some mais, e aplicar em lote com confirmação.**
