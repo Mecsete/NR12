@@ -64,6 +64,30 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 23/09/2026 10:51
+
+**Painel de pendências corrigido — o "A decidir" agora bate com o botão de aplicar em lote. E chegou "Editados" no Aplicar da linha.**
+
+Reportado em campo: no topo da Revisão aparecia "8 a decidir", mas o botão
+"Aplicar sugestões da IA nos pendentes" contava 14. Os dois números
+estavam certos, só que contando coisas diferentes: o painel (e as abas
+"A decidir"/"Prontas"/"Sem texto" da lista) somava só 4 dos 6 campos do
+laudo — Nome do risco e Mitigação Existente pendentes apareciam com
+cartão amarelo na tela, mas não entravam na conta do topo.
+
+Agora o painel soma os 6 campos. Mitigação Existente continua de fora da
+conta **enquanto não tiver nada** — uma máquina sem nenhuma proteção
+existente não pode ficar "pendente" para sempre só por isso; ela some da
+conta assim que ganha uma sugestão, um texto ou uma decisão.
+
+Também no menu **Aplicar** de cada linha (o botão do cabeçalho da
+Revisão), que já tinha "cartões verdes / sugestão da IA / texto de
+campo": chegou a 4ª opção, **Aplicar os textos editados** — aplica
+especificamente o texto que você editou à mão em cada campo (o 3º
+cartão), mesmo quando outro cartão está selecionado no momento. Como as
+outras três, mostra quantos campos atinge, só age nos pendentes e pede
+confirmação antes.
+
 ## 23/09/2026 10:21
 
 **Lentidão do computador: achada e corrigida a causa — o app regravava o backup inteiro a cada abertura.**

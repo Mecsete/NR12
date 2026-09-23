@@ -6677,6 +6677,70 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  /* ---------- t164: painel de pendencias soma os 6 campos (23/09/2026) ----
+     Relatado em campo: a Central do Laudo mostrava "8 a decidir" mas o
+     botao "Aplicar sugestoes da IA nos pendentes" contava 14. A causa:
+     laudoResumoItem (que alimenta o dashboard e as abas da lista) so
+     somava os 4 campos de LAUDO_CAMPOS (escopo/tarefa/risco/solucao) --
+     Nome do risco e Mitigacao Existente pendentes nao contavam em lugar
+     nenhum do resumo, mesmo aparecendo com cartao amarelo na tela. Agora
+     soma os 6 campos importaveis; "existente" so entra na conta quando ja
+     tem algo (sugestao, texto ou decisao) -- senao toda maquina sem
+     nenhuma protecao ficaria eternamente pendente. */
+  console.log("\n=== t164 · painel de pendencias soma os 6 campos ===");
+  {
+    const itemPend = ()=>({ risco:{ id:"rP", nome:"Corte", descricao:"Texto de campo.", laudoIA:{} }, maquina:{ id:"mP", laudoIA:{} }, tarefa:{ id:"tP", laudoIA:{} } });
+    t("existente sem nada NUNCA fica pendente (maquina sem nenhuma protecao)", ()=>{
+      const it = itemPend();
+      ["escopo","tarefa","nome","risco","solucao"].forEach(c=> C.laudoSet(it, c, { fin:"x", st:"ok" }));
+      const r = C.laudoResumoItem(it);
+      eq(r.total, 5, "existente sem conteudo nenhum entrou na conta");
+      eq(r.ok, 5);
+      eq(r.ok + r.no, r.total, "essa linha tem que poder chegar a Prontas mesmo sem nada existente");
+    });
+    t("existente com sugestao da IA passa a contar, e pendente ate ser decidido", ()=>{
+      const it = itemPend();
+      ["escopo","tarefa","nome","risco","solucao"].forEach(c=> C.laudoSet(it, c, { fin:"x", st:"ok" }));
+      C.laudoSet(it, "existente", { sug:"Grade parafusada.", st:"pend" });
+      const r = C.laudoResumoItem(it);
+      eq(r.total, 6);
+      eq(r.pend, 1);
+      eq(r.ok + r.no, 5, "nao pode aparecer como pronta com um campo aguardando");
+    });
+    t("O CASO REAL: nome e existente pendentes contam no resumo, igual ja contavam no cartao amarelo da tela", ()=>{
+      const it = itemPend();
+      ["escopo","tarefa"].forEach(c=> C.laudoSet(it, c, { fin:"x", st:"ok" }));
+      C.laudoSet(it, "nome",      { sug:"Nome sugerido", st:"pend" });
+      C.laudoSet(it, "risco",     { sug:"Risco sugerido", st:"pend" });
+      C.laudoSet(it, "existente", { sug:"Existente sugerido", st:"pend" });
+      C.laudoSet(it, "solucao",   { sug:"Solução sugerida", st:"pend" });
+      const r = C.laudoResumoItem(it);
+      eq(r.pend, 4, "o resumo antigo so enxergava risco e solucao (2), nao nome nem existente");
+      eq(r.pend, C.laudoCamposAguardandoDaLinha(it).length,
+         "o numero do resumo tem que bater com o que o botao 'Aplicar N' do cabecalho ja mostrava");
+    });
+    t("laudoResumoLista soma o 'A decidir' do dashboard com os mesmos 6 campos", ()=>{
+      const a = itemPend(); a.risco.id = "rA"; a.maquina.id = "mA"; a.tarefa.id = "tA";
+      ["escopo","tarefa"].forEach(c=> C.laudoSet(a, c, { fin:"x", st:"ok" }));
+      ["nome","risco","existente","solucao"].forEach(c=> C.laudoSet(a, c, { sug:"IA " + c, st:"pend" }));
+      const b = itemPend(); b.risco.id = "rB"; b.maquina.id = "mB"; b.tarefa.id = "tB";
+      ["escopo","tarefa","nome","risco","solucao"].forEach(c=> C.laudoSet(b, c, { fin:"x", st:"ok" })); // pronta, sem nada existente
+      const t = C.laudoResumoLista([a, b]);
+      eq(t.pend, 4, "'A decidir' do topo ficou preso ao modelo antigo (2)");
+      eq(t.linhasProntas, 1, "a linha b, sem nada existente, precisa continuar contando como pronta");
+      const alvosIA = C.laudoAlvosAplicarModo([a, b], "ia");
+      eq(alvosIA.length, 4, "esse e o numero que ja aparecia no botao 'Aplicar sugestoes da IA nos pendentes'");
+      eq(t.pend, alvosIA.length,
+         "O BUG RELATADO: 'A decidir' do topo tem que bater com o botao de aplicar a IA quando nao ha campo compartilhado");
+    });
+    t("'Sem texto' e 'Prontas' continuam corretos com existente vazio (nao regride)", ()=>{
+      const it = itemPend();
+      ["escopo","tarefa","nome","risco","solucao"].forEach(c=> C.laudoSet(it, c, { fin:"x", st:"ok" }));
+      eq(C.laudoFiltrar([it], "falta").length, 0, "existente vazio nao pode virar 'sem texto' para sempre");
+      eq(C.laudoFiltrar([it], "ok").length, 1, "essa linha tem que aparecer em Prontas");
+    });
+  }
+
   /* ==================================================================
      t117 · foto sobe sozinha tambem no iPhone
 
@@ -10100,6 +10164,22 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       });
       ok(HTML.indexOf('App.laudoAplicarLinhaModo(rid, "sel"); }') > 0, "o Ctrl+Enter pularia a confirmacao");
     });
+    /* 23/09/2026: pedido em campo — o menu "Aplicar nesta linha" ganhou um
+       4o modo, "Editados", separado do "cartoes verdes" (que aplica o que
+       ESTA selecionado agora, nao necessariamente o editado). */
+    t("o menu Aplicar ganhou o modo Editados, alem de verdes/IA/campo", ()=>{
+      const it = novoItem("rEd1", "Sugestão da IA.");
+      C.laudoSet(it, "risco", { fin:"Meu texto.", st:"edit", ed:"Meu texto." });
+      C.laudoSet(it, "risco", { fin:"Sugestão da IA.", st:"pend" }); // escolhe a IA; o editado fica guardado em ed
+      const pend = C.laudoCamposPendentesModo(it, "edit");
+      ok(pend.indexOf("risco") >= 0, "o texto editado guardado nao foi enxergado pelo modo 'edit'");
+      const html = C.laudoMenuAplicarHtml(it);
+      ok(html.indexOf("Aplicar os textos editados") > 0, "sem a opcao Editados no menu");
+      ok(html.indexOf("App.laudoAplicarLinhaModo('rEd1','edit')") > 0);
+      C.laudoAplicarAlvos(C.laudoAlvosAplicarModo([it], "edit"), "edit");
+      eq(C.laudoGet(it, "risco").fin, "Meu texto.", "aplicar 'editados' deveria gravar o texto editado, nao a IA que estava selecionada");
+      eq(C.laudoGet(it, "risco").st, "ok");
+    });
   }
 
   /* ---------- t162: revisao do laudo com menos rolagem (23/09/2026) -------
@@ -10147,7 +10227,10 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     t("proximo pendente: pula linhas prontas e da a volta", ()=>{
       const mk = (id, pronta)=>{
         const it = { risco:{ id, laudoIA:{} }, maquina:{ id:"m"+id, laudoIA:{} }, tarefa:{ id:"t"+id, laudoIA:{} } };
-        if(pronta) ["escopo","tarefa","risco","solucao"].forEach(c=> C.laudoSet(it, c, { fin:"x", st:"ok" }));
+        /* 23/09/2026: "nome" passou a contar no resumo (junto com os outros
+           4 oficiais) — sem decidi-lo tambem, a linha nunca fecharia como
+           pronta. "Existente" continua de fora por nao ter conteudo aqui. */
+        if(pronta) ["escopo","tarefa","nome","risco","solucao"].forEach(c=> C.laudoSet(it, c, { fin:"x", st:"ok" }));
         return it;
       };
       const lista = [mk("L0", false), mk("L1", true), mk("L2", true), mk("L3", false)];

@@ -3179,7 +3179,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "23/09/2026 10:21";
+const APP_BUILD = "23/09/2026 10:51";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -16744,13 +16744,15 @@ const LAUDO_CAMPOS = [
   { k:"risco",   rot:"Descrição do risco",    col:"AS", nivel:"risco",   sigla:"R" },
   { k:"solucao", rot:"Solução",               col:"AT", nivel:"risco",   sigla:"S" },
 ];
-/* Mitigação Existente ganhou o mesmo motor de IA da Solução (sugestão,
-   aplicar, editar, copiar de outro, aplicar em vários) mas de propósito
-   NÃO entrou em LAUDO_CAMPOS: essa lista também comanda o "X de 4 campos"
-   do painel, o dashboard de pendências e as colunas AQ-AT do Excel — e
-   "o que já existe" não é um campo obrigatório do laudo (muita máquina
-   legitimamente não tem nada registrado). O texto final dela vai para
-   risco.descMedida, que já tem coluna própria (T) desde sempre. */
+/* Mitigação Existente e Nome do risco ganharam o mesmo motor de IA da
+   Solução (sugestão, aplicar, editar, copiar de outro, aplicar em vários)
+   mas de propósito NÃO entraram em LAUDO_CAMPOS: essa lista comanda os
+   4 chips de sigla (E/T/R/S) do cabeçalho, as colunas AQ-AT do Excel e o
+   progresso de GERAÇÃO da IA (__iaCelulasTotal) — coisas que sempre foram
+   pensadas como "4 campos fixos". O painel de pendências (dashboard e
+   abas da lista) usa laudoResumoItem, que soma os 6 campos importáveis —
+   ver o comentário ali para o motivo. O texto final da mitigação existente
+   vai para risco.descMedida, que já tem coluna própria (T) desde sempre. */
 function laudoCampoDef(campo){
   if(campo==="nome")      return { k:"nome", rot:"Nome do risco", sigla:"N" };
   if(campo==="existente") return { k:"existente", rot:"Mitigação existente", sigla:"M" };
@@ -18015,10 +18017,26 @@ function laudoDuvidasDoItem(item){
   return { equipamento:lm.duvEquip||"", escopo:laudoGet(item,"escopo").duv||"", tarefa:laudoGet(item,"tarefa").duv||"", risco:laudoGet(item,"risco").duv||"", solucao:laudoGet(item,"solucao").duv||"" };
 }
 /* Resumo de uma linha: quantos dos 4 campos estão em cada estado. */
+/* PAINEL DE PENDENCIAS (23/09/2026) — antes somava só os 4 campos de
+   LAUDO_CAMPOS, e por isso o topo da Revisão ("A decidir") e a aba "A
+   decidir" ficavam cegos para Nome do risco e Mitigação existente: uma
+   linha podia ter as duas pendentes, aparecer com cartão amarelo em tela,
+   e mesmo assim não contar em lugar nenhum do resumo — foi exatamente o
+   que o engenheiro flagrou (painel dizia "8 a decidir", o botão de aplicar
+   a sugestão da IA contava 14, certo, porque ele soma os 6 campos).
+   Agora soma os 6 campos importáveis. "Existente" é o único opcional de
+   verdade — muita máquina legitimamente não tem nada existente — então só
+   entra na conta quando já tem algo (sugestão, texto ou decisão feita);
+   sem isso, elas ficariam para sempre "pendentes" e nunca apareceriam em
+   "Prontas". Os outros 5 (inclusive Nome, que quase sempre tem valor de
+   campo) contam sempre — mesma regra que laudoCamposAguardandoDaLinha já
+   usava para decidir se uma linha estava pendente. */
 function laudoResumoItem(item){
-  const r = { total:LAUDO_CAMPOS.length, gerados:0, pend:0, ok:0, no:0, duv:0 };
-  LAUDO_CAMPOS.forEach(c=>{
-    const g = laudoGet(item, c.k);
+  const r = { total:0, gerados:0, pend:0, ok:0, no:0, duv:0 };
+  LAUDO_CAMPOS_IMPORTAVEIS.forEach(c=>{
+    const g = laudoGet(item, c);
+    if(c==="existente" && !(g.sug || g.fin || g.st)) return; // nunca teve nada — nao entra na conta
+    r.total++;
     if(g.sug || g.fin) r.gerados++;
     if(g.st==="ok" || g.st==="edit") r.ok++;
     else if(g.st==="no") r.no++;
@@ -18071,6 +18089,7 @@ const LAUDO_MODOS_APLICAR = {
   sel:   { rot:"Aplicar os cartões verdes", desc:"o texto que está selecionado (verde) em cada campo" },
   ia:    { rot:"Aplicar a sugestão da IA", desc:"a sugestão da IA de cada campo" },
   campo: { rot:"Aplicar o texto de campo", desc:"o texto escrito em campo de cada campo" },
+  edit:  { rot:"Aplicar os textos editados", desc:"o texto editado (o 3º cartão, quando existir) de cada campo" },
 };
 function laudoAplicarAlvos(alvos, modo){
   alvos.forEach(a=>{
@@ -18101,7 +18120,7 @@ function laudoMenuAplicarHtml(item){
   return `<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card">
     <h3>${ic('check')} Aplicar nesta linha</h3>
     <p style="font-size:12.5px;color:var(--ink-dim);margin:4px 0 10px">Só os campos que ainda aguardam decisão. O que já foi aplicado, editado ou recusado não muda.</p>
-    <div style="display:flex;flex-direction:column;gap:8px">${op("sel")}${op("ia")}${op("campo")}</div>
+    <div style="display:flex;flex-direction:column;gap:8px">${op("sel")}${op("ia")}${op("campo")}${op("edit")}</div>
     <div class="modal-actions" style="margin-top:12px"><button class="btn btn-secondary" onclick="App.fecharModal()">Cancelar</button></div>
   </div></div>`;
 }

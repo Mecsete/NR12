@@ -5077,10 +5077,27 @@ chk("miniaturas: vivem so na memoria da aba (nada no banco nem na nuvem)",
     and "FOTO_KEY_PREFIXO + " not in _corpoDe(novo, "__miniGerarAgora"))
 chk("miniaturas: tocar abre a foto real",
     "if(el && el.dataset && el.dataset.fotoref){ App.verFoto(el.dataset.fotoref); return; }" in novo)
-chk("e coisa nova: nao existia na versao anterior",
-    "__pastaSyncRodando" not in orig)
+# "e coisa nova" removida em 23/09/2026: original.html regerado a partir do
+# commit que ja inclui esta entrega (3e5e46c) -- mesmo motivo da secao 139.
 
-
-print("\n---------------------------------------")
+print("\n=== 148. PAINEL DE PENDENCIAS SOMA OS 6 CAMPOS, E 'EDITADOS' NO MENU (23/09/2026) ===")
+# Relatado em campo: o topo da Revisao dizia "8 a decidir" mas o botao
+# "Aplicar sugestoes da IA nos pendentes" contava 14 -- laudoResumoItem so
+# somava os 4 campos de LAUDO_CAMPOS (escopo/tarefa/risco/solucao); Nome do
+# risco e Mitigacao Existente pendentes nao contavam no resumo, so no cartao
+# da tela. Tambem: o menu "Aplicar nesta linha" ganhou o modo Editados
+# (separado de "cartoes verdes", que aplica o que esta selecionado agora,
+# nao necessariamente o texto editado). Prova em t164 e no fim do t147.
+_ri = _corpoDe(novo, "laudoResumoItem")
+chk("laudoResumoItem soma os 6 campos importaveis, nao mais so os 4 oficiais",
+    "LAUDO_CAMPOS_IMPORTAVEIS.forEach(c=>{" in _ri
+    and "LAUDO_CAMPOS.forEach(c=>{" not in _ri)
+chk("'existente' so entra na conta quando ja tem algo — senao nunca fecharia Pronta",
+    'if(c==="existente" && !(g.sug || g.fin || g.st)) return;' in _ri)
+chk("LAUDO_CAMPOS continua com 4 (sigla, Excel, progresso de geracao) — nao virou 6",
+    "LAUDO_CAMPOS.length" not in _ri)
+chk("o menu Aplicar ganhou o 4o modo, Editados",
+    '"Aplicar os textos editados"' in novo
+    and '${op("sel")}${op("ia")}${op("campo")}${op("edit")}' in novo)
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
