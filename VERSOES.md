@@ -64,6 +64,18 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 23/09/2026 12:15
+
+**Importar dados de plaqueta lidos fora do app agora também preenche o Tipo de equipamento.**
+
+O caminho "Importar dados de plaqueta (.json)" (Laudo → IA) já preenchia
+Modelo, Marca, Nº de série, Ano de fabricação, Capacidade e Tensão a
+partir de um arquivo com o que foi lido na foto da plaqueta fora do app.
+A plaqueta às vezes também identifica o tipo do equipamento (ex.:
+"EQUIPAMENTO: TRANSPORTADOR DE CORREIA") — esse dado ficava de fora.
+Agora entra junto, com a mesma regra de sempre: **só preenche o que
+estiver vazio**, nunca sobrescreve o que já foi cadastrado.
+
 ## 23/09/2026 11:19
 
 **Ordem dos selos corrigida — agora bate com a ordem dos cartões.**

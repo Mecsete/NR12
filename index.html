@@ -3181,7 +3181,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "23/09/2026 11:19";
+const APP_BUILD = "23/09/2026 12:15";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -17690,8 +17690,16 @@ async function importarPlanilhaRespostasIA(file, opts){
    Modelo, marca, nº de série, ano de fabricação, capacidade e tensão não são
    preenchidos em campo — são lidos da foto da plaqueta, normalmente no
    escritório (o app já tem lerPlaquetaIA para isso, por chamada de API de
-   visão). Este caminho aceita os mesmos seis campos quando a leitura foi
-   feita fora do app.
+   visão). Este caminho aceita os mesmos campos quando a leitura foi feita
+   fora do app.
+
+   23/09/2026: entraram tipoEquip e tipoEquipOutro. A plaqueta às vezes
+   também identifica o tipo do equipamento ("EQUIPAMENTO: TRANSPORTADOR DE
+   CORREIA"), e esse campo tinha ficado de fora — quem lia a plaqueta fora
+   do app só conseguia preencher os seis primeiros. tipoEquip aceita tanto
+   um valor exatamente igual a um item de TIPOS_EQUIPAMENTO quanto o
+   sentinela OUTRO (ver tipoEquipamento() e o <select> de cadastro) — quem
+   monta o pacote decide; o import não valida contra a lista, só grava.
 
    Mesma regra de segurança do lerPlaquetaIA: só preenche o que está VAZIO.
    Campo que já tem valor nunca é sobrescrito — nem por um valor diferente,
@@ -17699,7 +17707,7 @@ async function importarPlanilhaRespostasIA(file, opts){
    textos do laudo): é dado de cadastro, então grava direto: mas nunca por
    cima do que já existe.
    ========================================================================= */
-const PLAQUETA_CAMPOS_IMPORTAVEIS = ["modelo", "marca", "numeroSerie", "anoFabricacao", "capacidade", "tensao"];
+const PLAQUETA_CAMPOS_IMPORTAVEIS = ["modelo", "marca", "numeroSerie", "anoFabricacao", "capacidade", "tensao", "tipoEquip", "tipoEquipOutro"];
 const FOTOS_RECUPERADAS_FORMATO = "apr-fotos-recuperadas-v1";
 /* Acha um risco em qualquer lugar da árvore do Simplificado. O irmão para
    máquina (maquinaSimplesGlobalPorId) já existia; este faltava. */
@@ -21062,7 +21070,7 @@ function screenSimplesConfigIA(){
   </div>
   <div class="section-title">Dados de plaqueta lidos fora do app</div>
   <div class="card card-pad">
-    <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:8px">Modelo, marca, nº de série, ano de fabricação, capacidade e tensão normalmente são preenchidos olhando a foto da plaqueta no escritório, não em campo. Aqui você carrega esses dados já lidos fora do app (arquivo .json). <b>Só preenche o que estiver vazio</b> no cadastro do equipamento — campo que já tem valor nunca é sobrescrito.</p>
+    <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:8px">Modelo, marca, nº de série, ano de fabricação, capacidade, tensão e tipo de equipamento normalmente são preenchidos olhando a foto da plaqueta no escritório, não em campo. Aqui você carrega esses dados já lidos fora do app (arquivo .json). <b>Só preenche o que estiver vazio</b> no cadastro do equipamento — campo que já tem valor nunca é sobrescrito.</p>
     <button class="btn btn-secondary btn-block" onclick="document.getElementById('fileDadosPlaqueta').click()">${ic('upload')} Importar dados de plaqueta (.json)</button>
     ${__ultimoImportePlaqueta ? `<div class="field-hint" style="margin-top:8px;color:${__ultimoImportePlaqueta.erro?'var(--danger, #c0392b)':'var(--ok, #2e7d32)'}">${escapeHtml(__ultimoImportePlaqueta.mensagem)}</div>` : ""}
   </div>

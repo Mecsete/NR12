@@ -6168,6 +6168,36 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     eq(vm.runInContext("importarDadosPlaqueta(__p)", ctx), null);
     eq(vm.runInContext("importarDadosPlaqueta(null)", ctx), null);
   });
+  /* 23/09/2026: a plaqueta as vezes tambem identifica o TIPO do equipamento
+     ("EQUIPAMENTO: TRANSPORTADOR DE CORREIA") -- esse campo ficava de fora
+     do import. Mesma trava de sempre, campo a campo: so vazio, nunca
+     sobrescreve — tipoEquip e tipoEquipOutro sao dois campos independentes,
+     igual todos os outros da lista (nao ha logica cruzada entre eles). */
+  t("tipoEquip e tipoEquipOutro tambem entram, cada um com a sua trava de nao sobrescrever", ()=>{
+    arvoreMaquinas([["m1", {}], ["m2", { tipoEquip:"Silo" }]]);
+    ctx.__p = pacotePlaqueta([
+      { id:"m1", tipoEquip:"Correia transportadora" },
+      { id:"m2", tipoEquip:OUTRO, tipoEquipOutro:"Guilhotina dosadora" },
+    ]);
+    const r = vm.runInContext("importarDadosPlaqueta(__p)", ctx);
+    // m1.tipoEquip (1) + m2.tipoEquipOutro, que estava vazio (1) = 2;
+    // m2.tipoEquip fica de fora da conta porque já tinha "Silo".
+    eq(r.camposAplicados, 2, JSON.stringify(r));
+    eq(r.maquinasAtualizadas, 2);
+    const [m1, m2] = STATE.projetosSimples[0].areas[0].maquinas;
+    eq(m1.tipoEquip, "Correia transportadora");
+    eq(m2.tipoEquip, "Silo", "sobrescreveu o tipo que ja estava no cadastro");
+    eq(m2.tipoEquipOutro, "Guilhotina dosadora", "tipoEquipOutro, que estava vazio, deveria ter entrado mesmo assim");
+  });
+  t("tipoEquip = OUTRO junto com tipoEquipOutro: os dois entram na mesma passada", ()=>{
+    arvoreMaquinas([["m1", {}]]);
+    ctx.__p = pacotePlaqueta([{ id:"m1", tipoEquip:OUTRO, tipoEquipOutro:"Guilhotina dosadora" }]);
+    const r = vm.runInContext("importarDadosPlaqueta(__p)", ctx);
+    eq(r.camposAplicados, 2);
+    const m = STATE.projetosSimples[0].areas[0].maquinas[0];
+    eq(m.tipoEquip, OUTRO); eq(m.tipoEquipOutro, "Guilhotina dosadora");
+    eq(C.tipoEquipamento(m), "Guilhotina dosadora", "tipoEquipamento() nao leu o par OUTRO/tipoEquipOutro importado");
+  });
   t("botão, seletor de arquivo e aviso de resultado estão na tela, e não sobrescreve", ()=>{
     ok(HTML.indexOf('<input type="file" id="fileDadosPlaqueta" accept="application/json,.json" hidden>') > 0, "sem o seletor de arquivo");
     ok(HTML.indexOf("Importar dados de plaqueta (.json)") > 0, "sem o botão");

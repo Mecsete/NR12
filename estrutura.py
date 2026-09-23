@@ -2140,7 +2140,7 @@ print("\n=== 72. IMPORTAR DADOS DE PLAQUETA LIDOS FORA DO APP ===")
 chk("existe a funcao de importacao, com formato e campos proprios",
     novo.count("function importarDadosPlaqueta(pacote){") == 1
     and 'const PLAQUETA_FORMATO = "apr-plaqueta-v1";' in novo
-    and 'const PLAQUETA_CAMPOS_IMPORTAVEIS = ["modelo", "marca", "numeroSerie", "anoFabricacao", "capacidade", "tensao"];' in novo)
+    and 'const PLAQUETA_CAMPOS_IMPORTAVEIS = ["modelo", "marca", "numeroSerie", "anoFabricacao", "capacidade", "tensao", "tipoEquip", "tipoEquipOutro"];' in novo)
 chk("so preenche campo vazio -- nunca sobrescreve o que ja existe",
     "if(valor && !jaTemValor){ m[campo] = valor; res.camposAplicados++; mudouEsta = true; }" in novo)
 chk("a maquina e localizada em QUALQUER projeto/area, nao so no 'atual'",
@@ -5134,5 +5134,20 @@ _posicoes = [_linha_selos.find('laudoSiglaChip(item,"%s"' % c) for c in _ordem_s
 chk("os 6 selos do topo do item seguem a mesma ordem dos cartoes (E T N R M S)",
     all(p >= 0 for p in _posicoes)
     and all(_posicoes[i] > _posicoes[i-1] for i in range(1, len(_posicoes))))
+
+print("\n=== 151. IMPORTAR PLAQUETA GANHA TIPO DE EQUIPAMENTO (23/09/2026) ===")
+# Pedido do engenheiro: ler a plaqueta por foto (fora do app, com IA de visao)
+# e importar de volta so preenchia os 6 campos originais -- a plaqueta as
+# vezes tambem identifica o TIPO do equipamento, e esse campo ficava de fora.
+# Mesma regra de sempre: so preenche vazio, nunca sobrescreve. Prova em t115.
+chk("tipoEquip e tipoEquipOutro entraram na lista importavel",
+    'const PLAQUETA_CAMPOS_IMPORTAVEIS = ["modelo", "marca", "numeroSerie", "anoFabricacao", "capacidade", "tensao", "tipoEquip", "tipoEquipOutro"];' in novo)
+chk("nao criou um caminho novo -- e o mesmo loop generico de sempre que ja tinha a trava",
+    novo.count("if(valor && !jaTemValor){ m[campo] = valor; res.camposAplicados++; mudouEsta = true; }") == 1)
+chk("o texto de ajuda da tela passou a citar o tipo de equipamento",
+    "Modelo, marca, nº de série, ano de fabricação, capacidade, tensão e tipo de equipamento" in novo)
+chk("e coisa nova: nao existia na versao anterior",
+    '"anoFabricacao", "capacidade", "tensao", "tipoEquip"' not in orig)
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
