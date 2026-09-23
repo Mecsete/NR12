@@ -5146,8 +5146,31 @@ chk("nao criou um caminho novo -- e o mesmo loop generico de sempre que ja tinha
     novo.count("if(valor && !jaTemValor){ m[campo] = valor; res.camposAplicados++; mudouEsta = true; }") == 1)
 chk("o texto de ajuda da tela passou a citar o tipo de equipamento",
     "Modelo, marca, nº de série, ano de fabricação, capacidade, tensão e tipo de equipamento" in novo)
-chk("e coisa nova: nao existia na versao anterior",
-    '"anoFabricacao", "capacidade", "tensao", "tipoEquip"' not in orig)
+
+print("\n=== 152. EXCEL: lastRowResumo, CORES DO NIVEL DE RISCO E FOTO DO EQUIPAMENTO (23/09/2026) ===")
+# Tres defeitos vistos pelo engenheiro na exportacao:
+#  1. "Erro ao gerar o Excel: lastRowResumo is not defined" -- a constante era
+#     declarada DENTRO do if(!pularResumo) e lida fora dele (workbook.xml).
+#  2. Planilhas "Só Base" / "Só Resumo" sem as cores do nivel de risco: o Excel so
+#     tinha 4 cores (nomes antigos) para uma regua de 8 faixas, e as formulas de
+#     HRN/Nivel saiam SEM valor gravado -- visualizador sem recalculo mostrava vazio.
+#  3. "Só Resumo" sem a foto do equipamento.
+_i_if = novo.find("if(!(opts && opts.pularResumo)){")
+_i_const = novo.find("const lastRowResumo = 1 + linhasComIA.length;")
+chk("lastRowResumo e declarada ANTES do if (escopo de funcao, nao de bloco)",
+    0 < _i_const < _i_if)
+chk("a faixa do Resumo no workbook.xml so e reescrita quando o Resumo foi gerado",
+    "if(!(opts && opts.pularResumo)) wb = wb.replace(" in novo)
+chk("as cores de nivel do Excel saem do HRN_FAIXAS (uma por faixa), nao de 4 nomes fixos",
+    "...HRN_FAIXAS.map(f=>({bg:f.cor.slice(1)" in novo
+    and 'const nivelOpts=["DESPREZ' not in novo and 'const nivelOpts2=["DESPREZ' not in novo
+    and "const HRN_DXF_NIVEL_START = HRN_DXF.length - HRN_NIVEIS_EXCEL.length;" in novo)
+chk("HRN e Nivel saem com o valor calculado gravado ao lado da formula (Resumo e Base)",
+    novo.count("<v>${cv.hrn}</v>") == 2 and novo.count("<v>${escapeXml(cv.nivel)}</v>") == 2)
+chk("Resumo limpo ganha 'Foto do Equipamento' e as colunas HRN acompanham",
+    '"Foto do Equipamento","Foto do Risco","Área"' in novo
+    and "RESUMO_COL_PO=9,RESUMO_COL_FE=10,RESUMO_COL_GPD=11,RESUMO_COL_NP=12,RESUMO_COL_HRN=13,RESUMO_COL_NIVEL=14" in novo
+    and "new Set([1,2])" in novo and "item.maquina.fotoGeral||'Sem foto'," in novo)
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

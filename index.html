@@ -3181,7 +3181,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "23/09/2026 12:15";
+const APP_BUILD = "23/09/2026 18:40";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -19019,9 +19019,9 @@ async function gerarBytesXlsmCorteva(modeloB64, linhasComIA, itensInventario, da
   zip.file("xl/drawings/_rels/drawing1.xml.rels", xlsmBuildDrawingRels(relsD1));
 
   // ---------- Resumo (sheet2) ----------
+  const lastRowResumo = 1 + linhasComIA.length;
   if(!(opts && opts.pularResumo)){
   const linhasResumo = linhasComIA.map((item,i)=> xlsmLinhaResumo(2+i, item));
-  const lastRowResumo = 1 + linhasComIA.length;
   let s2 = zip.file("xl/worksheets/sheet2.xml").asText();
   s2 = xlsmSubstituiLinhas(s2, linhasResumo, 2, 999, `A1:M${lastRowResumo}`);
   s2 = s2.replace(/<autoFilter ref="[^"]*"/, `<autoFilter ref="A1:M${lastRowResumo}"`);
@@ -19126,7 +19126,7 @@ async function gerarBytesXlsmCorteva(modeloB64, linhasComIA, itensInventario, da
   // ---------- workbook.xml — ranges dos filtros (_FilterDatabase) ----------
   let wb = zip.file("xl/workbook.xml").asText();
   wb = wb.replace(/'Base Completa'!\$A\$2:\$A[TV]\$\d+/, `'Base Completa'!$A$2:$AV$${lastRowBase}`);
-  wb = wb.replace(/Resumo!\$A\$1:\$M\$\d+/, `Resumo!$A$1:$M$${lastRowResumo}`);
+  if(!(opts && opts.pularResumo)) wb = wb.replace(/Resumo!\$A\$1:\$M\$\d+/, `Resumo!$A$1:$M$${lastRowResumo}`);
   zip.file("xl/workbook.xml", wb);
 
   // ---------- calcChain.xml — remove; o Excel reconstrói sozinho ao abrir ----------
@@ -22086,10 +22086,11 @@ const HRN_DXF = [
   // NP: tons fracos (5 opções)
   {bg:"E2EFDA",fc:"1E2148"},{bg:"FFF2CC",fc:"1E2148"},{bg:"FFE0CC",fc:"1E2148"},
   {bg:"FCE4E4",fc:"1E2148"},{bg:"FAD0D0",fc:"1E2148"},
-  // Nível de Risco: cores fortes (4 opções)
-  {bg:"92D050",fc:"1E2148"},{bg:"FFFF00",fc:"1E2148"},{bg:"FF0000",fc:"FFFFFF"},{bg:"7030A0",fc:"FFFFFF"},
+  // Nível de Risco: uma cor por faixa do HRN_FAIXAS (a mesma da tela e do PDF)
+  ...HRN_FAIXAS.map(f=>({bg:f.cor.slice(1).toUpperCase(), fc:f.texto.slice(1).toUpperCase()})),
 ];
-const HRN_DXF_NIVEL_START = HRN_DXF.length - 4; // índice base das cores de nível
+const HRN_NIVEIS_EXCEL = HRN_FAIXAS.map(f=>f.nivel);
+const HRN_DXF_NIVEL_START = HRN_DXF.length - HRN_NIVEIS_EXCEL.length; // índice base das cores de nível
 
 function buildResumoStylesXml(){
   const dxfs = HRN_DXF.map(d=>
@@ -22197,14 +22198,14 @@ function formulaNivelHrn(colHrn,rn){
 
 /* ── Sheet HRN: Resumo e Base Completa — fotos como objeto real (twoCellAnchor) ─ */
 const RESUMO_HEADERS_HRN = [
-  "Foto do Risco","Área","Máquina/Ativo","Tarefa","Risco","Descrição do Risco","Registro de Salvaguarda / Mitigação",
+  "Foto do Equipamento","Foto do Risco","Área","Máquina/Ativo","Tarefa","Risco","Descrição do Risco","Registro de Salvaguarda / Mitigação",
   "Probabilidade","Frequência","Grau do Dano","Número de Pessoas","HRN","Nível de Risco"
 ];
 // colunas HRN no Resumo (1-based)
-const RESUMO_COL_PO=8,RESUMO_COL_FE=9,RESUMO_COL_GPD=10,RESUMO_COL_NP=11,RESUMO_COL_HRN=12,RESUMO_COL_NIVEL=13;
-const FOTO_COLS_RESUMO = new Set([1]); // A
+const RESUMO_COL_PO=9,RESUMO_COL_FE=10,RESUMO_COL_GPD=11,RESUMO_COL_NP=12,RESUMO_COL_HRN=13,RESUMO_COL_NIVEL=14;
+const FOTO_COLS_RESUMO = new Set([1,2]); // A (equipamento) e B (risco)
 
-function buildHrnSheetXml({sst, headers, rows, fotoColsSet, hrnColPO, hrnColFE, hrnColGPD, hrnColNP, hrnColHRN, hrnColNivel, hrnColAcao, drawingAnchors, sheetDrawingRId}){
+function buildHrnSheetXml({sst, headers, rows, fotoColsSet, hrnColPO, hrnColFE, hrnColGPD, hrnColNP, hrnColHRN, hrnColNivel, hrnColAcao, drawingAnchors, sheetDrawingRId, cache}){
   const ncols=headers.length, nrows=rows.length;
   const hdr = headers.map((h,i)=>sst.cell(i+1,1,h,XLSX_STYLE_HEADER)).join('');
 
@@ -22223,10 +22224,12 @@ function buildHrnSheetXml({sst, headers, rows, fotoColsSet, hrnColPO, hrnColFE, 
         }
       } else if(col===hrnColHRN){
         // HRN como FÓRMULA (VLOOKUP na _MatrizHRN) — recalcula se PO/FE/GPD/NP mudarem
-        cells.push(`<c r="${colLetter(col)}${rn}" s="${XLSX_STYLE_DADOS}" t="n"><f>${escapeXml(formulaHrn(hrnColPO,hrnColFE,hrnColGPD,hrnColNP,rn))}</f></c>`);
+        const cv = cache && cache[ri];
+        cells.push(`<c r="${colLetter(col)}${rn}" s="${XLSX_STYLE_DADOS}" t="n"><f>${escapeXml(formulaHrn(hrnColPO,hrnColFE,hrnColGPD,hrnColNP,rn))}</f>${cv?`<v>${cv.hrn}</v>`:""}</c>`);
       } else if(col===hrnColNivel){
         // Nível de Risco como FÓRMULA, dependente do HRN calculado na mesma linha
-        cells.push(`<c r="${colLetter(col)}${rn}" s="${XLSX_STYLE_DADOS}" t="str"><f>${escapeXml(formulaNivelHrn(hrnColHRN,rn))}</f></c>`);
+        const cv = cache && cache[ri];
+        cells.push(`<c r="${colLetter(col)}${rn}" s="${XLSX_STYLE_DADOS}" t="str"><f>${escapeXml(formulaNivelHrn(hrnColHRN,rn))}</f>${cv?`<v>${escapeXml(cv.nivel)}</v>`:""}</c>`);
       } else {
         cells.push(sst.cell(col,rn,val||'',XLSX_STYLE_DADOS));
       }
@@ -22252,15 +22255,15 @@ function buildHrnSheetXml({sst, headers, rows, fotoColsSet, hrnColPO, hrnColFE, 
     ).join('');
     return `<conditionalFormatting sqref="${sqref}">${rules}</conditionalFormatting>`;
   }
-  const nivelOpts=["DESPREZÍVEL","BAIXO","ALTO","INACEITÁVEL"];
-  // dxf offsets: PO=0..7, FE=8..13, GPD=14..20, NP=21..25, Nível=26..29
+  const nivelOpts=HRN_NIVEIS_EXCEL;
+  // dxf offsets: PO=0..7, FE=8..13, GPD=14..20, NP=21..25, Nível=26..33
   const cfXml=cfBlock(hrnColPO,HRN_PO_OPTS,0)+cfBlock(hrnColFE,HRN_FE_OPTS,8)+
     cfBlock(hrnColGPD,HRN_GPD_OPTS,14)+cfBlock(hrnColNP,HRN_NP_OPTS,21)+
     cfBlock(hrnColNivel,nivelOpts,HRN_DXF_NIVEL_START);
 
   // Larguras de coluna replicando o modelo padrão MecSete (largura em "caracteres").
   const LARGURA_RESUMO = {
-    "Foto do Risco":16, "Área":9.14, "Máquina/Ativo":17.71, "Tarefa":19.29, "Risco":13,
+    "Foto do Equipamento":16, "Foto do Risco":16, "Área":9.14, "Máquina/Ativo":17.71, "Tarefa":19.29, "Risco":13,
     "Descrição do Risco":23.29, "Registro de Salvaguarda / Mitigação":19.57,
     "Probabilidade":12.29, "Frequência":13, "Grau do Dano":15.71, "Número de Pessoas":12.86,
     "HRN":9.14, "Nível de Risco":13,
@@ -22310,6 +22313,7 @@ function buildXlsxPackageSimples({grupos, headers, dataRows, anchors, imgMap, co
     const mitig=item.risco.sugestaoMitigacao||item.risco.descMedida||"Não informado.";
     const nomeRisco=item.risco.nome===OUTRO?item.risco.nomeOutro:item.risco.nome;
     return [
+      item.maquina.fotoGeral||'Sem foto',
       item.risco.foto||'Sem foto',
       item.area.nome, nomeMaquinaS(item.maquina),
       valOuOutro(item.tarefa.tarefa,item.tarefa.tarefaOutro),
@@ -22324,6 +22328,7 @@ function buildXlsxPackageSimples({grupos, headers, dataRows, anchors, imgMap, co
     fotoColsSet:FOTO_COLS_RESUMO,
     hrnColPO:RESUMO_COL_PO, hrnColFE:RESUMO_COL_FE, hrnColGPD:RESUMO_COL_GPD, hrnColNP:RESUMO_COL_NP,
     hrnColHRN:RESUMO_COL_HRN, hrnColNivel:RESUMO_COL_NIVEL,
+    cache:(resumoLinhasRaw||[]).map(item=>hrnDoItem(item)),
     drawingAnchors:resumoDrawingAnchors,
     sheetDrawingRId:'rId1',
   });
@@ -22360,10 +22365,12 @@ function buildXlsxPackageSimples({grupos, headers, dataRows, anchors, imgMap, co
         }
       } else if(col===hHRN && hPO){
         // HRN como FÓRMULA (VLOOKUP na _MatrizHRN)
-        cells.push(`<c r="${colLetter(col)}${rn}" s="${XLSX_STYLE_DADOS}" t="n"><f>${escapeXml(formulaHrn(hPO,hFE,hGPD,hNP,rn))}</f></c>`);
+        const cv = resumoLinhasRaw && resumoLinhasRaw[idx] ? hrnDoItem(resumoLinhasRaw[idx]) : null;
+        cells.push(`<c r="${colLetter(col)}${rn}" s="${XLSX_STYLE_DADOS}" t="n"><f>${escapeXml(formulaHrn(hPO,hFE,hGPD,hNP,rn))}</f>${cv?`<v>${cv.hrn}</v>`:""}</c>`);
       } else if(col===hNivel && hPO){
         // Nível de Risco como FÓRMULA, dependente da coluna HRN da mesma linha
-        cells.push(`<c r="${colLetter(col)}${rn}" s="${XLSX_STYLE_DADOS}" t="str"><f>${escapeXml(formulaNivelHrn(hHRN,rn))}</f></c>`);
+        const cv = resumoLinhasRaw && resumoLinhasRaw[idx] ? hrnDoItem(resumoLinhasRaw[idx]) : null;
+        cells.push(`<c r="${colLetter(col)}${rn}" s="${XLSX_STYLE_DADOS}" t="str"><f>${escapeXml(formulaNivelHrn(hHRN,rn))}</f>${cv?`<v>${escapeXml(cv.nivel)}</v>`:""}</c>`);
       } else if(col===hData && dataParaSerialExcel(val)!==null){
         // Data como número serial real do Excel + estilo "Data Abreviada" (não texto)
         cells.push(`<c r="${colLetter(col)}${rn}" s="${XLSX_STYLE_DATA_ABREV}" t="n"><v>${dataParaSerialExcel(val)}</v></c>`);
@@ -22399,7 +22406,7 @@ function buildXlsxPackageSimples({grupos, headers, dataRows, anchors, imgMap, co
   }
   const dvBaseXml=hPO?`<dataValidations count="4">`+dvBase(hPO,HRN_PO_OPTS)+dvBase(hFE,HRN_FE_OPTS)+dvBase(hGPD,HRN_GPD_OPTS)+dvBase(hNP,HRN_NP_OPTS)+`</dataValidations>`:'';
 
-  const nivelOpts2=["DESPREZÍVEL","BAIXO","ALTO","INACEITÁVEL"];
+  const nivelOpts2=HRN_NIVEIS_EXCEL;
   function cfBase(col,opts,dxfStart){
     if(!col) return '';
     const sqref=`${colLetter(col)}3:${colLetter(col)}${totalRows}`;

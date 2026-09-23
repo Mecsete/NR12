@@ -64,6 +64,18 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 23/09/2026 18:40
+
+**Exportar Excel: corrigido o erro "lastRowResumo is not defined", e as planilhas parciais ganham as cores do nível de risco e a foto do equipamento.**
+
+- O erro aparecia em toda exportação Excel pelo modelo da Corteva (Todos e
+  Laudo). Corrigido.
+- "Só Base Completa" e "Só Resumo": o Nível de Risco agora tem uma cor para
+  cada uma das 8 faixas do HRN (as mesmas da tela e do PDF; antes só havia 4
+  cores, com nomes antigos), e o HRN e o Nível saem com o valor já gravado,
+  então aparecem também em visualizadores que não recalculam fórmulas.
+- "Só Resumo" ganhou a coluna Foto do Equipamento, antes da Foto do Risco.
+
 ## 23/09/2026 12:15
 
 **Importar dados de plaqueta lidos fora do app agora também preenche o Tipo de equipamento.**
