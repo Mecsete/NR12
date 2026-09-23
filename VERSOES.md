@@ -64,6 +64,36 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 22/09/2026 23:51
+
+**Revisar textos do laudo: nova tela, com os textos lado a lado e o escolhido em verde.**
+
+Em cada campo (Escopo, Tarefa, Nome, Descrição do risco, Mitigação
+existente e Solução) os textos aparecem agora como cartões, um ao lado do
+outro: **texto de campo**, **sugestão da IA** e — só quando existe — **seu
+texto editado**. O cartão **verde** é o que vai para o laudo; o quadro
+"Vai para o laudo" que repetia a mesma frase embaixo saiu.
+
+- **Clicar num cartão** escolhe aquele texto (fica "Aguardando sua
+  decisão"); o botão **Aplicar** do campo grava a decisão.
+- O **lápis** discreto em cada cartão abre o terceiro cartão, já com aquele
+  texto, para ajustar e **Aplicar meu texto**.
+- Na **Solução**, escolher uma medida na biblioteca abre o cartão editado já
+  com o texto da medida.
+- Se o texto editado é o que está valendo e você clica em outro cartão, o
+  app **pergunta antes** de descartá-lo.
+- O **Aplicar N** do topo agora aplica só os campos que aguardam decisão,
+  sempre o cartão verde de cada um — **nunca mais por cima** de um texto já
+  aplicado ou editado à mão (antes aplicava a sugestão da IA em tudo).
+- Saíram o botão **Gerar** e o **Pedir um ajuste à IA** (a IA agora chega
+  pela planilha).
+- O cabeçalho continua fixo no topo enquanto os campos rolam por trás; a
+  Plaqueta, o HRN e o Nível de desempenho continuam na mesma tela.
+
+Nada muda nos dados já gravados: o que estava aplicado continua aplicado,
+e um texto que já valia e é diferente dos dois aparece sozinho como
+"Seu texto editado".
+
 ## 22/09/2026 20:47
 
 **No computador, o app para de trabalhar à toa em segundo plano — era o que deixava o navegador pesado.**

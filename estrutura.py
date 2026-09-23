@@ -133,7 +133,9 @@ chk("nenhum carimbo de 'atualizadoEm' usa Date.now() direto",
     len(re.findall(r'atualizadoEm\s*=\s*Date\.now\(\)', novo)) == 0,
     "ainda restam %d" % len(re.findall(r'atualizadoEm\s*=\s*Date\.now\(\)', novo)))
 chk("os carimbos do laudo continuam existindo, agora via agoraSync",
-    novo.count("item.risco.atualizadoEm = agoraSync();") == 3
+    # 4 a partir de 22/09/2026: laudoEscolherMedida (biblioteca de medidas na
+    # nova revisao em cartoes) grava medidaPropostaTipo igual a laudoSetMedida.
+    novo.count("item.risco.atualizadoEm = agoraSync();") == 4
     and novo.count("item.maquina.atualizadoEm = agoraSync();") == 2)
 
 print("\n=== 5. NENHUM SPREAD EM ARRAY GRANDE INTRODUZIDO ===")
@@ -209,7 +211,10 @@ for marca, n in [('body = screenSimplesLaudo();', 1),
                  # ".screen.screen-laudo .chk-laudo-fotos-col" (a coluna de
                  # fotos numeradas fica mais larga no computador). Saldo: -2+1,
                  # 18 vira 17.
-                 ('screen-laudo', 17),
+                 # 18 a partir da revisao de textos em cartoes (22/09/2026):
+                 # ".screen.screen-laudo .laudo-grid .laudo-bloco-texto" faz os
+                 # campos de texto ocuparem a largura toda da grade.
+                 ('screen-laudo', 18),
                  ('<span>Laudo</span>', 1),
                  ('<b>Trocar de módulo</b>', 1)]:
     c = novo.count(marca)
@@ -864,7 +869,7 @@ chk("abrir a lista comeca sem nada marcado",
 chk("substituir texto existente e avisado antes",
     "Já tem texto — será substituído" in novo)
 chk("o botao de aplicar em varios so aparece com texto decidido",
-    '${(st==="ok"||st==="edit") && fin? `<button' in novo)
+    'if((st==="ok"||st==="edit") && String(laudoTextoFinal(item, campo)||"").trim())' in novo)
 
 print("\n=== 32. QUADRO DE ORIGEM E LOGOTIPO DO LAUDO ===")
 chk("numa folha em coluna so a lista encolhe",
@@ -1156,15 +1161,19 @@ print("\n=== 40. TEXTO SUGERIDO NAO APARECE DUAS VEZES ===")
 # e sincronizarDescMedidaExistente). O quadro de leitura ao lado mostrava a
 # mesma frase — so faz sentido quando DIFERE do campo, que e quando o texto foi
 # editado a mao e da para voltar ao sugerido.
-chk("os tres quadros so aparecem quando ha diferenca",
+# 22/09/2026: na revisao do laudo o terceiro quadro (difereDoLaudo) saiu --
+# escolher a medida abre o cartao "Seu texto editado" ja com a frase, entao
+# nao ha mais quadro separado para repetir. Os dois do cadastro em campo ficam.
+chk("os quadros do cadastro so aparecem quando ha diferenca",
     "${podeAplicar? `<div class=\"medida-rot\">Sugestão Solução</div>" in novo
     and "${podeAplicar? `<div class=\"medida-rot\">Texto sugerido pelo que foi marcado</div>" in novo
-    and "${difereDoLaudo? `<div class=\"medida-rot\">" in novo)
+    and "difereDoLaudo" not in novo)
 chk("nenhum quadro ficou preso ao antigo 'se existe texto'",
     '${sugestao? `<div class="medida-frase">' not in novo
     and '${texto? `<div class="medida-frase">' not in novo)
-chk("a revisao compara com o que ja vai para o laudo",
-    'const difereDoLaudo = texto && texto !== String(laudoTextoFinal(item, "solucao")||"").trim();' in novo)
+chk("na revisao, a medida escolhida vai para o cartao editado (sem quadro repetido)",
+    '__laudoRascunho = { campo:"solucao", texto: medidaTextoProposto(item.risco, tipo) };' in novo
+    and "medida-frase" not in _corpoDe(novo, "laudoBlocoMedidaHtml"))
 chk("o quadro ganhou rotulo proprio",
     ".medida-rot{margin-top:10px;" in novo
     and ".medida-rot + .medida-frase{margin-top:4px;}" in novo)
@@ -1254,7 +1263,7 @@ chk("'let __laudoRascunho = null;' existe uma unica vez",
     novo.count("let __laudoRascunho = null;") == 1)
 chk("a caixa de edicao le o rascunho e grava a cada tecla",
     'oninput="App.laudoRascunho(\'${campo}\', this.value)"' in novo
-    and "(__laudoRascunho && __laudoRascunho.campo===campo) ? __laudoRascunho.texto : fin" in novo)
+    and "(__laudoRascunho && __laudoRascunho.campo===campo) ? __laudoRascunho.texto : laudoTextoFinal(item, campo)" in novo)
 chk("'laudoRascunho(campo, texto){' existe uma unica vez",
     novo.count("laudoRascunho(campo, texto){") == 1)
 # Sem limpar o rascunho ao trocar de campo/item, o texto de UM campo vazaria
@@ -1385,7 +1394,7 @@ chk("o laudo impresso (A4) le o texto aprovado de existente em vez de recalcular
     'const existente = laudoTextoFinal(it, "existente");' in novo
     and "const existente = medidaTextoExistenteMulti(r) || String(r.descMedida||\"\").trim();" not in novo)
 chk("laudoBlocoCampo troca o texto cru pelo checklist editavel so no campo existente",
-    'campo==="existente"\n      ? laudoBlocoMedidaExistenteEditavelHtml(item)' in novo)
+    '${campo==="existente" ? laudoBlocoMedidaExistenteEditavelHtml(item)' in novo)
 chk("os 5 handlers do checklist (laudo-scoped) existem, paralelos aos do cadastro em campo",
     all(novo.count(h) == 1 for h in [
         "laudoToggleMedidaExistente(rid, chave){",
@@ -1403,8 +1412,12 @@ print("\n=== 48. HRN E NIVEL DE DESEMPENHO EMPILHADOS NA MESMA CELULA DO GRID ==
 # "Nivel de desempenho requerido" caiam em colunas DIFERENTES (2 ou 3
 # colunas conforme a largura) e nunca ficavam um embaixo do outro de
 # verdade -- o usuario pediu para otimizar o espaco juntando os dois.
-chk("HRN e o Nivel de desempenho viram UMA celula so do grid (par, nao impar)",
-    '.join("")}\n    <div style="display:flex;flex-direction:column;gap:12px">\n      ${laudoBlocoHRN(item)}' in novo)
+# 22/09/2026: os campos de texto passaram a ocupar a largura toda da grade
+# (cartoes lado a lado, .laudo-bloco-texto), entao HRN e Nivel voltaram a ser
+# duas celulas -- agora ficam LADO A LADO na mesma linha, que era o objetivo.
+chk("HRN e o Nivel de desempenho ficam juntos, na mesma linha da grade",
+    '.join("")}\n    ${laudoBlocoHRN(item)}\n    <div class="card card-pad laudo-bloco">\n      <div style="font-weight:800;font-size:14.5px;margin-bottom:4px">Nível de desempenho requerido</div>' in novo
+    and ".screen.screen-laudo .laudo-grid .laudo-bloco-texto{grid-column:1/-1;}" in novo)
 
 print("\n=== 49. 'PEDIR UM AJUSTE A IA' MOSTRA QUE ESTA TRABALHANDO ===")
 # Antes so um toast ("Pedindo a IA... aguarde") que passa rapido -- se a
@@ -1414,11 +1427,12 @@ print("\n=== 49. 'PEDIR UM AJUSTE A IA' MOSTRA QUE ESTA TRABALHANDO ===")
 # laudoBlocoCampo/laudoRefazer generico, nao uma copia por campo.
 chk("__laudoRefazendo existe e comeca nulo",
     novo.count("let __laudoRefazendo = null;") == 1)
-chk("laudoBlocoCampo calcula 'refazendo' comparando rid E campo (nao vaza entre campos do mesmo risco)",
-    'const refazendo = !!(__laudoRefazendo && __laudoRefazendo.rid===rid && __laudoRefazendo.campo===campo);' in novo)
-chk("o botao tem 2 estados exclusivos: Pensando (desabilitado, com spinner) ou clicavel",
-    'id="${idBtnRefazer}" disabled><span class="btn-spinner"></span> Pensando' in novo
-    and 'id="${idBtnRefazer}" onclick="App.laudoRefazer' in novo)
+# 22/09/2026: "Pedir um ajuste a IA" saiu da tela de revisao a pedido do
+# engenheiro. O metodo App.laudoRefazer continua (checagens abaixo), so nao
+# e mais oferecido na tela.
+chk("a revisao nao oferece mais 'Pedir um ajuste a IA'",
+    "Pedir um ajuste à IA</div>" not in novo
+    and "App.laudoRefazer(" not in _corpoDe(novo, "laudoBlocoCampo"))
 chk("App.laudoRefazer marca o estado ANTES do await, nao depois (senao a tela fica muda ate a resposta)",
     novo.find("__laudoRefazendo = { rid, campo, inicio: Date.now() };") <
     novo.find("await refazerSugestaoLaudo(item, campo, instrucao);"))
@@ -3818,32 +3832,19 @@ print("\n=== 120. OS BOTOES DO CAMPO DO LAUDO: UM PRIMARIO, NOME E FUNCAO FIXOS 
 #     tinha trocado de papel;
 #  3. o PRIMARIO continuava sendo "Aplicar sugestao" -- o botao em destaque
 #     jogava fora o texto recem-escrito.
-_bc = novo[novo.find("function laudoBlocoCampo(item, campo){"):]
-_bc = _bc[:_bc.find("/* ---------- Bloco HRN")]
-chk("os botoes sao montados por estado, num lugar so",
-    "const btns = [];" in _bc
-    and 'return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">${btns.join("")}</div>`;' in _bc)
-# Contado dentro do montador de botoes, nao no bloco inteiro: o modo de edicao
-# tem o seu proprio primario ("Salvar meu texto"), que e outra tela e outro
-# assunto.
-_btns = _bc[_bc.find("const btns = [];"):]
-_btns = _btns[:_btns.find('return `<div style="display:flex;gap:6px')]
-chk("UM primario so na barra de acoes, e ele aplica o que esta no quadro verde",
-    _btns.count("btn-primary") == 1
-    and 'if(st!=="ok" && fin)' in _btns
-    and "App.laudoValidar('${rid}','${campo}')" in _btns)
-chk("as alternativas sao nomeadas pela ORIGEM do texto",
-    "Usar a sugestão da IA" in _bc
-    and "Voltar ao texto de campo" in _bc
-    and "Copiar de outro" in _bc)
-chk("e so aparecem quando mudariam o quadro verde",
-    "if(g.sug && fin!==g.sug)" in _bc
-    and "if(orig && fin!==orig)" in _bc)
+# SUBSTITUIDO em 22/09/2026 pela revisao em CARTOES (secao 144): nao ha mais
+# barra de botoes com "Usar a sugestao da IA"/"Voltar ao texto de campo" --
+# cada origem do texto virou um cartao clicavel, e o verde e o que vale.
+_bc = _corpoDe(novo, "laudoBlocoCampo")
+chk("UM primario so por campo, e ele aplica o cartao verde",
+    _bc.count("btn-primary") == 2  # Aplicar (escolha) e Aplicar meu texto (edicao), exclusivos
+    and "App.laudoValidar('${rid}','${campo}')" in _bc
+    and "App.laudoSalvarEdicao('${rid}','${campo}')" in _bc)
 chk("os rotulos antigos, que se confundiam, sairam",
     "Aplicar sugestão</button>" not in novo
     and "Usar meu texto</button>" not in novo)
 chk("o botao de replicar continua distinto do de aplicar",
-    "Aplicar este texto em vários itens" in novo)
+    "Aplicar em vários itens</button>" in novo)
 
 print("\n=== 121. ASSINATURA DO RESPONSAVEL — SO NESTE APARELHO ===")
 # Pedida em campo em 02/09/2026, com a escolha explicita de NAO sincronizar:
@@ -4457,7 +4458,9 @@ chk("as colunas se chamam como os campos da tela",
 chk("a tela usa exatamente os mesmos nomes das colunas",
     "<label>Solução Editável</label>" in novo
     and novo.count("<label>Descrição da Mitigação Existente</label>") == 2
-    and novo.count('<div class="medida-rot">Sugestão Solução</div>') == 2)
+    # 1 a partir de 22/09/2026: o quadro da revisao do laudo saiu (a medida
+    # escolhida vai para o cartao editado); o do cadastro em campo fica.
+    and novo.count('<div class="medida-rot">Sugestão Solução</div>') == 1)
 # DECISAO REVISTA em 15/09/2026 (a nota abaixo, de antes dessa data, descrevia
 # a versao anterior — mantida para quem procurar o historico). Atende/Nao
 # atende so entra sozinho em descMedida enquanto ninguem editar o campo a mao
@@ -4956,8 +4959,32 @@ chk("ao sair da aba, o computador sobe na hora o que estiver pendente",
     "if(ehComputadorDeMesa() && envioDesktopTemEdicaoPendente()) sincronizarIncrementalOneDrive();" in _corpoDe(novo, "flushTudoAntesDeSair"))
 chk("o ciclo de 2 minutos continua SEM condicao -- e a rede de seguranca",
     'if(document.visibilityState==="visible"){ tentarSalvarSePendente(); sincronizarIncrementalNaPasta(); sincronizarIncrementalOneDrive(); sincronizarDownloadOneDrive();' in novo)
+# "e coisa nova" removida em 22/09/2026: original.html regerado a partir do
+# commit que ja inclui esta entrega (fc2a183) -- mesmo motivo da secao 139.
+
+print("\n=== 144. REVISAO DE TEXTOS EM CARTOES (22/09/2026) ===")
+# Pedido do engenheiro: cartoes lado a lado (campo | IA | editado), o verde e
+# o que vai para o laudo, sem o quadro "Vai para o laudo" repetido, sem o
+# botao Gerar e sem "Pedir um ajuste a IA"; o editado so aparece pelo lapis,
+# pela biblioteca de medidas ou quando ja e o texto em vigor. Prova em t147.
+_bc = _corpoDe(novo, "laudoBlocoCampo")
+chk("os cartoes existem e o verde vem de laudoFonteSelecionada",
+    "function laudoFonteSelecionada(item, campo){" in novo
+    and 'const fonte = editando ? "edit" : laudoFonteSelecionada(item, campo);' in _bc
+    and '<div class="laudo-opcoes">' in _bc)
+chk("o quadro 'Vai para o laudo' repetido saiu da revisao",
+    "Vai para o laudo" not in _bc)
+chk("o botao Gerar saiu do cabecalho da revisao",
+    "App.laudoGerarLinha(" not in _corpoDe(novo, "screenSimplesLaudoItem"))
+chk("clicar num cartao so escolhe (aguardando), quem decide e o Aplicar",
+    'laudoSet(item, campo, { fin:texto, st:"pend" });' in novo)
+chk("trocar de cartao com texto editado valendo pede confirmacao",
+    '!confirm("O seu texto editado deixa de valer e será descartado. Trocar mesmo assim?")' in novo)
+chk("Aplicar N do cabecalho nunca aplica por cima do que ja foi decidido",
+    'if(g.st==="ok" || g.st==="edit" || g.st==="no") return false;' in _corpoDe(novo, "laudoCamposAguardandoDaLinha")
+    and "const campos = laudoCamposAguardandoDaLinha(item);" in novo)
 chk("e coisa nova: nao existia na versao anterior",
-    "function ehComputadorDeMesa(){" not in orig)
+    "function laudoFonteSelecionada(item, campo){" not in orig)
 
 
 print("\n---------------------------------------")

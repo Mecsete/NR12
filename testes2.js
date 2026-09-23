@@ -920,15 +920,17 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(h.indexOf("HRN "+hrn.hrn) > 0, "sem valor no title");
     ok(h.indexOf(C.NIVEL_HRN_META ? "" : "") === 0 || true);
   });
+  /* Revisao de 22/09/2026: "Gerar" saiu do cabecalho (a IA agora vem pela
+     planilha) e "Aplicar N" conta so os campos que AGUARDAM decisao — antes
+     era sempre 4 e aplicava a sugestao por cima do que ja estava decidido. */
   t("ações ficam no cabeçalho, em versão compacta", ()=>{
     const h = C.screenSimplesLaudoItem();
-    ok(h.indexOf("Aplicar 4") > 0, "sem aplicar compacto");
+    const n = C.laudoCamposAguardandoDaLinha(C.laudoItemPorId("r1")).length;
     ok(h.indexOf("laudoAprovarLinha('r1')") > 0);
-    ok(h.indexOf("laudoGerarLinha('r1')") > 0);
+    ok(h.indexOf("laudoGerarLinha('r1')") < 0, "o botão Gerar voltou ao cabeçalho");
     ok(h.indexOf("laudoAbrirGaleria('r1')") > 0);
-    ok(h.indexOf("} Aplicar 4<") > 0 || h.indexOf("> Aplicar 4<") > 0 || /Aplicar 4\s*<\/button>/.test(h), "rótulo visível deveria ser curto");
-    ok(h.indexOf(">Aplicar as 4 sugestões<") < 0, "rótulo longo não pode ser o texto do botão");
-    ok(h.indexOf('title="Aplicar as 4 sugestões desta linha"') > 0, "explicação longa deveria virar dica");
+    ok(new RegExp("Aplicar " + n + "\\s*<\\/button>").test(h), "rótulo visível deveria ser curto e contar o que aguarda decisão");
+    ok(h.indexOf(">Aplicar as ") < 0, "rótulo longo não pode ser o texto do botão");
   });
   t("navegação entre linhas fica no cabeçalho", ()=>{
     const h = C.screenSimplesLaudoItem();
@@ -1716,9 +1718,9 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     const it = C.linhasEscopoSimples()[0];
     it.risco.componente = "Correia";
     const h = C.laudoBlocoCampo(it, "solucao");
-    ok(h.indexOf("laudoSetMedida('r1'") > 0, "sem seletor de medida");
+    ok(h.indexOf("laudoEscolherMedida('r1'") > 0, "sem seletor de medida");
     ok(h.indexOf("Sugestão do app") > 0, "sem pré-seleção");
-    ok(C.laudoBlocoCampo(it, "risco").indexOf("laudoSetMedida") < 0, "só o campo Solução deveria ter o montador");
+    ok(C.laudoBlocoCampo(it, "risco").indexOf("laudoEscolherMedida") < 0, "só o campo Solução deveria ter o montador");
   });
   t("métodos existem e nada é sobrescrito sem permissão", ()=>{
     ["onDraftMedidaProposta(tipo)","aplicarTextoMitigacao()","onDraftMedidaExistente(campo, valor)",
@@ -3494,7 +3496,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ["async laudoAplicar(rid, campo){", "async laudoValidar(rid, campo){", "async laudoAprovarLinha(rid){"]
       .forEach(m=> ok(HTML.indexOf(m) > 0, "faltou " + m));
     eq((HTML.match(/App\.laudoRevisarPortugues\(rid, campo\)/g)||[]).length, 2);
-    ok(HTML.indexOf("laudoRevisarTextoEtitulo(item, c.k)") > 0, "aprovar a linha inteira não revisaria");
+    ok(HTML.indexOf("revisados += await laudoRevisarTextoEtitulo(item, c);") > 0, "aprovar a linha inteira não revisaria");
   });
   t("o título do risco só é revisado junto com o campo do risco", ()=>{
     const f = funcao("laudoRevisarTextoEtitulo");
@@ -3573,7 +3575,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   });
   t("o botão de aplicar em vários só aparece depois de aplicar", ()=>{
     const bloco = funcao("laudoBlocoCampo");
-    ok(bloco.indexOf('${(st==="ok"||st==="edit") && fin? `<button') > 0, "apareceria antes de haver texto decidido");
+    ok(bloco.indexOf('if((st==="ok"||st==="edit") && String(laudoTextoFinal(item, campo)||"").trim())') > 0, "apareceria antes de haver texto decidido");
   });
 
   console.log("\n=== t74 · quadro do texto de origem não é mais espremido ===");
@@ -4073,10 +4075,14 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     r.descMedida = "Texto que eu escrevi.";
     eq((C.blocoMedidaExistenteHtml(r).match(/medida-frase/g)||[]).length, 1, "editado à mão, o sugerido tem de voltar");
   });
-  t("na revisão o quadro some quando é igual ao que vai para o laudo", ()=>{
-    ok(funcao("laudoBlocoMedidaHtml").indexOf('const difereDoLaudo = texto && texto !== String(laudoTextoFinal(item, "solucao")||"").trim();') > 0,
-       "mostraria o mesmo texto que já está no quadro Vai para o laudo");
-    ok(funcao("laudoBlocoMedidaHtml").indexOf("${difereDoLaudo? `") > 0);
+  /* 22/09/2026: na revisão a frase da medida não aparece mais num quadro
+     próprio — escolher a medida abre o cartão "Seu texto editado" com ela. */
+  t("na revisão, escolher a medida preenche o cartão editado (sem quadro repetido)", ()=>{
+    const f = funcao("laudoBlocoMedidaHtml");
+    ok(f.indexOf("medida-frase") < 0, "voltou o quadro que repetia a frase da medida");
+    ok(f.indexOf("App.laudoEscolherMedida(") > 0);
+    ok(HTML.indexOf('__laudoRascunho = { campo:"solucao", texto: medidaTextoProposto(item.risco, tipo) };') > 0,
+       "escolher a medida não abre o cartão editado com o texto dela");
   });
 
   console.log("\n=== t84 · frequência da tarefa alimenta a exposição do PLr ===");
@@ -4434,7 +4440,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(html.indexOf("App.laudoAcrescentarOutroExistente('rChk1')") > 0, "faltou o botão de acrescentar outro");
     ok(html.indexOf("App.laudoSetMedidaExistenteCampo('rChk1','situacao'") > 0, "faltou a escolha de situação");
     ok(html.indexOf("Sugestão da IA") > 0, "faltou o bloco de IA — o pedido era ter as MESMAS opções da Solução");
-    ok(html.indexOf("Pedir um ajuste à IA") > 0);
+    ok(html.indexOf("Pedir um ajuste à IA") < 0, "o ajuste pela IA saiu da revisão em 22/09/2026");
     ok(html.indexOf("MONTAR A PARTIR DA BIBLIOTECA DE MEDIDAS") < 0,
        "a biblioteca de medidas é da Solução (propor algo novo), não faz sentido em existente");
   });
@@ -4442,19 +4448,21 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     const item = { risco:{ id:"rSig1" }, maquina:{}, tarefa:{} };
     C.laudoSet(item, "existente", { fin:"texto", st:"ok" });
     const html = C.laudoBlocoCampo(item, "existente");
-    ok(html.indexOf("Item validado.") > 0, "sem essa frase, o texto ficou preso na versão da Solução");
+    ok(html.indexOf("Aplicado ao laudo") > 0, "sem a marca de aplicado");
     ok(html.indexOf("a letra") < 0, "existente nao tem sigla no carrossel de cartoes — a frase da Solucao nao se aplica aqui");
   });
 
   console.log("\n=== t93 · HRN e Nível de desempenho na mesma célula do grid ===");
-  t("os dois cartões ficam dentro do mesmo wrapper, um embaixo do outro", ()=>{
+  /* 22/09/2026: os campos de texto ocupam a largura toda (cartões lado a
+     lado), então HRN e Nível viraram dois itens da grade, lado a lado. */
+  t("HRN e Nível de desempenho vêm juntos, depois dos campos de texto", ()=>{
     STATE.ui.laudoRiscoId = C.linhasEscopoSimples()[0].risco.id;
     const h = C.screenSimplesLaudoItem();
-    const iWrapper = h.indexOf('<div style="display:flex;flex-direction:column;gap:12px">');
+    const iUltimoTexto = h.lastIndexOf("laudo-bloco-texto");
     const iHRN = h.indexOf("Avaliação HRN");
     const iNivel = h.indexOf("Nível de desempenho requerido");
-    ok(iWrapper > 0 && iWrapper < iHRN && iHRN < iNivel,
-       "o wrapper precisa vir antes de HRN, que precisa vir antes do Nível");
+    ok(iUltimoTexto > 0 && iUltimoTexto < iHRN && iHRN < iNivel,
+       "HRN precisa vir depois dos campos de texto e antes do Nível");
     // nenhum outro cartao do grid entra ENTRE os dois — so a abertura do
     // PROPRIO card do Nivel (a de HRN fica ANTES de "Avaliação HRN", fora
     // desta fatia).
@@ -4468,23 +4476,14 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
      resposta demorasse mais que o toast, a pessoa ficava sem nenhum sinal
      de que ainda estava rodando. Vale para os 5 campos (o motor é o mesmo
      laudoBlocoCampo/laudoRefazer de sempre, genérico por campo). */
-  t("o botão muda para o estado 'Pensando' quando __laudoRefazendo aponta para este campo", ()=>{
+  /* 22/09/2026: "Pedir um ajuste à IA" saiu da revisão a pedido do
+     engenheiro. O método App.laudoRefazer continua no arquivo (os testes
+     abaixo seguem valendo para ele); só a tela não o oferece mais. */
+  t("a revisão não oferece mais 'Pedir um ajuste à IA'", ()=>{
     const item = { risco:{ id:"rPen1" }, maquina:{}, tarefa:{} };
-    vm.runInContext('__laudoRefazendo = { rid:"rPen1", campo:"solucao", inicio: Date.now() };', ctx);
     const html = C.laudoBlocoCampo(item, "solucao");
-    vm.runInContext('__laudoRefazendo = null;', ctx);
-    ok(html.indexOf('id="laudoRefazerBtn_rPen1_solucao" disabled') > 0, "o botão não travou nem ficou desabilitado");
-    ok(html.indexOf('class="btn-spinner"') > 0, "sem o spinner, some qualquer sinal de atividade");
-    ok(html.indexOf("Pensando…") > 0);
-    ok(html.indexOf("Refazer esta sugestão") < 0, "o texto clicável não pode aparecer junto do estado carregando");
-  });
-  t("__laudoRefazendo de OUTRO campo não trava o botão deste aqui", ()=>{
-    const item = { risco:{ id:"rPen2" }, maquina:{}, tarefa:{} };
-    vm.runInContext('__laudoRefazendo = { rid:"rPen2", campo:"risco", inicio: Date.now() };', ctx);
-    const html = C.laudoBlocoCampo(item, "solucao");
-    vm.runInContext('__laudoRefazendo = null;', ctx);
-    ok(html.indexOf("Refazer esta sugestão") > 0, "vazou o travamento de risco para dentro de solucao");
-    ok(html.indexOf('id="laudoRefazerBtn_rPen2_solucao" disabled') < 0);
+    ok(html.indexOf("Pedir um ajuste à IA") < 0);
+    ok(html.indexOf("laudoRefazer") < 0);
   });
   t("App.laudoRefazer marca __laudoRefazendo ANTES do await, não depois", ()=>{
     /* laudoRefazer é método de App (não "function laudoRefazer(" solto),
@@ -6036,9 +6035,9 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(h.indexOf(OUTRO) < 0, "vazou o valor interno do 'Outro'");
   });
   t("o cartão do Escopo usa a identificação; os outros campos seguem como antes", ()=>{
-    ok(HTML.indexOf("      : campo===\"escopo\"\n      ? laudoBlocoIdentificacaoEquipamento(item)") > 0,
+    ok(HTML.indexOf(': campo==="escopo" ? laudoBlocoIdentificacaoEquipamento(item) : ""') > 0,
        "o cartão do escopo não passou a usar a identificação");
-    ok(HTML.indexOf('${campo==="solucao" ? "O que você propôs em campo" : campo==="nome" ? "Nome de campo" : "Seu texto de campo"}') > 0,
+    ok(HTML.indexOf('const rotCampo = campo==="solucao" ? "O que você propôs em campo"') > 0,
        "os demais campos perderam o rótulo de sempre");
   });
   t("o texto que VAI PARA O LAUDO continua sendo nome + descrição", ()=>{
@@ -9778,101 +9777,113 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
-  /* ---------- t147: os botoes do campo do laudo -----------------------------
-     Relatado em campo em 02/09/2026: "o botao de aplicar este texto esta
-     confuso, quando edita o texto ele muda de funcao".
-
-     Era verdade, por tres motivos que se somavam:
-       1. dois botoes com rotulo quase igual ("Aplicar sugestao" e "Aplicar
-          este texto") para acoes diferentes;
-       2. o segundo so NASCIA depois de editar -- sem edicao o quadro verde
-          mostra a propria sugestao, entao `fin === g.sug` e a condicao que o
-          mostrava era falsa. Ao salvar uma edicao ele aparecia do lado, e
-          parecia que o botao tinha trocado de papel;
-       3. o PRIMARIO continuava sendo "Aplicar sugestao" -- o botao em
-          destaque jogava fora o texto recem-escrito.
-
-     Agora: um primario so, com nome e funcao fixos, que aplica o que esta no
-     quadro verde. As alternativas sao secundarias e nomeadas pela ORIGEM do
-     texto, e so aparecem quando de fato mudariam o quadro. */
+  /* ---------- t147: revisao de textos em CARTOES (22/09/2026) ------------
+     Substitui o antigo t147 (botao principal "Aplicar este texto" + quadro
+     "Vai para o laudo"). Agora cada campo mostra as ORIGENS do texto como
+     cartoes lado a lado — campo, IA e, quando existe, o editado — e o cartao
+     verde e o que vai para o laudo. Estes testes rodam as funcoes REAIS do
+     arquivo entregue sobre dados de verdade. */
   {
-    console.log("\n[t147] botoes do campo do laudo: um primario, nome e funcao fixos");
-    const bloco = funcao("laudoBlocoCampo");
-    /* Monta a lista de botoes rodando a MESMA logica do arquivo entregue,
-       recortada do bloco -- e nao uma copia escrita aqui. */
-    const i = bloco.indexOf("const btns = [];");
-    const f = bloco.indexOf("return `<div style=\"display:flex;gap:6px", i);
-    ok(i > 0 && f > i, "nao achei o montador de botoes dentro de laudoBlocoCampo");
-    const corpo = bloco.slice(i, f);
-    const montar = new Function("st","fin","g","orig","rid","campo","ic",
-      corpo + "\n return btns;");
-    const IC = ()=>"";
-    const SUG = "Sugestão da IA.";
-    const ORIG = "Texto de campo.";
-    const lista = (st, fin, sug)=> montar(st, fin, { sug }, ORIG, "r1", "escopo", IC)
-      .map(h=>({
-        rot: (h.match(/>([^<]*)<\/button>/)||["",""])[1].trim(),
-        primario: h.indexOf("btn-primary") > 0,
-      }));
-    const rotulos = (l)=> l.map(b=>(b.primario?"*":"") + b.rot);
-    const primarios = (l)=> l.filter(b=>b.primario).map(b=>b.rot);
-
-    t("NUNCA existe mais de um botao em destaque", ()=>{
-      [["", ORIG, ""], ["", SUG, SUG], ["edit", "Meu texto", SUG],
-       ["ok", "Final", SUG], ["no", ORIG, SUG]].forEach(([st,fin,sug])=>{
-        const p = primarios(lista(st, fin, sug));
-        ok(p.length <= 1, "estado " + (st||"(novo)") + " tem " + p.length + " botoes em destaque: " + p);
-      });
+    console.log("\n[t147] revisao de textos em cartoes: o verde e o que vai para o laudo");
+    const novoItem = (rid, sug)=>{
+      const it = { risco:{ id:rid, nome:"Corte dos dedos", descricao:"Texto de campo.", laudoIA:{} }, maquina:{ id:"m"+rid, laudoIA:{} }, tarefa:{ id:"t"+rid, laudoIA:{} } };
+      if(sug) C.laudoSet(it, "risco", { sug, st:"pend" });
+      return it;
+    };
+    const sel = (h)=> (h.match(/class="laudo-opcao op-(\w+) sel/g)||[]).map(x=>x.replace(/.*op-(\w+).*/,"$1"));
+    t("sem sugestao, o cartao verde e o texto de campo", ()=>{
+      const it = novoItem("rc1");
+      eq(C.laudoFonteSelecionada(it, "risco"), "campo");
+      eq(sel(C.laudoBlocoCampo(it, "risco")).join(), "campo");
     });
-    t("o botao em destaque tem SEMPRE o mesmo nome e a mesma funcao", ()=>{
-      [["", ORIG, ""], ["", SUG, SUG], ["edit", "Meu texto", SUG], ["no", ORIG, SUG]].forEach(([st,fin,sug])=>{
-        const p = primarios(lista(st, fin, sug));
-        eq(p.join(""), "Aplicar este texto", "estado " + (st||"(novo)") + " mudou o botao em destaque");
-      });
-      const h = lista("edit", "Meu texto", SUG).find(b=>b.primario);
-      ok(bloco.indexOf("App.laudoValidar('${rid}','${campo}')") > 0,
-         "o botao em destaque precisa aplicar o que esta no quadro verde");
+    t("com sugestao nova, o verde passa a ser a IA", ()=>{
+      const it = novoItem("rc2", "Sugestão da IA.");
+      eq(C.laudoFonteSelecionada(it, "risco"), "ia");
+      eq(sel(C.laudoBlocoCampo(it, "risco")).join(), "ia");
     });
-    /* O DEFEITO EXATO QUE FOI RELATADO: antes, editar fazia nascer um segundo
-       botao de aplicar, e o destaque continuava no que descartava a edicao. */
-    t("O CASO REAL: editar o texto NAO troca o botao em destaque", ()=>{
-      const antes  = primarios(lista("",     SUG,        SUG));
-      const depois = primarios(lista("edit", "Meu texto", SUG));
-      eq(antes.join(""), depois.join(""),
-         "o botao em destaque mudou ao editar — era exatamente a confusao relatada");
+    t("escolher o texto de campo (fin = original) mantem o verde no campo", ()=>{
+      const it = novoItem("rc3", "Sugestão da IA.");
+      C.laudoSet(it, "risco", { fin:"Texto de campo.", st:"pend" });
+      eq(C.laudoFonteSelecionada(it, "risco"), "campo");
+      eq(C.laudoTextoFinal(it, "risco"), "Texto de campo.", "o laudo tem de levar exatamente o cartao verde");
     });
-    t("e depois de editar, o destaque aplica O SEU texto, nao a sugestao", ()=>{
-      const l = lista("edit", "Meu texto", SUG);
-      const p = l.find(b=>b.primario);
-      eq(p.rot, "Aplicar este texto");
-      const sugestao = l.find(b=>/sugestão da IA/i.test(b.rot));
-      ok(sugestao && !sugestao.primario,
-         "usar a sugestao voltou a ser o botao em destaque — descartaria a edicao recem-salva");
+    t("recusado (dado antigo, st no) aparece como texto de campo", ()=>{
+      const it = novoItem("rc4", "Sugestão da IA.");
+      C.laudoSet(it, "risco", { st:"no", fin:"" });
+      eq(C.laudoFonteSelecionada(it, "risco"), "campo");
     });
-    t("cada alternativa e nomeada pela ORIGEM do texto", ()=>{
-      const l = rotulos(lista("edit", "Meu texto", SUG));
-      ok(l.some(r=>/Usar a sugestão da IA/.test(r)), "faltou a alternativa da IA: " + l);
-      ok(l.some(r=>/Voltar ao texto de campo/.test(r)), "faltou a volta ao texto de campo: " + l);
-      ok(l.some(r=>/Copiar de outro/.test(r)));
-      ok(l.every(r=>!/^\*?Usar meu texto$/.test(r)),
-         "'Usar meu texto' voltou — o nome e ambiguo logo depois de editar a mao");
+    t("texto diferente dos dois faz nascer o 3o cartao, ja verde", ()=>{
+      const it = novoItem("rc5", "Sugestão da IA.");
+      C.laudoSet(it, "risco", { fin:"Meu texto próprio.", st:"edit" });
+      const h = C.laudoBlocoCampo(it, "risco");
+      eq(sel(h).join(), "edit");
+      ok(h.indexOf("Meu texto próprio.") > 0);
+      ok(h.indexOf("Seu texto editado") > 0);
     });
-    /* Alternativa que nao mudaria nada nao deve aparecer: botao que nao faz
-       diferenca e so mais uma coisa para a pessoa decidir. */
-    t("a alternativa so aparece quando mudaria o quadro verde", ()=>{
-      // quadro ja mostra a sugestao: nao oferece "usar a sugestao"
-      ok(!rotulos(lista("", SUG, SUG)).some(r=>/sugestão da IA/i.test(r)),
-         "ofereceu trocar pela sugestao que ja esta no quadro");
-      // quadro ja mostra o texto de campo: nao oferece "voltar ao texto de campo"
-      ok(!rotulos(lista("", ORIG, "")).some(r=>/texto de campo/i.test(r)),
-         "ofereceu voltar para o texto que ja esta no quadro");
+    t("sem texto proprio, o 3o cartao NAO aparece (so pelo lapis)", ()=>{
+      const h = C.laudoBlocoCampo(novoItem("rc6", "Sugestão da IA."), "risco");
+      ok(h.indexOf("Seu texto editado") < 0, "o cartao editado apareceu sem ninguem pedir");
+      ok(h.indexOf("App.laudoEditarDe('rc6','risco','campo')") > 0, "faltou o lapis no cartao de campo");
+      ok(h.indexOf("App.laudoEditarDe('rc6','risco','ia')") > 0, "faltou o lapis no cartao da IA");
     });
-    t("item ja aplicado nao mostra botao de aplicar", ()=>{
-      eq(primarios(lista("ok", "Final", SUG)).length, 0,
-         "item validado nao precisa de botao de aplicar");
+    t("lapis abre o 3o cartao com o texto da origem escolhida", ()=>{
+      const it = novoItem("rc7", "Sugestão da IA.");
+      STATE.ui.laudoEditandoCampo = "risco";
+      vm.runInContext('__laudoRascunho = { campo:"risco", texto:"Sugestão da IA." };', ctx);
+      const h = C.laudoBlocoCampo(it, "risco");
+      STATE.ui.laudoEditandoCampo = null; vm.runInContext("__laudoRascunho = null;", ctx);
+      ok(h.indexOf('id="laudoEdit_risco"') > 0, "sem a caixa de edicao");
+      ok(/<textarea id="laudoEdit_risco"[^>]*>Sugestão da IA\.<\/textarea>/.test(h), "a caixa nao veio com o texto da origem");
+      eq(sel(h).join(), "edit", "editando, o verde tem de ser o cartao editado");
+      ok(h.indexOf("App.laudoSalvarEdicao('rc7','risco')") > 0);
     });
-    t("sem texto nenhum, nao ha o que aplicar", ()=>{
-      eq(primarios(lista("", "", "")).length, 0);
+    t("nao existe mais o quadro 'Vai para o laudo' repetindo o texto", ()=>{
+      const h = C.laudoBlocoCampo(novoItem("rc8", "Sugestão da IA."), "risco");
+      ok(h.indexOf("Vai para o laudo") < 0);
+      eq(h.split("Sugestão da IA.").length - 1, 1, "o texto escolhido apareceu mais de uma vez");
+    });
+    t("aguardando: botao Aplicar; decidido: marca de aplicado e replicar", ()=>{
+      const it = novoItem("rc9", "Sugestão da IA.");
+      let h = C.laudoBlocoCampo(it, "risco");
+      ok(h.indexOf("App.laudoValidar('rc9','risco')") > 0, "sem o Aplicar do campo");
+      ok(h.indexOf("Aplicado ao laudo") < 0);
+      C.laudoSet(it, "risco", { fin:"Sugestão da IA.", st:"ok" });
+      h = C.laudoBlocoCampo(it, "risco");
+      ok(h.indexOf("App.laudoValidar(") < 0, "item aplicado nao precisa de Aplicar");
+      ok(h.indexOf("Aplicado ao laudo") > 0);
+      ok(h.indexOf("App.laudoAbrirReplicar('rc9','risco')") > 0);
+    });
+    t("cartao vazio nao e clicavel (IA ainda nao gerada)", ()=>{
+      const h = C.laudoBlocoCampo(novoItem("rc10"), "risco");
+      ok(h.indexOf("App.laudoSelecionar('rc10','risco','ia')") < 0, "daria para escolher um texto que nao existe");
+      ok(h.indexOf("Ainda não gerada.") > 0);
+    });
+    t("o cartao verde nao e clicavel; os outros sim", ()=>{
+      const h = C.laudoBlocoCampo(novoItem("rc11", "Sugestão da IA."), "risco");
+      ok(h.indexOf("App.laudoSelecionar('rc11','risco','ia')") < 0);
+      ok(h.indexOf("App.laudoSelecionar('rc11','risco','campo')") > 0);
+    });
+    t("Aplicar N do cabecalho: so o que aguarda decisao, nunca o ja decidido", ()=>{
+      const it = novoItem("rc12", "Sugestão da IA.");
+      C.laudoSet(it, "nome", { sug:"Nome IA", st:"pend" });
+      C.laudoSet(it, "solucao", { sug:"Solução IA", fin:"Minha solução", st:"edit" });
+      const l = C.laudoCamposAguardandoDaLinha(it);
+      ok(l.indexOf("risco") >= 0 && l.indexOf("nome") >= 0, "faltou campo pendente: " + l);
+      ok(l.indexOf("solucao") < 0, "aplicaria por cima de um texto ja editado: " + l);
+    });
+    t("sem IA, nada foi removido: copiar, replicar e biblioteca continuam", ()=>{
+      const f = funcao("laudoBlocoCampo");
+      ["App.laudoAbrirCopiar(", "App.laudoAbrirReplicar(", "laudoBlocoMedidaHtml(item)", "laudoBlocoMedidaExistenteEditavelHtml(item)"]
+        .forEach(m=> ok(f.indexOf(m) > 0, "sumiu " + m));
+      ["laudoSelecionar(rid, campo, fonte){", "laudoEditarDe(rid, campo, fonte){", "laudoEscolherMedida(rid, tipo){"]
+        .forEach(m=> ok(HTML.indexOf(m) > 0, "faltou o metodo " + m));
+    });
+    t("trocar de cartao com texto editado valendo pede confirmacao", ()=>{
+      const i = HTML.indexOf("laudoSelecionar(rid, campo, fonte){");
+      const corpo = HTML.slice(i, HTML.indexOf("laudoEditarDe(rid, campo, fonte){", i));
+      ok(corpo.indexOf('laudoFonteSelecionada(item, campo)==="edit"') > 0 && corpo.indexOf("confirm(") > 0,
+         "descartaria o texto editado sem perguntar");
+      ok(corpo.indexOf('st:"pend"') > 0, "escolher um cartao nao pode aplicar sozinho");
     });
   }
 
@@ -11733,7 +11744,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
     t("o bloco aparece na tela logo ACIMA da descricao do risco", ()=>{
       ok(HTML.indexOf('(c.k==="risco"? laudoBlocoCampo(item,"nome") : "")') > 0);
-      ok(HTML.indexOf('${campo==="solucao" ? "O que você propôs em campo" : campo==="nome" ? "Nome de campo" : "Seu texto de campo"}') > 0);
+      ok(HTML.indexOf(': campo==="nome" ? "Nome de campo"') > 0);
     });
     /* O prompt precisa dizer o que e um nome BOM, senao a IA devolve a
        condicao ("proteção desparafusada") como se fosse o risco. */

@@ -502,6 +502,38 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .laudo-plaqueta-foto button{width:100%;aspect-ratio:4/3;border-radius:10px;overflow:hidden;border:1px solid var(--line-strong);background:var(--bg-soft);padding:0;display:flex;align-items:center;justify-content:center;color:var(--ink-faint);}
 .laudo-plaqueta-foto img{width:100%;height:100%;object-fit:cover;display:block;}
 .laudo-plaqueta-campos{flex:1;min-width:230px;display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+/* Revisao de textos: cartoes de origem lado a lado; o verde e o que vai
+   para o laudo. */
+.laudo-opcoes{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px;align-items:stretch;}
+.laudo-opcao{border:1.6px solid var(--line-strong);border-radius:10px;padding:10px 11px;background:var(--surface);cursor:pointer;display:flex;flex-direction:column;min-width:0;transition:border-color .15s,background .15s;}
+.laudo-opcao:hover{border-color:var(--ink-faint);}
+.laudo-opcao.vazia{cursor:default;background:var(--bg-soft);border-style:dashed;}
+.laudo-opcao.vazia:hover{border-color:var(--line-strong);}
+.laudo-opcao.sel{cursor:default;border-color:#2E7D32;background:#E3F4E4;box-shadow:0 0 0 1px #2E7D32;}
+.laudo-opcao-cab{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;}
+.laudo-opcao-rot{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-faint);}
+.laudo-opcao-rot i{width:8px;height:8px;border-radius:50%;background:#8A8CA3;display:inline-block;flex-shrink:0;}
+.op-ia .laudo-opcao-rot i{background:#2F6FE4;}
+.op-edit .laudo-opcao-rot i{background:var(--accent);}
+.laudo-opcao.sel .laudo-opcao-rot{color:#2E7D32;}
+.laudo-opcao-acoes{display:flex;align-items:center;gap:4px;flex-shrink:0;}
+.laudo-opcao-lapis{background:none;border:none;padding:3px;border-radius:6px;color:var(--ink-faint);display:flex;cursor:pointer;}
+.laudo-opcao-lapis svg{width:14px;height:14px;}
+.laudo-opcao-lapis:hover{color:var(--accent);background:var(--bg-soft);}
+.laudo-opcao-radio{width:16px;height:16px;border-radius:50%;border:2px solid var(--line-strong);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-sizing:border-box;}
+.laudo-opcao.sel .laudo-opcao-radio{border-color:#2E7D32;}
+.laudo-opcao.sel .laudo-opcao-radio::after{content:"";width:8px;height:8px;border-radius:50%;background:#2E7D32;}
+.laudo-opcao.vazia .laudo-opcao-radio{visibility:hidden;}
+.laudo-opcao-txt{font-size:13px;line-height:1.45;color:var(--ink-dim);white-space:pre-wrap;word-break:break-word;}
+.laudo-opcao.sel .laudo-opcao-txt{color:var(--ink);font-weight:600;}
+.laudo-opcao.vazia .laudo-opcao-txt{font-style:italic;color:var(--ink-faint);}
+.laudo-opcao textarea{width:100%;min-height:130px;font:inherit;font-size:13px;line-height:1.45;color:var(--ink);background:var(--surface);border:1px solid var(--line-strong);border-radius:7px;padding:8px;resize:vertical;box-sizing:border-box;}
+.laudo-biblioteca{border:1px solid var(--line);border-radius:10px;padding:10px 11px;margin-top:10px;background:var(--bg-soft);}
+.laudo-biblioteca select{width:100%;max-width:100%;}
+.laudo-aplicar-barra{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);}
+.laudo-aplicado{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:800;color:#2E7D32;margin-right:auto;}
+.laudo-aplicado svg{width:15px;height:15px;}
+.laudo-aplicar-barra .btn-primary{margin-right:auto;}
 .laudo-fab{position:fixed;right:18px;bottom:88px;z-index:40;width:54px;height:54px;border-radius:50%;background:var(--bar);color:#fff;border:none;box-shadow:0 4px 14px rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;}
 .laudo-fab svg{width:23px;height:23px;}
 .laudo-fab span{position:absolute;top:-3px;right:-3px;background:var(--accent);color:#fff;font-size:10px;font-weight:800;border-radius:999px;padding:1px 6px;line-height:1.5;}
@@ -585,6 +617,7 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 @media (min-width:900px){
   .screen.screen-laudo .laudo-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start;}
   .screen.screen-laudo .laudo-grid .laudo-bloco{margin-bottom:0;}
+  .screen.screen-laudo .laudo-grid .laudo-bloco-texto{grid-column:1/-1;}
   .laudo-fab{right:34px;bottom:34px;width:60px;height:60px;}
   .laudo-th{width:66px;height:50px;}
   .laudo-plaqueta-foto{width:190px;}
@@ -3121,7 +3154,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "22/09/2026 20:47";
+const APP_BUILD = "22/09/2026 23:51";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -12056,18 +12089,14 @@ function laudoBlocoMedidaHtml(item){
   const m = medidaPorChave(tipo);
   const sugerida = sugerirMedidaPorRisco(r);
   const mSug = sugerida ? medidaPorChave(sugerida) : null;
-  const texto = tipo ? medidaTextoProposto(r, tipo) : "";
-  /* Aqui o alvo e o quadro "Vai para o laudo", logo acima. Se o texto da
-     medida ja for exatamente o que esta la, mostra-lo de novo e repeticao. */
-  const difereDoLaudo = texto && texto !== String(laudoTextoFinal(item, "solucao")||"").trim();
-  return `<div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px">
+  /* Escolher a medida abre o cartao "Seu texto editado" ja preenchido com o
+     texto da biblioteca — o engenheiro ajusta ali e aplica. Nao existe mais
+     um quadro separado com a frase da medida: seria o mesmo texto duas vezes. */
+  return `<div class="laudo-biblioteca">
     <div style="font-size:11px;font-weight:800;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Montar a partir da biblioteca de medidas</div>
-    ${selectMedidaHtml(tipo, `App.laudoSetMedida('${r.id}', this.value)`)}
-    ${!tipo && mSug? `<button class="btn btn-ghost btn-sm btn-block" style="margin-top:6px;border:1px solid var(--line)" onclick="App.laudoSetMedida('${r.id}','${sugerida}')">${ic('shield')} Sugestão do app: ${escapeHtml(mSug.rot)}</button>`:""}
-    ${m? `<div class="field-hint" style="margin-top:6px">Base normativa: <b>${escapeHtml(medidaReferencia(m))}</b></div>`:""}
-    ${difereDoLaudo? `<div class="medida-rot">Sugestão Solução</div>
-      <div class="medida-frase">${escapeHtml(texto)}</div>
-      <button class="btn btn-secondary btn-sm btn-block" style="margin-top:8px" onclick="App.laudoAplicarMedida('${r.id}')">${ic('check')} Usar este texto no laudo</button>`:""}
+    ${selectMedidaHtml(tipo, `App.laudoEscolherMedida('${r.id}', this.value)`)}
+    ${!tipo && mSug? `<button class="btn btn-ghost btn-sm btn-block" style="margin-top:6px;border:1px solid var(--line)" onclick="App.laudoEscolherMedida('${r.id}','${sugerida}')">${ic('shield')} Sugestão do app: ${escapeHtml(mSug.rot)}</button>`:""}
+    ${m? `<div class="field-hint" style="margin-top:6px">Base normativa: <b>${escapeHtml(medidaReferencia(m))}</b>${STATE.ui.laudoEditandoCampo==="solucao" ? "" : ` · <button type="button" class="clear-text-btn" style="display:inline" onclick="App.laudoEscolherMedida('${r.id}','${tipo}')">editar com o texto desta medida</button>`}</div>`:""}
   </div>`;
 }
 
@@ -17755,6 +17784,16 @@ function laudoResumoItem(item){
   });
   return r;
 }
+/* Campos da tela de revisao que aguardam decisao (tem texto proposto e
+   ainda nao foram aplicados/editados/recusados). E so isso que o "Aplicar N"
+   do cabecalho aplica — nunca por cima do que ja foi decidido. */
+function laudoCamposAguardandoDaLinha(item){
+  return LAUDO_CAMPOS_IMPORTAVEIS.filter(c=>{
+    const g = laudoGet(item, c);
+    if(g.st==="ok" || g.st==="edit" || g.st==="no") return false;
+    return !!(g.sug || g.fin) && !!String(laudoTextoFinal(item, c)||"").trim();
+  });
+}
 function laudoResumoLista(itens){
   const t = { linhas:itens.length, campos:0, gerados:0, pend:0, ok:0, no:0, duv:0, linhasPend:0, linhasProntas:0, linhasComDuvida:0 };
   itens.forEach(it=>{
@@ -19577,108 +19616,125 @@ function laudoBlocoIdentificacaoEquipamento(item){
       ${m.id ? `<button type="button" class="clear-text-btn" style="margin-top:8px" onclick="App.laudoEditarEquipamento('${(item.risco||{}).id||""}')">${ic('edit')} Editar equipamento</button>` : ""}
     </div>`;
 }
+/* NOVA REVISÃO DE TEXTOS (22/09/2026) — cartões lado a lado.
+
+   Cada campo mostra as ORIGENS possíveis do texto como cartões: o texto de
+   campo, a sugestão da IA e — só quando existe — o texto editado. O cartão
+   verde é o que vai para o laudo; não existe mais o quadro "Vai para o
+   laudo" repetindo a mesma frase embaixo. Clicar num cartão só ESCOLHE
+   (fica "Aguardando sua decisão"); quem grava a decisão é o botão Aplicar.
+
+   O terceiro cartão (editado) nasce do lápis de um dos outros dois, da
+   biblioteca de medidas (Solução) ou aparece sozinho quando o texto que já
+   está valendo difere dos dois — é a decisão que já está em vigor e não
+   pode sumir da tela. */
+function laudoFonteSelecionada(item, campo){
+  const g = laudoGet(item, campo);
+  if(g.st==="no") return "campo";
+  const orig = String(laudoTextoOriginal(item, campo)||"").trim();
+  const sug = String(g.sug||"").trim();
+  const fin = String(g.fin||"").trim();
+  if(fin){
+    if(sug && fin===sug) return "ia";
+    if(fin===orig) return "campo";
+    return "edit";
+  }
+  return sug ? "ia" : "campo";
+}
+function laudoTextoDaFonte(item, campo, fonte){
+  if(fonte==="ia") return String(laudoGet(item, campo).sug||"").trim();
+  if(fonte==="campo") return String(laudoTextoOriginal(item, campo)||"").trim();
+  return String(laudoTextoFinal(item, campo)||"").trim();
+}
 function laudoBlocoCampo(item, campo){
   const def = laudoCampoDef(campo);
   const g = laudoGet(item, campo);
-  const orig = laudoTextoOriginal(item, campo);
-  const fin = laudoTextoFinal(item, campo);
+  const orig = laudoTextoDaFonte(item, campo, "campo");
+  const sug = laudoTextoDaFonte(item, campo, "ia");
   const st = g.st || ((g.sug||g.fin) ? "pend" : "");
   const editando = STATE.ui.laudoEditandoCampo === campo;
-  const idInstr = "laudoInstr_" + campo;
+  const fonte = editando ? "edit" : laudoFonteSelecionada(item, campo);
+  const decidido = st==="ok" || st==="edit" || st==="no";
   const idEdit = "laudoEdit_" + campo;
   const rid = item.risco.id;
-  const idBtnRefazer = "laudoRefazerBtn_" + rid + "_" + campo;
-  const refazendo = !!(__laudoRefazendo && __laudoRefazendo.rid===rid && __laudoRefazendo.campo===campo);
-  const dicas = ["Deixe mais curto (até 140 caracteres)","Cite o item específico da NR-12","Escreva em linguagem mais técnica","Descreva a proteção a ser instalada"];
   /* Sem proposta escrita, laudoTextoOriginal devolve a descricao do que ja
-     existe — e ela apareceria duas vezes na tela, uma no quadro de cima e
-     outra aqui. Avisamos em vez de esconder: o texto de baixo e o que iria
-     mesmo para o laudo se nada for gerado. */
+     existe — avisamos, porque e isso que iria para o laudo. */
   const solucaoSemProposta = campo==="solucao"
     && !String(item.risco.sugestaoMitigacao||"").trim()
     && !!String(item.risco.descMedida||"").trim();
+  const rotCampo = campo==="solucao" ? "O que você propôs em campo"
+    : campo==="nome" ? "Nome de campo"
+    : campo==="escopo" ? "Texto de campo"
+    : campo==="existente" ? "Descrição de campo"
+    : "Seu texto de campo";
 
-  return `<div class="card card-pad laudo-bloco">
+  const cartao = (k, rot, texto, vazio) => {
+    const sel = fonte===k;
+    const pode = !!texto;
+    const clicavel = pode && !sel;
+    return `<div class="laudo-opcao op-${k}${sel?' sel':''}${pode?'':' vazia'}"${clicavel? ` role="button" tabindex="0" title="Usar este texto no laudo" onclick="App.laudoSelecionar('${rid}','${campo}','${k}')" onkeydown="if(event.key==='Enter')this.click()"`:''}>
+      <div class="laudo-opcao-cab">
+        <span class="laudo-opcao-rot"><i></i>${escapeHtml(rot)}</span>
+        <span class="laudo-opcao-acoes">
+          ${pode? `<button type="button" class="laudo-opcao-lapis" title="Editar a partir deste texto" aria-label="Editar a partir deste texto" onclick="event.stopPropagation();App.laudoEditarDe('${rid}','${campo}','${k}')">${ic('edit')}</button>`:""}
+          <span class="laudo-opcao-radio"></span>
+        </span>
+      </div>
+      <div class="laudo-opcao-txt">${escapeHtml(texto || vazio)}</div>
+    </div>`;
+  };
+
+  let cartaoEdit = "";
+  if(editando){
+    const rascunho = (__laudoRascunho && __laudoRascunho.campo===campo) ? __laudoRascunho.texto : laudoTextoFinal(item, campo);
+    cartaoEdit = `<div class="laudo-opcao op-edit sel editando">
+      <div class="laudo-opcao-cab">
+        <span class="laudo-opcao-rot"><i></i>Seu texto editado</span>
+        <span class="laudo-opcao-acoes"><span class="laudo-opcao-radio"></span></span>
+      </div>
+      <textarea id="${idEdit}" oninput="App.laudoRascunho('${campo}', this.value)">${escapeHtml(rascunho||"")}</textarea>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button class="btn btn-primary btn-sm" style="flex:1" onclick="App.laudoSalvarEdicao('${rid}','${campo}')">${ic('check')} Aplicar meu texto</button>
+        <button class="btn btn-secondary btn-sm" onclick="App.laudoCancelarEdicao()">Cancelar</button>
+      </div>
+    </div>`;
+  }else if(fonte==="edit"){
+    cartaoEdit = cartao("edit", "Seu texto editado", String(g.fin||"").trim(), "");
+  }
+
+  const acoes = [];
+  if(!editando){
+    if(decidido){
+      acoes.push(`<span class="laudo-aplicado">${ic('check')} Aplicado ao laudo</span>`);
+    }else if(laudoTextoDaFonte(item, campo, fonte)){
+      acoes.push(`<button class="btn btn-primary btn-sm" onclick="App.laudoValidar('${rid}','${campo}')">${ic('check')} Aplicar</button>`);
+    }
+    acoes.push(`<button class="btn btn-ghost btn-sm" onclick="App.laudoAbrirCopiar('${rid}','${campo}')">${ic('copy')} Copiar de outro</button>`);
+    if((st==="ok"||st==="edit") && String(laudoTextoFinal(item, campo)||"").trim())
+      acoes.push(`<button class="btn btn-ghost btn-sm" onclick="App.laudoAbrirReplicar('${rid}','${campo}')">${ic('layers')} Aplicar em vários itens</button>`);
+  }
+
+  return `<div class="card card-pad laudo-bloco laudo-bloco-texto">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px">
       <div style="font-weight:800;font-size:14.5px">${escapeHtml(def.rot)}</div>
       ${laudoBadge(st)}
     </div>
-
-    ${campo==="existente"
-      ? laudoBlocoMedidaExistenteEditavelHtml(item)
-      : campo==="escopo"
-      ? laudoBlocoIdentificacaoEquipamento(item)
-      : `<div style="font-size:11px;font-weight:800;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">${campo==="solucao" ? "O que você propôs em campo" : campo==="nome" ? "Nome de campo" : "Seu texto de campo"}</div>
-    <div style="font-size:13px;color:var(--ink-dim);background:var(--bg-soft);border-radius:8px;padding:9px 10px;white-space:pre-wrap">${escapeHtml(orig || "(nada escrito em campo)")}</div>
-    ${solucaoSemProposta? `<div class="field-hint" style="margin-top:5px">Você ainda não escreveu o que precisa ser feito. Sem proposta, o laudo repete a descrição do que já existe — gere a sugestão da IA ou escreva a solução no risco.</div>`:""}`}
-
-    <div style="font-size:11px;font-weight:800;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.06em;margin:12px 0 4px">Sugestão da IA</div>
-    ${g.sug
-      ? `<div style="font-size:13.5px;color:var(--ink);background:#F3F6FC;border:1px solid #D6E2F5;border-radius:8px;padding:10px;white-space:pre-wrap">${escapeHtml(g.sug)}</div>`
-      : `<div style="font-size:13px;color:var(--ink-faint);background:var(--bg-soft);border-radius:8px;padding:9px 10px">Ainda não gerada.</div>`}
-
-    ${(g.refs && g.refs.length)? `<div style="margin-top:8px;font-size:11.5px;color:var(--ink-dim)">
-        <b>Baseada em:</b> ${g.refs.map(r=>escapeHtml(r.rot||"caso anterior")+(r.sem?` <span style="color:var(--ink-faint)">(${r.sem}%)</span>`:"")).join(" · ")}
-        <div style="color:var(--ink-faint);margin-top:2px">Casos que você já aprovou e que a IA usou como padrão de redação. Confira se a semelhança faz sentido — o laudo é assinado por você.</div>
-      </div>`:""}
-
-    ${g.duv? `<div style="margin-top:10px;background:#FFF3D6;border:1px solid #E9C46A;border-radius:8px;padding:9px 10px">
-        <div style="font-size:10.5px;font-weight:800;color:#8A5B00;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Dúvida da IA</div>
-        <div style="font-size:13px;color:#5C3D00">${escapeHtml(g.duv)}</div>
-      </div>`:""}
-
-    <div style="font-size:11px;font-weight:800;color:#2E7D32;text-transform:uppercase;letter-spacing:.06em;margin:12px 0 4px">Vai para o laudo</div>
-    ${editando
-      ? `<div class="field" style="margin-bottom:8px"><textarea id="${idEdit}" style="min-height:120px" oninput="App.laudoRascunho('${campo}', this.value)">${escapeHtml((__laudoRascunho && __laudoRascunho.campo===campo) ? __laudoRascunho.texto : fin)}</textarea></div>
-         <div style="display:flex;gap:8px">
-           <button class="btn btn-primary btn-sm" style="flex:1" onclick="App.laudoSalvarEdicao('${rid}','${campo}')">${ic('check')} Salvar meu texto</button>
-           <button class="btn btn-secondary btn-sm" style="flex:1" onclick="App.laudoCancelarEdicao()">Cancelar</button>
-         </div>`
-      : `<div style="font-size:13.5px;color:var(--ink);background:#E3F4E4;border:1px solid #A5D6A7;border-radius:8px;padding:10px;white-space:pre-wrap;font-weight:600">${escapeHtml(fin || "(vazio)")}</div>
-         ${(()=>{
-           /* UM BOTÃO PRINCIPAL SÓ, COM NOME E FUNÇÃO FIXOS.
-
-              Antes eram dois com rótulo quase igual — "Aplicar sugestão" e
-              "Aplicar este texto" —, e o segundo só nascia DEPOIS de editar:
-              sem edição o quadro verde mostra a própria sugestão, então
-              `fin === g.sug` e a condição que o mostrava era falsa. Ao salvar
-              uma edição ele aparecia do lado, e parecia que o botão tinha
-              mudado de função. Pior: o primário continuava sendo "Aplicar
-              sugestão" — o botão em destaque jogava fora o texto recém-escrito.
-
-              Agora "Aplicar este texto" aplica SEMPRE o que está no quadro
-              verde, seja ele a sugestão, o texto de campo ou o editado. As
-              alternativas são secundárias e nomeadas pela ORIGEM do texto, e
-              cada uma só aparece quando de fato mudaria o quadro. */
-           const btns = [];
-           if(st!=="ok" && fin)
-             btns.push(`<button class="btn btn-primary btn-sm" onclick="App.laudoValidar('${rid}','${campo}')">${ic('check')} Aplicar este texto</button>`);
-           if(g.sug && fin!==g.sug)
-             btns.push(`<button class="btn btn-secondary btn-sm" onclick="App.laudoAplicar('${rid}','${campo}')">${ic('copy')} Usar a sugestão da IA</button>`);
-           btns.push(`<button class="btn btn-secondary btn-sm" onclick="App.laudoEditar('${campo}')">${ic('edit')} Editar</button>`);
-           btns.push(`<button class="btn btn-secondary btn-sm" onclick="App.laudoAbrirCopiar('${rid}','${campo}')">${ic('copy')} Copiar de outro</button>`);
-           /* "Voltar ao texto de campo" era "Usar meu texto" — nome ambíguo
-              logo depois de a pessoa editar à mão, porque o texto dela é
-              justamente o editado, e o botão descarta esse. Só aparece quando
-              há texto de campo diferente do que está no quadro. */
-           if(orig && fin!==orig)
-             btns.push(`<button class="btn btn-secondary btn-sm" onclick="App.laudoRecusar('${rid}','${campo}')">${ic('close')} Voltar ao texto de campo</button>`);
-           return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">${btns.join("")}</div>`;
-         })()}
-         ${(st==="ok"||st==="edit") && fin? `<button class="btn btn-secondary btn-block btn-sm" style="margin-top:8px" onclick="App.laudoAbrirReplicar('${rid}','${campo}')">${ic('layers')} Aplicar este texto em vários itens</button>`:""}
-         ${st==="ok"? `<div class="field-hint" style="margin-top:6px">${campo==="existente" ? "Item validado." : `Item validado — a letra <b>${escapeHtml(def.sigla)}</b> fica verde no cartão.`} Ao aplicar, a IA revisa o português sem mudar o que você escreveu.</div>`:""}`}
-
-    ${campo==="solucao" ? laudoBlocoMedidaHtml(item) : ""}
-    <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px">
-      <div style="font-size:11px;font-weight:800;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Pedir um ajuste à IA</div>
-      <div class="field" style="margin-bottom:8px"><input type="text" id="${idInstr}" placeholder="Ex.: cite o item da NR-12 e deixe em uma frase"></div>
-      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:9px">
-        ${dicas.map(d=>`<button class="btn btn-ghost btn-sm" style="border:1px solid var(--line);font-size:11.5px;padding:5px 9px" onclick="document.getElementById('${idInstr}').value=${JSON.stringify(d).replace(/"/g,"&quot;")}">${escapeHtml(d)}</button>`).join("")}
-      </div>
-      ${refazendo
-        ? `<button class="btn btn-secondary btn-block btn-sm" id="${idBtnRefazer}" disabled><span class="btn-spinner"></span> Pensando…</button>`
-        : `<button class="btn btn-secondary btn-block btn-sm" id="${idBtnRefazer}" onclick="App.laudoRefazer('${rid}','${campo}')">${ic('copy')} Refazer esta sugestão</button>`}
+    ${campo==="existente" ? laudoBlocoMedidaExistenteEditavelHtml(item)
+      : campo==="escopo" ? laudoBlocoIdentificacaoEquipamento(item) : ""}
+    <div class="laudo-opcoes">
+      ${cartao("campo", rotCampo, orig, "(nada escrito em campo)")}
+      ${cartao("ia", "Sugestão da IA", sug, "Ainda não gerada.")}
+      ${cartaoEdit}
     </div>
+    ${solucaoSemProposta? `<div class="field-hint" style="margin-top:6px">Você ainda não escreveu o que precisa ser feito. Sem proposta, o laudo repete a descrição do que já existe — escolha uma medida abaixo ou escreva a solução.</div>`:""}
+    ${(g.refs && g.refs.length)? `<div style="margin-top:8px;font-size:11.5px;color:var(--ink-dim)" title="Casos que você já aprovou e que a IA usou como padrão de redação. Confira se a semelhança faz sentido — o laudo é assinado por você.">
+        <b>Baseada em:</b> ${g.refs.map(r=>escapeHtml(r.rot||"caso anterior")+(r.sem?` <span style="color:var(--ink-faint)">(${r.sem}%)</span>`:"")).join(" · ")}
+      </div>`:""}
+    ${g.duv? `<div style="margin-top:8px;background:#FFF3D6;border:1px solid #E9C46A;border-radius:8px;padding:7px 10px;font-size:12.5px;color:#5C3D00">
+        <b style="color:#8A5B00">Dúvida da IA:</b> ${escapeHtml(g.duv)}
+      </div>`:""}
+    ${campo==="solucao" ? laudoBlocoMedidaHtml(item) : ""}
+    ${acoes.length? `<div class="laudo-aplicar-barra">${acoes.join("")}</div>`:""}
   </div>`;
 }
 /* ---------- Bloco HRN (Probabilidade, Frequência, Grau, Nº de pessoas) ---------- */
@@ -19776,7 +19832,7 @@ function screenSimplesLaudoItem(){
       <button class="btn btn-primary" style="margin-top:12px" onclick="App.go('simples-laudo')">${ic('back')} Voltar ao laudo</button></div>`;
   }
   const nomeRisco = nomeRiscoNaTela(item.risco);
-  const r = laudoResumoItem(item);
+  const aguardando = laudoCamposAguardandoDaLinha(item).length;
   const lm = getLaudoMaquina(item.maquina);
   const fotos = laudoFotosDoItem(item);
   const lista = laudoListaAtual();
@@ -19799,8 +19855,7 @@ function screenSimplesLaudoItem(){
       <span class="laudo-topo-hrn" style="background:${metaHrn.cor};color:${metaHrn.texto}" title="HRN ${escapeHtml(String(hrn.hrn))} — ${escapeHtml(hrn.nivel)}">${escapeHtml(String(hrn.hrn))}</span>
     </div>
     <div class="laudo-topo-acoes">
-      <button class="btn btn-primary" onclick="App.laudoAprovarLinha('${item.risco.id}')" title="Aplicar as ${r.total} sugestões desta linha">${ic('check')} Aplicar ${r.total}</button>
-      <button class="btn btn-secondary" onclick="App.laudoGerarLinha('${item.risco.id}')" title="Gerar ou atualizar os textos com a IA">${ic('shield')} Gerar</button>
+      <button class="btn btn-primary" ${aguardando? "" : "disabled"} onclick="App.laudoAprovarLinha('${item.risco.id}')" title="${aguardando? `Aplicar o cartão verde dos ${aguardando} campos que aguardam sua decisão` : "Nenhum campo aguardando decisão nesta linha"}">${ic('check')} Aplicar ${aguardando}</button>
       ${fotos.length? `<button class="btn btn-secondary" onclick="App.laudoAbrirGaleria('${item.risco.id}')" title="Ver as ${fotos.length} fotos desta linha">${ic('gallery')} ${fotos.length}</button>`:""}
       <button class="btn btn-secondary" onclick="App.menuLaudoCard('${item.risco.id}','${item.tarefa.id}')" title="Mais opções">${ic('dots')}</button>
       ${pos>=0 && lista.length>1? `<div class="laudo-topo-nav">
@@ -19819,12 +19874,10 @@ function screenSimplesLaudoItem(){
     ${LAUDO_CAMPOS.map(c=> (c.k==="risco"? laudoBlocoCampo(item,"nome") : "")
                          + (c.k==="solucao"? laudoBlocoCampo(item,"existente") : "")
                          + laudoBlocoCampo(item, c.k)).join("")}
-    <div style="display:flex;flex-direction:column;gap:12px">
-      ${laudoBlocoHRN(item)}
-      <div class="card card-pad laudo-bloco">
-        <div style="font-weight:800;font-size:14.5px;margin-bottom:4px">Nível de desempenho requerido</div>
-        ${blocoPLrHtml(item.risco, "laudo", item.tarefa)}
-      </div>
+    ${laudoBlocoHRN(item)}
+    <div class="card card-pad laudo-bloco">
+      <div style="font-weight:800;font-size:14.5px;margin-bottom:4px">Nível de desempenho requerido</div>
+      ${blocoPLrHtml(item.risco, "laudo", item.tarefa)}
     </div>
   </div>
   <div class="card card-pad" style="background:var(--bg-soft)">
@@ -25236,6 +25289,42 @@ Devolver agora?`)) return;
   laudoEditar(campo){ STATE.ui.laudoEditandoCampo = campo; __laudoRascunho = null; render(); },
   laudoCancelarEdicao(){ STATE.ui.laudoEditandoCampo = null; __laudoRascunho = null; render(); },
   laudoRascunho(campo, texto){ __laudoRascunho = { campo, texto }; },
+  /* Clicar num cartao so ESCOLHE qual texto vai para o laudo — a decisao
+     fica "Aguardando" ate o Aplicar. Trocar de cartao quando o texto
+     editado e o que vale pede confirmacao: ele nao existe em outro lugar. */
+  laudoSelecionar(rid, campo, fonte){
+    const item = laudoItemPorId(rid); if(!item) return;
+    const texto = laudoTextoDaFonte(item, campo, fonte);
+    if(!texto || (fonte!=="campo" && fonte!=="ia")) return;
+    if(laudoFonteSelecionada(item, campo)==="edit" && STATE.ui.laudoEditandoCampo!==campo
+       && !confirm("O seu texto editado deixa de valer e será descartado. Trocar mesmo assim?")) return;
+    laudoSet(item, campo, { fin:texto, st:"pend" });
+    if(STATE.ui.laudoEditandoCampo===campo){ STATE.ui.laudoEditandoCampo = null; __laudoRascunho = null; }
+    marcarAlterado(); render();
+  },
+  laudoEditarDe(rid, campo, fonte){
+    const item = laudoItemPorId(rid); if(!item) return;
+    STATE.ui.laudoEditandoCampo = campo;
+    __laudoRascunho = { campo, texto: laudoTextoDaFonte(item, campo, fonte) };
+    render();
+    setTimeout(()=>{ const el = document.getElementById("laudoEdit_"+campo); if(el){ el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }, 0);
+  },
+  /* Biblioteca de medidas da Solucao: guarda a medida escolhida (mesmo dado
+     de campo que laudoSetMedida sempre gravou) e abre o cartao editado ja
+     com o texto da medida. Nada vai para o laudo antes do "Aplicar meu texto". */
+  laudoEscolherMedida(rid, tipo){
+    const item = laudoItemPorId(rid); if(!item) return;
+    if((item.risco.medidaPropostaTipo||"") !== (tipo||"")){
+      item.risco.medidaPropostaTipo = tipo || "";
+      item.risco.atualizadoEm = agoraSync();
+      marcarAlterado();
+    }
+    if(tipo){
+      STATE.ui.laudoEditandoCampo = "solucao";
+      __laudoRascunho = { campo:"solucao", texto: medidaTextoProposto(item.risco, tipo) };
+    }
+    render();
+  },
   laudoSalvarEdicao(rid, campo){
     const el = document.getElementById("laudoEdit_"+campo);
     const item = laudoItemPorId(rid);
@@ -25278,19 +25367,20 @@ Devolver agora?`)) return;
     laudoSet(item, campo, { st:"no", fin:"" });
     marcarAlterado(); render(); toast("Vale o seu texto de campo");
   },
+  /* Aplica o cartao VERDE de cada campo que aguarda decisao. Antes aplicava
+     a sugestao da IA por cima de tudo, inclusive do que ja estava aplicado
+     ou editado a mao; agora o que ja foi decidido nao e tocado. */
   async laudoAprovarLinha(rid){
     const item = laudoItemPorId(rid); if(!item) return;
-    let n = 0;
-    LAUDO_CAMPOS.forEach(c=>{
-      const g = laudoGet(item, c.k);
-      if(g.sug){ laudoSet(item, c.k, { fin:g.sug, st:"ok" }); n++; }
-    });
+    const campos = laudoCamposAguardandoDaLinha(item);
+    campos.forEach(c=> laudoSet(item, c, { fin:String(laudoTextoFinal(item, c)||"").trim(), st:"ok" }));
+    const n = campos.length;
     marcarAlterado(); render();
-    toast(n? `${n} sugestão(ões) aplicada(s)` : "Nenhuma sugestão gerada ainda", n>0);
+    toast(n? `${n} campo(s) aplicado(s)` : "Nenhum campo aguardando decisão", n>0);
     if(!n || !getIAApiKey()) return;
     let revisados = 0;
-    for(const c of LAUDO_CAMPOS){
-      if(laudoGet(item, c.k).st === "ok") revisados += await laudoRevisarTextoEtitulo(item, c.k);
+    for(const c of campos){
+      if(laudoGet(item, c).st === "ok") revisados += await laudoRevisarTextoEtitulo(item, c);
     }
     if(revisados){ marcarAlterado(); render(); toast("Português revisado pela IA"); }
   },
