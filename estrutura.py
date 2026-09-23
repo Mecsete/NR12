@@ -5197,5 +5197,13 @@ chk("a foto da tabela mantem a proporcao e a coluna Nivel e estreita",
     "table.lp-rt td.ft img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block}" in novo
     and '<col style="width:20%"><col style="width:17%"><col style="width:53%"><col style="width:10%">' in novo)
 
+print("\n=== 154. PLANILHA PARA A IA: SEM PROPOSTA EM CAMPO (23/09/2026) ===")
+# A IA respondia "Nao ha solucao registrada." quando a Solucao Editavel e a
+# Sugestao Solucao vinham vazias, porque o texto das instrucoes nao cobria o caso.
+chk("as instrucoes mandam deixar RESPOSTA - Solucao em branco quando nao ha proposta em campo",
+    "SEM PROPOSTA EM CAMPO:" in novo and 'Nunca escreva \\"Não há solução registrada\\"' in novo)
+chk("a conferencia final admite a Solucao em branco nesse caso",
+    "Exceção: " in novo and "fica em branco quando não há proposta em campo" in novo)
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

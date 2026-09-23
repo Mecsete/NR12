@@ -3181,7 +3181,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "23/09/2026 18:58";
+const APP_BUILD = "23/09/2026 19:06";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -17242,6 +17242,7 @@ const BASE_IA_PROMPT = [
 "— Sem mitigação existente (\"Situação da mitigação existente\" vazia): recomende a proposta direto, em linguagem técnica e português correto.",
 "Quando o que existe for frase livre do inspetor (por exemplo \"existe a tampa, mas está desparafusada\"), use \"Constatado em campo: ...\" para a frase não ficar duplicada.",
 "A [proposta] é a \"Solução Editável\" reescrita em linguagem de laudo, sem mudar a intenção técnica.",
+"SEM PROPOSTA EM CAMPO: quando a \"Solução Editável\" E a \"Sugestão Solução\" estiverem vazias, o inspetor não propôs nada — e você não inventa proposta. Deixe a célula \"RESPOSTA - Solução\" EM BRANCO. Nunca escreva \"Não há solução registrada\" nem qualquer frase que diga que falta informação: célula em branco é \"sem resposta\", e o aplicativo mantém o que já existe. A descrição escrita na Mitigação Existente NÃO é proposta: não a transforme em solução.",
 "A coluna \"Medida proposta marcada\" diz que tipo de proteção o inspetor escolheu no checklist. Ela manda no TIPO da medida: com proteção móvel intertravada marcada, a solução não pode propor proteção fixa. O texto de campo é o conteúdo; a medida marcada é a natureza dela.",
 "A coluna \"Sugestão Solução\" traz a frase que o aplicativo monta a partir da medida marcada no checklist, e ela termina com a referência normativa já conferida — por exemplo \"..., conforme NR-12, item 12.5.9 e item 12.5.11; ABNT NBR ISO 14120.\". Use essa frase para dar forma técnica ao que foi proposto em campo e TERMINE A SOLUÇÃO COM A CITAÇÃO DELA, reproduzida exatamente como está. Praticamente toda solução deve fechar com o item da norma.",
 "Quando essa citação trouxer mais de uma norma — NR-12 e uma ou mais ABNT/ISO, como no exemplo acima —, a Solução termina com TODAS elas, na mesma ordem, palavra por palavra. Cortar para citar só a NR-12 e descartar as ABNT/ISO é o mesmo erro que inventar uma citação: deixa o embasamento normativo incompleto.",
@@ -17251,7 +17252,7 @@ const BASE_IA_PROMPT = [
 "ANTES DE ENTREGAR CADA BLOCO, confira e relate:",
 "1. A varredura foi feita antes de escrever, e o escopo de cada equipamento cita as mitigações levantadas em TODOS os riscos dele?",
 "2. Todas as linhas do bloco têm ID, e nenhum ID foi alterado?",
-"3. Toda célula de resposta que a linha permitia escrever está preenchida?",
+"3. Toda célula de resposta que a linha permitia escrever está preenchida? (Exceção: \"RESPOSTA - Solução\" fica em branco quando não há proposta em campo, como explicado acima.)",
 "4. Nenhum texto afirma dado que não está na planilha?",
 "5. Onde repeti texto, a descrição de campo era mesmo idêntica?",
 "6. Nenhum texto menciona a ausência de informação? Toda citação de norma que aparece foi reproduzida de uma coluna da planilha, sem nenhum item escolhido por você?",

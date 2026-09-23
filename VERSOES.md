@@ -64,6 +64,17 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 23/09/2026 19:06
+
+**Planilha para a IA: instrução nova para o caso "sem proposta em campo".**
+
+Quando o inspetor não escreveu a Solução (colunas "Solução Editável" e
+"Sugestão Solução" vazias), as instruções da planilha não diziam o que fazer, e
+a IA respondia um texto de enchimento ("Não há solução registrada."). Agora a
+instrução manda deixar a célula "RESPOSTA - Solução" em branco nesse caso, sem
+frase alguma sobre falta de informação. Quem já personalizou as instruções da
+planilha precisa usar "Restaurar o texto padrão" para receber a regra.
+
 ## 23/09/2026 18:58
 
 **Conclusão do laudo ganha a tabela de riscos, do mais perigoso para o mais brando.**
