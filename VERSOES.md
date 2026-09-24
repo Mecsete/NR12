@@ -64,6 +64,19 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 24/09/2026 10:42
+
+**Planilha para a IA: instruções contra respostas por script e cópia do campo.**
+
+Numa comparação de Seleção manual 100, as respostas de IA externa saíram por
+modelo de frase (Escopo = "Equipamento: descrição de campo"; Tarefa = campo +
+", diário"; Risco = campo; Solução = "Recomenda-se" + campo; Nome cortado em 4
+palavras), enquanto os textos antigos da IA por API eram reescritos e corrigidos.
+As instruções agora abrem com um bloco obrigatório: cada célula é redigida uma a
+uma, script/fórmula/concatenação são proibidos, resposta igual ao campo é
+reprovada, blocos de até 12 linhas com releitura, e quatro exemplos reais
+aprovados como padrão mínimo de qualidade.
+
 ## 23/09/2026 23:22
 
 **Instruções da planilha para a IA: item 5 de "O que nunca fazer" passa a admitir a Solução em branco quando não há proposta em campo** (antes contradizia a regra nova).

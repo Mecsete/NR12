@@ -5219,5 +5219,13 @@ chk("as instrucoes admitem tabela e documento de normas, sempre reproduzindo (nu
 chk("a mitigacao existente entra como diagnostico da Solucao",
     "A MITIGAÇÃO EXISTENTE É O DIAGNÓSTICO DA SOLUÇÃO" in novo and "é resposta rasa" in novo)
 
+print("\n=== 156. PLANILHA PARA A IA: CONTRA SCRIPT E COPIA DO CAMPO (24/09/2026) ===")
+chk("as instrucoes abrem com o bloco obrigatorio contra script, modelo de frase e copia do campo",
+    "COMO ESTA TAREFA É EXECUTADA — OBRIGATÓRIO" in novo
+    and "É PROIBIDO preencher a planilha por código, script, fórmula, macro, concatenação ou modelo de frase" in novo
+    and "Resposta igual ao campo, ou igual ao campo com uma palavra a mais, significa que você NÃO trabalhou" in novo)
+chk("as instrucoes trazem o padrao minimo de qualidade com exemplos reais aprovados",
+    "PADRÃO DE QUALIDADE — o mínimo esperado" in novo and "Abertura maior que 600 mm entre a calha de queda das espigas" in novo)
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

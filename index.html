@@ -3181,7 +3181,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "23/09/2026 23:22";
+const APP_BUILD = "24/09/2026 10:42";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -17138,6 +17138,17 @@ const BASE_IA_PROMPT = [
 "COMO PREENCHER ESTA PLANILHA — LAUDO NR-12 (MecSete Engenharia)",
 "",
 "Você vai preencher SOMENTE as colunas cujo título começa com \"RESPOSTA -\" (as laranja). Todas as outras colunas são leitura.",
+"",
+"COMO ESTA TAREFA É EXECUTADA — OBRIGATÓRIO",
+"Cada célula de resposta é REDIGIDA por você, uma a uma, lendo a linha inteira (todas as colunas dela) antes de escrever. É PROIBIDO preencher a planilha por código, script, fórmula, macro, concatenação ou modelo de frase. Exemplos de atalho que já aconteceram e REPROVAM a entrega: (a) \"Nome do equipamento: descrição de campo\" no Escopo; (b) descrição de campo + \", diário\" na Tarefa; (c) repetir o campo no Risco; (d) \"Recomenda-se\" + texto de campo na Solução; (e) cortar o Nome do risco em 4 palavras, deixando-o incompleto (\"Aprisionamento dos dedos eixo do\").",
+"O texto de campo foi digitado no celular, com pressa: vem com erro de acento, de concordância, de pontuação e de digitação (\"varios\", \"frequencia\", \"protecao\", \"nao\", \"burracha\"). Resposta igual ao campo, ou igual ao campo com uma palavra a mais, significa que você NÃO trabalhou: o campo é matéria-prima, nunca o texto final. Toda resposta sai em português correto, com fluidez de laudo, usando também as demais colunas da linha (equipamento, tarefa, componente, mitigação existente, situação). Se a sua resposta ficaria igual ao campo, refaça.",
+"Trabalhe em blocos de no máximo 12 linhas, na ordem da planilha. Antes de continuar para o bloco seguinte, releia as suas respostas contra o campo de cada linha: qualquer célula igual ao campo, com erro de português herdado do campo ou terminada em palavra cortada volta para reescrita.",
+"",
+"PADRÃO DE QUALIDADE — o mínimo esperado (exemplos reais aprovados pelo engenheiro)",
+"Descrição da tarefa. Campo: \"Esteira fica ao lado do corredor de acesso a varios pontos com alta frequencia de passagem de pessoas\" → Texto: \"A esteira permanece ao lado do corredor de acesso a diversos pontos da área, com alta frequência de passagem de pessoas durante a operação normal do equipamento.\"",
+"Descrição do risco. Campo: \"Risco de queda dentro da esteira visto que o guarda corpo deixa uma abertura entre a calha de queda das espigas e o inicio do guarda corpo maior que 600mm\" → Texto: \"Abertura maior que 600 mm entre a calha de queda das espigas e o guarda-corpo; risco de queda de quem circula na área.\"",
+"Mitigação existente. Campo: \"Existe uma protecao de lona, e a velocidade da esteira é baixa\" → Texto: \"Existe uma proteção de lona, e a velocidade da esteira é baixa.\" (mesmo sentido; só o português corrigido).",
+"Solução. Campo: \"Estender o alcance do guarda corpo fazendo com que essa extensao seja de correr na lateral do guarda corpo existente, para que nao atrapalhe a movimentacao da bica bifurcada\" → Texto: \"Extensão de correr do guarda-corpo na lateral, sem obstruir a bica bifurcada, conforme NR-12, Anexo III, item 7.\" (a citação veio da linha Guarda-corpo da tabela de medidas, no fim destas instruções).",
 "",
 "MANUSEIO DO ARQUIVO",
 "1. Não altere, não reordene e não apague nenhuma coluna, linha ou aba.",
