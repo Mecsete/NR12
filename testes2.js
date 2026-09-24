@@ -12331,7 +12331,9 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
        regra, antes dela contemplar "Solução Editável" como fonte. */
     t("sem citação em nenhuma das três colunas, a solução sai SEM citação — mas a escrita à mão é preservada", ()=>{
       const sol = secao("Solução");
-      ok(sol.indexOf("é que a solução fica mesmo sem citar norma") > 0);
+      /* 24/09/2026: a frase mudou; depois das tres colunas vem a tabela e os guias (fontes 3 e 4) e, por fim, a lacuna (fonte 5) */
+      ok(sol.indexOf("é que você passa para a tabela e para os guias") > 0);
+      ok(sol.indexOf("5ª — NENHUMA FONTE SERVE: LACUNAS DE NORMA") > 0, "faltou a 5a fonte");
       ok(sol.indexOf("essa citação TAMBÉM é reproduzida palavra por palavra") > 0,
          "citação escrita à mão na Solução Editável precisa ser preservada");
       ok(PROMPT.indexOf("Medida numérica tirada de norma (distância, abertura, altura) continua proibida") > 0);
@@ -12853,7 +12855,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(sol.indexOf("NÃO cite") > 0, "dúvida tem de cair em sem citação");
     });
     t("guias de normas anexados valem com condicoes e sem memoria (texto de 24/09/2026)", ()=>{
-      ok(sol.indexOf("GUIAS DE NORMAS ANEXADOS AO PROJETO") > 0);
+      ok(sol.indexOf("GUIAS DE NORMAS DO PROJETO") > 0);
       ok(sol.indexOf("O número do item é copiado do jeito que está escrito lá") > 0);
       ok(sol.indexOf("Lembrar de um item de memória, por mais certo que pareça, não vale") > 0);
     });
@@ -12865,7 +12867,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
     t("a regra 3 passa a admitir a tabela e os guias, sem afrouxar o resto", ()=>{
       ok(PROMPT.indexOf("Nunca INVENTAR citação de norma") > 0);
-      ok(PROMPT.indexOf("TABELA DE MEDIDAS E CITAÇÕES CONFERIDAS (no fim destas instruções) e, se existirem, os guias de normas anexados") > 0);
+      ok(PROMPT.indexOf("TABELA DE MEDIDAS E CITAÇÕES CONFERIDAS (no fim destas instruções) e, se existirem, os guias de normas do projeto") > 0);
       ok(PROMPT.indexOf("Medida numérica tirada de norma (distância, abertura, altura) continua proibida em qualquer caso") > 0);
     });
     t("a conferencia final cobra a mitigacao e a tabela", ()=>{
@@ -12942,14 +12944,43 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(tab.indexOf("CITAÇÃO: conforme NR-12, Anexo III, itens 1.3 e 13; ABNT NBR ISO 14122-4; ABNT NBR ISO 12100.") > 0);
     });
     t("as instrucoes explicam como usar os dois guias, na ordem certa e sem afrouxar a regra da citacao", ()=>{
-      const iH = HTML.indexOf('"GUIAS DE NORMAS ANEXADOS AO PROJETO.');
+      const iH = HTML.indexOf('"4ª FONTE. GUIAS DE NORMAS DO PROJETO.');
       ok(iH > 0);
       const bloco = HTML.slice(iH, HTML.indexOf("\n", iH));
       ["GUIA_NORMAS_RESUMO.md","GUIA_NORMAS_POR_ASSUNTO.md","Citação pronta","Variante","Usar quando","Quando NÃO usar e cuidados",
        "o símbolo † que aparece nos guias é marca deles e NÃO entra na citação","itens de assuntos diferentes misturados",
-       "Se os guias NÃO estiverem anexados a esta conversa, ignore este bloco","S37","S35","S21"].forEach(x=> ok(bloco.indexOf(x) > 0, "faltou: " + x));
+       "Se os guias NÃO estiverem acessíveis nesta conversa, ignore este bloco","S37","S35","S21",
+       "Se você puder executar Python, use-o para BUSCAR nos guias","Assunto com Confiança \\\"Proposto\\\" está esperando aprovação do engenheiro: NÃO use"].forEach(x=> ok(bloco.indexOf(x) > 0, "faltou: " + x));
       ok(bloco.indexOf("depois a TABELA; só então os guias") > 0, "prioridade");
       ok(bloco.indexOf("a regra de não trazer medida numérica continua valendo") > 0);
+    });
+  }
+
+  /* 24/09/2026 (2): fontes de citacao numeradas, Python so para abrir/gravar/buscar e lacunas de norma */
+  {
+    console.log("\n[t168] instrucoes da planilha: cinco fontes de citacao, Python e lacunas de norma");
+    const iS = HTML.indexOf('"CITAÇÃO DE NORMA NA SOLUÇÃO — CINCO FONTES, NESTA ORDEM.');
+    ok(iS > 0, "cabecalho das cinco fontes");
+    const iF = HTML.indexOf('"ANTES DE ENTREGAR CADA BLOCO');
+    const sec = HTML.slice(iS, iF);
+    t("as cinco fontes aparecem na ordem: Sugestao, citacao do inspetor, tabela, guias, lacuna", ()=>{
+      const pos = ["1ª FONTE.","2ª FONTE.","3ª FONTE.","4ª FONTE.","5ª — NENHUMA FONTE SERVE"].map(x=> sec.indexOf(x));
+      pos.forEach((p,i)=> ok(p > 0, "faltou a fonte " + (i+1)));
+      for(let i=1;i<pos.length;i++) ok(pos[i] > pos[i-1], "fonte " + (i+1) + " fora de ordem");
+    });
+    t("a lacuna: lista fora da planilha, pergunta ao engenheiro, sem interromper nem investigar antes", ()=>{
+      ["LACUNAS DE NORMA","FORA da planilha","Posso investigar os PDFs da pasta de normas para propor esses assuntos novos no guia?",
+       "NÃO interrompe o preenchimento do lote para perguntar","NÃO investiga nem altera os guias antes da resposta do engenheiro",
+       "NÃO usa nesta planilha item de norma de um assunto que ainda não existe nos guias",
+       "Não é lacuna a proposta que é reparo, troca, limpeza"].forEach(x=> ok(sec.indexOf(x) > 0, "faltou: " + x));
+    });
+    t("Python serve para abrir, gravar e buscar; o texto de cada celula continua redigido a mao", ()=>{
+      ok(HTML.indexOf("ele serve para abrir e gravar o arquivo da planilha e para buscar texto nos guias de normas; o TEXTO de cada célula continua sendo redigido por você") > 0);
+      ok(HTML.indexOf("É PROIBIDO preencher a planilha por código, script, fórmula, macro, concatenação ou modelo de frase") > 0, "a proibicao segue de pe");
+    });
+    t("a conferencia final cobra as lacunas e o fim da resposta leva a lista", ()=>{
+      ok(HTML.indexOf('"11. Toda proposta de medida real sem assunto nos guias nem linha na tabela ficou sem citação e foi anotada em LACUNAS DE NORMA') > 0);
+      ok(HTML.indexOf("Ao final, entregue também a lista LACUNAS DE NORMA (se houver), com a pergunta sobre investigar os PDFs.") > 0);
     });
   }
 

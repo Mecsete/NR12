@@ -4540,7 +4540,7 @@ chk("a solucao cita a norma, mas so reproduzindo a citacao da biblioteca",
     "TERMINE A SOLUÇÃO COM A CITAÇÃO DELA, reproduzida exatamente como está" in novo
     and "Praticamente toda solução deve fechar com o item da norma" in novo
     and "Nunca INVENTAR citação de norma" in novo
-    and "é que a solução fica mesmo sem citar norma" in novo
+    and "é que você passa para a tabela e para os guias" in novo  # 24/09/2026: era "é que a solução fica mesmo sem citar norma"
     and "Medida numérica tirada de norma (distância, abertura, altura) continua proibida" in novo)
 # 15/09/2026 -- planilha real (Descarga 100) mostrou citacao escrita a mao
 # em "Solucao Editavel" sendo apagada sempre que "Sugestao Solucao" vinha
@@ -5216,7 +5216,7 @@ chk("a tabela de medidas e citacoes e gerada da biblioteca (nao copiada a mao) e
     and "const tab = baseIATabelaMedidasTexto();" in _corpoDe(novo, "basePlanilhaPromptAtual"))
 chk("as instrucoes admitem tabela e documento de normas, sempre reproduzindo (nunca de memoria)",
     "SEM MEDIDA MARCADA, MAS COM PROPOSTA EM CAMPO" in novo
-    and "GUIAS DE NORMAS ANEXADOS AO PROJETO" in novo  # 24/09/2026: era "DOCUMENTO DE NORMAS ANEXADO"
+    and "GUIAS DE NORMAS DO PROJETO" in novo  # 24/09/2026: era "DOCUMENTO DE NORMAS ANEXADO"
     and "Lembrar de um item de memória, por mais certo que pareça, não vale" in novo)
 chk("a mitigacao existente entra como diagnostico da Solucao",
     "A MITIGAÇÃO EXISTENTE É O DIAGNÓSTICO DA SOLUÇÃO" in novo and "é resposta rasa" in novo)
@@ -5241,11 +5241,25 @@ chk("as medidas novas nao mexeram na regra de PLr: continuam so as 11 de comando
 chk("grupo novo Riscos adicionais tem explosao e queimadura",
     _bib2.count('g:"Riscos adicionais"') == 2)
 chk("as instrucoes explicam os dois guias (resumo e completo), a ordem e o que nao usar",
-    novo.count('"GUIAS DE NORMAS ANEXADOS AO PROJETO.') == 1
+    novo.count('"4ª FONTE. GUIAS DE NORMAS DO PROJETO.') == 1
     and "GUIA_NORMAS_RESUMO.md" in novo and "GUIA_NORMAS_POR_ASSUNTO.md" in novo
     and "NÃO entra na citação" in novo)
 chk("o texto antigo do documento de normas saiu por inteiro (nada de duas fontes divergentes)",
     "DOCUMENTO DE NORMAS ANEXADO" not in novo and "documento de normas anexado" not in novo)
+
+
+print("\n=== 158. INSTRUCOES DA PLANILHA: CINCO FONTES, PYTHON E LACUNAS (24/09/2026) ===")
+chk("o bloco de citacao da Solucao tem cabecalho e as cinco fontes numeradas, uma vez cada",
+    novo.count('"CITAÇÃO DE NORMA NA SOLUÇÃO — CINCO FONTES, NESTA ORDEM.') == 1
+    and all(novo.count(x) == 1 for x in ['"1ª FONTE.','"2ª FONTE.','"3ª FONTE.','"4ª FONTE.','"5ª — NENHUMA FONTE SERVE']))
+chk("a quinta fonte manda listar as lacunas fora da planilha e perguntar, sem interromper o lote",
+    "LACUNAS DE NORMA" in novo and "Posso investigar os PDFs da pasta de normas para propor esses assuntos novos no guia?" in novo
+    and "NÃO interrompe o preenchimento do lote para perguntar" in novo)
+chk("Python so abre, grava e busca (a proibicao de gerar texto por codigo segue)",
+    "ele serve para abrir e gravar o arquivo da planilha e para buscar texto nos guias de normas" in novo
+    and "É PROIBIDO preencher a planilha por código, script, fórmula, macro, concatenação ou modelo de frase" in novo)
+chk("assunto com Confianca Proposto nao pode ser usado",
+    'Assunto com Confiança \\"Proposto\\" está esperando aprovação do engenheiro: NÃO use' in novo)
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

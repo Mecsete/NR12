@@ -64,6 +64,21 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 24/09/2026 13:15
+
+**Instruções da planilha: citação de norma em cinco fontes, Python e lacunas de norma.**
+
+O bloco de citação da Solução foi reorganizado numa sequência única e numerada:
+1ª a Sugestão Solução, 2ª a citação escrita pelo inspetor, 3ª a tabela de
+medidas, 4ª os guias de normas do projeto e 5ª "nenhuma serve". Os guias podem
+estar anexados ou numa pasta acessível, e a IA que executa Python usa o código só
+para abrir e gravar a planilha e buscar nos guias, nunca para gerar os textos.
+Assunto do guia com Confiança "Proposto" não pode ser usado. Quando a proposta
+de campo é uma medida real sem assunto nos guias, a Solução sai sem citação e a
+IA entrega, fora da planilha e no fim do lote, a lista LACUNAS DE NORMA com a
+pergunta "Posso investigar os PDFs da pasta de normas para propor esses assuntos
+novos no guia?", sem interromper o preenchimento.
+
 ## 24/09/2026 12:55
 
 **Biblioteca de medidas: 13 medidas novas e correção de citação; instruções da planilha passam a explicar os guias de normas.**
