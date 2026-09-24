@@ -3181,7 +3181,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "24/09/2026 16:24";
+const APP_BUILD = "24/09/2026 17:40";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -17348,7 +17348,7 @@ const BASE_IA_PROMPT = [
 "A [proposta] é a \"Solução Editável\" reescrita em linguagem de laudo, sem mudar a intenção técnica.",
 "SEM PROPOSTA EM CAMPO: quando a \"Solução Editável\" E a \"Sugestão Solução\" estiverem vazias, o inspetor não propôs nada — e você não inventa proposta. Deixe a célula \"RESPOSTA - Solução\" EM BRANCO. Nunca escreva \"Não há solução registrada\" nem qualquer frase que diga que falta informação: célula em branco é \"sem resposta\", e o aplicativo mantém o que já existe. A descrição escrita na Mitigação Existente NÃO é proposta: não a transforme em solução.",
 "A coluna \"Medida proposta marcada\" diz que tipo de proteção o inspetor escolheu no checklist. Ela manda no TIPO da medida: com proteção móvel intertravada marcada, a solução não pode propor proteção fixa. O texto de campo é o conteúdo; a medida marcada é a natureza dela.",
-"CITAÇÃO DE NORMA NA SOLUÇÃO — CINCO FONTES, NESTA ORDEM. Você nunca escolhe item de norma: só reproduz o que uma fonte já traz pronto. Passe para a fonte seguinte apenas quando a anterior não servir. Cada fonte está descrita logo abaixo; a quinta diz o que fazer quando nenhuma serve. Antes de deixar uma citação na célula, aponte de QUAL fonte ela veio, palavra por palavra; se não consegue apontar, apague-a. Nenhuma norma ABNT/ISO e nenhum item de NR-12 entra por sua conta, mesmo que seja pertinente e você a conheça: caso real, a ISO 13854 (distâncias mínimas contra esmagamento) foi acrescentada em sete Soluções sem constar de fonte nenhuma, e um item do 12.8.9.2 foi escolhido de fora da citação pronta do assunto. Combinar pedaços de citações diferentes (um item de uma linha com uma norma de outra) também é inventar.",
+"CITAÇÃO DE NORMA NA SOLUÇÃO — CINCO FONTES, NESTA ORDEM. Você nunca escolhe item de norma: só reproduz o que uma fonte já traz pronto. Passe para a fonte seguinte apenas quando a anterior não servir. Cada fonte está descrita logo abaixo; a quinta diz o que fazer quando nenhuma serve. Antes de deixar uma citação na célula, aponte de QUAL fonte ela veio, palavra por palavra; se não consegue apontar, apague-a. Se você tem acesso à pasta de normas (os guias, os textos extraídos em TXT e os PDFs), CONFIRME cada citação nesses arquivos antes de deixá-la: abra o item citado (o guia informa a página do PDF; os TXT ficam em _gerador_guia/normas_txt), leia o texto e confirme que o item existe e trata EXATAMENTE da medida proposta. O aplicativo não confere citação nenhuma na importação: a conferência é sua. Item que você não consegue confirmar nos arquivos sai da célula. Nenhuma norma ABNT/ISO e nenhum item de NR-12 entra por sua conta, mesmo que seja pertinente e você a conheça: caso real, a ISO 13854 (distâncias mínimas contra esmagamento) foi acrescentada em sete Soluções sem constar de fonte nenhuma, e um item do 12.8.9.2 foi escolhido de fora da citação pronta do assunto. Combinar pedaços de citações diferentes (um item de uma linha com uma norma de outra) também é inventar.",
 "1ª FONTE. A coluna \"Sugestão Solução\" traz a frase que o aplicativo monta a partir da medida marcada no checklist, e ela termina com a referência normativa já conferida — por exemplo \"..., conforme NR-12, item 12.5.9 e item 12.5.11; ABNT NBR ISO 14120.\". Use essa frase para dar forma técnica ao que foi proposto em campo e TERMINE A SOLUÇÃO COM A CITAÇÃO DELA, reproduzida exatamente como está. Praticamente toda solução deve fechar com o item da norma.",
 "Quando essa citação trouxer mais de uma norma — NR-12 e uma ou mais ABNT/ISO, como no exemplo acima —, a Solução termina com TODAS elas, na mesma ordem, palavra por palavra. Cortar para citar só a NR-12 e descartar as ABNT/ISO é o mesmo erro que inventar uma citação: deixa o embasamento normativo incompleto.",
 "2ª FONTE. Quando essa coluna estiver vazia — o inspetor não marcou medida no checklist —, olhe a própria \"Solução Editável\": se ela já trouxer uma citação escrita à mão pelo inspetor (por exemplo \"...conforme NR-12 item 12.5.9\"), essa citação TAMBÉM é reproduzida palavra por palavra — ela veio do campo, não foi inventada pela IA. Só quando NENHUMA das três colunas (\"Sugestão Solução\", \"Descrição da Mitigação Existente\", \"Solução Editável\") trouxer citação nenhuma é que você passa para a tabela e para os guias. Nunca invente o item, nunca deduza pelo tipo de proteção, nunca traga de memória.",
@@ -17495,87 +17495,6 @@ function baseIALerCelulas(xml, sst){
   }
   return linhas;
 }
-/* CONFERENCIA DA CITACAO DE NORMA NA VOLTA DA PLANILHA (24/09/2026).
-   Numa planilha real, oito Solucoes voltaram com uma norma que nao veio de
-   nenhuma fonte (a IA compos a citacao de memoria). So instrucao nao bastou:
-   a conferencia e mecanica. A citacao final da Solucao ("conforme NR-12, ...")
-   tem de ser IGUAL a uma destas fontes, senao a sugestao entra normalmente,
-   mas com a "Dúvida da IA" avisando que a citacao nao foi conferida —
-   o engenheiro decide na Revisao:
-     1. as citacoes da biblioteca de medidas (as mesmas da tabela da planilha);
-     2. as citacoes prontas dos guias de normas (lista abaixo);
-     3. as citacoes que ja estavam nas colunas desta MESMA linha (Sugestao
-        Solucao, Solucao Editavel, Descricao da Mitigacao Existente).
-   CITACOES_GUIAS vem de normas/GUIA_NORMAS_POR_ASSUNTO.md ("Citação pronta",
-   sem o "conforme" e sem o simbolo de dagger). Ao aprovar assunto novo no guia,
-   atualizar esta lista — sem isso a citacao correta do assunto novo sai como
-   "nao conferida" (falso alarme, nunca falha silenciosa). */
-const CITACOES_GUIAS = [
-  "NR-12, item 12.5.4, item 12.5.9 e item 12.5.11; ABNT NBR ISO 14120; ABNT NBR ISO 12100",
-  "NR-12, item 12.5.4, item 12.5.6 e item 12.5.7; ABNT NBR ISO 14119; ABNT NBR ISO 14120; ABNT NBR ISO 12100",
-  "NR-12, item 12.5.6 e item 12.5.7; ABNT NBR ISO 14119; ABNT NBR ISO 14120; ABNT NBR ISO 12100",
-  "NR-12, item 12.5.6, item 12.5.8 e item 12.5.9.1; ABNT NBR ISO 14119; ABNT NBR ISO 12100",
-  "NR-12, item 12.4.1, item 12.5.2 e item 12.5.11; ABNT NBR ISO 14119; ABNT NBR ISO 12100",
-  "NR-12, item 12.5.1, item 12.5.4 e item 12.5.11; ABNT NBR ISO 14120; ABNT NBR ISO 13857; ABNT NBR ISO 12100",
-  "NR-12, item 12.5.11 e item 12.5.12; ABNT NBR ISO 13857; ABNT NBR ISO 12100",
-  "NR-12, item 12.5.9 e item 12.5.11; ABNT NBR ISO 14120; ABNT NBR ISO 12100",
-  "NR-12, item 12.5.10 e item 12.5.11; ABNT NBR ISO 12100",
-  "NR-12, item 12.6.1, item 12.6.2 e item 12.6.3; ABNT NBR ISO 13850; ABNT NBR ISO 12100",
-  "NR-12, item 12.6.6 e item 12.6.7; ABNT NBR ISO 12100",
-  "NR-12, Anexo I e item 12.5.13; ABNT NBR IEC 61496; ABNT NBR ISO 13855; ABNT NBR ISO 12100",
-  "NR-12, item 12.5.13; ABNT NBR ISO 13856; ABNT NBR ISO 12100",
-  "NR-12, item 12.4.3; ABNT NBR 14153; ABNT ISO 13849-1; ABNT NBR ISO 12100",
-  "NR-12, item 12.5.3, item 12.5.13 e item 12.5.13.1; ABNT NBR ISO 12100",
-  "NR-12, item 12.5.2 e item 12.5.17; ABNT NBR 14153; ABNT ISO 13849-1; ABNT NBR ISO 12100",
-  "NR-12, item 12.11.3.1 e item 12.4.8; ABNT NBR ISO 12100",
-  "NR-12, item 12.4.1 e item 12.4.2; ABNT NBR ISO 12100",
-  "NR-12, Anexo III, itens 1 e 5; ABNT NBR ISO 14122-1; ABNT NBR ISO 14122-2; ABNT NBR ISO 14122-3; ABNT NBR ISO 12100",
-  "NR-12, Anexo III, itens 5, 7 e 11 (ou 12); ABNT NBR ISO 14122-3",
-  "NR-12, Anexo III, itens 1.3 e 13; ABNT NBR ISO 14122-4",
-  "NR-12, Anexo III, item 7; ABNT NBR ISO 14122-3; NR-35; ABNT NBR ISO 12100",
-  "NR-12, Anexo III, itens 3, 5 e 10; ABNT NBR ISO 14122-2; ABNT NBR ISO 12100",
-  "NR-12, Anexo III, itens 5, 6 e 10; ABNT NBR ISO 14122-2",
-  "NR-12, item 12.11.3; ABNT NBR ISO 12100",
-  "NR-12, item 12.3.5 e item 12.3.8; ABNT NBR IEC 60204-1",
-  "NR-12, item 12.7.1, item 12.7.2 e item 12.7.5; ABNT NBR ISO 12100",
-  "NR-12, item 12.12.1; NR-26; ABNT NBR ISO 7010; ABNT NBR ISO 12100",
-  "NR-12, item 12.13.1 e item 12.13.2; ABNT NBR ISO 12100",
-  "NR-12, item 12.12.4",
-  "NR-12, item 12.14.1 e item 12.11.2; ABNT NBR ISO 12100",
-  "NR-12, item 12.16.1 e item 12.16.2; ABNT NBR ISO 12100",
-  "NR-12, item 12.1.9 e item 12.5.17; ABNT NBR ISO 12100; ABNT ISO/TR 14121-2",
-  "NR-12, item 12.2.1 e item 12.2.3",
-  "NR-12, item 12.9.1; NR-17",
-  "NR-12, item 12.8.1 e item 12.8.7",
-  "NR-12, item 12.10.3",
-  "NR-12, item 12.5.1 e item 12.5.11; ABNT NBR ISO 13854; ABNT NBR ISO 12100",
-  "NR-12, item 12.8.9.2; ABNT NBR ISO 12100"
-];
-function baseIANormalizarCitacao(t){
-  return String(t||"").replace(/\u2020/g, "").replace(/\s+/g, " ").replace(/[\s.]+$/, "").trim().toLowerCase();
-}
-function baseIACitacoesEm(texto){
-  const out = [], t = String(texto||"");
-  const re = /NR-12,\s(?:Anexo|item)[\s\S]*?(?=\.\s|\.$|$)/g;
-  let m;
-  while((m = re.exec(t))) out.push(baseIANormalizarCitacao(m[0]));
-  return out;
-}
-function baseIACitacoesPermitidas(){
-  const s = new Set();
-  BIBLIOTECA_MEDIDAS.forEach(m=>{ const r = medidaReferencia(m); if(r) s.add(baseIANormalizarCitacao(r)); });
-  CITACOES_GUIAS.forEach(c=> s.add(baseIANormalizarCitacao(c)));
-  return s;
-}
-/* Devolve "" quando esta tudo certo (ou nao ha citacao), ou o aviso. */
-function baseIAConferirCitacaoDaSolucao(texto, textosDaLinha){
-  const m = /conforme\s+(NR-12,[\s\S]*)$/i.exec(String(texto||"").trim());
-  if(!m) return "";
-  const cit = baseIANormalizarCitacao(m[1]);
-  if(baseIACitacoesPermitidas().has(cit)) return "";
-  if((textosDaLinha||[]).some(x=> baseIACitacoesEm(x).indexOf(cit) >= 0)) return "";
-  return "Citação de norma não conferida: \"" + m[1].trim().replace(/\.$/, "") + "\" — não consta da tabela de medidas, dos guias de normas nem do que foi levantado nesta linha. Confira antes de aplicar.";
-}
 /* Uma aba respondida vira entradas de texto. Devolve null quando a aba nao e
    nossa (sem linha de cabecalho com ID) — planilha volta com aba de rascunho
    com frequencia, e isso nao pode virar erro. */
@@ -17596,7 +17515,6 @@ function baseIARespostasDaAba(linhas){
   }
   const col = (h)=> mapa[baseIANormalizarCabecalho(h)] || null;
   const cId = { risco:col("ID_Risco"), tarefa:col("ID_Tarefa"), maquina:col("ID_Maquina") };
-  const cFontesCitacao = [col("Sugestão Solução"), col("Solução Editável"), col("Descrição da Mitigação Existente")];
   const resps = BASE_IA_COLUNAS.filter(c=>c.resp)
     .map(c=> ({ campo:c.resp.campo, tipo:c.resp.tipo, letra:col(c.h) }))
     .filter(c=> !!c.letra);
@@ -17624,13 +17542,7 @@ function baseIARespostasDaAba(linhas){
       if(!t.texto) return;
       const alvo = ids[BASE_IA_NIVEL[campo]];
       if(!alvo){ res.semId++; return; }
-      const entrada = { id:alvo, campo:campo, texto:t.texto };
-      /* typeof: a leitura tambem roda em contextos de teste sem a biblioteca */
-      if(campo === "solucao" && typeof baseIAConferirCitacaoDaSolucao === "function"){
-        const aviso = baseIAConferirCitacaoDaSolucao(t.texto, cFontesCitacao.map(get));
-        if(aviso){ entrada.duvida = aviso; entrada.citacaoNaoConferida = true; }
-      }
-      res.entradas.push(entrada);
+      res.entradas.push({ id:alvo, campo:campo, texto:t.texto });
     });
   });
   return res;
@@ -17642,7 +17554,7 @@ function baseIARespostasDaAba(linhas){
 function baseIAPacoteDasAbas(abas){
   const vistos = new Map();
   const textos = [];
-  const resumo = { abas:0, linhasLidas:0, semResposta:0, semId:0, repetidos:0, divergentes:0, citacoesNaoConferidas:0 };
+  const resumo = { abas:0, linhasLidas:0, semResposta:0, semId:0, repetidos:0, divergentes:0 };
   (abas||[]).forEach(r=>{
     if(!r) return;
     resumo.abas++;
@@ -17656,7 +17568,6 @@ function baseIAPacoteDasAbas(abas){
         return;
       }
       vistos.set(k, e.texto);
-      if(e.citacaoNaoConferida) resumo.citacoesNaoConferidas++;
       textos.push(e);
     });
   });
@@ -17678,7 +17589,6 @@ function baseIAMensagemImporte(resumo, r){
   if(r.arquivados)          msg += " " + r.arquivados + " em projeto arquivado (só leitura).";
   if(resumo.divergentes)    msg += " " + resumo.divergentes + " texto(s) diferentes para o mesmo item — valeu o primeiro.";
   if(resumo.semId)          msg += " " + resumo.semId + " sem o ID da linha.";
-  if(resumo.citacoesNaoConferidas) msg += " " + resumo.citacoesNaoConferidas + " Solução(ões) com citação de norma NÃO conferida (fora da tabela, dos guias e do campo): entraram marcadas com \"Dúvida da IA\" na Revisão.";
   return msg;
 }
 

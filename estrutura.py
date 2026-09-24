@@ -288,7 +288,9 @@ d = len(novo) - len(orig)
 # no lugar do .map + 2 chamadas coladas) -- cresceu 148 bytes de boilerplate
 # repetido, sem nenhuma funcionalidade nova. O piso nunca foi a defesa real
 # (essa e por secao, acima); agora so pega d<=0, sinal de arquivo repetido.
-chk("crescimento coerente com o que a entrega mexeu (%d bytes)" % d, 50 < d < 700000, "delta=%d" % d)
+# 24/09/2026: a entrega que REMOVE a conferencia de citacao da importacao (~5,4 KB) deixa o
+# arquivo menor que o anterior: o piso passa a valer em modulo (so pega delta ~0, arquivo repetido).
+chk("crescimento coerente com o que a entrega mexeu (%d bytes)" % d, 50 < abs(d) < 700000, "delta=%d" % d)
 chk("nada foi removido do original por engano",
     all(novo.count(m) >= 1 for m in ["exportarMasterXLSXFotos", "gerarBytesXlsmCorteva", "montarItensInventario", "gerarBytesDocxSimples"]))
 
@@ -5317,19 +5319,6 @@ chk("aba Areas: solucao sem proposta em campo nao conta e o resumo diz N de M te
     and '" de " + st.total + " textos aplicados ("' in novo)
 
 
-print("\n=== 164. VOLTA DA PLANILHA: CITACAO DE NORMA CONFERIDA MECANICAMENTE (24/09/2026) ===")
-chk("existe a lista das citacoes prontas dos guias e a conferencia usa biblioteca + guias + a propria linha",
-    novo.count("const CITACOES_GUIAS = [") == 1
-    and "BIBLIOTECA_MEDIDAS.forEach(m=>{ const r = medidaReferencia(m);" in novo
-    and "CITACOES_GUIAS.forEach(c=> s.add(" in novo
-    and "baseIACitacoesEm(x).indexOf(cit) >= 0" in novo)
-chk("a leitura so confere a Solucao, avisa pela Duvida da IA e o resumo da importacao conta",
-    'campo === "solucao" && typeof baseIAConferirCitacaoDaSolucao === "function"' in novo
-    and "entrada.citacaoNaoConferida = true" in novo
-    and "resumo.citacoesNaoConferidas++" in novo
-    and "com citação de norma NÃO conferida" in novo)
-
-
 print("\n=== 165. PLANILHA PARA A IA: ESCOPO E TAREFA SO NA PRIMEIRA LINHA (24/09/2026) ===")
 chk("coluna de leitura 'Escopo e tarefa nesta linha' antes das respostas, marcador chamado ao gerar cada aba",
     novo.count('{ h:"Escopo e tarefa nesta linha", larg:34 },') == 1
@@ -5338,6 +5327,14 @@ chk("coluna de leitura 'Escopo e tarefa nesta linha' antes das respostas, marcad
 chk("as instrucoes mandam responder so na primeira linha e deixam a planilha antiga com a repeticao",
     "Escreva o Escopo UMA vez, na PRIMEIRA linha dele" in novo and "escreva a Descrição da tarefa UMA vez, na primeira linha dela" in novo
     and "Coluna ausente ou vazia (planilha antiga): repita o mesmo texto em todas as linhas dele" in novo)
+
+
+print("\n=== 166. CITACAO: QUEM CONFERE E A IA, NAO O APP (24/09/2026) ===")
+chk("o app nao tem conferencia de citacao na importacao (removida a pedido do engenheiro)",
+    all(x not in novo for x in ["CITACOES_GUIAS", "baseIAConferirCitacaoDaSolucao", "citacaoNaoConferida", "citacoesNaoConferidas"]))
+chk("as instrucoes mandam a IA confirmar cada citacao nos guias, TXT e PDF da pasta",
+    "CONFIRME cada citação nesses arquivos antes de deixá-la" in novo
+    and "O aplicativo não confere citação nenhuma na importação: a conferência é sua" in novo)
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

@@ -64,6 +64,17 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 24/09/2026 17:40
+
+**Removida a conferência de citação na importação; quem confere é a IA, nos arquivos da pasta dela.**
+
+A conferência mecânica de citação de norma na volta da planilha (entrada "Volta da
+planilha: citação de norma na Solução é conferida pelo app") saiu por decisão do
+engenheiro: o app não marca mais "Dúvida da IA: citação não conferida" nem avisa na
+importação. No lugar, as instruções da planilha mandam a IA confirmar cada citação nos
+guias, nos TXT e nos PDFs da pasta dela antes de deixá-la na célula, e tirar da
+célula o que não conseguir confirmar. A lista CITACOES_GUIAS deixou de existir no app.
+
 ## 24/09/2026 16:24
 
 **Planilha para a IA: Escopo e Tarefa só na primeira linha de cada equipamento e de cada tarefa.**
