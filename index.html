@@ -3181,7 +3181,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "24/09/2026 10:42";
+const APP_BUILD = "24/09/2026 12:55";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -11669,7 +11669,7 @@ const BIBLIOTECA_MEDIDAS = [
     ex:"Dispositivo de parada de emergência instalado em {alvo}, de fácil acesso e visualização, desobstruído" },
 
   { k:"emerg_cabo", g:"Dispositivos de segurança", rot:"Chave de emergência tipo cabo",
-    nr:["12.6.6","12.6.7"], apoio:["ABNT NBR ISO 12100"],
+    nr:["12.6.6","12.6.7","12.8.7"], apoio:["ABNT NBR ISO 12100"],
     pl:true, fs:"Ao se tracionar ou romper o cabo de emergência ao longo {alvo}, o acionamento deve parar.",
     prop:"Instalação de chaves de parada de emergência do tipo cabo ao longo de {alvo}, trabalhando tracionadas de modo a cessar as funções perigosas em caso de ruptura ou afrouxamento",
     ex:"Chaves de parada de emergência tipo cabo instaladas ao longo de {alvo}, trabalhando tracionadas",
@@ -11755,8 +11755,8 @@ const BIBLIOTECA_MEDIDAS = [
     obs:"Medida auxiliar: não substitui proteção física (NR-12, item 12.5.16)." },
 
   { k:"procedimento", g:"Organizacional", rot:"Procedimento de trabalho e manutenção",
-    nr:["12.11.2.1","12.14.1"], apoio:["ABNT NBR ISO 12100"],
-    prop:"Elaboração e implantação de procedimento de trabalho para {alvo}, com registro das manutenções disponível aos trabalhadores, à CIPA, ao SESMT e à fiscalização",
+    nr:["12.14.1","12.11.2"], apoio:["ABNT NBR ISO 12100"],
+    prop:"Elaboração e implantação de procedimento de trabalho e segurança para {alvo}, específico e padronizado a partir da apreciação de riscos, com registro das manutenções em livro, ficha ou sistema informatizado",
     ex:"Procedimento de trabalho e registro de manutenções implantados para {alvo}" },
 
   { k:"capacitacao", g:"Organizacional", rot:"Capacitação dos trabalhadores",
@@ -11768,6 +11768,89 @@ const BIBLIOTECA_MEDIDAS = [
     nr:["12.5.17"], apoio:["ABNT NBR 14153","ABNT ISO 13849-1","ABNT NBR ISO 12100"],
     prop:"Elaboração de projeto, diagrama ou representação esquemática dos sistemas de segurança de {alvo}, com especificações técnicas em língua portuguesa, por profissional legalmente habilitado",
     ex:"Projeto dos sistemas de segurança de {alvo} disponível, elaborado por profissional legalmente habilitado" },
+
+  /* ---------------- Transportadores, acessos e demais itens — 24/09/2026 ----------------
+     Itens conferidos palavra por palavra no texto da NR-12 (ver
+     normas/GUIA_NORMAS_POR_ASSUNTO.md, assuntos S20, S21, S23, S24, S33, S35,
+     S36 e S37). */
+  { k:"transp_prot", g:"Proteção física", rot:"Proteção dos pontos de esmagamento de transportador contínuo",
+    nr:["12.8.1"], apoio:["ABNT NBR ISO 12100"],
+    prop:"Instalação de proteção nos pontos de esmagamento, agarramento e aprisionamento de {alvo}, impedindo o acesso aos movimentos perigosos durante a operação normal",
+    ex:"Pontos de esmagamento, agarramento e aprisionamento de {alvo} protegidos, impedindo o acesso aos movimentos perigosos durante a operação normal",
+    obs:"Correia com borda a mais de 2,70 m do piso, sem circulação nem permanência de pessoas nas zonas de perigo, está dispensada (item 12.8.1.1)." },
+
+  { k:"transp_desalinha", g:"Dispositivos de segurança", rot:"Dispositivos de desalinhamento e sobrecarga em transportador de correia",
+    nr:["12.8.8"], apoio:["ABNT NBR ISO 12100"],
+    prop:"Instalação de dispositivos que interrompam o funcionamento de {alvo} em caso de desalinhamento anormal da correia ou sobrecarga de materiais, conforme os limites de segurança especificados em projeto",
+    ex:"Dispositivos de desalinhamento e sobrecarga instalados em {alvo}, interrompendo o funcionamento quando ultrapassados os limites de segurança" },
+
+  { k:"transp_passarela", g:"Acesso e altura", rot:"Passarela ao longo de transportador de correia elevado",
+    nr:["12.8.2","12.8.6.2"], apoio:["ABNT NBR ISO 14122-2","ABNT NBR ISO 12100"],
+    prop:"Instalação de passarelas em ambos os lados de {alvo}, em toda a sua extensão, com sistema de proteção contra quedas, para a inspeção e a circulação sem permanência sobre as partes em movimento",
+    ex:"Passarelas com sistema de proteção contra quedas instaladas em ambos os lados de {alvo}, em toda a sua extensão",
+    obs:"Exigida quando a borda da correia que transporta a carga está a mais de 2,70 m do piso; correia de até 762 mm de largura pode ter passarela em um só lado (item 12.8.2.1)." },
+
+  { k:"escada_sem_espelho", g:"Acesso e altura", rot:"Escada de degraus sem espelho",
+    nr:["Anexo III, itens 5, 7 e 11"], apoio:["ABNT NBR ISO 14122-3","ABNT NBR ISO 12100"],
+    prop:"Instalação de escada de degraus sem espelho de acesso a {alvo}, com largura útil mínima de 0,60 m, degraus uniformes e nivelados com profundidade mínima de 0,15 m e altura máxima de 0,25 m entre eles, e plataforma de descanso a cada 3,00 m de altura",
+    ex:"Escada de degraus sem espelho de acesso a {alvo}, com degraus uniformes e nivelados",
+    obs:"Escada instalada antes de 24/12/2010 tem dispensas parciais (Anexo III, item 11.2)." },
+
+  { k:"escada_com_espelho", g:"Acesso e altura", rot:"Escada de degraus com espelho",
+    nr:["Anexo III, itens 5, 7 e 12"], apoio:["ABNT NBR ISO 14122-3","ABNT NBR ISO 12100"],
+    prop:"Instalação de escada de degraus com espelho de acesso a {alvo}, com largura útil mínima de 0,60 m, degraus uniformes e nivelados com profundidade mínima de 0,20 m e altura de 0,20 m a 0,25 m entre eles, e plataforma de descanso a cada 3,00 m de altura",
+    ex:"Escada de degraus com espelho de acesso a {alvo}, com degraus uniformes e nivelados",
+    obs:"Escada instalada antes de 24/12/2010 tem dispensas parciais (Anexo III, item 12.2)." },
+
+  { k:"escada_marinheiro", g:"Acesso e altura", rot:"Escada fixa tipo marinheiro",
+    nr:["Anexo III, itens 1.3 e 13"], apoio:["ABNT NBR ISO 14122-4","ABNT NBR ISO 12100"],
+    prop:"Instalação de escada fixa tipo marinheiro de acesso a {alvo}, somente na impossibilidade técnica de adoção de elevador, rampa, passarela, plataforma ou escada de degraus, com gaiola de proteção quando a altura superar 3,50 m, largura de 0,40 m a 0,60 m e barras horizontais espaçadas de 0,25 m a 0,30 m",
+    ex:"Escada fixa tipo marinheiro de acesso a {alvo}, com barras horizontais antiderrapantes e gaiola de proteção",
+    obs:"Só na impossibilidade técnica de outro meio de acesso (Anexo III, item 1.3); dispensada do sistema de proteção contra quedas do item 7 (item 7.2)." },
+
+  { k:"plataforma", g:"Acesso e altura", rot:"Plataforma ou passarela de trabalho (largura útil e piso)",
+    nr:["Anexo III, itens 3, 5 e 10"], apoio:["ABNT NBR ISO 14122-2","ABNT NBR ISO 12100"],
+    prop:"Instalação de plataforma de trabalho estável e segura em {alvo}, com largura útil mínima de 0,60 m, piso antiderrapante, meios de drenagem quando necessário e mantida desobstruída",
+    ex:"Plataforma de trabalho estável e segura em {alvo}, com piso antiderrapante e mantida desobstruída",
+    obs:"Largura útil pode cair a 0,50 m em trecho menor que 2,00 m ou com espaço restrito por canalizações ou razões construtivas (Anexo III, item 10.1)." },
+
+  { k:"rampa", soProposta:true, g:"Acesso e altura", rot:"Adequar rampa de acesso (inclinação e piso antiderrapante)",
+    nr:["Anexo III, itens 5, 6 e 10"], apoio:["ABNT NBR ISO 14122-2","ABNT NBR ISO 12100"],
+    prop:"Adequação da rampa de acesso a {alvo}, com inclinação máxima de 20° em relação ao piso, piso antiderrapante e, nas rampas de 10° a 20° que exijam maior resistência ao escorregamento, peças transversais horizontais distanciadas de 0,40 m a 0,50 m e com altura de 0,01 m a 0,02 m",
+    ex:"Rampa de acesso a {alvo} com inclinação de até 20° e piso antiderrapante",
+    obs:"É proibida a construção de rampa com inclinação acima de 20° (Anexo III, item 6.1)." },
+
+  { k:"manual_pt", g:"Organizacional", rot:"Manual de instruções em língua portuguesa",
+    nr:["12.13.1","12.13.2"], apoio:["ABNT NBR ISO 12100"],
+    prop:"Disponibilização do manual de instruções do equipamento, escrito na língua portuguesa (Brasil), legível, com ilustrações explicativas e informações de segurança em todas as fases de utilização, disponível a todos os usuários nos locais de trabalho",
+    ex:"Manual de instruções do equipamento em língua portuguesa (Brasil), disponível aos usuários nos locais de trabalho",
+    obs:"Manual inexistente ou extraviado: reconstituição pelo empregador, sob responsabilidade de profissional qualificado ou legalmente habilitado (item 12.13.5)." },
+
+  { k:"inscricoes_pt", g:"Organizacional", rot:"Inscrições e identificação dos comandos em português",
+    nr:["12.12.4"], apoio:["ABNT NBR ISO 12100"],
+    prop:"Substituição das inscrições, legendas dos comandos e advertências do equipamento por inscrições legíveis, escritas na língua portuguesa (Brasil), indicando claramente o risco e a parte da máquina a que se referem",
+    ex:"Inscrições, legendas dos comandos e advertências do equipamento escritas na língua portuguesa (Brasil) e legíveis",
+    obs:"A inscrição deve indicar o risco e a parte da máquina a que se refere, e não deve ser usada somente a inscrição de \"perigo\" (item 12.12.4.1)." },
+
+  { k:"arranjo_fisico", g:"Organizacional", rot:"Demarcação e desobstrução das áreas de circulação",
+    nr:["12.2.1","12.2.3"], apoio:[],
+    prop:"Demarcação das áreas de circulação e de armazenamento de materiais no entorno de {alvo}, mantendo-as desobstruídas e dimensionadas para a movimentação segura de trabalhadores e de transportadores de materiais",
+    ex:"Áreas de circulação e de armazenamento no entorno de {alvo} demarcadas e mantidas desobstruídas",
+    local:["Área de movimentação"] },
+
+  /* ---------------- Riscos adicionais ---------------- */
+  { k:"explosao", g:"Riscos adicionais", rot:"Medidas contra explosão, combustão e incêndio acidentais",
+    nr:["12.10.3"], apoio:[],
+    prop:"Implantação de medidas de proteção em {alvo} contra a emissão, liberação, combustão, explosão e reação acidentais de combustíveis, inflamáveis, explosivos ou substâncias que reagem perigosamente, bem como contra a ocorrência de incêndio",
+    ex:"Medidas de proteção contra emissão, liberação, combustão, explosão e incêndio acidentais implantadas em {alvo}",
+    obs:"A NR-12 dá só o requisito geral; classificação de áreas e medidas específicas ficam a cargo do projeto.",
+    evento:["Explosão","Incêndio"] },
+
+  { k:"superficie_quente", g:"Riscos adicionais", rot:"Proteção contra queimadura em superfície aquecida",
+    nr:["12.10.4"], apoio:[],
+    prop:"Adoção de medidas de proteção contra queimaduras por contato com superfícies aquecidas de {alvo}, com redução da temperatura superficial, isolação com materiais apropriados ou barreiras",
+    ex:"Superfícies aquecidas de {alvo} com isolação ou barreira contra contato e risco de queimadura",
+    evento:["Queimadura"] },
 ];
 function medidaPorChave(k){ return BIBLIOTECA_MEDIDAS.find(m=>m.k===k) || null; }
 /* Nem toda medida da biblioteca serve para os dois lados. As que comecam por
@@ -17179,7 +17262,7 @@ const BASE_IA_PROMPT = [
 "O QUE NUNCA FAZER",
 "1. Nunca inventar dado. Se a linha não diz a altura, a potência, a dimensão ou o modo de operar, isso não entra no texto.",
 "2. Nunca escrever que um dado falta. Não existe coluna de dúvida nesta planilha: escreva de forma afirmativa e técnica apenas o que a linha sustenta, e pare aí. Frases como \"não foi registrada a altura, devendo ser confirmada\" não podem ir para um laudo assinado.",
-"3. Nunca INVENTAR citação de norma. Você não escolhe item de norma e não deduz item nenhum a partir do tipo de proteção nem de memória. A citação que aparece no texto é SEMPRE reproduzida de onde já veio pronta: da coluna \"Sugestão Solução\", da coluna \"Descrição da Mitigação Existente\", ou da própria \"Solução Editável\" quando o inspetor já escreveu a citação nela — nesses casos, sempre palavra por palavra. Há mais duas fontes permitidas, descritas na Solução: a TABELA DE MEDIDAS E CITAÇÕES CONFERIDAS (no fim destas instruções) e, se existir, o documento de normas anexado. Sem nenhuma fonte, o texto não cita norma alguma. Medida numérica tirada de norma (distância, abertura, altura) continua proibida em qualquer caso.",
+"3. Nunca INVENTAR citação de norma. Você não escolhe item de norma e não deduz item nenhum a partir do tipo de proteção nem de memória. A citação que aparece no texto é SEMPRE reproduzida de onde já veio pronta: da coluna \"Sugestão Solução\", da coluna \"Descrição da Mitigação Existente\", ou da própria \"Solução Editável\" quando o inspetor já escreveu a citação nela — nesses casos, sempre palavra por palavra. Há mais duas fontes permitidas, descritas na Solução: a TABELA DE MEDIDAS E CITAÇÕES CONFERIDAS (no fim destas instruções) e, se existirem, os guias de normas anexados. Sem nenhuma fonte, o texto não cita norma alguma. Medida numérica tirada de norma (distância, abertura, altura) continua proibida em qualquer caso.",
 "4. Nunca mudar a intenção técnica do que foi proposto em campo. Você reescreve a redação, não a decisão de engenharia: se o inspetor escreveu \"aumentar a plataforma 40 cm para a esquerda\", continua sendo 40 cm à esquerda.",
 "5. Nunca deixar em branco uma célula de resposta que a linha permitia escrever. Única exceção: a Solução, quando não há proposta em campo (ver a seção da Solução).",
 "6. Nunca citar no texto os números da avaliação: HRN, Probabilidade, Grau do dano e Nível de risco não entram em frase nenhuma. Eles já saem no laudo, na tabela própria, e repeti-los em texto cria duas versões do mesmo julgamento.",
@@ -17256,7 +17339,7 @@ const BASE_IA_PROMPT = [
 "A [proposta] é a \"Solução Editável\" reescrita em linguagem de laudo, sem mudar a intenção técnica.",
 "SEM PROPOSTA EM CAMPO: quando a \"Solução Editável\" E a \"Sugestão Solução\" estiverem vazias, o inspetor não propôs nada — e você não inventa proposta. Deixe a célula \"RESPOSTA - Solução\" EM BRANCO. Nunca escreva \"Não há solução registrada\" nem qualquer frase que diga que falta informação: célula em branco é \"sem resposta\", e o aplicativo mantém o que já existe. A descrição escrita na Mitigação Existente NÃO é proposta: não a transforme em solução.",
 "SEM MEDIDA MARCADA, MAS COM PROPOSTA EM CAMPO — USE A TABELA. Quando \"Sugestão Solução\" estiver vazia e a \"Solução Editável\" trouxer proposta, confira a TABELA DE MEDIDAS E CITAÇÕES CONFERIDAS (no fim destas instruções). Se a proposta de campo for, sem margem de dúvida, do MESMO TIPO de uma das medidas da tabela (o tipo da medida, não uma palavra parecida), feche a Solução com a citação daquela linha, reproduzida palavra por palavra e completa (NR-12 e as normas técnicas dela, na mesma ordem). Você escolhe a LINHA da tabela — nunca o item de norma. Se duas linhas servem, se a proposta for de outro tipo (reparo de peça, troca, limpeza, borracha ou amortecimento, informação escrita em português, ajuste de tamanho) ou se houver dúvida, NÃO cite. Nunca misture itens de linhas diferentes.",
-"DOCUMENTO DE NORMAS ANEXADO. Se houver, junto desta conversa, um documento com o texto das normas (por exemplo um arquivo .md), ele também é fonte de citação, com quatro condições: (1) você localiza no documento o item que trata EXATAMENTE da medida proposta; (2) o número do item é copiado do jeito que está escrito lá; (3) a norma é a que o próprio documento traz; (4) sem localizar, ou com dúvida, não cita. Lembrar de um item de memória, por mais certo que pareça, não vale — só o que você consegue apontar no documento. Vale para qualquer proposta, inclusive as que não têm linha na tabela.",
+"GUIAS DE NORMAS ANEXADOS AO PROJETO. Se os arquivos GUIA_NORMAS_RESUMO.md (uma linha por assunto) e GUIA_NORMAS_POR_ASSUNTO.md (completo: texto literal dos itens da NR-12 e resumo das normas técnicas, com a página do PDF) estiverem anexados, eles são fonte de citação para as propostas que NÃO têm linha na TABELA DE MEDIDAS, ou que a tabela não resolve. Como usar, nesta ordem: (1) A prioridade é: a citação da \"Sugestão Solução\"; depois a TABELA; só então os guias. (2) No RESUMO, ache o assunto pela SITUAÇÃO da proposta de campo, lendo \"Usar quando\" e \"Atenção\" — a palavra-chave só serve para chegar ao assunto (o índice remissivo no fim do guia completo lista as palavras, com e sem acento). (3) Abra o MESMO assunto (mesmo código, por exemplo S35) no guia completo e confira: o item da NR-12 escrito lá trata EXATAMENTE da medida proposta? Leia também \"Quando NÃO usar e cuidados\". (4) Feche a Solução com a \"Citação pronta\" do assunto, ou com a \"Variante\" quando ela descreve o caso, palavra por palavra e completa; o símbolo † que aparece nos guias é marca deles e NÃO entra na citação. (5) Confiança \"Parcial\" não impede a citação: só indica que alguma norma técnica não foi conferida. (6) Nunca use: item que não esteja na Citação pronta nem na Variante do assunto; texto de \"Interpretação\"; valores de \"Parâmetros numéricos de referência\" (a regra de não trazer medida numérica continua valendo); itens de assuntos diferentes misturados. O número do item é copiado do jeito que está escrito lá, e a norma é a que o próprio guia traz. Lembrar de um item de memória, por mais certo que pareça, não vale — só o que você consegue apontar nos guias. (7) Sem assunto que trate exatamente da medida proposta, ou em dúvida entre dois: não cite. (8) Se os guias NÃO estiverem anexados a esta conversa, ignore este bloco e use só a tabela. Exemplos: manual em outro idioma → assunto S37, \"item 12.13.2, alínea a\"; legendas dos comandos em inglês → S37, \"item 12.12.4\"; esteira sem parada de emergência ao longo da extensão → S35 e S10; escada de marinheiro sem gaiola → S21.",
 "A coluna \"Medida proposta marcada\" diz que tipo de proteção o inspetor escolheu no checklist. Ela manda no TIPO da medida: com proteção móvel intertravada marcada, a solução não pode propor proteção fixa. O texto de campo é o conteúdo; a medida marcada é a natureza dela.",
 "A coluna \"Sugestão Solução\" traz a frase que o aplicativo monta a partir da medida marcada no checklist, e ela termina com a referência normativa já conferida — por exemplo \"..., conforme NR-12, item 12.5.9 e item 12.5.11; ABNT NBR ISO 14120.\". Use essa frase para dar forma técnica ao que foi proposto em campo e TERMINE A SOLUÇÃO COM A CITAÇÃO DELA, reproduzida exatamente como está. Praticamente toda solução deve fechar com o item da norma.",
 "Quando essa citação trouxer mais de uma norma — NR-12 e uma ou mais ABNT/ISO, como no exemplo acima —, a Solução termina com TODAS elas, na mesma ordem, palavra por palavra. Cortar para citar só a NR-12 e descartar as ABNT/ISO é o mesmo erro que inventar uma citação: deixa o embasamento normativo incompleto.",
@@ -17269,11 +17352,11 @@ const BASE_IA_PROMPT = [
 "3. Toda célula de resposta que a linha permitia escrever está preenchida? (Exceção: \"RESPOSTA - Solução\" fica em branco quando não há proposta em campo, como explicado acima.)",
 "4. Nenhum texto afirma dado que não está na planilha?",
 "5. Onde repeti texto, a descrição de campo era mesmo idêntica?",
-"6. Nenhum texto menciona a ausência de informação? Toda citação de norma que aparece foi reproduzida de uma coluna da planilha, da tabela de medidas ou do documento de normas anexado, sem nenhum item escolhido por você de memória?",
+"6. Nenhum texto menciona a ausência de informação? Toda citação de norma que aparece foi reproduzida de uma coluna da planilha, da tabela de medidas ou dos guias de normas anexados, sem nenhum item escolhido por você de memória?",
 "7. Nenhum texto cita HRN, Probabilidade, Grau do dano ou Nível de risco?",
 "8. Nenhum escopo cita TAG, código de ativo ou número de série?",
 "9. Nas linhas com mitigação existente, a Solução aponta o defeito específico da medida existente e responde a ele, em vez de só repetir a proposta de campo?",
-"10. Toda Solução cuja proposta é do mesmo tipo de uma medida da tabela (ou do documento de normas) fecha com a citação correspondente?",
+"10. Toda Solução cuja proposta é do mesmo tipo de uma medida da tabela (ou dos guias de normas) fecha com a citação correspondente?",
 "Se alguma linha não pôde ser respondida, liste-a na sua resposta do chat, FORA da planilha, dizendo o que faltou.",
 ].join("\n");
 const BASE_IA_ABA_INSTRUCOES = "COMO PREENCHER";

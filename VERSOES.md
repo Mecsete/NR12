@@ -64,6 +64,26 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 24/09/2026 12:55
+
+**Biblioteca de medidas: 13 medidas novas e correção de citação; instruções da planilha passam a explicar os guias de normas.**
+
+Novas medidas, com itens da NR-12 conferidos no texto da norma: proteção dos
+pontos de esmagamento de transportador contínuo (12.8.1), dispositivos de
+desalinhamento e sobrecarga (12.8.8), passarela ao longo de transportador
+elevado (12.8.2 e 12.8.6.2), escada de degraus com e sem espelho (Anexo III,
+itens 11 e 12), escada fixa tipo marinheiro (Anexo III, itens 1.3 e 13),
+plataforma de trabalho (Anexo III, item 10), rampa (Anexo III, item 6), manual
+em língua portuguesa (12.13.1 e 12.13.2), inscrições e comandos em português
+(12.12.4), demarcação de áreas de circulação (12.2.1 e 12.2.3) e, no novo grupo
+Riscos adicionais, explosão e incêndio (12.10.3) e queimadura (12.10.4).
+A chave de emergência tipo cabo passa a citar também o 12.8.7. O procedimento de
+trabalho citava o 12.11.2.1, que trata da disponibilidade do registro de
+manutenção; passa a citar 12.14.1 e 12.11.2. A tabela de citações da planilha
+para a IA já sai com as medidas novas. As instruções da planilha ganharam o
+bloco "Guias de normas anexados ao projeto": explica em que ordem consultar o
+resumo e o guia completo, o que copiar e o que nunca usar.
+
 ## 24/09/2026 10:42
 
 **Planilha para a IA: instruções contra respostas por script e cópia do campo.**

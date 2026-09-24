@@ -12852,9 +12852,9 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(sol.indexOf("Nunca misture itens de linhas diferentes") > 0);
       ok(sol.indexOf("NÃO cite") > 0, "dúvida tem de cair em sem citação");
     });
-    t("documento de normas anexado vale com quatro condicoes e sem memoria", ()=>{
-      ok(sol.indexOf("DOCUMENTO DE NORMAS ANEXADO") > 0);
-      ok(sol.indexOf("o número do item é copiado do jeito que está escrito lá") > 0);
+    t("guias de normas anexados valem com condicoes e sem memoria (texto de 24/09/2026)", ()=>{
+      ok(sol.indexOf("GUIAS DE NORMAS ANEXADOS AO PROJETO") > 0);
+      ok(sol.indexOf("O número do item é copiado do jeito que está escrito lá") > 0);
       ok(sol.indexOf("Lembrar de um item de memória, por mais certo que pareça, não vale") > 0);
     });
     t("a mitigacao existente e o diagnostico da solucao, e eco com 'Recomenda-se' e resposta rasa", ()=>{
@@ -12863,14 +12863,93 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(sol.indexOf("é resposta rasa") > 0);
       ok(sol.indexOf('conta como \\"Atende em parte\\" ou \\"Não atende\\" mesmo com a coluna Situação vazia') > 0);
     });
-    t("a regra 3 passa a admitir a tabela e o documento, sem afrouxar o resto", ()=>{
+    t("a regra 3 passa a admitir a tabela e os guias, sem afrouxar o resto", ()=>{
       ok(PROMPT.indexOf("Nunca INVENTAR citação de norma") > 0);
-      ok(PROMPT.indexOf("TABELA DE MEDIDAS E CITAÇÕES CONFERIDAS (no fim destas instruções) e, se existir, o documento de normas anexado") > 0);
+      ok(PROMPT.indexOf("TABELA DE MEDIDAS E CITAÇÕES CONFERIDAS (no fim destas instruções) e, se existirem, os guias de normas anexados") > 0);
       ok(PROMPT.indexOf("Medida numérica tirada de norma (distância, abertura, altura) continua proibida em qualquer caso") > 0);
     });
     t("a conferencia final cobra a mitigacao e a tabela", ()=>{
       ok(PROMPT.indexOf("9. Nas linhas com mitigação existente, a Solução aponta o defeito específico") > 0);
       ok(PROMPT.indexOf("10. Toda Solução cuja proposta é do mesmo tipo de uma medida da tabela") > 0);
+    });
+  }
+
+  /* 24/09/2026: 13 medidas novas (transportadores, escadas, plataforma, rampa,
+     manual e inscricoes em portugues, circulacao, riscos adicionais), correcao
+     da citacao do procedimento e bloco das instrucoes sobre os guias de normas. */
+  {
+    console.log("\n[t167] biblioteca: medidas novas, correcao do procedimento e instrucoes dos guias");
+    const cxL = vm.createContext({ String, Object, Array });
+    vm.runInContext(constante("BIBLIOTECA_MEDIDAS"), cxL);
+    ["substituirAlvoNoModelo","medidaReferencia","baseIATabelaMedidasTexto"].forEach(n=> vm.runInContext(funcao(n), cxL));
+    const lib = vm.runInContext("BIBLIOTECA_MEDIDAS", cxL);
+    const por = k => lib.find(m=> m.k === k);
+    const NOVAS = ["transp_prot","transp_desalinha","transp_passarela","escada_sem_espelho","escada_com_espelho",
+      "escada_marinheiro","plataforma","rampa","manual_pt","inscricoes_pt","arranjo_fisico","explosao","superficie_quente"];
+
+    t("as 13 medidas novas existem, completas e com chave unica", ()=>{
+      NOVAS.forEach(k=>{
+        const m = por(k);
+        ok(m, "faltou " + k);
+        ok(m.g && m.rot && m.prop && m.ex && Array.isArray(m.nr) && m.nr.length, "incompleta: " + k);
+        ok(!m.pl, k + " nao e medida de comando: sem PLr");
+      });
+      eq(lib.length, 44, "31 antigas + 13 novas");
+      eq(new Set(lib.map(m=>m.k)).size, lib.length);
+      ok(lib.some(m=> m.g === "Riscos adicionais"), "grupo novo");
+    });
+    t("a citacao completa de cada medida nova sai igual ao guia de normas conferido", ()=>{
+      const ref = k => vm.runInContext("medidaReferencia(BIBLIOTECA_MEDIDAS.find(m=>m.k==="+JSON.stringify(k)+"))", cxL);
+      eq(ref("transp_prot"), "NR-12, item 12.8.1; ABNT NBR ISO 12100");
+      eq(ref("transp_desalinha"), "NR-12, item 12.8.8; ABNT NBR ISO 12100");
+      eq(ref("transp_passarela"), "NR-12, item 12.8.2 e item 12.8.6.2; ABNT NBR ISO 14122-2; ABNT NBR ISO 12100");
+      eq(ref("escada_sem_espelho"), "NR-12, Anexo III, itens 5, 7 e 11; ABNT NBR ISO 14122-3; ABNT NBR ISO 12100");
+      eq(ref("escada_com_espelho"), "NR-12, Anexo III, itens 5, 7 e 12; ABNT NBR ISO 14122-3; ABNT NBR ISO 12100");
+      eq(ref("escada_marinheiro"), "NR-12, Anexo III, itens 1.3 e 13; ABNT NBR ISO 14122-4; ABNT NBR ISO 12100");
+      eq(ref("plataforma"), "NR-12, Anexo III, itens 3, 5 e 10; ABNT NBR ISO 14122-2; ABNT NBR ISO 12100");
+      eq(ref("rampa"), "NR-12, Anexo III, itens 5, 6 e 10; ABNT NBR ISO 14122-2; ABNT NBR ISO 12100");
+      eq(ref("manual_pt"), "NR-12, item 12.13.1 e item 12.13.2; ABNT NBR ISO 12100");
+      eq(ref("inscricoes_pt"), "NR-12, item 12.12.4; ABNT NBR ISO 12100");
+      eq(ref("arranjo_fisico"), "NR-12, item 12.2.1 e item 12.2.3");
+      eq(ref("explosao"), "NR-12, item 12.10.3");
+      eq(ref("superficie_quente"), "NR-12, item 12.10.4");
+    });
+    t("a rampa so existe como proposta; as demais servem para o que ja existe", ()=>{
+      ok(por("rampa").soProposta === true);
+      NOVAS.filter(k=> k !== "rampa").forEach(k=> ok(!por(k).soProposta, k + " deveria servir tambem para o existente"));
+    });
+    t("procedimento deixa de citar o 12.11.2.1 (registro) e passa a 12.14.1 e 12.11.2; cabo cita o 12.8.7", ()=>{
+      eq(JSON.stringify(por("procedimento").nr), JSON.stringify(["12.14.1","12.11.2"]));
+      ok(por("procedimento").prop.indexOf("CIPA") < 0, "o texto nao pode mais falar de CIPA/SESMT");
+      ok(por("emerg_cabo").nr.indexOf("12.8.7") >= 0);
+      eq(JSON.stringify(por("emerg_cabo").nr.slice(0,2)), JSON.stringify(["12.6.6","12.6.7"]));
+    });
+    t("nenhum texto novo guarda o marcador cru e as contracoes saem certas", ()=>{
+      NOVAS.forEach(k=>{
+        const m = por(k);
+        ["prop","ex"].forEach(c=>{
+          const a = vm.runInContext("substituirAlvoNoModelo(BIBLIOTECA_MEDIDAS.find(m=>m.k==="+JSON.stringify(k)+")."+c+", 'a correia')", cxL);
+          ok(a.indexOf("{alvo}") < 0, k+"."+c);
+          ok(a.indexOf(" em a ") < 0 && a.indexOf(" de a ") < 0, k+"."+c+" contracao: "+a);
+        });
+      });
+      eq(vm.runInContext("substituirAlvoNoModelo(BIBLIOTECA_MEDIDAS.find(m=>m.k==='transp_prot').prop, 'a esteira')", cxL).indexOf("da esteira") > 0, true);
+    });
+    t("a tabela da planilha para a IA ja sai com as medidas novas e a regra de uso", ()=>{
+      const tab = vm.runInContext("baseIATabelaMedidasTexto()", cxL);
+      ["Escada fixa tipo marinheiro","Manual de instruções em língua portuguesa","Inscrições e identificação dos comandos em português",
+       "Proteção dos pontos de esmagamento de transportador contínuo"].forEach(r=> ok(tab.indexOf("- " + r + ":") >= 0, "faltou linha: " + r));
+      ok(tab.indexOf("CITAÇÃO: conforme NR-12, Anexo III, itens 1.3 e 13; ABNT NBR ISO 14122-4; ABNT NBR ISO 12100.") > 0);
+    });
+    t("as instrucoes explicam como usar os dois guias, na ordem certa e sem afrouxar a regra da citacao", ()=>{
+      const iH = HTML.indexOf('"GUIAS DE NORMAS ANEXADOS AO PROJETO.');
+      ok(iH > 0);
+      const bloco = HTML.slice(iH, HTML.indexOf("\n", iH));
+      ["GUIA_NORMAS_RESUMO.md","GUIA_NORMAS_POR_ASSUNTO.md","Citação pronta","Variante","Usar quando","Quando NÃO usar e cuidados",
+       "o símbolo † que aparece nos guias é marca deles e NÃO entra na citação","itens de assuntos diferentes misturados",
+       "Se os guias NÃO estiverem anexados a esta conversa, ignore este bloco","S37","S35","S21"].forEach(x=> ok(bloco.indexOf(x) > 0, "faltou: " + x));
+      ok(bloco.indexOf("depois a TABELA; só então os guias") > 0, "prioridade");
+      ok(bloco.indexOf("a regra de não trazer medida numérica continua valendo") > 0);
     });
   }
 

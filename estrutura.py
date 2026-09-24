@@ -794,7 +794,7 @@ chk("o texto do conjunto junta frases e nao repete norma",
     and 'refs.join(" e na ")' in novo)
 chk("medidas que so existem como proposta ficam fora do que ja existe",
     novo.count("function medidasParaExistente(") == 1
-    and novo.count("soProposta:true") == 8)
+    and novo.count("soProposta:true") == 9)  # 24/09/2026: 8 -> 9 (rampa so existe como proposta)
 chk("a IA da Solucao recebe a proposta e o que existe como contexto",
     novo.count("function laudoEntradaSolucao(") == 1
     and novo.count('chamarIAResiliente("mitigacao_xlsx", laudoEntradaSolucao(') == 2
@@ -4690,8 +4690,9 @@ chk("sinalizacao: 12.2.9 e regra de precedencia entre normas, nao a exigencia �
     'nr:["12.12.1"], apoio:["NR-26"' in _bib)
 chk("capacitacao: 12.11.3 e sobre autorizacao para MANUTENCAO — corrigido para 12.16 (capacitacao)",
     'k:"capacitacao"' in _bib and 'nr:["12.16.1","12.16.8"]' in _bib)
+# 24/09/2026: o 12.11.2.1 (disponibilidade do registro de manutencao) saiu; entram 12.14.1 e 12.11.2
 chk("procedimento: 12.11.3 (bloqueio de energia) trocado por 12.14.1 (procedimento de trabalho)",
-    'k:"procedimento"' in _bib and 'nr:["12.11.2.1","12.14.1"]' in _bib)
+    'k:"procedimento"' in _bib and 'nr:["12.14.1","12.11.2"]' in _bib)
 chk("prot_fixa passa a citar tambem 12.5.4 (fixacao so removivel com ferramenta)",
     'k:"prot_fixa"' in _bib and 'nr:["12.5.4","12.5.9","12.5.11"]' in _bib)
 chk("cerca deixa de citar 12.5.9 (especifico de transmissao de forca)",
@@ -4711,8 +4712,9 @@ chk("NR-10 nao aparece mais em nenhuma medida",
 chk("ISO 12100 vira apoio na maioria das medidas (pelo menos 25 das 31)",
     _bib.count("ABNT NBR ISO 12100") >= 25)
 
-chk("a biblioteca continua com 31 medidas, nenhuma perdida na revisao",
-    _bib.count('{ k:"') == 31)
+# 24/09/2026: 31 -> 44 (13 medidas novas); nenhuma das 31 antigas foi removida
+chk("a biblioteca tem 44 medidas: as 31 da revisao mais as 13 novas de 24/09/2026",
+    _bib.count('{ k:"') == 44)
 
 print("=== 135. FUNÇÕES CLÁSSICAS DA IA HIBERNADAS NA TELA (11/09/2026) ===")
 # O fluxo virou planilha exportada -> respondida fora do app -> importada de
@@ -5214,7 +5216,7 @@ chk("a tabela de medidas e citacoes e gerada da biblioteca (nao copiada a mao) e
     and "const tab = baseIATabelaMedidasTexto();" in _corpoDe(novo, "basePlanilhaPromptAtual"))
 chk("as instrucoes admitem tabela e documento de normas, sempre reproduzindo (nunca de memoria)",
     "SEM MEDIDA MARCADA, MAS COM PROPOSTA EM CAMPO" in novo
-    and "DOCUMENTO DE NORMAS ANEXADO" in novo
+    and "GUIAS DE NORMAS ANEXADOS AO PROJETO" in novo  # 24/09/2026: era "DOCUMENTO DE NORMAS ANEXADO"
     and "Lembrar de um item de memória, por mais certo que pareça, não vale" in novo)
 chk("a mitigacao existente entra como diagnostico da Solucao",
     "A MITIGAÇÃO EXISTENTE É O DIAGNÓSTICO DA SOLUÇÃO" in novo and "é resposta rasa" in novo)
@@ -5226,6 +5228,24 @@ chk("as instrucoes abrem com o bloco obrigatorio contra script, modelo de frase 
     and "Resposta igual ao campo, ou igual ao campo com uma palavra a mais, significa que você NÃO trabalhou" in novo)
 chk("as instrucoes trazem o padrao minimo de qualidade com exemplos reais aprovados",
     "PADRÃO DE QUALIDADE — o mínimo esperado" in novo and "Abertura maior que 600 mm entre a calha de queda das espigas" in novo)
+
+
+print("\n=== 157. BIBLIOTECA: 13 MEDIDAS NOVAS E GUIAS DE NORMAS NAS INSTRUCOES (24/09/2026) ===")
+# Provas funcionais em t167. Aqui: a estrutura no arquivo entregue.
+_bib2 = novo[novo.index("const BIBLIOTECA_MEDIDAS = ["):novo.index("function medidaPorChave")]
+for _k in ["transp_prot","transp_desalinha","transp_passarela","escada_sem_espelho","escada_com_espelho",
+           "escada_marinheiro","plataforma","rampa","manual_pt","inscricoes_pt","arranjo_fisico","explosao","superficie_quente"]:
+    chk("medida nova presente uma vez: " + _k, _bib2.count('k:"%s"' % _k) == 1)
+chk("as medidas novas nao mexeram na regra de PLr: continuam so as 11 de comando com pl:true",
+    _bib2.count("pl:true") == 11)
+chk("grupo novo Riscos adicionais tem explosao e queimadura",
+    _bib2.count('g:"Riscos adicionais"') == 2)
+chk("as instrucoes explicam os dois guias (resumo e completo), a ordem e o que nao usar",
+    novo.count('"GUIAS DE NORMAS ANEXADOS AO PROJETO.') == 1
+    and "GUIA_NORMAS_RESUMO.md" in novo and "GUIA_NORMAS_POR_ASSUNTO.md" in novo
+    and "NÃO entra na citação" in novo)
+chk("o texto antigo do documento de normas saiu por inteiro (nada de duas fontes divergentes)",
+    "DOCUMENTO DE NORMAS ANEXADO" not in novo and "documento de normas anexado" not in novo)
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
