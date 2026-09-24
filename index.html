@@ -3181,7 +3181,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "24/09/2026 16:10";
+const APP_BUILD = "24/09/2026 16:16";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -17662,18 +17662,37 @@ function baseIALinha(ctx){
    tarefa ou risco cadastrado. O escopo dela e um campo do laudo como
    qualquer outro; deixa-la de fora obrigaria a preencher esses equipamentos
    a mao, um a um, justamente no projeto grande em que isso e inviavel. */
+/* Item que outro aparelho ja excluiu (lapide confirmada) mas que esta copia
+   ainda nao removeu — o freio de exclusao em massa pode ter segurado, ou a
+   sincronizacao ainda nao rodou. Vai sair sozinho na proxima sincronizacao,
+   entao nao pode seguir para a planilha da IA (24/09/2026). Mesma regra de
+   __lapidesRemoviveis: quem foi mexido depois da exclusao continua valendo. */
+function baseIAExcluidoPorLapide(tipo, item){
+  if(!item || !item.id) return false;
+  const ts = lapideDe(tipo + ":" + item.id);
+  return !!ts && !__subarvoreTocadaDepoisDe(tipo, item, ts);
+}
 function baseIAGruposParaExportar(){
   const ids = getAreasSelecionadasExport();
   const grupos = [];
+  /* O que ficou de fora e por que — a tela conta, para ninguem achar que a
+     planilha perdeu item. Projeto arquivado e so leitura: a volta recusaria
+     mesmo as respostas dele. */
+  const fora = { excluidos:0, arquivados:0 };
   (STATE.projetosSimples||[]).forEach(proj=>{
-    (proj.areas||[]).forEach(area=>{
-      if(ids.indexOf(area.id) < 0) return;
+    const areasMarcadas = (proj.areas||[]).filter(a=> ids.indexOf(a.id) >= 0);
+    if(areasMarcadas.length === 0) return;
+    if(projetoArquivado(proj.id)){ fora.arquivados++; return; }
+    if(baseIAExcluidoPorLapide("projeto", proj)){ fora.excluidos++; return; }
+    areasMarcadas.forEach(area=>{
+      if(baseIAExcluidoPorLapide("area", area)){ fora.excluidos++; return; }
       const linhas = [];
       (area.maquinas||[]).forEach(maquina=>{
-        const tarefas = maquina.tarefas || [];
+        if(baseIAExcluidoPorLapide("maquina", maquina)){ fora.excluidos++; return; }
+        const tarefas = (maquina.tarefas || []).filter(t=>{ if(baseIAExcluidoPorLapide("tarefa", t)){ fora.excluidos++; return false; } return true; });
         if(tarefas.length === 0){ linhas.push(baseIALinha({ proj:proj, area:area, maquina:maquina })); return; }
         tarefas.forEach(tarefa=>{
-          const riscos = tarefa.riscos || [];
+          const riscos = (tarefa.riscos || []).filter(r=>{ if(baseIAExcluidoPorLapide("risco", r)){ fora.excluidos++; return false; } return true; });
           if(riscos.length === 0){ linhas.push(baseIALinha({ proj:proj, area:area, maquina:maquina, tarefa:tarefa })); return; }
           riscos.forEach(risco=> linhas.push(baseIALinha({ proj:proj, area:area, maquina:maquina, tarefa:tarefa, risco:risco })));
         });
@@ -17681,6 +17700,7 @@ function baseIAGruposParaExportar(){
       if(linhas.length) grupos.push({ proj:proj, area:area, nomeAba:(area.nome || "Área"), linhas:linhas });
     });
   });
+  grupos.fora = fora;
   return grupos;
 }
 /* Nome de aba que o Excel aceita: ate 31 caracteres, sem : \ / ? * [ ], nunca
@@ -17815,9 +17835,12 @@ async function exportarBaseIAXlsx(){
   const bytes = gerarBytesBaseIAXlsx(grupos);
   const n = grupos.reduce((t,g)=> t + g.linhas.length, 0);
   const blob = new Blob([bytes], { type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const f = grupos.fora || {};
+  const extra = (f.excluidos ? " · " + f.excluidos + " item(ns) excluído(s) em outro aparelho ficaram de fora" : "")
+    + (f.arquivados ? " · " + f.arquivados + " projeto(s) arquivado(s) ficaram de fora" : "");
   await compartilharOuBaixarBlob(blob, baseIANomeArquivo(grupos),
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    n + " linha(s) em " + grupos.length + " aba(s)");
+    n + " linha(s) em " + grupos.length + " aba(s)" + extra);
 }
 /* A volta. So traduz e entrega — quem grava e importarTextosLaudo. */
 async function importarPlanilhaRespostasIA(file, opts){

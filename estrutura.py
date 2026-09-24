@@ -5295,5 +5295,15 @@ chk("existe a regra que permite regravar sugestao antiga corrompida, e ela nunca
     novo.count("function laudoSugComEntidadeCrua(g){") == 1
     and 'return !g.fin && (!g.st || g.st === "pend")' in novo)
 
+
+print("\n=== 162. BASE PARA A IA: SEM ITEM EXCLUIDO EM OUTRO APARELHO E SEM PROJETO ARQUIVADO (24/09/2026) ===")
+_g = _corpoDe(novo, "baseIAGruposParaExportar")
+chk("a exportacao pula o que tem lapide confirmada em todos os niveis, com a mesma regra da sincronizacao",
+    novo.count("function baseIAExcluidoPorLapide(") == 1
+    and "__subarvoreTocadaDepoisDe(tipo, item, ts)" in _corpoDe(novo, "baseIAExcluidoPorLapide")
+    and all(('baseIAExcluidoPorLapide("%s"' % n) in _g for n in ["projeto", "area", "maquina", "tarefa", "risco"]))
+chk("projeto arquivado nao entra na planilha (a volta o recusaria) e a contagem do que ficou de fora e devolvida",
+    "projetoArquivado(proj.id)" in _g and "grupos.fora = fora;" in _g)
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

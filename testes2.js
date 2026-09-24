@@ -13144,6 +13144,68 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  /* 24/09/2026: exportacao da base para a IA ignora item com lapide e projeto arquivado */
+  {
+    console.log("\n[t172] base para a IA: item excluido em outro aparelho e projeto arquivado ficam de fora");
+    const cxX = vm.createContext({ String, Object, Array, Date, JSON, Math });
+    ["__lapideFilhos","__subarvoreTocadaDepoisDe","baseIAExcluidoPorLapide","baseIAGruposParaExportar"].forEach(n=> vm.runInContext(funcao(n), cxX));
+    vm.runInContext(`
+      var __lapides = {}; var __arquivados = {}; var __ids = [];
+      var STATE = { projetosSimples: [] };
+      function lapideDe(c){ return __lapides[c] || 0; }
+      function projetoArquivado(id){ return !!__arquivados[id]; }
+      function getAreasSelecionadasExport(){ return __ids; }
+      function baseIALinha(x){ return { p:x.proj.id, a:x.area.id, m:x.maquina.id, t:x.tarefa?x.tarefa.id:"", r:x.risco?x.risco.id:"" }; }
+      function montar(){
+        return { id:"P", areas:[ { id:"A", nome:"Debulha", maquinas:[
+          { id:"M1", atualizadoEm:100, tarefas:[ { id:"T1", atualizadoEm:100, riscos:[ { id:"R1", atualizadoEm:100 }, { id:"R2", atualizadoEm:100 } ] } ] },
+          { id:"M2", atualizadoEm:100, tarefas:[ { id:"T2", atualizadoEm:100, riscos:[ { id:"R3", atualizadoEm:100 } ] } ] } ] } ] };
+      }
+    `, cxX);
+    const rodar = (setup)=>{
+      vm.runInContext("__lapides = {}; __arquivados = {}; __ids = ['A']; STATE.projetosSimples = [montar()];", cxX);
+      if(setup) vm.runInContext(setup, cxX);
+      const g = vm.runInContext("baseIAGruposParaExportar()", cxX);
+      return { linhas: g.length ? g[0].linhas.map(l=> l.r || (l.t ? "sem-risco:"+l.t : "sem-tarefa:"+l.m)) : [], fora: g.fora, grupos: g.length };
+    };
+    t("sem lapide nem arquivo, tudo entra como sempre", ()=>{
+      const r = rodar("");
+      eq(JSON.stringify(r.linhas), JSON.stringify(["R1","R2","R3"]));
+      eq(r.fora.excluidos, 0); eq(r.fora.arquivados, 0);
+    });
+    t("risco com lapide confirmada nao vai para a planilha, e a contagem diz quantos", ()=>{
+      const r = rodar("__lapides['risco:R2'] = Date.now() + 1000;");
+      eq(JSON.stringify(r.linhas), JSON.stringify(["R1","R3"]));
+      eq(r.fora.excluidos, 1);
+    });
+    t("equipamento excluido leva embora tudo o que tem dentro", ()=>{
+      const r = rodar("__lapides['maquina:M1'] = Date.now() + 1000;");
+      eq(JSON.stringify(r.linhas), JSON.stringify(["R3"]));
+      eq(r.fora.excluidos, 1);
+    });
+    t("se todos os riscos da tarefa foram excluidos, a tarefa continua com a sua linha", ()=>{
+      const r = rodar("__lapides['risco:R1'] = Date.now() + 1000; __lapides['risco:R2'] = Date.now() + 1000;");
+      eq(JSON.stringify(r.linhas), JSON.stringify(["sem-risco:T1","R3"]));
+      eq(r.fora.excluidos, 2);
+    });
+    t("item mexido DEPOIS da exclusao continua valendo (trabalho novo nunca perde para exclusao antiga)", ()=>{
+      const r = rodar("__lapides['risco:R2'] = 50;");
+      eq(JSON.stringify(r.linhas), JSON.stringify(["R1","R2","R3"]));
+      eq(r.fora.excluidos, 0);
+    });
+    t("area excluida ou projeto arquivado: nenhuma aba, e o aviso conta", ()=>{
+      let r = rodar("__lapides['area:A'] = Date.now() + 1000;");
+      eq(r.grupos, 0); eq(r.fora.excluidos, 1);
+      r = rodar("__arquivados['P'] = true;");
+      eq(r.grupos, 0); eq(r.fora.arquivados, 1);
+    });
+    t("a exportacao avisa o que ficou de fora", ()=>{
+      const f = funcao("exportarBaseIAXlsx");
+      ok(f.indexOf("item(ns) excluído(s) em outro aparelho ficaram de fora") > 0);
+      ok(f.indexOf("projeto(s) arquivado(s) ficaram de fora") > 0);
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

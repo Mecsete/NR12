@@ -64,6 +64,18 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 24/09/2026 16:16
+
+**Base para a IA: item já excluído em outro aparelho e projeto arquivado não vão mais para a planilha.**
+
+Um item excluído em outro aparelho fica registrado numa lápide, mas só some deste
+aparelho na próxima sincronização (ou quando o freio de exclusão em massa libera).
+Nesse intervalo ele ainda entrava na planilha da IA. Agora a exportação ignora o
+que tem lápide confirmada, com a mesma regra da sincronização (item mexido depois
+da exclusão continua valendo). Projeto arquivado também fica de fora, porque a
+volta recusaria as respostas dele. O aviso da exportação diz quantos itens e
+projetos ficaram de fora.
+
 ## 24/09/2026 16:10
 
 **Planilha respondida pela IA: acentos saíam como "&#225;" e só Escopo e Nome do risco entravam.**
