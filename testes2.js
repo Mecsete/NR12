@@ -12666,6 +12666,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       vm.runInContext(`
         var __cfgProm = { promptPlanilha:"", iaReavaliarAplicados:false };
         function getIAConfig(){ return __cfgProm; }
+        function baseIATabelaMedidasTexto(){ return ""; }
         const BASE_IA_PROMPT = "TEXTO PADRÃO DA PLANILHA";
         const BASE_IA_NOTA_REAVALIACAO = "NOTA DE REAVALIAÇÃO";
       `, cxProm);
@@ -12804,6 +12805,72 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
         const p = HTML.indexOf(m);
         ok(p > ini && p < fim, m + " ficou FORA do bloco removivel");
       });
+    });
+  }
+
+  /* ---------- t166: planilha para a IA — tabela de citacoes e mitigacao como diagnostico (23/09/2026)
+     Planilha real (Despalha 300 / Debulha / Selecao manual 100): das 155
+     linhas, as 37 com medida marcada citaram a norma; as 118 sem medida marcada
+     (proposta em texto livre) ficaram sem citacao, e ~129 Solucoes so
+     repetiram o texto de campo com "Recomenda-se" na frente. */
+  {
+    console.log("\n[t166] planilha para a IA: tabela de medidas conferidas e mitigacao como diagnostico");
+    const cxT = vm.createContext({ String, Object, Array });
+    vm.runInContext(constante("BIBLIOTECA_MEDIDAS"), cxT);
+    ["substituirAlvoNoModelo","medidaReferencia","baseIATabelaMedidasTexto"].forEach(n=> vm.runInContext(funcao(n), cxT));
+    const tab = vm.runInContext("baseIATabelaMedidasTexto()", cxT);
+    const lib = vm.runInContext("BIBLIOTECA_MEDIDAS", cxT);
+    const comNr = lib.filter(m=> m.nr && m.nr.length);
+
+    t("a tabela sai da biblioteca: uma linha por medida com norma, com a citacao completa", ()=>{
+      const linhas = tab.split("\n").filter(l=> l.indexOf("- ") === 0);
+      eq(linhas.length, comNr.length, "uma linha para cada medida com item de NR-12");
+      const prot = linhas.find(l=> l.indexOf("- Proteção fixa:") === 0);
+      ok(prot, "faltou a Proteção fixa");
+      ok(prot.indexOf("CITAÇÃO: conforme NR-12, item 12.5.4, item 12.5.9 e item 12.5.11; ABNT NBR ISO 14120; ABNT NBR ISO 12100.") > 0,
+         "a citacao precisa sair completa, NR-12 e normas tecnicas, na ordem da biblioteca");
+    });
+    t("nenhuma linha guarda o marcador {alvo} cru nem termina em ponto duplo", ()=>{
+      ok(tab.indexOf("{alvo}") < 0);
+      ok(tab.indexOf("..") < 0);
+      ok(tab.indexOf("em o equipamento") < 0 && tab.indexOf("de o equipamento") < 0, "as contracoes (no, do) precisam ser feitas");
+    });
+    t("a tabela traz a regra de uso junto (vale mesmo com instrucoes personalizadas)", ()=>{
+      ok(tab.indexOf("Você escolhe a linha, nunca o item") > 0);
+      ok(tab.indexOf("Outro tipo de proposta, duas linhas possíveis ou dúvida: sem citação") > 0);
+    });
+    t("as instrucoes exportadas anexam a tabela e mantem a nota de reavaliacao por ultimo", ()=>{
+      const f = funcao("basePlanilhaPromptAtual");
+      ok(f.indexOf("baseIATabelaMedidasTexto()") > 0);
+      ok(f.indexOf("comTabela + \"\\n\\n\" + BASE_IA_NOTA_REAVALIACAO") > 0, "a nota de reavaliacao vem depois da tabela");
+    });
+    const PROMPT = HTML.slice(HTML.indexOf("const BASE_IA_PROMPT = ["), HTML.indexOf("const BASE_IA_ABA_INSTRUCOES"));
+    const sol = PROMPT.slice(PROMPT.indexOf('"RESPOSTA - Solução'));
+    t("Solucao: sem medida marcada usa a tabela, escolhendo a LINHA e nunca o item", ()=>{
+      ok(sol.indexOf("SEM MEDIDA MARCADA, MAS COM PROPOSTA EM CAMPO — USE A TABELA") > 0);
+      ok(sol.indexOf("Você escolhe a LINHA da tabela — nunca o item de norma") > 0);
+      ok(sol.indexOf("Nunca misture itens de linhas diferentes") > 0);
+      ok(sol.indexOf("NÃO cite") > 0, "dúvida tem de cair em sem citação");
+    });
+    t("documento de normas anexado vale com quatro condicoes e sem memoria", ()=>{
+      ok(sol.indexOf("DOCUMENTO DE NORMAS ANEXADO") > 0);
+      ok(sol.indexOf("o número do item é copiado do jeito que está escrito lá") > 0);
+      ok(sol.indexOf("Lembrar de um item de memória, por mais certo que pareça, não vale") > 0);
+    });
+    t("a mitigacao existente e o diagnostico da solucao, e eco com 'Recomenda-se' e resposta rasa", ()=>{
+      ok(sol.indexOf("A MITIGAÇÃO EXISTENTE É O DIAGNÓSTICO DA SOLUÇÃO") > 0);
+      ok(sol.indexOf("o que já existe; (2) por que, como está, ela não elimina a exposição") > 0);
+      ok(sol.indexOf("é resposta rasa") > 0);
+      ok(sol.indexOf('conta como \\"Atende em parte\\" ou \\"Não atende\\" mesmo com a coluna Situação vazia') > 0);
+    });
+    t("a regra 3 passa a admitir a tabela e o documento, sem afrouxar o resto", ()=>{
+      ok(PROMPT.indexOf("Nunca INVENTAR citação de norma") > 0);
+      ok(PROMPT.indexOf("TABELA DE MEDIDAS E CITAÇÕES CONFERIDAS (no fim destas instruções) e, se existir, o documento de normas anexado") > 0);
+      ok(PROMPT.indexOf("Medida numérica tirada de norma (distância, abertura, altura) continua proibida em qualquer caso") > 0);
+    });
+    t("a conferencia final cobra a mitigacao e a tabela", ()=>{
+      ok(PROMPT.indexOf("9. Nas linhas com mitigação existente, a Solução aponta o defeito específico") > 0);
+      ok(PROMPT.indexOf("10. Toda Solução cuja proposta é do mesmo tipo de uma medida da tabela") > 0);
     });
   }
 

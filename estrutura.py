@@ -4549,7 +4549,7 @@ chk("a solucao cita a norma, mas so reproduzindo a citacao da biblioteca",
 # vira a terceira.
 chk("citacao escrita a mao na propria Solucao Editavel tambem e preservada",
     'da própria \\"Solução Editável\\" quando o inspetor já escreveu a citação nela' in novo
-    and "Sem nenhuma dessas três fontes, o texto não cita norma alguma" in novo)
+    and "Sem nenhuma fonte, o texto não cita norma alguma" in novo)  # 23/09/2026: ganhou tabela de medidas e documento anexado como fontes
 chk("a regra da Solucao (paragrafo especifico) tambem aceita citar da Solucao Editavel",
     'olhe a própria \\"Solução Editável\\": se ela já trouxer uma citação escrita à mão pelo inspetor' in novo
     and 'Só quando NENHUMA das três colunas' in novo)
@@ -4776,7 +4776,7 @@ chk("reavaliados conta separado de aplicados, nos dois formatos de resultado",
 # app nao teria efeito nenhum na pratica.
 chk("a planilha exportada avisa a IA quando o modo reavaliacao esta ligado",
     "MODO REAVALIAÇÃO ATIVADO NESTA EXPORTAÇÃO" in novo
-    and "return getIAConfig().iaReavaliarAplicados ? (base + \"\\n\\n\" + BASE_IA_NOTA_REAVALIACAO) : base;" in novo)
+    and "return getIAConfig().iaReavaliarAplicados ? (comTabela + \"\\n\\n\" + BASE_IA_NOTA_REAVALIACAO) : comTabela;" in novo)  # 23/09/2026: a tabela de medidas entra antes da nota
 chk("o toggle existe na tela, e o texto muda conforme o estado",
     'onchange="App.toggleIAReavaliarAplicados()"' in novo
     and "Permitir que a IA reavalie itens já aplicados" in novo)
@@ -5204,6 +5204,20 @@ chk("as instrucoes mandam deixar RESPOSTA - Solucao em branco quando nao ha prop
     "SEM PROPOSTA EM CAMPO:" in novo and 'Nunca escreva \\"Não há solução registrada\\"' in novo)
 chk("a conferencia final admite a Solucao em branco nesse caso",
     "Exceção: " in novo and "fica em branco quando não há proposta em campo" in novo)
+
+print("\n=== 155. PLANILHA PARA A IA: TABELA DE CITACOES E MITIGACAO COMO DIAGNOSTICO (23/09/2026) ===")
+# Planilha real: 118 de 155 linhas sem citacao (proposta em texto livre, sem medida
+# marcada) e ~129 Solucoes que so repetiam o texto de campo. Provas em t166.
+chk("a tabela de medidas e citacoes e gerada da biblioteca (nao copiada a mao) e anexada as instrucoes",
+    "function baseIATabelaMedidasTexto()" in novo
+    and "BIBLIOTECA_MEDIDAS.filter(m=> m.nr && m.nr.length)" in novo
+    and "const tab = baseIATabelaMedidasTexto();" in _corpoDe(novo, "basePlanilhaPromptAtual"))
+chk("as instrucoes admitem tabela e documento de normas, sempre reproduzindo (nunca de memoria)",
+    "SEM MEDIDA MARCADA, MAS COM PROPOSTA EM CAMPO" in novo
+    and "DOCUMENTO DE NORMAS ANEXADO" in novo
+    and "Lembrar de um item de memória, por mais certo que pareça, não vale" in novo)
+chk("a mitigacao existente entra como diagnostico da Solucao",
+    "A MITIGAÇÃO EXISTENTE É O DIAGNÓSTICO DA SOLUÇÃO" in novo and "é resposta rasa" in novo)
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

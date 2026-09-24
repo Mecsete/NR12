@@ -3181,7 +3181,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "23/09/2026 19:06";
+const APP_BUILD = "23/09/2026 22:13";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -17168,7 +17168,7 @@ const BASE_IA_PROMPT = [
 "O QUE NUNCA FAZER",
 "1. Nunca inventar dado. Se a linha não diz a altura, a potência, a dimensão ou o modo de operar, isso não entra no texto.",
 "2. Nunca escrever que um dado falta. Não existe coluna de dúvida nesta planilha: escreva de forma afirmativa e técnica apenas o que a linha sustenta, e pare aí. Frases como \"não foi registrada a altura, devendo ser confirmada\" não podem ir para um laudo assinado.",
-"3. Nunca INVENTAR citação de norma. Você não escolhe item de norma e não deduz item nenhum a partir do tipo de proteção nem de memória. A citação que aparece no texto é SEMPRE reproduzida de onde já veio pronta: da coluna \"Sugestão Solução\", da coluna \"Descrição da Mitigação Existente\", ou da própria \"Solução Editável\" quando o inspetor já escreveu a citação nela — nesses casos, sempre palavra por palavra. Sem nenhuma dessas três fontes, o texto não cita norma alguma. Medida numérica tirada de norma (distância, abertura, altura) continua proibida em qualquer caso.",
+"3. Nunca INVENTAR citação de norma. Você não escolhe item de norma e não deduz item nenhum a partir do tipo de proteção nem de memória. A citação que aparece no texto é SEMPRE reproduzida de onde já veio pronta: da coluna \"Sugestão Solução\", da coluna \"Descrição da Mitigação Existente\", ou da própria \"Solução Editável\" quando o inspetor já escreveu a citação nela — nesses casos, sempre palavra por palavra. Há mais duas fontes permitidas, descritas na Solução: a TABELA DE MEDIDAS E CITAÇÕES CONFERIDAS (no fim destas instruções) e, se existir, o documento de normas anexado. Sem nenhuma fonte, o texto não cita norma alguma. Medida numérica tirada de norma (distância, abertura, altura) continua proibida em qualquer caso.",
 "4. Nunca mudar a intenção técnica do que foi proposto em campo. Você reescreve a redação, não a decisão de engenharia: se o inspetor escreveu \"aumentar a plataforma 40 cm para a esquerda\", continua sendo 40 cm à esquerda.",
 "5. Nunca deixar em branco uma célula de resposta que a linha permitia escrever.",
 "6. Nunca citar no texto os números da avaliação: HRN, Probabilidade, Grau do dano e Nível de risco não entram em frase nenhuma. Eles já saem no laudo, na tabela própria, e repeti-los em texto cria duas versões do mesmo julgamento.",
@@ -17241,8 +17241,11 @@ const BASE_IA_PROMPT = [
 "— Situação \"Atende\", e ainda assim há proposta em campo: a proposta é melhoria, não correção — \"Já há, no equipamento, [o que existe]. Como melhoria, recomenda-se [proposta].\"",
 "— Sem mitigação existente (\"Situação da mitigação existente\" vazia): recomende a proposta direto, em linguagem técnica e português correto.",
 "Quando o que existe for frase livre do inspetor (por exemplo \"existe a tampa, mas está desparafusada\"), use \"Constatado em campo: ...\" para a frase não ficar duplicada.",
+"A MITIGAÇÃO EXISTENTE É O DIAGNÓSTICO DA SOLUÇÃO. Muitas vezes ela diz que a proteção EXISTE e, na mesma frase, o que está errado com ela (vão grande, solta, desparafusada, curta, incompleta, danificada, sem intertravamento, sem cobertura até o chão). É esse defeito que mantém o risco, e a Solução tem de responder a ELE. Antes de escrever, leia \"Descrição da Mitigação Existente\", \"Medidas existentes marcadas\", \"Situação da mitigação existente\" e \"O que falta na mitigação existente\", localize o defeito específico e monte a Solução em três movimentos: (1) o que já existe; (2) por que, como está, ela não elimina a exposição — só o que o texto de campo disser, sem inventar causa; (3) o que fazer, que é a proposta de campo reescrita, amarrada àquele defeito. Descrição que menciona existência E problema conta como \"Atende em parte\" ou \"Não atende\" mesmo com a coluna Situação vazia, e nesse caso o problema entra pela fórmula \"Constatado em campo: ...\". Solução que só acrescenta \"Recomenda-se\" na frente do texto de campo, ignorando o que a mitigação existente diz, é resposta rasa: só é aceitável quando NÃO há mitigação existente nem qualquer contexto além da própria proposta.",
 "A [proposta] é a \"Solução Editável\" reescrita em linguagem de laudo, sem mudar a intenção técnica.",
 "SEM PROPOSTA EM CAMPO: quando a \"Solução Editável\" E a \"Sugestão Solução\" estiverem vazias, o inspetor não propôs nada — e você não inventa proposta. Deixe a célula \"RESPOSTA - Solução\" EM BRANCO. Nunca escreva \"Não há solução registrada\" nem qualquer frase que diga que falta informação: célula em branco é \"sem resposta\", e o aplicativo mantém o que já existe. A descrição escrita na Mitigação Existente NÃO é proposta: não a transforme em solução.",
+"SEM MEDIDA MARCADA, MAS COM PROPOSTA EM CAMPO — USE A TABELA. Quando \"Sugestão Solução\" estiver vazia e a \"Solução Editável\" trouxer proposta, confira a TABELA DE MEDIDAS E CITAÇÕES CONFERIDAS (no fim destas instruções). Se a proposta de campo for, sem margem de dúvida, do MESMO TIPO de uma das medidas da tabela (o tipo da medida, não uma palavra parecida), feche a Solução com a citação daquela linha, reproduzida palavra por palavra e completa (NR-12 e as normas técnicas dela, na mesma ordem). Você escolhe a LINHA da tabela — nunca o item de norma. Se duas linhas servem, se a proposta for de outro tipo (reparo de peça, troca, limpeza, borracha ou amortecimento, informação escrita em português, ajuste de tamanho) ou se houver dúvida, NÃO cite. Nunca misture itens de linhas diferentes.",
+"DOCUMENTO DE NORMAS ANEXADO. Se houver, junto desta conversa, um documento com o texto das normas (por exemplo um arquivo .md), ele também é fonte de citação, com quatro condições: (1) você localiza no documento o item que trata EXATAMENTE da medida proposta; (2) o número do item é copiado do jeito que está escrito lá; (3) a norma é a que o próprio documento traz; (4) sem localizar, ou com dúvida, não cita. Lembrar de um item de memória, por mais certo que pareça, não vale — só o que você consegue apontar no documento. Vale para qualquer proposta, inclusive as que não têm linha na tabela.",
 "A coluna \"Medida proposta marcada\" diz que tipo de proteção o inspetor escolheu no checklist. Ela manda no TIPO da medida: com proteção móvel intertravada marcada, a solução não pode propor proteção fixa. O texto de campo é o conteúdo; a medida marcada é a natureza dela.",
 "A coluna \"Sugestão Solução\" traz a frase que o aplicativo monta a partir da medida marcada no checklist, e ela termina com a referência normativa já conferida — por exemplo \"..., conforme NR-12, item 12.5.9 e item 12.5.11; ABNT NBR ISO 14120.\". Use essa frase para dar forma técnica ao que foi proposto em campo e TERMINE A SOLUÇÃO COM A CITAÇÃO DELA, reproduzida exatamente como está. Praticamente toda solução deve fechar com o item da norma.",
 "Quando essa citação trouxer mais de uma norma — NR-12 e uma ou mais ABNT/ISO, como no exemplo acima —, a Solução termina com TODAS elas, na mesma ordem, palavra por palavra. Cortar para citar só a NR-12 e descartar as ABNT/ISO é o mesmo erro que inventar uma citação: deixa o embasamento normativo incompleto.",
@@ -17255,9 +17258,11 @@ const BASE_IA_PROMPT = [
 "3. Toda célula de resposta que a linha permitia escrever está preenchida? (Exceção: \"RESPOSTA - Solução\" fica em branco quando não há proposta em campo, como explicado acima.)",
 "4. Nenhum texto afirma dado que não está na planilha?",
 "5. Onde repeti texto, a descrição de campo era mesmo idêntica?",
-"6. Nenhum texto menciona a ausência de informação? Toda citação de norma que aparece foi reproduzida de uma coluna da planilha, sem nenhum item escolhido por você?",
+"6. Nenhum texto menciona a ausência de informação? Toda citação de norma que aparece foi reproduzida de uma coluna da planilha, da tabela de medidas ou do documento de normas anexado, sem nenhum item escolhido por você de memória?",
 "7. Nenhum texto cita HRN, Probabilidade, Grau do dano ou Nível de risco?",
 "8. Nenhum escopo cita TAG, código de ativo ou número de série?",
+"9. Nas linhas com mitigação existente, a Solução aponta o defeito específico da medida existente e responde a ele, em vez de só repetir a proposta de campo?",
+"10. Toda Solução cuja proposta é do mesmo tipo de uma medida da tabela (ou do documento de normas) fecha com a citação correspondente?",
 "Se alguma linha não pôde ser respondida, liste-a na sua resposta do chat, FORA da planilha, dizendo o que faltou.",
 ].join("\n");
 const BASE_IA_ABA_INSTRUCOES = "COMO PREENCHER";
@@ -17280,10 +17285,26 @@ const BASE_IA_NOTA_REAVALIACAO =
    Texto vazio cai no padrao de proposito: uma planilha sair com a aba de
    instrucoes em branco (por um apagao acidental no campo) e pior do que sair
    com a instrucao de fabrica. */
+/* TABELA DE MEDIDAS E CITACOES CONFERIDAS: montada da BIBLIOTECA_MEDIDAS em
+   cada exportacao (nunca copiada a mao), para a IA reproduzir a citacao da
+   linha certa em vez de citar de memoria. Sai tambem com instrucao propria,
+   para valer mesmo quando o engenheiro personalizou o texto das instrucoes. */
+function baseIATabelaMedidasTexto(){
+  const linhas = BIBLIOTECA_MEDIDAS.filter(m=> m.nr && m.nr.length).map(m=>{
+    const prop = String(substituirAlvoNoModelo(m.prop, "o equipamento") || "").replace(/[.\s]+$/, "");
+    return "- " + m.rot + ": " + prop + ". CITAÇÃO: conforme " + medidaReferencia(m) + ".";
+  });
+  return [
+    "TABELA DE MEDIDAS E CITAÇÕES CONFERIDAS (gerada pelo aplicativo — citações verificadas pelo engenheiro)",
+    "Uso: só quando \"Sugestão Solução\" estiver vazia e a proposta de campo for, sem dúvida, do MESMO TIPO de uma linha abaixo. Feche a Solução com a CITAÇÃO daquela linha, palavra por palavra e completa. Você escolhe a linha, nunca o item. Outro tipo de proposta, duas linhas possíveis ou dúvida: sem citação.",
+  ].concat(linhas).join("\n");
+}
 function basePlanilhaPromptAtual(){
   const v = String(getIAConfig().promptPlanilha || "").trim();
   const base = v || BASE_IA_PROMPT;
-  return getIAConfig().iaReavaliarAplicados ? (base + "\n\n" + BASE_IA_NOTA_REAVALIACAO) : base;
+  const tab = baseIATabelaMedidasTexto();
+  const comTabela = tab ? (base + "\n\n" + tab) : base;
+  return getIAConfig().iaReavaliarAplicados ? (comTabela + "\n\n" + BASE_IA_NOTA_REAVALIACAO) : comTabela;
 }
 /* Cada texto tem UM dono, e nao e sempre o risco: escopo e do equipamento e
    tarefa e da tarefa. E por isso que a mesma maquina aparece em varias linhas

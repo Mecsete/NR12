@@ -64,6 +64,23 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 23/09/2026 22:13
+
+**Planilha para a IA: Solução mais funda e com citação de norma.**
+
+- A planilha exportada agora leva, no fim das instruções, uma **tabela de
+  medidas e citações conferidas**, montada da biblioteca de medidas do app.
+  Quando o inspetor escreveu a proposta em texto livre e não marcou a medida,
+  a IA pode fechar a Solução com a citação da linha da tabela que for do mesmo
+  tipo da proposta (ela escolhe a linha, nunca o item). Dúvida: sem citação.
+- Se a IA tiver um documento de normas anexado, ele também vale como fonte,
+  com regras estritas: localizar o item no documento, copiar o número como está
+  escrito, nada de memória.
+- A Mitigação Existente passou a ser tratada como diagnóstico da Solução: a IA
+  identifica o defeito da medida existente (vão, desparafusada, incompleta...)
+  e a Solução responde a ele, em vez de só pôr "Recomenda-se" na frente do
+  texto de campo. A conferência final ganhou dois itens sobre isso.
+
 ## 23/09/2026 19:06
 
 **Planilha para a IA: instrução nova para o caso "sem proposta em campo".**
