@@ -13087,6 +13087,63 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  /* 24/09/2026: planilha respondida com referencias numericas de caractere (&#225;) */
+  {
+    console.log("\n[t171] planilha respondida: referencias numericas de caractere (&#225;) e titulos de coluna");
+    const cxE = vm.createContext({ String, Object, Array, Number, JSON, Math, parseInt });
+    vm.runInContext(constante("BASE_IA_COLUNAS"), cxE);
+    vm.runInContext('const BASE_IA_NIVEL = { escopo:"maquina", tarefa:"tarefa", nome:"risco", risco:"risco", existente:"risco", solucao:"risco" };', cxE);
+    ["baseIADesescapar","baseIATextosDe","baseIALerCelulas","baseIANormalizarCabecalho","baseIARespostasDaAba","laudoSugComEntidadeCrua"].forEach(n=> vm.runInContext(funcao(n), cxE));
+    const D = x => cxE.baseIADesescapar(x);
+    t("decodifica decimal, hexadecimal e o que ja decodificava", ()=>{
+      eq(D("m&#225;quina &#233; &#231;&#227;o"), "máquina é ção");
+      eq(D("m&#xE1;quina &#xe9;"), "máquina é");
+      eq(D("a &lt;b&gt; &amp; &quot;c&quot;"), 'a <b> & "c"');
+      eq(D("linha&#10;seguinte"), "linha\nseguinte");
+      eq(D(null), "");
+    });
+    t("texto escapado duas vezes tambem sai certo, e codigo invalido some sem quebrar", ()=>{
+      eq(D("m&amp;#225;quina"), "máquina");
+      eq(D("x&#0;y&#55296;z&#99999999;w"), "xyzw");
+      eq(D("AT&amp;T"), "AT&T");
+    });
+    t("os titulos das colunas em referencia numerica sao reconhecidos (era o que fazia sumir 4 das 6 respostas)", ()=>{
+      const celula = (ref, txt) => '<c r="'+ref+'" t="inlineStr"><is><t>'+txt+'</t></is></c>';
+      const xml = '<sheetData>'
+        + '<row r="1">' + celula("A1","ID_Risco") + celula("B1","ID_Tarefa") + celula("C1","ID_Maquina")
+        + celula("D1","RESPOSTA - Escopo do equipamento") + celula("E1","RESPOSTA - Descri&#231;&#227;o da tarefa")
+        + celula("F1","RESPOSTA - Nome do risco") + celula("G1","RESPOSTA - Descri&#231;&#227;o do risco")
+        + celula("H1","RESPOSTA - Mitiga&#231;&#227;o existente") + celula("I1","RESPOSTA - Solu&#231;&#227;o") + '</row>'
+        + '<row r="2">' + celula("A2","r1") + celula("B2","t1") + celula("C2","m1")
+        + celula("D2","M&#225;quina de ensaque") + celula("E2","Tarefa de reabastecimento")
+        + celula("F2","Agarramento da m&#227;o") + celula("G2","Risco de agarramento na regulagem")
+        + celula("H2","Existe prote&#231;&#227;o m&#243;vel") + celula("I2","Adequar a prote&#231;&#227;o") + '</row></sheetData>';
+      const r = cxE.baseIARespostasDaAba(cxE.baseIALerCelulas(xml, []));
+      const por = {}; r.entradas.forEach(e=> por[e.campo] = e.texto);
+      eq(r.entradas.length, 6, "os seis campos precisam entrar: " + JSON.stringify(por));
+      eq(por.escopo, "Máquina de ensaque");
+      eq(por.nome, "Agarramento da mão");
+      eq(por.existente, "Existe proteção móvel");
+      eq(por.solucao, "Adequar a proteção");
+      ok(r.entradas.every(e=> !/&#/.test(e.texto)), "nenhum texto com entidade crua");
+    });
+    t("sugestao antiga gravada com entidade crua, sem decisao, pode ser regravada; a decidida nunca", ()=>{
+      const F = cxE.laudoSugComEntidadeCrua;
+      eq(F({ sug:"m&#225;quina", fin:"", st:"" }), true);
+      eq(F({ sug:"m&#225;quina", fin:"", st:"pend" }), true);
+      eq(F({ sug:"m&#xE1;quina", fin:"", st:"pend" }), true);
+      eq(F({ sug:"m&#225;quina", fin:"texto aplicado", st:"ok" }), false);
+      eq(F({ sug:"m&#225;quina", fin:"", st:"ok" }), false);
+      eq(F({ sug:"m&#225;quina", fin:"", st:"no" }), false);
+      eq(F({ sug:"máquina", fin:"", st:"pend" }), false);
+      eq(F({ sug:"", fin:"", st:"" }), false);
+    });
+    t("a importacao usa essa regra so para decidir se o campo conta como ja tendo algo", ()=>{
+      ok(HTML.indexOf("const jaTinhaAlgo = !!(g.sug || g.fin || g.st) && !laudoSugComEntidadeCrua(g);") > 0);
+      ok(HTML.indexOf('if(g.st === "no"){ res.pulados++; return; }') > 0, "recusado continua intocavel");
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

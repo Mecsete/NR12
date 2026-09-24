@@ -3181,7 +3181,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "24/09/2026 13:58";
+const APP_BUILD = "24/09/2026 16:10";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -17073,6 +17073,13 @@ function laudoGet(item, campo){
    ========================================================================= */
 const LAUDO_CAMPOS_IMPORTAVEIS = ["escopo", "tarefa", "nome", "risco", "existente", "solucao"];
 const LAUDO_TEXTOS_FORMATO = "apr-textos-laudo-v1";
+/* Sugestao que ja entrou no app com entidade crua ("m&#225;quina", defeito do
+   leitor de planilha corrigido em 24/09/2026), ainda sem decisao e sem texto
+   aplicado: pode ser regravada pela importacao sem o interruptor de
+   reavaliacao, porque nao ha nada de bom a proteger. */
+function laudoSugComEntidadeCrua(g){
+  return !g.fin && (!g.st || g.st === "pend") && /&#(?:\d+|x[0-9a-fA-F]+);/.test(String(g.sug||""));
+}
 function importarTextosLaudo(pacote, opts){
   if(!pacote || typeof pacote !== "object") return null;
   if(pacote.formato !== LAUDO_TEXTOS_FORMATO || !Array.isArray(pacote.textos)) return null;
@@ -17110,7 +17117,7 @@ function importarTextosLaudo(pacote, opts){
     /* Recusado é decisão explícita EM SENTIDO CONTRÁRIO ao que a IA propõe —
        o modo reavaliação não mexe aqui, com ou sem o interruptor ligado. */
     if(g.st === "no"){ res.pulados++; return; }
-    const jaTinhaAlgo = !!(g.sug || g.fin || g.st);
+    const jaTinhaAlgo = !!(g.sug || g.fin || g.st) && !laudoSugComEntidadeCrua(g);
     if(jaTinhaAlgo && !reavaliar){ res.pulados++; return; }  // regra de sempre: não mexe no que já tem decisão
     /* NUNCA escreve em "fin": o que já está aplicado continua sendo o que
        vai para o laudo até a pessoa, na tela de Revisão, decidir usar a
@@ -17417,9 +17424,23 @@ function baseIANormalizarCabecalho(v){
   return String(v==null?"":v).normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .replace(/[\u2010-\u2015]/g, "-").replace(/\s+/g, " ").trim().toLowerCase();
 }
+/* Referencia numerica de caractere (&#225; ou &#xE1;) e XML valido e comum:
+   a IA que devolve a planilha grava assim todo texto com acento. Sem decodificar,
+   o texto entrava no app cru ("m&#225;quina") E os proprios titulos das colunas
+   ("Descri&#231;&#227;o da tarefa") deixavam de ser reconhecidos — por isso so
+   Escopo e Nome do risco eram lidos e o resto da planilha sumia (24/09/2026).
+   Roda de novo depois do &amp; para pegar texto escapado duas vezes
+   ("&amp;#225;"). */
 function baseIADesescapar(v){
-  return String(v==null?"":v).replace(/&lt;/g,"<").replace(/&gt;/g,">")
-    .replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&#10;/g,"\n").replace(/&amp;/g,"&");
+  /* funcao interna: este arquivo e extraido por partes nos testes, entao a
+     funcao nao pode depender de outra funcao solta */
+  const num = (t)=> t.replace(/&#(?:x([0-9a-fA-F]+)|(\d+));/g, (bruto, hex, dec)=>{
+    const n = hex ? parseInt(hex, 16) : parseInt(dec, 10);
+    return (n >= 32 || n === 9 || n === 10 || n === 13) && n <= 0x10FFFF && !(n >= 0xD800 && n <= 0xDFFF)
+      ? String.fromCodePoint(n) : "";
+  });
+  return num(num(String(v==null?"":v).replace(/&lt;/g,"<").replace(/&gt;/g,">")
+    .replace(/&quot;/g,'"').replace(/&apos;/g,"'")).replace(/&amp;/g,"&"));
 }
 /* Junta os pedacos de texto de uma celula. O Excel quebra uma frase em varios
    <t> quando ela tem formatacao no meio; ler so o primeiro truncaria o texto

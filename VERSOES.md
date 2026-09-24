@@ -64,6 +64,19 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 24/09/2026 16:10
+
+**Planilha respondida pela IA: acentos saíam como "&#225;" e só Escopo e Nome do risco entravam.**
+
+A IA gravou a planilha com referências numéricas de caractere (&#225; para á),
+que é XML válido. O leitor do app não as decodificava: o texto entrava cru e,
+pior, os títulos das colunas ("Descri&#231;&#227;o da tarefa") não eram
+reconhecidos, então Descrição da tarefa, Descrição do risco, Mitigação existente
+e Solução eram descartadas em silêncio. Agora o leitor decodifica referências
+decimais e hexadecimais (também as escapadas duas vezes). Sugestões que já
+tinham entrado com o defeito, ainda sem decisão, são regravadas ao importar de
+novo a mesma planilha, mesmo com a reavaliação desligada.
+
 ## 24/09/2026 13:58
 
 **Base para a IA: arquivo com o nome da área e interruptor de reavaliação ao lado do botão.**

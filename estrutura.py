@@ -2103,7 +2103,7 @@ chk("existe a funcao de importacao, com formato proprio e campos declarados",
 chk("o texto entra como SUGESTAO a decidir, nunca como decisao tomada",
     'laudoSet(item, campo, { sug: texto, st: "pend", duv: String((linha && linha.duvida) || "").trim() });' in novo)
 chk("por padrao, campo que ja tem texto ou decisao NAO e tocado",
-    "const jaTinhaAlgo = !!(g.sug || g.fin || g.st);" in novo
+    "const jaTinhaAlgo = !!(g.sug || g.fin || g.st) && !laudoSugComEntidadeCrua(g);" in novo  # 24/09/2026: sugestao com entidade crua e sem decisao pode ser regravada
     and "if(jaTinhaAlgo && !reavaliar){ res.pulados++; return; }" in novo)
 chk("recusado NUNCA e reavaliado, ligado ou nao o interruptor",
     'if(g.st === "no"){ res.pulados++; return; }' in novo)
@@ -5283,6 +5283,17 @@ _i = novo.index('onclick="App.exportarBaseIA()"')
 chk("o interruptor de reavaliacao vem na mesma linha do botao Exportar base, e existe um so",
     0 < novo.index('onchange="App.toggleIAReavaliarAplicados()"') - _i < 900
     and novo.count('onchange="App.toggleIAReavaliarAplicados()"') == 1)
+
+
+print("\n=== 161. PLANILHA RESPONDIDA: REFERENCIAS NUMERICAS DE CARACTERE (24/09/2026) ===")
+_d = _corpoDe(novo, "baseIADesescapar")
+chk("o leitor decodifica &#NNN; e &#xHH; (decimal e hexadecimal), antes e depois do &amp;",
+    "String.fromCodePoint(n)" in _d and "x([0-9a-fA-F]+)|(\\d+)" in _d and _d.count("num(") >= 2)
+chk("o decodificador e autocontido (o arquivo e extraido por partes nos testes)",
+    "baseIADesescaparNumericos" not in novo)
+chk("existe a regra que permite regravar sugestao antiga corrompida, e ela nunca vale para aplicado ou recusado",
+    novo.count("function laudoSugComEntidadeCrua(g){") == 1
+    and 'return !g.fin && (!g.st || g.st === "pend")' in novo)
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
