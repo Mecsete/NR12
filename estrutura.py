@@ -5205,7 +5205,7 @@ print("\n=== 154. PLANILHA PARA A IA: SEM PROPOSTA EM CAMPO (23/09/2026) ===")
 chk("as instrucoes mandam deixar RESPOSTA - Solucao em branco quando nao ha proposta em campo",
     "SEM PROPOSTA EM CAMPO:" in novo and 'Nunca escreva \\"Não há solução registrada\\"' in novo)
 chk("a conferencia final admite a Solucao em branco nesse caso",
-    "Exceção: " in novo and "fica em branco quando não há proposta em campo" in novo)
+    ("Exceção: " in novo or "Exceções: " in novo) and "fica em branco quando não há proposta em campo" in novo)  # 24/09/2026: agora tambem Escopo/Tarefa repetidos
 
 print("\n=== 155. PLANILHA PARA A IA: TABELA DE CITACOES E MITIGACAO COMO DIAGNOSTICO (23/09/2026) ===")
 # Planilha real: 118 de 155 linhas sem citacao (proposta em texto livre, sem medida
@@ -5328,6 +5328,16 @@ chk("a leitura so confere a Solucao, avisa pela Duvida da IA e o resumo da impor
     and "entrada.citacaoNaoConferida = true" in novo
     and "resumo.citacoesNaoConferidas++" in novo
     and "com citação de norma NÃO conferida" in novo)
+
+
+print("\n=== 165. PLANILHA PARA A IA: ESCOPO E TAREFA SO NA PRIMEIRA LINHA (24/09/2026) ===")
+chk("coluna de leitura 'Escopo e tarefa nesta linha' antes das respostas, marcador chamado ao gerar cada aba",
+    novo.count('{ h:"Escopo e tarefa nesta linha", larg:34 },') == 1
+    and novo.index('{ h:"Escopo e tarefa nesta linha"') < novo.index('{ h:"RESPOSTA - Escopo do equipamento"')
+    and "baseIAMarcarRepeticoes(g.linhas);" in novo)
+chk("as instrucoes mandam responder so na primeira linha e deixam a planilha antiga com a repeticao",
+    "Escreva o Escopo UMA vez, na PRIMEIRA linha dele" in novo and "escreva a Descrição da tarefa UMA vez, na primeira linha dela" in novo
+    and "Coluna ausente ou vazia (planilha antiga): repita o mesmo texto em todas as linhas dele" in novo)
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

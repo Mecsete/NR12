@@ -13293,6 +13293,49 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  /* 24/09/2026: Escopo e Tarefa so na primeira linha de cada equipamento/tarefa */
+  {
+    console.log("\n[t175] planilha para a IA: coluna que marca onde responder Escopo e Tarefa");
+    const cxR = vm.createContext({ String, Object, Array, Map, Number, JSON, Math });
+    vm.runInContext(constante("BASE_IA_COLUNAS"), cxR);
+    vm.runInContext(funcao("baseIAMarcarRepeticoes"), cxR);
+    const COLS = vm.runInContext("BASE_IA_COLUNAS", cxR);
+    const iM = COLS.findIndex(c=> c.h === "ID_Maquina"), iT = COLS.findIndex(c=> c.h === "ID_Tarefa");
+    const iR = COLS.findIndex(c=> c.h === "Escopo e tarefa nesta linha");
+    const linha = (m, tf) => { const r = new Array(COLS.length).fill(""); r[iM] = m; r[iT] = tf; return r; };
+    t("a coluna existe, e de leitura (sem resp) e vem antes das colunas de resposta", ()=>{
+      ok(iR > 0);
+      ok(!COLS[iR].resp);
+      const primeiraResp = COLS.findIndex(c=> c.resp);
+      ok(iR < primeiraResp);
+    });
+    t("primeira linha de cada equipamento e de cada tarefa responde; as demais mandam nao responder e apontam a linha", ()=>{
+      const L = [ linha("m1","t1"), linha("m1","t1"), linha("m1","t2"), linha("m2","t3"), linha("m2","t3") ];
+      cxR.baseIAMarcarRepeticoes(L);
+      eq(L[0][iR], "Escopo: responder · Tarefa: responder");
+      eq(L[1][iR], "Escopo: NÃO responder (igual à linha 2) · Tarefa: NÃO responder (igual à linha 2)");
+      eq(L[2][iR], "Escopo: NÃO responder (igual à linha 2) · Tarefa: responder");
+      eq(L[3][iR], "Escopo: responder · Tarefa: responder");
+      eq(L[4][iR], "Escopo: NÃO responder (igual à linha 5) · Tarefa: NÃO responder (igual à linha 5)");
+    });
+    t("equipamento sem tarefa so leva a parte do escopo", ()=>{
+      const L = [ linha("m1",""), linha("m2","") ];
+      cxR.baseIAMarcarRepeticoes(L);
+      eq(L[0][iR], "Escopo: responder"); eq(L[1][iR], "Escopo: responder");
+    });
+    t("as instrucoes explicam a coluna, o branco e a excecao da conferencia final; planilha antiga segue com repeticao", ()=>{
+      ["Escreva o Escopo UMA vez, na PRIMEIRA linha dele","NÃO responder (igual à linha N)","o aplicativo aplica o texto da primeira linha ao equipamento inteiro",
+       "Coluna ausente ou vazia (planilha antiga): repita o mesmo texto em todas as linhas dele",
+       "escreva a Descrição da tarefa UMA vez, na primeira linha dela","Sem a coluna (planilha antiga), repita o mesmo texto",
+       'Escopo e Tarefa ficam em branco onde a coluna \\"Escopo e tarefa nesta linha\\" diz \\"NÃO responder\\"',
+       'A coluna \\"Escopo e tarefa nesta linha\\" diz em quais linhas responder'].forEach(x=> ok(HTML.indexOf(x) > 0, "faltou: " + x));
+    });
+    t("a geracao da planilha chama o marcador e a volta segue juntando por ID (o primeiro texto vale)", ()=>{
+      ok(funcao("gerarBytesBaseIAXlsx").indexOf("baseIAMarcarRepeticoes(g.linhas);") > 0);
+      ok(funcao("baseIAPacoteDasAbas").indexOf("if(vistos.has(k)){") > 0);
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

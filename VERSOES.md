@@ -64,6 +64,17 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 24/09/2026 16:24
+
+**Planilha para a IA: Escopo e Tarefa só na primeira linha de cada equipamento e de cada tarefa.**
+
+Escopo é do equipamento e Tarefa é da tarefa, mas a planilha tem uma linha por risco:
+a IA reescrevia o mesmo texto em todas elas. Nova coluna de leitura "Escopo e tarefa
+nesta linha" ("Escopo: responder · Tarefa: NÃO responder (igual à linha 5)"). As
+instruções mandam responder só onde a coluna diz "responder" e deixar em branco nas
+demais; o app aplica o texto da primeira linha ao equipamento inteiro (a volta já
+junta por ID). Planilha antiga, sem a coluna, segue valendo com a repetição.
+
 ## 24/09/2026 16:21
 
 **Volta da planilha: citação de norma na Solução é conferida pelo app.**

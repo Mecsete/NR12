@@ -3181,7 +3181,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "24/09/2026 16:21";
+const APP_BUILD = "24/09/2026 16:24";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -17208,6 +17208,7 @@ const BASE_IA_COLUNAS = [
   { h:"Medida proposta marcada", larg:26 },
   { h:"Sugestão Solução", larg:44 },
   { h:"Já decidido no app", larg:30 },
+  { h:"Escopo e tarefa nesta linha", larg:34 },
   { h:"RESPOSTA - Escopo do equipamento", larg:56, resp:{ campo:"escopo",    tipo:"texto"  } },
   { h:"RESPOSTA - Descrição da tarefa",   larg:56, resp:{ campo:"tarefa",    tipo:"texto"  } },
   { h:"RESPOSTA - Nome do risco",         larg:34, resp:{ campo:"nome",      tipo:"texto"  } },
@@ -17247,7 +17248,7 @@ const BASE_IA_PROMPT = [
 "3. Não crie linhas novas nem invente IDs.",
 "4. Devolva a planilha no mesmo formato .xlsx.",
 "5. Trabalhe em BLOCOS, agrupando por tipo de equipamento (silos, transportadores, elevadores, debulhadores, quadros elétricos...). Entregue bloco a bloco. Não tente todas as linhas de uma vez: o risco é degradar no meio ou pular linhas em silêncio. Você pode devolver a planilha várias vezes — o aplicativo aceita entrega parcial e nunca reimporta o que já entrou.",
-"6. A coluna \"Já decidido no app\" diz quais campos daquela linha o engenheiro já aprovou. Campo citado ali NÃO precisa de resposta: deixe a célula correspondente em branco e siga para os demais. Escrever ali é trabalho perdido — o aplicativo descarta.",
+"6. A coluna \"Escopo e tarefa nesta linha\" diz em quais linhas responder o Escopo e a Descrição da tarefa (só na primeira de cada equipamento e de cada tarefa). A coluna \"Já decidido no app\" diz quais campos daquela linha o engenheiro já aprovou. Campo citado ali NÃO precisa de resposta: deixe a célula correspondente em branco e siga para os demais. Escrever ali é trabalho perdido — o aplicativo descarta.",
 "",
 "COMO TRABALHAR: PRIMEIRO A VARREDURA, DEPOIS OS TEXTOS",
 "Um equipamento aparece em várias linhas, uma por risco, e cada risco carrega só um pedaço da informação sobre ele. Escrever linha a linha, de cima para baixo, joga isso fora — é o que produz escopo pobre e frases que se contradizem entre linhas do mesmo equipamento.",
@@ -17285,7 +17286,7 @@ const BASE_IA_PROMPT = [
 "Só o Nome do risco tem limite de tamanho (3 a 7 palavras, ver abaixo). Nenhum outro campo desta planilha tem limite de caracteres ou de linhas — não corte informação disponível só para deixar o texto mais curto. O único motivo válido para não repetir algo é ser redundante dentro da mesma frase.",
 "",
 "RESPOSTA - Escopo do equipamento",
-"O mesmo equipamento (mesmo ID_Maquina) aparece em várias linhas: repita o mesmo texto em todas elas.",
+"O mesmo equipamento (mesmo ID_Maquina) aparece em várias linhas. Escreva o Escopo UMA vez, na PRIMEIRA linha dele (a coluna \"Escopo e tarefa nesta linha\" diz \"Escopo: responder\"). Nas demais, a coluna diz \"NÃO responder (igual à linha N)\": deixe a célula EM BRANCO — o aplicativo aplica o texto da primeira linha ao equipamento inteiro. Coluna ausente ou vazia (planilha antiga): repita o mesmo texto em todas as linhas dele.",
 "Escreva um escopo que sirva a QUALQUER equipamento daquela função na área. É isso que permite um texto só atender os treze silos — e é isso que se perde se o texto citar a unidade.",
 "Por isso NÃO entra no texto o que torna a unidade única: número de TAG, código de ativo, número de série. Mas a parte descritiva do nome entra, e muitas vezes é a melhor informação que existe sobre o equipamento: em \"Silo 2102\" aproveite \"silo\" e descarte \"2102\"; em \"Correia CNV-002\" aproveite \"correia transportadora\" e descarte \"CNV-002\". Filtre o nome, não o ignore.",
 "O filtro vale mesmo quando o código vem colado ao nome descritivo, não separado dele: \"Esteira entre Descarga e Despalha 3-CV-1304\" é \"esteira entre a descarga e a despalha\" — o \"3-CV-1304\" descarta, mesmo que pareça parte do nome. Errado: \"Esteira entre a Descarga e a Despalha (3-CV-1304): esteira transportadora que...\" — repetir o código entre parênteses no começo do texto é o mesmo erro de citar a TAG, só que disfarçado.",
@@ -17299,7 +17300,7 @@ const BASE_IA_PROMPT = [
 "Sem limite de linhas fixo: use o espaço que o conteúdo pedir, sem repetir a mesma informação de outro jeito.",
 "",
 "RESPOSTA - Descrição da tarefa",
-"A mesma tarefa (mesmo ID_Tarefa) aparece em várias linhas: repita o mesmo texto.",
+"A mesma tarefa (mesmo ID_Tarefa) aparece em várias linhas. Mesma regra do Escopo: escreva a Descrição da tarefa UMA vez, na primeira linha dela (\"Tarefa: responder\"), e deixe EM BRANCO onde a coluna \"Escopo e tarefa nesta linha\" disser \"Tarefa: NÃO responder\". Sem a coluna (planilha antiga), repita o mesmo texto.",
 "Use como apoio o Escopo que você já escreveu para aquele ID_Maquina: a tarefa é executada NAQUELE equipamento, e o texto fica mais preciso sabendo o que a máquina faz e onde a pessoa fica. Aproveite o entendimento, não as frases — não repita o escopo dentro da tarefa.",
 "Antes de escrever, olhe as tarefas de equipamentos quase idênticos na mesma área, para reunir mais informação.",
 "Se \"Descrição da tarefa (campo)\" tiver conteúdo, ele PRECISA aparecer no texto: é observação de quem esteve lá e vale mais que o texto genérico. Incorpore com naturalidade.",
@@ -17359,7 +17360,7 @@ const BASE_IA_PROMPT = [
 "ANTES DE ENTREGAR CADA BLOCO, confira e relate:",
 "1. A varredura foi feita antes de escrever, e o escopo de cada equipamento cita as mitigações levantadas em TODOS os riscos dele?",
 "2. Todas as linhas do bloco têm ID, e nenhum ID foi alterado?",
-"3. Toda célula de resposta que a linha permitia escrever está preenchida? (Exceção: \"RESPOSTA - Solução\" fica em branco quando não há proposta em campo, como explicado acima.)",
+"3. Toda célula de resposta que a linha permitia escrever está preenchida? (Exceções: \"RESPOSTA - Solução\" fica em branco quando não há proposta em campo, e Escopo e Tarefa ficam em branco onde a coluna \"Escopo e tarefa nesta linha\" diz \"NÃO responder\", como explicado acima.)",
 "4. Nenhum texto afirma dado que não está na planilha?",
 "5. Onde repeti texto, a descrição de campo era mesmo idêntica?",
 "6. Nenhum texto menciona a ausência de informação? Toda citação de norma que aparece foi reproduzida de uma coluna da planilha, da tabela de medidas ou dos guias de normas do projeto, sem nenhum item escolhido por você de memória?",
@@ -17742,6 +17743,7 @@ function baseIACamposDaLinha(ctx){
     "Medida proposta marcada": prop ? prop.rot : "",
     "Sugestão Solução": (risco && prop) ? medidaTextoProposto(risco, risco.medidaPropostaTipo) : "",
     "Já decidido no app": decid.join(" | "),
+    "Escopo e tarefa nesta linha": "",   // preenchida depois, por aba, em baseIAMarcarRepeticoes
   };
 }
 function baseIALinha(ctx){
@@ -17843,6 +17845,27 @@ function baseIAAbaInstrucoesXml(sst){
 <sheetData>${dados}</sheetData>
 </worksheet>`;
 }
+/* Escopo e Tarefa sao textos do EQUIPAMENTO e da TAREFA, mas a planilha tem uma
+   linha por risco: o mesmo escopo aparecia em todas as linhas do equipamento e a
+   IA reescrevia a mesma coisa dezenas de vezes (mais custo, e chance de sair
+   diferente). A coluna "Escopo e tarefa nesta linha" diz onde responder: so na
+   PRIMEIRA linha de cada equipamento e de cada tarefa. Nas demais a celula fica
+   em branco e o aplicativo usa o texto da primeira (a volta ja junta por ID).
+   Vale por aba; o numero e o da linha da planilha (cabecalho na 1). */
+function baseIAMarcarRepeticoes(linhas){
+  const iM = BASE_IA_COLUNAS.findIndex(c=> c.h === "ID_Maquina");
+  const iT = BASE_IA_COLUNAS.findIndex(c=> c.h === "ID_Tarefa");
+  const iR = BASE_IA_COLUNAS.findIndex(c=> c.h === "Escopo e tarefa nesta linha");
+  const primM = new Map(), primT = new Map();
+  (linhas||[]).forEach((row, ri)=>{
+    const rn = ri + 2, m = row[iM], t = row[iT];
+    let esc = "Escopo: responder", tar = "";
+    if(m){ if(primM.has(m)) esc = "Escopo: NÃO responder (igual à linha " + primM.get(m) + ")"; else primM.set(m, rn); }
+    if(t){ if(primT.has(t)) tar = "Tarefa: NÃO responder (igual à linha " + primT.get(t) + ")"; else { primT.set(t, rn); tar = "Tarefa: responder"; } }
+    row[iR] = tar ? esc + " · " + tar : esc;
+  });
+  return linhas;
+}
 function gerarBytesBaseIAXlsx(grupos){
   const sst = buildSstHelper();
   const usados = [];
@@ -17855,6 +17878,7 @@ function gerarBytesBaseIAXlsx(grupos){
   grupos.forEach((g, i)=>{
     const nome = baseIANomeAba(g.nomeAba, usados);
     const head = BASE_IA_COLUNAS.map((c,ci)=> sst.cell(ci+1, 1, c.h, c.resp?2:1)).join("");
+    baseIAMarcarRepeticoes(g.linhas);
     let dados = "";
     g.linhas.forEach((row, ri)=>{
       const rn = ri + 2;
