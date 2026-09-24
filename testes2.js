@@ -13053,6 +13053,40 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  /* 24/09/2026: nome do arquivo da base para a IA e interruptor ao lado do botao */
+  {
+    console.log("\n[t170] base para a IA: nome do arquivo com a area e interruptor ao lado do botao");
+    const cxN = vm.createContext({ String, Object, Array, Math, JSON, RegExp });
+    /* nomeArquivoSeguro tem aspas dentro de uma expressao regular, o que engana o extrator funcao(): recorta-se pelo fim conhecido */
+    const _iN = HTML.indexOf("function nomeArquivoSeguro(s){"), _fimN = 'return n || "sem-nome";\n}';
+    vm.runInContext(HTML.slice(_iN, HTML.indexOf(_fimN, _iN) + _fimN.length), cxN);
+    vm.runInContext(funcao("baseIANomeArquivo"), cxN);
+    const nome = g => cxN.baseIANomeArquivo(g);
+    t("uma area: o nome da area vai no arquivo", ()=>{
+      eq(nome([{ area:{ nome:"Debulha" }, nomeAba:"Debulha" }]), "base_para_ia - Debulha.xlsx");
+      eq(nome([{ area:{ nome:"Descarga 100" } }]), "base_para_ia - Descarga 100.xlsx");
+    });
+    t("duas areas juntam os nomes; mais de duas dizem quantas ha alem da primeira", ()=>{
+      eq(nome([{ area:{ nome:"Debulha" } }, { area:{ nome:"Descarga 100" } }]), "base_para_ia - Debulha e Descarga 100.xlsx");
+      eq(nome([{ area:{ nome:"Debulha" } }, { area:{ nome:"A" } }, { area:{ nome:"B" } }, { area:{ nome:"C" } }]), "base_para_ia - Debulha e mais 3 áreas.xlsx");
+    });
+    t("caracteres proibidos em nome de arquivo saem, e nome vazio nao quebra", ()=>{
+      eq(nome([{ area:{ nome:'Área: 1/2 "teste"?' } }]), "base_para_ia - Área- 1-2 -teste--.xlsx");
+      eq(nome([{ area:{ nome:"" }, nomeAba:"" }]), "base_para_ia - Área.xlsx");
+      eq(nome([]), "base_para_ia.xlsx");
+      ok(nome([{ area:{ nome:"x".repeat(200) } }]).length < 70, "teto de tamanho");
+    });
+    t("a exportacao usa esse nome e o interruptor esta na mesma linha do botao Exportar", ()=>{
+      ok(HTML.indexOf("await compartilharOuBaixarBlob(blob, baseIANomeArquivo(grupos),") > 0);
+      ok(HTML.indexOf('await compartilharOuBaixarBlob(blob, "base_para_ia.xlsx",') < 0, "nome fixo antigo saiu");
+      const iB = HTML.indexOf('onclick="App.exportarBaseIA()"');
+      const iT = HTML.indexOf('onchange="App.toggleIAReavaliarAplicados()"');
+      ok(iB > 0 && iT > iB && iT - iB < 900, "o interruptor precisa vir logo depois do botao, na mesma linha");
+      eq(HTML.split('onchange="App.toggleIAReavaliarAplicados()"').length - 1, 1, "um unico interruptor na tela");
+      ok(HTML.indexOf("Permitir que a IA reavalie itens já aplicados") > 0);
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

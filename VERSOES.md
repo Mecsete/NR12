@@ -64,6 +64,16 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 24/09/2026 13:58
+
+**Base para a IA: arquivo com o nome da área e interruptor de reavaliação ao lado do botão.**
+
+O arquivo exportado passa a se chamar "base_para_ia - <Área>.xlsx" (duas áreas:
+"A e B"; mais de duas: "A e mais N áreas"), em vez de sempre "base_para_ia.xlsx".
+O interruptor "Permitir que a IA reavalie itens já aplicados" saiu do cartão
+separado e fica na mesma linha do botão Exportar base para a IA, com a explicação
+logo abaixo. O comportamento do interruptor não mudou.
+
 ## 24/09/2026 13:54
 
 **Aba Áreas do Laudo: situação dos textos de cada área.**

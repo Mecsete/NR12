@@ -5273,5 +5273,16 @@ chk("o metodo Revisar existe uma vez e so marca a area escolhida antes de abrir 
 chk("as cores da barra saem de uma constante unica",
     novo.count("const LAUDO_AREA_COR =") == 1)
 
+
+print("\n=== 160. BASE PARA A IA: NOME COM A AREA E INTERRUPTOR AO LADO DO BOTAO (24/09/2026) ===")
+chk("o arquivo da base leva o nome da area (funcao propria, usada na exportacao, sem o nome fixo antigo)",
+    novo.count("function baseIANomeArquivo(") == 1
+    and "compartilharOuBaixarBlob(blob, baseIANomeArquivo(grupos)," in novo
+    and 'compartilharOuBaixarBlob(blob, "base_para_ia.xlsx",' not in novo)
+_i = novo.index('onclick="App.exportarBaseIA()"')
+chk("o interruptor de reavaliacao vem na mesma linha do botao Exportar base, e existe um so",
+    0 < novo.index('onchange="App.toggleIAReavaliarAplicados()"') - _i < 900
+    and novo.count('onchange="App.toggleIAReavaliarAplicados()"') == 1)
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
