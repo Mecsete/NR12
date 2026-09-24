@@ -64,6 +64,10 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 23/09/2026 23:22
+
+**Instruções da planilha para a IA: item 5 de "O que nunca fazer" passa a admitir a Solução em branco quando não há proposta em campo** (antes contradizia a regra nova).
+
 ## 23/09/2026 22:13
 
 **Planilha para a IA: Solução mais funda e com citação de norma.**
