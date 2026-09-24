@@ -64,6 +64,18 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 24/09/2026 16:18
+
+**Instruções da planilha (nome do risco e citação) e resumo da aba Áreas mais claro.**
+
+Nome do risco passa de "3 a 4 palavras" para "3 a 7": a planilha real da Despalha 300
+voltou com 46 de 53 nomes acima de 4 palavras, todos bons ("Agarramento dos dedos na
+ponta de eixo"). As instruções agora mandam apontar, para cada citação, de qual fonte
+ela veio, e proíbem norma ou item por conta própria, citando o caso real da ISO 13854.
+Na aba Áreas do Laudo, a Solução sem proposta em campo deixa de contar como "sem
+texto" (ficava em branco de propósito e travava a área abaixo de 100%), e o resumo
+passa a dizer "205 de 293 textos aplicados (70%)", para não parecer contagem de riscos.
+
 ## 24/09/2026 16:16
 
 **Base para a IA: item já excluído em outro aparelho e projeto arquivado não vão mais para a planilha.**

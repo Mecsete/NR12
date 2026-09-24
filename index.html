@@ -3181,7 +3181,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "24/09/2026 16:16";
+const APP_BUILD = "24/09/2026 16:18";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -17282,7 +17282,7 @@ const BASE_IA_PROMPT = [
 "",
 "COLUNA A COLUNA",
 "",
-"Só o Nome do risco tem limite de tamanho (3 a 4 palavras, ver abaixo). Nenhum outro campo desta planilha tem limite de caracteres ou de linhas — não corte informação disponível só para deixar o texto mais curto. O único motivo válido para não repetir algo é ser redundante dentro da mesma frase.",
+"Só o Nome do risco tem limite de tamanho (3 a 7 palavras, ver abaixo). Nenhum outro campo desta planilha tem limite de caracteres ou de linhas — não corte informação disponível só para deixar o texto mais curto. O único motivo válido para não repetir algo é ser redundante dentro da mesma frase.",
 "",
 "RESPOSTA - Escopo do equipamento",
 "O mesmo equipamento (mesmo ID_Maquina) aparece em várias linhas: repita o mesmo texto em todas elas.",
@@ -17309,7 +17309,7 @@ const BASE_IA_PROMPT = [
 "Sem limite de linhas fixo: use o espaço que o conteúdo pedir, sem repetir a mesma informação de outro jeito.",
 "",
 "RESPOSTA - Nome do risco",
-"De 3 a 4 palavras, dizendo qual é o DANO, qual PARTE DO CORPO é atingida e em qual COMPONENTE do equipamento ocorre, com a concordância correta (\"na correia\", \"no eixo\", \"na comporta\"). Sem ponto final.",
+"De 3 a 7 palavras (artigos e preposições contam), dizendo qual é o DANO, qual PARTE DO CORPO é atingida e em qual COMPONENTE do equipamento ocorre, com a concordância correta (\"na correia\", \"no eixo\", \"na comporta\"). Use o nome mais curto que ainda diga os três; passar de 7 palavras é sinal de que o nome virou descrição. Sem ponto final.",
 "Bons: \"Prensamento dos dedos na comporta\" · \"Agarramento das mãos no eixo do motor\" · \"Corte da perna na proteção danificada\".",
 "Ruins: \"Prensamento dos dedos\" (não diz onde) · \"Cilindro pneumático\" (não diz o dano) · \"Partes móveis\" (nenhum dos dois).",
 "O nome diz o que VAI ACONTECER, nunca por que o risco está acessível. \"Proteção desparafusada\" é condição, não nome de risco — isso pertence à Descrição do risco.",
@@ -17347,7 +17347,7 @@ const BASE_IA_PROMPT = [
 "A [proposta] é a \"Solução Editável\" reescrita em linguagem de laudo, sem mudar a intenção técnica.",
 "SEM PROPOSTA EM CAMPO: quando a \"Solução Editável\" E a \"Sugestão Solução\" estiverem vazias, o inspetor não propôs nada — e você não inventa proposta. Deixe a célula \"RESPOSTA - Solução\" EM BRANCO. Nunca escreva \"Não há solução registrada\" nem qualquer frase que diga que falta informação: célula em branco é \"sem resposta\", e o aplicativo mantém o que já existe. A descrição escrita na Mitigação Existente NÃO é proposta: não a transforme em solução.",
 "A coluna \"Medida proposta marcada\" diz que tipo de proteção o inspetor escolheu no checklist. Ela manda no TIPO da medida: com proteção móvel intertravada marcada, a solução não pode propor proteção fixa. O texto de campo é o conteúdo; a medida marcada é a natureza dela.",
-"CITAÇÃO DE NORMA NA SOLUÇÃO — CINCO FONTES, NESTA ORDEM. Você nunca escolhe item de norma: só reproduz o que uma fonte já traz pronto. Passe para a fonte seguinte apenas quando a anterior não servir. Cada fonte está descrita logo abaixo; a quinta diz o que fazer quando nenhuma serve.",
+"CITAÇÃO DE NORMA NA SOLUÇÃO — CINCO FONTES, NESTA ORDEM. Você nunca escolhe item de norma: só reproduz o que uma fonte já traz pronto. Passe para a fonte seguinte apenas quando a anterior não servir. Cada fonte está descrita logo abaixo; a quinta diz o que fazer quando nenhuma serve. Antes de deixar uma citação na célula, aponte de QUAL fonte ela veio, palavra por palavra; se não consegue apontar, apague-a. Nenhuma norma ABNT/ISO e nenhum item de NR-12 entra por sua conta, mesmo que seja pertinente e você a conheça: caso real, a ISO 13854 (distâncias mínimas contra esmagamento) foi acrescentada em sete Soluções sem constar de fonte nenhuma, e um item do 12.8.9.2 foi escolhido de fora da citação pronta do assunto. Combinar pedaços de citações diferentes (um item de uma linha com uma norma de outra) também é inventar.",
 "1ª FONTE. A coluna \"Sugestão Solução\" traz a frase que o aplicativo monta a partir da medida marcada no checklist, e ela termina com a referência normativa já conferida — por exemplo \"..., conforme NR-12, item 12.5.9 e item 12.5.11; ABNT NBR ISO 14120.\". Use essa frase para dar forma técnica ao que foi proposto em campo e TERMINE A SOLUÇÃO COM A CITAÇÃO DELA, reproduzida exatamente como está. Praticamente toda solução deve fechar com o item da norma.",
 "Quando essa citação trouxer mais de uma norma — NR-12 e uma ou mais ABNT/ISO, como no exemplo acima —, a Solução termina com TODAS elas, na mesma ordem, palavra por palavra. Cortar para citar só a NR-12 e descartar as ABNT/ISO é o mesmo erro que inventar uma citação: deixa o embasamento normativo incompleto.",
 "2ª FONTE. Quando essa coluna estiver vazia — o inspetor não marcou medida no checklist —, olhe a própria \"Solução Editável\": se ela já trouxer uma citação escrita à mão pelo inspetor (por exemplo \"...conforme NR-12 item 12.5.9\"), essa citação TAMBÉM é reproduzida palavra por palavra — ela veio do campo, não foi inventada pela IA. Só quando NENHUMA das três colunas (\"Sugestão Solução\", \"Descrição da Mitigação Existente\", \"Solução Editável\") trouxer citação nenhuma é que você passa para a tabela e para os guias. Nunca invente o item, nunca deduza pelo tipo de proteção, nunca traga de memória.",
@@ -19963,7 +19963,11 @@ function laudoStatusTextosArea(a){
     (m.tarefas || []).forEach(t=>{
       conta(t.laudoIA, "tarefa");
       (t.riscos || []).forEach(rk=>{
-        ["nome","risco","solucao"].forEach(c=> conta(rk.laudoIA, c));
+        ["nome","risco"].forEach(c=> conta(rk.laudoIA, c));
+        /* Solução sem proposta em campo (nem texto, nem medida marcada) fica em
+           branco de propósito na planilha; contar como "sem texto" travava a
+           área abaixo de 100% para sempre. Se já tem sugestão ou decisão, conta. */
+        conta(rk.laudoIA, "solucao", !rk.sugestaoMitigacao && !rk.medidaPropostaTipo);
         conta(rk.laudoIA, "existente", true);
       });
     });
@@ -19980,7 +19984,7 @@ function laudoStatusBarraHtml(st, altura){
 }
 function laudoStatusTextoResumo(st){
   if(!st.total) return "Sem textos";
-  return Math.round(st.ok*100/st.total) + "% aplicado · " + st.rev + " a revisar · " + st.sem + " sem texto";
+  return st.ok + " de " + st.total + " textos aplicados (" + Math.round(st.ok*100/st.total) + "%) · " + st.rev + " a revisar · " + st.sem + " sem texto";
 }
 /* O selo mostra o que pede ação primeiro: texto esperando decisão; depois o
    que ainda não tem texto; só então "Aplicado". */

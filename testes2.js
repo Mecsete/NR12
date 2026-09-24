@@ -13009,12 +13009,17 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       eq(r.ok, 3);
       eq(r.rev, 2);
       eq(r.total, r.ok + r.rev + r.sem);
-      eq(r.sem, 9);
-      eq(r.total, 14);
+      eq(r.sem, 7);  // 24/09/2026: eram 9; as duas solucoes sem proposta em campo e sem nada gerado deixaram de contar
+      eq(r.total, 12);
     });
-    t("existente que nunca teve nada nao entra na conta (mesma regra do resumo do laudo)", ()=>{
-      const r = F("laudoStatusTextosArea")({ maquinas:[ { tarefas:[ { riscos:[ {} ] } ] } ] });
-      eq(r.total, 5); // escopo, tarefa, nome, risco, solucao
+    t("existente e solucao sem proposta em campo nunca entram na conta (24/09/2026)", ()=>{
+      // sem proposta (nem sugestaoMitigacao, nem medidaPropostaTipo) e sem nada gerado: escopo, tarefa, nome, risco
+      eq(F("laudoStatusTextosArea")({ maquinas:[ { tarefas:[ { riscos:[ {} ] } ] } ] }).total, 4);
+      // com proposta em campo a solucao conta
+      eq(F("laudoStatusTextosArea")({ maquinas:[ { tarefas:[ { riscos:[ { sugestaoMitigacao:"Instalar proteção" } ] } ] } ] }).total, 5);
+      eq(F("laudoStatusTextosArea")({ maquinas:[ { tarefas:[ { riscos:[ { medidaPropostaTipo:"prot_fixa" } ] } ] } ] }).total, 5);
+      // sem proposta mas com sugestao ou decisao ja gravada: conta (nao esconde trabalho existente)
+      eq(F("laudoStatusTextosArea")({ maquinas:[ { tarefas:[ { riscos:[ { laudoIA:{ solucaoSug:"x" } } ] } ] } ] }).total, 5);
     });
     t("e so leitura: nao cria campos nem altera o dado", ()=>{
       const a = area(); const antes = JSON.stringify(a);
@@ -13039,7 +13044,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       eq(F("laudoStatusBarraHtml")({ total:0, ok:0, rev:0, sem:0 }, 6), "");
     });
     t("o resumo em texto e a soma de varias areas", ()=>{
-      eq(F("laudoStatusTextoResumo")({ total:10, ok:5, rev:2, sem:3 }), "50% aplicado · 2 a revisar · 3 sem texto");
+      eq(F("laudoStatusTextoResumo")({ total:10, ok:5, rev:2, sem:3 }), "5 de 10 textos aplicados (50%) · 2 a revisar · 3 sem texto");  // 24/09/2026: era "50% aplicado · ..."
       eq(F("laudoStatusTextoResumo")({ total:0, ok:0, rev:0, sem:0 }), "Sem textos");
       const s = F("laudoStatusSoma")([{ total:2, ok:1, rev:1, sem:0 }, { total:3, ok:0, rev:1, sem:2 }]);
       eq(s.total, 5); eq(s.rev, 2); eq(s.sem, 2); eq(s.ok, 1);
@@ -13203,6 +13208,24 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       const f = funcao("exportarBaseIAXlsx");
       ok(f.indexOf("item(ns) excluído(s) em outro aparelho ficaram de fora") > 0);
       ok(f.indexOf("projeto(s) arquivado(s) ficaram de fora") > 0);
+    });
+  }
+
+  /* 24/09/2026 (3): nome do risco ate 7 palavras e nenhuma norma fora das fontes */
+  {
+    console.log("\n[t173] instrucoes da planilha: nome ate 7 palavras e citacao sempre apontada a uma fonte");
+    const iC = HTML.indexOf('"CITAÇÃO DE NORMA NA SOLUÇÃO — CINCO FONTES, NESTA ORDEM.');
+    const cab = HTML.slice(iC, HTML.indexOf("\n", iC));
+    t("o cabecalho manda apontar a fonte de cada citacao e proibe norma por conta propria (caso real ISO 13854)", ()=>{
+      ["aponte de QUAL fonte ela veio, palavra por palavra","se não consegue apontar, apague-a","ISO 13854",
+       "Combinar pedaços de citações diferentes","também é inventar"].forEach(x=> ok(cab.indexOf(x) > 0, "faltou: " + x));
+    });
+    t("o nome do risco passa a admitir de 3 a 7 palavras na planilha; o prompt da API hibernada nao muda", ()=>{
+      ok(HTML.indexOf('"Só o Nome do risco tem limite de tamanho (3 a 7 palavras, ver abaixo).') > 0);
+      ok(HTML.indexOf('"De 3 a 7 palavras (artigos e preposições contam)') > 0);
+      ok(HTML.indexOf("passar de 7 palavras é sinal de que o nome virou descrição") > 0);
+      ok(HTML.indexOf('"De 3 a 4 palavras, dizendo qual é o DANO') < 0, "a regra antiga da planilha saiu");
+      ok(constante("IA_PROMPTS_PADRAO").indexOf("em 3 a 4 palavras") > 0, "o prompt da API hibernada segue como estava");
     });
   }
 

@@ -5305,5 +5305,16 @@ chk("a exportacao pula o que tem lapide confirmada em todos os niveis, com a mes
 chk("projeto arquivado nao entra na planilha (a volta o recusaria) e a contagem do que ficou de fora e devolvida",
     "projetoArquivado(proj.id)" in _g and "grupos.fora = fora;" in _g)
 
+
+print("\n=== 163. INSTRUCOES: NOME ATE 7 PALAVRAS, CITACAO COM FONTE E RESUMO DA ABA AREAS (24/09/2026) ===")
+chk("nome do risco: de 3 a 7 palavras na planilha",
+    '(3 a 7 palavras, ver abaixo)' in novo and '"De 3 a 7 palavras (artigos e preposições contam)' in novo
+    and '"De 3 a 4 palavras, dizendo qual é o DANO' not in novo)
+chk("o cabecalho das cinco fontes manda apontar a fonte e cita o caso da ISO 13854",
+    "aponte de QUAL fonte ela veio, palavra por palavra" in novo and "a ISO 13854 (distâncias mínimas contra esmagamento)" in novo)
+chk("aba Areas: solucao sem proposta em campo nao conta e o resumo diz N de M textos",
+    'conta(rk.laudoIA, "solucao", !rk.sugestaoMitigacao && !rk.medidaPropostaTipo);' in novo
+    and '" de " + st.total + " textos aplicados ("' in novo)
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
