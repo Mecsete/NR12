@@ -64,6 +64,18 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 24/09/2026 13:54
+
+**Aba Áreas do Laudo: situação dos textos de cada área.**
+
+Cada área mostra uma barra de três cores (Aplicado, Texto a revisar, Sem texto),
+um selo com o que pede ação primeiro ("12 a revisar", depois "N sem texto", só então
+"Aplicado") e a linha "62% aplicado · 12 a revisar · 40 sem texto". O total aparece
+por projeto e no topo da aba, com legenda. O botão Revisar deixa só aquela área
+marcada e abre a aba Revisão. Contam-se escopo, tarefa e, por risco, nome,
+descrição, mitigação existente (quando existe) e solução; texto recusado conta
+como Sem texto. A leitura não cria nem altera nenhum dado.
+
 ## 24/09/2026 13:15
 
 **Instruções da planilha: citação de norma em cinco fontes, Python e lacunas de norma.**

@@ -3181,7 +3181,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "24/09/2026 13:15";
+const APP_BUILD = "24/09/2026 13:54";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -19881,6 +19881,62 @@ function laudoAbaProjeto(){
   </div>
   `;
 }
+/* ---------- Situação dos textos do laudo por área (aba Áreas) ----------
+   Três estados, contados por texto (escopo da máquina, tarefa, e nome, risco,
+   mitigação existente e solução de cada risco — as mesmas regras de
+   laudoResumoItem):
+     Aplicado        -> st "ok" ou "edit"
+     Texto a revisar -> tem sugestão ou texto e ainda não foi decidido
+     Sem texto       -> nada gerado, ou recusado (vale o texto de campo)
+   SÓ LEITURA: lê m/t/r.laudoIA direto, sem passar por getLaudoMaquina/Tarefa/
+   Risco, que criam campos vazios e marcariam o dado como alterado só por
+   abrir a tela. */
+const LAUDO_AREA_COR = { ok:"#2E7D32", rev:"#E09A2B", sem:"#B8BBCB" };
+function laudoStatusTextosArea(a){
+  const r = { total:0, sem:0, rev:0, ok:0 };
+  const conta = (l, pre, ignoraVazio)=>{
+    l = l || {};
+    const sug = l[pre+"Sug"], fin = l[pre+"Fin"], st = l[pre+"St"];
+    if(ignoraVazio && !(sug || fin || st)) return;
+    r.total++;
+    if(st==="ok" || st==="edit") r.ok++;
+    else if(st!=="no" && (sug || fin)) r.rev++;
+    else r.sem++;
+  };
+  ((a && a.maquinas) || []).forEach(m=>{
+    conta(m.laudoIA, "escopo");
+    (m.tarefas || []).forEach(t=>{
+      conta(t.laudoIA, "tarefa");
+      (t.riscos || []).forEach(rk=>{
+        ["nome","risco","solucao"].forEach(c=> conta(rk.laudoIA, c));
+        conta(rk.laudoIA, "existente", true);
+      });
+    });
+  });
+  return r;
+}
+function laudoStatusSoma(lista){
+  return lista.reduce((t,x)=>({ total:t.total+x.total, sem:t.sem+x.sem, rev:t.rev+x.rev, ok:t.ok+x.ok }), { total:0, sem:0, rev:0, ok:0 });
+}
+function laudoStatusBarraHtml(st, altura){
+  if(!st.total) return "";
+  const seg = (n, cor)=> n ? `<span style="width:${(n*100/st.total).toFixed(2)}%;background:${cor}"></span>` : "";
+  return `<div style="display:flex;height:${altura||6}px;border-radius:99px;overflow:hidden;background:#E8EAF0">${seg(st.ok,LAUDO_AREA_COR.ok)}${seg(st.rev,LAUDO_AREA_COR.rev)}${seg(st.sem,LAUDO_AREA_COR.sem)}</div>`;
+}
+function laudoStatusTextoResumo(st){
+  if(!st.total) return "Sem textos";
+  return Math.round(st.ok*100/st.total) + "% aplicado · " + st.rev + " a revisar · " + st.sem + " sem texto";
+}
+/* O selo mostra o que pede ação primeiro: texto esperando decisão; depois o
+   que ainda não tem texto; só então "Aplicado". */
+function laudoStatusSeloHtml(st){
+  if(!st.total) return "";
+  let rot, cor, fundo;
+  if(st.rev > 0){ rot = st.rev + " a revisar"; cor = LAUDO_ST_COR.pend; fundo = LAUDO_ST_FUNDO.pend; }
+  else if(st.sem > 0){ rot = st.sem + " sem texto"; cor = LAUDO_ST_COR[""]; fundo = LAUDO_ST_FUNDO[""]; }
+  else { rot = "Aplicado"; cor = LAUDO_ST_COR.ok; fundo = LAUDO_ST_FUNDO.ok; }
+  return `<span title="${escapeHtml(laudoStatusTextoResumo(st))}" style="white-space:nowrap;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:99px;color:${cor};background:${fundo}">${rot}</span>`;
+}
 /* ---------- Aba: Áreas (escopo do laudo, em ordem alfabética) ---------- */
 function laudoAbaAreas(){
   const sel = new Set(getAreasSelecionadasExport());
@@ -19889,6 +19945,14 @@ function laudoAbaAreas(){
   <div class="card card-pad">
     <div style="font-weight:800;font-size:14.5px;margin-bottom:4px">Áreas do laudo</div>
     <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:0">Marque as áreas que entram na revisão e nos arquivos. Cada área vira um arquivo separado; mais de uma sai em .zip. Áreas novas entram marcadas automaticamente.</p>
+    ${projetos.length>0? (()=>{
+      const tot = laudoStatusSoma([].concat(...projetos.map(p=>p.areas)).map(laudoStatusTextosArea));
+      const bola = (cor, t)=> `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:12px"><span style="width:9px;height:9px;border-radius:50%;background:${cor}"></span>${t}</span>`;
+      return `<div style="margin-top:10px">${laudoStatusBarraHtml(tot, 8)}
+        <div style="font-size:12px;color:var(--ink-dim);margin-top:5px"><b style="color:var(--ink)">Todos os projetos:</b> ${escapeHtml(laudoStatusTextoResumo(tot))}</div>
+        <div style="font-size:11.5px;color:var(--ink-dim);margin-top:4px">${bola(LAUDO_AREA_COR.sem,"Sem texto")}${bola(LAUDO_AREA_COR.rev,"Texto a revisar")}${bola(LAUDO_AREA_COR.ok,"Aplicado")}</div>
+      </div>`;
+    })() : ""}
   </div>
   ${projetos.length===0? `<div class="empty">${ic('folder')}<h3>Nenhum projeto</h3><p>Cadastre um projeto em campo primeiro.</p></div>` :
     `<div class="laudo-areas-grid">` + projetos.map(p=>{
@@ -19902,14 +19966,23 @@ function laudoAbaAreas(){
           </div>
           <span class="stat-pill">${nSel}/${areas.length}</span>
         </div>
+        ${areas.length>0? (()=>{ const tp = laudoStatusSoma(areas.map(laudoStatusTextosArea)); return tp.total? `<div style="margin:-2px 0 8px">${laudoStatusBarraHtml(tp, 5)}<div style="font-size:11.5px;color:var(--ink-dim);margin-top:3px">${escapeHtml(laudoStatusTextoResumo(tp))}</div></div>` : ""; })() : ""}
         ${areas.length===0? `<p style="font-size:12px;color:var(--ink-dim);margin:0">Sem áreas cadastradas.</p>` :
           areas.map(a=>{
             const nRiscos = a.maquinas.reduce((t,m)=>t+m.tarefas.reduce((t2,tf)=>t2+tf.riscos.length,0),0);
-            return `<label style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bg-soft)">
-              <input type="checkbox" ${sel.has(a.id)?'checked':''} onchange="App.toggleAreaSelecionadaExport('${a.id}')">
-              <span style="flex:1;font-size:13px">${escapeHtml(a.nome||"Área sem nome")}
-                <span style="color:var(--ink-dim);font-size:11.5px">— ${a.maquinas.length} equip. / ${nRiscos} risco(s)</span></span>
-            </label>`;
+            const stA = laudoStatusTextosArea(a);
+            return `<div style="padding:8px 0;border-bottom:1px solid var(--bg-soft)">
+              <div style="display:flex;align-items:center;gap:8px">
+                <label style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
+                  <input type="checkbox" ${sel.has(a.id)?'checked':''} onchange="App.toggleAreaSelecionadaExport('${a.id}')">
+                  <span style="flex:1;font-size:13px">${escapeHtml(a.nome||"Área sem nome")}
+                    <span style="color:var(--ink-dim);font-size:11.5px">— ${a.maquinas.length} equip. / ${nRiscos} risco(s)</span></span>
+                </label>
+                ${laudoStatusSeloHtml(stA)}
+                ${stA.total? `<button class="btn btn-ghost btn-sm" title="Abre a Revisão só com esta área (deixa só ela marcada)" onclick="App.laudoRevisarArea('${a.id}')">Revisar</button>` : ""}
+              </div>
+              ${stA.total? `<div style="margin:5px 0 0 26px">${laudoStatusBarraHtml(stA, 6)}<div style="font-size:11px;color:var(--ink-dim);margin-top:3px">${escapeHtml(laudoStatusTextoResumo(stA))}</div></div>` : ""}
+            </div>`;
           }).join("")}
         ${areas.length>0? `<div style="display:flex;gap:8px;margin-top:10px">
           <button class="btn btn-ghost btn-sm" style="flex:1" onclick="App.selecionarAreasDoProjetoExport('${p.id}')">Todas deste projeto</button>
@@ -23706,6 +23779,11 @@ Devolver agora?`)) return;
     STATE.ui.areasSelecionadasExport = todas; marcarAlterado(); render();
   },
   desmarcarTodasAreasExport(){ STATE.ui.areasSelecionadasExport = []; marcarAlterado(); render(); },
+  /* Botão "Revisar" da aba Áreas: deixa só esta área marcada e abre a Revisão. */
+  laudoRevisarArea(id){
+    STATE.ui.areasSelecionadasExport = [id]; marcarAlterado();
+    App.laudoSetAba("revisao");
+  },
   selecionarAreasDoProjetoExport(projetoId){
     const p = STATE.projetosSimples.find(x=>x.id===projetoId); if(!p) return;
     const arr = getAreasSelecionadasExport();

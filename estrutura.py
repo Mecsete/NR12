@@ -5261,5 +5261,17 @@ chk("Python so abre, grava e busca (a proibicao de gerar texto por codigo segue)
 chk("assunto com Confianca Proposto nao pode ser usado",
     'Assunto com Confiança \\"Proposto\\" está esperando aprovação do engenheiro: NÃO use' in novo)
 
+
+print("\n=== 159. ABA AREAS: SITUACAO DOS TEXTOS POR AREA (24/09/2026) ===")
+_st = _corpoDe(novo, "laudoStatusTextosArea")
+chk("a contagem e so leitura: nao passa por getLaudoMaquina/Tarefa/Risco nem laudoGet (que criam campos vazios)",
+    "getLaudo" not in _st and "laudoGet(" not in _st and ".laudoIA" in _st)
+chk("a aba Areas mostra selo, barra, resumo, total por projeto e geral, e o botao Revisar",
+    all(x in _corpoDe(novo, "laudoAbaAreas") for x in ["laudoStatusSeloHtml(stA)", "laudoStatusBarraHtml(stA, 6)", "laudoStatusSoma(", "App.laudoRevisarArea(", "Todos os projetos:"]))
+chk("o metodo Revisar existe uma vez e so marca a area escolhida antes de abrir a Revisao",
+    novo.count("laudoRevisarArea(id){") == 1 and "STATE.ui.areasSelecionadasExport = [id]; marcarAlterado();" in novo)
+chk("as cores da barra saem de uma constante unica",
+    novo.count("const LAUDO_AREA_COR =") == 1)
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

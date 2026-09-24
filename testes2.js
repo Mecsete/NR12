@@ -11002,6 +11002,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
         // Só escreve escolha de tela (STATE.ui), não dado de projeto.
         selecionarTodasAreasExport:1, desmarcarTodasAreasExport:1,
         selecionarAreasDoProjetoExport:1, desmarcarAreasDoProjetoExport:1,
+        laudoRevisarArea:1,  // 24/09/2026: botao Revisar da aba Areas; so grava a escolha de tela e abre a aba Revisao
         // Substituem o STATE inteiro por decisão explícita da pessoa.
         confirmarImportacaoBackup:1,
         // É a própria saída do arquivamento.
@@ -12981,6 +12982,74 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     t("a conferencia final cobra as lacunas e o fim da resposta leva a lista", ()=>{
       ok(HTML.indexOf('"11. Toda proposta de medida real sem assunto nos guias nem linha na tabela ficou sem citação e foi anotada em LACUNAS DE NORMA') > 0);
       ok(HTML.indexOf("Ao final, entregue também a lista LACUNAS DE NORMA (se houver), com a pergunta sobre investigar os PDFs.") > 0);
+    });
+  }
+
+  /* 24/09/2026: situacao dos textos por area na aba Areas do Laudo */
+  {
+    console.log("\n[t169] aba Areas: situacao dos textos por area");
+    const cxS = vm.createContext({ String, Object, Array, Math, JSON });
+    vm.runInContext("function escapeHtml(x){ return String(x); }", cxS);
+    vm.runInContext(constante("LAUDO_ST_ROTULO") + constante("LAUDO_ST_COR") + constante("LAUDO_ST_FUNDO") + constante("LAUDO_AREA_COR"), cxS);
+    ["laudoStatusTextosArea","laudoStatusSoma","laudoStatusBarraHtml","laudoStatusTextoResumo","laudoStatusSeloHtml"].forEach(n=> vm.runInContext(funcao(n), cxS));
+    const F = n => cxS[n];
+    const area = () => ({ maquinas:[
+      { laudoIA:{ escopoSug:"e", escopoSt:"pend" }, tarefas:[
+        { laudoIA:{ tarefaFin:"t", tarefaSt:"ok" }, riscos:[
+          { laudoIA:{ nomeSug:"n", nomeSt:"ok", riscoSug:"r", riscoSt:"edit", solucaoSug:"s", solucaoSt:"no" } },
+          { laudoIA:{ existenteSug:"x", existenteSt:"pend" } },
+        ] } ] },
+      { tarefas:[ { riscos:[ {} ] } ] },
+    ] });
+
+    t("conta cada texto num dos tres estados; recusado e vazio caem em Sem texto", ()=>{
+      const r = F("laudoStatusTextosArea")(area());
+      // maquina1: escopo=rev; tarefa=ok; risco1: nome ok, risco ok(edit), existente (nunca teve: fora), solucao no=sem;
+      // risco2: nome sem, risco sem, existente rev, solucao sem; maquina2: escopo sem, tarefa sem, risco {}: nome, risco, solucao sem
+      eq(r.ok, 3);
+      eq(r.rev, 2);
+      eq(r.total, r.ok + r.rev + r.sem);
+      eq(r.sem, 9);
+      eq(r.total, 14);
+    });
+    t("existente que nunca teve nada nao entra na conta (mesma regra do resumo do laudo)", ()=>{
+      const r = F("laudoStatusTextosArea")({ maquinas:[ { tarefas:[ { riscos:[ {} ] } ] } ] });
+      eq(r.total, 5); // escopo, tarefa, nome, risco, solucao
+    });
+    t("e so leitura: nao cria campos nem altera o dado", ()=>{
+      const a = area(); const antes = JSON.stringify(a);
+      F("laudoStatusTextosArea")(a);
+      eq(JSON.stringify(a), antes);
+      eq(F("laudoStatusTextosArea")(null).total, 0);
+      eq(F("laudoStatusTextosArea")({}).total, 0);
+    });
+    t("o selo mostra primeiro o que pede acao: a revisar, depois sem texto, so entao Aplicado", ()=>{
+      ok(F("laudoStatusSeloHtml")({ total:10, ok:5, rev:2, sem:3 }).indexOf("2 a revisar") > 0);
+      ok(F("laudoStatusSeloHtml")({ total:10, ok:5, rev:0, sem:5 }).indexOf("5 sem texto") > 0);
+      const v = F("laudoStatusSeloHtml")({ total:10, ok:10, rev:0, sem:0 });
+      ok(v.indexOf(">Aplicado<") > 0 && v.indexOf("#2E7D32") > 0);
+      eq(F("laudoStatusSeloHtml")({ total:0, ok:0, rev:0, sem:0 }), "");
+    });
+    t("a barra tem as tres cores, proporcionais e na ordem aplicado, revisar, sem texto", ()=>{
+      const b = F("laudoStatusBarraHtml")({ total:10, ok:5, rev:2, sem:3 }, 6);
+      const i1 = b.indexOf("width:50.00%"), i2 = b.indexOf("width:20.00%"), i3 = b.indexOf("width:30.00%");
+      ok(i1 > 0 && i2 > i1 && i3 > i2, b);
+      ok(b.indexOf("#2E7D32") > 0 && b.indexOf("#E09A2B") > 0 && b.indexOf("#B8BBCB") > 0);
+      ok(F("laudoStatusBarraHtml")({ total:10, ok:10, rev:0, sem:0 }, 6).split("<span").length === 2, "so o segmento verde");
+      eq(F("laudoStatusBarraHtml")({ total:0, ok:0, rev:0, sem:0 }, 6), "");
+    });
+    t("o resumo em texto e a soma de varias areas", ()=>{
+      eq(F("laudoStatusTextoResumo")({ total:10, ok:5, rev:2, sem:3 }), "50% aplicado · 2 a revisar · 3 sem texto");
+      eq(F("laudoStatusTextoResumo")({ total:0, ok:0, rev:0, sem:0 }), "Sem textos");
+      const s = F("laudoStatusSoma")([{ total:2, ok:1, rev:1, sem:0 }, { total:3, ok:0, rev:1, sem:2 }]);
+      eq(s.total, 5); eq(s.rev, 2); eq(s.sem, 2); eq(s.ok, 1);
+    });
+    t("a aba Areas usa tudo isso e o botao Revisar deixa so a area marcada", ()=>{
+      const iA = HTML.indexOf("function laudoAbaAreas(){");
+      const corpo = HTML.slice(iA, HTML.indexOf("/* ---------- Aba: Exportar ---------- */", iA));
+      ["laudoStatusTextosArea(a)","laudoStatusSeloHtml(stA)","laudoStatusBarraHtml(stA, 6)","laudoStatusSoma(","App.laudoRevisarArea('${a.id}')",
+       "Todos os projetos:","Texto a revisar"].forEach(x=> ok(corpo.indexOf(x) > 0, "faltou: " + x));
+      ok(HTML.indexOf("laudoRevisarArea(id){\n    STATE.ui.areasSelecionadasExport = [id]; marcarAlterado();\n    App.laudoSetAba(\"revisao\");") > 0);
     });
   }
 
