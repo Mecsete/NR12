@@ -13229,6 +13229,70 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  /* 24/09/2026: conferencia mecanica da citacao de norma na volta da planilha */
+  {
+    console.log("\n[t174] volta da planilha: citacao de norma nao conferida vira Duvida da IA");
+    const cxC = vm.createContext({ String, Object, Array, Set, Number, JSON, Math });
+    vm.runInContext(constante("BIBLIOTECA_MEDIDAS") + constante("CITACOES_GUIAS"), cxC);
+    vm.runInContext(constante("BASE_IA_COLUNAS"), cxC);
+    vm.runInContext('const BASE_IA_NIVEL = { escopo:"maquina", tarefa:"tarefa", nome:"risco", risco:"risco", existente:"risco", solucao:"risco" };', cxC);
+    vm.runInContext('const LAUDO_TEXTOS_FORMATO = "apr-textos-laudo-v1";', cxC);
+    ["medidaReferencia","baseIADesescapar","baseIATextosDe","baseIALerCelulas","baseIANormalizarCabecalho","baseIANormalizarCitacao",
+     "baseIACitacoesEm","baseIACitacoesPermitidas","baseIAConferirCitacaoDaSolucao","baseIARespostasDaAba","baseIAPacoteDasAbas","baseIAMensagemImporte"]
+      .forEach(n=> vm.runInContext(funcao(n), cxC));
+    const conf = (txt, linha) => cxC.baseIAConferirCitacaoDaSolucao(txt, linha || []);
+    t("citacao igual a uma da biblioteca passa, mesmo com ponto final e espacos a mais", ()=>{
+      eq(conf("Instalar proteção, conforme NR-12, item 12.5.11 e item 12.5.12; ABNT NBR ISO 13857; ABNT NBR ISO 12100."), "");
+      eq(conf("Ajustar, conforme  NR-12,  item 12.8.1;  ABNT NBR ISO 12100"), "");
+    });
+    t("citacao pronta de um guia passa (inclusive as que a biblioteca nao tem)", ()=>{
+      eq(conf("Colocar identificação, conforme NR-12, item 12.12.4."), "");
+      eq(conf("Cobrir a esteira, conforme NR-12, item 12.8.9.2; ABNT NBR ISO 12100."), "");
+    });
+    t("citacao composta de pedacos de fontes diferentes e sinalizada, com a citacao no aviso", ()=>{
+      const a = conf("Instalar proteção, conforme NR-12, item 12.5.1 e item 12.5.11; ABNT NBR ISO 13857; ABNT NBR ISO 12100.");
+      ok(a.indexOf("Citação de norma não conferida") === 0, a);
+      ok(a.indexOf("NR-12, item 12.5.1 e item 12.5.11; ABNT NBR ISO 13857; ABNT NBR ISO 12100") > 0);
+      ok(conf("x, conforme NR-12, item 12.5.11; ABNT NBR ISO 99999.").indexOf("não conferida") > 0);
+      ok(conf("x, conforme NR-12, item 12.99.99.").indexOf("não conferida") > 0);
+    });
+    t("sem citacao nao ha o que conferir; citacao que ja estava na propria linha passa", ()=>{
+      eq(conf("Recomenda-se instalar a proteção."), "");
+      eq(conf(""), "");
+      const linha = ["Instalar guarda, conforme NR-12, item 12.5.1 e item 12.5.99; ABNT NBR ISO 12100."];
+      ok(conf("Instalar guarda, conforme NR-12, item 12.5.1 e item 12.5.99; ABNT NBR ISO 12100.").indexOf("não conferida") > 0);
+      eq(conf("Instalar guarda, conforme NR-12, item 12.5.1 e item 12.5.99; ABNT NBR ISO 12100.", linha), "");
+      eq(conf("x, conforme NR-12, item 12.5.1 e item 12.5.99; ABNT NBR ISO 12100.", ["Atende ao disposto na NR-12, item 12.5.1 e item 12.5.99; ABNT NBR ISO 12100."]), "");
+    });
+    t("na leitura da planilha: so a Solucao e conferida, a duvida entra no pacote e o resumo conta", ()=>{
+      const cel = (ref, txt) => '<c r="'+ref+'" t="inlineStr"><is><t>'+txt+'</t></is></c>';
+      const xml = '<sheetData><row r="1">' + cel("A1","ID_Risco") + cel("B1","ID_Tarefa") + cel("C1","ID_Maquina")
+        + cel("D1","Solu&#231;&#227;o Edit&#225;vel") + cel("E1","RESPOSTA - Descri&#231;&#227;o do risco") + cel("F1","RESPOSTA - Solu&#231;&#227;o") + '</row>'
+        + '<row r="2">' + cel("A2","r1") + cel("B2","t1") + cel("C2","m1") + cel("D2","Colocar lona")
+        + cel("E2","Descrição, conforme NR-12, item 12.99.99.") + cel("F2","Instalar lona, conforme NR-12, item 12.5.1 e item 12.5.11; ABNT NBR ISO 13857; ABNT NBR ISO 12100.") + '</row>'
+        + '<row r="3">' + cel("A3","r2") + cel("B3","t1") + cel("C3","m1") + cel("D3","Cerca")
+        + cel("E3","Outra") + cel("F3","Instalar cerca, conforme NR-12, item 12.5.1, item 12.5.4 e item 12.5.11; ABNT NBR ISO 14120; ABNT NBR ISO 13857; ABNT NBR ISO 12100.") + '</row></sheetData>';
+      const r = cxC.baseIARespostasDaAba(cxC.baseIALerCelulas(xml, []));
+      const sol = r.entradas.filter(e=> e.campo === "solucao");
+      eq(sol.length, 2);
+      ok(sol[0].citacaoNaoConferida === true && sol[0].duvida.indexOf("não conferida") > 0, "a composta precisa ser marcada");
+      ok(!sol[1].citacaoNaoConferida && !sol[1].duvida, "a da biblioteca passa limpa");
+      ok(r.entradas.filter(e=> e.campo === "risco").every(e=> !e.duvida), "so a Solucao e conferida");
+      const p = cxC.baseIAPacoteDasAbas([r]);
+      eq(p.resumo.citacoesNaoConferidas, 1);
+      const m = cxC.baseIAMensagemImporte(p.resumo, { aplicados:2, reavaliados:0, pulados:0, naoAchados:0, arquivados:0, porCampo:{} });
+      ok(m.indexOf("1 Solução(ões) com citação de norma NÃO conferida") > 0, m);
+    });
+    t("a duvida chega ao laudo pelo caminho de sempre (duvida do pacote vai para duv)", ()=>{
+      ok(HTML.indexOf('duv: String((linha && linha.duvida) || "").trim()') > 0);
+    });
+    t("toda citacao da biblioteca esta permitida (nada da propria biblioteca vira alarme)", ()=>{
+      const permitidas = cxC.baseIACitacoesPermitidas();
+      vm.runInContext("var __refs = BIBLIOTECA_MEDIDAS.map(m=> medidaReferencia(m))", cxC);
+      cxC.__refs.forEach(r=> ok(permitidas.has(cxC.baseIANormalizarCitacao(r)), "faltou: " + r));
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

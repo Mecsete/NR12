@@ -5316,5 +5316,18 @@ chk("aba Areas: solucao sem proposta em campo nao conta e o resumo diz N de M te
     'conta(rk.laudoIA, "solucao", !rk.sugestaoMitigacao && !rk.medidaPropostaTipo);' in novo
     and '" de " + st.total + " textos aplicados ("' in novo)
 
+
+print("\n=== 164. VOLTA DA PLANILHA: CITACAO DE NORMA CONFERIDA MECANICAMENTE (24/09/2026) ===")
+chk("existe a lista das citacoes prontas dos guias e a conferencia usa biblioteca + guias + a propria linha",
+    novo.count("const CITACOES_GUIAS = [") == 1
+    and "BIBLIOTECA_MEDIDAS.forEach(m=>{ const r = medidaReferencia(m);" in novo
+    and "CITACOES_GUIAS.forEach(c=> s.add(" in novo
+    and "baseIACitacoesEm(x).indexOf(cit) >= 0" in novo)
+chk("a leitura so confere a Solucao, avisa pela Duvida da IA e o resumo da importacao conta",
+    'campo === "solucao" && typeof baseIAConferirCitacaoDaSolucao === "function"' in novo
+    and "entrada.citacaoNaoConferida = true" in novo
+    and "resumo.citacoesNaoConferidas++" in novo
+    and "com citação de norma NÃO conferida" in novo)
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

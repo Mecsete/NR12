@@ -64,6 +64,17 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 24/09/2026 16:21
+
+**Volta da planilha: citação de norma na Solução é conferida pelo app.**
+
+A citação final da Solução ("conforme NR-12, ...") precisa ser igual a uma citação da
+biblioteca de medidas, a uma citação pronta dos guias de normas ou a uma que já
+estava nas colunas da própria linha (Sugestão Solução, Solução Editável, Descrição da
+Mitigação Existente). Se não for, a sugestão entra normalmente, mas com "Dúvida da
+IA: Citação de norma não conferida..." na Revisão, e o aviso da importação conta
+quantas foram. É a defesa mecânica contra a IA compor citação de memória.
+
 ## 24/09/2026 16:18
 
 **Instruções da planilha (nome do risco e citação) e resumo da aba Áreas mais claro.**

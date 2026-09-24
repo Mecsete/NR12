@@ -3181,7 +3181,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "24/09/2026 16:18";
+const APP_BUILD = "24/09/2026 16:21";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -17494,6 +17494,87 @@ function baseIALerCelulas(xml, sst){
   }
   return linhas;
 }
+/* CONFERENCIA DA CITACAO DE NORMA NA VOLTA DA PLANILHA (24/09/2026).
+   Numa planilha real, oito Solucoes voltaram com uma norma que nao veio de
+   nenhuma fonte (a IA compos a citacao de memoria). So instrucao nao bastou:
+   a conferencia e mecanica. A citacao final da Solucao ("conforme NR-12, ...")
+   tem de ser IGUAL a uma destas fontes, senao a sugestao entra normalmente,
+   mas com a "Dúvida da IA" avisando que a citacao nao foi conferida —
+   o engenheiro decide na Revisao:
+     1. as citacoes da biblioteca de medidas (as mesmas da tabela da planilha);
+     2. as citacoes prontas dos guias de normas (lista abaixo);
+     3. as citacoes que ja estavam nas colunas desta MESMA linha (Sugestao
+        Solucao, Solucao Editavel, Descricao da Mitigacao Existente).
+   CITACOES_GUIAS vem de normas/GUIA_NORMAS_POR_ASSUNTO.md ("Citação pronta",
+   sem o "conforme" e sem o simbolo de dagger). Ao aprovar assunto novo no guia,
+   atualizar esta lista — sem isso a citacao correta do assunto novo sai como
+   "nao conferida" (falso alarme, nunca falha silenciosa). */
+const CITACOES_GUIAS = [
+  "NR-12, item 12.5.4, item 12.5.9 e item 12.5.11; ABNT NBR ISO 14120; ABNT NBR ISO 12100",
+  "NR-12, item 12.5.4, item 12.5.6 e item 12.5.7; ABNT NBR ISO 14119; ABNT NBR ISO 14120; ABNT NBR ISO 12100",
+  "NR-12, item 12.5.6 e item 12.5.7; ABNT NBR ISO 14119; ABNT NBR ISO 14120; ABNT NBR ISO 12100",
+  "NR-12, item 12.5.6, item 12.5.8 e item 12.5.9.1; ABNT NBR ISO 14119; ABNT NBR ISO 12100",
+  "NR-12, item 12.4.1, item 12.5.2 e item 12.5.11; ABNT NBR ISO 14119; ABNT NBR ISO 12100",
+  "NR-12, item 12.5.1, item 12.5.4 e item 12.5.11; ABNT NBR ISO 14120; ABNT NBR ISO 13857; ABNT NBR ISO 12100",
+  "NR-12, item 12.5.11 e item 12.5.12; ABNT NBR ISO 13857; ABNT NBR ISO 12100",
+  "NR-12, item 12.5.9 e item 12.5.11; ABNT NBR ISO 14120; ABNT NBR ISO 12100",
+  "NR-12, item 12.5.10 e item 12.5.11; ABNT NBR ISO 12100",
+  "NR-12, item 12.6.1, item 12.6.2 e item 12.6.3; ABNT NBR ISO 13850; ABNT NBR ISO 12100",
+  "NR-12, item 12.6.6 e item 12.6.7; ABNT NBR ISO 12100",
+  "NR-12, Anexo I e item 12.5.13; ABNT NBR IEC 61496; ABNT NBR ISO 13855; ABNT NBR ISO 12100",
+  "NR-12, item 12.5.13; ABNT NBR ISO 13856; ABNT NBR ISO 12100",
+  "NR-12, item 12.4.3; ABNT NBR 14153; ABNT ISO 13849-1; ABNT NBR ISO 12100",
+  "NR-12, item 12.5.3, item 12.5.13 e item 12.5.13.1; ABNT NBR ISO 12100",
+  "NR-12, item 12.5.2 e item 12.5.17; ABNT NBR 14153; ABNT ISO 13849-1; ABNT NBR ISO 12100",
+  "NR-12, item 12.11.3.1 e item 12.4.8; ABNT NBR ISO 12100",
+  "NR-12, item 12.4.1 e item 12.4.2; ABNT NBR ISO 12100",
+  "NR-12, Anexo III, itens 1 e 5; ABNT NBR ISO 14122-1; ABNT NBR ISO 14122-2; ABNT NBR ISO 14122-3; ABNT NBR ISO 12100",
+  "NR-12, Anexo III, itens 5, 7 e 11 (ou 12); ABNT NBR ISO 14122-3",
+  "NR-12, Anexo III, itens 1.3 e 13; ABNT NBR ISO 14122-4",
+  "NR-12, Anexo III, item 7; ABNT NBR ISO 14122-3; NR-35; ABNT NBR ISO 12100",
+  "NR-12, Anexo III, itens 3, 5 e 10; ABNT NBR ISO 14122-2; ABNT NBR ISO 12100",
+  "NR-12, Anexo III, itens 5, 6 e 10; ABNT NBR ISO 14122-2",
+  "NR-12, item 12.11.3; ABNT NBR ISO 12100",
+  "NR-12, item 12.3.5 e item 12.3.8; ABNT NBR IEC 60204-1",
+  "NR-12, item 12.7.1, item 12.7.2 e item 12.7.5; ABNT NBR ISO 12100",
+  "NR-12, item 12.12.1; NR-26; ABNT NBR ISO 7010; ABNT NBR ISO 12100",
+  "NR-12, item 12.13.1 e item 12.13.2; ABNT NBR ISO 12100",
+  "NR-12, item 12.12.4",
+  "NR-12, item 12.14.1 e item 12.11.2; ABNT NBR ISO 12100",
+  "NR-12, item 12.16.1 e item 12.16.2; ABNT NBR ISO 12100",
+  "NR-12, item 12.1.9 e item 12.5.17; ABNT NBR ISO 12100; ABNT ISO/TR 14121-2",
+  "NR-12, item 12.2.1 e item 12.2.3",
+  "NR-12, item 12.9.1; NR-17",
+  "NR-12, item 12.8.1 e item 12.8.7",
+  "NR-12, item 12.10.3",
+  "NR-12, item 12.5.1 e item 12.5.11; ABNT NBR ISO 13854; ABNT NBR ISO 12100",
+  "NR-12, item 12.8.9.2; ABNT NBR ISO 12100"
+];
+function baseIANormalizarCitacao(t){
+  return String(t||"").replace(/\u2020/g, "").replace(/\s+/g, " ").replace(/[\s.]+$/, "").trim().toLowerCase();
+}
+function baseIACitacoesEm(texto){
+  const out = [], t = String(texto||"");
+  const re = /NR-12,\s(?:Anexo|item)[\s\S]*?(?=\.\s|\.$|$)/g;
+  let m;
+  while((m = re.exec(t))) out.push(baseIANormalizarCitacao(m[0]));
+  return out;
+}
+function baseIACitacoesPermitidas(){
+  const s = new Set();
+  BIBLIOTECA_MEDIDAS.forEach(m=>{ const r = medidaReferencia(m); if(r) s.add(baseIANormalizarCitacao(r)); });
+  CITACOES_GUIAS.forEach(c=> s.add(baseIANormalizarCitacao(c)));
+  return s;
+}
+/* Devolve "" quando esta tudo certo (ou nao ha citacao), ou o aviso. */
+function baseIAConferirCitacaoDaSolucao(texto, textosDaLinha){
+  const m = /conforme\s+(NR-12,[\s\S]*)$/i.exec(String(texto||"").trim());
+  if(!m) return "";
+  const cit = baseIANormalizarCitacao(m[1]);
+  if(baseIACitacoesPermitidas().has(cit)) return "";
+  if((textosDaLinha||[]).some(x=> baseIACitacoesEm(x).indexOf(cit) >= 0)) return "";
+  return "Citação de norma não conferida: \"" + m[1].trim().replace(/\.$/, "") + "\" — não consta da tabela de medidas, dos guias de normas nem do que foi levantado nesta linha. Confira antes de aplicar.";
+}
 /* Uma aba respondida vira entradas de texto. Devolve null quando a aba nao e
    nossa (sem linha de cabecalho com ID) — planilha volta com aba de rascunho
    com frequencia, e isso nao pode virar erro. */
@@ -17514,6 +17595,7 @@ function baseIARespostasDaAba(linhas){
   }
   const col = (h)=> mapa[baseIANormalizarCabecalho(h)] || null;
   const cId = { risco:col("ID_Risco"), tarefa:col("ID_Tarefa"), maquina:col("ID_Maquina") };
+  const cFontesCitacao = [col("Sugestão Solução"), col("Solução Editável"), col("Descrição da Mitigação Existente")];
   const resps = BASE_IA_COLUNAS.filter(c=>c.resp)
     .map(c=> ({ campo:c.resp.campo, tipo:c.resp.tipo, letra:col(c.h) }))
     .filter(c=> !!c.letra);
@@ -17541,7 +17623,13 @@ function baseIARespostasDaAba(linhas){
       if(!t.texto) return;
       const alvo = ids[BASE_IA_NIVEL[campo]];
       if(!alvo){ res.semId++; return; }
-      res.entradas.push({ id:alvo, campo:campo, texto:t.texto });
+      const entrada = { id:alvo, campo:campo, texto:t.texto };
+      /* typeof: a leitura tambem roda em contextos de teste sem a biblioteca */
+      if(campo === "solucao" && typeof baseIAConferirCitacaoDaSolucao === "function"){
+        const aviso = baseIAConferirCitacaoDaSolucao(t.texto, cFontesCitacao.map(get));
+        if(aviso){ entrada.duvida = aviso; entrada.citacaoNaoConferida = true; }
+      }
+      res.entradas.push(entrada);
     });
   });
   return res;
@@ -17553,7 +17641,7 @@ function baseIARespostasDaAba(linhas){
 function baseIAPacoteDasAbas(abas){
   const vistos = new Map();
   const textos = [];
-  const resumo = { abas:0, linhasLidas:0, semResposta:0, semId:0, repetidos:0, divergentes:0 };
+  const resumo = { abas:0, linhasLidas:0, semResposta:0, semId:0, repetidos:0, divergentes:0, citacoesNaoConferidas:0 };
   (abas||[]).forEach(r=>{
     if(!r) return;
     resumo.abas++;
@@ -17567,6 +17655,7 @@ function baseIAPacoteDasAbas(abas){
         return;
       }
       vistos.set(k, e.texto);
+      if(e.citacaoNaoConferida) resumo.citacoesNaoConferidas++;
       textos.push(e);
     });
   });
@@ -17588,6 +17677,7 @@ function baseIAMensagemImporte(resumo, r){
   if(r.arquivados)          msg += " " + r.arquivados + " em projeto arquivado (só leitura).";
   if(resumo.divergentes)    msg += " " + resumo.divergentes + " texto(s) diferentes para o mesmo item — valeu o primeiro.";
   if(resumo.semId)          msg += " " + resumo.semId + " sem o ID da linha.";
+  if(resumo.citacoesNaoConferidas) msg += " " + resumo.citacoesNaoConferidas + " Solução(ões) com citação de norma NÃO conferida (fora da tabela, dos guias e do campo): entraram marcadas com \"Dúvida da IA\" na Revisão.";
   return msg;
 }
 
