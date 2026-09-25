@@ -5229,7 +5229,7 @@ chk("as instrucoes abrem com o bloco obrigatorio contra script, modelo de frase 
     and "É PROIBIDO preencher a planilha por código, script, fórmula, macro, concatenação ou modelo de frase" in novo
     and "Resposta igual ao campo, ou igual ao campo com uma palavra a mais, significa que você NÃO trabalhou" in novo)
 chk("as instrucoes trazem o padrao minimo de qualidade com exemplos reais aprovados",
-    "PADRÃO DE QUALIDADE — o mínimo esperado" in novo and "Abertura maior que 600 mm entre a calha de queda das espigas" in novo)
+    "PADRÃO DE QUALIDADE — o mínimo esperado" in novo and "abertura maior que 600 mm entre a calha de queda das espigas" in novo)  # 25/09/2026: exemplo reordenado (abre com Risco de)
 
 
 print("\n=== 157. BIBLIOTECA: 13 MEDIDAS NOVAS E GUIAS DE NORMAS NAS INSTRUCOES (24/09/2026) ===")
@@ -5335,6 +5335,14 @@ chk("o app nao tem conferencia de citacao na importacao (removida a pedido do en
 chk("as instrucoes mandam a IA confirmar cada citacao nos guias, TXT e PDF da pasta",
     "CONFIRME cada citação nesses arquivos antes de deixá-la" in novo
     and "O aplicativo não confere citação nenhuma na importação: a conferência é sua" in novo)
+
+
+print("\n=== 167. DESCRICAO DO RISCO: ABRE COM RISCO + PARTE DO CORPO (25/09/2026) ===")
+chk("a regra de ordem esta nas instrucoes e a antiga (componente primeiro) saiu",
+    "ORDEM DA FRASE (obrigatória)" in novo and "SEMPRE abre com o risco e a parte do corpo atingida" in novo
+    and "Uma frase corrida combinando componente + condição observada" not in novo)
+chk("os dois exemplos aprovados abrem com Risco de",
+    'Texto: \\"Risco de prensamento dos dedos no cilindro pneumático' in novo and 'Texto: \\"Risco de queda de quem circula na área pela abertura' in novo)
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

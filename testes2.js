@@ -13288,6 +13288,28 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  /* 25/09/2026: Descricao do risco abre com o risco e a parte do corpo */
+  {
+    console.log("\n[t177] instrucoes da planilha: Descricao do risco abre com risco + parte do corpo");
+    const iR = HTML.indexOf('"RESPOSTA - Descrição do risco",' + String.fromCharCode(10) + '"Uma frase corrida');
+    ok(iR > 0, "secao da Descricao do risco nao encontrada");
+    const sec = HTML.slice(iR, HTML.indexOf('"RESPOSTA - Mitigação existente",' + String.fromCharCode(10), iR));
+    t("a regra fixa o comeco da frase e deixa o resto livre, com o modelo e o que nao fazer", ()=>{
+      ["SEMPRE abre com o risco e a parte do corpo atingida","ORDEM DA FRASE (obrigatória)","O começo é fixo: risco + parte do corpo",
+       "pode ser reordenado conforme o dado de campo","Risco de agarramento dos dedos na esteira de costura da ensacadeira ao se aproximar dela em movimento, mesmo estando atento.",
+       "ERRADO: abrir pelo componente ou pela condição","abra só com o risco"].forEach(x=> ok(sec.indexOf(x) > 0, "faltou: " + x));
+    });
+    t("a regra antiga (componente primeiro) e o exemplo antigo saíram", ()=>{
+      ok(HTML.indexOf('"Uma frase corrida combinando componente + condição observada') < 0);
+      ok(HTML.indexOf('Texto: \\"A proteção do cilindro pneumático encontra-se desparafusada, permitindo') < 0);
+      ok(HTML.indexOf('Texto: \\"Abertura maior que 600 mm entre a calha de queda das espigas e o guarda-corpo; risco de queda') < 0);
+    });
+    t("os exemplos aprovados agora abrem com Risco de", ()=>{
+      ok(sec.indexOf('Texto: \\"Risco de prensamento dos dedos no cilindro pneumático, cuja proteção encontra-se desparafusada') > 0);
+      ok(HTML.indexOf('Texto: \\"Risco de queda de quem circula na área pela abertura maior que 600 mm entre a calha de queda das espigas e o guarda-corpo.\\"') > 0);
+    });
+  }
+
   console.log("\n---------------------------------------");
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);

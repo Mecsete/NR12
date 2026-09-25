@@ -64,6 +64,16 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 25/09/2026 18:24
+
+**Descrição do risco: a frase abre sempre com o risco e a parte do corpo.**
+
+Antes as instruções mandavam abrir pelo componente ("A esteira de costura…, com risco de
+agarramento dos dedos…"), e os dois exemplos aprovados seguiam essa ordem. Agora a frase
+abre com "Risco de [dano] [parte do corpo] [componente]" e só depois traz a condição e a
+exposição, que podem ser reordenadas. Corpo inteiro (queda, atropelamento): abre só com o
+risco. Os exemplos foram trocados para a nova ordem, alinhando a descrição ao Nome do risco.
+
 ## 24/09/2026 17:40
 
 **Removida a conferência de citação na importação; quem confere é a IA, nos arquivos da pasta dela.**
