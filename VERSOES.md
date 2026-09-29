@@ -64,7 +64,20 @@ antigo, feche e abra o app novamente.
 
 ---
 
-## 29/09/2026 08:40
+## 29/09/2026 09:50
+
+**Nova opção de exportação: "Só Inventário de Máquinas".**
+
+Na tela Exportar Excel, uma quinta opção ao lado de Todos/Laudo/Só Base Completa/
+Só Resumo: planilha limpa (.xlsx, sem macro), uma linha por MÁQUINA (não por
+risco), com a foto e os dados da plaqueta — modelo, marca, nº de série, ano de
+fabricação, capacidade e tensão. Não depende de enviar o modelo .xlsm da Corteva
+e não passa pela geração de texto do laudo. De passagem, a aba Inventário do
+modelo oficial da Corteva (exportação com macro) tinha o mesmo defeito da
+entrega anterior (foto sem correspondência virando imagem de 0 bytes) numa
+linha que a varredura anterior não tinha pego — corrigida agora também.
+
+## 29/09/2026 09:42
 
 **Corrigido: foto sem correspondência no aparelho virava imagem de zero bytes no Excel.**
 

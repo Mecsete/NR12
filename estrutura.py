@@ -80,12 +80,17 @@ print("=== 3. ARQUITETURA DE FOTOS (CAMADA_FOTOS) ===")
 # `info:{...,fotos:[]}` vazio, sem nenhuma ocorrencia nova da palavra), e a
 # remocao das etiquetas tirou codigo que nao continha essas palavras. Delta
 # zero, fica exatamente zerado.
-# CORRECAO DA FOTO SEM CORRESPONDENCIA (25-29/09/2026, ver secao 168): +2 em
+# CORRECAO DA FOTO SEM CORRESPONDENCIA (commit b35c598, 29/09/2026): +2 em
 # "idbfoto:" e +2 em "foto:", os dois so em comentario (fotoExportavel() cita
 # "idbfoto:<id>" por extenso duas vezes ao explicar o defeito que corrige; "foto:"
 # embutido dentro do proprio "idbfoto:" acompanha). Nenhuma ocorrencia nova em
 # codigo: a correcao filtra o que ja existia, nao grava foto de jeito novo.
-_extra_fotos = {"foto:": 2, "idbfoto:": 2}
+# A referencia (original.html) JA vem daquele commit agora, entao contar de
+# novo somaria duas vezes -- mesmo motivo de oneDriveDeltaFila/exclusoesConfirmadas
+# acima. Zerado. "SO INVENTARIO DE MAQUINAS" (mesma entrega desta secao,
+# 29/09/2026): delta zero tambem -- gerarBytesXlsxInventario nao usa nenhuma
+# das duas palavras, nem em codigo nem em comentario.
+_extra_fotos = {"foto:": 0, "idbfoto:": 0}
 for marca in ["idbfoto:", "foto:", "CAMADA_FOTOS"]:
     a, b = orig.count(marca) + _extra_fotos.get(marca, 0), novo.count(marca)
     chk("ocorrencias de '%s' inalteradas (%d)" % (marca, a), a == b, "orig+extra=%d novo=%d" % (a, b))
@@ -995,9 +1000,12 @@ chk("dois painies nao se empilham nem se fecham entre si",
 chk("a estimativa so aparece com pelo menos dois itens medidos",
     "p.feito >= 2 && p.total > p.feito" in novo
     and "decorrido/p.feito*(p.total-p.feito)" in novo)
+# 29/09/2026: +1 (4->5) com o ramo novo de "So Inventario de Maquinas" em
+# _exportarSimplesXLSXFotosReal, que repete o mesmo padrao de checar a
+# cada area do loop.
 chk("parar sai antes da proxima chamada, nao no meio de uma",
     "__progresso.cancelado = true;" in novo
-    and novo.count("if(progressoCancelado()) break;") == 4)
+    and novo.count("if(progressoCancelado()) break;") == 5)
 # Excel, Word, a geracao de textos e (desde 26/08/2026) a recuperacao de
 # fotos perdidas. Sem finally o painel ficaria preso na tela — exatamente o
 # defeito do aviso que se renovava sozinho.
@@ -1007,8 +1015,9 @@ chk("o painel fecha em qualquer desfecho",
     and novo.count("progressoFechar(painelWord)") == 1
     and novo.count("finally{ progressoFechar(meuPainel); }") == 1
     and novo.count("finally{\n      progressoFechar(souDono);\n    }") == 1)
+# 29/09/2026: +1 (3->4), mesmo ramo novo do "So Inventario de Maquinas" acima.
 chk("exportacao parada nao entrega arquivo pela metade",
-    novo.count('if(progressoCancelado()){ toast("Exportação parada') == 3)
+    novo.count('if(progressoCancelado()){ toast("Exportação parada') == 4)
 chk("os avisos repetidos por item sairam do caminho",
     "Escrevendo textos da IA… ${i}/${total}" not in novo
     and "Gerando Excel… área ${i+1}" not in novo
@@ -1263,10 +1272,12 @@ chk("aba unica sai em .xlsx limpo, sem tocar no modelo do cliente",
 chk("o .xlsm nao perde aba — o Resumo so deixa de ser preenchido",
     "if(!(opts && opts.pularResumo)){" in novo
     and "{ pularResumo: !!exportEscolha().conteudo.pularResumo }" in novo)
+# 29/09/2026: +1 chamada (3->4) -- o ramo novo do "So Inventario de Maquinas"
+# tambem agrupa por area (ou junta, conforme a mesma escolha "Como separar").
 chk("juntar todas as areas ou uma por arquivo",
     novo.count("function agruparParaExportar(") == 1
     and "if(!exportEscolha().juntar) return agruparLinhasPorArea(linhasRaw);" in novo
-    and novo.count("agruparParaExportar(") == 3)
+    and novo.count("agruparParaExportar(") == 4)
 
 print("\n=== 43. RASCUNHO DA EDICAO NAO SE PERDE COM RENDER DE FORA ===")
 # A caixa "Editar" (Vai para o laudo) nao tinha oninput: nada guardava o que
@@ -5367,11 +5378,30 @@ chk("os tres geradores de Excel do Modulo Simplificado passam toda leitura de fo
     _corpoDe(novo, "gerarBytesXlsxSimples").count("fotoExportavel(") >= 6
     and _corpoDe(novo, "buildXlsxPackageSimples").count("fotoExportavel(") >= 2
     and _corpoDe(novo, "gerarBytesXlsmCorteva").count("fotoExportavel(") >= 4)
+# 29/09/2026: +2 (4->6) -- o ramo novo do "So Inventario de Maquinas" (secao
+# 169) tem suas proprias duas mensagens de sucesso (1 arquivo / .zip).
 chk("a exportacao zera a contagem no inicio e avisa nas mensagens de sucesso",
     "zerarFotosPerdidasExport();" in _corpoDe(novo, "_exportarSimplesXLSXFotosReal")
-    and _corpoDe(novo, "_exportarSimplesXLSXFotosReal").count("avisoFotosPerdidasExport()") == 4)
+    and _corpoDe(novo, "_exportarSimplesXLSXFotosReal").count("avisoFotosPerdidasExport()") == 6)
 chk("o Modulo Completo (congelado) nao foi tocado por esta correcao",
     "fotoExportavel(item.maquina.fotoGeral)" not in _corpoDe(novo, "exportarMasterXLSXFotos"))
+
+print("\n=== 169. NOVA OPCAO DE EXPORTACAO: SO INVENTARIO DE MAQUINAS (29/09/2026) ===")
+# Planilha limpa (.xlsx, sem macro), uma linha por MAQUINA, com foto e os
+# dados da plaqueta. Nao depende do modelo .xlsm da Corteva e nao gera texto
+# de laudo algum -- e por isso que o ramo dela, em
+# _exportarSimplesXLSXFotosReal, vem ANTES da checagem do modelo .xlsm.
+chk("a quinta opcao existe na tela, com o formato certo (sem macro)",
+    '{ k:"inventario", rot:"Só Inventário de Máquinas", macro:false, abas:null, inventario:true,' in novo)
+chk("o ramo novo vem antes do ramo do modelo Corteva, e nunca usa modeloXlsmB64",
+    novo.index('if(exportEscolha().conteudo.inventario){') < novo.index('if(modeloXlsmB64 && exportEscolha().conteudo.macro){'))
+_ginv = _corpoDe(novo, "gerarBytesXlsxInventario")
+chk("o gerador usa montarItensInventario (uma linha por maquina) e fotoExportavel em toda leitura de foto",
+    "montarItensInventario(linhasRaw)" in _ginv
+    and _ginv.count("fotoExportavel(") >= 2
+    and "garantirFotosDasLinhas(linhasRaw)" in _ginv)
+chk("a aba Inventario do modelo oficial da Corteva tambem passou a usar o guardiao (linha que a correcao anterior nao tinha pego)",
+    "const dataUrl = fotoExportavel(inv.maquina.fotoGeral);" in _corpoDe(novo, "gerarBytesXlsmCorteva"))
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

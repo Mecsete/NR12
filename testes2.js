@@ -3783,8 +3783,10 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
        "recuperarFotosPerdidasDaNuvem precisa checar Parar item a item, senão o botão não faz nada com 580 itens na fila");
   });
   t("exportação parada não entrega arquivo pela metade", ()=>{
-    eq((HTML.match(/if\(progressoCancelado\(\)\)\{ toast\("Exportação parada/g)||[]).length, 3,
-       "os três caminhos (xlsm, xlsx e Word) precisam checar antes de montar o arquivo");
+    // 29/09/2026: +1 (3->4) -- o ramo novo "So Inventario de Maquinas" tem a
+    // mesma checagem antes de montar o arquivo.
+    eq((HTML.match(/if\(progressoCancelado\(\)\)\{ toast\("Exportação parada/g)||[]).length, 4,
+       "os quatro caminhos (xlsm, xlsx, Word e Inventário) precisam checar antes de montar o arquivo");
   });
   t("os avisos que se repetiam a cada item saíram do caminho", ()=>{
     ok(HTML.indexOf("Escrevendo textos da IA… ${i}/${total}") < 0, "voltaria o aviso que se renova sozinho");
@@ -4186,15 +4188,19 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   });
 
   console.log("\n=== t86 · modal de exportação do Excel ===");
-  t("as quatro opções de conteúdo existem, com o formato certo", ()=>{
+  t("as cinco opções de conteúdo existem, com o formato certo", ()=>{
+    // 29/09/2026: +1 opção (Só Inventário de Máquinas) -- ver t179 para o
+    // detalhamento dela; aqui só confere que ela entrou na lista da tela.
     vm.runInContext(constante("EXPORT_CONTEUDOS"), ctx);
     const c = vm.runInContext("EXPORT_CONTEUDOS", ctx);
-    eq(c.map(x=>x.k).join(","), "todos,laudo,base,resumo");
+    eq(c.map(x=>x.k).join(","), "todos,laudo,base,resumo,inventario");
     ok(c[0].macro && c[1].macro, "Todos e Laudo saem no .xlsm oficial");
-    ok(!c[2].macro && !c[3].macro, "as de aba única saem em .xlsx limpo, sem macro");
+    ok(!c[2].macro && !c[3].macro && !c[4].macro, "as de aba única e o Inventário saem em .xlsx limpo, sem macro");
     eq(c[1].pularResumo, true, "Laudo é tudo menos o Resumo");
     eq(c[2].abas.join(","), "Base Completa");
     eq(c[3].abas.join(","), "Resumo");
+    eq(c[4].abas, null, "Inventário não filtra abas: tem gerador próprio");
+    eq(c[4].inventario, true);
   });
   t("o botão Exportar abre o modal em vez de gerar direto", ()=>{
     ok(funcao("exportarSimplesXLSXFotos").indexOf("abrirOverlay(sheetExportarHtml())") > 0);
@@ -4244,7 +4250,9 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(f.indexOf("if(!exportEscolha().juntar) return agruparLinhasPorArea(linhasRaw);") > 0);
     ok(f.indexOf('nome:"Todas as áreas"') > 0, "o arquivo precisa de um nome quando junta");
     ok(f.indexOf("if(linhasRaw.length === 0) return [];") > 0, "sem linhas não pode estourar");
-    eq((HTML.match(/agruparParaExportar\(/g)||[]).length, 3, "os dois caminhos de export mais a definição");
+    // 29/09/2026: +1 (3->4) -- o ramo novo "So Inventario de Maquinas" tambem
+    // agrupa por area antes de gerar.
+    eq((HTML.match(/agruparParaExportar\(/g)||[]).length, 4, "os tres caminhos de export mais a definição");
   });
 
   console.log("\n=== t87 · apagar da nuvem entra no histórico ===");
@@ -13370,10 +13378,84 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ["fotoExportavel(item.maquina.fotoGeral)","fotoExportavel(item.maquina.fotoPlaqueta)","fotoExportavel(item.risco.foto)",
        "fotoExportavel(inv.maquina.fotoGeral)"].forEach(x=> ok(f.indexOf(x) >= 0, "faltou: " + x));
     });
-    t("a exportacao zera o contador no inicio e avisa nas quatro mensagens de sucesso (macro/simples x 1 arquivo/zip)", ()=>{
+    t("a exportacao zera o contador no inicio e avisa nas mensagens de sucesso (macro/simples/inventario x 1 arquivo/zip)", ()=>{
       const f = funcao("_exportarSimplesXLSXFotosReal");
       ok(f.indexOf("zerarFotosPerdidasExport();") >= 0);
-      eq((f.match(/avisoFotosPerdidasExport\(\)/g) || []).length, 4, "precisa aparecer nas 4 mensagens de sucesso");
+      // 29/09/2026: +2 (4->6) -- o ramo novo "So Inventario de Maquinas" tem suas
+      // proprias duas mensagens de sucesso (1 arquivo / .zip).
+      eq((f.match(/avisoFotosPerdidasExport\(\)/g) || []).length, 6, "precisa aparecer nas 6 mensagens de sucesso");
+    });
+  }
+
+  console.log("\n---------------------------------------");
+  /* 29/09/2026: nova opcao de exportacao "So Inventario de Maquinas" */
+  {
+    console.log("\n[t179] Só Inventário de Máquinas: nova opção de exportação (planilha limpa, uma linha por máquina)");
+
+    t("EXPORT_CONTEUDOS ganhou a quinta opcao, sem macro, sem filtro de abas", ()=>{
+      const cx = vm.createContext({});
+      vm.runInContext(constante("EXPORT_CONTEUDOS"), cx);
+      const lista = vm.runInContext("EXPORT_CONTEUDOS", cx);
+      eq(lista.length, 5, "esperava 5 opcoes na tela (todos/laudo/base/resumo/inventario)");
+      const inv = lista.find(c=>c.k==="inventario");
+      ok(!!inv, "faltou a opcao k:inventario");
+      eq(inv.rot, "Só Inventário de Máquinas");
+      eq(inv.macro, false);
+      eq(inv.abas, null);
+      eq(inv.inventario, true);
+    });
+
+    t("gerarBytesXlsxInventario existe, usa montarItensInventario e garante as fotos das linhas antes de gerar", ()=>{
+      const f = funcao("gerarBytesXlsxInventario");
+      ok(f.indexOf("montarItensInventario(linhasRaw)") >= 0);
+      ok(f.indexOf("garantirFotosDasLinhas(linhasRaw)") >= 0);
+    });
+
+    t("o cabecalho do Inventario tem as 12 colunas na ordem certa (Foto..Tensão)", ()=>{
+      const cx = vm.createContext({});
+      vm.runInContext(constante("INVENTARIO_HEADERS"), cx);
+      vm.runInContext(constante("INVENTARIO_LARGURAS"), cx);
+      const h = vm.runInContext("INVENTARIO_HEADERS", cx);
+      eq(h.length, 12);
+      eq(h[0], "Foto da Máquina/Ativo");
+      eq(h[1], "Nº");
+      eq(h[2], "Nome da Máquina/Ativo");
+      eq(h[11], "Tensão");
+      eq(vm.runInContext("INVENTARIO_LARGURAS", cx).length, 12, "uma largura de coluna por cabecalho");
+    });
+
+    t("toda leitura de foto do inventario passa pelo guardiao fotoExportavel (registro e celula)", ()=>{
+      const f = funcao("gerarBytesXlsxInventario");
+      ok(f.indexOf("fotoExportavel(inv.maquina.fotoGeral)") >= 0);
+    });
+
+    t("sem foto, a celula grava o texto Sem foto (nao fica vazia nem crua)", ()=>{
+      const f = funcao("gerarBytesXlsxInventario");
+      ok(f.indexOf('"Sem foto"') >= 0);
+    });
+
+    t("a coluna Nº e gravada como numero (t=\"n\"), nao como texto", ()=>{
+      const f = funcao("gerarBytesXlsxInventario");
+      ok(/col===2\)[\s\S]{0,80}t="n"/.test(f), "coluna 2 (Nº) precisa sair como celula numerica");
+    });
+
+    t("o ramo novo em _exportarSimplesXLSXFotosReal usa agruparParaExportar, progresso cancelavel e as duas mensagens de sucesso (1 arquivo/zip)", ()=>{
+      const f = funcao("_exportarSimplesXLSXFotosReal");
+      const ini = f.indexOf("exportEscolha().conteudo.inventario");
+      const fim = f.indexOf("modeloXlsmB64 && exportEscolha().conteudo.macro");
+      ok(ini >= 0 && fim > ini, "nao achou os marcadores de inicio/fim do ramo novo");
+      const trecho = f.slice(ini, fim);
+      ok(trecho.indexOf("agruparParaExportar(linhasRaw)") >= 0, "faltou agrupar por area");
+      ok(trecho.indexOf("progressoCancelado()") >= 0, "faltou checagem de cancelamento");
+      ok(trecho.indexOf("gerarBytesXlsxInventario(g.linhas)") >= 0, "faltou chamar o gerador novo");
+      eq((trecho.match(/avisoFotosPerdidasExport\(\)/g) || []).length, 2, "as duas mensagens de sucesso do ramo (1 arquivo/zip) precisam avisar fotos perdidas");
+    });
+
+    t("o ramo novo vem antes da checagem do modelo Corteva (nunca depende de modeloXlsmB64)", ()=>{
+      const f = funcao("_exportarSimplesXLSXFotosReal");
+      const iInv = f.indexOf("exportEscolha().conteudo.inventario");
+      const iModelo = f.indexOf("modeloXlsmB64 && exportEscolha().conteudo.macro");
+      ok(iInv >= 0 && iModelo >= 0 && iInv < iModelo, "o ramo do inventario precisa vir antes do ramo do modelo Corteva");
     });
   }
 

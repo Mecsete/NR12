@@ -3213,7 +3213,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "29/09/2026 09:42";
+const APP_BUILD = "29/09/2026 09:50";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -19339,7 +19339,7 @@ async function gerarBytesXlsmCorteva(modeloB64, linhasComIA, itensInventario, da
   const anchorsD5 = [], relsD5 = [];
   let shapeId5 = 1;
   itensInventario.forEach((inv,i)=>{
-    const dataUrl = inv.maquina.fotoGeral;
+    const dataUrl = fotoExportavel(inv.maquina.fotoGeral);
     if(!dataUrl || !imgMap.has(dataUrl)) return;
     shapeId5++;
     const relId = "rId"+shapeId5;
@@ -19474,6 +19474,8 @@ const EXPORT_CONTEUDOS = [
     desc:"Planilha limpa, só com a Base Completa. Sem macro." },
   { k:"resumo", rot:"Só Resumo",       macro:false, abas:["Resumo"],
     desc:"Planilha limpa, só com a tabela resumo dos riscos. Sem macro." },
+  { k:"inventario", rot:"Só Inventário de Máquinas", macro:false, abas:null, inventario:true,
+    desc:"Planilha limpa, uma linha por máquina (não por risco), com a foto e os dados da plaqueta: modelo, marca, nº de série, ano de fabricação, capacidade e tensão. Sem macro." },
 ];
 function exportEscolha(){
   const u = STATE.ui;
@@ -19530,6 +19532,30 @@ async function _exportarSimplesXLSXFotosReal(){
   const painelExport = progressoAbrir("Preparando a exportação", 0);
   zerarFotosPerdidasExport();
   try {
+    /* Só Inventário de Máquinas: nunca usa o modelo da Corteva (mesmo enviado) e
+       não passa pela geração de texto do laudo — é só a ficha do equipamento. */
+    if(exportEscolha().conteudo.inventario){
+      const grupos = agruparParaExportar(linhasRaw);
+      progressoAbrir("Gerando Excel", grupos.length);
+      const arquivos = [];
+      for(let i=0;i<grupos.length;i++){
+        const g = grupos[i];
+        if(progressoCancelado()) break;
+        progressoAtualizar(i, grupos.length, g.area.nome||"");
+        const bytes = await __comLiberacao(g.linhas, ()=> gerarBytesXlsxInventario(g.linhas));
+        arquivos.push({ name: nomeArquivoArea(g.proj, g.area, "xlsx"), data: bytes });
+      }
+      if(progressoCancelado()){ toast("Exportação parada.", false); return; }
+      if(arquivos.length===1){
+        const blob = new Blob([arquivos[0].data], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+        await compartilharOuBaixarBlob(blob, arquivos[0].name, blob.type, "Excel exportado."+avisoFotosPerdidasExport());
+      } else {
+        const zipBytes = buildZip(arquivos);
+        const blob = new Blob([zipBytes], {type:"application/zip"});
+        await compartilharOuBaixarBlob(blob, `relatorios_excel_${hoje()}.zip`, blob.type, `${arquivos.length} arquivos Excel exportados em .zip.`+avisoFotosPerdidasExport());
+      }
+      return;
+    }
     /* Aba unica sai sempre em .xlsx limpo, mesmo com o modelo da Corteva
        enviado: e o que o "sem macro" quer dizer, e evita mexer no modelo. */
     if(modeloXlsmB64 && exportEscolha().conteudo.macro){
@@ -22859,6 +22885,136 @@ function buildXlsxPackageSimples({grupos, headers, dataRows, anchors, imgMap, co
     {name:"xl/worksheets/sheet3.xml", data:strToBytes(sheet3Xml)},
   ];
   imgMap.forEach(info=>files.push({name:`xl/media/${info.mediaName}`,data:info.bytes}));
+  return buildZip(files);
+}
+/* ---------- "Só Inventário de Máquinas" — arquivo limpo, sem macro ----------
+   Reaproveita montarItensInventario (uma linha por MÁQUINA, não por risco/tarefa,
+   a mesma dedução já usada na aba Inventário do modelo oficial da Corteva) e o
+   mesmo formato de foto-como-objeto-real do resto do Módulo Simplificado. As
+   colunas espelham xlsmLinhaInventario, sem depender de enviar o .xlsm. */
+const INVENTARIO_HEADERS = [
+  "Foto da Máquina/Ativo","Nº","Nome da Máquina/Ativo","Descrição/Tipo","Área","Local",
+  "Modelo","Marca","Nº de Série","Ano de Fabricação","Capacidade","Tensão",
+];
+const INVENTARIO_LARGURAS = [16,6,20,18,13,13,16,14,16,14,13,10];
+async function gerarBytesXlsxInventario(linhasRaw){
+  await garantirFotosDasLinhas(linhasRaw);
+  const itens = montarItensInventario(linhasRaw);
+  const imgMap = new Map();
+  let mediaCounter = 0;
+  async function registrar(dataUrl){
+    if(!dataUrl || imgMap.has(dataUrl)) return;
+    mediaCounter++;
+    const dataUrlExport = await recomprimirParaExport(dataUrl);
+    const ext = dataUrlExport.startsWith("data:image/png") ? "png" : "jpeg";
+    imgMap.set(dataUrl, { relId:"rIdImg"+mediaCounter, mediaName:`image${mediaCounter}.${ext}`, bytes:dataUrlToBytes(dataUrlExport), ext });
+  }
+  for(const inv of itens) await registrar(fotoExportavel(inv.maquina.fotoGeral));
+
+  const sst = buildSstHelper();
+  const drawingAnchors = [];
+  let dataXml = "";
+  itens.forEach((inv,ri)=>{
+    const m = inv.maquina, rn = ri+2, foto = fotoExportavel(m.fotoGeral);
+    const linha = [foto, inv.numLegenda, nomeMaquinaS(m), tipoEquipamento(m), inv.area.nome||"", inv.area.local||"",
+      m.modelo||"", m.marca||"", m.numeroSerie||"", m.anoFabricacao||"", m.capacidade||"", m.tensao||""];
+    const cells = linha.map((val,ci)=>{
+      const col = ci+1;
+      if(col===1){
+        if(foto){ drawingAnchors.push({row:rn, col, dataUrl:foto}); return `<c r="${colLetter(col)}${rn}" s="${XLSX_STYLE_CENTRO_SEM_BORDA}"/>`; }
+        return sst.cell(col,rn,"Sem foto",XLSX_STYLE_DADOS);
+      }
+      if(col===2) return `<c r="${colLetter(col)}${rn}" s="${XLSX_STYLE_DADOS}" t="n"><v>${Number(val)}</v></c>`;
+      return sst.cell(col,rn,val,XLSX_STYLE_DADOS);
+    }).join("");
+    dataXml += `<row r="${rn}" ht="70" customHeight="1">${cells}</row>`;
+  });
+  const hdr = INVENTARIO_HEADERS.map((h,i)=> sst.cell(i+1,1,h,XLSX_STYLE_HEADER)).join("");
+  const colsXml = INVENTARIO_LARGURAS.map((w,i)=> `<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join("");
+  const ncols = INVENTARIO_HEADERS.length, nrows = itens.length, totalRows = nrows+1;
+  const af = nrows>0 ? `<autoFilter ref="A1:${colLetter(ncols)}${totalRows}"/>` : "";
+  const sheetXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`+
+    `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">`+
+    `<dimension ref="A1:${colLetter(ncols)}${totalRows}"/>`+
+    `<sheetViews><sheetView showGridLines="0" workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>`+
+    `<sheetFormatPr defaultRowHeight="15"/><cols>${colsXml}</cols>`+
+    `<sheetData><row r="1">${hdr}</row>${dataXml}</sheetData>${af}`+
+    `<drawing r:id="rId1"/></worksheet>`;
+
+  // Desenho das fotos: mesma geometria "Colocar na célula" (oneCellAnchor,
+  // editAs="oneCell" implícito) usada no resto do Módulo Simplificado.
+  let shapeId=0;
+  const drawingItems = drawingAnchors.map(a=>{
+    const info = imgMap.get(a.dataUrl); if(!info) return "";
+    shapeId++;
+    const c0=a.col-1, r0=a.row-1, larguraColunaChars=16, MDW=7;
+    const larguraColunaPx = Math.trunc(((256*larguraColunaChars + Math.trunc(128/MDW))/256) * MDW);
+    const colWidthEMU = larguraColunaPx*9525, rowHeightEMU = 70*12700, margemEMU = 19050;
+    const extImg = { cx: colWidthEMU-margemEMU*2, cy: rowHeightEMU-margemEMU*2 };
+    return `<xdr:oneCellAnchor>
+<xdr:from><xdr:col>${c0}</xdr:col><xdr:colOff>19050</xdr:colOff><xdr:row>${r0}</xdr:row><xdr:rowOff>19050</xdr:rowOff></xdr:from>
+<xdr:ext cx="${extImg.cx}" cy="${extImg.cy}"/>
+<xdr:pic>
+<xdr:nvPicPr><xdr:cNvPr id="${shapeId}" name="Foto${shapeId}"/><xdr:cNvPicPr/></xdr:nvPicPr>
+<xdr:blipFill><a:blip xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="${info.relId}"/><a:stretch xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:fillRect/></a:stretch></xdr:blipFill>
+<xdr:spPr><a:prstGeom xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" prst="rect"><a:avLst/></a:prstGeom></xdr:spPr>
+</xdr:pic>
+<xdr:clientData/>
+</xdr:oneCellAnchor>`;
+  }).join("");
+  const drawingXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing">${drawingItems}</xdr:wsDr>`;
+  const usedRels = new Map();
+  drawingAnchors.forEach(a=>{ const info=imgMap.get(a.dataUrl); if(info && !usedRels.has(info.mediaName)) usedRels.set(info.mediaName, info.relId); });
+  const drawingRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`+
+    `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${[...usedRels.entries()].map(([mediaName,relId])=>
+      `<Relationship Id="${relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/${mediaName}"/>`).join("")}</Relationships>`;
+
+  const sheetDefs = [{name:"Inventário", sheetId:1, rId:"rId1"}];
+  const workbookXml = buildWorkbookXml(sheetDefs, nrows>0 ? [{localSheetId:0, ref:`Inventário!$A$1:$${colLetter(ncols)}$${totalRows}`}] : []);
+  const wbRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`+
+    `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">`+
+    `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>`+
+    `<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`+
+    `<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>`+
+    `</Relationships>`;
+  const sheetRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`+
+    `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/></Relationships>`;
+  const ct = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`+
+    `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">`+
+    `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>`+
+    `<Default Extension="xml" ContentType="application/xml"/>`+
+    `<Default Extension="jpeg" ContentType="image/jpeg"/>`+
+    `<Default Extension="png" ContentType="image/png"/>`+
+    `<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>`+
+    `<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`+
+    `<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>`+
+    `<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>`+
+    `<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>`+
+    `<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>`+
+    `<Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>`+
+    `</Types>`;
+  const appProps = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
+<Application>APR Campo</Application><DocSecurity>0</DocSecurity><ScaleCrop>false</ScaleCrop>
+<HeadingPairs><vt:vector size="2" baseType="variant"><vt:variant><vt:lpstr>Worksheets</vt:lpstr></vt:variant><vt:variant><vt:i4>1</vt:i4></vt:variant></vt:vector></HeadingPairs>
+<TitlesOfParts><vt:vector size="1" baseType="lpstr"><vt:lpstr>Inventário</vt:lpstr></vt:vector></TitlesOfParts>
+<LinksUpToDate>false</LinksUpToDate><SharedDoc>false</SharedDoc><HyperlinksChanged>false</HyperlinksChanged><AppVersion>16.0300</AppVersion></Properties>`;
+
+  const files = [
+    { name:"[Content_Types].xml", data:strToBytes(ct) },
+    { name:"_rels/.rels", data:strToBytes(XLSX_RELS_ROOT) },
+    { name:"docProps/core.xml", data:strToBytes(XLSX_CORE_PROPS) },
+    { name:"docProps/app.xml", data:strToBytes(appProps) },
+    { name:"xl/workbook.xml", data:strToBytes(workbookXml) },
+    { name:"xl/_rels/workbook.xml.rels", data:strToBytes(wbRels) },
+    { name:"xl/styles.xml", data:strToBytes(buildResumoStylesXml()) },
+    { name:"xl/sharedStrings.xml", data:strToBytes(buildSstXml(sst.getStrings())) },
+    { name:"xl/worksheets/sheet1.xml", data:strToBytes(sheetXml) },
+    { name:"xl/worksheets/_rels/sheet1.xml.rels", data:strToBytes(sheetRels) },
+    { name:"xl/drawings/drawing1.xml", data:strToBytes(drawingXml) },
+    { name:"xl/drawings/_rels/drawing1.xml.rels", data:strToBytes(drawingRels) },
+  ];
+  imgMap.forEach(info=> files.push({ name:`xl/media/${info.mediaName}`, data:info.bytes }));
   return buildZip(files);
 }
 async function exportarMasterXLSXFotos(){
