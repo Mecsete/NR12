@@ -90,13 +90,12 @@ print("=== 3. ARQUITETURA DE FOTOS (CAMADA_FOTOS) ===")
 # acima. Zerado. "SO INVENTARIO DE MAQUINAS" (mesma entrega desta secao,
 # 29/09/2026): delta zero tambem -- gerarBytesXlsxInventario nao usa nenhuma
 # das duas palavras, nem em codigo nem em comentario.
-# CORRECAO DA ORDEM (RESOLVER ANTES DE CLONAR, 29/09/2026, secao 170): +1 em
-# "idbfoto:" e +1 em "foto:" -- o comentario novo em _exportarSimplesXLSXFotosReal
-# cita "idbfoto:<id>" por extenso UMA vez ao explicar o defeito ("...ainda forem
-# 'idbfoto:<id>' (referência..."); "foto:" embutido dentro do proprio
-# "idbfoto:" acompanha (mesmo efeito colateral da correcao anterior, so que
-# 1 ocorrencia em vez de 2 desta vez). Nenhuma ocorrencia nova em codigo.
-_extra_fotos = {"foto:": 1, "idbfoto:": 1}
+# CORRECAO DA ORDEM (RESOLVER ANTES DE CLONAR, commit 85f5e0b, 29/09/2026,
+# secao 170): +1 em "idbfoto:" e +1 em "foto:", os dois em comentario (mesmo
+# efeito colateral da correcao anterior, ver acima). A referencia
+# (original.html) JA vem daquele commit agora, entao contar de novo somaria
+# duas vezes. Zerado.
+_extra_fotos = {"foto:": 0, "idbfoto:": 0}
 for marca in ["idbfoto:", "foto:", "CAMADA_FOTOS"]:
     a, b = orig.count(marca) + _extra_fotos.get(marca, 0), novo.count(marca)
     chk("ocorrencias de '%s' inalteradas (%d)" % (marca, a), a == b, "orig+extra=%d novo=%d" % (a, b))
