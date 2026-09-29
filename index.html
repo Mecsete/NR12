@@ -3213,7 +3213,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "29/09/2026 18:25";
+const APP_BUILD = "29/09/2026 18:49";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -16825,6 +16825,14 @@ function nomeArquivoArea(proj, area, ext){
   const base = `${proj.empresa||"Projeto"} - ${area.nome||"Area"}`.replace(/[\\/:*?"<>|]/g,"-").trim();
   return `${base}.${ext}`;
 }
+/* 29/09/2026: pedido explícito — o arquivo do "Só Inventário de Máquinas"
+   sai com "Inventário" no lugar da empresa, pra distinguir de cara dos
+   outros exports (Base Completa/Resumo) quando misturados na mesma pasta
+   de downloads. Ex.: "Inventário - Descarga 100.xlsx". */
+function nomeArquivoAreaInventario(area, ext){
+  const base = `Inventário - ${area.nome||"Área"}`.replace(/[\\/:*?"<>|]/g,"-").trim();
+  return `${base}.${ext}`;
+}
 function linhasEscopoSimples(){
   const out = [];
   STATE.projetosSimples.forEach(proj=>{
@@ -19710,7 +19718,7 @@ async function _exportarSimplesXLSXFotosReal(){
         if(progressoCancelado()) break;
         progressoAtualizar(i, grupos.length, g.area.nome||"");
         const bytes = await __comLiberacao(g.linhas, ()=> gerarBytesXlsxInventario(g.linhas));
-        arquivos.push({ name: nomeArquivoArea(g.proj, g.area, "xlsx"), data: bytes });
+        arquivos.push({ name: nomeArquivoAreaInventario(g.area, "xlsx"), data: bytes });
       }
       if(progressoCancelado()){ toast("Exportação parada.", false); return; }
       if(arquivos.length===1){

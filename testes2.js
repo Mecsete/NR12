@@ -13457,6 +13457,23 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       const iModelo = f.indexOf("modeloXlsmB64 && exportEscolha().conteudo.macro");
       ok(iInv >= 0 && iModelo >= 0 && iInv < iModelo, "o ramo do inventario precisa vir antes do ramo do modelo Corteva");
     });
+
+    t("nomeArquivoAreaInventario poe 'Inventário' no lugar da empresa (29/09/2026, pedido explicito: 'Inventário - Descarga 100')", ()=>{
+      // funcao()+vm nao da aqui: o .replace(/[\\/:*?"<>|]/g,...) tem uma aspa
+      // DENTRO do literal de regex, que confunde o rastreio de string/chave
+      // do extrator (mesma pegadinha ja existente em nomeArquivoArea, nunca
+      // testada assim por isso). Checagem por texto, como o resto do arquivo.
+      const f = HTML.slice(HTML.indexOf("function nomeArquivoAreaInventario("), HTML.indexOf("function nomeArquivoAreaInventario(") + 400);
+      ok(f.indexOf("`Inventário - ${area.nome||\"Área\"}`") >= 0, "precisa comecar com 'Inventário -', nunca com a empresa");
+      ok(f.indexOf("`${base}.${ext}`") >= 0);
+    });
+
+    t("o ramo do inventario usa nomeArquivoAreaInventario (nao o nomeArquivoArea generico com a empresa)", ()=>{
+      const f = funcao("_exportarSimplesXLSXFotosReal");
+      const trecho = f.slice(f.indexOf("exportEscolha().conteudo.inventario"), f.indexOf("modeloXlsmB64 && exportEscolha().conteudo.macro"));
+      ok(trecho.indexOf('nomeArquivoAreaInventario(g.area, "xlsx")') >= 0, "faltou usar o nome dedicado do inventario");
+      ok(trecho.indexOf("nomeArquivoArea(g.proj") < 0, "o ramo do inventario nao pode mais usar o nome generico com a empresa");
+    });
   }
 
   console.log("\n---------------------------------------");

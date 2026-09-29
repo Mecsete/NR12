@@ -5404,6 +5404,16 @@ chk("a quinta opcao existe na tela, com o formato certo (sem macro)",
     '{ k:"inventario", rot:"Só Inventário de Máquinas", macro:false, abas:null, inventario:true,' in novo)
 chk("o ramo novo vem antes do ramo do modelo Corteva, e nunca usa modeloXlsmB64",
     novo.index('if(exportEscolha().conteudo.inventario){') < novo.index('if(modeloXlsmB64 && exportEscolha().conteudo.macro){'))
+# 29/09/2026: pedido explicito -- o arquivo do inventario sai com
+# "Inventário" no lugar da empresa, pra distinguir de cara dos outros
+# exports quando misturados na mesma pasta de downloads.
+_fInv2 = novo[novo.index('if(exportEscolha().conteudo.inventario){'):novo.index('if(modeloXlsmB64 && exportEscolha().conteudo.macro){')]
+chk("o arquivo do inventario usa nomeArquivoAreaInventario (\"Inventário - Area\"), nao o nome generico com a empresa",
+    'nomeArquivoAreaInventario(g.area, "xlsx")' in _fInv2
+    and 'nomeArquivoArea(g.proj' not in _fInv2)
+chk("nomeArquivoAreaInventario poe Inventário no lugar da empresa",
+    'function nomeArquivoAreaInventario(area, ext){' in novo
+    and '`Inventário - ${area.nome||"Área"}`' in novo)
 _ginv = _corpoDe(novo, "gerarBytesXlsxInventario")
 chk("o gerador usa montarItensInventario (uma linha por maquina) e fotoExportavel em toda leitura de foto",
     "montarItensInventario(linhasRaw)" in _ginv

@@ -64,6 +64,15 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 29/09/2026 18:49
+
+**O arquivo do "Só Inventário de Máquinas" agora sai com "Inventário" no nome, não a empresa.**
+
+Pedido explícito. Antes saía "Vylor - Descarga 100.xlsx", igual aos outros
+exports (Base Completa, Resumo) — difícil distinguir na pasta de downloads.
+Agora sai "Inventário - Descarga 100.xlsx". Só esse export mudou de nome;
+Excel/Word comuns continuam "Empresa - Área".
+
 ## 29/09/2026 18:25
 
 **Exportar fotos de plaqueta: as instruções já saem copiadas, sem precisar do segundo botão.**
