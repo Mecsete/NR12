@@ -5479,6 +5479,12 @@ chk("a exportacao resolve as fotos, usa o guardiao SO depois de resolver, traz o
     and 'name: "LEIA-ME.txt"' in _efotoszip
     and 'name: "CAMPOS-POR-MAQUINA.txt"' in _efotoszip
     and "plaquetaManifestoTexto(itensComFoto)" in _efotoszip)
+chk("a exportacao divide um .zip por area (pedido explicito 29/09/2026) -- reaproveita agruparLinhasPorArea/nomeArquivoArea/__comLiberacao ja usados no resto do app",
+    "agruparLinhasPorArea(itens)" in _efotoszip
+    and 'nomeArquivoArea(g.proj, g.area, "zip")' in _efotoszip
+    and "await __comLiberacao(g.linhas, async ()=>{" in _efotoszip
+    and "if(arquivos.length === 1){" in _efotoszip
+    and "buildZip(arquivos)" in _efotoszip)
 # constante() so delimita array/objeto ([...]/{...}); PROMPT_FOTOS_PLAQUETA e
 # um template string, entao recorta na mao pelo inicio/fim da declaracao
 # (mesma tecnica ja usada em testes2.js pro mesmo motivo).

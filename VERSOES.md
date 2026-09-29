@@ -64,6 +64,17 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 29/09/2026 17:07
+
+**Exportar fotos de plaqueta de várias áreas de uma vez: o app divide o .zip por área.**
+
+Pedido explícito depois da entrega anterior. Selecionando mais de uma área
+em Configurações → Exportações, "Exportar fotos de plaqueta (.zip)" agora
+gera um `.zip` por área (cada um com suas fotos, `LEIA-ME.txt` e
+`CAMPOS-POR-MAQUINA.txt` próprios), embrulhados dentro de um `.zip` externo
+— mesmo padrão já usado no Excel e no Word para várias áreas. Com uma área
+só, baixa o `.zip` dela direto, sem embrulho.
+
 ## 29/09/2026 17:03
 
 **Exportação de fotos de plaqueta: novo arquivo diz o que cada máquina já tem e o que falta, para a IA externa não reler o que já está certo.**

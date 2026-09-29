@@ -13590,6 +13590,15 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok((f.match(/avisoFotosPerdidasExport\(\)/g) || []).length >= 1, "precisa avisar quando alguma foto ficou sem corresponder");
     });
 
+    t("exportarFotosPlaquetasZip divide um .zip por area (29/09/2026, pedido explicito) -- reaproveita agruparLinhasPorArea e nomeArquivoArea, ja usados no resto do app", ()=>{
+      const f = funcao("exportarFotosPlaquetasZip");
+      ok(f.indexOf("agruparLinhasPorArea(itens)") >= 0, "precisa agrupar por area, mesma funcao que Excel/Word/Inventario ja usam");
+      ok(f.indexOf('nomeArquivoArea(g.proj, g.area, "zip")') >= 0, "cada .zip de area precisa sair nomeado como os outros exports (Empresa - Area.zip)");
+      ok(f.indexOf("await __comLiberacao(g.linhas, async ()=>{") >= 0, "precisa soltar a foto da memoria depois de cada area, como os outros exports");
+      ok(f.indexOf("if(arquivos.length === 1){") >= 0 && f.indexOf("buildZip(arquivos)") >= 0,
+         "com 1 area baixa o .zip dela direto; com mais de uma, embrulha os .zips de cada area num .zip externo (mesmo padrao de relatorios_excel_*.zip)");
+    });
+
     t("os tres botoes (exportar, copiar instrucoes, importar) estao juntos na tela, e o import continua sendo o mesmo botao/formato de sempre", ()=>{
       ok(HTML.indexOf("App.exportarFotosPlaquetas()") >= 0, "faltou o botao de exportar");
       ok(HTML.indexOf("App.copiarPromptFotosPlaqueta()") >= 0, "faltou o botao de copiar instrucoes");
