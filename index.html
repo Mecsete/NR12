@@ -3213,7 +3213,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "29/09/2026 18:49";
+const APP_BUILD = "29/09/2026 18:55";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -22119,7 +22119,12 @@ function buildZipPartes(files){
     const __zd = __dt ? __dt.data : 0x21;
     const crc = crc32(data), size = data.length;
     const lh = [];
-    pushU32(lh,0x04034b50); pushU16(lh,20); pushU16(lh,0); pushU16(lh,0);
+    /* Bit 11 do "general purpose bit flag" (0x0800) = nome de arquivo em
+       UTF-8. strToBytes já grava o nome em UTF-8 (TextEncoder), mas sem
+       esse bit ligado o Windows/outros extratores presumem outra
+       codificação (CP437/ANSI) e toda acentuação sai desconfigurada —
+       "Classificação" virava "Classifica+º+úo" no Explorer. */
+    pushU32(lh,0x04034b50); pushU16(lh,20); pushU16(lh,0x0800); pushU16(lh,0);
     pushU16(lh,__zh); pushU16(lh,__zd);
     pushU32(lh,crc); pushU32(lh,size); pushU32(lh,size);
     pushU16(lh,nameBytes.length); pushU16(lh,0);
@@ -22129,7 +22134,7 @@ function buildZipPartes(files){
     offset += lhBytes.length + nameBytes.length + data.length;
 
     const ch = [];
-    pushU32(ch,0x02014b50); pushU16(ch,20); pushU16(ch,20); pushU16(ch,0); pushU16(ch,0);
+    pushU32(ch,0x02014b50); pushU16(ch,20); pushU16(ch,20); pushU16(ch,0x0800); pushU16(ch,0);
     pushU16(ch,__zh); pushU16(ch,__zd);
     pushU32(ch,crc); pushU32(ch,size); pushU32(ch,size);
     pushU16(ch,nameBytes.length); pushU16(ch,0); pushU16(ch,0);

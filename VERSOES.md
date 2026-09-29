@@ -64,6 +64,18 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 29/09/2026 18:55
+
+**Corrige nome de arquivo acentuado saindo desconfigurado nos .zip exportados ("Classifica+º+úo" em vez de "Classificação").**
+
+Reportado em campo: nomes com acentuação, dentro de qualquer `.zip` gerado
+pelo app (Excel, Word, fotos de plaqueta — qualquer exportação com mais de
+uma área), apareciam corrompidos no Explorer do Windows. Causa: os nomes
+já eram gravados em UTF-8, mas o cabeçalho do `.zip` não avisava o
+extrator disso, que então presumia outra codificação. Corrigido ligando o
+bit de UTF-8 no cabeçalho — nenhuma outra mudança, arquivo `.xlsx`/`.docx`
+sozinho (sem `.zip`) já sempre esteve correto.
+
 ## 29/09/2026 18:49
 
 **O arquivo do "Só Inventário de Máquinas" agora sai com "Inventário" no nome, não a empresa.**

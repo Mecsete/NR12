@@ -13638,6 +13638,52 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  console.log("\n---------------------------------------");
+  /* 29/09/2026: nome de arquivo acentuado saindo desconfigurado no .zip
+     (relatado em campo: "Vylor - Classifica+º+úo 1-¦ Piso" em vez de
+     "Vylor - Classificação 1º Piso"). Causa: buildZipPartes grava o nome
+     em UTF-8 (strToBytes = TextEncoder) mas nunca ligava o bit 11 do
+     "general purpose bit flag" que avisa o extrator disso -- sem o bit,
+     Windows/outros presumem outra codificacao e a acentuacao vira lixo. */
+  {
+    console.log("\n[t182] nome de arquivo acentuado dentro do .zip (bit UTF-8 do cabecalho)");
+    const cz = vm.createContext({ console, Math, Array, String, Uint8Array, Uint32Array, TextEncoder });
+    {
+      const i = HTML.indexOf("const CRC_TABLE = (function(){");
+      const f = HTML.indexOf("})();", i);
+      vm.runInContext(HTML.slice(i, f + 5), cz);
+    }
+    ["crc32","strToBytes","pushU16","pushU32","buildZipPartes","buildZip"].forEach(n=> vm.runInContext(funcao(n), cz));
+
+    t("os cabecalhos local e central do .zip ligam o bit UTF-8 (0x0800) no general purpose flag", ()=>{
+      cz.__arqs = [{ name: "Vylor - Classificação 1º Piso.xlsx", data: new TextEncoder().encode("x") }];
+      const bytes = vm.runInContext("buildZip(__arqs)", cz);
+      // Local File Header comeca com a assinatura PK\x03\x04; o flag fica
+      // logo apos a assinatura (4 bytes) + versao (2 bytes) = offset 6-7.
+      ok(bytes[0]===0x50 && bytes[1]===0x4b && bytes[2]===0x03 && bytes[3]===0x04, "nao comecou com a assinatura do Local File Header");
+      const flagLocal = bytes[6] | (bytes[7]<<8);
+      eq(flagLocal, 0x0800, "o Local File Header precisa ligar o bit UTF-8");
+      // Central Directory Header: assinatura PK\x01\x02; flag em offset+8..9
+      // (assinatura 4 + versao-feita-por 2 + versao-precisa 2).
+      let iCentral = -1;
+      for(let i=0;i<bytes.length-4;i++){
+        if(bytes[i]===0x50 && bytes[i+1]===0x4b && bytes[i+2]===0x01 && bytes[i+3]===0x02){ iCentral = i; break; }
+      }
+      ok(iCentral >= 0, "nao achou o Central Directory Header");
+      const flagCentral = bytes[iCentral+8] | (bytes[iCentral+9]<<8);
+      eq(flagCentral, 0x0800, "o Central Directory Header tambem precisa ligar o bit UTF-8");
+    });
+
+    t("o nome em UTF-8 dentro do zip bate byte a byte com TextEncoder (prova que o bit descreve certo o que ja estava sendo gravado)", ()=>{
+      const nomeEsperado = new TextEncoder().encode("Paletização.xlsx");
+      cz.__arqs = [{ name: "Paletização.xlsx", data: new TextEncoder().encode("x") }];
+      const bytes = vm.runInContext("buildZip(__arqs)", cz);
+      // nome comeca logo apos os 30 bytes fixos do Local File Header.
+      const nomeGravado = bytes.slice(30, 30+nomeEsperado.length);
+      eq([...nomeGravado].join(","), [...nomeEsperado].join(","), "os bytes do nome gravado precisam ser UTF-8 identico ao esperado");
+    });
+  }
+
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);
 })();

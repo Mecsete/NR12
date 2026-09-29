@@ -3526,6 +3526,15 @@ chk("o zip carrega a data de cada foto (o Windows consegue ordenar a pasta)",
 chk("sem mtime o zip fica exatamente como era (nao mexe nos outros exports)",
     'const __dt = (typeof f.mtime === "number") ? zipDataHora(f.mtime) : null;' in novo
     and "const __zd = __dt ? __dt.data : 0x21;" in novo)
+# 29/09/2026: relatado em campo -- nome de arquivo acentuado saia
+# desconfigurado no Explorer ("Classifica+º+úo" em vez de "Classificação").
+# strToBytes ja grava UTF-8 (TextEncoder), mas faltava ligar o bit 11
+# (0x0800) do "general purpose bit flag" nos dois cabecalhos do zip -- sem
+# ele, o extrator presume outra codificacao. Ver prova real em t182
+# (testes2.js): bytes do Local/Central Header lidos e comparados.
+chk("o Local File Header e o Central Directory Header ligam o bit UTF-8 (0x0800) no general purpose flag",
+    "pushU16(lh,20); pushU16(lh,0x0800); pushU16(lh,0);" in novo
+    and "pushU16(ch,20); pushU16(ch,20); pushU16(ch,0x0800); pushU16(ch,0);" in novo)
 _seg = novo[novo.find("async baixarOrfasZipTudo(){"):]
 _seg = _seg[:_seg.find("orfasZipParar(){")]
 chk("existe o modo de baixar a sequencia inteira, com botao",
