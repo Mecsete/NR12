@@ -5463,13 +5463,29 @@ chk("o filtro usa a mesma selecao de area e a mesma exclusao de lapide/projeto a
     and 'baseIAExcluidoPorLapide("maquina", maquina)' in _pmaq)
 chk("o filtro NUNCA usa fotoExportavel (a foto ainda nao foi resolvida nesse ponto -- usar o guardiao aqui perderia tudo a toa)",
     "fotoExportavel" not in _pmaq)
+chk("o filtro guarda a LISTA de campos faltando por maquina (nao so um booleano) -- e o que alimenta o manifesto pra IA nao reler o que ja esta certo",
+    "PLAQUETA_CAMPOS_PLACA.filter(" in _pmaq
+    and "faltando" in _pmaq
+    and "itens.push({ proj, area, maquina, faltando });" in _pmaq)
+chk("plaquetaManifestoTexto existe e usa PLAQUETA_CAMPOS_PLACA_LABEL pros nomes legiveis",
+    "function plaquetaManifestoTexto(itens){" in novo
+    and "PLAQUETA_CAMPOS_PLACA_LABEL[c]" in _corpoDe(novo, "plaquetaManifestoTexto"))
 _efotoszip = _corpoDe(novo, "exportarFotosPlaquetasZip")
-chk("a exportacao resolve as fotos, usa o guardiao SO depois de resolver, e zera/avisa a contagem de perdidas",
+chk("a exportacao resolve as fotos, usa o guardiao SO depois de resolver, traz o manifesto de campos faltando no zip, e zera/avisa a contagem de perdidas",
     "await garantirFotosDasLinhas(itens);" in _efotoszip
     and "fotoExportavel(it.maquina.fotoPlaqueta)" in _efotoszip
     and "zerarFotosPerdidasExport();" in _efotoszip
     and "avisoFotosPerdidasExport()" in _efotoszip
-    and 'name: "LEIA-ME.txt"' in _efotoszip)
+    and 'name: "LEIA-ME.txt"' in _efotoszip
+    and 'name: "CAMPOS-POR-MAQUINA.txt"' in _efotoszip
+    and "plaquetaManifestoTexto(itensComFoto)" in _efotoszip)
+# constante() so delimita array/objeto ([...]/{...}); PROMPT_FOTOS_PLAQUETA e
+# um template string, entao recorta na mao pelo inicio/fim da declaracao
+# (mesma tecnica ja usada em testes2.js pro mesmo motivo).
+_iniPrompt = novo.index("const PROMPT_FOTOS_PLAQUETA = `")
+_promptTxt = novo[_iniPrompt:novo.index("`;", _iniPrompt)]
+chk("PROMPT_FOTOS_PLAQUETA manda a IA olhar so os campos que faltam (segundo o manifesto), nao reler o que ja esta preenchido",
+    "CAMPOS-POR-MAQUINA.txt" in _promptTxt and 'coluna "falta"' in _promptTxt)
 chk("os tres botoes estao juntos na tela e o botao de importar continua sendo o mesmo de sempre (nao duplicou)",
     "App.exportarFotosPlaquetas()" in novo
     and "App.copiarPromptFotosPlaqueta()" in novo

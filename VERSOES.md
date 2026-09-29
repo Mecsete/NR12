@@ -64,6 +64,19 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 29/09/2026 17:03
+
+**Exportação de fotos de plaqueta: novo arquivo diz o que cada máquina já tem e o que falta, para a IA externa não reler o que já está certo.**
+
+Achado no uso real: máquinas com 3 dos 6 campos já preenchidos continuavam
+entrando na exportação — certo, porque ainda falta algo, mas obrigava a IA
+externa a reler campos que já estavam corretos no app. Agora o `.zip` traz
+também `CAMPOS-POR-MAQUINA.txt`, uma linha por máquina dizendo o que já
+está preenchido e o que falta; o `LEIA-ME.txt` manda a IA olhar só a
+coluna "falta". A resposta importada só grava mesmo em campo vazio (nunca
+mudou), então nada se perde — a mudança é só a IA gastar atenção no que
+realmente falta.
+
 ## 29/09/2026 15:44
 
 **Instruções da exportação de fotos de plaqueta: a IA externa agora também escreve uma lista de conferência no chat.**

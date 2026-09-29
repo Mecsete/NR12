@@ -3213,7 +3213,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "29/09/2026 15:44";
+const APP_BUILD = "29/09/2026 17:03";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -18081,17 +18081,27 @@ function importarDadosPlaqueta(pacote){
    planilha de texto pra IA funcionar hoje.
    ========================================================================= */
 const PLAQUETA_CAMPOS_PLACA = ["modelo", "marca", "numeroSerie", "anoFabricacao", "capacidade", "tensao"];
+const PLAQUETA_CAMPOS_PLACA_LABEL = { modelo:"Modelo", marca:"Marca", numeroSerie:"Nº de série", anoFabricacao:"Ano de fabricação", capacidade:"Capacidade", tensao:"Tensão" };
 const PROMPT_FOTOS_PLAQUETA = `Cada imagem deste arquivo é a foto da plaqueta de identificação de um
 equipamento. O nome do arquivo de cada imagem (sem a extensão) é o
 identificador exato dessa máquina no aplicativo — não altere, não
 reescreva, não traduza esse identificador.
 
+O arquivo CAMPOS-POR-MAQUINA.txt, junto com as fotos, diz — para cada
+máquina — quais dos 6 campos já estão preenchidos no aplicativo e quais
+ainda faltam. Preencher de novo um campo que já está lá não tem efeito
+nenhum (o aplicativo ignora), mas é trabalho à toa: leia esse arquivo
+primeiro e, para cada máquina, procure na foto SÓ os campos que aparecem
+na coluna "falta".
+
 O que fazer:
-1. Para cada imagem, leia a plaqueta e extraia, só quando estiver
-   claramente LEGÍVEL: Modelo, Marca, Nº de série, Ano de fabricação,
-   Capacidade, Tensão. Se a placa também disser explicitamente o tipo do
-   equipamento (ex.: "TRANSPORTADOR DE CORREIA"), inclua também em
-   "tipoEquip".
+1. Para cada imagem, olhando só os campos que faltam para aquela máquina
+   (segundo CAMPOS-POR-MAQUINA.txt), leia a plaqueta e extraia, só quando
+   estiver claramente LEGÍVEL: Modelo, Marca, Nº de série, Ano de
+   fabricação, Capacidade, Tensão — o que for aplicável. Se a placa também
+   disser explicitamente o tipo do equipamento (ex.: "TRANSPORTADOR DE
+   CORREIA"), inclua também em "tipoEquip", mesmo que não estivesse na
+   lista de faltantes.
 2. NUNCA invente, estime ou complete um valor borrado, cortado ou ausente
    na foto. Se um campo não está legível para aquela máquina, simplesmente
    não inclua essa chave — não escreva "não identificado" nem deixe uma
@@ -18139,14 +18149,29 @@ function plaquetaMaquinasParaExportar(){
       (area.maquinas||[]).forEach(maquina=>{
         if(baseIAExcluidoPorLapide("maquina", maquina)){ fora.excluidos++; return; }
         if(!maquina.fotoPlaqueta) return;
-        const faltaAlgo = PLAQUETA_CAMPOS_PLACA.some(c=> !String(maquina[c]||"").trim());
-        if(!faltaAlgo) return;
-        itens.push({ proj, area, maquina });
+        const faltando = PLAQUETA_CAMPOS_PLACA.filter(c=> !String(maquina[c]||"").trim());
+        if(faltando.length === 0) return;
+        itens.push({ proj, area, maquina, faltando });
       });
     });
   });
   itens.fora = fora;
   return itens;
+}
+/* Uma linha por máquina: o que já está preenchido (a IA nem precisa olhar)
+   e o que falta (é só nisso que ela precisa se concentrar). Pedido do
+   engenheiro depois de ver máquina com 3 dos 6 campos já preenchidos
+   entrando na exportação — a exportação está certa (ainda falta algo), mas
+   pedir pra IA reler o que já está certo era trabalho à toa. */
+function plaquetaManifestoTexto(itens){
+  const linhas = itens.map(it=>{
+    const preenchidos = PLAQUETA_CAMPOS_PLACA.filter(c=> it.faltando.indexOf(c) < 0);
+    const rotulos = arr => arr.length ? arr.map(c=> PLAQUETA_CAMPOS_PLACA_LABEL[c]).join(", ") : "(nenhum)";
+    return `${it.maquina.id}: já preenchido = ${rotulos(preenchidos)} | falta = ${rotulos(it.faltando)}`;
+  });
+  return "CAMPOS JÁ PREENCHIDOS x CAMPOS FALTANDO, por máquina\n"
+    + "(o nome antes dos dois-pontos é o mesmo nome do arquivo da foto, sem a extensão)\n\n"
+    + linhas.join("\n") + "\n";
 }
 function plaquetaZipNomeArquivo(itens){
   const nomes = [...new Set(itens.map(it=> String(it.area.nome||"Área").trim() || "Área"))];
@@ -18162,17 +18187,19 @@ async function exportarFotosPlaquetasZip(){
   zerarFotosPerdidasExport();
   await garantirFotosDasLinhas(itens);
   const files = [];
-  let nFotos = 0;
+  const itensComFoto = [];
   for(const it of itens){
     const foto = fotoExportavel(it.maquina.fotoPlaqueta);
     if(!foto) continue;
     const fotoExport = await recomprimirParaExport(foto);
     const ext = fotoExport.startsWith("data:image/png") ? "png" : "jpg";
     files.push({ name: `${it.maquina.id}.${ext}`, data: dataUrlToBytes(fotoExport) });
-    nFotos++;
+    itensComFoto.push(it);
   }
-  if(nFotos === 0){ toast("Nenhuma foto de plaqueta disponível neste aparelho ainda — pode não ter sincronizado."+avisoFotosPerdidasExport(), false); return; }
+  if(itensComFoto.length === 0){ toast("Nenhuma foto de plaqueta disponível neste aparelho ainda — pode não ter sincronizado."+avisoFotosPerdidasExport(), false); return; }
+  const nFotos = itensComFoto.length;
   files.push({ name: "LEIA-ME.txt", data: strToBytes(PROMPT_FOTOS_PLAQUETA) });
+  files.push({ name: "CAMPOS-POR-MAQUINA.txt", data: strToBytes(plaquetaManifestoTexto(itensComFoto)) });
   const bytes = buildZip(files);
   const blob = new Blob([bytes], { type:"application/zip" });
   const f = itens.fora || {};

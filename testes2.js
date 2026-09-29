@@ -13544,9 +13544,11 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(p.indexOf("Importar dados de plaqueta") >= 0, "precisa apontar pro botao de importar que ja existe");
       ok(p.indexOf("lista de conferência") >= 0, "precisa pedir a lista legivel no chat, pra o responsavel conferir antes de importar (29/09/2026)");
       ok(p.indexOf("lista de conferência") < p.indexOf('"formato": "apr-plaqueta-v1"'), "a lista pro humano ler precisa vir ANTES do bloco JSON, nao depois");
+      ok(p.indexOf("CAMPOS-POR-MAQUINA.txt") >= 0, "precisa apontar pro manifesto de campos ja preenchidos x faltando (29/09/2026)");
+      ok(p.indexOf('coluna "falta"') >= 0, "precisa instruir a IA a olhar so os campos que faltam, nao reler o que ja esta preenchido");
     });
 
-    t("plaquetaMaquinasParaExportar usa a mesma selecao de area e a mesma exclusao de lapide/projeto arquivado que a base para IA ja usa", ()=>{
+    t("plaquetaMaquinasParaExportar usa a mesma selecao de area e a mesma exclusao de lapide/projeto arquivado que a base para IA ja usa, e guarda quais campos faltam por maquina", ()=>{
       const f = funcao("plaquetaMaquinasParaExportar");
       ok(f.indexOf("getAreasSelecionadasExport()") >= 0, "precisa usar a mesma selecao de areas dos outros exports desta tela");
       ok(f.indexOf('projetoArquivado(proj.id)') >= 0, "precisa pular projeto arquivado");
@@ -13556,15 +13558,35 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
          "precisa pular item com lapide de exclusao, nos tres niveis");
       ok(f.indexOf("!maquina.fotoPlaqueta") >= 0, "so entra quem tem foto de plaqueta");
       ok(f.indexOf("fotoExportavel") < 0, "NUNCA usar fotoExportavel aqui -- nesta altura a foto ainda nao foi resolvida, tudo contaria como perdido a toa");
-      ok(/PLAQUETA_CAMPOS_PLACA\.some/.test(f), "so entra quem tem pelo menos um dos 6 campos vazio");
+      ok(/PLAQUETA_CAMPOS_PLACA\.filter/.test(f), "precisa guardar a LISTA de campos faltando (nao so um booleano) -- e o que alimenta o manifesto");
+      ok(f.indexOf("itens.push({ proj, area, maquina, faltando });") >= 0, "faltando precisa ir junto no item, pra montar o manifesto depois");
     });
 
-    t("exportarFotosPlaquetasZip resolve as fotos, usa o guardiao na hora de ler, e zera/avisa a contagem de perdidas", ()=>{
+    t("plaquetaManifestoTexto lista, por maquina, o que ja esta preenchido e o que falta (29/09/2026 -- pedido depois de uma maquina com 3 dos 6 campos ja preenchidos entrar na exportacao)", ()=>{
+      const cx = vm.createContext({ String, Array });
+      vm.runInContext(constante("PLAQUETA_CAMPOS_PLACA"), cx);
+      vm.runInContext(constante("PLAQUETA_CAMPOS_PLACA_LABEL"), cx);
+      vm.runInContext(funcao("plaquetaManifestoTexto"), cx);
+      const itens = [
+        { maquina:{id:"maqParcial"}, faltando:["marca","numeroSerie","capacidade"] },
+        { maquina:{id:"maqVazia"}, faltando:["modelo","marca","numeroSerie","anoFabricacao","capacidade","tensao"] },
+      ];
+      cx.__itens = itens;
+      const texto = vm.runInContext("plaquetaManifestoTexto(__itens)", cx);
+      ok(texto.indexOf("maqParcial: já preenchido = Modelo, Ano de fabricação, Tensão | falta = Marca, Nº de série, Capacidade") >= 0,
+         "maquina parcial precisa listar os DOIS lados certos: " + texto);
+      ok(texto.indexOf("maqVazia: já preenchido = (nenhum) | falta = Modelo, Marca, Nº de série, Ano de fabricação, Capacidade, Tensão") >= 0,
+         "maquina sem nada preenchido precisa dizer (nenhum) do lado de ja preenchido");
+    });
+
+    t("exportarFotosPlaquetasZip resolve as fotos, usa o guardiao na hora de ler, traz o manifesto no zip e zera/avisa a contagem de perdidas", ()=>{
       const f = funcao("exportarFotosPlaquetasZip");
       ok(f.indexOf("zerarFotosPerdidasExport();") >= 0);
       ok(f.indexOf("await garantirFotosDasLinhas(itens);") >= 0);
       ok(f.indexOf("fotoExportavel(it.maquina.fotoPlaqueta)") >= 0, "aqui sim precisa do guardiao -- e depois de resolver");
       ok(f.indexOf('name: "LEIA-ME.txt"') >= 0, "o zip precisa trazer as instrucoes junto");
+      ok(f.indexOf('name: "CAMPOS-POR-MAQUINA.txt"') >= 0, "o zip precisa trazer o manifesto de campos faltando junto");
+      ok(f.indexOf("plaquetaManifestoTexto(itensComFoto)") >= 0, "o manifesto precisa ser montado so com quem realmente entrou no zip (nao com quem ficou de fora por foto orfa)");
       ok((f.match(/avisoFotosPerdidasExport\(\)/g) || []).length >= 1, "precisa avisar quando alguma foto ficou sem corresponder");
     });
 
