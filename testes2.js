@@ -13459,6 +13459,64 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  console.log("\n---------------------------------------");
+  /* 29/09/2026: Foto Geral e Foto do Risco sumiam na exportacao simples
+     (Base Completa/Resumo sem modelo da Corteva) porque aplicarLaudoAprovadoNasLinhas
+     clonava maquina/risco ANTES da foto ser resolvida -- achado no caso real
+     "Vylor - Secador 100.xlsx" (Só Resumo): 0 fotos em 30 linhas mesmo com
+     Foto Geral e Foto do Risco preenchidos no app para toda a área. */
+  {
+    console.log("\n[t180] Foto Geral/Foto do Risco sumiam no export simples: resolver ANTES de clonar, nao depois");
+
+    t("mecanismo do bug: string e copiada por valor no spread, resolver DEPOIS do clone nunca alcanca o clone; array e por referencia, alcanca os dois", ()=>{
+      const original = { fotoGeral: "idbfoto:x", fotosOutras: ["idbfoto:y"] };
+      const clone = { ...original }; // e assim que aplicarLaudoAprovadoNasLinhas clona maquina/risco
+      // "resolver no lugar", como __fotosTrocarNoLugar faz sobre o objeto ORIGINAL
+      original.fotoGeral = "data:image/jpeg;base64,AAA";
+      original.fotosOutras[0] = "data:image/jpeg;base64,BBB"; // mesma array, mutada no indice
+      eq(clone.fotoGeral, "idbfoto:x", "a string do clone precisa ficar presa no valor antigo -- e exatamente o bug real");
+      eq(clone.fotosOutras[0], "data:image/jpeg;base64,BBB", "o array e compartilhado -- por isso Fotos Extras nunca sumiam, so Foto Geral/do Risco");
+    });
+
+    t("_exportarSimplesXLSXFotosReal resolve as fotos ANTES de aplicarLaudoAprovadoNasLinhas clonar maquina/risco, no export simples", ()=>{
+      const f = funcao("_exportarSimplesXLSXFotosReal");
+      const iGarantir = f.indexOf("await garantirFotosDasLinhas(linhasRaw);");
+      const iAplicar = f.indexOf("linhasRaw = aplicarLaudoAprovadoNasLinhas(linhasRaw);");
+      ok(iGarantir >= 0, "faltou a chamada que resolve as fotos antes do clone");
+      ok(iAplicar >= 0, "faltou a chamada que clona maquina/risco com o laudo aprovado");
+      ok(iGarantir < iAplicar, "resolver as fotos precisa vir ANTES do clone -- depois, a foto fica presa na referencia antiga pra sempre");
+    });
+
+    t("o ramo do modelo Corteva (macro) nao tem esse risco: so acrescenta iaDuvidas/iaTextos ao item, sem clonar maquina/risco", ()=>{
+      const f = funcao("_exportarSimplesXLSXFotosReal");
+      const trecho = f.slice(f.indexOf("modeloXlsmB64 && exportEscolha().conteudo.macro"), f.indexOf("linhasRaw = aplicarLaudoAprovadoNasLinhas(linhasRaw);"));
+      ok(trecho.indexOf("linhasComIA = linhasRaw.map(item=>({...item, iaDuvidas:") >= 0,
+         "o clone do ramo macro precisa continuar so no nivel do item (maquina/risco nao re-espalhados), senao herda o mesmo bug");
+    });
+
+    t("_exportarSimplesDOCXReal (Word) tinha o mesmo defeito -- mesma correcao, resolver antes do clone", ()=>{
+      const f = funcao("_exportarSimplesDOCXReal");
+      const iGarantir = f.indexOf("await garantirFotosDasLinhas(linhasRaw);");
+      const iAplicar = f.indexOf("linhasRaw = aplicarLaudoAprovadoNasLinhas(linhasRaw);");
+      ok(iGarantir >= 0 && iAplicar >= 0 && iGarantir < iAplicar,
+         "o Word usa a mesma aplicarLaudoAprovadoNasLinhas -- precisa da mesma ordem que o Excel");
+      ok(f.indexOf("zerarFotosPerdidasExport();") >= 0, "faltou zerar a contagem no inicio, como o Excel");
+      eq((f.match(/avisoFotosPerdidasExport\(\)/g) || []).length, 2, "as duas mensagens de sucesso (1 arquivo/zip) precisam avisar fotos perdidas");
+    });
+
+    t("gerarBytesDocxSimples (Word) tambem passa foto do equipamento e do risco pelo guardiao fotoExportavel -- nao tinha isso, so o Excel tinha", ()=>{
+      const f = funcao("gerarBytesDocxSimples");
+      ok(f.indexOf("prepararFoto(fotoExportavel(item.risco.foto))") >= 0, "faltou o guardiao na foto do risco");
+      ok(f.indexOf("prepararFoto(fotoExportavel(grupoMaquina.maquina.fotoGeral))") >= 0, "faltou o guardiao na foto geral da maquina");
+    });
+
+    t("montarDadosMaquinaDocx usa fotoExportavel nas MESMAS duas leituras -- a chave usada pra montar fotosPreparadas precisa ser igual a chave usada na hora de procurar, senao a foto some do Word mesmo resolvida", ()=>{
+      const f = funcao("montarDadosMaquinaDocx");
+      ok(f.indexOf("foto: fotoExportavel(risco.foto) || null,") >= 0, "faltou o guardiao na chave foto (risco)");
+      ok(f.indexOf("fotoMaquina: fotoExportavel(maquina.fotoGeral) || null,") >= 0, "faltou o guardiao na chave fotoMaquina");
+    });
+  }
+
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);
 })();

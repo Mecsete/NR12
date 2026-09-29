@@ -64,6 +64,21 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 29/09/2026 11:15
+
+**Corrige Foto Geral e Foto do Risco sumindo na exportação simples (Base Completa/Resumo sem o modelo da Corteva).**
+
+Achado num caso real ("Vylor - Secador 100.xlsx", Só Resumo): nenhuma das 30
+linhas trouxe foto, mesmo com Foto Geral e Foto do Risco preenchidos no app
+para toda a área — apesar de o arquivo trazer as fotos extras e da plaqueta
+normalmente. Causa: a etapa que troca o texto do relatório pelo laudo já
+aprovado clona os dados da máquina/risco antes de a foto ser carregada do
+armazenamento do aparelho; a cópia ficava presa na referência antiga da foto
+para sempre, mesmo depois de ela ser carregada. Fotos extras escapavam do
+problema por serem guardadas de um jeito que a cópia continuava enxergando a
+atualização — só Foto Geral e Foto do Risco ficavam presas. Corrigido
+carregando a foto antes dessa cópia acontecer.
+
 ## 29/09/2026 09:50
 
 **Nova opção de exportação: "Só Inventário de Máquinas".**

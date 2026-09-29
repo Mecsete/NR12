@@ -3213,7 +3213,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "29/09/2026 09:50";
+const APP_BUILD = "29/09/2026 11:15";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -19604,6 +19604,24 @@ async function _exportarSimplesXLSXFotosReal(){
       const pendentesIA = laudoLinhasComPendencia(linhasRaw);
       if(pendentesIA.length>0) await gerarLaudoIAItens(pendentesIA, null, { refazer:false });
     }
+    /* 29/09/2026: RESOLVER AS FOTOS ANTES DE aplicarLaudoAprovadoNasLinhas,
+       nunca depois. Esse clona item.maquina/item.risco com {...} (spread) pra
+       poder trocar o texto do laudo sem mexer no STATE de verdade. Só que
+       string é copiada POR VALOR nesse spread: se fotoGeral/foto ainda forem
+       "idbfoto:<id>" (referência, não resolvida) na hora do clone, a cópia
+       fica presa nessa referência pra sempre — garantirFotosDasLinhas (lá
+       dentro de gerarBytesXlsxSimples) resolve o objeto ORIGINAL dentro de
+       area.maquinas[]/riscos[], que não é mais o mesmo objeto do clone, e a
+       foto nunca chega no Excel. (fotosOutras escapava disso por ser um
+       ARRAY — o spread copia só a referência do array, então a resolução em
+       lugar continuava visível nos dois lados; foi isso que mascarou o bug:
+       fotos extras apareciam, Foto Geral e Foto do Risco nunca.) Resolvendo
+       aqui, antes do clone, a foto já chega como dataURL de verdade — a
+       chamada de dentro de gerarBytesXlsxSimples vira só uma checagem sem
+       nada para fazer. Achado no caso real "Vylor - Secador 100.xlsx" (Só
+       Resumo): 0 fotos nas 30 linhas mesmo com Foto Geral e Foto do Risco
+       preenchidos no app para todas as máquinas/riscos da área. */
+    await garantirFotosDasLinhas(linhasRaw);
     linhasRaw = aplicarLaudoAprovadoNasLinhas(linhasRaw);
     const grupos = agruparParaExportar(linhasRaw);
     progressoAbrir("Gerando Excel", grupos.length);
@@ -23441,7 +23459,7 @@ function montarDadosMaquinaDocx(area, maquina, fotosPreparadas){
         np: labelHRN(HRN_NP_OPTS,np,HRN_NP_TABELA),
         hrn: `${hrn} — ${nivel}`,
         mitigacao,
-        foto: risco.foto || null,
+        foto: fotoExportavel(risco.foto) || null,
         _origId: {tarefaId: tarefa.id, riscoId: risco.id},
       };
     });
@@ -23458,7 +23476,7 @@ function montarDadosMaquinaDocx(area, maquina, fotosPreparadas){
     serie: "", localizacao: area.nome||area.local||"", capacidade: "",
     posicaoLayout: area.nome||area.local||"",
     escopo: corrigirTextoMecanico(maquina.escopo || maquina.descricao) || "—",
-    fotoMaquina: maquina.fotoGeral || null,
+    fotoMaquina: fotoExportavel(maquina.fotoGeral) || null,
     tarefas,
   };
 }
@@ -23487,8 +23505,8 @@ async function gerarBytesDocxSimples(linhasRaw){
     const dims = await getImageDims(dataUrlExport);
     fotosPreparadas.set(dataUrl, { bytes: dataUrlToBytes(dataUrlExport), w: dims.w, h: dims.h });
   }
-  for(const item of linhasNumeradas){ await prepararFoto(item.risco.foto); }
-  for(const grupoMaquina of maquinasOrdenadas){ await prepararFoto(grupoMaquina.maquina.fotoGeral); }
+  for(const item of linhasNumeradas){ await prepararFoto(fotoExportavel(item.risco.foto)); }
+  for(const grupoMaquina of maquinasOrdenadas){ await prepararFoto(fotoExportavel(grupoMaquina.maquina.fotoGeral)); }
 
   // Monta os dados de cada máquina e numera os riscos na ordem já calculada pelo app.
   const maquinasDados = maquinasOrdenadas.map(grupoMaquina=>{
@@ -23579,12 +23597,16 @@ async function _exportarSimplesDOCXReal(){
   let linhasRaw = linhasEscopoSimples().filter(item=>idsSelecionados.includes(item.area.id));
   if(linhasRaw.length===0){ toast("Nada para exportar ainda", false); return; }
   const painelWord = progressoAbrir("Preparando a exportação", 0);
+  zerarFotosPerdidasExport();
   // Mesma fonte de verdade do Excel: o Word usa os textos aprovados na área
   // "Laudo". O que ainda não tiver sugestão é gerado agora e fica gravado.
   if(getIAApiKey()){
     const pendentesIA = laudoLinhasComPendencia(linhasRaw);
     if(pendentesIA.length>0) await gerarLaudoIAItens(pendentesIA, null, { refazer:false });
   }
+  // 29/09/2026: mesmo motivo do Excel (ver comentário em _exportarSimplesXLSXFotosReal)
+  // — resolver a foto ANTES de aplicarLaudoAprovadoNasLinhas clonar maquina/risco.
+  await garantirFotosDasLinhas(linhasRaw);
   linhasRaw = aplicarLaudoAprovadoNasLinhas(linhasRaw);
   try {
     const grupos = agruparLinhasPorArea(linhasRaw);
@@ -23600,11 +23622,11 @@ async function _exportarSimplesDOCXReal(){
     if(progressoCancelado()){ toast("Exportação parada. Os textos que a IA já escreveu ficaram guardados no app.", false); return; }
     if(arquivos.length===1){
       const blob = new Blob([arquivos[0].data], {type:"application/vnd.openxmlformats-officedocument.wordprocessingml.document"});
-      await compartilharOuBaixarBlob(blob, arquivos[0].name, blob.type, "Word exportado");
+      await compartilharOuBaixarBlob(blob, arquivos[0].name, blob.type, "Word exportado."+avisoFotosPerdidasExport());
     } else {
       const zipBytes = buildZip(arquivos);
       const blob = new Blob([zipBytes], {type:"application/zip"});
-      await compartilharOuBaixarBlob(blob, `relatorios_word_${hoje()}.zip`, blob.type, `${arquivos.length} arquivos Word exportados em .zip`);
+      await compartilharOuBaixarBlob(blob, `relatorios_word_${hoje()}.zip`, blob.type, `${arquivos.length} arquivos Word exportados em .zip.`+avisoFotosPerdidasExport());
     }
   } catch(erroExport) {
     console.error("Erro ao gerar Word por área (Módulo Simplificado):", erroExport);

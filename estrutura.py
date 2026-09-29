@@ -90,7 +90,13 @@ print("=== 3. ARQUITETURA DE FOTOS (CAMADA_FOTOS) ===")
 # acima. Zerado. "SO INVENTARIO DE MAQUINAS" (mesma entrega desta secao,
 # 29/09/2026): delta zero tambem -- gerarBytesXlsxInventario nao usa nenhuma
 # das duas palavras, nem em codigo nem em comentario.
-_extra_fotos = {"foto:": 0, "idbfoto:": 0}
+# CORRECAO DA ORDEM (RESOLVER ANTES DE CLONAR, 29/09/2026, secao 170): +1 em
+# "idbfoto:" e +1 em "foto:" -- o comentario novo em _exportarSimplesXLSXFotosReal
+# cita "idbfoto:<id>" por extenso UMA vez ao explicar o defeito ("...ainda forem
+# 'idbfoto:<id>' (referência..."); "foto:" embutido dentro do proprio
+# "idbfoto:" acompanha (mesmo efeito colateral da correcao anterior, so que
+# 1 ocorrencia em vez de 2 desta vez). Nenhuma ocorrencia nova em codigo.
+_extra_fotos = {"foto:": 1, "idbfoto:": 1}
 for marca in ["idbfoto:", "foto:", "CAMADA_FOTOS"]:
     a, b = orig.count(marca) + _extra_fotos.get(marca, 0), novo.count(marca)
     chk("ocorrencias de '%s' inalteradas (%d)" % (marca, a), a == b, "orig+extra=%d novo=%d" % (a, b))
@@ -5402,6 +5408,44 @@ chk("o gerador usa montarItensInventario (uma linha por maquina) e fotoExportave
     and "garantirFotosDasLinhas(linhasRaw)" in _ginv)
 chk("a aba Inventario do modelo oficial da Corteva tambem passou a usar o guardiao (linha que a correcao anterior nao tinha pego)",
     "const dataUrl = fotoExportavel(inv.maquina.fotoGeral);" in _corpoDe(novo, "gerarBytesXlsmCorteva"))
+
+print("\n=== 170. FOTO GERAL/DO RISCO SUMIA NO EXPORT SIMPLES: RESOLVER ANTES DE CLONAR (29/09/2026) ===")
+# Achado num caso real ("Vylor - Secador 100.xlsx", Só Resumo): 0 fotos em 30
+# linhas mesmo com Foto Geral e Foto do Risco preenchidos no app. Causa:
+# aplicarLaudoAprovadoNasLinhas clona maquina/risco com {...} (spread) pra
+# trocar o texto do laudo sem mexer no STATE — mas string e copiada POR VALOR
+# nesse spread. Se a foto ainda for uma referencia "idbfoto:<id>" na hora do
+# clone, a copia fica presa nela pra sempre: garantirFotosDasLinhas (chamado
+# DEPOIS, dentro de gerarBytesXlsxSimples) resolve o objeto ORIGINAL dentro
+# de area.maquinas[]/riscos[], que ja nao e mais o mesmo objeto do clone.
+# fotosOutras (array) escapava disso por ser copiado por REFERENCIA no
+# spread — e por isso so Foto Geral/do Risco sumiam, nunca as fotos extras.
+_fSimples = _corpoDe(novo, "_exportarSimplesXLSXFotosReal")
+chk("garantirFotosDasLinhas roda ANTES de aplicarLaudoAprovadoNasLinhas clonar maquina/risco",
+    "await garantirFotosDasLinhas(linhasRaw);" in _fSimples
+    and _fSimples.index("await garantirFotosDasLinhas(linhasRaw);") < _fSimples.index("linhasRaw = aplicarLaudoAprovadoNasLinhas(linhasRaw);"))
+chk("o ramo do modelo Corteva (macro) continua so acrescentando iaDuvidas/iaTextos ao item, sem clonar maquina/risco (nao herda o bug)",
+    "linhasComIA = linhasRaw.map(item=>({...item, iaDuvidas:" in _fSimples)
+
+# O Word (_exportarSimplesDOCXReal) usa a MESMA aplicarLaudoAprovadoNasLinhas
+# e tinha o MESMO defeito de ordem -- e ainda por cima nunca tinha ganhado o
+# guardiao fotoExportavel da correcao de 25/09 (so o Excel tinha). Os dois
+# vao juntos agora.
+_fWord = _corpoDe(novo, "_exportarSimplesDOCXReal")
+chk("Word: garantirFotosDasLinhas roda ANTES de aplicarLaudoAprovadoNasLinhas clonar maquina/risco (mesmo defeito do Excel)",
+    "await garantirFotosDasLinhas(linhasRaw);" in _fWord
+    and _fWord.index("await garantirFotosDasLinhas(linhasRaw);") < _fWord.index("linhasRaw = aplicarLaudoAprovadoNasLinhas(linhasRaw);"))
+chk("Word: zera a contagem de fotos perdidas no inicio e avisa nas duas mensagens de sucesso",
+    "zerarFotosPerdidasExport();" in _fWord
+    and _fWord.count("avisoFotosPerdidasExport()") == 2)
+_gdocx = _corpoDe(novo, "gerarBytesDocxSimples")
+chk("Word: gerarBytesDocxSimples ganhou o guardiao fotoExportavel nas duas fotos que prepara (nao tinha nenhum antes)",
+    "prepararFoto(fotoExportavel(item.risco.foto))" in _gdocx
+    and "prepararFoto(fotoExportavel(grupoMaquina.maquina.fotoGeral))" in _gdocx)
+_mddocx = _corpoDe(novo, "montarDadosMaquinaDocx")
+chk("Word: montarDadosMaquinaDocx usa fotoExportavel nas mesmas duas leituras (chave de busca em fotosPreparadas precisa bater com a chave de registro)",
+    "foto: fotoExportavel(risco.foto) || null," in _mddocx
+    and "fotoMaquina: fotoExportavel(maquina.fotoGeral) || null," in _mddocx)
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
