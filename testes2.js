@@ -13599,6 +13599,13 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
          "com 1 area baixa o .zip dela direto; com mais de uma, embrulha os .zips de cada area num .zip externo (mesmo padrao de relatorios_excel_*.zip)");
     });
 
+    t("exportarFotosPlaquetasZip copia as instrucoes sozinho ao terminar (29/09/2026, pedido explicito) -- em falha silenciosa (clipboard bloqueado) a exportacao continua normal, so sem o aviso", ()=>{
+      const f = funcao("exportarFotosPlaquetasZip");
+      ok(f.indexOf("navigator.clipboard.writeText(PROMPT_FOTOS_PLAQUETA)") >= 0, "precisa copiar o mesmo texto do botao manual, sem inventar um texto novo");
+      ok(/catch\(e\)\{\s*return false;\s*\}/.test(f), "falha ao copiar nao pode derrubar a exportacao -- so desliga o aviso");
+      ok((f.match(/avisoCopia/g) || []).length >= 2, "o aviso de copia precisa aparecer nas duas mensagens de sucesso (1 arquivo/varias areas)");
+    });
+
     t("os tres botoes (exportar, copiar instrucoes, importar) estao juntos na tela, e o import continua sendo o mesmo botao/formato de sempre", ()=>{
       ok(HTML.indexOf("App.exportarFotosPlaquetas()") >= 0, "faltou o botao de exportar");
       ok(HTML.indexOf("App.copiarPromptFotosPlaqueta()") >= 0, "faltou o botao de copiar instrucoes");

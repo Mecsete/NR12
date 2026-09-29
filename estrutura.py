@@ -5485,6 +5485,9 @@ chk("a exportacao divide um .zip por area (pedido explicito 29/09/2026) -- reapr
     and "await __comLiberacao(g.linhas, async ()=>{" in _efotoszip
     and "if(arquivos.length === 1){" in _efotoszip
     and "buildZip(arquivos)" in _efotoszip)
+chk("a exportacao copia as instrucoes sozinha ao terminar (pedido explicito 29/09/2026), sem derrubar a exportacao se o clipboard falhar",
+    "navigator.clipboard.writeText(PROMPT_FOTOS_PLAQUETA)" in _efotoszip
+    and _efotoszip.count("avisoCopia") >= 2)
 # constante() so delimita array/objeto ([...]/{...}); PROMPT_FOTOS_PLAQUETA e
 # um template string, entao recorta na mao pelo inicio/fim da declaracao
 # (mesma tecnica ja usada em testes2.js pro mesmo motivo).

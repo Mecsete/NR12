@@ -64,6 +64,16 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 29/09/2026 18:25
+
+**Exportar fotos de plaqueta: as instruções já saem copiadas, sem precisar do segundo botão.**
+
+Pedido explícito. Ao exportar, o app já copia sozinho o texto que a IA
+externa precisa (mesmo texto do botão "Copiar instruções") — é só abrir o
+chat e colar. Se o navegador bloquear a cópia automática (alguns só
+liberam em HTTPS), a exportação segue normal, só sem o aviso extra na
+mensagem de sucesso; o botão manual continua lá para esse caso.
+
 ## 29/09/2026 17:07
 
 **Exportar fotos de plaqueta de várias áreas de uma vez: o app divide o .zip por área.**

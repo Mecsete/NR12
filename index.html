@@ -3213,7 +3213,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "29/09/2026 17:07";
+const APP_BUILD = "29/09/2026 18:25";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -18212,15 +18212,21 @@ async function exportarFotosPlaquetasZip(){
   const f = itens.fora || {};
   const extra = (f.excluidos ? " · " + f.excluidos + " item(ns) excluído(s) em outro aparelho ficaram de fora" : "")
     + (f.arquivados ? " · " + f.arquivados + " projeto(s) arquivado(s) ficaram de fora" : "");
+  /* 29/09/2026, pedido do engenheiro: copiar as instruções sozinho ao
+     exportar, pra só precisar abrir a IA e colar — sem precisar caçar o
+     segundo botão. Silencioso: se o navegador recusar (só libera em
+     HTTPS), a exportação segue normal, só sem essa folga. */
+  const copiouPrompt = await (async()=>{ try{ await navigator.clipboard.writeText(PROMPT_FOTOS_PLAQUETA); return true; }catch(e){ return false; } })();
+  const avisoCopia = copiouPrompt ? " Instruções já copiadas — é só abrir a IA e colar." : "";
   if(arquivos.length === 1){
     const blob = new Blob([arquivos[0].data], { type:"application/zip" });
     await compartilharOuBaixarBlob(blob, arquivos[0].name, "application/zip",
-      nFotos + " foto(s) de plaqueta exportada(s)" + extra + avisoFotosPerdidasExport());
+      nFotos + " foto(s) de plaqueta exportada(s)." + avisoCopia + extra + avisoFotosPerdidasExport());
   } else {
     const zipBytes = buildZip(arquivos);
     const blob = new Blob([zipBytes], { type:"application/zip" });
     await compartilharOuBaixarBlob(blob, `fotos_plaqueta_${hoje()}.zip`, "application/zip",
-      nFotos + " foto(s) de plaqueta em " + arquivos.length + " área(s), um .zip por área" + extra + avisoFotosPerdidasExport());
+      nFotos + " foto(s) de plaqueta em " + arquivos.length + " área(s), um .zip por área." + avisoCopia + extra + avisoFotosPerdidasExport());
   }
 }
 /* CARIMBO DE SINCRONIZAÇÃO — sem isto, a revisão do laudo era um trabalho
