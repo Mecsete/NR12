@@ -13311,6 +13311,72 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   }
 
   console.log("\n---------------------------------------");
+  /* 25-29/09/2026: foto sem correspondencia no aparelho nao pode virar imagem de 0 bytes */
+  {
+    console.log("\n[t178] fotoExportavel: referencia sem foto correspondente vira Sem foto, nunca imagem de 0 bytes");
+    const cxF = vm.createContext({ String, Object, Array, Set });
+    vm.runInContext('const FOTO_REF_PREFIXO = "idbfoto:";', cxF);
+    ["ehFotoRefPersist","zerarFotosPerdidasExport","contarFotosPerdidasExport","fotoExportavel","avisoFotosPerdidasExport"].forEach(n=> vm.runInContext(funcao(n), cxF));
+    const F = n => cxF[n];
+
+    t("dataUrl de verdade passa direto, sem contar como perdida", ()=>{
+      F("zerarFotosPerdidasExport")();
+      eq(F("fotoExportavel")("data:image/jpeg;base64,AAAA"), "data:image/jpeg;base64,AAAA");
+      eq(F("contarFotosPerdidasExport")(), 0);
+    });
+    t("referencia idbfoto: sem foto correspondente vira null e conta uma vez por id distinto", ()=>{
+      F("zerarFotosPerdidasExport")();
+      eq(F("fotoExportavel")("idbfoto:abc123"), null);
+      eq(F("fotoExportavel")("idbfoto:def456"), null);
+      eq(F("fotoExportavel")("idbfoto:abc123"), null); // mesma referencia de novo: nao duplica na contagem
+      eq(F("contarFotosPerdidasExport")(), 2);
+    });
+    t("null/undefined/string vazia passam direto (nunca existiu foto, caso normal de sempre)", ()=>{
+      F("zerarFotosPerdidasExport")();
+      eq(F("fotoExportavel")(null), null);
+      eq(F("fotoExportavel")(undefined), undefined);
+      eq(F("fotoExportavel")(""), "");
+      eq(F("contarFotosPerdidasExport")(), 0);
+    });
+    t("zerarFotosPerdidasExport reinicia a contagem entre exportacoes", ()=>{
+      F("fotoExportavel")("idbfoto:x");
+      ok(F("contarFotosPerdidasExport")() > 0);
+      F("zerarFotosPerdidasExport")();
+      eq(F("contarFotosPerdidasExport")(), 0);
+    });
+    t("o aviso fica vazio sem perdas, e no singular/plural certo com perdas", ()=>{
+      F("zerarFotosPerdidasExport")();
+      eq(F("avisoFotosPerdidasExport")(), "");
+      F("fotoExportavel")("idbfoto:x");
+      ok(F("avisoFotosPerdidasExport")().indexOf("1 foto sem correspondência") > 0, F("avisoFotosPerdidasExport")());
+      ok(F("avisoFotosPerdidasExport")().indexOf("ficou") > 0);
+      F("fotoExportavel")("idbfoto:y");
+      ok(F("avisoFotosPerdidasExport")().indexOf("2 fotos sem correspondência") > 0);
+      ok(F("avisoFotosPerdidasExport")().indexOf("ficaram") > 0);
+    });
+    t("gerarBytesXlsxSimples usa fotoExportavel em todo lugar que le uma foto, para Base Completa e para o registro das imagens", ()=>{
+      const f = funcao("gerarBytesXlsxSimples");
+      ["fotoExportavel(item.maquina.fotoGeral)","fotoExportavel(item.maquina.fotoPlaqueta)","fotoExportavel(item.risco.foto)",
+       "fotoExportavel(f)","fotoExportavel(extras[i])","fotoExportavel(extrasRisco[i])"].forEach(x=> ok(f.indexOf(x) >= 0, "faltou: " + x));
+      ok(f.indexOf("item.maquina.fotoGeral   || \"Sem foto\"") < 0, "a leitura crua antiga precisa ter saido");
+    });
+    t("buildXlsxPackageSimples usa fotoExportavel na aba Resumo tambem (era o caso do bug real: so Resumo selecionado)", ()=>{
+      const f = funcao("buildXlsxPackageSimples");
+      ok(f.indexOf("fotoExportavel(item.maquina.fotoGeral)||'Sem foto'") >= 0);
+      ok(f.indexOf("fotoExportavel(item.risco.foto)||'Sem foto'") >= 0);
+    });
+    t("gerarBytesXlsmCorteva (modelo oficial com macro) tambem usa fotoExportavel", ()=>{
+      const f = funcao("gerarBytesXlsmCorteva");
+      ["fotoExportavel(item.maquina.fotoGeral)","fotoExportavel(item.maquina.fotoPlaqueta)","fotoExportavel(item.risco.foto)",
+       "fotoExportavel(inv.maquina.fotoGeral)"].forEach(x=> ok(f.indexOf(x) >= 0, "faltou: " + x));
+    });
+    t("a exportacao zera o contador no inicio e avisa nas quatro mensagens de sucesso (macro/simples x 1 arquivo/zip)", ()=>{
+      const f = funcao("_exportarSimplesXLSXFotosReal");
+      ok(f.indexOf("zerarFotosPerdidasExport();") >= 0);
+      eq((f.match(/avisoFotosPerdidasExport\(\)/g) || []).length, 4, "precisa aparecer nas 4 mensagens de sucesso");
+    });
+  }
+
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);
 })();

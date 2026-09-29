@@ -80,7 +80,12 @@ print("=== 3. ARQUITETURA DE FOTOS (CAMADA_FOTOS) ===")
 # `info:{...,fotos:[]}` vazio, sem nenhuma ocorrencia nova da palavra), e a
 # remocao das etiquetas tirou codigo que nao continha essas palavras. Delta
 # zero, fica exatamente zerado.
-_extra_fotos = {"foto:": 0, "idbfoto:": 0}
+# CORRECAO DA FOTO SEM CORRESPONDENCIA (25-29/09/2026, ver secao 168): +2 em
+# "idbfoto:" e +2 em "foto:", os dois so em comentario (fotoExportavel() cita
+# "idbfoto:<id>" por extenso duas vezes ao explicar o defeito que corrige; "foto:"
+# embutido dentro do proprio "idbfoto:" acompanha). Nenhuma ocorrencia nova em
+# codigo: a correcao filtra o que ja existia, nao grava foto de jeito novo.
+_extra_fotos = {"foto:": 2, "idbfoto:": 2}
 for marca in ["idbfoto:", "foto:", "CAMADA_FOTOS"]:
     a, b = orig.count(marca) + _extra_fotos.get(marca, 0), novo.count(marca)
     chk("ocorrencias de '%s' inalteradas (%d)" % (marca, a), a == b, "orig+extra=%d novo=%d" % (a, b))
@@ -5174,7 +5179,11 @@ chk("HRN e Nivel saem com o valor calculado gravado ao lado da formula (Resumo e
 chk("Resumo limpo ganha 'Foto do Equipamento' e as colunas HRN acompanham",
     '"Foto do Equipamento","Foto do Risco","Área"' in novo
     and "RESUMO_COL_PO=9,RESUMO_COL_FE=10,RESUMO_COL_GPD=11,RESUMO_COL_NP=12,RESUMO_COL_HRN=13,RESUMO_COL_NIVEL=14" in novo
-    and "new Set([1,2])" in novo and "item.maquina.fotoGeral||'Sem foto'," in novo)
+    and "new Set([1,2])" in novo
+    # 25-29/09/2026 (secao 168): a leitura direta virou fotoExportavel(...), que
+    # descarta uma referencia idbfoto: sem foto correspondente em vez de deixá-la
+    # vazar para dentro do arquivo como imagem de 0 bytes.
+    and "fotoExportavel(item.maquina.fotoGeral)||'Sem foto'," in novo)
 
 print("\n=== 153. CONCLUSAO COM TABELA DE RISCOS POR HRN (23/09/2026) ===")
 # Pedido do engenheiro: a Conclusao ganha uma tabela (Maquina / Foto do Risco /
@@ -5343,6 +5352,26 @@ chk("a regra de ordem esta nas instrucoes e a antiga (componente primeiro) saiu"
     and "Uma frase corrida combinando componente + condição observada" not in novo)
 chk("os dois exemplos aprovados abrem com Risco de",
     'Texto: \\"Risco de prensamento dos dedos no cilindro pneumático' in novo and 'Texto: \\"Risco de queda de quem circula na área pela abertura' in novo)
+
+
+print("\n=== 168. FOTO SEM CORRESPONDENCIA NO APARELHO NAO VIRA IMAGEM DE 0 BYTES (25-29/09/2026) ===")
+# Achado numa planilha real (Vylor - Descarga 100, Só Resumo): uma referencia
+# idbfoto:<id> sem foto correspondente no IndexedDB seguia crua para dentro do
+# .xlsx como se fosse a imagem — virava um jpeg de 0 bytes (dataUrlToBytes de
+# uma string sem virgula nenhuma). Provas funcionais em t178.
+chk("existe o guardiao fotoExportavel e a contagem para avisar quem exportou",
+    novo.count("function fotoExportavel(v){") == 1
+    and "function zerarFotosPerdidasExport(){" in novo and "function contarFotosPerdidasExport(){" in novo
+    and "function avisoFotosPerdidasExport(){" in novo)
+chk("os tres geradores de Excel do Modulo Simplificado passam toda leitura de foto pelo guardiao",
+    _corpoDe(novo, "gerarBytesXlsxSimples").count("fotoExportavel(") >= 6
+    and _corpoDe(novo, "buildXlsxPackageSimples").count("fotoExportavel(") >= 2
+    and _corpoDe(novo, "gerarBytesXlsmCorteva").count("fotoExportavel(") >= 4)
+chk("a exportacao zera a contagem no inicio e avisa nas mensagens de sucesso",
+    "zerarFotosPerdidasExport();" in _corpoDe(novo, "_exportarSimplesXLSXFotosReal")
+    and _corpoDe(novo, "_exportarSimplesXLSXFotosReal").count("avisoFotosPerdidasExport()") == 4)
+chk("o Modulo Completo (congelado) nao foi tocado por esta correcao",
+    "fotoExportavel(item.maquina.fotoGeral)" not in _corpoDe(novo, "exportarMasterXLSXFotos"))
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

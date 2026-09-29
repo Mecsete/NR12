@@ -1758,6 +1758,38 @@ const FOTO_ORFA_CARENCIA_MS = 30 * 24 * 60 * 60 * 1000;      // 30 dias — cobr
 const FOTO_ORFA_CARENCIA_APERTADA_MS = 24 * 60 * 60 * 1000;  // 1 dia — só quando o aparelho está sem espaço de verdade
 function ehFotoDataUrlPersist(v){ return typeof v === "string" && v.startsWith("data:image"); }
 function ehFotoRefPersist(v){ return typeof v === "string" && v.startsWith(FOTO_REF_PREFIXO); }
+/* Sufixo para a mensagem de sucesso da exportação, quando alguma foto ficou
+   sem correspondência no aparelho (ver fotoExportavel). Vazio no caso comum. */
+function avisoFotosPerdidasExport(){
+  const n = contarFotosPerdidasExport();
+  if(!n) return "";
+  return ` ${n} foto${n===1?"":"s"} sem correspondência neste aparelho ${n===1?"ficou":"ficaram"} como "Sem foto" — provavelmente ainda não sincronizada${n===1?"":"s"} do aparelho onde ${n===1?"foi tirada":"foram tiradas"}.`;
+}
+/* CONTAGEM DE FOTOS PERDIDAS NA EXPORTAÇÃO (25/09/2026).
+   Achado: um "idbfoto:<id>" cuja foto não existe mais no IndexedDB deste
+   aparelho (por exemplo, tirada e sincronizada de outro aparelho que ainda
+   não sincronizou de volta) ficava, sem aviso nenhum, como a própria string
+   crua dentro do objeto — garantirFotosDe/__fotosTrocarNoLugar só troca a
+   referência quando ACHA a foto; quando não acha, a linha simplesmente não
+   é tocada. Um export que lesse esse campo direto (fotoGeral, foto, etc.)
+   sem passar por fotoExportavel() embutia a STRING "idbfoto:<id>" como se
+   fosse a imagem: virava um .jpeg de ZERO bytes dentro do .xlsx — o Excel
+   mostra "Não é possível exibir esta imagem" e, com o Salvamento Automático
+   ligado, pode "reparar" o arquivo inteiro ao salvar, removendo também as
+   fotos que estavam boas (foi o caso relatado em 29/09/2026, planilha
+   "Vylor - Descarga 100", Só Resumo: várias imagens zeradas e o arquivo caiu
+   de ~3,3 MB para poucas dezenas de KB assim que o Excel reabriu e salvou). */
+let __fotosPerdidasExportIds = new Set();
+function zerarFotosPerdidasExport(){ __fotosPerdidasExportIds = new Set(); }
+function contarFotosPerdidasExport(){ return __fotosPerdidasExportIds.size; }
+/* Devolve v pronto para virar imagem no arquivo, ou null quando v ainda é uma
+   referência sem foto correspondente. NUNCA deixar a referência crua seguir
+   para registrar()/dataUrlToBytes(): ela não tem vírgula nenhuma, então vira
+   um arquivo de imagem de 0 bytes em vez de, simplesmente, não ter foto. */
+function fotoExportavel(v){
+  if(ehFotoRefPersist(v)){ __fotosPerdidasExportIds.add(v); return null; }
+  return v;
+}
 /* =========================================================================
    IMPRESSÃO DIGITAL DA FOTO — comprimento + hash de amostras do conteúdo.
    É ela que dá nome à chave no banco, e é por ela que a mesma foto é gravada
@@ -3181,7 +3213,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "25/09/2026 18:24";
+const APP_BUILD = "29/09/2026 09:42";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -18944,22 +18976,22 @@ async function gerarBytesXlsxSimples(linhasRaw, abas){
     imgMap.set(dataUrl, { relId:"rIdImg"+mediaCounter, mediaName:`image${mediaCounter}.${ext}`, w:dims.w, h:dims.h, bytes:dataUrlToBytes(dataUrlExport), ext });
   }
   for(const item of linhasRaw){
-    await registrar(item.maquina.fotoGeral);
-    await registrar(item.maquina.fotoPlaqueta);
-    for(const f of (item.maquina.fotosOutras||[])) await registrar(f);
-    await registrar(item.risco.foto);
-    for(const f of (item.risco.fotosOutras||[])) await registrar(f);
+    await registrar(fotoExportavel(item.maquina.fotoGeral));
+    await registrar(fotoExportavel(item.maquina.fotoPlaqueta));
+    for(const f of (item.maquina.fotosOutras||[])) await registrar(fotoExportavel(f));
+    await registrar(fotoExportavel(item.risco.foto));
+    for(const f of (item.risco.fotosOutras||[])) await registrar(fotoExportavel(f));
   }
   const anchors = []; // mantido por compatibilidade com a assinatura, não usado no modo Rich Data
   const dataRows = linhasRaw.map((item)=>{
     const row = linhaSimplesComFotos(item, maxExtrasMaquina, maxExtrasRisco);
-    row[colFotoGeral-1]   = item.maquina.fotoGeral   || "Sem foto";
-    row[colFotoPlaqueta-1] = item.maquina.fotoPlaqueta || "Sem foto";
+    row[colFotoGeral-1]   = fotoExportavel(item.maquina.fotoGeral)   || "Sem foto";
+    row[colFotoPlaqueta-1] = fotoExportavel(item.maquina.fotoPlaqueta) || "Sem foto";
     const extras = item.maquina.fotosOutras||[];
-    colsFotoExtraMaquina.forEach((col,i)=>{ row[col-1] = extras[i] || ""; });
-    row[colFotoRisco-1] = item.risco.foto || "Sem foto";
+    colsFotoExtraMaquina.forEach((col,i)=>{ row[col-1] = fotoExportavel(extras[i]) || ""; });
+    row[colFotoRisco-1] = fotoExportavel(item.risco.foto) || "Sem foto";
     const extrasRisco = item.risco.fotosOutras||[];
-    colsFotoExtraRisco.forEach((col,i)=>{ row[col-1] = extrasRisco[i] || ""; });
+    colsFotoExtraRisco.forEach((col,i)=>{ row[col-1] = fotoExportavel(extrasRisco[i]) || ""; });
     return row;
   });
   const colunasFoto = [colFotoGeral, colFotoPlaqueta, ...colsFotoExtraMaquina, colFotoRisco, ...colsFotoExtraRisco];
@@ -19176,13 +19208,13 @@ async function gerarBytesXlsmCorteva(modeloB64, linhasComIA, itensInventario, da
     imgMap.set(dataUrl, { mediaName:`aprimg${mediaCounter}.${ext}`, bytes:dataUrlToBytes(dataUrlExport), ext });
   }
   for(const item of linhasComIA){
-    await registrarFoto(item.maquina.fotoGeral);
-    await registrarFoto(item.maquina.fotoPlaqueta);
-    for(const f of (item.maquina.fotosOutras||[]).slice(0,5)) await registrarFoto(f);
-    await registrarFoto(item.risco.foto);
-    for(const f of (item.risco.fotosOutras||[]).slice(0,5)) await registrarFoto(f);
+    await registrarFoto(fotoExportavel(item.maquina.fotoGeral));
+    await registrarFoto(fotoExportavel(item.maquina.fotoPlaqueta));
+    for(const f of (item.maquina.fotosOutras||[]).slice(0,5)) await registrarFoto(fotoExportavel(f));
+    await registrarFoto(fotoExportavel(item.risco.foto));
+    for(const f of (item.risco.fotosOutras||[]).slice(0,5)) await registrarFoto(fotoExportavel(f));
   }
-  for(const inv of itensInventario) await registrarFoto(inv.maquina.fotoGeral);
+  for(const inv of itensInventario) await registrarFoto(fotoExportavel(inv.maquina.fotoGeral));
   for(const info of imgMap.values()) zip.file(`xl/media/${info.mediaName}`, info.bytes, { binary:true });
 
   // ---------- Base Completa (sheet1) ----------
@@ -19209,11 +19241,11 @@ async function gerarBytesXlsmCorteva(modeloB64, linhasComIA, itensInventario, da
       relsD1.push({ id:relId, target:`../media/${imgMap.get(dataUrl).mediaName}` });
       anchorsD1.push(xlsmAnchorPic(shapeId1, `Foto${shapeId1}`, col0, row0, relId));
     };
-    add(0, item.maquina.fotoGeral);    // A
-    add(1, item.maquina.fotoPlaqueta); // B
-    add(17, item.risco.foto);          // R
-    (item.maquina.fotosOutras||[]).slice(0,5).forEach((f,idx)=> add(27+idx, f)); // AB-AF
-    (item.risco.fotosOutras||[]).slice(0,5).forEach((f,idx)=> add(32+idx, f));   // AG-AK
+    add(0, fotoExportavel(item.maquina.fotoGeral));    // A
+    add(1, fotoExportavel(item.maquina.fotoPlaqueta)); // B
+    add(17, fotoExportavel(item.risco.foto));          // R
+    (item.maquina.fotosOutras||[]).slice(0,5).forEach((f,idx)=> add(27+idx, fotoExportavel(f))); // AB-AF
+    (item.risco.fotosOutras||[]).slice(0,5).forEach((f,idx)=> add(32+idx, fotoExportavel(f)));   // AG-AK
   });
   zip.file("xl/drawings/drawing1.xml", xlsmBuildDrawingXml(anchorsD1));
   zip.file("xl/drawings/_rels/drawing1.xml.rels", xlsmBuildDrawingRels(relsD1));
@@ -19229,7 +19261,7 @@ async function gerarBytesXlsmCorteva(modeloB64, linhasComIA, itensInventario, da
   const anchorsD2 = [], relsD2 = [];
   let shapeId2 = 1;
   linhasComIA.forEach((item,i)=>{
-    const dataUrl = item.risco.foto;
+    const dataUrl = fotoExportavel(item.risco.foto);
     if(!dataUrl || !imgMap.has(dataUrl)) return;
     shapeId2++;
     const relId = "rId"+shapeId2;
@@ -19496,6 +19528,7 @@ async function _exportarSimplesXLSXFotosReal(){
      a parte demorada) escreve dentro deste mesmo painel em vez de abrir outro,
      e o botão Parar vale para as duas etapas. */
   const painelExport = progressoAbrir("Preparando a exportação", 0);
+  zerarFotosPerdidasExport();
   try {
     /* Aba unica sai sempre em .xlsx limpo, mesmo com o modelo da Corteva
        enviado: e o que o "sem macro" quer dizer, e evita mexer no modelo. */
@@ -19532,11 +19565,11 @@ async function _exportarSimplesXLSXFotosReal(){
       if(progressoCancelado()){ toast("Exportação parada. Os textos que a IA já escreveu ficaram guardados no app.", false); return; }
       if(arquivos.length===1){
         const blob = new Blob([arquivos[0].data], {type:"application/vnd.ms-excel.sheet.macroEnabled.12"});
-        await compartilharOuBaixarBlob(blob, arquivos[0].name, blob.type, "Excel exportado (modelo Corteva, com macros)");
+        await compartilharOuBaixarBlob(blob, arquivos[0].name, blob.type, "Excel exportado (modelo Corteva, com macros)."+avisoFotosPerdidasExport());
       } else {
         const zipBytes = buildZip(arquivos);
         const blob = new Blob([zipBytes], {type:"application/zip"});
-        await compartilharOuBaixarBlob(blob, `relatorios_excel_${hoje()}.zip`, blob.type, `${arquivos.length} arquivos Excel exportados em .zip`);
+        await compartilharOuBaixarBlob(blob, `relatorios_excel_${hoje()}.zip`, blob.type, `${arquivos.length} arquivos Excel exportados em .zip.`+avisoFotosPerdidasExport());
       }
       return;
     }
@@ -19559,11 +19592,11 @@ async function _exportarSimplesXLSXFotosReal(){
     if(progressoCancelado()){ toast("Exportação parada. Os textos que a IA já escreveu ficaram guardados no app.", false); return; }
     if(arquivos.length===1){
       const blob = new Blob([arquivos[0].data], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
-      await compartilharOuBaixarBlob(blob, arquivos[0].name, blob.type, "Excel exportado");
+      await compartilharOuBaixarBlob(blob, arquivos[0].name, blob.type, "Excel exportado."+avisoFotosPerdidasExport());
     } else {
       const zipBytes = buildZip(arquivos);
       const blob = new Blob([zipBytes], {type:"application/zip"});
-      await compartilharOuBaixarBlob(blob, `relatorios_excel_${hoje()}.zip`, blob.type, `${arquivos.length} arquivos Excel exportados em .zip`);
+      await compartilharOuBaixarBlob(blob, `relatorios_excel_${hoje()}.zip`, blob.type, `${arquivos.length} arquivos Excel exportados em .zip.`+avisoFotosPerdidasExport());
     }
   } catch(erroExport) {
     console.error("Erro ao gerar Excel com fotos (Módulo Simplificado):", erroExport);
@@ -22587,8 +22620,8 @@ function buildXlsxPackageSimples({grupos, headers, dataRows, anchors, imgMap, co
     const mitig=item.risco.sugestaoMitigacao||item.risco.descMedida||"Não informado.";
     const nomeRisco=item.risco.nome===OUTRO?item.risco.nomeOutro:item.risco.nome;
     return [
-      item.maquina.fotoGeral||'Sem foto',
-      item.risco.foto||'Sem foto',
+      fotoExportavel(item.maquina.fotoGeral)||'Sem foto',
+      fotoExportavel(item.risco.foto)||'Sem foto',
       item.area.nome, nomeMaquinaS(item.maquina),
       valOuOutro(item.tarefa.tarefa,item.tarefa.tarefaOutro),
       nomeRisco, item.risco.descricao, mitig,

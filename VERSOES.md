@@ -64,6 +64,25 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 29/09/2026 08:40
+
+**Corrigido: foto sem correspondência no aparelho virava imagem de zero bytes no Excel.**
+
+Achado numa planilha real ("Vylor - Descarga 100", Só Resumo): quando uma foto
+referenciada em STATE (idbfoto:<id>) não é encontrada no IndexedDB deste aparelho —
+por exemplo, tirada e sincronizada de outro aparelho que ainda não sincronizou de
+volta — a referência crua "idbfoto:<id>" seguia, sem aviso, para dentro do arquivo
+exportado como se fosse a foto. Ela virava um .jpeg de 0 bytes: o Excel mostrava
+"Não é possível exibir esta imagem" e, com o Salvamento Automático ligado, chegava a
+reparar o arquivo inteiro ao salvar, apagando também as fotos que estavam boas — daí
+o arquivo cair de ~3,3 MB para poucas dezenas de KB assim que reaberto.
+
+Corrigido nos três geradores de Excel do Módulo Simplificado (planilha simples,
+modelo oficial da Corteva com macro e a aba Resumo): uma referência sem
+correspondência agora vira "Sem foto" na célula, como já acontecia quando a máquina
+nunca teve foto nenhuma, em vez de virar um arquivo corrompido. (O Módulo Completo,
+congelado, não foi tocado.)
+
 ## 25/09/2026 18:24
 
 **Descrição do risco: a frase abre sempre com o risco e a parte do corpo.**
