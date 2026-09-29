@@ -64,6 +64,16 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 29/09/2026 15:44
+
+**Instruções da exportação de fotos de plaqueta: a IA externa agora também escreve uma lista de conferência no chat.**
+
+Antes de responder o bloco JSON, o `LEIA-ME.txt`/instruções copiáveis pedem
+uma lista em texto normal, uma linha por máquina, só com os campos que
+foram lidos — para o responsável conferir visualmente contra a foto antes
+de importar. O formato de resposta (`apr-plaqueta-v1`) e o botão de
+importar continuam exatamente os mesmos.
+
 ## 29/09/2026 13:18
 
 **Exportar fotos de plaqueta para leitura por IA externa (e importar a resposta pelo botão que já existia).**

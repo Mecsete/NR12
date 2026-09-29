@@ -13542,6 +13542,8 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(p.indexOf("NUNCA invente") >= 0, "precisa ter a trava de nao inventar campo borrado/ausente");
       ok(p.indexOf("nome do arquivo") >= 0 && p.indexOf('"id"') >= 0, "precisa explicar que o id vem do nome do arquivo");
       ok(p.indexOf("Importar dados de plaqueta") >= 0, "precisa apontar pro botao de importar que ja existe");
+      ok(p.indexOf("lista de conferência") >= 0, "precisa pedir a lista legivel no chat, pra o responsavel conferir antes de importar (29/09/2026)");
+      ok(p.indexOf("lista de conferência") < p.indexOf('"formato": "apr-plaqueta-v1"'), "a lista pro humano ler precisa vir ANTES do bloco JSON, nao depois");
     });
 
     t("plaquetaMaquinasParaExportar usa a mesma selecao de area e a mesma exclusao de lapide/projeto arquivado que a base para IA ja usa", ()=>{

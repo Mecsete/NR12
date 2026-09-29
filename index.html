@@ -3213,7 +3213,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "29/09/2026 13:18";
+const APP_BUILD = "29/09/2026 15:44";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -18096,7 +18096,13 @@ O que fazer:
    na foto. Se um campo não está legível para aquela máquina, simplesmente
    não inclua essa chave — não escreva "não identificado" nem deixe uma
    string vazia.
-3. Responda com um ÚNICO bloco de código JSON, exatamente neste formato:
+3. Antes do JSON, escreva no chat, em texto normal, uma lista de conferência
+   — uma linha por máquina, com o nome do arquivo e só os campos que você
+   conseguiu ler (ex.: "maqPlaq1: Modelo SX-9000, Marca MarcaZ, Tensão
+   380 V"). É por essa lista que o responsável confere se a leitura bateu
+   com a plaqueta antes de importar — não pule esta parte.
+4. Depois da lista, responda com um ÚNICO bloco de código JSON, exatamente
+   neste formato:
 
 {
   "formato": "apr-plaqueta-v1",
@@ -18108,8 +18114,9 @@ O que fazer:
 }
 
 Inclua uma entrada por máquina que tiver pelo menos um campo legível —
-pule quem não tiver nada legível na foto. Depois de responder, salve o
-bloco JSON como um arquivo .json e importe no app em Laudo → IA →
+pule quem não tiver nada legível na foto (mesmo critério da lista de
+conferência acima). Depois de conferir a lista, salve o bloco JSON como um
+arquivo .json e importe no app em Laudo → IA →
 "Importar dados de plaqueta (.json)".`;
 /* Máquinas das áreas marcadas em Configurações → Exportações com foto de
    plaqueta e pelo menos um dos 6 campos ainda vazio. Mesma exclusão de

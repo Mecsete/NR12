@@ -95,12 +95,11 @@ print("=== 3. ARQUITETURA DE FOTOS (CAMADA_FOTOS) ===")
 # efeito colateral da correcao anterior, ver acima). A referencia
 # (original.html) JA vem daquele commit agora, entao contar de novo somaria
 # duas vezes. Zerado.
-# EXPORTAR FOTOS DE PLAQUETA (29/09/2026, secao 171): +1 em "idbfoto:" e +1
-# em "foto:" -- o comentario de plaquetaMaquinasParaExportar cita
-# "idbfoto:" por extenso uma vez, explicando por que fotoExportavel() NAO
-# pode ser usado ali (foto ainda nao resolvida nesse ponto). Nenhuma
-# ocorrencia nova em codigo.
-_extra_fotos = {"foto:": 1, "idbfoto:": 1}
+# EXPORTAR FOTOS DE PLAQUETA (commit 117c3b4, 29/09/2026, secao 171): +1 em
+# "idbfoto:" e +1 em "foto:" -- o comentario de plaquetaMaquinasParaExportar
+# cita "idbfoto:" por extenso uma vez. A referencia (original.html) JA vem
+# daquele commit agora, entao contar de novo somaria duas vezes. Zerado.
+_extra_fotos = {"foto:": 0, "idbfoto:": 0}
 for marca in ["idbfoto:", "foto:", "CAMADA_FOTOS"]:
     a, b = orig.count(marca) + _extra_fotos.get(marca, 0), novo.count(marca)
     chk("ocorrencias de '%s' inalteradas (%d)" % (marca, a), a == b, "orig+extra=%d novo=%d" % (a, b))
