@@ -64,6 +64,21 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 29/09/2026 13:18
+
+**Exportar fotos de plaqueta para leitura por IA externa (e importar a resposta pelo botão que já existia).**
+
+O leitor de plaqueta por chamada direta de API de visão foi desligado junto
+com o resto do uso direto da API. Este é o equivalente, no mesmo molde da
+"planilha para responder fora do app": em Laudo → IA, dois botões novos ao
+lado do que já existia — "Exportar fotos de plaqueta (.zip)" (usa a mesma
+seleção de área dos outros exports desta tela) e "Copiar instruções para
+colar no chat". Cada foto sai nomeada pelo id da máquina, junto de um
+LEIA-ME com as instruções para a IA externa responder em JSON no formato
+`apr-plaqueta-v1`. A resposta entra direto no botão "Importar dados de
+plaqueta (.json)" que já estava publicado — nada mudou do lado da
+importação.
+
 ## 29/09/2026 11:15
 
 **Corrige Foto Geral e Foto do Risco sumindo na exportação simples (Base Completa/Resumo sem o modelo da Corteva).**

@@ -95,7 +95,12 @@ print("=== 3. ARQUITETURA DE FOTOS (CAMADA_FOTOS) ===")
 # efeito colateral da correcao anterior, ver acima). A referencia
 # (original.html) JA vem daquele commit agora, entao contar de novo somaria
 # duas vezes. Zerado.
-_extra_fotos = {"foto:": 0, "idbfoto:": 0}
+# EXPORTAR FOTOS DE PLAQUETA (29/09/2026, secao 171): +1 em "idbfoto:" e +1
+# em "foto:" -- o comentario de plaquetaMaquinasParaExportar cita
+# "idbfoto:" por extenso uma vez, explicando por que fotoExportavel() NAO
+# pode ser usado ali (foto ainda nao resolvida nesse ponto). Nenhuma
+# ocorrencia nova em codigo.
+_extra_fotos = {"foto:": 1, "idbfoto:": 1}
 for marca in ["idbfoto:", "foto:", "CAMADA_FOTOS"]:
     a, b = orig.count(marca) + _extra_fotos.get(marca, 0), novo.count(marca)
     chk("ocorrencias de '%s' inalteradas (%d)" % (marca, a), a == b, "orig+extra=%d novo=%d" % (a, b))
@@ -5445,6 +5450,33 @@ _mddocx = _corpoDe(novo, "montarDadosMaquinaDocx")
 chk("Word: montarDadosMaquinaDocx usa fotoExportavel nas mesmas duas leituras (chave de busca em fotosPreparadas precisa bater com a chave de registro)",
     "foto: fotoExportavel(risco.foto) || null," in _mddocx
     and "fotoMaquina: fotoExportavel(maquina.fotoGeral) || null," in _mddocx)
+
+print("\n=== 171. EXPORTAR FOTOS DE PLAQUETA PARA LEITURA POR IA EXTERNA (29/09/2026) ===")
+# Equivalente, em fotos, da planilha de texto pra IA que ja existia: exporta
+# as fotos de plaqueta das areas marcadas, o usuario leva pra qualquer IA
+# com visao, e a resposta (apr-plaqueta-v1) entra direto no botao de
+# importar que JA EXISTIA -- sem nenhuma mudanca do lado da importacao.
+_pmaq = _corpoDe(novo, "plaquetaMaquinasParaExportar")
+chk("o filtro usa a mesma selecao de area e a mesma exclusao de lapide/projeto arquivado que a base para IA ja usa",
+    "getAreasSelecionadasExport()" in _pmaq
+    and 'baseIAExcluidoPorLapide("projeto", proj)' in _pmaq
+    and 'baseIAExcluidoPorLapide("area", area)' in _pmaq
+    and 'baseIAExcluidoPorLapide("maquina", maquina)' in _pmaq)
+chk("o filtro NUNCA usa fotoExportavel (a foto ainda nao foi resolvida nesse ponto -- usar o guardiao aqui perderia tudo a toa)",
+    "fotoExportavel" not in _pmaq)
+_efotoszip = _corpoDe(novo, "exportarFotosPlaquetasZip")
+chk("a exportacao resolve as fotos, usa o guardiao SO depois de resolver, e zera/avisa a contagem de perdidas",
+    "await garantirFotosDasLinhas(itens);" in _efotoszip
+    and "fotoExportavel(it.maquina.fotoPlaqueta)" in _efotoszip
+    and "zerarFotosPerdidasExport();" in _efotoszip
+    and "avisoFotosPerdidasExport()" in _efotoszip
+    and 'name: "LEIA-ME.txt"' in _efotoszip)
+chk("os tres botoes estao juntos na tela e o botao de importar continua sendo o mesmo de sempre (nao duplicou)",
+    "App.exportarFotosPlaquetas()" in novo
+    and "App.copiarPromptFotosPlaqueta()" in novo
+    and novo.count("document.getElementById('fileDadosPlaqueta').click()") == 1)
+chk("importarDadosPlaqueta (a volta) nao foi tocado -- a resposta da IA externa usa o mesmo formato/parser de sempre",
+    "PLAQUETA_CAMPOS_IMPORTAVEIS.forEach(campo=>{" in _corpoDe(novo, "importarDadosPlaqueta"))
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

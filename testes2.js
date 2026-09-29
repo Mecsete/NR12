@@ -13517,6 +13517,70 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  console.log("\n---------------------------------------");
+  /* 29/09/2026: exportar fotos de plaqueta pra IA externa ler (equivalente,
+     em fotos, da planilha de texto pra IA que ja existia) e importar a
+     resposta pelo botao de plaqueta que ja existia, sem mudar nada nele. */
+  {
+    console.log("\n[t181] Exportar fotos de plaqueta para leitura por IA externa (e importar a resposta pelo botao que ja existia)");
+
+    t("PLAQUETA_CAMPOS_PLACA tem os 6 campos da placa (nao inclui tipoEquip -- esse e bonus, nao dispara a exportacao)", ()=>{
+      const cx = vm.createContext({});
+      vm.runInContext(constante("PLAQUETA_CAMPOS_PLACA"), cx);
+      const campos = vm.runInContext("PLAQUETA_CAMPOS_PLACA", cx);
+      eq(campos.join(","), "modelo,marca,numeroSerie,anoFabricacao,capacidade,tensao");
+    });
+
+    t("PROMPT_FOTOS_PLAQUETA explica o formato apr-plaqueta-v1, a trava de nao inventar e o id vindo do nome do arquivo", ()=>{
+      // constante() so sabe delimitar array/objeto ([...]/{...}); PROMPT_FOTOS_PLAQUETA
+      // e um template string, entao recorta na mao pelo inicio/fim da declaracao.
+      const ini = HTML.indexOf("const PROMPT_FOTOS_PLAQUETA = `");
+      ok(ini >= 0, "faltou a constante PROMPT_FOTOS_PLAQUETA");
+      const fim = HTML.indexOf("`;", ini);
+      const p = HTML.slice(ini, fim);
+      ok(p.indexOf("apr-plaqueta-v1") >= 0, "precisa citar o formato exato que o importador ja le");
+      ok(p.indexOf("NUNCA invente") >= 0, "precisa ter a trava de nao inventar campo borrado/ausente");
+      ok(p.indexOf("nome do arquivo") >= 0 && p.indexOf('"id"') >= 0, "precisa explicar que o id vem do nome do arquivo");
+      ok(p.indexOf("Importar dados de plaqueta") >= 0, "precisa apontar pro botao de importar que ja existe");
+    });
+
+    t("plaquetaMaquinasParaExportar usa a mesma selecao de area e a mesma exclusao de lapide/projeto arquivado que a base para IA ja usa", ()=>{
+      const f = funcao("plaquetaMaquinasParaExportar");
+      ok(f.indexOf("getAreasSelecionadasExport()") >= 0, "precisa usar a mesma selecao de areas dos outros exports desta tela");
+      ok(f.indexOf('projetoArquivado(proj.id)') >= 0, "precisa pular projeto arquivado");
+      ok(f.indexOf('baseIAExcluidoPorLapide("projeto", proj)') >= 0
+         && f.indexOf('baseIAExcluidoPorLapide("area", area)') >= 0
+         && f.indexOf('baseIAExcluidoPorLapide("maquina", maquina)') >= 0,
+         "precisa pular item com lapide de exclusao, nos tres niveis");
+      ok(f.indexOf("!maquina.fotoPlaqueta") >= 0, "so entra quem tem foto de plaqueta");
+      ok(f.indexOf("fotoExportavel") < 0, "NUNCA usar fotoExportavel aqui -- nesta altura a foto ainda nao foi resolvida, tudo contaria como perdido a toa");
+      ok(/PLAQUETA_CAMPOS_PLACA\.some/.test(f), "so entra quem tem pelo menos um dos 6 campos vazio");
+    });
+
+    t("exportarFotosPlaquetasZip resolve as fotos, usa o guardiao na hora de ler, e zera/avisa a contagem de perdidas", ()=>{
+      const f = funcao("exportarFotosPlaquetasZip");
+      ok(f.indexOf("zerarFotosPerdidasExport();") >= 0);
+      ok(f.indexOf("await garantirFotosDasLinhas(itens);") >= 0);
+      ok(f.indexOf("fotoExportavel(it.maquina.fotoPlaqueta)") >= 0, "aqui sim precisa do guardiao -- e depois de resolver");
+      ok(f.indexOf('name: "LEIA-ME.txt"') >= 0, "o zip precisa trazer as instrucoes junto");
+      ok((f.match(/avisoFotosPerdidasExport\(\)/g) || []).length >= 1, "precisa avisar quando alguma foto ficou sem corresponder");
+    });
+
+    t("os tres botoes (exportar, copiar instrucoes, importar) estao juntos na tela, e o import continua sendo o mesmo botao/formato de sempre", ()=>{
+      ok(HTML.indexOf("App.exportarFotosPlaquetas()") >= 0, "faltou o botao de exportar");
+      ok(HTML.indexOf("App.copiarPromptFotosPlaqueta()") >= 0, "faltou o botao de copiar instrucoes");
+      ok(HTML.indexOf("fileDadosPlaqueta').click()") >= 0, "o botao de importar que ja existia precisa continuar la");
+      eq((HTML.match(/document\.getElementById\('fileDadosPlaqueta'\)\.click\(\)/g)||[]).length, 1, "so pode existir UM botao de importar -- nao duplicar");
+    });
+
+    t("importarDadosPlaqueta nao mudou nada -- a resposta da IA externa entra pelo mesmo caminho de sempre, sem novo parser", ()=>{
+      const cx = vm.createContext({});
+      vm.runInContext(constante("PLAQUETA_CAMPOS_IMPORTAVEIS"), cx);
+      const campos = vm.runInContext("PLAQUETA_CAMPOS_IMPORTAVEIS", cx);
+      eq(campos.join(","), "modelo,marca,numeroSerie,anoFabricacao,capacidade,tensao,tipoEquip,tipoEquipOutro");
+    });
+  }
+
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);
 })();
