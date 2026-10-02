@@ -64,6 +64,12 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 02/10/2026 10:56
+
+**Checklist: motivos padrão de "Não atende" agora separados por cor na tela de elaboração do modelo.**
+
+Cada motivo virou um cartão próprio, com cabeçalho azul-marinho numerado ("Motivo 1", "Motivo 2"...) e a lixeira no próprio cabeçalho. Dentro do cartão, o **Texto curto** (o que aparece em campo) fica num bloco azul e o **Texto completo** (o que vai para o laudo) num bloco laranja, cada um com seu rótulo — assim dá para ver de relance onde termina um motivo e começa o próximo, e qual campo é qual. Só o visual mudou: nada do que já estava gravado nos modelos foi alterado.
+
 ## 29/09/2026 18:55
 
 **Corrige nome de arquivo acentuado saindo desconfigurado nos .zip exportados ("Classifica+º+úo" em vez de "Classificação").**

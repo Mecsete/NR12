@@ -740,8 +740,19 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-secao-contexto-box label{display:block;font-size:12.5px;font-weight:700;color:var(--ink-dim);margin-bottom:6px;}
 .chk-secao-contexto-box textarea{width:100%;border:1.5px solid var(--line-strong);border-radius:var(--radius-sm);padding:9px 10px;font-size:13.5px;color:var(--ink);background:var(--surface);min-height:60px;resize:vertical;}
 .chk-secao-contexto-box .chk-modelo-hint{margin-top:6px;margin-bottom:0;}
-.chk-motivo-card{display:flex;gap:8px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px dashed var(--line);}
-.chk-motivo-card:last-of-type{border-bottom:none;padding-bottom:0;}
+.chk-motivo-card{border:1.5px solid var(--line-strong);border-radius:12px;overflow:hidden;margin-bottom:14px;background:var(--surface);}
+.chk-motivo-head{display:flex;align-items:center;justify-content:space-between;background:var(--bar);color:var(--on-bar);padding:4px 6px 4px 12px;font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;}
+.chk-motivo-head .icon-btn{color:var(--on-bar-dim);}
+.chk-motivo-parte{padding:9px 12px 11px;}
+.chk-motivo-parte label{display:flex;align-items:baseline;gap:6px;font-size:12.5px;font-weight:800;margin-bottom:5px;}
+.chk-motivo-parte label small{font-size:11px;font-weight:600;opacity:.8;}
+.chk-motivo-parte input,.chk-motivo-parte textarea{width:100%;background:var(--surface);}
+.chk-motivo-parte.curto{background:#E6E9F8;}
+.chk-motivo-parte.curto label{color:var(--bar-2);}
+.chk-motivo-parte.curto input{border-color:#9FA7D6;}
+.chk-motivo-parte.completo{background:#FDEBE2;border-top:1.5px solid #F1B9A0;}
+.chk-motivo-parte.completo label{color:var(--accent-ink);}
+.chk-motivo-parte.completo textarea{border-color:#EDA487;}
 .chk-info-fotos{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px;}
 .chk-info-foto{position:relative;width:56px;height:56px;flex-shrink:0;}
 .chk-info-foto img{width:56px;height:56px;object-fit:cover;border-radius:8px;cursor:pointer;background:var(--bg-soft);}
@@ -3213,7 +3224,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "29/09/2026 18:55";
+const APP_BUILD = "02/10/2026 10:56";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -13546,11 +13557,18 @@ function screenChkModeloForm(){
     const si = m.secoes.indexOf(s), ii = s.itens.indexOf(it);
     const motivosHtml = (it.motivosPadrao||[]).map((mp,mi)=>`
       <div class="chk-motivo-card">
-        <div style="flex:1">
-          <input type="text" placeholder="Rótulo curto (aparece em campo) — Ex.: Ancoragem corroída" value="${escapeHtml(mp.motivo)}" style="margin-bottom:4px" oninput="App.chkSetMotivoPadrao('${s.id}','${it.id}',${mi},'motivo',this.value)">
+        <div class="chk-motivo-head">
+          <span>Motivo ${mi+1}</span>
+          <button class="icon-btn" title="Remover este motivo" onclick="App.chkRemoverMotivoPadrao('${s.id}','${it.id}',${mi})">${ic('trash')}</button>
+        </div>
+        <div class="chk-motivo-parte curto">
+          <label>Texto curto <small>aparece em campo</small></label>
+          <input type="text" placeholder="Ex.: Ancoragem corroída" value="${escapeHtml(mp.motivo)}" oninput="App.chkSetMotivoPadrao('${s.id}','${it.id}',${mi},'motivo',this.value)">
+        </div>
+        <div class="chk-motivo-parte completo">
+          <label>Texto completo <small>vai para o laudo</small></label>
           <textarea placeholder="Texto padrão deste motivo (só aparece no laudo)" oninput="App.chkSetMotivoPadrao('${s.id}','${it.id}',${mi},'texto',this.value)">${escapeHtml(mp.texto)}</textarea>
         </div>
-        <button class="icon-btn" onclick="App.chkRemoverMotivoPadrao('${s.id}','${it.id}',${mi})">${ic('trash')}</button>
       </div>`).join("");
     const info = it.info || {texto:"", fotos:[]};
     const fotosInfoHtml = (info.fotos||[]).map((f,fi)=>{
