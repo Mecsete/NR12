@@ -136,6 +136,12 @@ const FUNCOES = [
   // seção, a numeração de fotos e a tabela-resumo do checklist -- nunca
   // guardam nada, só leem modelo+execução, mesmo espírito de chkTextoLaudoItem.
   "chkFotosDaSecao", "chkNarrativaSecao", "chkChecklistLinhaRows",
+  // Foto ampla da linha: só o HTML do campo é função pura/extraível; a captura
+  // (App.chkFotoAmplaAdicionar/Remover) roda de verdade abaixo com um input de
+  // arquivo e um comprimirImagem de mentira.
+  "chkFotoAmplaHtml",
+  // O que falta num item (nao atende: motivo/nota/foto; nao aplica: foto) -- base da trava ao fechar.
+  "chkPendenciasItem",
 ];
 let fonte = "let __ultimoCarimboVisto = 0;\n";
 fonte += "let __buscaAtual = '';\n"; // usado por chkAbrirSetor (lista de linhas) -- nao testado aqui, so pra nao faltar
@@ -153,8 +159,24 @@ const metodosApp = trecho(
 fonte += "const App = {\n" + metodosApp + "\n};\n";
 
 // ---------- ambiente mínimo (sem DOM — este ensaio é só de dados) ----------
+// Input de arquivo de mentira p/ a foto ampla: click() "escolhe" o arquivo que
+// o teste deixou em __arquivo e dispara o onchange REAL registrado pelo app.
+const inputsFake = {};
+function inputFake(id){
+  return inputsFake[id] || (inputsFake[id] = {
+    files: [], value: "", onchange: null, __arquivo: null, __p: null,
+    click(){
+      if(!this.__arquivo) return;
+      this.files = [this.__arquivo]; this.__arquivo = null;
+      this.__p = Promise.resolve(this.onchange());
+    },
+  });
+}
 const sandbox = {
   console,
+  document: { getElementById: inputFake },
+  comprimirImagem: async (file) => "data:image/jpeg;base64," + file.nome,
+  salvarFotoNaGaleria: () => {},
   confirm: () => true,
   toast: () => {},
   marcarAlterado: () => {},
@@ -351,16 +373,52 @@ const textosItem2 = chkTextoLaudoItem(item2Modelo, item2);
 if(!Array.isArray(textosItem2) || textosItem2.length !== 1 || textosItem2[0] !== "O cabo de aco esta integro, sem sinais de desgaste.")
   throw new Error("chkTextoLaudoItem deveria devolver array de 1 com o textoAtende de item2: " + JSON.stringify(textosItem2));
 
-// Trava de seguranca: marcar item como "Nao aplica" pede confirmacao SEMPRE
-// -- o estado so muda depois de App.chkConfirmarAcao() (simula o toque no
-// botao "Marcar mesmo assim" do modal).
-const item1AntesNA = JSON.stringify(item1);
+// Marcar item como "Nao aplica" aplica NA HORA (sem trava ao marcar) e limpa
+// os motivos; a trava vem ao FECHAR o item sem nenhuma foto -- e so nesse caso
+// (com foto, fecha direto). "Fechar sem foto" (App.chkConfirmarAcao) fecha mesmo assim.
 App.chkSetConforme(item1.itemId, "na");
-if(JSON.stringify(item1) !== item1AntesNA)
-  throw new Error("marcar item como Nao aplica NAO deveria mudar nada antes de confirmar");
-App.chkConfirmarAcao();
 if(item1.conforme !== "na" || item1.motivosSelecionados.length !== 0)
-  throw new Error("marcar item como Nao aplica nao aplicou depois de confirmado: " + JSON.stringify(item1));
+  throw new Error("marcar item como Nao aplica deveria aplicar na hora e limpar os motivos: " + JSON.stringify(item1));
+if(__ultimoOverlayHtml && __ultimoOverlayHtml.includes("Item sem foto"))
+  throw new Error("marcar como Nao aplica NAO deveria abrir a trava de item sem foto (ela so vale ao fechar o item)");
+STATE.ui.chkItemAberto = item1.itemId;
+__ultimoOverlayHtml = null;
+App.chkToggleItemAberto(item1.itemId); // tenta FECHAR o item Nao aplica, sem foto
+if(STATE.ui.chkItemAberto !== item1.itemId)
+  throw new Error("fechar item Nao aplica SEM foto deveria pedir confirmacao antes de fechar (o item fechou direto)");
+if(!__ultimoOverlayHtml || !__ultimoOverlayHtml.includes("Item sem foto") || !__ultimoOverlayHtml.includes("Fechar sem foto"))
+  throw new Error("trava de item Nao aplica sem foto nao mostrou o aviso nem o botao 'Fechar sem foto': " + __ultimoOverlayHtml);
+App.chkConfirmarAcao(); // "Fechar sem foto"
+if(STATE.ui.chkItemAberto !== null)
+  throw new Error("confirmar 'Fechar sem foto' deveria fechar o item");
+// Com foto anexada, fecha direto, sem trava nenhuma.
+item1.fotos.push({ foto: "data:image/jpeg;base64,NAFOTO", tags: [] });
+STATE.ui.chkItemAberto = item1.itemId;
+__ultimoOverlayHtml = null;
+App.chkToggleItemAberto(item1.itemId);
+if(STATE.ui.chkItemAberto !== null || __ultimoOverlayHtml)
+  throw new Error("item Nao aplica COM foto deveria fechar direto, sem trava");
+// Abrir OUTRO item tambem cobra a foto do que esta sendo deixado (Nao aplica sem foto).
+item1.fotos.length = 0;
+STATE.ui.chkItemAberto = item1.itemId;
+__ultimoOverlayHtml = null;
+App.chkToggleItemAberto(item2.itemId);
+if(STATE.ui.chkItemAberto !== item1.itemId || !__ultimoOverlayHtml || !__ultimoOverlayHtml.includes("Item sem foto"))
+  throw new Error("trocar de item deixando um Nao aplica sem foto deveria pedir confirmacao e nao trocar ainda");
+App.chkConfirmarAcao();
+if(STATE.ui.chkItemAberto !== item2.itemId)
+  throw new Error("confirmar 'Fechar sem foto' ao trocar de item deveria abrir o outro item");
+STATE.ui.chkItemAberto = null;
+// Um item "Atende" (nao e Nao aplica) nunca cobra foto ao fechar.
+App.chkSetConforme(item1.itemId, "atende");
+STATE.ui.chkItemAberto = item1.itemId;
+__ultimoOverlayHtml = null;
+App.chkToggleItemAberto(item1.itemId);
+if(STATE.ui.chkItemAberto !== null || __ultimoOverlayHtml)
+  throw new Error("item Atende sem foto deveria fechar direto, sem trava");
+// volta ao estado que o resto do ensaio espera (item1 em Nao aplica, como antes)
+App.chkSetConforme(item1.itemId, "na");
+if(item1.conforme !== "na") throw new Error("item1 deveria voltar a Nao aplica");
 
 // chkStatusAbaSecao/chkStatusLinha -- usados pra colorir aba de secao e card
 // da lista de linhas de vida.
@@ -949,5 +1007,147 @@ vm.runInContext("chkGarantirNamespace(estadoSemContextoDescricao);", sandbox, { 
 if(JSON.stringify(secSemCtx) !== secSemCtxAntes || JSON.stringify(linhaSemDesc) !== linhaSemDescAntes)
   throw new Error("migracao aditiva de contexto/descricao rodou de novo na segunda chamada");
 
-console.log("ISOLAMENTO OK: STATE.projetos e STATE.projetosSimples byte a byte identicos apos criar/editar/salvar/vincular/finalizar/excluir na hierarquia Projeto>Setor>Linha do Checklist (motivo de multipla escolha, travas de confirmacao, abas de secao, o painel dividido do editor de modelo com info/foto por item, a importacao de modelo via XLSX -- linha de continuacao, item sem motivo e linha orfa incluidos -- o roundtrip exportar/reimportar modelo via XLSX incluindo secao vazia, e o laudo narrativo -- narrativa com destaque e citacao de foto do item nao atende, item nao aplica fora da narrativa e da tabela do checklist), e as seis migracoes de STATE antigo (namespace ausente, execucoes em lista plana, modelo padrao sem texto padrao, linha com motivo unico do formato antigo, item de modelo sem o campo info, e secao/linha sem contexto/descricao do laudo narrativo) preenchem/reorganizam/atualizam o namespace sem tocar nas duas arvores");
-process.exit(0);
+// ---------- foto ampla da linha de vida: App.chkFotoAmplaAdicionar/Remover
+// e App.chkCriarLinha rodando DE VERDADE (input de arquivo e comprimirImagem
+// de mentira, ver topo) -- foto na tela Nova linha (rascunho) vai pra linha
+// criada; foto numa linha existente troca/remove; a foto vai pra linha que
+// estava aberta NO TOQUE (a leitura é assíncrona); remover pede confirmação.
+const roda = (codigo) => vm.runInContext(codigo, sandbox);
+async function escolherFoto(codigoApp, idInput, nomeArquivo){
+  const inp = inputFake(idInput);
+  inp.__arquivo = { nome: nomeArquivo }; inp.__p = null;
+  roda(codigoApp);
+  await inp.__p;
+}
+async function testarFotoAmpla(){
+  const FOTO = (n) => "data:image/jpeg;base64," + n;
+  // HTML do campo (função real extraída)
+  const semFotoHtml = roda("chkFotoAmplaHtml('', 'draft', true)");
+  if(semFotoHtml.includes("data-imgref") || semFotoHtml.includes("chkFotoAmplaRemover"))
+    throw new Error("campo foto ampla SEM foto nao deveria ter imagem nem botao de remover: " + semFotoHtml);
+  if(!semFotoHtml.includes("chkFotoAmplaAdicionar('draft',false)") || !semFotoHtml.includes("chkFotoAmplaAdicionar('draft',true)"))
+    throw new Error("campo foto ampla sem foto nao tem os botoes de camera e galeria ligados ao rascunho: " + semFotoHtml);
+  // Linha salva ANTES do campo existir (fotoAmpla undefined): trata como sem foto, sem erro.
+  const linhaAntigaHtml = roda("chkFotoAmplaHtml(undefined, 'linha', false)");
+  if(linhaAntigaHtml.includes("data-imgref") || linhaAntigaHtml.includes("chkFotoAmplaRemover"))
+    throw new Error("linha antiga (sem o campo fotoAmpla) deveria aparecer como sem foto: " + linhaAntigaHtml);
+  for(const grande of [true, false]){
+    const comFotoHtml = roda("chkFotoAmplaHtml('data:image/jpeg;base64,X', 'linha', " + grande + ")");
+    if(!comFotoHtml.includes("data-imgref") || !comFotoHtml.includes("chkFotoAmplaRemover('linha')"))
+      throw new Error("campo foto ampla COM foto (grande=" + grande + ") deveria ter imagem e botao de remover da linha: " + comFotoHtml);
+  }
+
+  // Nova linha: foto no rascunho vai pra linha criada, e o rascunho zera.
+  await escolherFoto("App.chkFotoAmplaAdicionar('draft', false)", "fileGeneral", "DRAFT1");
+  if(roda("__chkNovaLinhaDraft.fotoAmpla") !== FOTO("DRAFT1"))
+    throw new Error("foto escolhida na tela Nova linha nao ficou no rascunho");
+  roda(`App.chkSetNovaLinhaDraft("nome","LV-FOTO"); App.chkSetNovaLinhaDraft("modeloId", modelo.id); App.chkCriarLinha();`);
+  const linhaFoto = roda("setor.linhas[setor.linhas.length-1]");
+  if(linhaFoto.nome !== "LV-FOTO" || linhaFoto.fotoAmpla !== FOTO("DRAFT1"))
+    throw new Error("a linha criada nao recebeu a foto ampla do rascunho: " + JSON.stringify({ nome: linhaFoto.nome, foto: linhaFoto.fotoAmpla }));
+  if(roda("__chkNovaLinhaDraft.fotoAmpla") !== "")
+    throw new Error("o rascunho de Nova linha deveria zerar a foto depois de criar a linha");
+  // Sem foto no rascunho, a linha nasce sem foto (string vazia, nunca undefined).
+  roda(`App.chkSetNovaLinhaDraft("nome","LV-SEM-FOTO"); App.chkSetNovaLinhaDraft("modeloId", modelo.id); App.chkCriarLinha();`);
+  const linhaSem = roda("setor.linhas[setor.linhas.length-1]");
+  if(linhaSem.nome !== "LV-SEM-FOTO" || linhaSem.fotoAmpla !== "")
+    throw new Error("linha criada sem foto deveria ter fotoAmpla vazio: " + JSON.stringify(linhaSem.fotoAmpla));
+
+  // Linha aberta (linhaSem): adiciona, troca, e remove com confirmacao.
+  await escolherFoto("App.chkFotoAmplaAdicionar('linha', true)", "fileGeneralGaleria", "LINHA1");
+  if(linhaSem.fotoAmpla !== FOTO("LINHA1")) throw new Error("foto ampla da galeria nao foi gravada na linha aberta");
+  await escolherFoto("App.chkFotoAmplaAdicionar('linha', false)", "fileGeneral", "LINHA2");
+  if(linhaSem.fotoAmpla !== FOTO("LINHA2")) throw new Error("foto ampla nova nao substituiu a anterior na linha aberta");
+  if(linhaFoto.fotoAmpla !== FOTO("DRAFT1")) throw new Error("foto ampla de uma linha vazou pra OUTRA linha");
+  sandbox.confirm = () => false;
+  roda("App.chkFotoAmplaRemover('linha')");
+  sandbox.confirm = () => true;
+  if(linhaSem.fotoAmpla !== FOTO("LINHA2"))
+    throw new Error("remover a foto ampla SEM confirmar nao deveria apagar nada");
+  roda("App.chkFotoAmplaRemover('linha')");
+  if(linhaSem.fotoAmpla !== "") throw new Error("remover a foto ampla confirmado nao limpou o campo");
+
+  // A foto vai pra linha que estava aberta NO TOQUE, mesmo que a pessoa
+  // navegue para outra linha enquanto a imagem é lida.
+  const inp = inputFake("fileGeneral");
+  inp.__arquivo = null; inp.__p = null;
+  roda("App.chkFotoAmplaAdicionar('linha', false)"); // toque com linhaSem aberta (aguarda o arquivo)
+  roda("STATE.ui.chkLinhaId = '" + linhaFoto.id + "'"); // navega pra outra linha
+  inp.files = [{ nome: "TARDIA" }];
+  await inp.onchange();
+  if(linhaSem.fotoAmpla !== FOTO("TARDIA"))
+    throw new Error("a foto deveria ficar na linha aberta NO TOQUE, nao na que ficou aberta depois");
+  if(linhaFoto.fotoAmpla !== FOTO("DRAFT1"))
+    throw new Error("a foto lida tardiamente caiu na linha errada (a que ficou aberta depois do toque)");
+}
+// ---------- travas ao FECHAR o item e ao marcar SECAO "nao aplica" -- App.chkToggleItemAberto
+// / App.chkToggleSecaoNA rodando de verdade, com a funcao pura chkPendenciasItem
+// por baixo. Nao atende cobra motivo (se o modelo tem motivos), nota e foto;
+// Nao aplica cobra foto; Atende nao cobra nada; secao sempre pede confirmacao.
+async function testarTravas(){
+  // --- funcao pura
+  const pend = (itemModelo, exec) => JSON.stringify(vm.runInContext("chkPendenciasItem(" + JSON.stringify(itemModelo) + "," + JSON.stringify(exec) + ")", sandbox));
+  const comMotivos = { motivosPadrao: [{ motivo: "M", texto: "T" }] }, semMotivos = { motivosPadrao: [] };
+  const vazio = { conforme: "naoAtende", motivosSelecionados: [], observacao: "", fotos: [] };
+  if(pend(comMotivos, vazio) !== '["motivo","nota","foto"]') throw new Error("nao atende vazio deveria faltar motivo, nota e foto: " + pend(comMotivos, vazio));
+  if(pend(comMotivos, { ...vazio, motivosSelecionados: ["M"] }) !== '["nota","foto"]') throw new Error("nao atende com motivo deveria faltar nota e foto");
+  if(pend(comMotivos, { ...vazio, motivosSelecionados: ["M"], observacao: "n" }) !== '["foto"]') throw new Error("nao atende com motivo e nota deveria faltar so a foto");
+  if(pend(comMotivos, { ...vazio, motivosSelecionados: ["M"], observacao: "n", fotos: [{}] }) !== '[]') throw new Error("nao atende completo nao deveria faltar nada");
+  if(pend(semMotivos, vazio) !== '["nota","foto"]') throw new Error("modelo SEM motivos padrao nunca deveria cobrar motivo: " + pend(semMotivos, vazio));
+  if(pend(comMotivos, { conforme: "na", motivosSelecionados: [], observacao: "", fotos: [] }) !== '["foto"]') throw new Error("nao aplica sem foto deveria faltar a foto");
+  if(pend(comMotivos, { conforme: "na", motivosSelecionados: [], observacao: "", fotos: [{}] }) !== '[]') throw new Error("nao aplica com foto nao deveria faltar nada");
+  if(pend(comMotivos, { conforme: "atende", motivosSelecionados: [], observacao: "", fotos: [] }) !== '[]') throw new Error("atende nunca cobra nada");
+  if(pend(comMotivos, { conforme: null, motivosSelecionados: [], observacao: "", fotos: [] }) !== '[]') throw new Error("item sem resposta nao cobra nada");
+  if(vm.runInContext("JSON.stringify(chkPendenciasItem(null, null))", sandbox) !== "[]") throw new Error("exec nulo deveria devolver lista vazia");
+
+  // --- travas de verdade numa linha nova (modelo com motivos padrao no item 1)
+  roda(`App.chkSetNovaLinhaDraft("nome","LV-TRAVA"); App.chkSetNovaLinhaDraft("modeloId", modelo.id); App.chkCriarLinha();`);
+  const lt = roda("setor.linhas[setor.linhas.length-1]");
+  const itM = lt.modeloSnapshot[0].itens[0];
+  const ie = lt.itens.find(i => i.itemId === itM.id);
+  if(!itM.motivosPadrao.length) throw new Error("preparo: o item 1 do modelo deveria ter motivos padrao");
+  const tentarFechar = () => { sandbox.__ultimoOverlayHtml = null; roda("STATE.ui.chkItemAberto = '" + ie.itemId + "'; App.chkToggleItemAberto('" + ie.itemId + "')"); };
+  roda("App.chkSetConforme('" + ie.itemId + "', 'naoAtende')");
+  tentarFechar();
+  let aberto = roda("STATE.ui.chkItemAberto");
+  if(aberto !== ie.itemId || !sandbox.__ultimoOverlayHtml || !sandbox.__ultimoOverlayHtml.includes("motivo, nota e foto"))
+    throw new Error("fechar Nao atende vazio deveria avisar 'motivo, nota e foto' e nao fechar: " + sandbox.__ultimoOverlayHtml);
+  if(!sandbox.__ultimoOverlayHtml.includes("Fechar mesmo assim")) throw new Error("trava de Nao atende incompleto deveria oferecer 'Fechar mesmo assim'");
+  roda("App.chkConfirmarAcao()");
+  if(roda("STATE.ui.chkItemAberto") !== null) throw new Error("'Fechar mesmo assim' deveria fechar o item");
+  roda("App.chkSelecionarMotivo('" + ie.itemId + "', '" + itM.motivosPadrao[0].motivo + "')");
+  ie.fotos.push({ foto: "data:image/jpeg;base64,NFOTO", tags: [] });
+  tentarFechar();
+  if(roda("STATE.ui.chkItemAberto") !== ie.itemId || !sandbox.__ultimoOverlayHtml.includes("falta: nota."))
+    throw new Error("Nao atende com motivo e foto mas SEM nota deveria avisar que falta a nota: " + sandbox.__ultimoOverlayHtml);
+  roda("App.chkConfirmarAcao()");
+  roda("App.chkSetObservacao('" + ie.itemId + "', 'Nota escrita em campo')");
+  tentarFechar();
+  if(roda("STATE.ui.chkItemAberto") !== null || sandbox.__ultimoOverlayHtml)
+    throw new Error("Nao atende completo (motivo, nota e foto) deveria fechar direto, sem trava");
+
+  // --- secao "nao aplica": sempre pede confirmacao, mesmo sem nada respondido
+  const secLimpa = lt.modeloSnapshot[1];
+  if(secLimpa.itens.some(it => { const x = lt.itens.find(i => i.itemId === it.id); return x && x.conforme !== null; }))
+    throw new Error("preparo: a secao 2 da linha nova deveria estar sem nenhuma resposta");
+  sandbox.__ultimoOverlayHtml = null;
+  roda("App.chkToggleSecaoNA('" + secLimpa.id + "')");
+  if(lt.secoesNA.includes(secLimpa.id)) throw new Error("marcar secao como Nao aplica deveria pedir confirmacao ANTES, mesmo sem item respondido");
+  if(!sandbox.__ultimoOverlayHtml || !sandbox.__ultimoOverlayHtml.includes("Nenhum item da seção"))
+    throw new Error("a confirmacao da secao sem respostas nao apareceu: " + sandbox.__ultimoOverlayHtml);
+  roda("App.chkConfirmarAcao()");
+  if(!lt.secoesNA.includes(secLimpa.id)) throw new Error("confirmar a secao Nao aplica nao a marcou");
+  // Desfazer (Aplicar secao) nao pede nada.
+  sandbox.__ultimoOverlayHtml = null;
+  roda("App.chkToggleSecaoNA('" + secLimpa.id + "')");
+  if(lt.secoesNA.includes(secLimpa.id) || sandbox.__ultimoOverlayHtml) throw new Error("desmarcar a secao Nao aplica deveria ser direto, sem trava");
+}
+testarFotoAmpla().then(() => testarTravas()).then(() => {
+  // as arvores do Completo/Simplificado continuam byte a byte identicas apos a foto ampla tambem
+  if(JSON.stringify(sandbox.STATE.projetos) !== antesCompleto || JSON.stringify(sandbox.STATE.projetosSimples) !== antesSimples){
+    console.error("FALHOU: a foto ampla da linha mexeu em STATE.projetos/projetosSimples");
+    process.exit(1);
+  }
+  console.log("ISOLAMENTO OK: STATE.projetos e STATE.projetosSimples byte a byte identicos apos criar/editar/salvar/vincular/finalizar/excluir na hierarquia Projeto>Setor>Linha do Checklist (motivo de multipla escolha, travas de confirmacao, abas de secao, o painel dividido do editor de modelo com info/foto por item, a importacao de modelo via XLSX -- linha de continuacao, item sem motivo e linha orfa incluidos -- o roundtrip exportar/reimportar modelo via XLSX incluindo secao vazia, o laudo narrativo -- narrativa com destaque e citacao de foto do item nao atende, item nao aplica fora da narrativa e da tabela do checklist -- e a foto ampla da linha -- do rascunho da Nova linha pra linha criada, trocar/remover com confirmacao e foto presa a linha do toque), e as seis migracoes de STATE antigo (namespace ausente, execucoes em lista plana, modelo padrao sem texto padrao, linha com motivo unico do formato antigo, item de modelo sem o campo info, e secao/linha sem contexto/descricao do laudo narrativo) preenchem/reorganizam/atualizam o namespace sem tocar nas duas arvores");
+  process.exit(0);
+}).catch((e) => { console.error("FALHOU (foto ampla/travas): " + (e && e.message || e)); process.exit(1); });

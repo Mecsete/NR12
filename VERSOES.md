@@ -64,6 +64,28 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 02/10/2026 12:02
+
+**Checklist: confirmações ao fechar o item reorganizadas (foto no "Não aplica", motivo/nota/foto no "Não atende"), seção "não aplica" sempre confirma, e aba da seção "não se aplica" com cor própria.**
+
+- Marcar um item como **"Não aplica" não abre mais confirmação** — a marcação vale na hora. A confirmação passou para o momento de **fechar o item** (ou abrir outro deixando este para trás):
+  - **"Não aplica" sem foto:** avisa "Item sem foto", com **Cancelar** (para anexar) ou **Fechar sem foto**.
+  - **"Não atende":** avisa "Item incompleto" listando o que falta entre **motivo** (só quando o modelo tem motivos para escolher), **nota** e **foto**, com **Cancelar** ou **Fechar mesmo assim**.
+  - **"Atende":** nunca cobra nada. Item completo fecha direto.
+- O triângulo de aviso no cartão do item agora segue a mesma regra, e ao passar o dedo/mouse mostra o que falta ("Falta: nota, foto").
+- **Marcar uma seção inteira como "não aplica" sempre pede confirmação**, mesmo sem nenhum item respondido (antes só pedia quando já havia respostas). Desfazer ("Aplicar seção") continua direto.
+- Na tela de preenchimento, a aba de uma **seção marcada como "não se aplica"** agora fica em **cinza escuro com texto branco**, bem diferente das seções ainda não preenchidas (que seguem cinza claro).
+
+## 02/10/2026 11:42
+
+**Checklist: nova "Foto ampla" da linha de vida, para identificar o item e o local de relance.**
+
+- Ao criar uma linha de vida (tela "Nova linha"), há um campo opcional **Foto ampla** com prévia grande, botões de câmera e galeria, e opção de remover.
+- A mesma foto pode ser adicionada, trocada ou removida depois, numa faixa compacta no topo da tela de preenchimento e na tela de finalizar a linha — remover pede confirmação.
+- Na **lista de linhas**, cada linha mostra a miniatura da foto (ou um quadro vazio, para dar para ver de relance quais ainda estão sem foto).
+- No **laudo**, a foto aparece logo abaixo do nome da linha de vida, com a legenda "Vista geral — nome da linha".
+- A foto é guardada como todas as outras fotos do app (no banco de fotos do aparelho, nunca dentro dos dados). Linhas criadas antes desta versão simplesmente aparecem sem foto, nada nelas foi alterado.
+
 ## 02/10/2026 11:11
 
 **Checklist: tela de elaboração do item organizada em blocos coloridos, pela regra "onde esse texto aparece".**

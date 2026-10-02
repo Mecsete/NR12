@@ -689,7 +689,7 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-tab{flex:0 0 auto;padding:8px 14px;border-radius:999px;background:var(--bg-soft);color:var(--ink-dim);font-size:12px;font-weight:700;white-space:nowrap;border:none;}
 .chk-tab.st-parcial{background:#fbf0db;color:#c98a0a;}
 .chk-tab.st-completa{background:#e4f1e5;color:#2e7d32;}
-.chk-tab.st-naoaplica{background:#eaeaf0;color:#78788c;}
+.chk-tab.st-naoaplica{background:#6E7184;color:#fff;}
 .chk-tab[aria-selected="true"]{box-shadow:0 0 0 2px var(--accent);}
 /* Botões flutuantes de foto (só aparecem com um item aberto) — mesma altura
    acima do rodapé já usada pelo .fab-wrap do resto do app. */
@@ -750,6 +750,23 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-bloco-corpo .chk-info-fotos{margin-top:2px;}
 .chk-bloco .chk-info-foto-add{background:var(--surface);}
 .chk-bloco-add{width:100%;background:var(--surface);color:var(--ink-dim);border:1.5px dashed var(--line-strong);}
+/* ---------- Foto ampla da linha de vida (identifica o item e o local) ---------- */
+.chk-linha-card .list-thumb{width:104px;}
+.chk-foto-ampla-vazia{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border:1.5px dashed var(--line-strong);background:var(--surface);color:var(--ink-faint);font-size:12.5px;border-radius:var(--radius-sm);}
+.chk-foto-ampla-vazia svg{width:26px;height:26px;}
+.chk-foto-ampla-acoes{display:flex;gap:8px;flex-wrap:wrap;}
+.chk-foto-ampla.grande .chk-foto-ampla-img,.chk-foto-ampla.grande .chk-foto-ampla-vazia{display:flex;width:100%;aspect-ratio:16/9;border-radius:var(--radius-sm);}
+.chk-foto-ampla.grande .chk-foto-ampla-img{display:block;object-fit:cover;background:var(--bg-soft);cursor:pointer;}
+.chk-foto-ampla.grande .chk-foto-ampla-acoes{margin-top:8px;}
+.chk-foto-ampla.compacta{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:8px;margin-bottom:12px;}
+.chk-foto-ampla-mini{width:84px;height:56px;flex-shrink:0;border-radius:8px;overflow:hidden;display:flex;}
+.chk-foto-ampla-mini img{width:100%;height:100%;object-fit:cover;cursor:pointer;background:var(--bg-soft);}
+.chk-foto-ampla-mini .chk-foto-ampla-vazia{width:100%;border-radius:8px;gap:0;}
+.chk-foto-ampla-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;font-size:11.5px;color:var(--ink-faint);line-height:1.3;}
+.chk-foto-ampla-info b{font-size:13px;color:var(--ink);}
+.chk-foto-ampla.compacta .chk-foto-ampla-acoes{flex-wrap:nowrap;gap:6px;}
+.chk-foto-ampla.compacta .btn{padding:8px 10px;}
+.chk-foto-ampla.compacta .btn .txt{display:none;}
 .chk-motivo-card{border:1.5px solid var(--line-strong);border-radius:12px;overflow:hidden;margin-bottom:14px;background:var(--surface);}
 .chk-motivo-head{display:flex;align-items:center;justify-content:space-between;background:var(--bar);color:var(--on-bar);padding:4px 6px 4px 12px;font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;}
 .chk-motivo-head .icon-btn{color:var(--on-bar-dim);}
@@ -795,6 +812,9 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-laudo-sumario-sub a{color:var(--ink-dim);text-decoration:none;}
 .chk-laudo-pagina{margin:22px 0;}
 .chk-laudo-linha2{margin:26px 0;break-inside:avoid;}
+.chk-laudo-foto-ampla{margin:8px 0 14px;break-inside:avoid;}
+.chk-laudo-foto-ampla img{display:block;margin:0 auto;width:auto;height:auto;max-width:100%;max-height:380px;border-radius:6px;cursor:pointer;}
+.chk-laudo-foto-ampla figcaption{font-size:11.5px;color:var(--ink-faint);margin-top:5px;text-align:center;}
 .chk-laudo-linha-desc{font-size:13px;color:var(--ink-dim);line-height:1.6;margin:4px 0 16px;padding-bottom:12px;border-bottom:1px solid var(--line);}
 .chk-laudo-secao2{margin-bottom:20px;break-inside:avoid;}
 .chk-laudo-secao2 h3{font-size:14.5px;font-weight:800;color:var(--bar);margin-bottom:6px;}
@@ -3234,7 +3254,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "02/10/2026 11:11";
+const APP_BUILD = "02/10/2026 12:02";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -9552,6 +9572,7 @@ function novoChkLinha(modelo){
     id: uid(),
     nome: "",
     descricao: "", // função, quantas pessoas e local — parágrafo livre, aparece no laudo logo abaixo do nome da linha
+    fotoAmpla: "", // vista geral p/ identificar o item e o local (dataURL ou referência do banco de fotos); "" = sem foto — linhas antigas não têm o campo e toda leitura trata como vazio
     modeloId: modelo.id,
     modeloNome: modelo.nome,
     modeloSnapshot: clonarCompartilhandoFotos(modelo.secoes), // congela seções/itens no início — editar o modelo depois não afeta linhas já criadas; usa o clone padrão do app por consistência (nunca JSON.stringify, ver estrutura.py)
@@ -9611,6 +9632,24 @@ function chkStatusAbaSecao(linha, secao){
   if(respondidos===0) return "vazia";
   if(respondidos===total) return "completa";
   return "parcial";
+}
+/* O que falta num item para ficar bem documentado em campo — só avisa (a
+   pessoa sempre pode fechar "mesmo assim"): "Não atende" pede motivo (só se o
+   modelo tem motivos padrão para escolher), nota e foto; "Não aplica" pede
+   foto; "Atende" e item ainda sem resposta não cobram nada. */
+function chkPendenciasItem(itemModelo, itemExec){
+  if(!itemExec) return [];
+  const faltas = [];
+  const temFoto = (itemExec.fotos||[]).length > 0;
+  if(itemExec.conforme === "naoAtende"){
+    const modeloTemMotivos = !!(itemModelo && (itemModelo.motivosPadrao||[]).length);
+    if(modeloTemMotivos && (itemExec.motivosSelecionados||[]).length === 0) faltas.push("motivo");
+    if(!(itemExec.observacao||"").trim()) faltas.push("nota");
+    if(!temFoto) faltas.push("foto");
+  } else if(itemExec.conforme === "na"){
+    if(!temFoto) faltas.push("foto");
+  }
+  return faltas;
 }
 /* Textos padrão que vão para o laudo — nunca aparecem na tela de preenchimento.
    Atende usa o textoAtende do item do modelo (devolvido como lista de 1, pra
@@ -13336,7 +13375,7 @@ const CHK_STATUS_META = {
   naoAtende: { label:"Não atende",    curto:"Não atende", cor:"#c0392b" },
   na:        { label:"Não aplicável", curto:"N/A",         cor:"#78788c" },
 };
-let __chkNovaLinhaDraft = { modeloId:null, nome:"" };
+let __chkNovaLinhaDraft = { modeloId:null, nome:"", fotoAmpla:"" };
 /* Trava de segurança genérica do Checklist: mostra uma confirmação no visual
    do app (reaproveita abrirOverlay/.modal-card, mesmo idioma já usado em
    outras confirmações do app, ver App.confirmarGerarMesmoAssim) antes de uma
@@ -13787,6 +13826,7 @@ function screenChkLinhas(){
     const statusLabel = st==="finalizado"?"Finalizado":st==="andamento"?"Em andamento":"Não iniciado";
     return `
     <div class="card list-card chk-linha-card st-${st}">
+      <div class="list-thumb" onclick="App.chkAbrirLinha('${l.id}')">${l.fotoAmpla? `<img data-imgref="${imgReg(l.fotoAmpla)}">`:ic('gallery')}</div>
       <div class="list-body" onclick="App.chkAbrirLinha('${l.id}')" style="padding:14px">
         <div class="list-name">${escapeHtml(l.nome||'Sem nome')}</div>
         <div class="list-tag">${escapeHtml(l.modeloNome||'')}</div>
@@ -13809,6 +13849,28 @@ function screenChkLinhas(){
   ${cards}
   <div class="fab-wrap"><button class="fab" onclick="App.go('checklist-nova-linha')">${ic('plus')}</button></div>`;
 }
+/* Foto ampla da linha de vida: uma foto de vista geral que permite reconhecer
+   o item e o local de relance (lista, preenchimento, laudo). `onde` diz de
+   quem é a foto — "draft" (tela Nova linha, ainda sem linha criada) ou "linha"
+   (a linha aberta). `grande` = prévia 16:9 com botões rotulados (Nova linha);
+   senão, faixa compacta de uma linha só (preencher/finalizar) para não tomar
+   a tela de campo. */
+function chkFotoAmplaHtml(foto, onde, grande){
+  const tem = !!foto;
+  const bAdd = `<button class="btn btn-secondary" title="${tem?'Tirar nova foto':'Tirar foto'}" onclick="App.chkFotoAmplaAdicionar('${onde}',false)">${ic('camera')}<span class="txt">${tem?'Nova foto':'Tirar foto'}</span></button>`;
+  const bGal = `<button class="btn btn-secondary" title="Escolher da galeria" onclick="App.chkFotoAmplaAdicionar('${onde}',true)">${ic('gallery')}<span class="txt">Galeria</span></button>`;
+  const bRem = tem ? `<button class="btn btn-secondary" title="Remover a foto" onclick="App.chkFotoAmplaRemover('${onde}')">${ic('trash')}</button>` : "";
+  if(grande){
+    const previa = tem
+      ? `<img class="chk-foto-ampla-img" data-imgref="${imgReg(foto)}" onclick="App.verFotoReg(this)">`
+      : `<div class="chk-foto-ampla-vazia">${ic('camera')}<span>Nenhuma foto ainda</span></div>`;
+    return `<div class="chk-foto-ampla grande">${previa}<div class="chk-foto-ampla-acoes">${bAdd}${bGal}${bRem}</div></div>`;
+  }
+  const mini = tem
+    ? `<img data-imgref="${imgReg(foto)}" onclick="App.verFotoReg(this)">`
+    : `<div class="chk-foto-ampla-vazia">${ic('camera')}</div>`;
+  return `<div class="chk-foto-ampla compacta"><div class="chk-foto-ampla-mini">${mini}</div><div class="chk-foto-ampla-info"><b>Foto ampla</b><span>${tem?'Identifica o item e o local':'Vista geral para identificar o item e o local'}</span></div><div class="chk-foto-ampla-acoes">${bAdd}${bGal}${bRem}</div></div>`;
+}
 function screenChkNovaLinha(){
   const setor = getCurrentChkSetor();
   if(!setor){ go("checklist-setores"); return ""; }
@@ -13826,6 +13888,7 @@ function screenChkNovaLinha(){
       <option value="">Selecione um modelo…</option>${modeloOpts}
     </select>
   </div>
+  <div class="field"><label>Foto ampla <span style="font-weight:500;color:var(--ink-faint)">(opcional) — vista geral para identificar o item e o local</span></label>${chkFotoAmplaHtml(d.fotoAmpla, 'draft', true)}</div>
   <button class="btn btn-primary btn-block" style="margin-top:10px" onclick="App.chkCriarLinha()">${ic('check')} Criar e preencher</button>
   `;
 }
@@ -13839,7 +13902,8 @@ function chkRenderItem(linha, item, secaoIdx, itemIdx){
   const aberto = STATE.ui.chkItemAberto === item.id;
   const motivosSel = ie.motivosSelecionados||[];
   const nFotos = (ie.fotos||[]).length;
-  const pendente = ie.conforme==="naoAtende" && motivosSel.length===0 && !(ie.observacao||"").trim();
+  const pendencias = chkPendenciasItem(item, ie);
+  const pendente = pendencias.length > 0;
   let detalheHtml = "";
   if(aberto){
     const ICONE_STATUS = { atende:"check", naoAtende:"close", na:"dash" };
@@ -13876,7 +13940,7 @@ function chkRenderItem(linha, item, secaoIdx, itemIdx){
     <div class="chk-item-top" onclick="App.chkToggleItemAberto('${item.id}')">
       <div class="chk-item-desc"><span class="chk-item-code">Item ${secaoIdx+1}.${itemIdx+1} -</span> ${escapeHtml(item.descricao)}</div>
       <div class="chk-item-icons">
-        ${pendente? `<span class="chk-item-warn" title="Pendência: sem motivo nem nota">${ic('warn')}</span>` : ""}
+        ${pendente? `<span class="chk-item-warn" title="Falta: ${escapeHtml(pendencias.join(', '))}">${ic('warn')}</span>` : ""}
         <span class="chk-item-foto-ind ${nFotos?'has':''}">${ic('camera')}${nFotos?`<span>${nFotos}</span>`:''}</span>
         <span class="chk-item-chevron">${ic('chev')}</span>
       </div>
@@ -13905,6 +13969,7 @@ function screenChkPreencher(){
   return `
   <div class="chk-progress-bar"><div class="chk-progress-fill" style="width:${pct}%"></div></div>
   <div class="chk-tabs">${tabsHtml}</div>
+  ${chkFotoAmplaHtml(l.fotoAmpla, 'linha', false)}
   <div class="chk-secao-head">
     <h2 style="margin:2px 0">${escapeHtml(secao.titulo||'Sem título')}</h2>
     <button class="chk-switch ${isNA?'off':'on'}" onclick="App.chkToggleSecaoNA('${secao.id}')">${isNA? ic('check')+' Aplicar seção' : 'Esta seção não aplica'}</button>
@@ -13944,6 +14009,7 @@ function screenChkFinalizar(){
   </div>` : ""}
   <div class="section-title">Resumo do checklist</div>
   ${chkResumoHtml(l)}
+  <div class="field"><label>Foto ampla</label>${chkFotoAmplaHtml(l.fotoAmpla, 'linha', false)}</div>
   <div class="field"><label>Descrição da linha</label><textarea placeholder="Função, quantas pessoas usam e onde fica (opcional) — Ex.: Acesso para manutenção de exaustores e limpeza do telhado, uso por até 2 pessoas simultâneas, cobertura do Silo 2" oninput="App.chkSetLinhaDescricao(this.value)">${escapeHtml(l.descricao)}</textarea></div>
   <div class="field"><label>Conclusão da linha</label><textarea placeholder="Parecer sobre esta linha de vida (opcional) — aparece no laudo" oninput="App.chkSetConclusao(this.value)">${escapeHtml(l.conclusaoTexto)}</textarea></div>
   ${l.status==="finalizado"
@@ -14047,6 +14113,7 @@ function screenChkLaudo(){
     return `
     <div class="chk-laudo-linha2" id="cap-linha-${l.id}">
       <h2 class="chk-laudo-titulo-corpo">${escapeHtml(l.nome||l.modeloNome||'Sem nome')}${l.status!=="finalizado"? ` <span class="stat-pill alert">em andamento</span>`:''}</h2>
+      ${l.fotoAmpla? `<figure class="chk-laudo-foto-ampla"><img data-imgref="${imgReg(l.fotoAmpla)}" onclick="App.verFotoReg(this)"><figcaption>Vista geral — ${escapeHtml(l.nome||l.modeloNome||'linha de vida')}</figcaption></figure>`:""}
       ${l.descricao? `<p class="chk-laudo-linha-desc">${escapeHtml(l.descricao)}</p>`:""}
       ${secoesHtml}
       ${checklistHtml}
@@ -27066,11 +27133,12 @@ Devolver agora?`)) return;
     if(!__chkNovaLinhaDraft.nome || !__chkNovaLinhaDraft.nome.trim()){ toast("Dê um nome/identificação para a linha de vida", false); return; }
     const linha = novoChkLinha(modelo);
     linha.nome = __chkNovaLinhaDraft.nome.trim();
+    linha.fotoAmpla = __chkNovaLinhaDraft.fotoAmpla || "";
     setor.linhas.push(linha);
     setor.atualizadoEm = agoraSync();
     STATE.ui.chkLinhaId = linha.id;
     STATE.ui.chkSecaoAtual = 0;
-    __chkNovaLinhaDraft = { modeloId:null, nome:"" };
+    __chkNovaLinhaDraft = { modeloId:null, nome:"", fotoAmpla:"" };
     marcarAlterado();
     go("checklist-preencher");
   },
@@ -27125,27 +27193,20 @@ Devolver agora?`)) return;
       chkAbrirConfirmacao('Marcar seção como "não aplica"?',
         `Esta seção já tem ${respondidos} ${respondidos===1?'item respondido':'itens respondidos'}. Marcar como "não aplica" vai desconsiderar ${respondidos===1?'essa resposta':'essas respostas'}.`,
         'Marcar mesmo assim', marcar);
-    } else marcar();
+    } else {
+      // Marcar a seção inteira como "não aplica" sempre pede confirmação,
+      // mesmo sem nada respondido ainda — é uma decisão que pula a seção toda.
+      chkAbrirConfirmacao('Marcar seção como "não aplica"?',
+        `Nenhum item da seção "${secao.titulo||'sem título'}" precisará ser preenchido. Confirma?`,
+        'Confirmar', marcar);
+    }
   },
   chkSetConforme(itemId, status){
     const l = getCurrentChkLinha(); if(!l) return;
     const item = chkItemExec(l, itemId); if(!item) return;
-    if(status==='na' && item.conforme!=='na'){
-      // Entrando em "Não aplica" agora (não é desmarcar o que já era) — pede
-      // confirmação sempre, com mensagem diferente se o item já tem foto.
-      const temFotos = (item.fotos||[]).length>0;
-      const corpo = temFotos
-        ? `Este item tem ${item.fotos.length} ${item.fotos.length>1?'fotos anexadas':'foto anexada'}. Marcar como "Não aplica" mesmo assim?`
-        : 'Este item ainda não tem foto anexada. Confirma marcar como "Não aplica"?';
-      chkAbrirConfirmacao('Marcar item como "Não aplica"?', corpo, 'Marcar mesmo assim', ()=>{
-        item.conforme = 'na';
-        item.motivosSelecionados = [];
-        l.atualizadoEm = agoraSync();
-        marcarAlterado();
-        render();
-      });
-      return;
-    }
+    // Marcar "Não aplica" não pede confirmação: a trava (item sem foto) vem na
+    // hora de FECHAR o item, em chkToggleItemAberto — assim a pessoa marca,
+    // tira a foto que justifica e só é cobrada se tentar fechar sem ela.
     item.conforme = (item.conforme===status) ? null : status;
     if(item.conforme!=='naoAtende') item.motivosSelecionados = [];
     l.atualizadoEm = agoraSync();
@@ -27181,27 +27242,31 @@ Devolver agora?`)) return;
       render();
       if(novoId) window.scrollTo(0,0);
     };
-    const semJustificativa = (idAlvo)=>{
-      const item = chkItemExec(l, idAlvo);
-      return !!item && item.conforme==='naoAtende' && (item.motivosSelecionados||[]).length===0 && !(item.observacao||'').trim();
+    // Pendência do item que está sendo FECHADO (ou deixado pra abrir outro),
+    // segundo chkPendenciasItem: "Não atende" sem motivo/nota/foto, ou "Não
+    // aplica" sem foto. Só avisa — a pessoa sempre pode seguir ("mesmo assim").
+    const listaPt = (a)=> a.length>1 ? a.slice(0,-1).join(", ")+" e "+a[a.length-1] : a[0];
+    const pendenciaAoFechar = (idAlvo)=>{
+      const itemExec = chkItemExec(l, idAlvo);
+      if(!itemExec) return null;
+      const itemModelo = (l.modeloSnapshot||[]).flatMap(s=>s.itens).find(i=>i.id===idAlvo);
+      const faltas = chkPendenciasItem(itemModelo, itemExec);
+      if(!faltas.length) return null;
+      const soFoto = faltas.length===1 && faltas[0]==='foto';
+      return {
+        titulo: soFoto ? 'Item sem foto' : 'Item incompleto',
+        corpo: `Este item está marcado como "${itemExec.conforme==='na'?'Não aplica':'Não atende'}" e falta: ${listaPt(faltas)}. Complete pela tela (os botões de câmera/galeria ficam no canto) ou feche mesmo assim.`,
+        rotulo: soFoto ? 'Fechar sem foto' : 'Fechar mesmo assim',
+      };
     };
-    if(aberto === itemId){
-      if(semJustificativa(itemId)){
-        chkAbrirConfirmacao('Item sem justificativa',
-          'Este item está marcado como "Não atende" mas não tem motivo escolhido nem nota escrita. Deseja continuar mesmo assim?',
-          'Continuar mesmo assim', ()=> trocarPara(null));
-        return;
-      }
-      trocarPara(null);
+    const alvoAFechar = aberto === itemId ? itemId : aberto;
+    const pend = alvoAFechar ? pendenciaAoFechar(alvoAFechar) : null;
+    const destino = aberto === itemId ? null : itemId;
+    if(pend){
+      chkAbrirConfirmacao(pend.titulo, pend.corpo, pend.rotulo, ()=> trocarPara(destino));
       return;
     }
-    if(aberto && semJustificativa(aberto)){
-      chkAbrirConfirmacao('Item sem justificativa',
-        'Este item está marcado como "Não atende" mas não tem motivo escolhido nem nota escrita. Deseja continuar mesmo assim?',
-        'Continuar mesmo assim', ()=> trocarPara(itemId));
-      return;
-    }
-    trocarPara(itemId);
+    trocarPara(destino);
   },
   chkConfirmarAcao(){
     const fn = __chkAcaoConfirmada;
@@ -27267,6 +27332,36 @@ Devolver agora?`)) return;
     item.fotos.splice(idx,1);
     l.atualizadoEm = agoraSync();
     marcarAlterado();
+    render();
+  },
+  chkFotoAmplaAdicionar(onde, daGaleria){
+    const input = document.getElementById(daGaleria ? "fileGeneralGaleria" : "fileGeneral");
+    // Fixa a linha no toque (a leitura da foto é assíncrona): a foto vai pra linha
+    // que estava aberta quando a pessoa tocou, mesmo que navegue enquanto comprime.
+    const alvo = onde==="linha" ? getCurrentChkLinha() : null;
+    if(onde==="linha" && !alvo) return;
+    input.onchange = async ()=>{
+      if(!input.files[0]) return;
+      const file = input.files[0];
+      input.value = "";
+      let data;
+      try{ data = await comprimirImagem(file, 1920, 0.82); }
+      catch(e){ toast("Não foi possível ler a foto — tente de novo", false); return; }
+      salvarFotoNaGaleria(data, "apr_checklist_linha");
+      if(alvo){ alvo.fotoAmpla = data; alvo.atualizadoEm = agoraSync(); marcarAlterado(); }
+      else { __chkNovaLinhaDraft.fotoAmpla = data; }
+      render();
+    };
+    input.click();
+  },
+  chkFotoAmplaRemover(onde){
+    if(!confirm("Remover a foto ampla desta linha de vida?")) return;
+    if(onde==="linha"){
+      const l = getCurrentChkLinha(); if(!l) return;
+      l.fotoAmpla = ""; l.atualizadoEm = agoraSync(); marcarAlterado();
+    } else {
+      __chkNovaLinhaDraft.fotoAmpla = "";
+    }
     render();
   },
   chkSetConclusao(valor){
