@@ -64,6 +64,12 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 02/10/2026 11:11
+
+**Checklist: tela de elaboração do item organizada em blocos coloridos, pela regra "onde esse texto aparece".**
+
+Na edição de um item do modelo, cada assunto agora é um bloco com título e uma etiqueta no canto: **azul = aparece em campo** (Informação do item), **laranja = vai para o laudo** (Contexto da seção e Texto padrão para "Atende") e **cinza = vale para os dois** (Pergunta e norma, Motivos padrão para "Não atende" — onde cada motivo mantém o texto curto em azul e o completo em laranja). O botão "Motivo padrão" ficou em largura total, tracejado. Só o visual mudou: nenhum dado dos modelos foi alterado.
+
 ## 02/10/2026 10:56
 
 **Checklist: motivos padrão de "Não atende" agora separados por cor na tela de elaboração do modelo.**

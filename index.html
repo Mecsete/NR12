@@ -736,10 +736,20 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-modelo-split.item-aberto .chk-modelo-editor{display:block;}
 .chk-modelo-editor-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;}
 .chk-modelo-back{background:none;border:none;color:var(--ink-faint);font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:5px;padding:0;}
-.chk-secao-contexto-box{background:var(--bg-soft);border-radius:10px;padding:12px 14px;margin-bottom:16px;}
-.chk-secao-contexto-box label{display:block;font-size:12.5px;font-weight:700;color:var(--ink-dim);margin-bottom:6px;}
-.chk-secao-contexto-box textarea{width:100%;border:1.5px solid var(--line-strong);border-radius:var(--radius-sm);padding:9px 10px;font-size:13.5px;color:var(--ink);background:var(--surface);min-height:60px;resize:vertical;}
-.chk-secao-contexto-box .chk-modelo-hint{margin-top:6px;margin-bottom:0;}
+/* Blocos do editor do item: a cor diz onde o texto aparece — azul = campo,
+   laranja = laudo, neutro = os dois. */
+.chk-bloco{border:1.5px solid var(--line-strong);border-radius:12px;overflow:hidden;margin-bottom:16px;background:#F3F4F8;--bloco-ink:var(--ink);--bloco-borda:var(--line-strong);}
+.chk-bloco.campo{background:#EEF0FB;border-color:#B7BEE3;--bloco-ink:var(--bar-2);--bloco-borda:#B7BEE3;}
+.chk-bloco.laudo{background:#FEF3EC;border-color:#F1B9A0;--bloco-ink:var(--accent-ink);--bloco-borda:#F1B9A0;}
+.chk-bloco-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 14px;border-bottom:1.5px solid var(--bloco-borda);}
+.chk-bloco-titulo{font-size:13.5px;font-weight:800;color:var(--bloco-ink);}
+.chk-bloco-tag{flex-shrink:0;font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--bloco-ink);background:var(--surface);border:1.5px solid var(--bloco-borda);border-radius:999px;padding:2px 9px;}
+.chk-bloco-corpo{padding:12px 14px 14px;}
+.chk-bloco-corpo>.field:last-child{margin-bottom:0;}
+.chk-bloco-corpo>.field + .chk-modelo-hint{margin:-6px 0 0;}
+.chk-bloco-corpo .chk-info-fotos{margin-top:2px;}
+.chk-bloco .chk-info-foto-add{background:var(--surface);}
+.chk-bloco-add{width:100%;background:var(--surface);color:var(--ink-dim);border:1.5px dashed var(--line-strong);}
 .chk-motivo-card{border:1.5px solid var(--line-strong);border-radius:12px;overflow:hidden;margin-bottom:14px;background:var(--surface);}
 .chk-motivo-head{display:flex;align-items:center;justify-content:space-between;background:var(--bar);color:var(--on-bar);padding:4px 6px 4px 12px;font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;}
 .chk-motivo-head .icon-btn{color:var(--on-bar-dim);}
@@ -3224,7 +3234,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "02/10/2026 10:56";
+const APP_BUILD = "02/10/2026 11:11";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -13583,24 +13593,33 @@ function screenChkModeloForm(){
       <button class="chk-modelo-back" onclick="App.chkSelecionarModeloItem(null,null)">${ic('back')} Seções e itens</button>
       <span class="chk-item-code">Item ${si+1}.${ii+1}</span>
     </div>
-    <div class="chk-secao-contexto-box">
-      <label>Contexto da seção "${escapeHtml(s.titulo||'sem título')}" (aparece no laudo)</label>
-      <textarea placeholder="Ex.: Verifica se os pontos fixos que sustentam a linha de vida estão corretamente instalados e sem sinais de degradação." oninput="App.chkSetSecaoContexto('${s.id}',this.value)">${escapeHtml(s.contexto)}</textarea>
-      <div class="chk-modelo-hint">Vale pra seção inteira, não só pra este item — entra no laudo antes do texto de cada linha de vida sobre "${escapeHtml(s.titulo||'sem título')}".</div>
-    </div>
-    <div class="field"><label>Pergunta <span class="req">*</span></label><textarea placeholder="O que verificar neste item" oninput="App.chkSetItemField('${s.id}','${it.id}','descricao',this.value)">${escapeHtml(it.descricao)}</textarea></div>
-    <div class="field"><label>Norma/referência (opcional)</label><input type="text" placeholder="Ex.: NBR 16325-2" value="${escapeHtml(it.normativo)}" oninput="App.chkSetItemField('${s.id}','${it.id}','normativo',this.value)"></div>
-    <div class="chk-modelo-editor-grid">
-      <div class="field" style="margin-bottom:0">
-        <label>Motivos padrão para "Não atende"</label>
-        <div class="chk-modelo-hint">Rótulo curto pro campo + texto completo pro laudo.</div>
-        ${motivosHtml}
-        <button class="btn" style="margin-top:4px" onclick="App.chkNovoMotivoPadrao('${s.id}','${it.id}')">${ic('plus')} Motivo padrão</button>
+    <div class="chk-bloco laudo chk-secao-contexto-box">
+      <div class="chk-bloco-head"><span class="chk-bloco-titulo">Contexto da seção "${escapeHtml(s.titulo||'sem título')}"</span><span class="chk-bloco-tag">Laudo</span></div>
+      <div class="chk-bloco-corpo">
+        <div class="field"><textarea aria-label="Contexto da seção" placeholder="Ex.: Verifica se os pontos fixos que sustentam a linha de vida estão corretamente instalados e sem sinais de degradação." oninput="App.chkSetSecaoContexto('${s.id}',this.value)">${escapeHtml(s.contexto)}</textarea></div>
+        <div class="chk-modelo-hint">Vale pra seção inteira, não só pra este item — entra no laudo antes do texto de cada linha de vida sobre "${escapeHtml(s.titulo||'sem título')}".</div>
       </div>
-      <div class="field" style="margin-bottom:0">
-        <label>Informação do item</label>
+    </div>
+    <div class="chk-bloco neutro">
+      <div class="chk-bloco-head"><span class="chk-bloco-titulo">Pergunta e norma</span><span class="chk-bloco-tag">Campo + laudo</span></div>
+      <div class="chk-bloco-corpo">
+        <div class="field"><label>Pergunta <span class="req">*</span></label><textarea placeholder="O que verificar neste item" oninput="App.chkSetItemField('${s.id}','${it.id}','descricao',this.value)">${escapeHtml(it.descricao)}</textarea></div>
+        <div class="field"><label>Norma/referência (opcional)</label><input type="text" placeholder="Ex.: NBR 16325-2" value="${escapeHtml(it.normativo)}" oninput="App.chkSetItemField('${s.id}','${it.id}','normativo',this.value)"></div>
+      </div>
+    </div>
+    <div class="chk-bloco neutro">
+      <div class="chk-bloco-head"><span class="chk-bloco-titulo">Motivos padrão para "Não atende"</span><span class="chk-bloco-tag">Campo + laudo</span></div>
+      <div class="chk-bloco-corpo">
+        <div class="chk-modelo-hint">Cada motivo tem um texto curto (o inspetor escolhe em campo) e um texto completo (vai pro laudo).</div>
+        ${motivosHtml}
+        <button class="btn chk-bloco-add" onclick="App.chkNovoMotivoPadrao('${s.id}','${it.id}')">${ic('plus')} Motivo padrão</button>
+      </div>
+    </div>
+    <div class="chk-bloco campo">
+      <div class="chk-bloco-head"><span class="chk-bloco-titulo">Informação do item</span><span class="chk-bloco-tag">Campo</span></div>
+      <div class="chk-bloco-corpo">
         <div class="chk-modelo-hint">Aparece no ⓘ durante o preenchimento em campo — texto e fotos de apoio pro inspetor (nunca vai pro laudo).</div>
-        <textarea placeholder="Ex.: Verificar torque dos parafusos com torquímetro calibrado." oninput="App.chkSetItemInfoTexto('${s.id}','${it.id}',this.value)">${escapeHtml(info.texto)}</textarea>
+        <div class="field"><textarea aria-label="Informação do item" placeholder="Ex.: Verificar torque dos parafusos com torquímetro calibrado." oninput="App.chkSetItemInfoTexto('${s.id}','${it.id}',this.value)">${escapeHtml(info.texto)}</textarea></div>
         <div class="chk-info-fotos">
           ${fotosInfoHtml}
           <button class="chk-info-foto-add" onclick="App.chkInfoFotoAdicionar('${s.id}','${it.id}',true)" title="Escolher da galeria">${ic('gallery')}</button>
@@ -13608,9 +13627,12 @@ function screenChkModeloForm(){
         </div>
       </div>
     </div>
-    <div class="field">
-      <label>Texto padrão para "Atende" (opcional — só aparece no laudo, nunca em campo)</label>
-      <textarea placeholder="Ex.: Foi inspecionado o olhal metálico... estando em conformidade com os requisitos técnicos." oninput="App.chkSetItemField('${s.id}','${it.id}','textoAtende',this.value)">${escapeHtml(it.textoAtende)}</textarea>
+    <div class="chk-bloco laudo">
+      <div class="chk-bloco-head"><span class="chk-bloco-titulo">Texto padrão para "Atende"</span><span class="chk-bloco-tag">Laudo</span></div>
+      <div class="chk-bloco-corpo">
+        <div class="chk-modelo-hint">Opcional. Só aparece no laudo, nunca em campo.</div>
+        <div class="field"><textarea aria-label="Texto padrão para Atende" placeholder="Ex.: Foi inspecionado o olhal metálico... estando em conformidade com os requisitos técnicos." oninput="App.chkSetItemField('${s.id}','${it.id}','textoAtende',this.value)">${escapeHtml(it.textoAtende)}</textarea></div>
+      </div>
     </div>
     <button class="btn btn-secondary" onclick="App.chkRemoverItem('${s.id}','${it.id}')">${ic('trash')} Remover este item</button>
     `;
