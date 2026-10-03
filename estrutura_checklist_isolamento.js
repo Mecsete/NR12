@@ -158,6 +158,7 @@ const FUNCOES = [
   "lclItemModeloAtual", "lclPrioridade", "lclAcaoMotivo", "lclNaoConformidades", "lclParecerAuto", "lclParecer",
   "lclListaPt", "lclVariaveis", "lclAplicarVariaveis", "lclMarkup", "lclBlocosMemorial", "lclBlocosAnexos", "lclListaImagensHtml",
   "chkRenderItem", "screenChkPreencher", "screenChkFinalizar", "chkResumoHtml",
+  "lclTextoEditado", "lclHtmlParaTexto", "lclTextoParaHtml", "lclConclusaoAuto", "lclFotosSecaoHtml", "lclNumItem",
 ];
 let fonte = "let __ultimoCarimboVisto = 0;\n";
 fonte += "let __buscaAtual = '';\n"; // usado por chkAbrirSetor (lista de linhas) -- nao testado aqui, so pra nao faltar
@@ -183,6 +184,8 @@ fonte += constObjeto("LCL_CAPITULOS") + "\n";
 fonte += constObjeto("LCL_NORMATIVO_PADRAO") + "\n";
 fonte += letObjeto("__lclPaginas") + "\n";
 fonte += letEscalar("__lclHtml");
+fonte += letObjeto("__lclEdit") + "\n";
+fonte += letEscalar("__lclFotosSec");
 fonte += letObjeto("__lclMetDraft") + "\n";
 fonte += letEscalar("__lclParaLinha");
 // escapeHtml DE VERDADE (o laudo escapa o que a pessoa digita e o ensaio precisa ver isso). O extrator
@@ -1757,7 +1760,7 @@ async function testarCapitulosNovos(){
       if(mapa && JSON.stringify(novo) === JSON.stringify(mapa)) break;
       mapa = novo;
     }
-    return { mapa, sum: paginas.find(p=>p.blocos.some(b=>b.sumario)).blocos.filter(b=>b.sumario).map(b=>b.html).join("") };
+    return { mapa, sum: paginas.find(p=>p.blocos.some(b=>b.sumario)).blocos.filter(b=>b.sumario).map(b=>b.html).join(""), doc: lclMontarDoc(paginas, d) };
   })()`);
   const ordem = ["cap-metodologia", "cap-checklist", "cap-corpo", "cap-memorial", "cap-memoria", "cap-conclusao", "cap-anexos"];
   ordem.forEach((a, i)=>{
@@ -1766,6 +1769,23 @@ async function testarCapitulosNovos(){
   });
   T(fluxo.mapa["cap-memoria"] > fluxo.mapa["cap-memorial"], "a memoria de calculo comeca em pagina nova depois do memorial");
   T(fluxo.sum.includes("4  Memorial de Cálculo — Zona Livre de Queda<i></i>" + fluxo.mapa["cap-memorial"]) && fluxo.sum.includes("4.1  Memória de cálculo<i></i>" + fluxo.mapa["cap-memoria"]) && fluxo.sum.includes("6  Anexos<i></i>" + fluxo.mapa["cap-anexos"]) && !fluxo.sum.includes(">00<"), "sumario com memorial, subitem e anexos, cada um com a pagina real: " + fluxo.sum.replace(/<[^>]+>/g, " ").slice(0, 300));
+  // links: cada "ver 3.1" e cada linha do sumario aponta para um destino que existe, uma unica vez, no documento montado
+  const hrefs = [...fluxo.doc.matchAll(/href="#(lcl-a-[^"]+)"/g)].map(m=>m[1]);
+  const ids = [...fluxo.doc.matchAll(/class="lcl-alvo" id="([^"]+)"/g)].map(m=>m[1]);
+  T(new Set(ids).size === ids.length, "destinos de link duplicados no documento: " + ids.join(","));
+  T(hrefs.length >= 13 && hrefs.every(h=> ids.includes(h)), "link sem destino no documento: " + hrefs.filter(h=> !ids.includes(h)).join(","));
+  T(fluxo.sum.includes('href="#lcl-a-cap-normativo"') && fluxo.sum.includes('href="#lcl-a-cap-memoria"') && fluxo.sum.includes('href="#lcl-a-cap-anexos"') && fluxo.sum.includes('onclick="return App.lclIrPara(event)"'), "linhas do sumario sao links: " + fluxo.sum.slice(0, 200));
+  const verLinks = [...fluxo.doc.matchAll(/<a class="lcl-rver" href="#(lcl-a-cap-sec-[^"]+)"[^>]*>ver ([0-9.]+)<\/a>/g)].map(m=>[m[1], m[2]]);
+  T(verLinks.length === 3 && verLinks.every(v=> ids.includes(v[0])) && verLinks.map(v=>v[1]).join(",") === "3.1,3.1,3.2", "'ver N' do checklist vira link para a secao certa do corpo: " + JSON.stringify(verLinks));
+  T(fluxo.mapa["cap-sec-" + roda("__f3.l.modeloSnapshot[0].id")] >= 1, "a secao de destino tem pagina");
+  // mesma ancora em dois blocos: so a 1a ocorrencia vira destino (id repetido faria o link cair na pagina errada)
+  const dup = roda(`lclMontarDoc([{ blocos:[{ ancora:"a", html:"x" }] }, { blocos:[{ ancora:"a", ancoraExtra:"b", html:"y" }, { ancora:"b", html:"z" }] }], lclDados(__f3.proj, __f3.setor, __f3.l))`);
+  T((dup.match(/id="lcl-a-a"/g) || []).length === 1 && (dup.match(/id="lcl-a-b"/g) || []).length === 1 && dup.indexOf('id="lcl-a-a"') < dup.indexOf('id="lcl-a-b"'), "destino repetido: so a 1a ocorrencia de cada ancora vira id: " + dup.slice(0, 300));
+  // clique na previa: nao deixa o navegador mudar o endereco e nao quebra se o destino sumiu
+  let evitou = false;
+  const ret = roda("App.lclIrPara")({ preventDefault(){ evitou = true; }, currentTarget:{ getAttribute: ()=> "#lcl-a-nao-existe" } });
+  T(evitou === true && ret === false, "lclIrPara: cancela a navegacao padrao e devolve false");
+  T(roda("App.lclIrPara")({ preventDefault(){}, currentTarget:null }) === false && roda("App.lclIrPara")(null) === false, "lclIrPara sem evento valido nao quebra");
   roda("delete __f3.l.laudo");
 
   // --- acoes do App: parecer, memorial, Metodologia (com figuras) e anexos
@@ -1807,7 +1827,203 @@ async function testarCapitulosNovos(){
   roda("delete __f3.l.laudo");
   roda("setor.linhas.pop(); STATE.checklists.modelos.pop();");
 }
-testarFotoAmpla().then(() => testarTravas()).then(() => testarDadosLaudo()).then(() => testarLaudoCapitulos()).then(() => testarMemorial()).then(() => testarCapitulosNovos()).then(() => {
+// ---------- editar o texto do laudo na leitura: texto da secao (por linha), conclusao, e os atalhos para
+// Metodologia e Normativo; o texto editado so vale na linha, volta ao automatico e nao sai com botao no PDF ----------
+async function testarEdicaoTexto(){
+  const T = (cond, msg)=>{ if(!cond) throw new Error("edicao de texto: " + msg); };
+  const J = (v)=> JSON.stringify(v);
+  // --- funcoes puras
+  T(roda("lclHtmlParaTexto(" + J('<mark class="nc">A &amp; B (Foto 1)</mark> C &lt;x&gt; &quot;q&quot; &#39;s&#39;') + ")") === `**A & B (Foto 1)** C <x> "q" 's'`, "HTML da narrativa para texto simples (destaque vira **, entidades voltam)");
+  T(roda("lclTextoParaHtml(" + J("Um **dest** & <b>\n\nDois\nlinha") + ")") === '<p>Um <mark class="nc">dest</mark> &amp; &lt;b&gt;</p><p>Dois<br>linha</p>', "texto editado vira paragrafos, destaque e escape: " + roda("lclTextoParaHtml(" + J("Um **dest** & <b>\n\nDois\nlinha") + ")"));
+  T(roda("lclTextoParaHtml(" + J("a ** b") + ")") === "<p>a ** b</p>" && roda("lclTextoParaHtml('')") === "" && roda("lclTextoParaHtml(null)") === "", "asteriscos soltos ficam como estao; vazio nao gera nada");
+  T(roda(`lclTextoEditado({ laudo:{ textos:{ a:"Oi", b:"  ", c:5 } } }, "a")`) === "Oi" && roda(`lclTextoEditado({ laudo:{ textos:{ b:"  " } } }, "b")`) === null && roda(`lclTextoEditado({ laudo:{ textos:{ c:5 } } }, "c")`) === null && roda(`lclTextoEditado({}, "a")`) === null && roda(`lclTextoEditado(null, "a")`) === null, "lclTextoEditado: so texto nao vazio conta como edicao");
+
+  const L = roda("__f3.l");
+  const secId = roda("__f3.l.modeloSnapshot[0].id"), secId2 = roda("__f3.l.modeloSnapshot[1].id");
+  const auto = roda("chkNarrativaSecao(__f3.l.modeloSnapshot[0], __f3.l).html");
+  T(auto.includes('<mark class="nc">'), "preparo: a narrativa automatica da secao 1 deveria ter trecho destacado");
+  T(roda("lclTextoParaHtml(lclHtmlParaTexto(chkNarrativaSecao(__f3.l.modeloSnapshot[0], __f3.l).html))") === "<p>" + auto + "</p>", "ida e volta: narrativa automatica -> texto -> HTML preserva o destaque");
+
+  // --- blocos do laudo com texto editado
+  roda("delete __f3.l.laudo");
+  const d = "lclDados(__f3.proj, __f3.setor, __f3.l)";
+  const capCorpo = "lclPlano(__f3.proj, __f3.l).find(c=>c.id === 'corpo')";
+  const fotosReduzidas = "(x)=> x";
+  const corpoAuto = roda(`lclBlocosCorpo(${d}, ${capCorpo}, ${fotosReduzidas})`);
+  T(corpoAuto[0].editar.tipo === "secao" && corpoAuto[0].editar.id === secId && corpoAuto[0].editar.editado === false && corpoAuto[0].html.includes(auto), "sem edicao: o corpo usa a narrativa automatica e o botao diz 'Editar texto'");
+  roda("__f3.l.laudo = " + J({ textos: { [secId]: "Texto do engenheiro com **destaque**.\n\nSegundo paragrafo." } }));
+  const corpoEd = roda(`lclBlocosCorpo(${d}, ${capCorpo}, ${fotosReduzidas})`);
+  T(corpoEd[0].html.includes('<p>Texto do engenheiro com <mark class="nc">destaque</mark>.</p><p>Segundo paragrafo.</p>') && !corpoEd[0].html.includes(auto) && corpoEd[0].editar.editado === true, "com edicao: o texto do engenheiro substitui a narrativa");
+  T(corpoEd[0].html.includes("lcl-fotos-col") && corpoEd[0].html.includes("Foto 1"), "as fotos da secao continuam ao lado do texto editado");
+  T(corpoEd[1].editar.editado === false && corpoEd[1].editar.id === secId2 && !corpoEd[1].html.includes("Texto do engenheiro"), "a edicao de uma secao nao vaza para a outra");
+  T(corpoEd[0].alternativa().every((b, i)=> i > 0 || (b.editar && b.editar.id === secId)), "o layout alternativo (muitas fotos) tambem leva o botao de editar");
+  const outra = roda("(function(){ const l2 = JSON.parse(JSON.stringify(__f3.l)); delete l2.laudo; return lclTextoEditado(l2, '" + secId + "'); })()");
+  T(outra === null, "uma copia da linha sem a edicao continua automatica (a edicao e por linha)");
+
+  // --- conclusao
+  const auto2 = roda("lclConclusaoAuto(__f3.l)");
+  T(auto2.includes("Foram avaliados") && auto2.includes("LV-F3") && auto2.includes("não atendem"), "texto automatico da conclusao: " + auto2);
+  roda("__f3.l.conclusaoTexto = ''");
+  const c1 = roda(`lclBlocosConclusao(${d}, { num:5, rot:"Conclusão", ancora:"cap-conclusao" }, "", (x)=> x)[0]`);
+  T(c1.editar.tipo === "conclusao" && c1.editar.editado === false && c1.html.includes(auto2.slice(0, 40)), "conclusao automatica: botao 'Editar texto'");
+  roda("__f3.l.conclusaoTexto = 'Conclusao escrita.'");
+  const c2 = roda(`lclBlocosConclusao(${d}, { num:5, rot:"Conclusão", ancora:"cap-conclusao" }, "", (x)=> x)[0]`);
+  T(c2.editar.editado === true && c2.html.includes("Conclusao escrita.") && !c2.html.includes("Foram avaliados"), "conclusao escrita: marcada como editada");
+  roda("__f3.l.conclusaoTexto = ''");
+  const p2 = roda(`lclBlocosPagina2(${d}, lclTextos())`);
+  T(p2.find(b=> b.ancora === "cap-normativo").editar.tipo === "normativo", "o Normativo oferece o atalho para o editor do Normativo");
+  T(roda(`lclBlocosMetodologia(${d}, { num:1, rot:"Metodologia", ancora:"cap-metodologia" }, lclTextos(), (x)=> x)[0].editar.tipo`) === "metodologia", "a Metodologia oferece o atalho para o editor dela");
+
+  // --- botao no documento da tela (e so nos blocos que pedem)
+  const doc = roda(`lclMontarDoc([{ blocos:[{ html:"<i>x</i>", editar:{ tipo:"secao", id:"abc", editado:false } }] }, { blocos:[{ html:"<i>y</i>", editar:{ tipo:"conclusao", id:"", editado:true } }] }, { blocos:[{ html:"<i>z</i>" }] }], ${d})`);
+  T((doc.match(/class="lcl-edit-btn/g) || []).length === 2, "so os blocos com 'editar' ganham botao: " + (doc.match(/class="lcl-edit-btn/g) || []).length);
+  T(doc.includes(`<div class="lcl-edit-bar"><button type="button" class="lcl-edit-btn" onclick="App.lclEditarTexto('secao','abc')">Editar texto</button></div><div class="lcl-corpo">`) && doc.includes(`class="lcl-edit-btn ed" onclick="App.lclEditarTexto('conclusao','')">Texto editado · editar</button>`), "botao no canto da pagina, antes do corpo (nao ocupa espaco do texto), com o rotulo certo: " + doc.slice(0, 260));
+
+  // --- acoes do App
+  roda("setor.linhas.push(__f3.l); STATE.ui.chkLinhaId = __f3.l.id; STATE.ui.chkSetorId = setor.id; STATE.ui.chkProjetoId = proj.id;");
+  roda("delete __f3.l.laudo");
+  const abrir = (tipo, id)=>{ sandbox.__ultimoOverlayHtml = null; roda(`App.lclEditarTexto(${J(tipo)}, ${J(id)})`); return sandbox.__ultimoOverlayHtml; };
+  let ov = abrir("secao", secId);
+  T(ov && ov.includes('id="lclEditTexto"') && ov.includes("**") && ov.includes("Texto automático: ao salvar") && !ov.includes("Voltar ao automático") && ov.includes('Texto da seção &quot;Cabo de Aço&quot;'), "editor da secao abre com o texto automatico, sem 'Voltar ao automatico'");
+  inputFake("lclEditTexto").value = "Meu texto.";
+  roda("__lclParaLinha = 'montado'; __lclPaginas = [1]; __lclHtml = 'x';");
+  roda("App.lclSalvarTextoEditado()");
+  T(L.laudo.textos[secId] === "Meu texto." && roda("__lclParaLinha") === null && roda("__lclPaginas.length") === 0 && roda("__lclHtml") === "", "salvar grava na linha e descarta a montagem antiga (pede nova)");
+  ov = abrir("secao", secId);
+  T(ov.includes("Voltar ao automático") && ov.includes("Este texto foi editado por você.") && ov.includes("Meu texto."), "reabrir mostra o texto editado e oferece voltar ao automatico");
+  inputFake("lclEditTexto").value = "  " + roda("__lclEdit.auto").replace(/ /g, "  ") + " ";
+  roda("App.lclSalvarTextoEditado()");
+  T(!(secId in L.laudo.textos), "salvar com o texto igual ao automatico (so espacos diferentes) nao vira edicao");
+  roda("App.lclGravarTextoEditado('x')"); // __lclEdit ja foi zerado: nao pode quebrar nem gravar
+  T(!("undefined" in L.laudo.textos) && Object.keys(L.laudo.textos).length === 0, "gravar sem edicao em andamento nao faz nada");
+  L.laudo.textos[secId] = "Editado de novo.";
+  abrir("secao", secId);
+  inputFake("lclEditTexto").value = "   ";
+  roda("App.lclSalvarTextoEditado()");
+  T(!(secId in L.laudo.textos), "salvar em branco volta ao automatico");
+  L.laudo.textos[secId] = "Vai ser descartado?";
+  abrir("secao", secId);
+  sandbox.confirm = () => false;
+  roda("App.lclRestaurarTextoEditado()");
+  sandbox.confirm = () => true;
+  T(L.laudo.textos[secId] === "Vai ser descartado?", "voltar ao automatico sem confirmar nao descarta o texto");
+  roda("App.lclRestaurarTextoEditado()");
+  T(!(secId in L.laudo.textos), "voltar ao automatico confirmado descarta o texto editado");
+  // conclusao
+  ov = abrir("conclusao", "");
+  T(ov.includes("Texto da conclusão") && ov.includes("Foram avaliados") && !ov.includes("Voltar ao automático"), "editor da conclusao abre com o texto automatico");
+  inputFake("lclEditTexto").value = "Conclusao do engenheiro.";
+  roda("App.lclSalvarTextoEditado()");
+  T(L.conclusaoTexto === "Conclusao do engenheiro." && !("conclusao" in (L.laudo.textos || {})), "a conclusao usa o mesmo campo da tela Finalizar");
+  ov = abrir("conclusao", "");
+  T(ov.includes("Voltar ao automático") && ov.includes("Conclusao do engenheiro."), "conclusao editada: reabre com o texto e oferece voltar");
+  inputFake("lclEditTexto").value = roda("__lclEdit.auto");
+  roda("App.lclSalvarTextoEditado()");
+  T(L.conclusaoTexto === "", "conclusao igual a automatica volta a ser automatica");
+  // desconhecidos e atalhos
+  T(abrir("secao", "nao-existe") === null && abrir("xx", "") === null, "secao inexistente ou tipo desconhecido nao abre nada");
+  T((abrir("metodologia", "") || "").includes("Texto da Metodologia") && (abrir("normativo", "") || "").includes("Texto do Normativo"), "os atalhos abrem os editores de Metodologia e Normativo");
+  roda("__lclMetDraft = [];");
+  roda("setor.linhas.pop(); delete __f3.l.laudo;");
+}
+// ---------- fotos da secao na leitura do laudo: mover entre motivos (arrastar ou "Mover para"), excluir com
+// confirmacao, numeracao "Foto N" e botao so quando ha foto ----------
+async function testarFotosLeituraLaudo(){
+  const T = (cond, msg)=>{ if(!cond) throw new Error("fotos na leitura do laudo: " + msg); };
+  const J = (v)=> JSON.stringify(v);
+  const L = roda("__f3.l");
+  const sec1 = roda("__f3.l.modeloSnapshot[0].id"), sec2 = roda("__f3.l.modeloSnapshot[1].id"), sec3 = roda("__f3.l.modeloSnapshot[2].id");
+  const itA = roda("__f3.a.id"), itB = roda("__f3.b.id");
+  // estado de partida: item A (nao atende; motivos Corrosao e Fios rompidos) com 2 fotos; B sem foto; secao 2 sem foto
+  roda(`(function(){ const ex = chkItemExec(__f3.l, __f3.a.id); ex.conforme = "naoAtende"; ex.motivosSelecionados = ["Corrosao", "Fios rompidos"]; ex.fotos = [{ foto:"data:image/jpeg;base64,P1", motivo:"Fios rompidos" }, { foto:"data:image/jpeg;base64,P2", motivo:"Corrosao" }]; delete __f3.l.laudo; })()`);
+
+  // --- numeracao: chkFotosDaSecao devolve os objetos na ordem do laudo (as de um motivo em sequencia)
+  const ob = roda("chkFotosDaSecao(__f3.l.modeloSnapshot[0], __f3.l)");
+  T(ob.objetos.length === 2 && ob.objetos[0].foto === "data:image/jpeg;base64,P2" && ob.fotos[0] === ob.objetos[0].foto, "objetos na mesma ordem das fotos do laudo (Corrosao primeiro)");
+
+  // --- HTML da janela
+  let h = roda(`lclFotosSecaoHtml(__f3.l, ${J(sec1)})`);
+  T(h.includes("1.1 · Cabo integro") && !h.includes("1.2 · Grampos") && h.includes('<div class="chk-mfoto-t">Corrosao</div>') && h.includes('<div class="chk-mfoto-t">Fios rompidos</div>') && !h.includes("Sem motivo</div>"), "so itens com foto, uma caixa por motivo marcado, sem caixa 'Sem motivo' quando todas tem motivo");
+  T(h.indexOf("Foto 1") < h.indexOf("Foto 2") && h.indexOf('chk-mfoto-t">Corrosao') < h.indexOf("Foto 1") && h.indexOf("Foto 1") < h.indexOf('chk-mfoto-t">Fios rompidos'), "o numero e o da foto no laudo (P2, do 1o motivo, e a Foto 1)");
+  T((h.match(/draggable="true"/g) || []).length === 2 && h.includes(`App.lclFotoDrop(event,'${itA}',0)`) && h.includes(`App.lclFotoDrop(event,'${itA}',1)`) && h.includes("App.lclFotoExcluir(") && h.includes('<option value="-1"'), "fotos arrastaveis, caixas que recebem, lixeira e 'Mover para'");
+  T(roda(`lclFotosSecaoHtml(__f3.l, ${J(sec2)})`).includes("Nenhuma foto nesta seção.") && roda(`lclFotosSecaoHtml(__f3.l, "nao-existe")`) === "", "secao sem foto avisa; secao inexistente nao devolve nada");
+  // item que atende com foto: so lixeira, sem arrastar nem 'Mover para'
+  roda(`(function(){ const ex = chkItemExec(__f3.l, __f3.b.id); ex.conforme = "atende"; ex.motivosSelecionados = ["Folgados"]; ex.fotos = [{ foto:"data:image/jpeg;base64,PB" }]; })()`);
+  h = roda(`lclFotosSecaoHtml(__f3.l, ${J(sec1)})`);
+  const blocoB = h.slice(h.indexOf("1.2 · Grampos"));
+  T(blocoB.includes("lcl-fcard") && !blocoB.includes("draggable") && !blocoB.includes("lcl-fsel") && !blocoB.includes("chk-mfoto"), "item que atende (mesmo com motivo marcado antes): so as fotos e a lixeira");
+  roda(`(function(){ const ex = chkItemExec(__f3.l, __f3.b.id); ex.conforme = "naoAtende"; ex.motivosSelecionados = ["Folgados"]; ex.fotos = []; })()`);
+  // foto de motivo desmarcado cai na caixa 'Sem motivo'
+  roda(`chkItemExec(__f3.l, __f3.a.id).motivosSelecionados = ["Corrosao"]`);
+  h = roda(`lclFotosSecaoHtml(__f3.l, ${J(sec1)})`);
+  T(h.includes('<div class="chk-mfoto-t">Sem motivo</div>') && h.includes(`App.lclFotoDrop(event,'${itA}',-1)`) && !h.includes('chk-mfoto-t">Fios rompidos'), "foto de motivo desmarcado aparece em 'Sem motivo'");
+  roda(`chkItemExec(__f3.l, __f3.a.id).motivosSelecionados = ["Corrosao", "Fios rompidos"]`);
+
+  // --- botao "Fotos (n)" so quando a secao tem foto; barra unica no canto da pagina
+  const d = "lclDados(__f3.proj, __f3.setor, __f3.l)";
+  const corpo = roda(`lclBlocosCorpo(${d}, lclPlano(__f3.proj, __f3.l).find(c=>c.id === 'corpo'), (x)=> x)`);
+  T(corpo[0].fotosEd && corpo[0].fotosEd.id === sec1 && corpo[0].fotosEd.n === 2 && corpo[0].alternativa()[0].fotosEd.n === 2, "secao com foto oferece 'Fotos (2)' (tambem no layout alternativo)");
+  T(!corpo[1].fotosEd, "secao sem foto nao oferece o botao de fotos");
+  const doc = roda(`lclMontarDoc([{ blocos:[{ html:"<i>x</i>", editar:{ tipo:"secao", id:"abc", editado:false }, fotosEd:{ id:"abc", n:3 } }] }, { blocos:[{ html:"<i>y</i>", editar:{ tipo:"conclusao", id:"", editado:false } }] }, { blocos:[{ html:"<i>z</i>" }] }], ${d})`);
+  T(doc.includes(`<div class="lcl-edit-bar"><button type="button" class="lcl-edit-btn" onclick="App.lclEditarTexto('secao','abc')">Editar texto</button><button type="button" class="lcl-edit-btn" onclick="App.lclAbrirFotos('abc')">Fotos (3)</button></div><div class="lcl-corpo">`), "uma barra por pagina, com os dois botoes juntos: " + doc.slice(0, 330));
+  T((doc.match(/class="lcl-edit-bar"/g) || []).length === 2, "pagina sem botao nao ganha barra");
+
+  // --- acoes do App
+  roda("setor.linhas.push(__f3.l); STATE.ui.chkLinhaId = __f3.l.id; STATE.ui.chkSetorId = setor.id; STATE.ui.chkProjetoId = proj.id;");
+  const outraAntes = J(roda("setor.linhas[0]"));
+  sandbox.__ultimoOverlayHtml = null;
+  roda(`App.lclAbrirFotos(${J(sec1)})`);
+  T(sandbox.__ultimoOverlayHtml && sandbox.__ultimoOverlayHtml.includes('id="lclFotosCorpo"') && sandbox.__ultimoOverlayHtml.includes('Fotos da seção "Cabo de Aço"') && !sandbox.__ultimoOverlayHtml.includes("foi editado por você") && roda("__lclFotosSec") === sec1, "a janela abre com as fotos da secao");
+  roda(`__f3.l.laudo = { textos:{ ${J(sec1)}: "Texto editado." } }`);
+  sandbox.__ultimoOverlayHtml = null;
+  roda(`App.lclAbrirFotos(${J(sec1)})`);
+  T(sandbox.__ultimoOverlayHtml.includes("foi editado por você"), "texto da secao editado: a janela avisa para conferir os numeros de foto");
+  roda("delete __f3.l.laudo");
+  sandbox.__ultimoOverlayHtml = null;
+  roda(`App.lclAbrirFotos("nao-existe")`);
+  T(sandbox.__ultimoOverlayHtml === null, "secao inexistente nao abre janela");
+  roda(`App.lclAbrirFotos(${J(sec1)})`);
+
+  const fotoA = (i)=> L.itens.find(x=> x.itemId === itA).fotos[i];
+  roda("__lclParaLinha = 'montado'; __lclPaginas = [1]; __lclHtml = 'x';");
+  const antesTempo = L.atualizadoEm;
+  roda(`App.lclFotoMover(${J(itA)}, 0, 0)`); // P1 (Fios rompidos) -> Corrosao
+  T(fotoA(0).motivo === "Corrosao" && roda("__lclParaLinha") === null && roda("__lclPaginas.length") === 0, "mover para outro motivo muda o vinculo e descarta a montagem antiga");
+  T(roda(`chkNarrativaSecao(__f3.l.modeloSnapshot[0], __f3.l).html`).includes("(Fotos 1 e 2)"), "a citacao automatica do texto acompanha: as duas fotos agora sao do mesmo motivo");
+  roda(`App.lclFotoMover(${J(itA)}, 0, -1)`);
+  T(fotoA(0).motivo === "" && L.itens.find(x=> x.itemId === itA).fotos.length === 2, "'Sem motivo' limpa o vinculo e nao apaga a foto");
+  roda(`App.lclFotoMover(${J(itA)}, 9, 0); App.lclFotoMover("nao-existe", 0, 0);`);
+  T(fotoA(0).motivo === "", "foto ou item inexistente: nada muda");
+  // arrastar: so vale dentro do mesmo item
+  const dt = (txt)=> ({ preventDefault(){}, dataTransfer:{ getData: ()=> txt } });
+  roda("App.lclFotoDrop")(dt(itA + "|0"), itA, 1);
+  T(fotoA(0).motivo === "Fios rompidos", "soltar a foto na caixa do 2o motivo (arrastar)");
+  roda(`App.lclFotoMover(${J(itA)}, 0, 9)`);
+  T(fotoA(0).motivo === "Fios rompidos", "motivo inexistente: a foto continua onde estava");
+  roda("App.lclFotoDrop")(dt(itB + "|0"), itA, 0);
+  roda("App.lclFotoDrop")(dt("lixo"), itA, 0);
+  roda("App.lclFotoDrop")(dt(itA + "|x"), itA, 0);
+  T(fotoA(0).motivo === "Fios rompidos", "soltar foto de outro item, ou dado invalido: nada muda");
+  T(roda("(function(){ const e = { dataTransfer:{ setData(k, v){ this.v = v; } } }; App.lclFotoDrag(e, 'i1', 3); return e.dataTransfer.v; })()") === "i1|3", "ao arrastar, a foto se identifica com item e posicao");
+  // excluir: pede confirmacao
+  sandbox.confirm = () => false;
+  roda(`App.lclFotoExcluir(${J(itA)}, 0)`);
+  sandbox.confirm = () => true;
+  T(L.itens.find(x=> x.itemId === itA).fotos.length === 2, "excluir sem confirmar nao apaga");
+  roda(`App.lclFotoExcluir(${J(itA)}, 9); App.lclFotoExcluir("nao-existe", 0);`);
+  T(L.itens.find(x=> x.itemId === itA).fotos.length === 2, "excluir foto inexistente: nada acontece");
+  const depoisIds = L.itens.find(x=> x.itemId === itA).fotos.map(f=> f.foto);
+  roda(`App.lclFotoExcluir(${J(itA)}, 0)`);
+  const restantes = L.itens.find(x=> x.itemId === itA).fotos;
+  T(restantes.length === 1 && restantes[0].foto === depoisIds[1], "excluir confirmado tira so a foto escolhida");
+  T(roda(`chkNarrativaSecao(__f3.l.modeloSnapshot[0], __f3.l).fotos.length`) === 1, "o laudo ja nao tem a foto excluida");
+  T(L.atualizadoEm !== antesTempo, "a linha e marcada como alterada (para sincronizar)");
+  roda("App.lclFecharFotos()");
+  T(roda("__lclFotosSec") === "", "fechar a janela limpa o estado");
+  T(J(roda("setor.linhas[0]")) === outraAntes, "mexer nas fotos de uma linha nao toca em outra linha");
+  roda("setor.linhas.pop(); delete __f3.l.laudo;");
+}
+testarFotoAmpla().then(() => testarTravas()).then(() => testarDadosLaudo()).then(() => testarLaudoCapitulos()).then(() => testarMemorial()).then(() => testarCapitulosNovos()).then(() => testarEdicaoTexto()).then(() => testarFotosLeituraLaudo()).then(() => {
   // as arvores do Completo/Simplificado continuam byte a byte identicas apos a foto ampla tambem
   if(JSON.stringify(sandbox.STATE.projetos) !== antesCompleto || JSON.stringify(sandbox.STATE.projetosSimples) !== antesSimples){
     console.error("FALHOU: a foto ampla da linha mexeu em STATE.projetos/projetosSimples");

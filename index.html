@@ -3283,7 +3283,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "02/10/2026 21:30";
+const APP_BUILD = "03/10/2026 13:38";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -9744,6 +9744,7 @@ function chkFotosDaSecao(secaoModelo, linha){
   const fotos = [];
   const porItem = {};
   const porMotivo = {};
+  const objetos = []; // as mesmas fotos, como objetos {foto, motivo...}, na mesma ordem de `fotos`
   (secaoModelo.itens||[]).forEach(it=>{
     const ie = chkItemExec(linha, it.id);
     const sel = (ie && ie.motivosSelecionados) || [];
@@ -9755,6 +9756,7 @@ function chkFotosDaSecao(secaoModelo, linha){
     todas.forEach(f=>{ if(!ordem.includes(f)) ordem.push(f); });
     ordem.forEach(f=>{
       fotos.push(f.foto);
+      objetos.push(f);
       const n = fotos.length;
       (porItem[it.id] = porItem[it.id] || []).push(n);
       const chave = (f.motivo && sel.includes(f.motivo)) ? f.motivo : "";
@@ -9762,7 +9764,7 @@ function chkFotosDaSecao(secaoModelo, linha){
       (pm[chave] = pm[chave] || []).push(n);
     });
   });
-  return { fotos, porItem, porMotivo };
+  return { fotos, porItem, porMotivo, objetos };
 }
 /* Parágrafo corrido da seção pro laudo — NUNCA guardado, sempre calculado na
    hora a partir do texto padrão de cada item. Item "não atende" fica
@@ -14599,6 +14601,8 @@ let __lclPaginas = [];
 let __lclHtml = "";
 let __lclGerando = false;
 let __lclMetDraft = [];
+let __lclEdit = {};
+let __lclFotosSec = "";
 
 /* Liga/desliga de capítulos, foto da capa, parecer e anexos, guardados na própria
    linha (linha.laudo). Sem nada gravado, todos os capítulos ligados (o que de fato
@@ -14800,11 +14804,76 @@ function lclBlocosMetodologia(d, cap, textos, redu){
   }
   lclMarkup(lclAplicarVariaveis(met.texto, lclVariaveis(d)), met.figuras, redu).forEach(b=> partes.push(b));
   if(!partes.length) return [];
-  partes[0] = Object.assign({}, partes[0], { quebrarAntes:true, ancora:cap.ancora, html: lclFaixa(`${cap.num}  ${cap.rot}`, true) + partes[0].html });
+  partes[0] = Object.assign({}, partes[0], { quebrarAntes:true, ancora:cap.ancora, editar:{ tipo:"metodologia", id:"", editado:false }, html: lclFaixa(`${cap.num}  ${cap.rot}`, true) + partes[0].html });
   return partes;
 }
 
 /* ---------- conclusão: parecer, resultado, ações por prioridade, quadro de não conformidades, ART, data e assinaturas ---------- */
+/* ---------- fotos da seção, na leitura do laudo ---------- */
+/* Conteúdo da janela "Fotos da seção": cada item com foto, e nos itens que não atendem uma caixa por motivo
+   (arrastar a foto para outro motivo, ou escolher em "Mover para") e uma caixa "Sem motivo". O número é o "Foto N" do laudo. */
+function lclFotosSecaoHtml(linha, secaoId){
+  const s = (linha.modeloSnapshot || []).find(x=> x.id === secaoId);
+  if(!s) return "";
+  const num = new Map();
+  chkFotosDaSecao(s, linha).objetos.forEach((f, i)=> num.set(f, i + 1));
+  const alvo = (itemId, mi)=> `ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="this.classList.remove('over');App.lclFotoDrop(event,'${itemId}',${mi})"`;
+  const itensHtml = [];
+  (s.itens || []).forEach((it, ii)=>{
+    const ie = chkItemExec(linha, it.id);
+    const fotos = (ie && ie.fotos) || [];
+    if(!fotos.length) return;
+    const sel = ie.conforme === "naoAtende" ? (ie.motivosSelecionados || []) : [];
+    const cartao = (f, fi)=>{
+      const atual = sel.indexOf(f.motivo);
+      const mover = sel.length
+        ? `<select class="lcl-fsel" aria-label="Mover a foto para outro motivo" onchange="App.lclFotoMover('${it.id}',${fi},parseInt(this.value,10))"><option value="-1" ${atual < 0 ? "selected" : ""}>Sem motivo</option>${sel.map((m, mi)=>`<option value="${mi}" ${atual === mi ? "selected" : ""}>${escapeHtml(m)}</option>`).join("")}</select>`
+        : "";
+      return `<div class="lcl-fcard"${sel.length ? ` draggable="true" ondragstart="App.lclFotoDrag(event,'${it.id}',${fi})"` : ""}><img data-imgref="${imgReg(f.foto)}" alt=""><button class="icon-btn chk-photo-remove" title="Excluir foto" onclick="App.lclFotoExcluir('${it.id}',${fi})">${ic("trash")}</button><div class="lcl-fnum2">Foto ${num.get(f)}</div>${mover}</div>`;
+    };
+    let corpo;
+    if(sel.length){
+      const caixas = sel.map((m, mi)=>{
+        const fs = fotos.map((f, fi)=>[f, fi]).filter(([f])=> f.motivo === m);
+        return `<div class="chk-mfoto" ${alvo(it.id, mi)}><div class="chk-mfoto-t">${escapeHtml(m)}</div><div class="lcl-fgrid">${fs.map(([f, fi])=> cartao(f, fi)).join("") || `<span class="lcl-dica">Solte uma foto aqui.</span>`}</div></div>`;
+      }).join("");
+      const soltas = fotos.map((f, fi)=>[f, fi]).filter(([f])=> !(f.motivo && sel.includes(f.motivo)));
+      const caixaSolta = soltas.length ? `<div class="chk-mfoto solta" ${alvo(it.id, -1)}><div class="chk-mfoto-t">Sem motivo</div><div class="lcl-fgrid">${soltas.map(([f, fi])=> cartao(f, fi)).join("")}</div></div>` : "";
+      corpo = `<div class="chk-mfotos">${caixas}${caixaSolta}</div>`;
+    }else{
+      corpo = `<div class="lcl-fgrid">${fotos.map((f, fi)=> cartao(f, fi)).join("")}</div>`;
+    }
+    itensHtml.push(`<div class="lcl-fitem"><div class="lcl-fitem-t">${lclNumItem(linha, s, ii)} · ${escapeHtml(it.descricao || "Item")}</div>${corpo}</div>`);
+  });
+  return itensHtml.length ? itensHtml.join("") : `<div class="lcl-dica">Nenhuma foto nesta seção.</div>`;
+}
+/* "6.2": número da seção no checklist . número do item (o mesmo do quadro de não conformidades). */
+function lclNumItem(linha, secao, itemIdx){
+  return `${(linha.modeloSnapshot || []).indexOf(secao) + 1}.${itemIdx + 1}`;
+}
+
+/* ---------- texto editado na leitura do laudo ---------- */
+/* Texto que o engenheiro escreveu por cima do automático, guardado em linha.laudo.textos[id da seção].
+   Em branco = não há edição (vale o automático). */
+function lclTextoEditado(linha, id){
+  const t = linha && linha.laudo && linha.laudo.textos ? linha.laudo.textos[id] : null;
+  return typeof t === "string" && t.trim() ? t : null;
+}
+/* Narrativa automática (HTML) → texto simples para editar: o trecho destacado das não conformidades vira **assim**. */
+function lclHtmlParaTexto(html){
+  return String(html || "").replace(/<mark class="nc">([\s\S]*?)<\/mark>/g, "**$1**").replace(/<[^>]+>/g, "")
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
+}
+/* Texto editado → HTML do laudo: parágrafos separados por linha em branco, **trecho** destacado, tudo escapado. */
+function lclTextoParaHtml(texto){
+  return String(texto || "").split(/\n{2,}/).map(p=> p.trim()).filter(Boolean)
+    .map(p=>`<p>${lclEsc(p).replace(/\*\*([^*]+?)\*\*/g, '<mark class="nc">$1</mark>').replace(/\n/g, "<br>")}</p>`).join("");
+}
+/* Texto automático da conclusão (simples), usado quando não há conclusão escrita pelo engenheiro. */
+function lclConclusaoAuto(linha){
+  const res = lclResultado(linha), pk = lclParecer(linha), par = pk ? LCL_PARECERES[pk] : null;
+  return `Foram avaliados ${res.avaliados} itens da linha de vida ${linha.nome || ""}: ${res.ok} atendem e ${res.nok} não atendem${res.na ? `; ${res.na} não se aplicam` : ""}.${par ? " " + par.frase : ""}`;
+}
 function lclBlocosConclusao(d, cap, assinaturaSrc, redu){
   redu = redu || (()=> "");
   const { proj, linha: l, mc } = d;
@@ -14812,9 +14881,10 @@ function lclBlocosConclusao(d, cap, assinaturaSrc, redu){
   const ncs = lclNaoConformidades(l);
   const pk = lclParecer(l), par = pk ? LCL_PARECERES[pk] : null;
   const selo = par ? `<span class="lcl-selo ${par.cls}">PARECER: ${par.rot}</span>` : `<span class="lcl-selo">SEM ITENS AVALIADOS</span>`;
-  const texto = String(l.conclusaoTexto || "").trim()
+  const manual = String(l.conclusaoTexto || "").trim() !== "";
+  const texto = manual
     ? lclParagrafos(l.conclusaoTexto).join("")
-    : `<p class="lcl-par">Foram avaliados ${res.avaliados} itens da linha de vida ${lclEsc(l.nome || "")}: ${res.ok} atendem e ${res.nok} não atendem${res.na ? `; ${res.na} não se aplicam` : ""}.${par ? " " + lclEsc(par.frase) : ""}</p>`;
+    : `<p class="lcl-par">${lclEsc(lclConclusaoAuto(l))}</p>`;
   const contagem = { critica:0, alta:0, media:0 };
   ncs.forEach(x=>{ contagem[x.prioridade]++; });
   const maior = Math.max(1, contagem.critica, contagem.alta, contagem.media);
@@ -14824,7 +14894,7 @@ function lclBlocosConclusao(d, cap, assinaturaSrc, redu){
   const prox = lclProximaInspecao(proj);
   const hojeExt = chkDataExtenso(hoje());
   const img = lclTemFoto(assinaturaSrc) ? `<img src="${assinaturaSrc}" alt="">` : "";
-  const blocos = [{ quebrarAntes:true, ancora:cap.ancora, html:`${lclFaixa(`${cap.num}  ${cap.rot}`, true)}
+  const blocos = [{ quebrarAntes:true, ancora:cap.ancora, editar:{ tipo:"conclusao", id:"", editado:manual }, html:`${lclFaixa(`${cap.num}  ${cap.rot}`, true)}
     <div class="lcl-kc">${lclDonut([res.ok, res.nok, res.na], [LCL_COR.ok, LCL_COR.nok, LCL_COR.na], 6.6, `<b>${res.pct}%</b><small>conforme</small>`)}<div><div class="lcl-selos">${selo}</div><div class="lcl-kc-t">${res.ok} atendem · ${res.nok} não atendem · ${res.na} não se aplicam</div></div><div class="lcl-pri"><h4>Ações recomendadas por prioridade</h4>${barras}</div></div>
     ${texto}` }];
   if(ncs.length){
@@ -15015,17 +15085,19 @@ function lclBlocosPagina2(d, textos){
       ${lclFaixa("Dados do Solicitante")}<div class="lcl-campos">${sol}</div>
       <div class="lcl-campos" style="grid-template-columns:1fr">${proj.solicitanteEndereco ? `<div class="lcl-campo"><i>Endereço:</i><b>${lclEsc(proj.solicitanteEndereco)}</b></div>` : ""}</div>
       ${lclFaixa("Dados do Responsável")}<div class="lcl-campos">${resp}</div>` },
-    { ancora:"cap-normativo", html:`${lclFaixa("Normativo")}${intro}${lista}` },
+    { ancora:"cap-normativo", editar:{ tipo:"normativo", id:"", editado:false }, html:`${lclFaixa("Normativo")}${intro}${lista}` },
   ];
 }
 
 /* ---------- sumário (com número de página real, preenchido numa 2ª passada) ---------- */
 function lclBlocosSumario(caps, mapa){
   const pg = (a)=> (mapa && mapa[a] != null) ? mapa[a] : "00";
-  const linhas = [`<div class="lcl-sl c">Normativo<i></i>${pg("cap-normativo")}</div>`];
+  // Cada linha é um link para a página: na prévia rola até ela, e no PDF vira link interno (clique pula para a página).
+  const lk = (ancora, cls, txt)=> `<a class="lcl-sl ${cls}" href="#lcl-a-${ancora}" onclick="return App.lclIrPara(event)">${txt}<i></i>${pg(ancora)}</a>`;
+  const linhas = [lk("cap-normativo", "c", "Normativo")];
   caps.forEach(c=>{
-    linhas.push(`<div class="lcl-sl c">${c.num}  ${lclEsc(c.rot)}<i></i>${pg(c.ancora)}</div>`);
-    c.subs.forEach(s=> linhas.push(`<div class="lcl-sl s">${s.num}  ${lclEsc(s.titulo)}<i></i>${pg(s.ancora)}</div>`));
+    linhas.push(lk(c.ancora, "c", `${c.num}  ${lclEsc(c.rot)}`));
+    c.subs.forEach(s=> linhas.push(lk(s.ancora, "s", `${s.num}  ${lclEsc(s.titulo)}`)));
   });
   const blocos = [];
   const POR_BLOCO = 28;
@@ -15041,7 +15113,7 @@ function lclBlocosChecklist(d, cap, capCorpo){
   const l = d.linha;
   const res = lclResultado(l);
   const refCorpo = {};
-  if(capCorpo) capCorpo.subs.forEach(s=>{ refCorpo[s.id] = s.num; });
+  if(capCorpo) capCorpo.subs.forEach(s=>{ refCorpo[s.id] = s; });
   const legenda = `<div class="lcl-lgd"><span><i style="background:${LCL_COR.ok}"></i><b>${res.ok}</b> atendem</span><span><i style="background:${LCL_COR.nok}"></i><b>${res.nok}</b> não atendem</span><span><i style="background:${LCL_COR.na}"></i><b>${res.na}</b> não se aplicam</span>${res.pend ? `<span><i style="background:#E7A93B"></i><b>${res.pend}</b> sem resposta</span>` : ""}</div>`;
   const texto = res.avaliados
     ? `${res.ok} dos ${res.avaliados} itens avaliados atendem. Itens que não se aplicam não entram no percentual.`
@@ -15057,7 +15129,7 @@ function lclBlocosChecklist(d, cap, capCorpo){
       const cls = st === "atende" ? "ok" : st === "naoAtende" ? "nok" : st === "na" ? "na" : "pend";
       if(cls === "ok") ok++; else if(cls === "nok") nok++; else if(cls === "na") na++;
       const icone = cls === "ok" ? "✓" : cls === "nok" ? "✗" : cls === "na" ? "–" : "?";
-      const ver = (cls === "nok" && refCorpo[s.id]) ? `<span class="lcl-rver">ver ${refCorpo[s.id]}</span>` : "";
+      const ver = (cls === "nok" && refCorpo[s.id]) ? `<a class="lcl-rver" href="#lcl-a-${refCorpo[s.id].ancora}" onclick="return App.lclIrPara(event)">ver ${refCorpo[s.id].num}</a>` : "";
       return `<div class="lcl-rw${cls === "na" ? " na" : ""}"><span class="lcl-ic ${cls}">${icone}</span><span class="lcl-rn">${si+1}.${ii+1}</span><span class="lcl-rt">${lclEsc(it.descricao)}</span>${ver}${it.normativo ? `<span class="lcl-rnorma">${lclEsc(it.normativo)}</span>` : ""}</div>`;
     }).join("");
     const resumo = `${ok} OK · ${nok} NÃO OK${na ? " · " + na + " N/A" : ""}`;
@@ -15078,14 +15150,17 @@ function lclBlocosCorpo(d, cap, redu){
     const topo = (i === 0 ? lclFaixa(`${cap.num}  ${cap.rot}`, true) : "")
       + `<div class="lcl-h3">${sub.num}  ${lclEsc(sub.titulo)}</div>`
       + (s.contexto ? `<div class="lcl-ctx"><b>Como deve estar:</b> ${lclEsc(s.contexto)}</div>` : "");
-    const texto = narr || `<p class="lcl-vazio">Nenhum item desta seção foi respondido ainda.</p>`;
+    const editado = lclTextoEditado(l, sub.id);
+    const texto = editado !== null ? lclTextoParaHtml(editado) : (narr || `<p class="lcl-vazio">Nenhum item desta seção foi respondido ainda.</p>`);
+    const editar = { tipo:"secao", id:sub.id, editado: editado !== null };
+    const fotosEd = fotos.length ? { id:sub.id, n:fotos.length } : null;
     const dupla = `${topo}<div class="lcl-sec-grid"><div class="lcl-narr">${texto}</div>${imgs.length ? `<div class="lcl-fotos-col">${imgs.map(x=>`<div class="lcl-fcol"><img src="${x.src}" alt=""><div class="lcl-fnum">Foto ${x.n}</div></div>`).join("")}</div>` : ""}</div>`;
-    const bloco = { quebrarAntes:true, ancora: sub.ancora, html: dupla };
+    const bloco = { quebrarAntes:true, ancora: sub.ancora, editar, fotosEd, html: dupla };
     if(i === 0) bloco.ancoraExtra = cap.ancora;
     // Seção com muitas fotos não cabe numa folha em duas colunas: o texto fica
     // inteiro e as fotos descem em fileiras de 3, uma fileira por bloco.
     bloco.alternativa = ()=>{
-      const out = [{ quebrarAntes:true, ancora: sub.ancora, ancoraExtra: i === 0 ? cap.ancora : undefined, grudaNoProximo: imgs.length > 0, html: `${topo}<div class="lcl-narr lcl-larga">${texto}</div>` }];
+      const out = [{ quebrarAntes:true, ancora: sub.ancora, editar, fotosEd, ancoraExtra: i === 0 ? cap.ancora : undefined, grudaNoProximo: imgs.length > 0, html: `${topo}<div class="lcl-narr lcl-larga">${texto}</div>` }];
       for(let k = 0; k < imgs.length; k += 3){
         out.push({ html: `<div class="lcl-fgrade">${imgs.slice(k, k + 3).map(x=>`<div class="lcl-fcol"><img src="${x.src}" alt=""><div class="lcl-fnum">Foto ${x.n}</div></div>`).join("")}</div>` });
       }
@@ -15145,7 +15220,19 @@ function lclRodapeHtml(d, n, total){
   return `<div class="lcl-rodape"><div class="lcl-num">Página ${n} de ${total}</div><div class="lcl-marca">${lclMarca("")}</div><div class="lcl-eng">${lclEsc(lclRodapeTexto(d))}</div></div>`;
 }
 function lclMontarDoc(paginas, d){
-  return paginas.map((p, i)=> `<div class="lcl-pagina${p.semMargem ? " lcl-sem-margem" : ""}"><div class="lcl-corpo">${p.blocos.map(b=>b.html).join("")}</div>${p.semRodape ? "" : lclRodapeHtml(d, i + 1, paginas.length)}</div>`).join("");
+  const usadas = new Set();
+  const alvos = (b)=>{
+    let h = "";
+    [b.ancora, b.ancoraExtra].forEach(a=>{
+      if(a && !usadas.has(a)){ usadas.add(a); h += `<span class="lcl-alvo" id="lcl-a-${a}"></span>`; }
+    });
+    return h;
+  };
+  // Botão de editar o texto do bloco: só existe na tela (some na impressão) e fica no canto da página, sem ocupar espaço do texto.
+  const botoes = (b)=> (b.editar ? `<button type="button" class="lcl-edit-btn${b.editar.editado ? " ed" : ""}" onclick="App.lclEditarTexto('${b.editar.tipo}','${b.editar.id}')">${b.editar.editado ? "Texto editado · editar" : "Editar texto"}</button>` : "")
+    + (b.fotosEd ? `<button type="button" class="lcl-edit-btn" onclick="App.lclAbrirFotos('${b.fotosEd.id}')">Fotos (${b.fotosEd.n})</button>` : "");
+  const barra = (p)=>{ const h = p.blocos.map(botoes).join(""); return h ? `<div class="lcl-edit-bar">${h}</div>` : ""; };
+  return paginas.map((p, i)=> `<div class="lcl-pagina${p.semMargem ? " lcl-sem-margem" : ""}">${barra(p)}<div class="lcl-corpo">${p.blocos.map(b=> alvos(b) + b.html).join("")}</div>${p.semRodape ? "" : lclRodapeHtml(d, i + 1, paginas.length)}</div>`).join("");
 }
 
 /* ---------- CSS do laudo em capítulos (injetado ao carregar, igual ao módulo NR-12) ---------- */
@@ -15157,6 +15244,15 @@ const LCL_CSS = `
 .lcl-figrow{display:grid;grid-template-columns:64px 1fr auto;gap:10px;align-items:center;margin:6px 0}
 .lcl-figrow img{width:64px;height:48px;object-fit:cover;border-radius:6px;background:var(--bg-soft)}
 .lcl-figrow input{width:100%;font-size:13px;padding:6px 8px;border:1px solid var(--line-strong);border-radius:6px;background:var(--surface);color:var(--ink)}
+.lcl-fitem{margin:0 0 14px}
+.lcl-fitem-t{font-size:12.5px;font-weight:800;color:var(--ink);margin-bottom:6px}
+.lcl-fgrid{display:flex;gap:12px;flex-wrap:wrap}
+.lcl-fcard{position:relative;width:104px}
+.lcl-fcard[draggable="true"]{cursor:grab}
+.lcl-fcard img{display:block;width:104px;height:78px;object-fit:cover;border-radius:8px;background:var(--bg-soft)}
+.lcl-fcard .chk-photo-remove{position:absolute;top:-6px;right:-6px}
+.lcl-fnum2{font-size:10.5px;font-weight:800;color:var(--ink-dim);margin-top:3px}
+.lcl-fsel{width:104px;font-size:11px;margin-top:3px;padding:3px;border:1px solid var(--line-strong);border-radius:6px;background:var(--surface);color:var(--ink)}
 .lcl-barra{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
 .lcl-status{font-size:12px;color:var(--ink-dim);font-weight:700}
 .lcl-caps{display:flex;gap:8px 14px;flex-wrap:wrap;align-items:center;margin:0 0 10px;font-size:13px}
@@ -15244,7 +15340,11 @@ const LCL_CSS = `
 .lcl-rn{color:#8a8fa8;font-variant-numeric:tabular-nums;min-width:24px}
 .lcl-rt{flex:1;min-width:0}
 .lcl-rnorma{font:600 9px ui-monospace,Consolas,monospace;color:#6b719a;background:#eef0f6;border-radius:4px;padding:2px 6px;white-space:nowrap;align-self:flex-start}
-.lcl-rver{font-size:9.5px;color:#E94E1B;font-weight:700;white-space:nowrap;align-self:flex-start}
+.lcl-rver{font-size:9.5px;color:#E94E1B;font-weight:700;white-space:nowrap;align-self:flex-start;text-decoration:none;cursor:pointer}
+.lcl-rver:hover{text-decoration:underline}
+a.lcl-sl{text-decoration:none;cursor:pointer}
+a.lcl-sl:hover i{border-bottom-color:#E94E1B}
+.lcl-alvo{display:block;height:0;overflow:hidden}
 /* corpo do laudo */
 .lcl-h3{font-size:16px;font-weight:800;color:#1E2148;margin:6px 0 8px}
 .lcl-ctx{background:#eef0f6;border-left:4px solid #E94E1B;padding:7px 11px;color:#444;margin-bottom:10px;font-size:12px}
@@ -15319,6 +15419,11 @@ const LCL_CSS = `
 .lcl-tz td.v{text-align:right;white-space:nowrap}
 .lcl-anexo{text-align:center}
 .lcl-anexo img{max-width:100%;max-height:${LCL_MAX_A - 90}px;object-fit:contain}
+.lcl-narr p{margin:0 0 8px}
+.lcl-edit-bar{position:absolute;right:10px;top:8px;z-index:3;display:flex;gap:6px}
+.lcl-edit-btn{font:700 10.5px Arial,Helvetica,sans-serif;color:#1E2148;background:#fff;border:1px solid #c9ccdc;border-radius:99px;padding:4px 11px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.15)}
+.lcl-edit-btn:hover{border-color:#E94E1B;color:#E94E1B}
+.lcl-edit-btn.ed{background:#fff3dc;border-color:#e0a030;color:#8a5a00}
 /* impressão */
 @page{size:A4 portrait;margin:0}
 @media print{
@@ -15326,6 +15431,7 @@ const LCL_CSS = `
   body.lcl-imprimindo > #lclPrintRoot{display:block !important}
   #lclPrintRoot .lcl-pagina{box-shadow:none !important;margin:0 !important;break-after:page;page-break-after:always}
   #lclPrintRoot .lcl-pagina:last-child{break-after:auto;page-break-after:auto}
+  .lcl-edit-bar{display:none !important}
 }`;
 (function(){
   const st = document.createElement("style");
@@ -28861,6 +28967,16 @@ Devolver agora?`)) return;
     __lclPaginas = []; __lclHtml = ""; __lclParaLinha = null;
     go("checklist-laudo-linha");
   },
+  // Clique em "ver 3.1" / linha do sumário: rola a prévia até a página (não mexe no endereço do app).
+  lclIrPara(ev){
+    if(ev && typeof ev.preventDefault === "function") ev.preventDefault();
+    const a = ev && ev.currentTarget;
+    const id = a && a.getAttribute ? String(a.getAttribute("href") || "").replace(/^#/, "") : "";
+    const alvo = id ? document.getElementById(id) : null;
+    const pag = alvo && alvo.closest ? alvo.closest(".lcl-pagina") : null;
+    if(pag) pag.scrollIntoView({ block:"start" }); // sem animação: o laudo tem dezenas de páginas e a rolagem suave demora
+    return false;
+  },
   lclZoom(dir){
     const passos = [0.3,0.4,0.5,0.65,0.8,1,1.25,1.5,2];
     let i = passos.indexOf(STATE.ui.lclZoom || (window.innerWidth < 700 ? 0.4 : 0.8));
@@ -28888,6 +29004,126 @@ Devolver agora?`)) return;
     l.atualizadoEm = agoraSync();
     marcarAlterado();
     __lclPaginas = []; __lclHtml = ""; __lclParaLinha = null;
+    render();
+  },
+  /* ---------- editar o texto do laudo durante a leitura ---------- */
+  // Seção do corpo: o texto editado fica em linha.laudo.textos (só desta linha) e passa a valer no lugar do automático.
+  // Conclusão: usa o mesmo campo da tela Finalizar (linha.conclusaoTexto). Metodologia e Normativo abrem os editores que já existem.
+  lclEditarTexto(tipo, id){
+    const l = getCurrentChkLinha(); if(!l) return;
+    if(tipo === "metodologia"){ App.lclAbrirMetodologia(); return; }
+    if(tipo === "normativo"){ App.lclAbrirTextos(); return; }
+    let titulo, atual, auto, editado, dica;
+    if(tipo === "secao"){
+      const sec = (l.modeloSnapshot || []).find(x=> x.id === id); if(!sec) return;
+      auto = lclHtmlParaTexto(chkNarrativaSecao(sec, l).html);
+      const ed = lclTextoEditado(l, id);
+      atual = ed !== null ? ed : auto; editado = ed !== null;
+      titulo = 'Texto da seção "' + (sec.titulo || "Seção") + '"';
+      dica = "Use <b>**assim**</b> para destacar um trecho (azul e em negrito, como as não conformidades). Os números de foto, como (Foto 2), fazem parte do texto: ajuste se mudar as fotos. Linha em branco separa parágrafos. Depois de editado, o texto deixa de acompanhar mudanças no checklist.";
+    }else if(tipo === "conclusao"){
+      auto = lclConclusaoAuto(l);
+      const man = String(l.conclusaoTexto || "").trim() !== "";
+      atual = man ? l.conclusaoTexto : auto; editado = man;
+      titulo = "Texto da conclusão";
+      dica = "O parecer, o resultado e o quadro de não conformidades continuam automáticos; aqui só muda o parágrafo. Linha em branco separa parágrafos.";
+    }else return;
+    __lclEdit = { tipo, id, auto };
+    abrirOverlay(`<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card" style="max-width:680px;width:calc(100vw - 32px);max-height:92vh;overflow:auto">
+      <h3>${ic('edit')} ${escapeHtml(titulo)}</h3>
+      <p class="sheet-sub">${editado ? "Este texto foi editado por você." : "Texto automático: ao salvar com alterações, ele passa a ser seu."} Em branco volta ao automático.</p>
+      <div class="field"><textarea id="lclEditTexto" rows="14" style="font-size:14px;line-height:1.55">${escapeHtml(atual)}</textarea></div>
+      <div class="lcl-dica" style="margin:-4px 0 12px">${dica}</div>
+      <div class="modal-actions">
+        ${editado ? `<button class="btn btn-secondary" onclick="App.lclRestaurarTextoEditado()">Voltar ao automático</button>` : ""}
+        <button class="btn btn-secondary" onclick="App.fecharModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="App.lclSalvarTextoEditado()">Salvar</button>
+      </div></div></div>`);
+  },
+  lclGravarTextoEditado(valor){
+    const l = getCurrentChkLinha(); if(!l) return;
+    const { tipo, id } = __lclEdit;
+    if(tipo === "secao"){
+      if(!l.laudo) l.laudo = {};
+      if(!l.laudo.textos || typeof l.laudo.textos !== "object") l.laudo.textos = {};
+      if(valor === null) delete l.laudo.textos[id]; else l.laudo.textos[id] = valor;
+    }else if(tipo === "conclusao"){
+      l.conclusaoTexto = valor === null ? "" : valor;
+    }else return;
+    l.atualizadoEm = agoraSync();
+    marcarAlterado();
+    App.fecharModal();
+    __lclEdit = {};
+    __lclPaginas = []; __lclHtml = ""; __lclParaLinha = null;
+    render();
+  },
+  // Texto igual ao automático (ou em branco) não vira "edição": continua acompanhando o checklist.
+  lclSalvarTextoEditado(){
+    const ta = document.getElementById("lclEditTexto"); if(!ta) return;
+    const v = String(ta.value || "");
+    const norm = (t)=> String(t || "").replace(/\s+/g, " ").trim();
+    App.lclGravarTextoEditado(!v.trim() || norm(v) === norm(__lclEdit.auto) ? null : v);
+  },
+  lclRestaurarTextoEditado(){
+    if(!confirm("Voltar ao texto automático? O texto que você editou será descartado.")) return;
+    App.lclGravarTextoEditado(null);
+  },
+  /* ---------- fotos da seção, na leitura do laudo ---------- */
+  // Mover a foto para outro motivo muda a citação "(Foto N)" do texto automático; excluir tira a foto do checklist e do laudo.
+  lclAbrirFotos(secaoId){
+    const l = getCurrentChkLinha(); if(!l) return;
+    const sec = (l.modeloSnapshot || []).find(x=> x.id === secaoId); if(!sec) return;
+    __lclFotosSec = secaoId;
+    const aviso = lclTextoEditado(l, secaoId) !== null ? `<div class="lcl-dica" style="margin:0 0 10px;color:#8a5a00">O texto desta seção foi editado por você: ao mover ou excluir fotos, confira os números de foto citados nele.</div>` : "";
+    abrirOverlay(`<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.lclFecharFotos()"><div class="modal-card" style="max-width:780px;width:calc(100vw - 32px);max-height:92vh;overflow:auto">
+      <h3>${ic('gallery')} Fotos da seção "${escapeHtml(sec.titulo || "Seção")}"</h3>
+      <p class="sheet-sub">Arraste a foto para outro motivo ou use "Mover para". O número é o da foto no laudo. Excluir tira a foto do checklist e do laudo.</p>
+      ${aviso}
+      <div id="lclFotosCorpo">${lclFotosSecaoHtml(l, secaoId)}</div>
+      <div class="modal-actions"><button class="btn btn-primary" onclick="App.lclFecharFotos()">Concluir</button></div></div></div>`);
+    hidratarImagens();
+  },
+  lclFotosRedesenhar(){
+    const l = getCurrentChkLinha(); const el = document.getElementById("lclFotosCorpo");
+    if(l && el){ el.innerHTML = lclFotosSecaoHtml(l, __lclFotosSec); hidratarImagens(); }
+  },
+  lclFotoMudou(l){
+    l.atualizadoEm = agoraSync();
+    marcarAlterado();
+    __lclPaginas = []; __lclHtml = ""; __lclParaLinha = null; // o laudo é remontado quando a janela fecha
+    App.lclFotosRedesenhar();
+  },
+  // mi = posição do motivo em motivosSelecionados; -1 = sem motivo.
+  lclFotoMover(itemId, idx, mi){
+    const l = getCurrentChkLinha(); if(!l) return;
+    const ie = chkItemExec(l, itemId); if(!ie || !ie.fotos || !ie.fotos[idx]) return;
+    const m = mi >= 0 ? (ie.motivosSelecionados || [])[mi] : "";
+    if(mi >= 0 && typeof m !== "string") return;
+    ie.fotos[idx].motivo = m || "";
+    App.lclFotoMudou(l);
+  },
+  lclFotoDrag(ev, itemId, idx){
+    try{ ev.dataTransfer.setData("text/plain", itemId + "|" + idx); ev.dataTransfer.effectAllowed = "move"; }catch(e){}
+  },
+  // Só aceita soltar a foto num motivo do MESMO item (a foto não muda de item).
+  lclFotoDrop(ev, itemId, mi){
+    ev.preventDefault();
+    let dado = "";
+    try{ dado = String(ev.dataTransfer.getData("text/plain") || ""); }catch(e){}
+    const [id, n] = dado.split("|");
+    const idx = parseInt(n, 10);
+    if(id === itemId && idx >= 0) App.lclFotoMover(itemId, idx, mi);
+  },
+  lclFotoExcluir(itemId, idx){
+    const l = getCurrentChkLinha(); if(!l) return;
+    const ie = chkItemExec(l, itemId); if(!ie || !ie.fotos || !ie.fotos[idx]) return;
+    if(!confirm("Excluir esta foto? Ela sai do checklist e do laudo, e não dá para desfazer.")) return;
+    ie.fotos.splice(idx, 1);
+    App.lclFotoMudou(l);
+  },
+  lclFecharFotos(){
+    App.fecharModal();
+    __lclFotosSec = "";
     render();
   },
   lclSetParecer(v){
@@ -29079,6 +29315,11 @@ Devolver agora?`)) return;
     const raiz = document.createElement("div");
     raiz.id = "lclPrintRoot";
     raiz.innerHTML = doc.innerHTML;
+    // A prévia segue na tela com os mesmos ids: a cópia de impressão usa outro prefixo (nos destinos e nos links)
+    // para o PDF ligar cada link à página certa, e não ao destino escondido da prévia.
+    raiz.querySelectorAll(".lcl-edit-bar").forEach(b=> b.remove());
+    raiz.querySelectorAll("[id^='lcl-a-']").forEach(e=>{ e.id = "imp-" + e.id; });
+    raiz.querySelectorAll("a[href^='#lcl-a-']").forEach(a=>{ a.setAttribute("href", "#imp-" + a.getAttribute("href").slice(1)); });
     document.body.appendChild(raiz);
     document.body.classList.add("lcl-imprimindo");
     const tituloAntigo = document.title;

@@ -64,6 +64,32 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 03/10/2026 13:38
+
+**Laudo da linha em capítulos: texto e fotos editáveis durante a leitura, e “ver 3.1” e Sumário clicáveis (na prévia e no PDF).**
+
+Editar o texto do laudo (botão **“Editar texto”** no canto de cada página, só na tela — não sai no PDF):
+
+- **Corpo do laudo:** em cada seção, o botão abre o texto dela. O texto automático aparece para você ajustar; o trecho destacado das não conformidades vem entre `**asteriscos**` e você pode destacar outros do mesmo jeito. Linha em branco separa parágrafos. As fotos continuam ao lado do texto.
+- **Conclusão:** edita o parágrafo da conclusão (o mesmo campo “Conclusão da linha” da tela Finalizar). O parecer, o resultado e o quadro de não conformidades continuam automáticos.
+- **Metodologia e Normativo:** o botão abre os editores que já existiam.
+- O texto editado vale **só para aquela linha de vida**. O botão fica âmbar (“Texto editado · editar”) e o editor tem **“Voltar ao automático”** (pede confirmação). Salvar em branco, ou com o mesmo texto do automático, também volta ao automático.
+- Atenção: depois de editado, o texto da seção **deixa de acompanhar** mudanças no checklist (motivos, fotos, notas). Os números de foto, como “(Foto 2)”, são parte do texto: ajuste à mão se mudar as fotos.
+
+Fotos da seção (botão **“Fotos (n)”**, ao lado do “Editar texto”, nas seções que têm foto):
+
+- Abre uma janela com as fotos da seção, com o **número que elas têm no laudo** (“Foto 1”, “Foto 2”…). Nos itens que não atendem há uma caixa por motivo: **arraste a foto** para outro motivo, ou escolha em **“Mover para”**. A foto de um motivo desmarcado fica em “Sem motivo”.
+- Mudar a foto de motivo atualiza sozinho as citações “(Foto 2)” do texto automático da seção. Se o texto da seção foi editado por você, a janela avisa para conferir os números de foto nele.
+- A **lixeira** exclui a foto do checklist e do laudo, com confirmação (não dá para desfazer). Ao concluir, o laudo é montado de novo.
+- Cada linha de vida tem as suas fotos: mexer nas de uma não altera as outras.
+
+Links:
+
+- No **Checklist** do laudo, o “ver 3.1” dos itens que não atendem leva direto à página da seção. As linhas do **Sumário** também são links.
+- Na prévia o clique rola até a página (sem mudar o endereço do app). No **PDF** os links ficam ativos: conferido gerando o PDF de um laudo de 19 páginas e abrindo os 19 links, todos caem na página certa.
+
+Ainda pendente: a Metodologia em Word (baixar, editar e enviar de volta).
+
 ## 02/10/2026 21:30
 
 **Checklist: laudo da linha de vida em capítulos — fotos por motivo, Memorial da zona livre de queda, Metodologia, Conclusão com parecer e quadro de ações, Anexos; e ajustes no editor do modelo.**
