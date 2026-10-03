@@ -64,6 +64,48 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 02/10/2026 21:30
+
+**Checklist: laudo da linha de vida em capítulos — fotos por motivo, Memorial da zona livre de queda, Metodologia, Conclusão com parecer e quadro de ações, Anexos; e ajustes no editor do modelo.**
+
+Em campo:
+
+- **Fotos por motivo.** No item que **não atende**, cada motivo marcado ganha a sua caixa de fotos, com câmera e galeria. Dá para **arrastar** a foto de um motivo para outro (ou para “Sem motivo”) ou usar o menu **⋮** da foto. Motivo desmarcado não apaga a foto: ela passa para “Sem motivo”.
+- **Aba “Memorial ZLQ”** no preenchimento, só nas linhas **horizontais** (o tipo vem do modelo do checklist). Medidas digitadas (altura da ancoragem, altura da posição de trabalho, vão, flecha em cm, diâmetro do cabo, número de usuários), desenho com os valores e **resultado na hora** (trava-quedas e talabarte: pode / não pode). Os parâmetros de cálculo (peso, ruptura do cabo etc.) têm valor padrão e podem ser trocados. O botão **“Esta linha não terá memorial”** tira o capítulo do laudo sem apagar as medidas; a tela de revisão avisa quando o memorial está incompleto.
+
+No modelo do checklist:
+
+- Cada **item** tem **prioridade** (Crítica, Alta ou Média; o modelo padrão já vem com uma sugestão por seção para você ajustar) e cada **motivo** tem **ação recomendada**. O modelo tem o **tipo de linha de vida**.
+- **Contexto da seção** agora vai na planilha (.xlsx) de exportar e importar, na coluna “Contexto da Seção” (só na 1ª linha de cada seção), junto com Prioridade e Ação Recomendada. Planilhas antigas continuam entrando.
+- Cores do editor: o bloco **Contexto da seção** ficou **lilás** e o **Texto padrão para “Atende”** ficou em **verde claro**.
+
+No laudo da linha (tela Finalizar → “Laudo da linha em capítulos”):
+
+- **Corpo do laudo:** cada motivo cita as **suas fotos** no texto — “(Foto 2)”, “(Fotos 2 e 3)” —, numeradas na ordem dos motivos.
+- **Metodologia:** texto único para os três tipos de linha, com **variáveis** (nome da linha, tipo, empresa, data, seções do checklist, normas…), subtítulos, listas, tabelas e **figuras**. Editável no botão “Metodologia”, com “Texto padrão” para voltar ao original. O texto padrão é um rascunho para você revisar.
+- **Memorial de Cálculo — Zona Livre de Queda:** cartões “PODE USAR / NÃO USAR” (talabarte e trava-quedas), ilustração com legenda numerada, condições de uso, premissas e parecer; mais uma página opcional de **memória de cálculo** com as fórmulas em notação matemática, já com os números substituídos, e as tabelas de entrada e resultado. Cabo flexível e viga rígida. O cálculo bate com o memorial de referência (flecha dinâmica 660,9 mm, força no cabo 1550 kgf, ZLQ 4,66 m e 5,56 m). Você escolhe o EPI da ilustração e se entra a página da memória de cálculo.
+- **Conclusão:** **parecer** (INAPTA quando um item crítico não atende; APTA COM RESSALVAS quando só há itens de prioridade alta ou média; APTA quando tudo atende; dá para escolher outro no seletor “Parecer”), anel de itens atendidos, **barras das ações por prioridade** e **quadro de não conformidades** com a imagem do item, a prioridade e a ação recomendada. Depois: próxima inspeção, ART e, numa linha abaixo, cidade e data, e as assinaturas.
+- **Anexos:** capítulo opcional, uma imagem por página (ART, certificados, fichas), com legenda. Só aparece quando há imagem.
+- O Sumário passa a listar o Memorial e os Anexos com o número de página real.
+
+Ainda **pendente** (não faz parte desta versão): “ver 3.1” clicável no PDF, editar o laudo durante a leitura (arrastar foto, editar texto) e importar/exportar a Metodologia em Word.
+
+## 02/10/2026 16:34
+
+**Checklist: novo laudo da linha de vida em capítulos, com páginas A4 numeradas — primeira etapa (base do laudo).**
+
+Na tela **Finalizar** da linha, o botão **“Laudo da linha em capítulos (novo)”** abre um laudo só dessa linha de vida, montado em páginas A4 (o que aparece na prévia é o que sai no PDF):
+
+- **Capa** igual à do laudo NR-12 (faixa azul com logotipo, risco laranja), agora com a **foto principal da linha** (a Foto ampla) numa moldura em “mira”. Um interruptor tira a foto da capa.
+- **Página 2** igual à do NR-12: Informações Iniciais, Dados do Solicitante, Dados do Responsável e **Normativo** (texto da NR-35 e normas ABNT, editável no botão “Normativo” e igual em todos os laudos).
+- **Sumário** com o **número de página real** de cada capítulo e de cada seção, e **“Página N de M”** em todas as páginas (menos na capa).
+- **Capítulos** que podem ser ligados ou desligados em cada laudo: Metodologia (usa a “Descrição do trabalho” do projeto), Checklist, Corpo do laudo e Conclusão. A numeração se ajusta sozinha ao que está ligado.
+- **Checklist em cartões**: anel com a porcentagem de itens que atendem (“não se aplica” fica fora), um cartão por seção com barra de resultado, a **norma de cada item** e “ver 3.1” nos itens que não atendem.
+- **Corpo do laudo** com **cada seção em página nova**, o texto corrido e as fotos numeradas ao lado (seção com muitas fotos desce as fotos em fileiras).
+- **Conclusão** com o anel de resultado, texto, **próxima inspeção** (12 meses depois da data da inspeção, ou a validade informada), **ART** e, **numa linha abaixo**, cidade e data, e as duas assinaturas (a do engenheiro usa a assinatura já salva no app).
+
+O laudo do projeto antigo continua funcionando como antes. Esta é a base: os demais capítulos (foto por motivo, quadro de ações, memorial da zona livre de queda, anexos) entram nas próximas etapas.
+
 ## 02/10/2026 12:02
 
 **Checklist: confirmações ao fechar o item reorganizadas (foto no "Não aplica", motivo/nota/foto no "Não atende"), seção "não aplica" sempre confirma, e aba da seção "não se aplica" com cor própria.**

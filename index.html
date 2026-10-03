@@ -676,6 +676,30 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-photo-card{position:relative;width:72px;}
 .chk-photo-card img{width:72px;height:72px;object-fit:cover;border-radius:8px;background:var(--bg-soft);cursor:pointer;}
 .chk-photo-remove{position:absolute;top:-6px;right:-6px;background:#fff;border-radius:999px;box-shadow:var(--shadow-sm);width:24px;height:24px;padding:0;}
+.chk-mfotos{display:grid;gap:8px}
+.chk-mfoto{border:1px solid #f1c5b4;background:#fff6f2;border-radius:10px;padding:8px;transition:background .12s,border-color .12s}
+.chk-mfoto.solta{border-color:var(--line-strong);background:var(--bg-soft)}
+.chk-mfoto.over{background:#ffe9df;border-color:var(--accent)}
+.chk-mfoto-t{font-size:11.5px;font-weight:800;color:#9a3a14;margin-bottom:6px}
+.chk-mfoto.solta .chk-mfoto-t{color:var(--ink-dim)}
+.chk-photo-card[draggable="true"]{cursor:grab}
+.chk-mem-nota{font-size:12px;color:var(--ink-dim);margin:6px 0 10px;line-height:1.5}
+.chk-mem-fig{border-radius:10px;overflow:hidden;margin:8px 0 6px;border:1px solid var(--line)}
+.chk-mem-leg{display:grid;grid-template-columns:auto 1fr;gap:5px 8px;align-items:center;font-size:12px;color:var(--ink-dim);margin:0 0 10px}
+.chk-mem-leg i,.chk-mem-n{font-style:normal;display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:19px;border-radius:99px;background:#E94E1B;color:#fff;font-size:10.5px;font-weight:800;padding:0 4px}
+.chk-mem-res{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 4px}
+.chk-mem-res span{font-size:12px;font-weight:800;border-radius:99px;padding:5px 11px;border:1px solid}
+.chk-mem-res .ok{color:#1f7a4f;background:#e4f1e5;border-color:#9fd1b3}
+.chk-mem-res .no{color:#b3382d;background:#fbe7e4;border-color:#ecb3ac}
+.chk-mem-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin:8px 0}
+.chk-mem-campo{display:flex;flex-direction:column;justify-content:flex-end;gap:5px;font-size:12.5px;font-weight:700;color:var(--ink)}
+.chk-mem-rot{display:flex;align-items:center;gap:6px;min-height:34px}
+.chk-mem-nf{display:flex;align-items:center;gap:6px}
+.chk-mem-nf input{flex:1;min-width:0;font-size:16px;padding:9px 10px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);color:var(--ink)}
+.chk-mem-nf span{font-size:12.5px;color:var(--ink-dim);min-width:22px}
+.chk-mem-params{margin-top:6px;border:1px solid var(--line);border-radius:10px;padding:8px 12px;background:var(--bg-soft)}
+.chk-mem-params summary{cursor:pointer;font-size:12.5px;font-weight:800;color:var(--ink-dim)}
+.chk-photo-mv{position:absolute;left:-4px;bottom:-4px;width:22px;height:22px;border-radius:99px;border:none;background:var(--bar);color:#fff;font-weight:800;font-size:14px;line-height:1;padding:0;box-shadow:var(--shadow-sm)}
 .chk-tag-chip{font-size:10px;padding:2px 6px;border-radius:999px;border:1px solid var(--line);background:var(--bg-soft);color:var(--ink-faint);}
 .chk-tag-chip.on{background:var(--accent);color:#fff;border-color:var(--accent);}
 .chk-progress-bar{height:6px;background:var(--bg-soft);border-radius:999px;overflow:hidden;margin-bottom:14px;}
@@ -741,6 +765,8 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-bloco{border:1.5px solid var(--line-strong);border-radius:12px;overflow:hidden;margin-bottom:16px;background:#F3F4F8;--bloco-ink:var(--ink);--bloco-borda:var(--line-strong);}
 .chk-bloco.campo{background:#EEF0FB;border-color:#B7BEE3;--bloco-ink:var(--bar-2);--bloco-borda:#B7BEE3;}
 .chk-bloco.laudo{background:#FEF3EC;border-color:#F1B9A0;--bloco-ink:var(--accent-ink);--bloco-borda:#F1B9A0;}
+.chk-bloco.atende{background:#EAF6EE;border-color:#A9D5BA;--bloco-ink:#1F6B45;--bloco-borda:#A9D5BA;}
+.chk-bloco.contexto{background:#F3EEFB;border-color:#D1C2EC;--bloco-ink:#5B3FA8;--bloco-borda:#D1C2EC;}
 .chk-bloco-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 14px;border-bottom:1.5px solid var(--bloco-borda);}
 .chk-bloco-titulo{font-size:13.5px;font-weight:800;color:var(--bloco-ink);}
 .chk-bloco-tag{flex-shrink:0;font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--bloco-ink);background:var(--surface);border:1.5px solid var(--bloco-borda);border-radius:999px;padding:2px 9px;}
@@ -780,6 +806,9 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-motivo-parte.completo{background:#FDEBE2;border-top:1.5px solid #F1B9A0;}
 .chk-motivo-parte.completo label{color:var(--accent-ink);}
 .chk-motivo-parte.completo textarea{border-color:#EDA487;}
+.chk-motivo-parte.acao{background:#E7F4EC;border-top:1.5px solid #A9D5BA;}
+.chk-motivo-parte.acao label{color:#1F6B45;}
+.chk-motivo-parte.acao textarea{border-color:#8CC6A3;}
 .chk-info-fotos{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px;}
 .chk-info-foto{position:relative;width:56px;height:56px;flex-shrink:0;}
 .chk-info-foto img{width:56px;height:56px;object-fit:cover;border-radius:8px;cursor:pointer;background:var(--bg-soft);}
@@ -3254,7 +3283,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "02/10/2026 12:02";
+const APP_BUILD = "02/10/2026 21:30";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -9533,7 +9562,7 @@ function getCurrentPerigo(){ const t=getCurrentTarefa(); return t && t.perigos.f
    para "idbfoto:<id>" — nenhum código deste módulo precisa saber disso, é o
    mesmo mecanismo que já protege Completo e Simplificado. */
 function novoChkModelo(){
-  return { id:uid(), nome:"", descricao:"", secoes:[], criadoEm:Date.now(), atualizadoEm:Date.now() };
+  return { id:uid(), nome:"", descricao:"", tipoLinha:"", secoes:[], criadoEm:Date.now(), atualizadoEm:Date.now() };
 }
 /* contexto: texto "como deve estar" desta seção, mostrado no laudo antes da
    narrativa dos itens (ver chkNarrativaSecao) — nunca aparece na tela de
@@ -9547,7 +9576,11 @@ function novoChkSecao(){ return { id:uid(), titulo:"", itens:[], contexto:"" }; 
    mostrada atrás do ⓘ na tela de preenchimento — nunca vai pro laudo, é só
    apoio visual/textual pra quem está inspecionando. fotos no mesmo formato
    de referência usado no resto do app: {foto: dataURL/idbfoto:<id>}. */
-function novoChkItem(){ return { id:uid(), normativo:"", descricao:"", textoAtende:"", motivosPadrao:[], info:{texto:"", fotos:[]} }; }
+/* prioridade: o que acontece com a linha se ESTE item não atender — "critica",
+   "alta" ou "media" (chkPrioridadeItem). Decide o parecer do laudo e a ordem do
+   quadro de ações. Cada motivo de motivosPadrao também pode ter `acao`: o que
+   fazer para regularizar (vai para o quadro de não conformidades). */
+function novoChkItem(){ return { id:uid(), normativo:"", descricao:"", textoAtende:"", motivosPadrao:[], info:{texto:"", fotos:[]}, prioridade:"media" }; }
 function novoChkProjeto(){
   return {
     id:uid(), empresa:"", responsavel:"", data:hoje(), setores:[],
@@ -9575,6 +9608,7 @@ function novoChkLinha(modelo){
     fotoAmpla: "", // vista geral p/ identificar o item e o local (dataURL ou referência do banco de fotos); "" = sem foto — linhas antigas não têm o campo e toda leitura trata como vazio
     modeloId: modelo.id,
     modeloNome: modelo.nome,
+    tipoLinha: modelo.tipoLinha || "", // congela o tipo (horizontal flexível/rígida, vertical...) como o resto do modelo; decide se o laudo tem Memorial
     modeloSnapshot: clonarCompartilhandoFotos(modelo.secoes), // congela seções/itens no início — editar o modelo depois não afeta linhas já criadas; usa o clone padrão do app por consistência (nunca JSON.stringify, ver estrutura.py)
     status: "em_andamento", // 'em_andamento' | 'finalizado'
     dataInicio: hoje(),
@@ -9651,6 +9685,28 @@ function chkPendenciasItem(itemModelo, itemExec){
   }
   return faltas;
 }
+/* Prioridade do item e tipo da linha (decididos com o engenheiro). */
+const CHK_PRIORIDADES = [["critica","Crítica"],["alta","Alta"],["media","Média"]];
+const CHK_PRIORIDADE_SECAO_PADRAO = { "Documentação":"alta", "Ancoragem Estrutural":"critica", "Esticador":"alta", "Olhal":"critica", "Sapatilha":"alta", "Cabo de Aço":"critica", "Grampos":"critica", "Viga":"critica", "Trólei":"alta" };
+const CHK_TIPOS_LINHA = [["horizontal_flexivel","Horizontal flexível (cabo de aço)"],["horizontal_rigida","Horizontal rígida (trilho ou viga)"],["vertical","Vertical"],["ancoragem","Ponto de ancoragem"]];
+function chkPrioridadeValida(v){ return v === "critica" || v === "alta" || v === "media"; }
+function chkPrioridadeItem(itemModelo){ return itemModelo && chkPrioridadeValida(itemModelo.prioridade) ? itemModelo.prioridade : "media"; }
+function chkPrioridadeRotulo(v){ const x = CHK_PRIORIDADES.find(p=>p[0] === v); return x ? x[1] : "Média"; }
+/* "Crítica", "critica", " ALTA " → "critica"/"alta"; texto que não reconhece → "". */
+function chkPrioridadeDeTexto(txt){
+  const t = String(txt || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+  return t === "critica" || t === "alta" || t === "media" ? t : "";
+}
+/* Tipo da linha: o que foi congelado nela; senão o do modelo; senão (modelo
+   padrão de linha flexível) horizontal flexível; senão "" (sem memorial). */
+function chkTipoLinha(linha){
+  if(linha && typeof linha.tipoLinha === "string" && linha.tipoLinha) return linha.tipoLinha;
+  const m = linha && (STATE.checklists.modelos || []).find(x=> x.id === linha.modeloId);
+  if(m && m.tipoLinha) return m.tipoLinha;
+  return linha && linha.modeloId === CHK_MODELO_PADRAO_ID ? "horizontal_flexivel" : "";
+}
+function chkTipoHorizontal(tipo){ return tipo === "horizontal_flexivel" || tipo === "horizontal_rigida"; }
+function chkRotuloTipoLinha(tipo){ const x = CHK_TIPOS_LINHA.find(t=>t[0] === tipo); return x ? x[1] : ""; }
 /* Textos padrão que vão para o laudo — nunca aparecem na tela de preenchimento.
    Atende usa o textoAtende do item do modelo (devolvido como lista de 1, pra
    quem chama sempre tratar igual); Não atende procura, na lista de motivos
@@ -9671,43 +9727,69 @@ function chkTextoLaudoItem(itemModelo, itemExec){
   }
   return [];
 }
+/* "Foto 2" / "Fotos 2 e 3" / "Fotos 2, 3 e 5" — como o laudo cita as fotos. */
+function chkCitarFotos(nums){
+  if(!nums || !nums.length) return "";
+  if(nums.length === 1) return `Foto ${nums[0]}`;
+  return `Fotos ${nums.slice(0,-1).join(", ")} e ${nums[nums.length-1]}`;
+}
 /* Fotos de todos os itens de UMA seção, na ordem dos itens, numeradas
    sequencialmente dentro da seção (1, 2, 3...) — é essa numeração que o
-   laudo narrativo mostra ao lado do texto corrido, e que a própria
-   narrativa cita ("Foto 2") junto do item não atende que a foto pertence.
-   porItem mapeia itemId -> lista de números, pra quem monta a narrativa
-   saber quais fotos citar em cada item. */
+   laudo mostra ao lado do texto corrido, e que a narrativa cita junto do
+   motivo a que a foto pertence. porItem: itemId -> números; porMotivo:
+   itemId -> { rótuloDoMotivo -> números, "" -> fotos sem motivo }. Foto
+   ligada a um motivo que já foi desmarcado conta como "sem motivo" (nada se
+   perde: ela continua no item e no laudo). */
 function chkFotosDaSecao(secaoModelo, linha){
   const fotos = [];
   const porItem = {};
+  const porMotivo = {};
   (secaoModelo.itens||[]).forEach(it=>{
     const ie = chkItemExec(linha, it.id);
-    (ie && ie.fotos || []).forEach(f=>{
+    const sel = (ie && ie.motivosSelecionados) || [];
+    // Numera na ordem dos motivos marcados (as fotos de um motivo ficam em sequência, como na tela de
+    // campo); as sem motivo — ou de motivo desmarcado — vêm depois, na ordem em que foram tiradas.
+    const todas = (ie && ie.fotos) || [];
+    const ordem = [];
+    sel.forEach(m=> todas.forEach(f=>{ if(f.motivo === m && !ordem.includes(f)) ordem.push(f); }));
+    todas.forEach(f=>{ if(!ordem.includes(f)) ordem.push(f); });
+    ordem.forEach(f=>{
       fotos.push(f.foto);
-      (porItem[it.id] = porItem[it.id] || []).push(fotos.length);
+      const n = fotos.length;
+      (porItem[it.id] = porItem[it.id] || []).push(n);
+      const chave = (f.motivo && sel.includes(f.motivo)) ? f.motivo : "";
+      const pm = (porMotivo[it.id] = porMotivo[it.id] || {});
+      (pm[chave] = pm[chave] || []).push(n);
     });
   });
-  return { fotos, porItem };
+  return { fotos, porItem, porMotivo };
 }
-/* Parágrafo corrido da seção pro laudo narrativo — NUNCA guardado, sempre
-   calculado na hora a partir do texto padrão de cada item (mesmo dado que
-   chkTextoLaudoItem já lê pro laudo por item, aqui só concatenado numa
-   narrativa só). Item "não atende" fica destacado (<mark>) e cita as fotos
-   daquele item pelo número dado por chkFotosDaSecao — é a "indicação
-   visual" pedida, sem precisar marcar item por item numa lista. */
+/* Parágrafo corrido da seção pro laudo — NUNCA guardado, sempre calculado na
+   hora a partir do texto padrão de cada item. Item "não atende" fica
+   destacado (<mark>): cada motivo marcado em campo vira o seu trecho de texto
+   e termina citando as fotos DELE ("(Fotos 2 e 3)"); foto sem motivo é citada
+   no fim do item; a nota do inspetor entra no fim do item. */
 function chkNarrativaSecao(secaoModelo, linha){
-  const { fotos, porItem } = chkFotosDaSecao(secaoModelo, linha);
+  const { fotos, porMotivo } = chkFotosDaSecao(secaoModelo, linha);
   const partes = (secaoModelo.itens||[]).map(it=>{
     const ie = chkItemExec(linha, it.id) || {conforme:null, motivosSelecionados:[]};
+    const nota = String(ie.observacao || "").trim();
+    const notaHtml = nota ? ` Nota do inspetor: ${escapeHtml(nota)}` : "";
+    if(ie.conforme === "naoAtende"){
+      const pm = porMotivo[it.id] || {};
+      const segs = (ie.motivosSelecionados||[]).map(m=>{
+        const mp = (it.motivosPadrao||[]).find(x=> x.motivo === m);
+        if(!mp || !mp.texto) return "";
+        const cit = chkCitarFotos(pm[m] || []);
+        return escapeHtml(mp.texto) + (cit ? ` (${cit})` : "");
+      }).filter(Boolean);
+      if(!segs.length) return "";
+      const solta = chkCitarFotos(pm[""] || []);
+      return `<mark class="nc">${segs.join(" ")}${solta ? ` (${solta})` : ""}${notaHtml}</mark>`;
+    }
     const textos = chkTextoLaudoItem(it, ie);
     if(!textos.length) return "";
-    const texto = escapeHtml(textos.join(" "));
-    if(ie.conforme === "naoAtende"){
-      const refs = porItem[it.id];
-      const citacao = refs && refs.length ? ` (${refs.length>1?"Fotos":"Foto"} ${refs.join(", ")})` : "";
-      return `<mark class="nc">${texto}${citacao}</mark>`;
-    }
-    return texto;
+    return escapeHtml(textos.join(" ")) + notaHtml;
   }).filter(Boolean);
   return { html: partes.join(" "), fotos };
 }
@@ -9877,6 +9959,24 @@ function chkGarantirNamespace(estado){
       });
     });
   });
+  /* Campos novos do laudo em capítulos, mesmo padrão aditivo (só acrescenta o
+     que falta, idempotente):
+     - modelo.tipoLinha: o modelo padrão é de linha flexível; os demais ficam
+       sem tipo (a pessoa escolhe no editor) e, sem tipo, o laudo não tem Memorial.
+     - item.prioridade: no modelo padrão, uma sugestão inicial por seção
+       (CHK_PRIORIDADE_SECAO_PADRAO), que o engenheiro ajusta item a item; nos
+       demais, "media". Nunca sobrescreve um valor já válido.
+     - motivo.acao: texto de ação recomendada, vazio até alguém preencher. */
+  estado.checklists.modelos.forEach(m=>{
+    const padrao = m.id === CHK_MODELO_PADRAO_ID;
+    if(typeof m.tipoLinha !== "string") m.tipoLinha = padrao ? "horizontal_flexivel" : "";
+    (m.secoes||[]).forEach(s=>{
+      (s.itens||[]).forEach(it=>{
+        if(!chkPrioridadeValida(it.prioridade)) it.prioridade = (padrao && CHK_PRIORIDADE_SECAO_PADRAO[s.titulo]) || "media";
+        (it.motivosPadrao||[]).forEach(mp=>{ if(mp && typeof mp === "object" && typeof mp.acao !== "string") mp.acao = ""; });
+      });
+    });
+  });
   return estado;
 }
 /* Modelo pronto "Linhas de Vida (NR-35)" — baseado no checklist de campo já
@@ -9900,6 +10000,7 @@ function chkModeloPadraoLinhasDeVida(){
   const m = novoChkModelo();
   m.id = CHK_MODELO_PADRAO_ID; // fixo — evita duplicar entre aparelhos e permite reconhecê-lo depois
   m.nome = "Linhas de Vida (NR-35)";
+  m.tipoLinha = "horizontal_flexivel";
   m.descricao = "Checklist de inspeção de linha de vida flexível — documentação, ancoragem, esticador, olhal, sapatilha, cabo de aço, grampos, viga e trólei.";
   const mo = (motivo, texto) => ({ motivo, texto });
   const secao = (titulo, itens) => {
@@ -9911,6 +10012,7 @@ function chkModeloPadraoLinhasDeVida(){
       it.descricao = descricao;
       it.textoAtende = textoAtende;
       it.motivosPadrao = motivosPadrao;
+      it.prioridade = CHK_PRIORIDADE_SECAO_PADRAO[titulo] || "media"; // sugestão inicial por seção; o engenheiro ajusta item a item
       return it;
     });
     return s;
@@ -10164,6 +10266,9 @@ const CHK_MODELO_XLSX_COLUNAS = [
   { chave:"textoMotivo", cabecalho:"Texto do Motivo" },
   { chave:"textoAtende", cabecalho:"Texto Quando Atende" },
   { chave:"info", cabecalho:"Informação" },
+  { chave:"prioridade", cabecalho:"Prioridade" },
+  { chave:"acao", cabecalho:"Ação Recomendada" },
+  { chave:"contexto", cabecalho:"Contexto da Seção" },
 ];
 /* Acha a linha de cabeçalho (a primeira que tem "Seção" E "Item", ignorando
    acento/caixa/espaço) e monta o mapa coluna->letra a partir dela — mesma
@@ -10195,6 +10300,7 @@ function chkModeloXLSXLinhasParaSecoes(linhas){
     if(secaoTxt){
       secaoAtual = novoChkSecao();
       secaoAtual.titulo = secaoTxt;
+      secaoAtual.contexto = get(l,"contexto");
       secoes.push(secaoAtual);
       contagem.secoes++;
       itemAtual = null;
@@ -10210,17 +10316,20 @@ function chkModeloXLSXLinhasParaSecoes(linhas){
       itemAtual.normativo = get(l,"norma");
       itemAtual.textoAtende = get(l,"textoAtende");
       itemAtual.info = { texto: get(l,"info"), fotos:[] };
+      itemAtual.prioridade = chkPrioridadeDeTexto(get(l,"prioridade")) || "media";
       secaoAtual.itens.push(itemAtual);
       contagem.itens++;
       if(motivoTxt){
-        itemAtual.motivosPadrao.push({ motivo:motivoTxt, texto:get(l,"textoMotivo") });
+        itemAtual.motivosPadrao.push({ motivo:motivoTxt, texto:get(l,"textoMotivo"), acao:get(l,"acao") });
         contagem.motivos++;
       }
       return;
     }
+    // Contexto escrito numa linha de continuação (Seção em branco): vale para a seção de cima, se ela ainda não tem.
+    if(!secaoTxt && secaoAtual && !secaoAtual.contexto) secaoAtual.contexto = get(l,"contexto");
     if(motivoTxt){
       if(!itemAtual){ contagem.linhasInvalidas++; return; }
-      itemAtual.motivosPadrao.push({ motivo:motivoTxt, texto:get(l,"textoMotivo") });
+      itemAtual.motivosPadrao.push({ motivo:motivoTxt, texto:get(l,"textoMotivo"), acao:get(l,"acao") });
       contagem.motivos++;
     }
   });
@@ -10238,23 +10347,24 @@ function chkModeloXLSXLinhasDoModelo(modelo){
   (modelo.secoes||[]).forEach(s=>{
     let primeiraLinhaDaSecao = true;
     if(!s.itens.length){
-      linhas.push([s.titulo, "", "", "", "", "", ""]);
+      linhas.push([s.titulo, "", "", "", "", "", "", "", "", s.contexto || ""]);
       return;
     }
     s.itens.forEach(it=>{
       const motivos = it.motivosPadrao||[];
       const infoTxt = (it.info && it.info.texto) || "";
+      const prioTxt = chkPrioridadeRotulo(chkPrioridadeItem(it));
       if(!motivos.length){
-        linhas.push([primeiraLinhaDaSecao ? s.titulo : "", it.descricao, it.normativo||"", "", "", it.textoAtende||"", infoTxt]);
+        linhas.push([primeiraLinhaDaSecao ? s.titulo : "", it.descricao, it.normativo||"", "", "", it.textoAtende||"", infoTxt, prioTxt, "", primeiraLinhaDaSecao ? (s.contexto || "") : ""]);
         primeiraLinhaDaSecao = false;
         return;
       }
       motivos.forEach((mp,mi)=>{
         if(mi===0){
-          linhas.push([primeiraLinhaDaSecao ? s.titulo : "", it.descricao, it.normativo||"", mp.motivo, mp.texto, it.textoAtende||"", infoTxt]);
+          linhas.push([primeiraLinhaDaSecao ? s.titulo : "", it.descricao, it.normativo||"", mp.motivo, mp.texto, it.textoAtende||"", infoTxt, prioTxt, mp.acao||"", primeiraLinhaDaSecao ? (s.contexto || "") : ""]);
           primeiraLinhaDaSecao = false;
         }else{
-          linhas.push(["", "", "", mp.motivo, mp.texto, "", ""]);
+          linhas.push(["", "", "", mp.motivo, mp.texto, "", "", "", mp.acao||"", ""]);
         }
       });
     });
@@ -10284,6 +10394,9 @@ function chkModeloXLSXPacote(linhasDados){
     "Texto do Motivo — parágrafo completo desse motivo; só aparece no laudo.",
     "Texto Quando Atende — parágrafo para quando o item atende; só aparece no laudo.",
     "Informação — orientação de apoio para o inspetor; aparece no ícone (i) durante o preenchimento em campo.",
+    "Prioridade — Crítica, Alta ou Média (só na primeira linha do item): o que acontece com a linha se o item não atender. Em branco = Média.",
+    "Ação Recomendada — o que fazer para regularizar esse motivo (uma por linha de motivo); vai para o quadro da conclusão do laudo.",
+    "Contexto da Seção — texto \"como deve estar\" da seção, que entra no laudo antes do texto dela. Preencha só na primeira linha da seção.",
     "",
     "Item sem nenhum motivo? Deixe as colunas de Motivo em branco na linha dele.",
     "Ao importar, os dados desta planilha são ACRESCENTADOS ao modelo aberto no app — nada do que já existe é apagado ou substituído.",
@@ -10340,7 +10453,7 @@ function chkModeloXLSXPacote(linhasDados){
 /* "Baixar modelo padrão": exemplo estático, pra quem nunca usou o formato. */
 function chkModeloXLSXTemplatePacote(){
   const exemplo = [
-    ["Ancoragem Estrutural","Os pontos de ancoragem suportam a carga mínima de 1.500 kgf exigida?","NBR 16325-2","Ancoragem corroída","A ancoragem apresenta oxidação avançada, comprometendo sua resistência estrutural.","Os pontos de ancoragem foram inspecionados e estão em conformidade.","Verificar torque dos parafusos com torquímetro calibrado."],
+    ["Ancoragem Estrutural","Os pontos de ancoragem suportam a carga mínima de 1.500 kgf exigida?","NBR 16325-2","Ancoragem corroída","A ancoragem apresenta oxidação avançada, comprometendo sua resistência estrutural.","Os pontos de ancoragem foram inspecionados e estão em conformidade.","Verificar torque dos parafusos com torquímetro calibrado.","Crítica","Substituir o ponto de ancoragem.","Verifica se os pontos fixos que sustentam a linha de vida estão corretamente instalados e sem sinais de degradação."],
     ["","","","Fixação solta ou frouxa","A fixação apresenta folga perceptível ao manuseio.","",""],
     ["","Os olhais e argolas apresentam corrosão, trinca ou deformação?","","","","Olhais e argolas inspecionados, sem sinais de corrosão ou deformação.",""],
   ];
@@ -13430,6 +13543,7 @@ function renderChecklistModulo(){
     else if(s==="checklist-preencher") body = screenChkPreencher();
     else if(s==="checklist-finalizar") body = screenChkFinalizar();
     else if(s==="checklist-laudo") body = screenChkLaudo();
+    else if(s==="checklist-laudo-linha") body = screenChkLaudoLinha();
     else body = screenChkModelos();
   }catch(e){
     console.error("Erro ao renderizar tela (checklist)", s, e);
@@ -13441,8 +13555,8 @@ function renderChecklistModulo(){
     <div class="hazard-stripe"></div>
     ${topBarChk()}
     ${crumbBarChk()}
-    <div class="screen ${s==='checklist-laudo'?'screen-laudo chk-laudo-print':s==='checklist-modelo-form'?'screen-chk-modelo':''}">${body}</div>
-    ${s==='checklist-laudo' ? '' : bottomNavChk()}
+    <div class="screen ${s==='checklist-laudo'?'screen-laudo chk-laudo-print':s==='checklist-modelo-form'?'screen-chk-modelo':s==='checklist-laudo-linha'?'screen-lcl':''}">${body}</div>
+    ${(s==='checklist-laudo' || s==='checklist-laudo-linha') ? '' : bottomNavChk()}
   `;
   setSaveChip(false);
 }
@@ -13460,11 +13574,12 @@ function topBarChk(){
     "checklist-preencher": ["Preenchimento", "Marque a conformidade"],
     "checklist-finalizar": ["Finalizar", "Revisão antes de concluir"],
     "checklist-laudo": ["Laudo", "Relatório da inspeção"],
+    "checklist-laudo-linha": ["Laudo da linha", "Relatório em capítulos"],
   };
   let [title, sub] = TITULOS_CHK[s] || ["Checklist",""];
   if(["checklist-setores","checklist-setor-form","checklist-laudo"].includes(s)){ const p=getCurrentChkProjeto(); if(p) title = p.empresa || title; }
   if(["checklist-linhas","checklist-nova-linha"].includes(s)){ const st=getCurrentChkSetor(); if(st) title = st.nome || title; }
-  const linhaAtual = ["checklist-preencher","checklist-finalizar"].includes(s) ? getCurrentChkLinha() : null;
+  const linhaAtual = ["checklist-preencher","checklist-finalizar","checklist-laudo-linha"].includes(s) ? getCurrentChkLinha() : null;
   if(linhaAtual) title = linhaAtual.nome || linhaAtual.modeloNome || title;
   const showBack = s!=="checklist-modelos" && s!=="checklist-projetos";
   let backTarget = "checklist-modelos";
@@ -13476,6 +13591,7 @@ function topBarChk(){
   if(s==="checklist-nova-linha") backTarget = "checklist-linhas";
   if(s==="checklist-preencher") backTarget = "checklist-linhas";
   if(s==="checklist-finalizar") backTarget = "checklist-preencher";
+  if(s==="checklist-laudo-linha") backTarget = "checklist-finalizar";
   if(s==="checklist-laudo") backTarget = "checklist-setores";
   let action = "";
   if(s==="checklist-modelos") action = `<button class="icon-btn" style="color:var(--on-bar)" onclick="App.trocarModulo()" title="Trocar módulo">${ic('layers')}</button><button class="topbar-action" onclick="App.chkNovoModelo()">${ic('plus')} Novo</button>`;
@@ -13483,6 +13599,7 @@ function topBarChk(){
   if(s==="checklist-setores") action = `<button class="topbar-action" onclick="App.go('checklist-laudo')">${ic('print')} Laudo</button><button class="topbar-action" onclick="App.chkNovoSetor()">${ic('plus')} Setor</button>`;
   if(s==="checklist-linhas") action = `<button class="topbar-action" onclick="App.go('checklist-nova-linha')">${ic('plus')} Linha</button>`;
   if(s==="checklist-laudo") action = `<button class="topbar-action" onclick="window.print()">${ic('print')} Imprimir</button>`;
+  if(s==="checklist-laudo-linha") action = `<button class="topbar-action" onclick="App.lclImprimir()">${ic('print')} Imprimir</button>`;
   return `
   <div class="topbar">
     <div class="topbar-row">
@@ -13497,10 +13614,10 @@ function topBarChk(){
 }
 function crumbBarChk(){
   const s = STATE.ui.screen;
-  if(!["checklist-setores","checklist-setor-form","checklist-linhas","checklist-nova-linha","checklist-preencher","checklist-finalizar","checklist-laudo"].includes(s)) return "";
+  if(!["checklist-setores","checklist-setor-form","checklist-linhas","checklist-nova-linha","checklist-preencher","checklist-finalizar","checklist-laudo","checklist-laudo-linha"].includes(s)) return "";
   const proj = getCurrentChkProjeto(); if(!proj) return "";
   const setor = s!=="checklist-laudo" ? getCurrentChkSetor() : null;
-  const linha = ["checklist-preencher","checklist-finalizar"].includes(s) ? getCurrentChkLinha() : null;
+  const linha = ["checklist-preencher","checklist-finalizar","checklist-laudo-linha"].includes(s) ? getCurrentChkLinha() : null;
   const parts = [{label:"Projetos", icon:"table", go:["checklist-projetos",{}]}];
   parts.push({label:(proj.empresa||"Projeto"), go:["checklist-setores",{chkProjetoId:proj.id, chkSetorId:null, chkLinhaId:null}]});
   if(setor) parts.push({label:setor.nome||"Setor", go:["checklist-linhas",{chkSetorId:setor.id, chkLinhaId:null}]});
@@ -13561,6 +13678,7 @@ function screenChkModeloForm(){
   <div class="chk-modelo-head">
     <div class="field"><label>Nome do modelo <span class="req">*</span></label><input type="text" placeholder="Ex.: Inspeção de linha de vida" value="${escapeHtml(m.nome)}" oninput="App.chkSetModeloField('nome',this.value)"></div>
     <div class="field"><label>Descrição</label><input type="text" placeholder="Objetivo/escopo deste checklist" value="${escapeHtml(m.descricao)}" oninput="App.chkSetModeloField('descricao',this.value)"></div>
+    <div class="field"><label>Tipo de linha de vida</label><select onchange="App.chkSetModeloField('tipoLinha',this.value);render()"><option value="">Não definido (laudo sem Memorial)</option>${CHK_TIPOS_LINHA.map(t=>`<option value="${t[0]}" ${m.tipoLinha===t[0]?'selected':''}>${escapeHtml(t[1])}</option>`).join("")}</select></div>
   </div>
   <div class="chk-modelo-toolbar">
     <button class="btn btn-secondary" onclick="App.chkImportarModeloXLSX()">${ic('upload')} Importar via XLSX</button>
@@ -13618,6 +13736,10 @@ function screenChkModeloForm(){
           <label>Texto completo <small>vai para o laudo</small></label>
           <textarea placeholder="Texto padrão deste motivo (só aparece no laudo)" oninput="App.chkSetMotivoPadrao('${s.id}','${it.id}',${mi},'texto',this.value)">${escapeHtml(mp.texto)}</textarea>
         </div>
+        <div class="chk-motivo-parte acao">
+          <label>Ação recomendada <small>vai para o quadro da conclusão</small></label>
+          <textarea placeholder="O que fazer para regularizar. Ex.: Substituir o cabo de aço." oninput="App.chkSetMotivoPadrao('${s.id}','${it.id}',${mi},'acao',this.value)">${escapeHtml(mp.acao||"")}</textarea>
+        </div>
       </div>`).join("");
     const info = it.info || {texto:"", fotos:[]};
     const fotosInfoHtml = (info.fotos||[]).map((f,fi)=>{
@@ -13632,7 +13754,7 @@ function screenChkModeloForm(){
       <button class="chk-modelo-back" onclick="App.chkSelecionarModeloItem(null,null)">${ic('back')} Seções e itens</button>
       <span class="chk-item-code">Item ${si+1}.${ii+1}</span>
     </div>
-    <div class="chk-bloco laudo chk-secao-contexto-box">
+    <div class="chk-bloco contexto chk-secao-contexto-box">
       <div class="chk-bloco-head"><span class="chk-bloco-titulo">Contexto da seção "${escapeHtml(s.titulo||'sem título')}"</span><span class="chk-bloco-tag">Laudo</span></div>
       <div class="chk-bloco-corpo">
         <div class="field"><textarea aria-label="Contexto da seção" placeholder="Ex.: Verifica se os pontos fixos que sustentam a linha de vida estão corretamente instalados e sem sinais de degradação." oninput="App.chkSetSecaoContexto('${s.id}',this.value)">${escapeHtml(s.contexto)}</textarea></div>
@@ -13644,6 +13766,7 @@ function screenChkModeloForm(){
       <div class="chk-bloco-corpo">
         <div class="field"><label>Pergunta <span class="req">*</span></label><textarea placeholder="O que verificar neste item" oninput="App.chkSetItemField('${s.id}','${it.id}','descricao',this.value)">${escapeHtml(it.descricao)}</textarea></div>
         <div class="field"><label>Norma/referência (opcional)</label><input type="text" placeholder="Ex.: NBR 16325-2" value="${escapeHtml(it.normativo)}" oninput="App.chkSetItemField('${s.id}','${it.id}','normativo',this.value)"></div>
+        <div class="field"><label>Prioridade se não atender</label><select onchange="App.chkSetItemField('${s.id}','${it.id}','prioridade',this.value)">${CHK_PRIORIDADES.map(pr=>`<option value="${pr[0]}" ${chkPrioridadeItem(it)===pr[0]?'selected':''}>${pr[1]}</option>`).join("")}</select><div class="chk-modelo-hint" style="margin:5px 0 0">Define o parecer do laudo (item crítico que não atende deixa a linha inapta) e a ordem do quadro de ações.</div></div>
       </div>
     </div>
     <div class="chk-bloco neutro">
@@ -13666,7 +13789,7 @@ function screenChkModeloForm(){
         </div>
       </div>
     </div>
-    <div class="chk-bloco laudo">
+    <div class="chk-bloco atende">
       <div class="chk-bloco-head"><span class="chk-bloco-titulo">Texto padrão para "Atende"</span><span class="chk-bloco-tag">Laudo</span></div>
       <div class="chk-bloco-corpo">
         <div class="chk-modelo-hint">Opcional. Só aparece no laudo, nunca em campo.</div>
@@ -13892,6 +14015,40 @@ function screenChkNovaLinha(){
   <button class="btn btn-primary btn-block" style="margin-top:10px" onclick="App.chkCriarLinha()">${ic('check')} Criar e preencher</button>
   `;
 }
+/* Foto do item: cartão com miniatura (toque amplia), lixeira e, nos itens "não
+   atende" com motivo, o menu ⋮ para mover a foto de motivo (no computador dá
+   também para arrastar). Foto ligada a um motivo que foi desmarcado aparece em
+   "Sem motivo" — nada se perde. */
+function chkCartaoFoto(itemId, f, fi, comMenu){
+  const ref = imgReg(f.foto);
+  return `<div class="chk-photo-card"${comMenu ? ` draggable="true" ondragstart="App.chkDragFoto(event,${fi})"` : ""}>
+    <img data-imgref="${ref}" onclick="event.stopPropagation();App.verFotoReg(this)">
+    <button class="icon-btn chk-photo-remove" title="Excluir foto" onclick="event.stopPropagation();App.chkRemoverFoto('${itemId}',${fi})">${ic('trash')}</button>
+    ${comMenu ? `<button class="chk-photo-mv" title="Mover para outro motivo" onclick="event.stopPropagation();App.chkFotoMenu('${itemId}',${fi})">⋮</button>` : ""}
+  </div>`;
+}
+function chkFotosItemHtml(item, ie, motivosSel){
+  const fotos = ie.fotos || [];
+  if(!(ie.conforme === "naoAtende" && motivosSel.length)){
+    return fotos.length
+      ? `<div class="chk-photo-grid">${fotos.map((f,fi)=>chkCartaoFoto(item.id, f, fi, false)).join("")}</div>`
+      : `<p style="font-size:12px;color:var(--ink-faint);font-style:italic;margin:0">Nenhuma foto ainda — use os botões no canto da tela.</p>`;
+  }
+  const soltaFoto = (f)=> !(f.motivo && motivosSel.includes(f.motivo));
+  const alvo = (mi)=> `ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="this.classList.remove('over');App.chkDropFoto(event,'${item.id}',${mi})"`;
+  const caixas = motivosSel.map((m,mi)=>{
+    const fs = fotos.map((f,fi)=>[f,fi]).filter(([f])=> f.motivo === m);
+    return `<div class="chk-mfoto" ${alvo(mi)}>
+      <div class="chk-mfoto-t">${escapeHtml(m)}</div>
+      <div class="chk-photo-grid">${fs.map(([f,fi])=>chkCartaoFoto(item.id, f, fi, true)).join("")}
+        <button class="chk-info-foto-add" title="Tirar foto deste motivo" onclick="event.stopPropagation();App.chkTirarFotoMotivo('${item.id}',${mi},false)">${ic('camera')}</button>
+        <button class="chk-info-foto-add" title="Escolher da galeria" onclick="event.stopPropagation();App.chkTirarFotoMotivo('${item.id}',${mi},true)">${ic('gallery')}</button>
+      </div></div>`;
+  }).join("");
+  const soltas = fotos.map((f,fi)=>[f,fi]).filter(([f])=> soltaFoto(f));
+  const caixaSolta = soltas.length ? `<div class="chk-mfoto solta" ${alvo(-1)}><div class="chk-mfoto-t">Sem motivo</div><div class="chk-photo-grid">${soltas.map(([f,fi])=>chkCartaoFoto(item.id, f, fi, true)).join("")}</div></div>` : "";
+  return `<div class="chk-mfotos">${caixas}${caixaSolta}</div>`;
+}
 /* Card do item, no formato "Expande na lista" decidido nos protótipos: card
    fechado mostra só "Item S.I - descrição" + ícone discreto de foto (com
    contagem) + aviso de pendência (quando "não atende" sem motivo nem nota) +
@@ -13917,13 +14074,6 @@ function chkRenderItem(linha, item, secaoIdx, itemIdx){
       <div style="display:flex;flex-wrap:wrap;gap:7px">
         ${motivosPadrao.map(m=>`<button class="chk-tag-chip ${motivosSel.includes(m.motivo)?'on':''}" style="padding:7px 12px;font-size:12.5px" onclick="App.chkSelecionarMotivo('${item.id}','${escapeHtml(m.motivo)}')">${escapeHtml(m.motivo)}</button>`).join("")}
       </div>` : "";
-    const fotosHtml = (ie.fotos||[]).map((f,fi)=>{
-      const ref = imgReg(f.foto);
-      return `<div class="chk-photo-card">
-        <img data-imgref="${ref}" onclick="event.stopPropagation();App.verFotoReg(this)">
-        <button class="icon-btn chk-photo-remove" onclick="event.stopPropagation();App.chkRemoverFoto('${item.id}',${fi})">${ic('trash')}</button>
-      </div>`;
-    }).join("");
     detalheHtml = `
     <div class="chk-item-detail" onclick="event.stopPropagation()">
       <div class="chk-item-statusrow">
@@ -13932,7 +14082,7 @@ function chkRenderItem(linha, item, secaoIdx, itemIdx){
       </div>
       ${motivosHtml}
       <textarea placeholder="Nota adicional (opcional) — o texto padrão do motivo já vai sozinho pro laudo" oninput="App.chkSetObservacao('${item.id}',this.value)">${escapeHtml(ie.observacao)}</textarea>
-      ${nFotos? `<div class="chk-photo-grid">${fotosHtml}</div>` : `<p style="font-size:12px;color:var(--ink-faint);font-style:italic;margin:0">Nenhuma foto ainda — use os botões no canto da tela.</p>`}
+      ${chkFotosItemHtml(item, ie, motivosSel)}
     </div>`;
   }
   return `
@@ -13953,29 +14103,41 @@ function screenChkPreencher(){
   if(!l){ go("checklist-linhas"); return ""; }
   if(l.status==="finalizado"){ go("checklist-laudo"); return ""; }
   const secoes = l.modeloSnapshot;
+  const totalAbas = chkTotalAbas(l);
   let idx = STATE.ui.chkSecaoAtual||0;
-  if(idx<0) idx=0; if(idx>secoes.length-1) idx=Math.max(0,secoes.length-1);
+  if(idx<0) idx=0; if(idx>totalAbas-1) idx=Math.max(0,totalAbas-1);
+  const emMemorial = totalAbas > secoes.length && idx === secoes.length;
   const secao = secoes[idx];
-  if(!secao){
+  if(!secao && !emMemorial){
     return `<div class="empty">${ic('warn')}<h3>Este modelo não tem seções</h3><p>Volte e cadastre pelo menos uma seção com itens antes de preencher.</p></div>`;
   }
-  const isNA = l.secoesNA.includes(secao.id);
+  const isNA = !!secao && l.secoesNA.includes(secao.id); // na aba do memorial não há seção
   const pct = chkProgresso(l);
   const tabsHtml = secoes.map((s,si)=>{
     const st = chkStatusAbaSecao(l, s);
     return `<button class="chk-tab st-${st}" aria-selected="${si===idx}" onclick="App.chkIrParaSecao(${si})">${escapeHtml(s.titulo||'Seção '+(si+1))}</button>`;
   }).join("");
+  // Linha horizontal: uma aba a mais, depois das seções, com as medidas do memorial.
+  const tabMemorial = totalAbas > secoes.length ? `<button class="chk-tab st-${chkStatusAbaMemorial(l)}" aria-selected="${emMemorial}" onclick="App.chkIrParaSecao(${secoes.length})">Memorial ZLQ</button>` : "";
+  if(emMemorial){
+    return `
+  <div class="chk-progress-bar"><div class="chk-progress-fill" style="width:${pct}%"></div></div>
+  <div class="chk-tabs">${tabsHtml}${tabMemorial}</div>
+  ${chkFotoAmplaHtml(l.fotoAmpla, 'linha', false)}
+  ${chkMemorialCampoHtml(l)}
+  <button class="btn btn-primary btn-block" style="margin-top:14px" onclick="App.go('checklist-finalizar')">Revisar e finalizar ${ic('chevR')}</button>`;
+  }
   const itensHtml = secao.itens.map((it,ii)=>chkRenderItem(l, it, idx, ii)).join("");
   return `
   <div class="chk-progress-bar"><div class="chk-progress-fill" style="width:${pct}%"></div></div>
-  <div class="chk-tabs">${tabsHtml}</div>
+  <div class="chk-tabs">${tabsHtml}${tabMemorial}</div>
   ${chkFotoAmplaHtml(l.fotoAmpla, 'linha', false)}
   <div class="chk-secao-head">
     <h2 style="margin:2px 0">${escapeHtml(secao.titulo||'Sem título')}</h2>
     <button class="chk-switch ${isNA?'off':'on'}" onclick="App.chkToggleSecaoNA('${secao.id}')">${isNA? ic('check')+' Aplicar seção' : 'Esta seção não aplica'}</button>
   </div>
   ${isNA? `<div class="empty" style="padding:24px"><p>Seção marcada como "não aplica" — nenhum item dela precisa ser preenchido.</p></div>` : (itensHtml || `<div class="empty"><p>Esta seção não tem itens.</p></div>`)}
-  ${(!isNA && idx===secoes.length-1) ? `<button class="btn btn-primary btn-block" style="margin-top:14px" onclick="App.go('checklist-finalizar')">Revisar e finalizar ${ic('chevR')}</button>` : ""}
+  ${(!isNA && idx===totalAbas-1) ? `<button class="btn btn-primary btn-block" style="margin-top:14px" onclick="App.go('checklist-finalizar')">Revisar e finalizar ${ic('chevR')}</button>` : ""}
   <div class="chk-fab-stack ${STATE.ui.chkItemAberto?'show':''}">
     <button class="chk-fab-gal" onclick="App.chkTirarFoto(STATE.ui.chkItemAberto,true)" title="Escolher da galeria">${ic('gallery')}</button>
     <button class="chk-fab-cam" onclick="App.chkTirarFoto(STATE.ui.chkItemAberto,false)" title="Tirar foto">${ic('camera')}</button>
@@ -14007,11 +14169,17 @@ function screenChkFinalizar(){
     <ul style="margin:0;padding-left:18px;font-size:13.5px;line-height:1.9">${pendentesPorSecao}</ul>
     <p style="font-size:12px;color:var(--ink-faint);margin-top:8px">Você pode finalizar mesmo assim — os itens ficam registrados como "sem resposta" no laudo.</p>
   </div>` : ""}
+  ${(()=>{ const fm = chkMemorialAtivo(l) ? chkMemorialFaltas(l) : []; return fm.length ? `<div class="card card-pad" style="margin-bottom:14px;border-left:4px solid #C23F12">
+    <div class="section-title" style="margin-top:0">Memorial ZLQ incompleto</div>
+    <p style="font-size:13.5px;margin:0 0 6px">Falta medir: ${escapeHtml(fm.join(", "))}. <button class="btn" style="margin-left:6px;padding:4px 10px;font-size:12px" onclick="STATE.ui.chkSecaoAtual=${l.modeloSnapshot.length};App.go('checklist-preencher')">Ir</button></p>
+    <p style="font-size:12px;color:var(--ink-faint);margin:0">Sem esses dados o memorial não entra no laudo. Você pode finalizar mesmo assim.</p>
+  </div>` : ""; })()}
   <div class="section-title">Resumo do checklist</div>
   ${chkResumoHtml(l)}
   <div class="field"><label>Foto ampla</label>${chkFotoAmplaHtml(l.fotoAmpla, 'linha', false)}</div>
   <div class="field"><label>Descrição da linha</label><textarea placeholder="Função, quantas pessoas usam e onde fica (opcional) — Ex.: Acesso para manutenção de exaustores e limpeza do telhado, uso por até 2 pessoas simultâneas, cobertura do Silo 2" oninput="App.chkSetLinhaDescricao(this.value)">${escapeHtml(l.descricao)}</textarea></div>
   <div class="field"><label>Conclusão da linha</label><textarea placeholder="Parecer sobre esta linha de vida (opcional) — aparece no laudo" oninput="App.chkSetConclusao(this.value)">${escapeHtml(l.conclusaoTexto)}</textarea></div>
+  <button class="btn btn-block" style="margin-bottom:8px" onclick="App.lclAbrir()">${ic('print')} Laudo da linha em capítulos (novo)</button>
   ${l.status==="finalizado"
     ? `<button class="btn btn-block" onclick="App.chkReabrirLinha()">${ic('edit')} Reabrir para editar</button>
        <button class="btn btn-primary btn-block" style="margin-top:8px" onclick="App.go('checklist-laudo')">${ic('print')} Ver laudo do projeto</button>`
@@ -14040,6 +14208,1263 @@ function chkBlocoLaudo(titulo, corpoHtml){
   if(!corpoHtml) return "";
   return `<div class="chk-laudo-bloco"><div class="chk-laudo-bloco-titulo">${escapeHtml(titulo)}</div><div class="chk-laudo-bloco-corpo">${corpoHtml}</div></div>`;
 }
+/* ══════════════════════════════════════════════════════════════════════════════
+   MEMORIAL DE CÁLCULO — ZONA LIVRE DE QUEDA (só linhas horizontais)
+   ──────────────────────────────────────────────────────────────────────────────
+   Os dados vêm do campo (aba "Memorial ZLQ" do preenchimento) e ficam em
+   linha.memorial; o que NÃO foi medido (peso, ruptura do cabo, fator de
+   segurança, comprimentos do talabarte e do trava-quedas…) tem valor padrão
+   em CHK_MEMORIAL_PARAMS e pode ser trocado em linha.memorial.params. Ligar ou
+   desligar o capítulo no laudo é linha.laudo.capitulos.memorial (um só interruptor,
+   usado no campo e no laudo). Tudo aqui é função pura: lê a linha, nunca grava.
+   ══════════════════════════════════════════════════════════════════════════════ */
+const CHK_MEMORIAL_PARAMS = { peso:100, Frup:3900, FS:2, a:1.4, b:1.0, b1:1.0, fren:0.5, C1:1.5, D1:1.0 };
+const CHK_MEMORIAL_PARAMS_ROT = [
+  ["peso", "Peso do usuário com equipamentos", "kg"],
+  ["Frup", "Força de ruptura do cabo", "kgf"],
+  ["FS", "Fator de segurança do cabo", ""],
+  ["a", "Talabarte (a)", "m"],
+  ["b", "Absorvedor de energia (b)", "m"],
+  ["b1", "Trava-quedas em trabalho (b1)", "m"],
+  ["fren", "Frenagem do trava-quedas", "m"],
+  ["C1", "Engate do cinto ao pé (C1)", "m"],
+  ["D1", "Distância de segurança (D1)", "m"],
+];
+const CHK_MEMORIAL_VIGA = { perfil:"W200x26,6", aco:"ASTM A572 Gr 50", E:200e9, I:2611e-8, W:261.1e-6, fy:345e6 };
+const CHK_MEMORIAL_CAMPOS = [
+  ["hanc", "Altura do ponto de ancoragem ao piso", "m", "10"],
+  ["hpos", "Altura da posição de trabalho ao piso", "m", "11"],
+  ["vao", "Vão entre apoios", "m", ""],
+  ["flechaCm", "Flecha medida no meio do vão", "cm", ""],
+  ["diametro", "Diâmetro do cabo", "mm", ""],
+  ["usuarios", "Número máximo de usuários simultâneos", "", ""],
+];
+/* Número positivo digitado (aceita vírgula) ou null. */
+function chkMemorialNum(v){
+  const x = typeof v === "number" ? v : parseFloat(String(v == null ? "" : v).replace(",", "."));
+  return (isFinite(x) && x > 0) ? x : null;
+}
+/* Leitura normalizada dos dados do memorial: linha antiga (sem linha.memorial)
+   devolve tudo vazio. Diâmetro e nº de usuários têm padrão (8 mm, 1). */
+function chkMemorialDe(linha){
+  const m = (linha && linha.memorial) || {};
+  const params = Object.assign({}, CHK_MEMORIAL_PARAMS);
+  const ov = m.params || {};
+  Object.keys(CHK_MEMORIAL_PARAMS).forEach(k=>{ const v = chkMemorialNum(ov[k]); if(v !== null) params[k] = v; });
+  return {
+    hanc: chkMemorialNum(m.hanc), hpos: chkMemorialNum(m.hpos), vao: chkMemorialNum(m.vao),
+    flechaCm: chkMemorialNum(m.flechaCm), diametro: chkMemorialNum(m.diametro) || 8, usuarios: chkMemorialNum(m.usuarios) || 1,
+    epi: m.epi === "tab" ? "tab" : "tq", memoria: m.memoria !== false, params,
+  };
+}
+/* Total de abas do preenchimento: uma por seção do modelo + a do memorial, se a linha é horizontal. */
+function chkTotalAbas(linha){
+  return ((linha && linha.modeloSnapshot) || []).length + (chkTipoHorizontal(chkTipoLinha(linha)) ? 1 : 0);
+}
+/* O que falta medir para o cálculo fechar (vazio = completo). */
+function chkMemorialFaltas(linha){
+  const tipo = chkTipoLinha(linha), m = chkMemorialDe(linha), f = [];
+  if(!chkTipoHorizontal(tipo)) return f;
+  if(!m.hanc) f.push("altura da ancoragem");
+  if(!m.hpos) f.push("altura da posição de trabalho");
+  if(!m.vao) f.push("vão entre apoios");
+  if(tipo === "horizontal_flexivel" && !m.flechaCm) f.push("flecha");
+  return f;
+}
+/* Capítulo ligado? (linha horizontal e interruptor não desligado) */
+function chkMemorialAtivo(linha){
+  return chkTipoHorizontal(chkTipoLinha(linha)) && lclCfg(linha).capitulos.memorial !== false;
+}
+/* Estado da aba, para a cor dela: naoaplica (desligado) / completa / parcial / vazia. */
+function chkStatusAbaMemorial(linha){
+  if(!chkMemorialAtivo(linha)) return "naoaplica";
+  const faltas = chkMemorialFaltas(linha);
+  if(!faltas.length) return "completa";
+  const m = (linha && linha.memorial) || {};
+  return CHK_MEMORIAL_CAMPOS.some(c=> chkMemorialNum(m[c[0]]) !== null) ? "parcial" : "vazia";
+}
+function chkMemFmt(x, d){
+  if(d === undefined) d = 2;
+  return Number(x).toFixed(d).replace(".", ",");
+}
+/* O cálculo. m = chkMemorialDe(linha). Devolve null se faltar vão (ou flecha, no cabo).
+   Cabo flexível: flecha inicial f1, comprimento do cabo L1, alongamento ΔL (0,6129% de L1,
+   calibrado no memorial de referência), flecha dinâmica f3, força no cabo T1.
+   Viga rígida: deflexão δ = P·L³/(48·E·I) no meio do vão (que faz o papel de f3), M = P·L/4, σ = M/W.
+   Medidas em metros; T1 e P em kgf; PN e M em N e N·m; σ em Pa. */
+function chkMemorialCalc(tipo, m){
+  const K = m.params, L = m.vao;
+  if(!L) return null;
+  const B1 = K.b1 + K.fren;
+  if(tipo === "horizontal_rigida"){
+    const R = CHK_MEMORIAL_VIGA, PN = K.peso * 6 * 9.80665;
+    const d = PN * Math.pow(L, 3) / (48 * R.E * R.I), M = PN * L / 4, sig = M / R.W, f3 = d;
+    return { tipo:"rig", f1:0, f3, d, M, sig, uso: sig / R.fy, P: K.peso * 6, PN, B1,
+      ZLQ1: f3 + K.a + K.b + K.C1 + K.D1, Hp1: f3 + K.b + K.D1, ZLQ2: f3 + B1 + K.C1 + K.D1, Hp2: f3 + B1 - K.b1 + K.D1 };
+  }
+  if(!m.flechaCm) return null;
+  const fl = m.flechaCm / L;
+  const f1 = m.flechaCm / 100, L1 = L + 8 * f1 * f1 / (3 * L);
+  const f2 = Math.sqrt(Math.pow(L1 / 2, 2) - Math.pow(L / 2, 2)), dL = 0.006129 * L1 * 1000;
+  const f3 = Math.sqrt(Math.pow((L1 + dL / 1000) / 2, 2) - Math.pow(L / 2, 2)), th = Math.atan(f3 / (L / 2));
+  const P = K.peso * 6, T1 = P / (2 * Math.sin(th)), Fadm = K.Frup / K.FS;
+  return { tipo:"flex", fl, f1, L1, f2, dL, f3, th: th * 180 / Math.PI, ang: 180 - 2 * th * 180 / Math.PI, P, T1, Fadm, uso: T1 / Fadm, FSs: K.Frup / T1, B1,
+    ZLQ1: f3 + K.a + K.b + K.C1 + K.D1, Hp1: f3 - f1 + K.b + K.D1, ZLQ2: f3 + B1 + K.C1 + K.D1, Hp2: f3 - f1 + B1 - K.b1 + K.D1 };
+}
+/* Cada EPI "pode" quando a altura da ancoragem cobre a zona livre de queda dele. */
+function chkMemorialVeredito(c, m){
+  return {
+    okTab: m.hanc >= c.ZLQ1,
+    okTq: m.hanc >= c.ZLQ2,
+    okC: c.tipo === "rig" ? c.uso <= 1 : c.T1 <= c.Fadm,
+    okHp: m.hpos >= c.Hp2,
+  };
+}
+function chkMemorialLegenda(c, m){
+  const rig = c.tipo === "rig", K = m.params, lan = m.epi === "tab" ? (K.a + K.b) : c.B1, zlq = m.epi === "tab" ? c.ZLQ1 : c.ZLQ2;
+  const f = chkMemFmt;
+  return [
+    "Ancoragem (poste ou estrutura de suporte)",
+    rig ? `Trilho rígido: viga ${CHK_MEMORIAL_VIGA.perfil}, deflexão δ = ${f(c.d * 1000, 2)} mm` : `Cabo em repouso: flecha inicial f<sub>1</sub> = ${f(c.f1)} m`,
+    rig ? "Carrinho (trólei)" : `Cabo deformado na queda: flecha f<sub>3</sub> = ${f(c.f3)} m`,
+    `${m.epi === "tab" ? "Talabarte com absorvedor" : "Trava-quedas retrátil"}: ${f(lan, 1)} m`,
+    "Usuário na posição de trabalho",
+    "Usuário após a queda",
+    `Zona livre de queda (ZLQ) = ${f(zlq)} m`,
+    `Distância de segurança (D<sub>1</sub>) = ${f(K.D1)} m`,
+    "Piso ou nível inferior",
+    `Altura da ancoragem ao piso (Hanc) = ${f(m.hanc)} m`,
+    `Altura da posição de trabalho ao piso (Hp) = ${f(m.hpos)} m`,
+  ];
+}
+function chkMemorialCondicoes(c, m){
+  const v = chkMemorialVeredito(c, m), f = chkMemFmt;
+  const l = [
+    `Número máximo de usuários simultâneos: <b>${f(m.usuarios, 0)}</b>.`,
+    v.okTab ? `Talabarte com absorvedor: <b>permitido</b> (ZLQ ${f(c.ZLQ1)} m).` : `Talabarte com absorvedor: <b>não permitido</b> (ZLQ ${f(c.ZLQ1)} m &gt; ${f(m.hanc)} m disponíveis).`,
+    v.okTq ? `Trava-quedas retrátil: <b>permitido</b>, cabo de até ${f(c.B1, 1)} m (ZLQ ${f(c.ZLQ2)} m).` : `Trava-quedas retrátil: <b>não permitido</b> (ZLQ ${f(c.ZLQ2)} m &gt; ${f(m.hanc)} m).`,
+    `Altura mínima da posição de trabalho ao piso: <b>${f(c.Hp2)} m</b> (disponível ${f(m.hpos)} m, ${v.okHp ? "atende" : "<b>não atende</b>"}).`,
+  ];
+  if(c.tipo === "flex") l.push("Fator de queda do sistema: <b>0,2</b>.");
+  return l;
+}
+function chkMemorialPremissas(c, m){
+  const K = m.params, f = chkMemFmt, V = CHK_MEMORIAL_VIGA;
+  const base = [
+    `Usuário de ${f(K.peso, 0)} kg, com carga dinâmica adotada de ${f(c.P, 0)} kgf.`,
+    `Engate do cinto ao pé (C<sub>1</sub>) de ${f(K.C1, 1)} m e distância de segurança (D<sub>1</sub>) de ${f(K.D1, 1)} m.`,
+  ];
+  return c.tipo === "rig"
+    ? [`Viga ${V.perfil} em aço ${V.aco} (fy ${f(V.fy / 1e6, 0)} MPa), vão de ${f(m.vao)} m, carga central.`, `Tensão de flexão de ${f(c.sig / 1e6, 1)} MPa (${f(c.uso * 100, 1)}% de utilização).`, ...base]
+    : [`Cabo de aço de ${f(m.diametro, 0)} mm, 6x19 AF, ruptura mínima de ${f(K.Frup / 1000, 1)} tf e fator de segurança ${f(K.FS, 0)}.`, `Flecha inicial de ${f(c.fl, 1)}% do vão.`, `Força no cabo de ${f(c.T1, 0)} kgf, para admissível de ${f(c.Fadm, 0)} kgf (${f(c.uso * 100, 1)}%).`, ...base];
+}
+function chkMemorialParecer(c, m){
+  const v = chkMemorialVeredito(c, m), f = chkMemFmt;
+  if(!v.okC) return "O elemento resistente <b>não suporta</b> a carga dinâmica prevista. A linha deve ser redimensionada antes do uso.";
+  if(v.okTq && v.okTab) return "A linha pode ser utilizada com <b>trava-quedas retrátil ou talabarte com absorvedor</b>, respeitadas as condições de uso acima.";
+  if(v.okTq) return `A linha pode ser utilizada <b>somente com trava-quedas retrátil</b> de até ${f(c.B1, 1)} m. O uso de talabarte <b>não é permitido</b>, pois a zona livre de queda necessária (${f(c.ZLQ1)} m) é maior que a altura disponível (${f(m.hanc)} m).`;
+  return `Com a altura disponível de ${f(m.hanc)} m, <b>nenhum dos EPI avaliados</b> garante a zona livre de queda. A altura da ancoragem precisa aumentar ou o sistema deve ser alterado.`;
+}
+/* Fórmulas em notação matemática (MathML — o navegador desenha e sai no PDF),
+   cada uma com a forma simbólica e a substituída, na ordem do memorial de referência. */
+function chkMemorialFormulas(c, m){
+  const K = m.params, L = m.vao, B = K.b1 + K.fren, V0 = CHK_MEMORIAL_VIGA;
+  const mr = (...a)=>`<mrow>${a.join("")}</mrow>`;
+  const V = (s, i)=> i ? `<msub><mi>${s}</mi><mn>${i}</mn></msub>` : `<mi>${s}</mi>`;
+  const N = (x, d)=>`<mn>${chkMemFmt(x, d === undefined ? 2 : d)}</mn>`;
+  const O = (s)=>`<mo>${s}</mo>`;
+  const FR = (a, b)=>`<mfrac>${mr(a)}${mr(b)}</mfrac>`;
+  const SQ = (a)=>`<msqrt>${mr(a)}</msqrt>`;
+  const SP = (a, e)=>`<msup>${mr(a)}<mn>${e}</mn></msup>`;
+  const PR = (...a)=> mr(O("("), ...a, O(")"));
+  const MM = (...a)=>`<math>${mr(...a)}</math>`;
+  const frow = (t, sim, sub)=>`<div class="lcl-fm"><div class="lcl-ft">${t}</div><div class="lcl-fl">${sim}${sub}</div></div>`;
+  if(c.tipo === "rig") return [
+    frow("Deflexão da viga", MM(V("δ"), O("="), FR(mr(V("P"), O("·"), SP(V("L"), 3)), mr(N(48, 0), O("·"), V("E"), O("·"), V("I")))), MM(V("δ"), O("="), FR(mr(N(c.PN, 0), O("·"), SP(N(L), 3)), mr(N(48, 0), O("·"), N(V0.E / 1e9, 0), O("·"), N(V0.I * 1e8, 0))), O("="), N(c.d * 1000, 2), O("mm"))),
+    frow("Momento fletor", MM(V("M"), O("="), FR(mr(V("P"), O("·"), V("L")), N(4, 0))), MM(V("M"), O("="), FR(mr(N(c.PN, 0), O("·"), N(L)), N(4, 0)), O("="), N(c.M / 1000, 2), O("kN·m"))),
+    frow("Tensão de flexão", MM(V("σ"), O("="), FR(V("M"), V("W"))), MM(V("σ"), O("="), FR(mr(N(c.M / 1000, 2), O("kN·m")), mr(N(V0.W * 1e6, 1), O("cm³"))), O("="), N(c.sig / 1e6, 1), O("MPa"))),
+    frow("Zona livre de queda — trava-quedas", MM(V("ZLQ", 2), O("="), V("δ"), O("+"), V("B", 1), O("+"), V("C", 1), O("+"), V("D", 1)), MM(V("ZLQ", 2), O("="), N(c.f3, 3), O("+"), N(B), O("+"), N(K.C1), O("+"), N(K.D1), O("="), N(c.ZLQ2), O("m"))),
+    frow("Zona livre de queda — talabarte", MM(V("ZLQ", 1), O("="), V("δ"), O("+"), PR(V("a"), O("+"), V("b")), O("+"), V("C", 1), O("+"), V("D", 1)), MM(V("ZLQ", 1), O("="), N(c.f3, 3), O("+"), PR(N(K.a), O("+"), N(K.b)), O("+"), N(K.C1), O("+"), N(K.D1), O("="), N(c.ZLQ1), O("m"))),
+  ].join("");
+  return [
+    frow("Flecha inicial", MM(V("f", 1), O("="), FR(V("flecha"), N(100, 0)), O("·"), V("L")), MM(V("f", 1), O("="), FR(N(c.fl, 1), N(100, 0)), O("·"), N(L), O("="), N(c.f1, 3), O("m"))),
+    frow("Comprimento do cabo", MM(V("L", 1), O("="), V("L"), O("+"), FR(mr(N(8, 0), SP(V("f", 1), 2)), mr(N(3, 0), O("·"), V("L")))), MM(V("L", 1), O("="), N(L), O("+"), FR(mr(N(8, 0), O("·"), SP(N(c.f1, 3), 2)), mr(N(3, 0), O("·"), N(L))), O("="), N(c.L1, 3), O("m"))),
+    frow("Flecha dinâmica", MM(V("f", 3), O("="), SQ(SP(PR(FR(mr(V("L", 1), O("+"), V("ΔL")), N(2, 0))), 2), O("−"), SP(PR(FR(V("L"), N(2, 0))), 2))), MM(V("f", 3), O("="), SQ(SP(PR(FR(mr(N(c.L1, 3), O("+"), N(c.dL / 1000, 3)), N(2, 0))), 2), O("−"), SP(PR(FR(N(L), N(2, 0))), 2)), O("="), N(c.f3, 3), O("m"))),
+    frow("Força no cabo", MM(V("T", 1), O("="), FR(V("P"), mr(N(2, 0), O("·"), "<mi>sen</mi>", V("θ")))), MM(V("T", 1), O("="), FR(N(c.P, 0), mr(N(2, 0), O("·"), "<mi>sen</mi>", N(c.th, 1), O("°"))), O("="), N(c.T1, 0), O("kgf"))),
+    frow("Zona livre de queda — trava-quedas", MM(V("ZLQ", 2), O("="), V("f", 3), O("+"), V("B", 1), O("+"), V("C", 1), O("+"), V("D", 1)), MM(V("ZLQ", 2), O("="), N(c.f3, 3), O("+"), N(B), O("+"), N(K.C1), O("+"), N(K.D1), O("="), N(c.ZLQ2), O("m"))),
+    frow("Zona livre de queda — talabarte", MM(V("ZLQ", 1), O("="), V("f", 3), O("+"), PR(V("a"), O("+"), V("b")), O("+"), V("C", 1), O("+"), V("D", 1)), MM(V("ZLQ", 1), O("="), N(c.f3, 3), O("+"), PR(N(K.a), O("+"), N(K.b)), O("+"), N(K.C1), O("+"), N(K.D1), O("="), N(c.ZLQ1), O("m"))),
+    frow("Altura mínima da posição de trabalho", MM(V("Hp", 2), O("="), V("f", 3), O("−"), V("f", 1), O("+"), V("B", 1), O("−"), V("b", 1), O("+"), V("D", 1)), MM(V("Hp", 2), O("="), N(c.f3, 3), O("−"), N(c.f1, 3), O("+"), N(B), O("−"), N(K.b1), O("+"), N(K.D1), O("="), N(c.Hp2), O("m"))),
+  ].join("");
+}
+/* Tabelas de entrada e de resultado (página da memória de cálculo). */
+function chkMemorialTabelas(c, m){
+  const rig = c.tipo === "rig", K = m.params, f = chkMemFmt, V = CHK_MEMORIAL_VIGA;
+  const e = rig
+    ? [["Peso do usuário", f(K.peso, 0), "kg"], ["Vão entre apoios (L)", f(m.vao), "m"], ["Altura da ancoragem", f(m.hanc), "m"], ["Altura da posição de trabalho", f(m.hpos), "m"], ["Perfil da viga", V.perfil, "-"], ["Módulo E", f(V.E / 1e9, 0), "GPa"], ["Inércia Ix", f(V.I * 1e8, 0), "cm⁴"], ["Módulo Wx", f(V.W * 1e6, 1), "cm³"], ["Tensão fy", f(V.fy / 1e6, 0), "MPa"], ["Talabarte (a)", f(K.a, 1), "m"], ["Absorvedor (b)", f(K.b, 1), "m"], ["Trava-quedas em trabalho (b1)", f(K.b1, 1), "m"], ["Trava-quedas frenagem", f(K.fren, 1), "m"]]
+    : [["Peso do corpo", f(K.peso, 0), "kg"], ["Vão entre apoios (L)", f(m.vao), "m"], ["Flecha", f(c.fl, 1), "%"], ["Altura da ancoragem", f(m.hanc), "m"], ["Altura da posição de trabalho", f(m.hpos), "m"], ["Diâmetro do cabo", f(m.diametro, 0), "mm"], ["Força de ruptura", f(K.Frup, 0), "kgf"], ["Fator de segurança", f(K.FS, 0), "-"], ["Talabarte (a)", f(K.a, 1), "m"], ["Absorvedor (b)", f(K.b, 1), "m"], ["Trava-quedas em trabalho (b1)", f(K.b1, 1), "m"], ["Trava-quedas frenagem", f(K.fren, 1), "m"]];
+  const r = rig
+    ? [["Carga dinâmica (P)", f(c.P, 0), "kgf"], ["Deflexão (δ)", f(c.d * 1000, 2), "mm"], ["Momento (M)", f(c.M / 1000, 2), "kN·m"], ["Tensão (σ)", f(c.sig / 1e6, 1), "MPa"], ["Utilização (σ/fy)", f(c.uso * 100, 1), "%"], ["ZLQ talabarte", f(c.ZLQ1), "m"], ["Hp talabarte", f(c.Hp1), "m"], ["ZLQ trava-quedas", f(c.ZLQ2), "m"], ["Hp trava-quedas", f(c.Hp2), "m"]]
+    : [["Comprimento do cabo (L1)", f(c.L1 * 1000, 1), "mm"], ["Alongamento (ΔL)", f(c.dL, 1), "mm"], ["Flecha f1", f(c.f1 * 1000, 1), "mm"], ["Flecha f2", f(c.f2 * 1000, 1), "mm"], ["Flecha f3", f(c.f3 * 1000, 1), "mm"], ["Ângulo do cabo", f(c.ang, 1), "º"], ["Carga (P)", f(c.P, 0), "kgf"], ["<b>Força no cabo (T1)</b>", "<b>" + f(c.T1, 0) + "</b>", "kgf"], ["Admissível (Fadm)", f(c.Fadm, 0), "kgf"], ["ZLQ talabarte", f(c.ZLQ1), "m"], ["Hp talabarte", f(c.Hp1), "m"], ["ZLQ trava-quedas", f(c.ZLQ2), "m"], ["Hp trava-quedas", f(c.Hp2), "m"], ["Utilização", f(c.uso * 100, 1), "%"], ["Fator de serviço", f(c.FSs), "-"]];
+  const tb = (t, rows)=>`<table class="lcl-tz"><tr><th colspan="3">${t}</th></tr>${rows.map(x=>`<tr><td>${x[0]}</td><td class="v">${x[1]}</td><td>${x[2]}</td></tr>`).join("")}</table>`;
+  return `<div class="lcl-tzg">${tb("DADOS DE ENTRADA", e)}${tb("RESULTADOS", r)}</div>`;
+}
+/* Usuário (boneco) da ilustração: em pé (work) ou pendurado após a queda (hang). */
+function chkMemorialAvatar(x, yTop, h, pose){
+  const u = h / 10, sh = "#4C5BC0", pn = "#2B3170", sk = "#E8B896", cap = "#E7A93B";
+  const bra = pose === "hang"
+    ? `M${x - 1.1 * u} ${yTop + 2.7 * u} L${x - .55 * u} ${yTop - .4 * u} M${x + 1.1 * u} ${yTop + 2.7 * u} L${x + .55 * u} ${yTop - .4 * u}`
+    : `M${x - 1.1 * u} ${yTop + 2.7 * u} L${x - 1.55 * u} ${yTop + 5.1 * u} M${x + 1.1 * u} ${yTop + 2.7 * u} L${x + 1.55 * u} ${yTop + 5.1 * u}`;
+  return `<g>
+   <path d="M${x - .5 * u} ${yTop + 5.3 * u} L${x - .65 * u} ${yTop + 10 * u} M${x + .5 * u} ${yTop + 5.3 * u} L${x + .65 * u} ${yTop + 10 * u}" stroke="${pn}" stroke-width="${1 * u}" stroke-linecap="round" fill="none"/>
+   <rect x="${x - 1.15 * u}" y="${yTop + 2 * u}" width="${2.3 * u}" height="${3.5 * u}" rx="${.75 * u}" fill="${sh}"/>
+   <path d="M${x - .85 * u} ${yTop + 2.15 * u} L${x + .85 * u} ${yTop + 5.2 * u} M${x + .85 * u} ${yTop + 2.15 * u} L${x - .85 * u} ${yTop + 5.2 * u}" stroke="#E94E1B" stroke-width="${.26 * u}" stroke-linecap="round"/>
+   <circle cx="${x}" cy="${yTop + 2.55 * u}" r="${.32 * u}" fill="${cap}"/>
+   <path d="${bra}" stroke="${sh}" stroke-width="${.75 * u}" stroke-linecap="round" fill="none"/>
+   <circle cx="${x}" cy="${yTop + 1.1 * u}" r="${.82 * u}" fill="${sk}"/>
+   <path d="M${x - .92 * u} ${yTop + .95 * u} A${.92 * u} ${.92 * u} 0 0 1 ${x + .92 * u} ${yTop + .95 * u} Z" fill="${cap}"/><rect x="${x - 1.05 * u}" y="${yTop + .85 * u}" width="${2.1 * u}" height="${.22 * u}" rx="${.1 * u}" fill="${cap}"/></g>`;
+}
+/* Ilustração da zona livre de queda: só desenho e números de 1 a 11 (a
+   legenda explica cada número; só 7, 10 e 11 levam o valor, bem junto do número).
+   Sem dados completos, desenha uma linha de exemplo, sem valor nenhum. */
+function chkMemorialFigura(tipo, m){
+  let c = chkMemorialCalc(tipo, m);
+  const completo = !!(c && m.hanc && m.hpos);
+  if(!completo){
+    m = Object.assign({}, m, { hanc: m.hanc || 5, hpos: m.hpos || 3, vao: m.vao || 6.7, flechaCm: m.flechaCm || 46.9 });
+    c = chkMemorialCalc(tipo, m);
+  }
+  const K = m.params, rig = c.tipo === "rig", yT = 30, xL = 84, xR = 290, xc = 187, half = (xR - xL) / 2;
+  const zlq = m.epi === "tab" ? c.ZLQ1 : c.ZLQ2;
+  const s = Math.min(28, 172 / Math.max(m.hanc, zlq));
+  const gY = yT + m.hanc * s, yB = yT + zlq * s, ok = zlq <= m.hanc + 1e-9, col = ok ? "#43B581" : "#E5534B";
+  const yAt = x => yT + c.f1 * s * (1 - Math.pow((x - xc) / half, 2)), y3 = yT + c.f3 * s;
+  const lan = m.epi === "tab" ? (K.a + K.b) : c.B1, xw = xc - 72, yPl = gY - m.hpos * s, hU = 1.75 * s;
+  const yDr = y3 + lan * s, topF = yDr - .25 * s, yFeet = topF + hU, yDw = yPl - K.C1 * s;
+  const H = Math.max(gY, yB) + 30;
+  const FM = "ui-monospace,Consolas,monospace";
+  const cal = (n, x, y, tx, ty, val, pos)=>{
+    const gd = (tx == null) ? "" : `<line x1="${x}" y1="${y}" x2="${tx}" y2="${ty}" stroke="#8A8FB0" stroke-width="1" stroke-dasharray="3 3"/><circle cx="${tx}" cy="${ty}" r="1.8" fill="#8A8FB0"/>`;
+    const vv = (val && completo) ? (pos === "b" ? `<text x="${x}" y="${y + 18}" fill="#A9AFD6" font-size="8.5" font-family="${FM}" text-anchor="middle">${val}</text>` : `<text x="${x + 11}" y="${y + 3.2}" fill="#A9AFD6" font-size="8.5" font-family="${FM}">${val}</text>`) : "";
+    return `<g>${gd}<circle cx="${x}" cy="${y}" r="7.5" fill="#E94E1B" stroke="#10133A" stroke-width="1.5"/><text x="${x}" y="${y + 3.3}" fill="#fff" font-size="${n > 9 ? 8 : 9.5}" font-weight="700" text-anchor="middle" font-family="Arial,sans-serif">${n}</text>${vv}</g>`;
+  };
+  const trilho = rig
+    ? `<rect x="${xL}" y="${yT - 3}" width="${xR - xL}" height="6" fill="#8D93BD"/><rect x="${xL}" y="${yT - 3}" width="${xR - xL}" height="1.6" fill="#B7BCDD"/><rect x="${xL}" y="${yT + 1.4}" width="${xR - xL}" height="1.6" fill="#B7BCDD"/>`
+    : `<path d="M${xL} ${yT} Q${xc} ${yT + 2 * c.f1 * s} ${xR} ${yT}" fill="none" stroke="#43B581" stroke-width="1.6" stroke-dasharray="4 3"/><polyline points="${xL},${yT} ${xc},${y3} ${xR},${yT}" fill="none" stroke="#E5534B" stroke-width="2"/>`;
+  const trol = (x, y)=> rig ? `<rect x="${x - 7}" y="${y + 3}" width="14" height="6" rx="2" fill="#E94E1B"/>` : "";
+  const yHookW = rig ? yT + 9 : yAt(xw), yHookF = rig ? yT + 9 : y3;
+  const dim = (x, y1, y2, cc)=>`<line x1="${x}" y1="${y1}" x2="${x}" y2="${y2}" stroke="${cc}" stroke-width="1.4"/><line x1="${x - 5}" y1="${y1}" x2="${x + 5}" y2="${y1}" stroke="${cc}"/><line x1="${x - 5}" y1="${y2}" x2="${x + 5}" y2="${y2}" stroke="${cc}"/>`;
+  return `<svg viewBox="0 0 400 ${H.toFixed(0)}" role="img" aria-label="Ilustração da zona livre de queda" style="width:100%;height:auto;display:block;background:#10133A">
+   <rect x="0" y="${gY}" width="400" height="${H - gY}" fill="#1B1F52"/><line x1="0" y1="${gY}" x2="400" y2="${gY}" stroke="#7C82AD" stroke-width="1.5"/>
+   <line x1="${xL}" y1="${gY}" x2="${xL}" y2="${yT}" stroke="#8D93BD" stroke-width="3.5"/><line x1="${xR}" y1="${gY}" x2="${xR}" y2="${yT}" stroke="#8D93BD" stroke-width="3.5"/>
+   ${trilho}${trol(xw, yT)}${trol(xc, yT)}
+   <line x1="${xw - 60}" y1="${yPl}" x2="${xw + 34}" y2="${yPl}" stroke="#8D93BD" stroke-width="3"/>
+   <line x1="${xw}" y1="${yHookW}" x2="${xw}" y2="${yDw}" stroke="#E7A93B" stroke-width="1.2" stroke-dasharray="3 2"/>
+   ${chkMemorialAvatar(xw, yPl - hU, hU, "work")}
+   <rect x="${xc - 14}" y="${yFeet}" width="28" height="${Math.max(0, yB - yFeet)}" fill="${col}" opacity=".26" stroke="${col}" stroke-dasharray="3 2"/>
+   <line x1="${xc}" y1="${yHookF}" x2="${xc}" y2="${yDr}" stroke="#E7A93B" stroke-width="1.8"/>
+   ${chkMemorialAvatar(xc, topF, hU, "hang")}
+   ${dim(352, yT, yB, col)}${dim(26, yT, gY, "#C9CDEB")}${dim(xw + 48, yPl, gY, "#C9CDEB")}
+   ${cal(1, xL - 28, yT + 20, xL, yT + 20)}${cal(2, xL + 34, yT - 16, xL + 34, rig ? yT - 3 : yAt(xL + 34))}${cal(3, rig ? xc + 26 : xc - 46, rig ? yT - 16 : y3 - 22, rig ? xc + 4 : xc - 22, rig ? yT + 5 : yT + (y3 - yT) * (1 - 22 / half))}${cal(4, xc + 32, (yHookF + yDr) / 2, xc, (yHookF + yDr) / 2)}${cal(5, xw - 44, yPl - hU * .5, xw - 4, yPl - hU * .5)}${cal(6, xc - 44, yFeet - hU * .4, xc - 4, yFeet - hU * .4)}${cal(7, 380, (yT + yB) / 2, 352, (yT + yB) / 2, chkMemFmt(zlq) + " m", "b")}${cal(8, xc + 38, yFeet + (yB - yFeet) / 2, xc + 14, yFeet + (yB - yFeet) / 2)}${cal(9, 56, gY + 15, 56, gY)}${cal(10, 52, (yT + gY) / 2, 26, (yT + gY) / 2, chkMemFmt(m.hanc) + " m", "b")}${cal(11, xw + 6, (yPl + gY) / 2, xw + 48, (yPl + gY) / 2, chkMemFmt(m.hpos) + " m", "b")}
+  </svg>`;
+}
+/* Parte do memorial que muda a cada número digitado no campo: desenho, legenda dos
+   números que se medem (10 e 11) e o resultado preliminar. Dados incompletos: só o desenho de exemplo e o que falta. */
+function chkMemorialVivoHtml(l){
+  const tipo = chkTipoLinha(l), m = chkMemorialDe(l), c = chkMemorialCalc(tipo, m), f = chkMemFmt;
+  const completo = !!(c && m.hanc && m.hpos);
+  let res = "";
+  if(completo){
+    const v = chkMemorialVeredito(c, m);
+    const chip = (ok, t, sim, nao)=> `<span class="${ok ? "ok" : "no"}">${t}: ${ok ? sim : nao}</span>`;
+    res = `<div class="chk-mem-res">${chip(v.okTq, "Trava-quedas", "pode", "não pode")}${chip(v.okTab, "Talabarte", "pode", "não pode")}${chip(v.okC, c.tipo === "rig" ? "Viga" : "Cabo", "ok", "excede")}${chip(v.okHp, "Posição de trabalho", "ok", "baixa")}</div>
+      <div class="chk-mem-nota">ZLQ do trava-quedas ${f(c.ZLQ2)} m · ZLQ do talabarte ${f(c.ZLQ1)} m · ancoragem a ${f(m.hanc)} m do piso.</div>`;
+  } else {
+    const faltas = chkMemorialFaltas(l);
+    res = `<div class="chk-mem-nota">${faltas.length ? "Falta medir: " + faltas.join(", ") + "." : ""} O desenho abaixo é só um exemplo de onde medir.</div>`;
+  }
+  return `<div class="chk-mem-fig">${chkMemorialFigura(tipo, m)}</div>
+    <div class="chk-mem-leg"><i>10</i><span>Altura do ponto de ancoragem ao piso</span><i>11</i><span>Altura da posição de trabalho ao piso</span><i>&harr;</i><span>Vão entre apoios (L)</span></div>${res}`;
+}
+/* Aba "Memorial ZLQ" do preenchimento (só linhas horizontais). */
+function chkMemorialCampoHtml(l){
+  const tipo = chkTipoLinha(l), flex = tipo === "horizontal_flexivel", ativo = chkMemorialAtivo(l);
+  const raw = l.memorial || {}, ov = raw.params || {};
+  const val = (v)=> v != null && v !== "" ? escapeHtml(String(v)) : "";
+  const campos = CHK_MEMORIAL_CAMPOS.filter(c=> flex || (c[0] !== "flechaCm" && c[0] !== "diametro")).map(([k, rot, un, num])=>
+    `<label class="chk-mem-campo"><span class="chk-mem-rot">${escapeHtml(rot)}${num ? `<i class="chk-mem-n">${num}</i>` : ""}</span><div class="chk-mem-nf"><input type="number" step="any" inputmode="decimal" id="chkMem-${k}" value="${val(raw[k])}" oninput="App.chkMemorialSet('${k}',this.value)"><span>${escapeHtml(un)}</span></div></label>`).join("");
+  const params = CHK_MEMORIAL_PARAMS_ROT.map(([k, rot, un])=>
+    `<label class="chk-mem-campo">${escapeHtml(rot)}<div class="chk-mem-nf"><input type="number" step="any" inputmode="decimal" placeholder="${CHK_MEMORIAL_PARAMS[k]}" value="${val(ov[k])}" oninput="App.chkMemorialSetParam('${k}',this.value)"><span>${escapeHtml(un)}</span></div></label>`).join("");
+  return `
+  <div class="chk-secao-head">
+    <h2 style="margin:2px 0">Memorial ZLQ</h2>
+    <button class="chk-switch ${ativo ? "on" : "off"}" onclick="App.chkMemorialToggle()">${ativo ? "Esta linha não terá memorial" : ic("check") + " Incluir memorial"}</button>
+  </div>
+  <div class="chk-mem-nota">Tipo de linha: <b>${escapeHtml(chkRotuloTipoLinha(tipo))}</b> (definido pelo checklist). O cálculo da zona livre de queda sai destas medidas.</div>
+  ${ativo ? `
+  <div id="chkMemVivo">${chkMemorialVivoHtml(l)}</div>
+  <div class="chk-mem-form">${campos}</div>
+  <details class="chk-mem-params"><summary>Parâmetros do cálculo (valores padrão da empresa)</summary>
+    <div class="chk-mem-form">${params}</div>
+    <div class="chk-mem-nota">Campo vazio usa o valor padrão mostrado dentro dele.</div>
+  </details>` : `<div class="empty" style="padding:24px"><p>Esta linha não terá memorial de cálculo no laudo.</p></div>`}`;
+}
+/* ══════════════════════════════════════════════════════════════════════════════
+   LAUDO EM CAPÍTULOS DA LINHA DE VIDA (A4 paginado) — um laudo por linha
+   ──────────────────────────────────────────────────────────────────────────────
+   Cada capítulo é uma função que devolve BLOCOS ({html, quebrarAntes, ancora…});
+   o montador (lclPaginar) mede cada bloco fora da tela e empilha até encher a
+   folha, e só ele numera "Página N de M". Assim um capítulo pode mudar sem mexer
+   nos outros. É um módulo separado do laudo NR-12 (bloco "lp-"): copia a ideia,
+   nunca chama nem altera aquele código.
+
+   Só LÊ STATE.checklists (e getMecseteConfig, só leitura). A única coisa que
+   escreve é linha.laudo (liga/desliga de capítulos e foto da capa) e
+   STATE.checklists.textos (texto do Normativo) — ambos aditivos: sem eles, tudo
+   cai nos padrões abaixo.
+   ══════════════════════════════════════════════════════════════════════════════ */
+const LCL_MM = 96 / 25.4;
+const LCL_PAG_L = Math.round(210 * LCL_MM);
+const LCL_PAG_A = Math.round(297 * LCL_MM);
+const LCL_MARGEM = Math.round(14 * LCL_MM);
+const LCL_ROD_A = 52;
+const LCL_UTIL_L = LCL_PAG_L - LCL_MARGEM * 2;
+const LCL_UTIL_A = LCL_PAG_A - LCL_MARGEM * 2 - LCL_ROD_A;
+const LCL_MAX_A = Math.floor(LCL_UTIL_A * 0.98);
+const LCL_COR = { ok:"#2E9E6B", nok:"#D9534F", na:"#B8BDD0" };
+const LCL_CAPITULOS = [
+  { id:"metodologia", rot:"Metodologia", curto:"Metodologia" },
+  { id:"checklist",   rot:"Checklist", curto:"Checklist" },
+  { id:"corpo",       rot:"Corpo do laudo", curto:"Corpo do laudo" },
+  { id:"memorial",    rot:"Memorial de Cálculo — Zona Livre de Queda", curto:"Memorial ZLQ" },
+  { id:"conclusao",   rot:"Conclusão", curto:"Conclusão" },
+  { id:"anexos",      rot:"Anexos", curto:"Anexos" },
+];
+/* Parecer sobre a linha: calculado das prioridades dos itens que não atendem
+   (crítica ⇒ inapta; só alta/média ⇒ apta com ressalvas; nenhuma ⇒ apta) e
+   sempre ajustável pelo engenheiro em linha.laudo.parecer. */
+const LCL_PARECERES = {
+  apta:      { rot:"APTA", cls:"ok", frase:"A linha de vida está apta para uso, de acordo com os itens avaliados." },
+  ressalvas: { rot:"APTA COM RESSALVAS", cls:"av", frase:"A linha de vida pode ser utilizada com as ressalvas descritas neste relatório; as não conformidades devem ser regularizadas conforme a prioridade indicada." },
+  inapta:    { rot:"INAPTA", cls:"no", frase:"A linha de vida não deve ser utilizada até a regularização das não conformidades críticas descritas neste relatório." },
+};
+const LCL_PRI_COR = { critica:"#D9534F", alta:"#E9812B", media:"#E7A93B" };
+/* Texto-base da Metodologia: um só para os 3 tipos de linha. {{variáveis}} são
+   trocadas na montagem. Marcação: "## " subtítulo, "- " item de lista, "a | b" linha
+   de tabela (a 1ª é o cabeçalho), "[figura N]" no lugar da figura N, linha em branco separa parágrafos. */
+const LCL_METODOLOGIA_PADRAO = [
+  "## Objetivo",
+  "Este relatório apresenta o resultado da inspeção da linha de vida {{nome_linha}}, do tipo {{tipo_linha}}, instalada em {{local}}, na empresa {{empresa}}, realizada em {{data_inspecao}}. O objetivo é verificar se o sistema está em condições de uso e em conformidade com a NR-35 e com as normas técnicas aplicáveis.",
+  "",
+  "## Método da inspeção",
+  "A inspeção foi feita no local, item a item, por verificação visual, dimensional e documental, segundo o checklist da {{empresa_tecnica}}. Foram avaliados: {{componentes_do_tipo}}.",
+  "Cada item recebe uma das classificações abaixo:",
+  "- Atende: o item está de acordo com o requisito verificado.",
+  "- Não atende: o item não está de acordo; o motivo, as fotos e a ação recomendada ficam registrados no relatório.",
+  "- Não se aplica: o requisito não existe nesta linha de vida.",
+  "",
+  "## Prioridade das ações",
+  "Cada não conformidade recebe uma prioridade, que orienta o prazo da correção:",
+  "- Crítica: compromete a segurança da linha; a linha não deve ser usada até a correção.",
+  "- Alta: deve ser corrigida o quanto antes; a linha pode ser usada com ressalvas.",
+  "- Média: deve ser programada para a próxima manutenção.",
+  "",
+  "## Normas de referência",
+  "{{normas}}",
+];
+/* Variáveis aceitas no texto da Metodologia (nome, o que vira). */
+const LCL_METODOLOGIA_VARIAVEIS = [
+  ["nome_linha", "nome da linha de vida"],
+  ["tipo_linha", "tipo da linha (vem do checklist)"],
+  ["local", "setor ou local da linha"],
+  ["empresa", "empresa solicitante"],
+  ["empresa_tecnica", "sua empresa (Configurações)"],
+  ["data_inspecao", "data da inspeção"],
+  ["art", "número da ART"],
+  ["responsavel_tecnico", "engenheiro responsável"],
+  ["solicitante", "responsável do solicitante"],
+  ["descricao_linha", "descrição da linha"],
+  ["componentes_do_tipo", "seções do checklist"],
+  ["normas", "lista de normas do Normativo"],
+];
+const LCL_NORMATIVO_PADRAO = {
+  intro: "Para este estudo foram consideradas as orientações dispostas na NR-35 — Trabalho em Altura, que estabelece os requisitos mínimos e as medidas de proteção para o trabalho em altura, envolvendo o planejamento, a organização e a execução, de forma a garantir a segurança e a saúde dos trabalhadores envolvidos.",
+  normas: [
+    "ABNT NBR 14626:2010 — Equipamento de proteção individual contra queda de altura — Trava-queda deslizante guiado em linha flexível;",
+    "ABNT NBR 6327:2006 — Cabos de aço para uso geral — Requisitos mínimos;",
+    "ABNT NBR 7007:2002 — Aços-carbono e microligados para uso estrutural e geral;",
+    "ABNT NBR 8800:2008 — Projeto de estruturas de aço e de estruturas mistas de aço e concreto de edifícios.",
+  ],
+};
+let __lclPaginas = [];
+let __lclHtml = "";
+let __lclGerando = false;
+let __lclMetDraft = [];
+
+/* Liga/desliga de capítulos, foto da capa, parecer e anexos, guardados na própria
+   linha (linha.laudo). Sem nada gravado, todos os capítulos ligados (o que de fato
+   entra é decidido por lclPlano: capítulo sem conteúdo não aparece). Nunca devolve
+   a referência guardada (quem chama pode mexer no resultado sem querer alterar a linha). */
+function lclCfg(linha){
+  const c = (linha && linha.laudo) || {};
+  const caps = Object.assign({ metodologia:true, checklist:true, corpo:true, memorial:true, conclusao:true, anexos:true }, c.capitulos || {});
+  const anexos = Array.isArray(c.anexos) ? c.anexos.filter(a=> a && typeof a.src === "string" && a.src).map(a=>({ src:a.src, legenda:String(a.legenda || "") })) : [];
+  return { fotoCapa: c.fotoCapa !== false, capitulos: caps, parecer: LCL_PARECERES[c.parecer] ? c.parecer : "", anexos };
+}
+/* Textos fixos (iguais em todos os laudos): o que o engenheiro salvou, ou o padrão.
+   Campo vazio salvo de propósito continua vazio. */
+function lclTextos(){
+  const t = (STATE.checklists && STATE.checklists.textos) || {};
+  const n = t.normativo || {};
+  const mt = t.metodologia || {};
+  return {
+    normativo: {
+      intro: typeof n.intro === "string" ? n.intro : LCL_NORMATIVO_PADRAO.intro,
+      normas: Array.isArray(n.normas) ? n.normas.slice() : LCL_NORMATIVO_PADRAO.normas.slice(),
+    },
+    metodologia: {
+      texto: typeof mt.texto === "string" ? mt.texto : LCL_METODOLOGIA_PADRAO.join("\n"),
+      figuras: Array.isArray(mt.figuras) ? mt.figuras.filter(f=> f && typeof f.src === "string" && f.src).map(f=>({ src:f.src, legenda:String(f.legenda || "") })) : [],
+    },
+  };
+}
+/* Quais capítulos entram e como se numeram. A numeração acompanha o que está
+   ligado: sem a Metodologia, o Checklist vira o capítulo 1. Memorial só em linha
+   horizontal, ligado e com as medidas completas; Anexos só se houver imagem. */
+function lclPlano(proj, linha){
+  const cfg = lclCfg(linha);
+  const secoes = lclSecoesCorpo(linha);
+  const entra = {
+    metodologia: !!(lclTextos().metodologia.texto.trim() || (proj && String(proj.objetivo || "").trim())),
+    checklist: (linha.modeloSnapshot || []).some(s=> (s.itens || []).length),
+    corpo: secoes.length > 0,
+    memorial: chkMemorialAtivo(linha) && chkMemorialFaltas(linha).length === 0,
+    conclusao: true,
+    anexos: cfg.anexos.length > 0,
+  };
+  let n = 0;
+  const caps = [];
+  LCL_CAPITULOS.forEach(c=>{
+    if(!cfg.capitulos[c.id] || !entra[c.id]) return;
+    n++;
+    const cap = { id:c.id, rot:c.rot, num:n, ancora:"cap-" + c.id, subs:[] };
+    if(c.id === "corpo") cap.subs = secoes.map((s,i)=>({ id:s.id, num:`${n}.${i+1}`, titulo:s.titulo || "Seção", ancora:"cap-sec-" + s.id }));
+    if(c.id === "memorial" && chkMemorialDe(linha).memoria) cap.subs = [{ id:"memoria", num:`${n}.1`, titulo:"Memória de cálculo", ancora:"cap-memoria" }];
+    caps.push(cap);
+  });
+  return caps;
+}
+
+/* ---------- prioridade, ação e quadro de não conformidades ---------- */
+/* Linha criada antes de a prioridade/ação existirem tem o item "congelado" sem
+   esses campos: só nesse caso (campo ausente) vale o item do modelo de hoje. */
+function lclItemModeloAtual(linha, itemId){
+  const mod = ((STATE.checklists && STATE.checklists.modelos) || []).find(m=> m.id === linha.modeloId);
+  if(!mod) return null;
+  for(const s of (mod.secoes || [])){
+    const it = (s.itens || []).find(x=> x.id === itemId);
+    if(it) return it;
+  }
+  return null;
+}
+function lclPrioridade(linha, item){
+  if(item && chkPrioridadeValida(item.prioridade)) return item.prioridade;
+  const m = lclItemModeloAtual(linha, item && item.id);
+  return m ? chkPrioridadeItem(m) : "media";
+}
+function lclAcaoMotivo(linha, item, motivo){
+  const de = (it)=>{ const mp = ((it && it.motivosPadrao) || []).find(x=> x.motivo === motivo); return mp && typeof mp.acao === "string" ? mp.acao.trim() : ""; };
+  return de(item) || de(lclItemModeloAtual(linha, item && item.id)) || ("Regularizar: " + motivo);
+}
+/* Um registro por item que não atende (seção que não se aplica fica de fora), na
+   ordem crítica → alta → média e, dentro da prioridade, na ordem do checklist. */
+function lclNaoConformidades(linha){
+  const out = [];
+  (linha.modeloSnapshot || []).forEach((s, si)=>{
+    if((linha.secoesNA || []).includes(s.id)) return;
+    (s.itens || []).forEach((it, ii)=>{
+      const ie = chkItemExec(linha, it.id);
+      if(!ie || ie.conforme !== "naoAtende") return;
+      const motivos = (ie.motivosSelecionados || []).slice();
+      const acoes = [];
+      motivos.forEach(m=>{ const a = lclAcaoMotivo(linha, it, m); if(!acoes.includes(a)) acoes.push(a); });
+      if(!acoes.length) acoes.push("Regularizar o item.");
+      const fotos = ie.fotos || [];
+      const f = (motivos.length && fotos.find(x=> x.motivo === motivos[0])) || fotos[0];
+      out.push({ num:`${si+1}.${ii+1}`, secao:s.titulo || "Seção", secaoId:s.id, descricao:it.descricao || "", prioridade:lclPrioridade(linha, it), motivos, acoes, imagem: f ? f.foto : "" });
+    });
+  });
+  const peso = { critica:0, alta:1, media:2 };
+  return out.map((x, i)=>({ x, i })).sort((a, b)=> (peso[a.x.prioridade] - peso[b.x.prioridade]) || (a.i - b.i)).map(o=> o.x);
+}
+function lclParecerAuto(linha){
+  const nc = lclNaoConformidades(linha);
+  if(nc.some(x=> x.prioridade === "critica")) return "inapta";
+  if(nc.length) return "ressalvas";
+  return lclResultado(linha).avaliados ? "apta" : "";
+}
+function lclParecer(linha){
+  return lclCfg(linha).parecer || lclParecerAuto(linha);
+}
+
+/* ---------- metodologia: texto único com variáveis, subtítulos, listas, tabelas e figuras ---------- */
+function lclListaPt(a){
+  a = (a || []).filter(Boolean);
+  if(a.length < 2) return a.join("");
+  return a.slice(0, -1).join(", ") + " e " + a[a.length - 1];
+}
+function lclVariaveis(d){
+  const { proj, setor, linha, mc } = d;
+  return {
+    nome_linha: linha.nome || "",
+    tipo_linha: (chkRotuloTipoLinha(chkTipoLinha(linha)) || "linha de vida").toLowerCase(),
+    local: (setor && setor.nome) || "",
+    empresa: proj.empresa || "",
+    empresa_tecnica: (mc && mc.empresa) || "",
+    data_inspecao: proj.dataInspecao ? chkDataExtenso(proj.dataInspecao) : "",
+    art: proj.art || "",
+    responsavel_tecnico: (mc && mc.respNome) || "",
+    solicitante: proj.responsavel || "",
+    descricao_linha: linha.descricao || "",
+    componentes_do_tipo: lclSecoesCorpo(linha).map(s=> s.titulo).filter(Boolean),
+    normas: lclTextos().normativo.normas,
+  };
+}
+/* {{variavel}} → valor. Variável desconhecida fica como foi escrita (para a pessoa
+   ver o erro de digitação). Lista sozinha numa linha vira lista de itens; no meio do
+   texto vira "a, b e c". */
+function lclAplicarVariaveis(texto, vars){
+  return String(texto || "").split("\n").map(lin=>{
+    const sozinha = /^\s*\{\{\s*([a-z_]+)\s*\}\}\s*$/.exec(lin);
+    if(sozinha && Array.isArray(vars[sozinha[1]])) return vars[sozinha[1]].map(x=> "- " + x).join("\n");
+    return lin.replace(/\{\{\s*([a-z_]+)\s*\}\}/g, (m, k)=>{
+      if(!(k in vars)) return m;
+      const v = vars[k];
+      return Array.isArray(v) ? lclListaPt(v) : String(v == null ? "" : v);
+    });
+  }).join("\n");
+}
+/* Texto com marcação → blocos do paginador. Figura não citada vai para o fim. */
+function lclMarkup(texto, figuras, redu){
+  const blocos = [];
+  const usadas = new Set();
+  let par = [], lista = [], tab = [];
+  const figura = (n)=>{
+    const f = (figuras || [])[n - 1];
+    const src = f ? redu(f.src) : "";
+    if(!src) return null;
+    usadas.add(n);
+    return { html:`<div class="lcl-mfg"><img src="${src}" alt=""><div class="lcl-fnum">Figura ${n}${f.legenda ? " — " + lclEsc(f.legenda) : ""}</div></div>` };
+  };
+  const solta = ()=>{
+    if(par.length){ blocos.push({ html:`<p class="lcl-par">${par.map(x=> lclEsc(x)).join("<br>")}</p>` }); par = []; }
+    if(lista.length){ blocos.push({ html:`<ul class="lcl-lista">${lista.map(x=>`<li>${lclEsc(x)}</li>`).join("")}</ul>` }); lista = []; }
+    if(tab.length){
+      const linhasT = tab.filter(r=> !r.every(c=> /^:?-{2,}:?$/.test(c)));
+      if(linhasT.length){
+        const cab = linhasT[0].map(c=>`<th>${lclEsc(c)}</th>`).join("");
+        const corpo = linhasT.slice(1).map(r=>`<tr>${r.map(c=>`<td>${lclEsc(c)}</td>`).join("")}</tr>`).join("");
+        blocos.push({ html:`<table class="lcl-tbl"><tr>${cab}</tr>${corpo}</table>` });
+      }
+      tab = [];
+    }
+  };
+  String(texto || "").split("\n").forEach(bruta=>{
+    const lin = bruta.replace(/\s+$/, "");
+    if(!lin.trim()){ solta(); return; }
+    let m;
+    if((m = /^##\s+(.+)$/.exec(lin))){ solta(); blocos.push({ html:`<div class="lcl-h3">${lclEsc(m[1].trim())}</div>`, grudaNoProximo:true }); return; }
+    if((m = /^\s*\[figura\s+(\d+)\]\s*$/i.exec(lin))){ solta(); const b = figura(parseInt(m[1], 10)); if(b) blocos.push(b); return; }
+    if((m = /^\s*-\s+(.+)$/.exec(lin))){ if(par.length || tab.length){ solta(); } lista.push(m[1].trim()); return; }
+    if(lin.indexOf("|") >= 0){
+      if(par.length || lista.length){ solta(); }
+      const cel = lin.split("|").map(c=> c.trim());
+      if(cel[0] === "") cel.shift();
+      if(cel.length && cel[cel.length - 1] === "") cel.pop();
+      if(cel.length){ tab.push(cel); return; }
+    }
+    if(lista.length || tab.length){ solta(); }
+    par.push(lin.trim());
+  });
+  solta();
+  (figuras || []).forEach((f, i)=>{ if(!usadas.has(i + 1)){ const b = figura(i + 1); if(b) blocos.push(b); } });
+  return blocos;
+}
+function lclBlocosMetodologia(d, cap, textos, redu){
+  redu = redu || (()=> "");
+  const met = (textos && textos.metodologia) || { texto:"", figuras:[] };
+  const partes = [];
+  const obj = String(d.proj.objetivo || "").trim();
+  if(obj){
+    partes.push({ html:`<div class="lcl-h3">Descrição do trabalho</div>`, grudaNoProximo:true });
+    lclParagrafos(obj).forEach(p=> partes.push({ html:p }));
+  }
+  lclMarkup(lclAplicarVariaveis(met.texto, lclVariaveis(d)), met.figuras, redu).forEach(b=> partes.push(b));
+  if(!partes.length) return [];
+  partes[0] = Object.assign({}, partes[0], { quebrarAntes:true, ancora:cap.ancora, html: lclFaixa(`${cap.num}  ${cap.rot}`, true) + partes[0].html });
+  return partes;
+}
+
+/* ---------- conclusão: parecer, resultado, ações por prioridade, quadro de não conformidades, ART, data e assinaturas ---------- */
+function lclBlocosConclusao(d, cap, assinaturaSrc, redu){
+  redu = redu || (()=> "");
+  const { proj, linha: l, mc } = d;
+  const res = lclResultado(l);
+  const ncs = lclNaoConformidades(l);
+  const pk = lclParecer(l), par = pk ? LCL_PARECERES[pk] : null;
+  const selo = par ? `<span class="lcl-selo ${par.cls}">PARECER: ${par.rot}</span>` : `<span class="lcl-selo">SEM ITENS AVALIADOS</span>`;
+  const texto = String(l.conclusaoTexto || "").trim()
+    ? lclParagrafos(l.conclusaoTexto).join("")
+    : `<p class="lcl-par">Foram avaliados ${res.avaliados} itens da linha de vida ${lclEsc(l.nome || "")}: ${res.ok} atendem e ${res.nok} não atendem${res.na ? `; ${res.na} não se aplicam` : ""}.${par ? " " + lclEsc(par.frase) : ""}</p>`;
+  const contagem = { critica:0, alta:0, media:0 };
+  ncs.forEach(x=>{ contagem[x.prioridade]++; });
+  const maior = Math.max(1, contagem.critica, contagem.alta, contagem.media);
+  const barras = ncs.length
+    ? CHK_PRIORIDADES.map(([k, rot])=>`<div class="lcl-pb"><span>${lclEsc(rot)}</span><div class="tr"><i style="width:${contagem[k] / maior * 100}%;background:${LCL_PRI_COR[k]}"></i></div><b>${contagem[k]}</b></div>`).join("")
+    : `<div class="lcl-pb-vazio">Nenhuma ação recomendada.</div>`;
+  const prox = lclProximaInspecao(proj);
+  const hojeExt = chkDataExtenso(hoje());
+  const img = lclTemFoto(assinaturaSrc) ? `<img src="${assinaturaSrc}" alt="">` : "";
+  const blocos = [{ quebrarAntes:true, ancora:cap.ancora, html:`${lclFaixa(`${cap.num}  ${cap.rot}`, true)}
+    <div class="lcl-kc">${lclDonut([res.ok, res.nok, res.na], [LCL_COR.ok, LCL_COR.nok, LCL_COR.na], 6.6, `<b>${res.pct}%</b><small>conforme</small>`)}<div><div class="lcl-selos">${selo}</div><div class="lcl-kc-t">${res.ok} atendem · ${res.nok} não atendem · ${res.na} não se aplicam</div></div><div class="lcl-pri"><h4>Ações recomendadas por prioridade</h4>${barras}</div></div>
+    ${texto}` }];
+  if(ncs.length){
+    blocos.push({ grudaNoProximo:true, html:`<div class="lcl-h3">Quadro de não conformidades</div><div class="lcl-ncr h"><span>Imagem</span><span>Item</span><span>Prioridade</span><span>Ação recomendada</span></div>` });
+    ncs.forEach(x=>{
+      const foto = redu(x.imagem);
+      blocos.push({ html:`<div class="lcl-ncr"><div class="im">${foto ? `<img src="${foto}" alt="">` : `<span>sem foto</span>`}</div><div class="it"><b>${lclEsc(x.num)} · ${lclEsc(x.secao)}</b><span>${lclEsc(x.descricao)}</span>${x.motivos.length ? `<small>${x.motivos.map(m=> lclEsc(m)).join("; ")}</small>` : ""}</div><div class="pr"><i style="background:${LCL_PRI_COR[x.prioridade]}">${lclEsc(chkPrioridadeRotulo(x.prioridade))}</i></div><div class="ac">${x.acoes.map(a=> lclEsc(a)).join("<br>")}</div></div>` });
+    });
+  }
+  blocos.push({ html:`${prox ? `<p class="lcl-par"><b>Próxima inspeção até: ${lclEsc(prox)}</b> (intervalo máximo de 12 meses).</p>` : ""}
+    <p class="lcl-par" style="margin-top:14px">Relatório documentado perante o CREA${proj.art ? ` na ART nº <b>${lclEsc(proj.art)}</b>` : ""}</p>
+    <p class="lcl-par" style="margin-top:-6px">${lclEsc(mc.cidade || "")}${mc.cidade ? ", " : ""}${lclEsc(hojeExt)}.</p>
+    <div class="lcl-assin2">
+      <div class="sg"><div class="sgi"></div><div class="ln"></div>${lclEsc(proj.responsavel || "Solicitante")}<small>${lclEsc(proj.solicitanteCargo || "")}</small><small>${lclEsc(proj.empresa || "")}</small></div>
+      <div class="sg"><div class="sgi">${img}</div><div class="ln"></div>${lclEsc(mc.respNome || "")}<small>${lclEsc(mc.respFuncao || "")}${mc.respCREA ? " · CREA " + lclEsc(mc.respCREA) : ""}</small><small>${lclEsc(mc.empresa || "")}</small></div>
+    </div>` });
+  return blocos;
+}
+
+/* ---------- memorial de cálculo da zona livre de queda ---------- */
+function lclBlocosMemorial(d, cap){
+  const l = d.linha, tipo = chkTipoLinha(l), m = chkMemorialDe(l), c = chkMemorialCalc(tipo, m);
+  if(!c) return [];
+  const v = chkMemorialVeredito(c, m), f = chkMemFmt, rig = c.tipo === "rig";
+  const sistema = rig ? `rígida (viga ${CHK_MEMORIAL_VIGA.perfil})` : `flexível (cabo de aço de ${f(m.diametro, 0)} mm)`;
+  const intro = `<p class="lcl-par">Verificação da zona livre de queda (ZLQ) da linha de vida horizontal <b>${sistema}</b> ${lclEsc(l.nome || "")}, com vão de ${f(m.vao)} m e ancoragem a ${f(m.hanc)} m do piso, para ${f(m.usuarios, 0)} ${m.usuarios === 1 ? "usuário" : "usuários"}. A ZLQ é a altura livre mínima abaixo da ancoragem para o usuário ser retido antes de atingir o piso ou um obstáculo.</p>`;
+  const card = (nome, zlq, ok)=>`<div class="lcl-mcard ${ok ? "ok" : "no"}"><b>${nome}</b><strong>${ok ? "PODE USAR" : "NÃO USAR"}</strong><small>ZLQ necessária ${f(zlq)} m · disponível ${f(m.hanc)} m · ${ok ? "folga" : "falta"} ${f(Math.abs(m.hanc - zlq))} m</small></div>`;
+  const blocos = [
+    { quebrarAntes:true, ancora:cap.ancora, html:`${lclFaixa(`${cap.num}  ${cap.rot}`, true)}${intro}<div class="lcl-mcards">${card("Talabarte com absorvedor", c.ZLQ1, v.okTab)}${card("Trava-quedas retrátil", c.ZLQ2, v.okTq)}</div><div class="lcl-mfig">${chkMemorialFigura(tipo, m)}</div>` },
+    { html:`<div class="lcl-mcols"><div><h5>Legenda</h5><div class="lcl-mleg">${chkMemorialLegenda(c, m).map((x, i)=>`<i>${i + 1}</i><span>${x}</span>`).join("")}</div></div><div><h5>Condições de uso</h5><ul>${chkMemorialCondicoes(c, m).map(x=>`<li>${x}</li>`).join("")}</ul></div></div>` },
+    { html:`<div class="lcl-mcols"><div><h5>Premissas</h5><ul>${chkMemorialPremissas(c, m).map(x=>`<li>${x}</li>`).join("")}</ul></div><div class="lcl-mparecer"><b>Parecer.</b> ${chkMemorialParecer(c, m)}</div></div>` },
+  ];
+  if(m.memoria){
+    blocos.push({ quebrarAntes:true, ancora:"cap-memoria", html:`${lclFaixa(`${cap.num}.1  Memória de cálculo`, true)}<div>${chkMemorialFormulas(c, m)}</div>` });
+    blocos.push({ html:`<div style="margin-top:10px">${chkMemorialTabelas(c, m)}</div>` });
+  }
+  return blocos;
+}
+
+/* ---------- anexos: cada imagem numa página, com a legenda ---------- */
+function lclBlocosAnexos(d, cap, redu){
+  redu = redu || (()=> "");
+  const itens = lclCfg(d.linha).anexos.map(a=>({ src: redu(a.src), legenda: a.legenda })).filter(a=> a.src);
+  return itens.map((a, i)=>({
+    quebrarAntes:true, ancora: i === 0 ? cap.ancora : undefined,
+    html: (i === 0 ? lclFaixa(`${cap.num}  ${cap.rot}`, true) : "") + `<div class="lcl-h3">Anexo ${String.fromCharCode(65 + (i % 26))}${a.legenda ? " — " + lclEsc(a.legenda) : ""}</div><div class="lcl-anexo"><img src="${a.src}" alt=""></div>`,
+  }));
+}
+
+/* ---------- montagem: todos os capítulos, na ordem do laudo ---------- */
+function lclMontarBlocos(d, textos, caps, fotos, mapa){
+  const redu = (src)=> (fotos && fotos.get(src)) || "";
+  const cfg = lclCfg(d.linha);
+  const blocos = [];
+  blocos.push(lclBlocoCapa(d, cfg.fotoCapa ? redu(d.linha.fotoAmpla) : ""));
+  lclBlocosPagina2(d, textos).forEach(b=> blocos.push(b));
+  lclBlocosSumario(caps, mapa).forEach(b=> blocos.push(b));
+  const capCorpo = caps.find(c=> c.id === "corpo");
+  caps.forEach(c=>{
+    if(c.id === "metodologia") lclBlocosMetodologia(d, c, textos, redu).forEach(b=> blocos.push(b));
+    else if(c.id === "checklist") lclBlocosChecklist(d, c, capCorpo).forEach(b=> blocos.push(b));
+    else if(c.id === "corpo") lclBlocosCorpo(d, c, redu).forEach(b=> blocos.push(b));
+    else if(c.id === "memorial") lclBlocosMemorial(d, c).forEach(b=> blocos.push(b));
+    else if(c.id === "conclusao") lclBlocosConclusao(d, c, fotos && fotos.get("assinatura"), redu).forEach(b=> blocos.push(b));
+    else if(c.id === "anexos") lclBlocosAnexos(d, c, redu).forEach(b=> blocos.push(b));
+  });
+  return blocos;
+}
+
+
+/* Conta os itens da linha. "Não se aplica" (do item ou da seção inteira) fica
+   fora do percentual: conforme = atendem ÷ (atendem + não atendem). */
+function lclResultado(linha){
+  let ok = 0, nok = 0, na = 0, pend = 0;
+  (linha.modeloSnapshot || []).forEach(s=>{
+    const secNA = (linha.secoesNA || []).includes(s.id);
+    (s.itens || []).forEach(it=>{
+      const ie = chkItemExec(linha, it.id);
+      const st = secNA ? "na" : (ie ? ie.conforme : null);
+      if(st === "atende") ok++; else if(st === "naoAtende") nok++; else if(st === "na") na++; else pend++;
+    });
+  });
+  const avaliados = ok + nok;
+  return { ok, nok, na, pend, avaliados, pct: avaliados ? Math.round(ok / avaliados * 100) : 0 };
+}
+function lclSecoesCorpo(linha){
+  return (linha.modeloSnapshot || []).filter(s=> !(linha.secoesNA || []).includes(s.id));
+}
+/* "2026-09-24" + 12 meses = "24/09/2027" (dia 31 num mês curto vira o último
+   dia do mês). Sem data válida, devolve "". */
+function lclMaisMeses(iso, meses){
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || "");
+  if(!m) return "";
+  let ano = +m[1], mes = +m[2] - 1 + meses, dia = +m[3];
+  ano += Math.floor(mes / 12); mes = ((mes % 12) + 12) % 12;
+  const ultimo = new Date(ano, mes + 1, 0).getDate();
+  if(dia > ultimo) dia = ultimo;
+  return `${String(dia).padStart(2,"0")}/${String(mes+1).padStart(2,"0")}/${ano}`;
+}
+function lclProximaInspecao(proj){
+  if(proj && proj.validadeInspecao){
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(proj.validadeInspecao);
+    if(m) return `${m[3]}/${m[2]}/${m[1]}`;
+  }
+  return lclMaisMeses(proj && proj.dataInspecao, 12);
+}
+function lclDados(proj, setor, linha){
+  return { proj, setor, linha, mc: getMecseteConfig() };
+}
+function lclEsc(s){ return escapeHtml(s == null ? "" : String(s)); }
+function lclTemFoto(v){ return typeof v === "string" && v.indexOf("data:image") === 0; }
+
+/* ---------- peças visuais ---------- */
+function lclDonut(vals, cols, tamEm, centroHtml){
+  const tot = vals.reduce((a,b)=>a+b, 0) || 1;
+  let off = 25;
+  const segs = vals.map((v,i)=>{
+    const p = v / tot * 100;
+    if(p <= 0) return "";
+    const s = `<circle cx="18" cy="18" r="15.9155" fill="none" stroke="${cols[i]}" stroke-width="2.6" stroke-dasharray="${Math.max(p-0.6,0.01).toFixed(2)} ${(100-p+0.6).toFixed(2)}" stroke-dashoffset="${off.toFixed(2)}"/>`;
+    off -= p;
+    return s;
+  }).join("");
+  return `<div class="lcl-donut" style="width:${tamEm}em;height:${tamEm}em"><svg viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="15.9155" fill="none" stroke="#eceef5" stroke-width="2.6"/>${segs}</svg><div class="lcl-ct">${centroHtml}</div></div>`;
+}
+function lclSbar(ok, nok, na){
+  const t = (ok + nok + na) || 1;
+  return `<span class="lcl-sbar"><i style="width:${ok/t*100}%;background:${LCL_COR.ok}"></i><i style="width:${nok/t*100}%;background:${LCL_COR.nok}"></i><i style="width:${na/t*100}%;background:${LCL_COR.na}"></i></span>`;
+}
+function lclFaixa(titulo, primeira){
+  return `<div class="lcl-faixa${primeira ? " lcl-n" : ""}">${lclEsc(titulo)}</div>`;
+}
+function lclParagrafos(texto){
+  return String(texto || "").split(/\n{2,}/).map(p=>p.trim()).filter(Boolean)
+    .map(p=>`<p class="lcl-par">${lclEsc(p).replace(/\n/g, "<br>")}</p>`);
+}
+function lclMarca(classe){
+  const l = getMecseteConfig().logoLaudo;
+  if(lclTemFoto(l)) return `<img class="${classe}" src="${l}" alt="">`;
+  return `<div class="${classe}" style="font-weight:800;color:#1E2148;font-size:17px;letter-spacing:.02em;text-align:center">M7 MecSe7e<div style="font-size:7px;letter-spacing:.42em;color:#E94E1B;font-weight:800">ENGENHARIA</div></div>`;
+}
+
+/* ---------- capa e página 2 (iguais às do laudo NR-12) ---------- */
+function lclBlocoCapa(d, fotoSrc){
+  const { proj, setor, linha, mc } = d;
+  const foto = lclTemFoto(fotoSrc) ? `<div class="lcl-fotocapa"><i class="c c1"></i><i class="c c2"></i><i class="c c3"></i><i class="c c4"></i><img src="${fotoSrc}" alt=""><span class="tg">VISTA GERAL · ${lclEsc((linha.nome || "").toUpperCase())}</span></div>` : "";
+  return { paginaInteira:true, semRodape:true, ancora:"cap-capa", html:`
+    <div class="lcl-capa">
+      <div class="lcl-capa-lat">${lclMarca("lcl-logo")}</div>
+      <div class="lcl-capa-risco"></div>
+      <div class="lcl-capa-txt${foto ? " com-foto" : ""}">
+        <div class="lcl-capa-titulo">LAUDO DE INSPEÇÃO<br>DE LINHA DE VIDA<br>CONFORME NR-35</div>
+        <div class="lcl-capa-cliente"><span class="lcl-capa-rot">CLIENTE</span><b>${lclEsc((proj.empresa || "").toUpperCase())}</b></div>
+        <div class="lcl-capa-area">${lclEsc((setor.nome || "").toUpperCase())}</div>
+        ${foto}
+        <table class="lcl-capa-tab">
+          <tr><td>Documento</td><td>${lclEsc(proj.numeroDocumento)}</td></tr>
+          <tr><td>ART</td><td>${lclEsc(proj.art)}</td></tr>
+          <tr><td>Responsável Técnico</td><td>${lclEsc((mc.respNome || "").toUpperCase())}</td></tr>
+          <tr><td>Solicitante</td><td>${lclEsc((proj.responsavel || "").toUpperCase())}</td></tr>
+        </table>
+      </div>
+      <div class="lcl-capa-local">${lclEsc((mc.cidade || "").toUpperCase())}<br>${lclEsc(chkDataExtenso(proj.dataInspecao || hoje()))}</div>
+    </div>` };
+}
+function lclBlocosPagina2(d, textos){
+  const { proj, mc } = d;
+  const cp = (r, v)=> v ? `<div class="lcl-campo"><i>${lclEsc(r)}:</i><b>${lclEsc(v)}</b></div>` : "";
+  const sol = [
+    ["Empresa", proj.empresa], ["Responsável", proj.responsavel], ["CPF/CNPJ", proj.solicitanteCpfCnpj], ["Email", proj.solicitanteEmail],
+    ["Cidade", proj.solicitanteCidade], ["Cargo", proj.solicitanteCargo], ["Telefone", proj.solicitanteTelefone],
+  ].map(p=>cp(p[0], p[1])).join("");
+  const resp = [
+    ["Empresa", mc.empresa], ["Nome Resp.", mc.respNome], ["End.", mc.endereco], ["Função Resp.", mc.respFuncao],
+    ["Cidade", mc.cidade], ["CREA", mc.respCREA], ["Contato", mc.telefone], ["Nome Inspetor", proj.inspetorNome || mc.respNome],
+    ["Email", mc.email], ["Cargo Inspetor", proj.inspetorCargo || mc.respFuncao],
+  ].map(p=>cp(p[0], p[1])).join("");
+  const ini = [
+    ["Data da Inspeção", proj.dataInspecao ? chkDataExtenso(proj.dataInspecao) : ""], ["Nº Documento", proj.numeroDocumento],
+    ["Validade da Inspeção", proj.validadeInspecao ? chkDataExtenso(proj.validadeInspecao) : ""], ["Número da ART", proj.art],
+  ].map(p=>cp(p[0], p[1])).join("");
+  const n = textos.normativo;
+  const intro = lclParagrafos(n.intro).join("");
+  const lista = n.normas.length ? `<p class="lcl-par">Também foram usadas:</p><ul class="lcl-lista">${n.normas.map(x=>`<li>${lclEsc(x)}</li>`).join("")}</ul>` : "";
+  return [
+    { quebrarAntes:true, html:`<div class="lcl-h1">Laudo de Inspeção de Linha de Vida</div>
+      ${lclFaixa("Informações Iniciais", true)}<div class="lcl-campos">${ini}</div>
+      ${lclFaixa("Dados do Solicitante")}<div class="lcl-campos">${sol}</div>
+      <div class="lcl-campos" style="grid-template-columns:1fr">${proj.solicitanteEndereco ? `<div class="lcl-campo"><i>Endereço:</i><b>${lclEsc(proj.solicitanteEndereco)}</b></div>` : ""}</div>
+      ${lclFaixa("Dados do Responsável")}<div class="lcl-campos">${resp}</div>` },
+    { ancora:"cap-normativo", html:`${lclFaixa("Normativo")}${intro}${lista}` },
+  ];
+}
+
+/* ---------- sumário (com número de página real, preenchido numa 2ª passada) ---------- */
+function lclBlocosSumario(caps, mapa){
+  const pg = (a)=> (mapa && mapa[a] != null) ? mapa[a] : "00";
+  const linhas = [`<div class="lcl-sl c">Normativo<i></i>${pg("cap-normativo")}</div>`];
+  caps.forEach(c=>{
+    linhas.push(`<div class="lcl-sl c">${c.num}  ${lclEsc(c.rot)}<i></i>${pg(c.ancora)}</div>`);
+    c.subs.forEach(s=> linhas.push(`<div class="lcl-sl s">${s.num}  ${lclEsc(s.titulo)}<i></i>${pg(s.ancora)}</div>`));
+  });
+  const blocos = [];
+  const POR_BLOCO = 28;
+  for(let i = 0; i < linhas.length; i += POR_BLOCO){
+    const cab = i === 0 ? `<div class="lcl-h1">Sumário</div>` : "";
+    blocos.push({ quebrarAntes: i === 0, sumario:true, ancora: i === 0 ? "cap-sumario" : undefined, html: cab + linhas.slice(i, i + POR_BLOCO).join("") });
+  }
+  return blocos;
+}
+
+/* ---------- checklist: cartões por seção, com a norma de cada item ---------- */
+function lclBlocosChecklist(d, cap, capCorpo){
+  const l = d.linha;
+  const res = lclResultado(l);
+  const refCorpo = {};
+  if(capCorpo) capCorpo.subs.forEach(s=>{ refCorpo[s.id] = s.num; });
+  const legenda = `<div class="lcl-lgd"><span><i style="background:${LCL_COR.ok}"></i><b>${res.ok}</b> atendem</span><span><i style="background:${LCL_COR.nok}"></i><b>${res.nok}</b> não atendem</span><span><i style="background:${LCL_COR.na}"></i><b>${res.na}</b> não se aplicam</span>${res.pend ? `<span><i style="background:#E7A93B"></i><b>${res.pend}</b> sem resposta</span>` : ""}</div>`;
+  const texto = res.avaliados
+    ? `${res.ok} dos ${res.avaliados} itens avaliados atendem. Itens que não se aplicam não entram no percentual.`
+    : "Nenhum item foi avaliado ainda.";
+  const blocos = [{ quebrarAntes:true, ancora:cap.ancora, html:`${lclFaixa(`${cap.num}  ${cap.rot} — ${l.nome || l.modeloNome || ""}`, true)}
+    <div class="lcl-kt">${lclDonut([res.ok, res.nok, res.na], [LCL_COR.ok, LCL_COR.nok, LCL_COR.na], 9.5, `<b>${res.pct}%</b><small>conforme</small>`)}<div><h4>Resultado do checklist</h4><p>${lclEsc(texto)}</p></div>${legenda}</div>` }];
+  (l.modeloSnapshot || []).forEach((s, si)=>{
+    const secNA = (l.secoesNA || []).includes(s.id);
+    let ok = 0, nok = 0, na = 0;
+    const linhas = (s.itens || []).map((it, ii)=>{
+      const ie = chkItemExec(l, it.id);
+      const st = secNA ? "na" : (ie && ie.conforme ? ie.conforme : "pend");
+      const cls = st === "atende" ? "ok" : st === "naoAtende" ? "nok" : st === "na" ? "na" : "pend";
+      if(cls === "ok") ok++; else if(cls === "nok") nok++; else if(cls === "na") na++;
+      const icone = cls === "ok" ? "✓" : cls === "nok" ? "✗" : cls === "na" ? "–" : "?";
+      const ver = (cls === "nok" && refCorpo[s.id]) ? `<span class="lcl-rver">ver ${refCorpo[s.id]}</span>` : "";
+      return `<div class="lcl-rw${cls === "na" ? " na" : ""}"><span class="lcl-ic ${cls}">${icone}</span><span class="lcl-rn">${si+1}.${ii+1}</span><span class="lcl-rt">${lclEsc(it.descricao)}</span>${ver}${it.normativo ? `<span class="lcl-rnorma">${lclEsc(it.normativo)}</span>` : ""}</div>`;
+    }).join("");
+    const resumo = `${ok} OK · ${nok} NÃO OK${na ? " · " + na + " N/A" : ""}`;
+    blocos.push({ html:`<div class="lcl-cd"><div class="lcl-hd"><b>${si+1}  ${lclEsc(s.titulo || "Seção")}</b><small>${resumo}</small>${lclSbar(ok, nok, na)}</div>${secNA ? `<div class="lcl-rw na"><span class="lcl-rt">Seção marcada como “não se aplica”.</span></div>` : linhas}</div>` });
+  });
+  return blocos;
+}
+
+/* ---------- corpo do laudo: uma seção por página, com as fotos ---------- */
+function lclBlocosCorpo(d, cap, redu){
+  const l = d.linha;
+  const blocos = [];
+  cap.subs.forEach((sub, i)=>{
+    const s = (l.modeloSnapshot || []).find(x=> x.id === sub.id);
+    if(!s) return;
+    const { html: narr, fotos } = chkNarrativaSecao(s, l);
+    const imgs = fotos.map((f, k)=>({ n: k + 1, src: redu(f) })).filter(x=> x.src);
+    const topo = (i === 0 ? lclFaixa(`${cap.num}  ${cap.rot}`, true) : "")
+      + `<div class="lcl-h3">${sub.num}  ${lclEsc(sub.titulo)}</div>`
+      + (s.contexto ? `<div class="lcl-ctx"><b>Como deve estar:</b> ${lclEsc(s.contexto)}</div>` : "");
+    const texto = narr || `<p class="lcl-vazio">Nenhum item desta seção foi respondido ainda.</p>`;
+    const dupla = `${topo}<div class="lcl-sec-grid"><div class="lcl-narr">${texto}</div>${imgs.length ? `<div class="lcl-fotos-col">${imgs.map(x=>`<div class="lcl-fcol"><img src="${x.src}" alt=""><div class="lcl-fnum">Foto ${x.n}</div></div>`).join("")}</div>` : ""}</div>`;
+    const bloco = { quebrarAntes:true, ancora: sub.ancora, html: dupla };
+    if(i === 0) bloco.ancoraExtra = cap.ancora;
+    // Seção com muitas fotos não cabe numa folha em duas colunas: o texto fica
+    // inteiro e as fotos descem em fileiras de 3, uma fileira por bloco.
+    bloco.alternativa = ()=>{
+      const out = [{ quebrarAntes:true, ancora: sub.ancora, ancoraExtra: i === 0 ? cap.ancora : undefined, grudaNoProximo: imgs.length > 0, html: `${topo}<div class="lcl-narr lcl-larga">${texto}</div>` }];
+      for(let k = 0; k < imgs.length; k += 3){
+        out.push({ html: `<div class="lcl-fgrade">${imgs.slice(k, k + 3).map(x=>`<div class="lcl-fcol"><img src="${x.src}" alt=""><div class="lcl-fnum">Foto ${x.n}</div></div>`).join("")}</div>` });
+      }
+      return out;
+    };
+    blocos.push(bloco);
+  });
+  return blocos;
+}
+
+/* Empilha os blocos em páginas. `medir(html)` devolve a altura do bloco na
+   largura útil da folha (no app é o DOM; nos testes, um medidor de mentira).
+   O corte é sempre ENTRE blocos, então nada parte no meio. */
+async function lclPaginar(blocos, medir, teto){
+  const lista = blocos.slice();
+  const paginas = [];
+  let atual = [], altura = 0;
+  const fechar = ()=>{ if(atual.length){ paginas.push({ blocos:atual }); atual = []; altura = 0; } };
+  for(let i = 0; i < lista.length; i++){
+    const b = lista[i];
+    if(b.paginaInteira){
+      fechar();
+      paginas.push({ blocos:[b], semRodape:!!b.semRodape, semMargem:!!b.semRodape });
+      continue;
+    }
+    const h = await medir(b.html);
+    if(h > teto && typeof b.alternativa === "function"){
+      lista.splice(i, 1, ...b.alternativa());
+      i--;
+      continue;
+    }
+    if(b.quebrarAntes && atual.length) fechar();
+    if(altura + h > teto && atual.length) fechar();
+    if(b.grudaNoProximo && lista[i+1] && !lista[i+1].paginaInteira && atual.length){
+      const hProx = await medir(lista[i+1].html);
+      if(altura + h + hProx > teto) fechar();
+    }
+    atual.push(b); altura += h;
+  }
+  fechar();
+  return paginas;
+}
+/* Em que página cada âncora caiu (1ª ocorrência). */
+function lclAncoras(paginas){
+  const m = {};
+  paginas.forEach((p, i)=> p.blocos.forEach(b=>{
+    [b.ancora, b.ancoraExtra].forEach(a=>{ if(a && !(a in m)) m[a] = i + 1; });
+  }));
+  return m;
+}
+function lclRodapeTexto(d){
+  const mc = d.mc;
+  const livre = String(mc.rodapeLaudo || "").trim();
+  return livre || `${mc.respFuncao || ""} ${mc.respNome || ""}\n${mc.email || ""}\n${mc.telefone || ""}`;
+}
+function lclRodapeHtml(d, n, total){
+  return `<div class="lcl-rodape"><div class="lcl-num">Página ${n} de ${total}</div><div class="lcl-marca">${lclMarca("")}</div><div class="lcl-eng">${lclEsc(lclRodapeTexto(d))}</div></div>`;
+}
+function lclMontarDoc(paginas, d){
+  return paginas.map((p, i)=> `<div class="lcl-pagina${p.semMargem ? " lcl-sem-margem" : ""}"><div class="lcl-corpo">${p.blocos.map(b=>b.html).join("")}</div>${p.semRodape ? "" : lclRodapeHtml(d, i + 1, paginas.length)}</div>`).join("");
+}
+
+/* ---------- CSS do laudo em capítulos (injetado ao carregar, igual ao módulo NR-12) ---------- */
+const LCL_CSS = `
+.lcl-sel{font-size:12.5px;padding:6px 8px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);color:var(--ink);max-width:100%}
+.lcl-vars{display:flex;flex-wrap:wrap;gap:5px;margin:2px 0 4px}
+.lcl-var{font:600 11px ui-monospace,Consolas,monospace;border:1px solid var(--line-strong);background:var(--bg-soft);color:var(--ink-dim);border-radius:6px;padding:3px 7px;cursor:pointer}
+.lcl-dica{font-size:11.5px;color:var(--ink-faint);line-height:1.45}
+.lcl-figrow{display:grid;grid-template-columns:64px 1fr auto;gap:10px;align-items:center;margin:6px 0}
+.lcl-figrow img{width:64px;height:48px;object-fit:cover;border-radius:6px;background:var(--bg-soft)}
+.lcl-figrow input{width:100%;font-size:13px;padding:6px 8px;border:1px solid var(--line-strong);border-radius:6px;background:var(--surface);color:var(--ink)}
+.lcl-barra{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.lcl-status{font-size:12px;color:var(--ink-dim);font-weight:700}
+.lcl-caps{display:flex;gap:8px 14px;flex-wrap:wrap;align-items:center;margin:0 0 10px;font-size:13px}
+.lcl-caps label{display:flex;gap:6px;align-items:center;cursor:pointer;color:var(--ink-dim);font-weight:600}
+.lcl-caps input{width:17px;height:17px;accent-color:var(--accent)}
+.lcl-visor-wrap{position:relative}
+.lcl-visor{background:#5A5D70;border-radius:10px;padding:14px;overflow:auto;max-height:78vh}
+.lcl-doc{margin:0 auto;transform-origin:top center}
+.lcl-flut{position:absolute;right:14px;bottom:14px;z-index:6;display:flex;flex-direction:column;align-items:center;gap:7px;background:rgba(20,22,45,.72);backdrop-filter:blur(4px);border-radius:99px;padding:8px 7px}
+.lcl-flut-btn{width:38px;height:38px;border-radius:50%;border:none;background:#fff;color:#1E2148;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.28)}
+.lcl-flut-btn svg{width:19px;height:19px}
+.lcl-flut-pct{font-size:10.5px;font-weight:800;color:#fff;letter-spacing:.03em;font-variant-numeric:tabular-nums;padding-bottom:1px}
+@media (min-width:900px){.screen.screen-lcl{max-width:1180px}}
+.lcl-pagina{width:${LCL_PAG_L}px;height:${LCL_PAG_A}px;background:#fff;margin:0 auto 14px;box-shadow:0 2px 10px rgba(0,0,0,.35);position:relative;overflow:hidden;box-sizing:border-box;padding:${LCL_MARGEM}px;font-family:Arial,Helvetica,sans-serif;font-size:12.5px;line-height:1.42;color:#111;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.lcl-pagina.lcl-sem-margem{padding:0}
+.lcl-corpo{height:${LCL_UTIL_A}px;overflow:hidden}
+.lcl-rodape{position:absolute;left:${LCL_MARGEM}px;right:${LCL_MARGEM}px;bottom:${Math.round(6*LCL_MM)}px;height:${LCL_ROD_A}px;display:flex;align-items:flex-end;justify-content:space-between;font-size:8px;color:#777;line-height:1.5}
+.lcl-rodape .lcl-num{flex:1 1 0;min-width:0;font-size:9px;color:#888}
+.lcl-rodape .lcl-marca{flex:0 0 auto;text-align:center}
+.lcl-rodape .lcl-marca img{height:26px;display:block;margin:0 auto}
+.lcl-rodape .lcl-eng{flex:1 1 0;min-width:0;text-align:right;white-space:pre-line}
+.lcl-medidor{position:absolute;left:-99999px;top:0;visibility:hidden;background:#fff;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;font-size:12.5px;line-height:1.42;color:#111;width:${LCL_UTIL_L}px}
+/* capa */
+.lcl-capa{position:absolute;inset:0;display:flex}
+.lcl-capa-lat{width:${Math.round(LCL_PAG_L*0.17)}px;background:#1E2148;position:relative;display:flex;align-items:center;justify-content:center}
+.lcl-capa-lat .lcl-logo{filter: brightness(0) invert(1);width:78%}
+.lcl-capa-risco{width:9px;background:#E94E1B}
+.lcl-capa-txt{flex:1;padding:${Math.round(14*LCL_MM)}px ${Math.round(16*LCL_MM)}px;position:relative}
+.lcl-capa-titulo{font-size:22px;font-weight:800;color:#1E2148;line-height:1.25;margin-bottom:${Math.round(50*LCL_MM)}px}
+.lcl-capa-rot{font-size:8.5px;letter-spacing:.18em;color:#8A8CA3;font-weight:700}
+.lcl-capa-cliente{border-left:5px solid #E94E1B;padding-left:12px;margin-bottom:${Math.round(22*LCL_MM)}px}
+.lcl-capa-cliente b{display:block;font-size:19px;font-weight:800;color:#1E2148;margin-top:2px}
+.lcl-capa-area{font-size:19px;font-weight:800;color:#1E2148;margin-bottom:${Math.round(30*LCL_MM)}px}
+.lcl-capa-tab{width:100%;border-collapse:collapse;font-size:10.5px}
+.lcl-capa-tab td{padding:5px 8px;border-bottom:1px solid #D9DCE6}
+.lcl-capa-tab td:first-child{text-align:right;color:#8A8CA3;font-weight:700;width:45%}
+.lcl-capa-tab td:last-child{text-align:right;font-weight:800;color:#1E2148}
+.lcl-capa-local{text-align:center;font-weight:800;color:#1E2148;font-size:11.5px;position:absolute;left:${Math.round(LCL_PAG_L*0.17)+9}px;right:0;bottom:${Math.round(14*LCL_MM)}px;line-height:1.5}
+.lcl-capa-txt.com-foto .lcl-capa-titulo{margin-bottom:${Math.round(18*LCL_MM)}px}
+.lcl-capa-txt.com-foto .lcl-capa-cliente{margin-bottom:${Math.round(8*LCL_MM)}px}
+.lcl-capa-txt.com-foto .lcl-capa-area{margin-bottom:${Math.round(8*LCL_MM)}px}
+.lcl-capa-txt.com-foto .lcl-capa-tab{position:absolute;left:${Math.round(16*LCL_MM)}px;right:${Math.round(16*LCL_MM)}px;bottom:${Math.round(27*LCL_MM)}px;width:auto}
+.lcl-fotocapa{position:relative;padding:9px}
+.lcl-fotocapa img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover}
+.lcl-fotocapa .c{position:absolute;width:30px;height:30px;border:0 solid #E94E1B}
+.lcl-fotocapa .c1{left:0;top:0;border-width:3px 0 0 3px}.lcl-fotocapa .c2{right:0;top:0;border-width:3px 3px 0 0}
+.lcl-fotocapa .c3{left:0;bottom:0;border-width:0 0 3px 3px}.lcl-fotocapa .c4{right:0;bottom:0;border-width:0 3px 3px 0}
+.lcl-fotocapa .tg{position:absolute;left:19px;bottom:19px;background:rgba(30,33,72,.88);color:#fff;font-size:8.5px;letter-spacing:.14em;padding:4px 9px}
+/* faixas, textos, sumário */
+.lcl-h1{text-align:center;font-size:14px;font-weight:800;margin:0 0 10px}
+.lcl-faixa{background:#1E2148;color:#fff;font-weight:800;font-size:11.5px;padding:5px 10px;margin:12px 0 6px}
+.lcl-faixa.lcl-n{margin-top:0}
+.lcl-par{margin:0 0 10px;text-align:justify;font-size:13.3px;line-height:1.5}
+.lcl-lista{margin:0 0 9px;padding-left:16px;font-size:13.3px;line-height:1.5}
+.lcl-lista li{margin-bottom:3px;text-align:justify}
+.lcl-campos{display:grid;grid-template-columns:1fr 1fr;gap:2px 18px;font-size:10.5px}
+.lcl-campo{display:flex;gap:6px}.lcl-campo i{font-style:normal;color:#444;white-space:nowrap}.lcl-campo b{font-weight:400}
+.lcl-sl{display:flex;gap:8px;align-items:baseline;padding:5px 0;font-size:13px}
+.lcl-sl i{flex:1;border-bottom:1px dotted #9aa;transform:translateY(-3px)}
+.lcl-sl.c{font-weight:700;color:#1E2148;padding-top:10px}
+.lcl-sl.s{padding-left:24px;color:#333}
+/* checklist em cartões */
+.lcl-donut{position:relative;flex:0 0 auto}
+.lcl-donut svg{display:block;width:100%;height:100%}
+.lcl-ct{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}
+.lcl-ct b{font-size:1.9em;color:#1E2148;font-weight:700;letter-spacing:-.02em}
+.lcl-ct small{font-size:.68em;color:#777;margin-top:.2em;letter-spacing:.04em}
+.lcl-lgd{display:grid;gap:4px;font-size:12px;color:#333}
+.lcl-lgd span{display:flex;align-items:center;gap:7px}
+.lcl-lgd i{width:9px;height:9px;border-radius:50%;display:inline-block;flex:0 0 auto}
+.lcl-lgd b{color:#1E2148}
+.lcl-kt{display:flex;gap:18px;align-items:center;margin:2px 0 12px}
+.lcl-kt h4{margin:0 0 4px;font-size:14px;color:#1E2148}
+.lcl-kt p{margin:0;color:#666;font-size:11.5px;max-width:280px}
+.lcl-sbar{display:flex;height:5px;border-radius:99px;overflow:hidden;background:#e6e8f0}
+.lcl-sbar i{display:block;height:100%}
+.lcl-cd{border:1px solid #dfe2ec;border-radius:9px;padding:7px 11px;margin-bottom:7px;background:#fff}
+.lcl-hd{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.lcl-hd b{color:#1E2148;font-size:12.5px}.lcl-hd small{color:#777;font-size:10.5px}
+.lcl-hd .lcl-sbar{width:100px;margin-left:auto}
+.lcl-rw{display:flex;gap:8px;align-items:flex-start;padding:2px 0;color:#333;font-size:11.5px}
+.lcl-rw.na{color:#9a9fb3}
+.lcl-ic{flex:0 0 auto;width:15px;height:15px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:700;color:#fff;margin-top:1px}
+.lcl-ic.ok{background:#2E9E6B}.lcl-ic.nok{background:#D9534F}.lcl-ic.na{background:#B8BDD0}.lcl-ic.pend{background:#E7A93B}
+.lcl-rn{color:#8a8fa8;font-variant-numeric:tabular-nums;min-width:24px}
+.lcl-rt{flex:1;min-width:0}
+.lcl-rnorma{font:600 9px ui-monospace,Consolas,monospace;color:#6b719a;background:#eef0f6;border-radius:4px;padding:2px 6px;white-space:nowrap;align-self:flex-start}
+.lcl-rver{font-size:9.5px;color:#E94E1B;font-weight:700;white-space:nowrap;align-self:flex-start}
+/* corpo do laudo */
+.lcl-h3{font-size:16px;font-weight:800;color:#1E2148;margin:6px 0 8px}
+.lcl-ctx{background:#eef0f6;border-left:4px solid #E94E1B;padding:7px 11px;color:#444;margin-bottom:10px;font-size:12px}
+.lcl-sec-grid{display:flex;gap:18px;align-items:flex-start}
+.lcl-narr{flex:1.6;min-width:0;font-size:13px;line-height:1.55;text-align:justify}
+.lcl-narr.lcl-larga{flex:none;width:100%}
+.lcl-narr mark.nc{background:none;color:#1E2148;font-weight:700}
+.lcl-vazio{color:#8a8fa8;font-style:italic}
+.lcl-fotos-col{width:190px;flex:none;display:grid;gap:10px}
+.lcl-fcol img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:2px;background:#e6e8f0}
+.lcl-fnum{font-size:10px;color:#555;margin-top:3px}
+.lcl-fgrade{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:6px}
+/* conclusão */
+.lcl-kc{display:flex;gap:18px;align-items:center;margin:2px 0 14px;padding:10px 14px;border:1px solid #dfe2ec;border-radius:10px}
+.lcl-selos{margin-bottom:6px}
+.lcl-selo{display:inline-block;font-weight:700;border-radius:5px;padding:4px 11px;font-size:12px;border:1px solid #777;color:#555}
+.lcl-selo.ok{background:#e4f1e5;color:#2e7d32;border-color:#2e7d32}.lcl-selo.no{background:#fbe7e4;color:#c0392b;border-color:#c0392b}
+.lcl-kc-t{color:#555;font-size:12px}
+.lcl-assin2{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:22px;text-align:center;font-size:12px}
+.lcl-assin2 .sg{display:flex;flex-direction:column;align-items:stretch}
+.lcl-assin2 .sgi{height:${Math.round(15*LCL_MM)}px;display:flex;align-items:flex-end;justify-content:center;overflow:hidden}
+.lcl-assin2 .sgi img{max-height:100%;max-width:78%;object-fit:contain;display:block}
+.lcl-assin2 .ln{border-top:1px solid #333;margin-bottom:5px}
+.lcl-assin2 small{display:block;color:#555}
+.lcl-selo.av{background:#fff3dc;color:#b86e00;border-color:#e0a030}
+.lcl-kc{flex-wrap:wrap}
+.lcl-pri{flex:1 1 200px;min-width:190px}
+.lcl-pri h4{margin:0 0 6px;font-size:11.5px;color:#1E2148}
+.lcl-pb{display:grid;grid-template-columns:52px 1fr 18px;gap:7px;align-items:center;font-size:11px;margin:4px 0;color:#444}
+.lcl-pb .tr{height:7px;background:#e6e8f0;border-radius:99px;overflow:hidden}
+.lcl-pb .tr i{display:block;height:100%;border-radius:99px}
+.lcl-pb b{text-align:right;color:#1E2148}
+.lcl-pb-vazio{font-size:11px;color:#8a8fa8}
+.lcl-ncr{display:grid;grid-template-columns:78px 1.4fr 70px 1.3fr;gap:10px;align-items:start;padding:7px 4px;border-bottom:1px solid #dfe2ec;font-size:11px}
+.lcl-ncr.h{background:#eef0f6;font-weight:800;color:#1E2148;font-size:10.5px;padding:5px 4px;border-bottom:none}
+.lcl-ncr .im{width:78px;height:58px;background:#eef0f6;display:flex;align-items:center;justify-content:center;color:#9a9fb3;font-size:9px;overflow:hidden;border-radius:2px}
+.lcl-ncr .im img{width:100%;height:100%;object-fit:cover;display:block}
+.lcl-ncr .it b{display:block;color:#1E2148;font-size:11.5px}
+.lcl-ncr .it span{display:block;color:#333}
+.lcl-ncr .it small{display:block;color:#777;margin-top:2px}
+.lcl-ncr .pr i{font-style:normal;color:#fff;font-weight:700;font-size:10px;border-radius:99px;padding:2px 8px;display:inline-block}
+.lcl-ncr .ac{color:#333}
+/* metodologia */
+.lcl-tbl{width:100%;border-collapse:collapse;font-size:12px;margin:0 0 10px}
+.lcl-tbl th{background:#1E2148;color:#fff;text-align:left;padding:5px 8px}
+.lcl-tbl td{padding:5px 8px;border-bottom:1px solid #d9dce6;vertical-align:top}
+.lcl-mfg{margin:4px 0 12px;text-align:center}
+.lcl-mfg img{max-width:100%;max-height:300px;display:block;margin:0 auto}
+/* memorial de cálculo */
+.lcl-mcards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:8px 0}
+.lcl-mcard{border:1px solid;padding:7px 10px;border-radius:3px}
+.lcl-mcard.ok{border-color:#2e7d32;background:#e4f1e5}.lcl-mcard.no{border-color:#c0392b;background:#fbe7e4}
+.lcl-mcard b{color:#1E2148;font-size:12px}
+.lcl-mcard strong{display:block;font-size:17px}
+.lcl-mcard.ok strong{color:#2e7d32}.lcl-mcard.no strong{color:#c0392b}
+.lcl-mcard small{color:#555;font-size:10px}
+.lcl-mfig{margin:8px auto;border-radius:3px;overflow:hidden;max-width:540px}
+.lcl-mcols{display:grid;grid-template-columns:1fr 1fr;gap:14px;font-size:11.5px;margin-bottom:8px}
+.lcl-mcols h5{margin:0 0 5px;color:#1E2148;font-size:12px}
+.lcl-mcols ul{margin:0;padding-left:16px}.lcl-mcols li{margin-bottom:4px}
+.lcl-mleg{display:grid;grid-template-columns:20px 1fr;gap:4px 7px;align-items:center}
+.lcl-mleg i{width:18px;height:18px;border-radius:50%;background:#E94E1B;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-style:normal;font-weight:700;font-size:10px}
+.lcl-mparecer{padding:8px 10px;border-left:4px solid #1E2148;background:#eef0f6;align-self:start;font-size:11.5px}
+.lcl-fm{display:grid;gap:2px;padding:6px 0;border-bottom:1px solid #eceef4}
+.lcl-ft{font-weight:700;color:#1E2148;font-size:12px}
+.lcl-fl{display:flex;gap:22px;align-items:center;flex-wrap:wrap}
+.lcl-fl math{font-size:15px}
+.lcl-tzg{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+.lcl-tz{width:100%;border-collapse:collapse;font-size:11px}
+.lcl-tz th{background:#1E2148;color:#fff;text-align:left;padding:4px 7px}
+.lcl-tz td{padding:3px 7px;border-bottom:1px solid #d9dce6}
+.lcl-tz td.v{text-align:right;white-space:nowrap}
+.lcl-anexo{text-align:center}
+.lcl-anexo img{max-width:100%;max-height:${LCL_MAX_A - 90}px;object-fit:contain}
+/* impressão */
+@page{size:A4 portrait;margin:0}
+@media print{
+  body.lcl-imprimindo > *{display:none !important}
+  body.lcl-imprimindo > #lclPrintRoot{display:block !important}
+  #lclPrintRoot .lcl-pagina{box-shadow:none !important;margin:0 !important;break-after:page;page-break-after:always}
+  #lclPrintRoot .lcl-pagina:last-child{break-after:auto;page-break-after:auto}
+}`;
+(function(){
+  const st = document.createElement("style");
+  st.id = "lclEstilo";
+  st.textContent = LCL_CSS;
+  document.head.appendChild(st);
+})();
+let __lclParaLinha = null;
+const __lclCacheFoto = new Map();
+/* Cópia reduzida da foto para a página (o laudo não precisa dos megapixels
+   do campo). Falha de leitura devolve "" — a foto some do laudo, nunca trava. */
+function lclReduzirFoto(src, maxL){
+  if(!lclTemFoto(src)) return Promise.resolve("");
+  const chave = maxL + "|" + src.length + "|" + src.slice(-32);
+  if(__lclCacheFoto.has(chave)) return Promise.resolve(__lclCacheFoto.get(chave));
+  return new Promise((resolve)=>{
+    const img = new Image();
+    img.onload = ()=>{
+      try{
+        const r = Math.min(1, maxL / (img.naturalWidth || maxL));
+        const c = document.createElement("canvas");
+        c.width = Math.max(1, Math.round((img.naturalWidth || maxL) * r));
+        c.height = Math.max(1, Math.round((img.naturalHeight || maxL) * r));
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        const out = c.toDataURL("image/jpeg", 0.74);
+        __lclCacheFoto.set(chave, out);
+        resolve(out);
+      }catch(e){ resolve(src); }
+    };
+    img.onerror = ()=> resolve("");
+    img.src = src;
+  });
+}
+/* Medidor: um bloco por vez, fora da tela, na largura útil exata da folha. */
+async function lclMedidor(){
+  const med = document.createElement("div");
+  med.className = "lcl-medidor";
+  document.body.appendChild(med);
+  try{ if(document.fonts && document.fonts.ready) await document.fonts.ready; }catch(e){}
+  return {
+    medir: async (html)=>{
+      med.innerHTML = html;
+      const imgs = Array.from(med.querySelectorAll("img"));
+      await Promise.all(imgs.map(i=> i.complete ? Promise.resolve() : new Promise(r=>{ i.onload = i.onerror = r; })));
+      return Math.ceil(med.getBoundingClientRect().height);
+    },
+    fechar: ()=>{ try{ med.remove(); }catch(e){} },
+  };
+}
+function nomeArquivoLaudoLinha(proj, linha){
+  const limpo = (s)=> String(s || "").replace(/[\\/:*?<>|\x22]/g, "").replace(/\s+/g, " ").trim();
+  return ["Laudo NR-35", limpo(proj && proj.empresa), limpo(linha && linha.nome)].filter(Boolean).join(" - ");
+}
+async function lclPrepararFotos(linha, textos){
+  const mapa = new Map();
+  const alvos = new Map();
+  const add = (src, largura)=>{ if(lclTemFoto(src)) alvos.set(src, Math.max(alvos.get(src) || 0, largura)); };
+  add(linha.fotoAmpla, 1000);
+  (linha.itens || []).forEach(ie=> (ie.fotos || []).forEach(f=> add(f.foto, 600)));
+  lclCfg(linha).anexos.forEach(a=> add(a.src, 1500));
+  ((textos && textos.metodologia && textos.metodologia.figuras) || []).forEach(f=> add(f.src, 800));
+  for(const [s, largura] of alvos) mapa.set(s, await lclReduzirFoto(s, largura));
+  if(typeof __assinaturaLaudo === "string" && lclTemFoto(__assinaturaLaudo)) mapa.set("assinatura", await lclReduzirFoto(__assinaturaLaudo, 500));
+  return mapa;
+}
+/* Escolhe uma ou mais imagens do computador/aparelho e devolve cada uma já
+   reduzida (a imagem original do aparelho é grande demais para o laudo). */
+function lclEscolherImagens(aoEscolher){
+  const inp = document.createElement("input");
+  inp.type = "file"; inp.accept = "image/*"; inp.multiple = true;
+  inp.onchange = async ()=>{
+    const lista = [];
+    for(const file of Array.from(inp.files || [])){
+      try{ lista.push(await comprimirImagem(file, 1600, 0.82)); }catch(e){ toast("Não foi possível ler " + (file && file.name ? file.name : "uma imagem"), false); }
+    }
+    if(lista.length) aoEscolher(lista);
+  };
+  inp.click();
+}
+/* Lista de imagens com legenda (figuras da Metodologia e anexos): miniatura, legenda, lixeira. */
+function lclListaImagensHtml(lista, fnLegenda, fnRemover, rotulo){
+  if(!lista.length) return `<div class="lcl-dica">Nenhuma imagem ainda.</div>`;
+  return lista.map((a, i)=>`<div class="lcl-figrow"><img data-imgref="${imgReg(a.src)}" alt=""><div><div class="lcl-dica">${escapeHtml(rotulo(i))}</div><input type="text" value="${escapeHtml(a.legenda || "")}" placeholder="Legenda" oninput="${fnLegenda}(${i},this.value)"></div><button class="icon-btn" title="Remover" onclick="${fnRemover}(${i})">${ic("trash")}</button></div>`).join("");
+}
+function screenChkLaudoLinha(){
+  const proj = getCurrentChkProjeto(), setor = getCurrentChkSetor(), l = getCurrentChkLinha();
+  if(!proj || !setor || !l){ go("checklist-linhas"); return ""; }
+  if(__lclParaLinha !== l.id && !__lclGerando){
+    __lclPaginas = []; __lclHtml = "";
+    setTimeout(()=>{ if(STATE.ui.screen === "checklist-laudo-linha") App.lclGerar(); }, 30);
+  }
+  const cfg = lclCfg(l);
+  const horiz = chkTipoHorizontal(chkTipoLinha(l));
+  const zoom = STATE.ui.lclZoom || (window.innerWidth < 700 ? 0.4 : 0.8);
+  const caps = LCL_CAPITULOS.filter(c=> c.id !== "memorial" || horiz).map(c=>`<label><input type="checkbox" ${cfg.capitulos[c.id] ? "checked" : ""} onchange="App.lclSetCap('${c.id}',this.checked)"><span>${escapeHtml(c.curto)}</span></label>`).join("");
+  const auto = lclParecerAuto(l);
+  const selParecer = `<select class="lcl-sel" aria-label="Parecer" onchange="App.lclSetParecer(this.value)"><option value="" ${cfg.parecer === "" ? "selected" : ""}>Automático${auto ? " — " + LCL_PARECERES[auto].rot : ""}</option>${Object.keys(LCL_PARECERES).map(k=>`<option value="${k}" ${cfg.parecer === k ? "selected" : ""}>${LCL_PARECERES[k].rot}</option>`).join("")}</select>`;
+  let memLinha = "";
+  if(horiz && cfg.capitulos.memorial){
+    const mem = chkMemorialDe(l), faltas = chkMemorialFaltas(l);
+    memLinha = `<div class="lcl-caps"><span style="font-weight:800;color:var(--ink)">Memorial:</span>${faltas.length
+      ? `<span class="lcl-status" style="color:#C23F12">Falta medir: ${escapeHtml(faltas.join(", "))}. Sem isso o memorial não entra no laudo.</span>`
+      : `<select class="lcl-sel" aria-label="EPI na ilustração" onchange="App.lclSetMemorial('epi',this.value)"><option value="tq" ${mem.epi === "tq" ? "selected" : ""}>Ilustração: trava-quedas</option><option value="tab" ${mem.epi === "tab" ? "selected" : ""}>Ilustração: talabarte</option></select>
+         <label><input type="checkbox" ${mem.memoria ? "checked" : ""} onchange="App.lclSetMemorial('memoria',this.checked)"><span>Página da memória de cálculo</span></label>`}
+      <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lclIrMemorial()">${ic('edit')} Medidas</button></div>`;
+  }
+  const altura = __lclPaginas.length * (LCL_PAG_A + 14);
+  return `
+  <div class="card card-pad" style="margin-bottom:10px">
+    <div style="font-weight:800;font-size:14.5px;margin-bottom:3px">Laudo da linha de vida em capítulos</div>
+    <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:0">Um laudo para esta linha, em páginas A4. O que aparece na prévia é o que sai no PDF.</p>
+  </div>
+  <div class="lcl-barra">
+    <button class="btn btn-primary" onclick="App.lclGerar()">${ic('table')} ${__lclPaginas.length ? "Atualizar" : "Montar laudo"}</button>
+    ${__lclPaginas.length ? `<span class="lcl-status">${__lclPaginas.length} página(s)</span>` : (__lclGerando ? `<span class="lcl-status">Montando…</span>` : "")}
+    <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lclAbrirMetodologia()">${ic('edit')} Metodologia</button>
+    <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lclAbrirTextos()">${ic('edit')} Normativo</button>
+    <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lclAbrirAnexos()">${ic('edit')} Anexos${cfg.anexos.length ? " (" + cfg.anexos.length + ")" : ""}</button>
+    ${typeof App.lpAbrirAssinatura === "function" ? `<button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirAssinatura()">${ic('edit')} Assinatura${(typeof __assinaturaLaudo === "string" && __assinaturaLaudo) ? " ·" : ""}</button>` : ""}
+  </div>
+  <div class="lcl-caps"><span style="font-weight:800;color:var(--ink)">Capítulos:</span>${caps}${l.fotoAmpla ? `<label style="margin-left:6px"><input type="checkbox" ${cfg.fotoCapa ? "checked" : ""} onchange="App.lclSetFotoCapa(this.checked)"><span>Foto na capa</span></label>` : ""}</div>
+  <div class="lcl-caps"><span style="font-weight:800;color:var(--ink)">Parecer:</span>${selParecer}</div>
+  ${memLinha}
+  ${__lclPaginas.length ? `
+    <div class="lcl-visor-wrap">
+      <div class="lcl-visor"><div class="lcl-doc" id="lclDoc" style="transform:scale(${zoom});width:${LCL_PAG_L}px;margin-bottom:${Math.round(-altura * (1 - zoom))}px">${__lclHtml}</div></div>
+      <div class="lcl-flut">
+        <button class="lcl-flut-btn" title="Imprimir / Salvar PDF" aria-label="Imprimir ou salvar em PDF" onclick="App.lclImprimir()">${ic('print')}</button>
+        <button class="lcl-flut-btn" title="Aumentar" aria-label="Aumentar o zoom" onclick="App.lclZoom(1)">${ic('zoomMais')}</button>
+        <button class="lcl-flut-btn" title="Diminuir" aria-label="Diminuir o zoom" onclick="App.lclZoom(-1)">${ic('zoomMenos')}</button>
+        <span class="lcl-flut-pct">${Math.round(zoom * 100)}%</span>
+      </div>
+    </div>
+    <div class="card card-pad" style="margin-top:10px;background:var(--bg-soft)">
+      <div style="font-weight:800;font-size:13px;margin-bottom:5px">Ao abrir a janela de impressão</div>
+      <div style="font-size:12.5px;color:var(--ink-dim);line-height:1.6">Destino: <b>Salvar como PDF</b> · Margens: <b>Nenhuma</b> · Escala: <b>100%</b><br>Em "Mais definições", desmarque <b>Cabeçalhos e rodapés</b> e marque <b>Gráficos de segundo plano</b>. Deixe em <b>Retrato</b>.</div>
+    </div>` : `<div class="empty">${ic('print')}<h3>${__lclGerando ? "Montando o laudo…" : "Laudo ainda não montado"}</h3><p>${__lclGerando ? "Aguarde alguns segundos." : 'Toque em "Montar laudo" para gerar as páginas.'}</p></div>`}`;
+}
+
 /* Laudo narrativo (Modelo 3 — Ficha + Narrativa, escolhido entre 5 opções de
    mockup): capa e os 3 blocos de informações iniciais continuam idênticos
    ao laudo do NR-12 (não mexidos aqui). O que muda é tudo que vem depois:
@@ -27159,9 +28584,39 @@ Devolver agora?`)) return;
     marcarAlterado();
     render();
   },
+  // Medidas do memorial (campo): cada número digitado atualiza só o desenho e o resultado, sem refazer a tela.
+  chkMemorialSet(k, v){
+    const l = getCurrentChkLinha(); if(!l) return;
+    if(!CHK_MEMORIAL_CAMPOS.some(c=> c[0] === k)) return;
+    if(!l.memorial || typeof l.memorial !== "object") l.memorial = {};
+    const n = chkMemorialNum(v);
+    l.memorial[k] = n === null ? null : n;
+    l.atualizadoEm = agoraSync();
+    marcarAlterado();
+    const el = document.getElementById("chkMemVivo");
+    if(el) el.innerHTML = chkMemorialVivoHtml(l);
+  },
+  chkMemorialSetParam(k, v){
+    const l = getCurrentChkLinha(); if(!l) return;
+    if(!(k in CHK_MEMORIAL_PARAMS)) return;
+    if(!l.memorial || typeof l.memorial !== "object") l.memorial = {};
+    if(!l.memorial.params || typeof l.memorial.params !== "object") l.memorial.params = {};
+    const n = chkMemorialNum(v);
+    if(n === null) delete l.memorial.params[k]; else l.memorial.params[k] = n;
+    l.atualizadoEm = agoraSync();
+    marcarAlterado();
+    const el = document.getElementById("chkMemVivo");
+    if(el) el.innerHTML = chkMemorialVivoHtml(l);
+  },
+  // Interruptor único do capítulo (o mesmo do laudo). Desligar não apaga as medidas.
+  chkMemorialToggle(){
+    const l = getCurrentChkLinha(); if(!l) return;
+    if(!chkMemorialAtivo(l)){ App.lclSetCap("memorial", true); return; }
+    chkAbrirConfirmacao("Esta linha não terá memorial?", "O capítulo de memorial de cálculo sai do laudo desta linha. As medidas digitadas ficam guardadas e você pode incluir o memorial de novo quando quiser.", "Confirmar", ()=>{ App.lclSetCap("memorial", false); });
+  },
   chkIrParaSecao(idx){
     const l = getCurrentChkLinha(); if(!l) return;
-    const max = l.modeloSnapshot.length - 1;
+    const max = chkTotalAbas(l) - 1;
     let novo = idx; if(novo<0) novo=0; if(novo>max) novo=max;
     STATE.ui.chkSecaoAtual = novo;
     STATE.ui.chkItemAberto = null; // trocar de seção fecha qualquer item aberto
@@ -27295,7 +28750,7 @@ Devolver agora?`)) return;
       <button class="btn btn-ghost btn-block" style="margin-top:14px" onclick="App.fecharModal()">Fechar</button>
     </div></div>`);
   },
-  chkTirarFoto(itemId, daGaleria){
+  chkTirarFoto(itemId, daGaleria, motivo){
     // Câmera é a ação principal, de propósito: em campo o pedido é tocar e
     // fotografar, sem confirmar nada — cada foto é salva sozinha assim que
     // sai da câmera. Galeria fica como opção secundária, para quando a foto
@@ -27312,7 +28767,9 @@ Devolver agora?`)) return;
       if(l && item){
         const data = await comprimirImagem(file, 1920, 0.82);
         salvarFotoNaGaleria(data, "apr_checklist");
-        item.fotos.push({ foto:data, tags:[] });
+        // Foto nasce ligada ao motivo pedido; sem pedido, ao único motivo marcado (se for um só).
+        const motivoFoto = (typeof motivo === "string") ? motivo : ((item.conforme === "naoAtende" && (item.motivosSelecionados||[]).length === 1) ? item.motivosSelecionados[0] : "");
+        item.fotos.push({ foto:data, tags:[], motivo:motivoFoto });
         l.atualizadoEm = agoraSync();
         marcarAlterado();
         render();
@@ -27325,6 +28782,41 @@ Devolver agora?`)) return;
       if(!daGaleria){ try{ input.click(); }catch(e){} }
     };
     input.click();
+  },
+  chkTirarFotoMotivo(itemId, mi, daGaleria){
+    const l = getCurrentChkLinha(); if(!l) return;
+    const ie = chkItemExec(l, itemId); if(!ie) return;
+    const m = (ie.motivosSelecionados||[])[mi];
+    if(typeof m !== "string") return;
+    App.chkTirarFoto(itemId, daGaleria, m);
+  },
+  // mi = posição do motivo em motivosSelecionados; -1 = sem motivo.
+  chkMoverFoto(itemId, idx, mi){
+    const l = getCurrentChkLinha(); if(!l) return;
+    const ie = chkItemExec(l, itemId); if(!ie || !ie.fotos || !ie.fotos[idx]) return;
+    const m = mi >= 0 ? (ie.motivosSelecionados||[])[mi] : "";
+    if(mi >= 0 && typeof m !== "string") return;
+    ie.fotos[idx].motivo = m || "";
+    l.atualizadoEm = agoraSync();
+    marcarAlterado();
+    render();
+  },
+  chkDragFoto(ev, idx){
+    try{ ev.dataTransfer.setData("text/plain", String(idx)); ev.dataTransfer.effectAllowed = "move"; }catch(e){}
+  },
+  chkDropFoto(ev, itemId, mi){
+    ev.preventDefault();
+    let idx = -1;
+    try{ idx = parseInt(ev.dataTransfer.getData("text/plain"), 10); }catch(e){}
+    if(idx >= 0) App.chkMoverFoto(itemId, idx, mi);
+  },
+  chkFotoMenu(itemId, idx){
+    const l = getCurrentChkLinha(); if(!l) return;
+    const ie = chkItemExec(l, itemId); if(!ie || !ie.fotos || !ie.fotos[idx]) return;
+    const acoes = (ie.motivosSelecionados||[]).map((m,mi)=>({ label:"Mover para: " + m, icon:"arrowR", onclick:`App.chkMoverFoto('${itemId}',${idx},${mi})` }));
+    acoes.push({ label:"Sem motivo", icon:"close", onclick:`App.chkMoverFoto('${itemId}',${idx},-1)` });
+    acoes.push({ label:"Excluir foto", icon:"trash", danger:true, onclick:`App.chkRemoverFoto('${itemId}',${idx})` });
+    abrirMenuAcoes("Foto " + (idx + 1), "", acoes);
   },
   chkRemoverFoto(itemId, idx){
     const l = getCurrentChkLinha(); if(!l) return;
@@ -27363,6 +28855,238 @@ Devolver agora?`)) return;
       __chkNovaLinhaDraft.fotoAmpla = "";
     }
     render();
+  },
+  /* ---------- Laudo em capítulos (uma linha de vida) ---------- */
+  lclAbrir(){
+    __lclPaginas = []; __lclHtml = ""; __lclParaLinha = null;
+    go("checklist-laudo-linha");
+  },
+  lclZoom(dir){
+    const passos = [0.3,0.4,0.5,0.65,0.8,1,1.25,1.5,2];
+    let i = passos.indexOf(STATE.ui.lclZoom || (window.innerWidth < 700 ? 0.4 : 0.8));
+    if(i < 0) i = 4;
+    i = Math.max(0, Math.min(passos.length - 1, i + dir));
+    STATE.ui.lclZoom = passos[i];
+    render();
+  },
+  // Liga/desliga de capítulo e foto da capa ficam na própria linha (linha.laudo).
+  // Desligar não apaga nada: só tira o capítulo da montagem.
+  lclSetCap(id, ligado){
+    const l = getCurrentChkLinha(); if(!l) return;
+    if(!l.laudo) l.laudo = {};
+    if(!l.laudo.capitulos) l.laudo.capitulos = {};
+    l.laudo.capitulos[id] = !!ligado;
+    l.atualizadoEm = agoraSync();
+    marcarAlterado();
+    __lclPaginas = []; __lclHtml = ""; __lclParaLinha = null;
+    render();
+  },
+  lclSetFotoCapa(ligado){
+    const l = getCurrentChkLinha(); if(!l) return;
+    if(!l.laudo) l.laudo = {};
+    l.laudo.fotoCapa = !!ligado;
+    l.atualizadoEm = agoraSync();
+    marcarAlterado();
+    __lclPaginas = []; __lclHtml = ""; __lclParaLinha = null;
+    render();
+  },
+  lclSetParecer(v){
+    const l = getCurrentChkLinha(); if(!l) return;
+    if(!l.laudo) l.laudo = {};
+    l.laudo.parecer = LCL_PARECERES[v] ? v : "";
+    l.atualizadoEm = agoraSync();
+    marcarAlterado();
+    __lclPaginas = []; __lclHtml = ""; __lclParaLinha = null;
+    render();
+  },
+  // EPI da ilustração e página da memória de cálculo: ficam junto das medidas, em linha.memorial.
+  lclSetMemorial(k, v){
+    const l = getCurrentChkLinha(); if(!l) return;
+    if(k !== "epi" && k !== "memoria") return;
+    if(!l.memorial || typeof l.memorial !== "object") l.memorial = {};
+    if(k === "epi") l.memorial.epi = v === "tab" ? "tab" : "tq"; else l.memorial.memoria = !!v;
+    l.atualizadoEm = agoraSync();
+    marcarAlterado();
+    __lclPaginas = []; __lclHtml = ""; __lclParaLinha = null;
+    render();
+  },
+  lclIrMemorial(){
+    const l = getCurrentChkLinha(); if(!l) return;
+    if(l.status === "finalizado"){ toast("Reabra a linha para alterar as medidas do memorial", false); return; }
+    STATE.ui.chkSecaoAtual = l.modeloSnapshot.length;
+    STATE.ui.chkItemAberto = null;
+    go("checklist-preencher");
+  },
+  /* ---------- Metodologia: texto único, com variáveis e figuras ---------- */
+  lclAbrirMetodologia(){
+    const t = lclTextos().metodologia;
+    __lclMetDraft = t.figuras.map(f=>({ src:f.src, legenda:f.legenda }));
+    abrirOverlay(`<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card" style="max-width:720px;width:calc(100vw - 32px);max-height:92vh;overflow:auto">
+      <h3>${ic('edit')} Texto da Metodologia</h3>
+      <p class="sheet-sub">Um texto para todos os laudos. As {{variáveis}} são trocadas pelos dados de cada linha.</p>
+      <div class="field"><label>Texto</label><textarea id="lclMetTexto" rows="15" style="font-family:ui-monospace,Consolas,monospace;font-size:13px;line-height:1.5">${escapeHtml(t.texto)}</textarea></div>
+      <div class="lcl-vars">${LCL_METODOLOGIA_VARIAVEIS.map(([k, desc])=>`<button type="button" class="lcl-var" title="${escapeHtml(desc)}" onclick="App.lclMetInserirVariavel('${k}')">{{${k}}}</button>`).join("")}</div>
+      <div class="lcl-dica" style="margin:6px 0 12px">Subtítulo: <b>## Título</b> · Lista: <b>- item</b> · Tabela: <b>coluna A | coluna B</b> (a 1ª linha é o cabeçalho) · Figura: <b>[figura 1]</b> no lugar desejado. Figura não citada vai para o fim.</div>
+      <div class="field"><label>Figuras</label><div id="lclMetFigs">${lclListaImagensHtml(__lclMetDraft, "App.lclMetLegenda", "App.lclMetRemoverFigura", i=> "[figura " + (i + 1) + "]")}</div>
+        <button class="btn btn-secondary btn-sm" style="margin-top:6px" onclick="App.lclMetAddFigura()">${ic('plus')} Adicionar figura</button></div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="App.lclRestaurarMetodologia()">Texto padrão</button>
+        <button class="btn btn-secondary" onclick="App.fecharModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="App.lclSalvarMetodologia()">Salvar</button>
+      </div></div></div>`);
+  },
+  lclMetInserirVariavel(nome){
+    const ta = document.getElementById("lclMetTexto"); if(!ta) return;
+    ta.setRangeText("{{" + nome + "}}", ta.selectionStart, ta.selectionEnd, "end");
+    ta.focus();
+  },
+  lclMetRedesenharFiguras(){
+    const el = document.getElementById("lclMetFigs");
+    if(el){ el.innerHTML = lclListaImagensHtml(__lclMetDraft, "App.lclMetLegenda", "App.lclMetRemoverFigura", i=> "[figura " + (i + 1) + "]"); hidratarImagens(); }
+  },
+  lclMetAddFigura(){
+    lclEscolherImagens(lista=>{ lista.forEach(src=> __lclMetDraft.push({ src, legenda:"" })); App.lclMetRedesenharFiguras(); });
+  },
+  lclMetLegenda(i, v){ if(__lclMetDraft[i]) __lclMetDraft[i].legenda = v; },
+  lclMetRemoverFigura(i){ __lclMetDraft.splice(i, 1); App.lclMetRedesenharFiguras(); },
+  // "Texto padrão" só preenche o campo; nada é gravado até tocar em Salvar.
+  lclRestaurarMetodologia(){
+    const ta = document.getElementById("lclMetTexto");
+    if(ta) ta.value = LCL_METODOLOGIA_PADRAO.join("\n");
+  },
+  lclSalvarMetodologia(){
+    const ta = document.getElementById("lclMetTexto"); if(!ta) return;
+    if(!STATE.checklists.textos) STATE.checklists.textos = {};
+    STATE.checklists.textos.metodologia = { texto: ta.value, figuras: __lclMetDraft.map(f=>({ src:f.src, legenda:f.legenda })) };
+    marcarAlterado();
+    App.fecharModal();
+    __lclMetDraft = [];
+    __lclPaginas = []; __lclHtml = ""; __lclParaLinha = null;
+    render();
+  },
+  /* ---------- Anexos: imagens (ART, certificados, fichas) no fim do laudo ---------- */
+  lclAbrirAnexos(){
+    const l = getCurrentChkLinha(); if(!l) return;
+    abrirOverlay(`<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.lclFecharAnexos()"><div class="modal-card" style="max-width:640px;width:calc(100vw - 32px);max-height:92vh;overflow:auto">
+      <h3>${ic('edit')} Anexos do laudo</h3>
+      <p class="sheet-sub">Cada imagem ocupa uma página no fim do laudo (ART, certificados, fichas…). Valem só para esta linha.</p>
+      <div id="lclAnexosLista">${lclListaImagensHtml(lclCfg(l).anexos, "App.lclAnexoLegenda", "App.lclAnexoRemover", i=> "Anexo " + String.fromCharCode(65 + (i % 26)))}</div>
+      <button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="App.lclAnexoAdicionar()">${ic('plus')} Adicionar imagem</button>
+      <div class="modal-actions"><button class="btn btn-primary" onclick="App.lclFecharAnexos()">Concluir</button></div></div></div>`);
+  },
+  lclAnexosRedesenhar(){
+    const l = getCurrentChkLinha(); const el = document.getElementById("lclAnexosLista");
+    if(l && el){ el.innerHTML = lclListaImagensHtml(lclCfg(l).anexos, "App.lclAnexoLegenda", "App.lclAnexoRemover", i=> "Anexo " + String.fromCharCode(65 + (i % 26))); hidratarImagens(); }
+  },
+  lclAnexoAdicionar(){
+    lclEscolherImagens(lista=>{
+      const l = getCurrentChkLinha(); if(!l) return;
+      if(!l.laudo) l.laudo = {};
+      if(!Array.isArray(l.laudo.anexos)) l.laudo.anexos = [];
+      lista.forEach(src=> l.laudo.anexos.push({ src, legenda:"" }));
+      l.atualizadoEm = agoraSync();
+      marcarAlterado();
+      App.lclAnexosRedesenhar();
+    });
+  },
+  lclAnexoLegenda(i, v){
+    const l = getCurrentChkLinha(); if(!l || !l.laudo || !Array.isArray(l.laudo.anexos) || !l.laudo.anexos[i]) return;
+    l.laudo.anexos[i].legenda = v;
+    l.atualizadoEm = agoraSync();
+    marcarAlterado();
+  },
+  lclAnexoRemover(i){
+    const l = getCurrentChkLinha(); if(!l || !l.laudo || !Array.isArray(l.laudo.anexos) || !l.laudo.anexos[i]) return;
+    l.laudo.anexos.splice(i, 1);
+    l.atualizadoEm = agoraSync();
+    marcarAlterado();
+    App.lclAnexosRedesenhar();
+  },
+  lclFecharAnexos(){
+    App.fecharModal();
+    __lclPaginas = []; __lclHtml = ""; __lclParaLinha = null;
+    render();
+  },
+  lclAbrirTextos(){
+    const n = lclTextos().normativo;
+    abrirOverlay(`<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card" style="max-width:560px;width:calc(100vw - 32px)">
+      <h3>${ic('edit')} Texto do Normativo</h3>
+      <p class="sheet-sub">Aparece na página 2 de todos os laudos de linha de vida.</p>
+      <div class="field"><label>Introdução</label><textarea id="lclNormIntro" rows="5">${escapeHtml(n.intro)}</textarea></div>
+      <div class="field"><label>Normas usadas (uma por linha)</label><textarea id="lclNormLista" rows="6">${escapeHtml(n.normas.join("\n"))}</textarea></div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="App.lclRestaurarTextos()">Texto padrão</button>
+        <button class="btn btn-secondary" onclick="App.fecharModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="App.lclSalvarTextos()">Salvar</button>
+      </div></div></div>`);
+  },
+  // "Texto padrão" só preenche os campos; nada é gravado até tocar em Salvar.
+  lclRestaurarTextos(){
+    const a = document.getElementById("lclNormIntro"), b = document.getElementById("lclNormLista");
+    if(a) a.value = LCL_NORMATIVO_PADRAO.intro;
+    if(b) b.value = LCL_NORMATIVO_PADRAO.normas.join("\n");
+  },
+  lclSalvarTextos(){
+    const a = document.getElementById("lclNormIntro"), b = document.getElementById("lclNormLista");
+    if(!a || !b) return;
+    if(!STATE.checklists.textos) STATE.checklists.textos = {};
+    STATE.checklists.textos.normativo = { intro: a.value, normas: b.value.split("\n").map(s=>s.trim()).filter(Boolean) };
+    marcarAlterado();
+    App.fecharModal();
+    __lclPaginas = []; __lclHtml = ""; __lclParaLinha = null;
+    render();
+  },
+  async lclGerar(){
+    if(__lclGerando) return;
+    const proj = getCurrentChkProjeto(), setor = getCurrentChkSetor(), l = getCurrentChkLinha();
+    if(!proj || !setor || !l){ toast("Abra uma linha de vida para montar o laudo", false); return; }
+    __lclGerando = true;
+    let soltar = ()=>{};
+    try{
+      // Carga sob demanda: as fotos desta linha podem estar só
+      // como referência; sem isto os quadros de foto sairiam vazios.
+      await garantirFotosDe(l);
+      if(STATE.checklists.textos) await garantirFotosDe(STATE.checklists.textos); // figuras da Metodologia
+      soltar = ()=>{ try{ liberarFotosDe(l); if(STATE.checklists.textos) liberarFotosDe(STATE.checklists.textos); }catch(e){} };
+      const d = lclDados(proj, setor, l), textos = lclTextos(), caps = lclPlano(proj, l);
+      const fotos = await lclPrepararFotos(l, textos);
+      const med = await lclMedidor();
+      try{
+        let mapa = null, paginas = null;
+        // 2ª passada: o sumário só sabe o número das páginas depois de paginar.
+        for(let rodada = 0; rodada < 3; rodada++){
+          paginas = await lclPaginar(lclMontarBlocos(d, textos, caps, fotos, mapa), med.medir, LCL_MAX_A);
+          const novo = lclAncoras(paginas);
+          if(mapa && JSON.stringify(novo) === JSON.stringify(mapa)) break;
+          mapa = novo;
+        }
+        __lclPaginas = paginas;
+        __lclHtml = lclMontarDoc(paginas, d);
+        __lclParaLinha = l.id;
+      } finally { med.fechar(); }
+      render();
+    }catch(e){
+      __lclParaLinha = l.id; // não tenta de novo sozinho; o botão "Montar laudo" tenta
+      toast("Não foi possível montar o laudo: " + (e && e.message ? e.message : e), false);
+      render();
+    }finally{ __lclGerando = false; soltar(); }
+  },
+  async lclImprimir(){
+    while(__lclGerando) await new Promise(r=>setTimeout(r, 30));
+    await App.lclGerar(); // remonta com os dados de agora, como o laudo NR-12 faz
+    const doc = document.getElementById("lclDoc");
+    if(!doc || !__lclPaginas.length){ toast("Monte o laudo antes de imprimir", false); return; }
+    const raiz = document.createElement("div");
+    raiz.id = "lclPrintRoot";
+    raiz.innerHTML = doc.innerHTML;
+    document.body.appendChild(raiz);
+    document.body.classList.add("lcl-imprimindo");
+    const tituloAntigo = document.title;
+    document.title = nomeArquivoLaudoLinha(getCurrentChkProjeto(), getCurrentChkLinha());
+    const limpar = ()=>{ try{ raiz.remove(); }catch(e){} document.body.classList.remove("lcl-imprimindo"); document.title = tituloAntigo; };
+    window.addEventListener("afterprint", limpar, { once:true });
+    setTimeout(()=>{ try{ window.print(); }catch(e){ toast("Impressão não suportada neste navegador", false); } }, 80);
+    setTimeout(limpar, 60000);
   },
   chkSetConclusao(valor){
     const l = getCurrentChkLinha(); if(!l) return;
