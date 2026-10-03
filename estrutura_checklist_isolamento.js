@@ -164,7 +164,7 @@ const FUNCOES = [
   "chkAvisoDocumento", "chkMaisMesesISO", "chkOpcoesInspetor", "novoChkInspetor", "chkInspetoresHtml", "screenChkProjetoForm",
   // Editor de modelo (Modelo 3, linhas de fluxo): lista com busca/secoes abertas e o item aberto.
   "chkBuscaNorm", "chkModeloSvg", "chkAutoAltura", "chkModeloAjustarAlturas", "chkModeloRedesenhar", "chkModeloPreviaPergunta",
-  "chkModeloPainelAberto", "chkModeloSecAberta", "chkMostrarItemAberto", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
+  "chkModeloPainelAberto", "chkModeloSecAberta", "chkMostrarItemAberto", "screenChkLinhas", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
 ];
 let fonte = "let __ultimoCarimboVisto = 0;\n";
 fonte += "let __buscaAtual = '';\n"; // usado por chkAbrirSetor (lista de linhas) -- nao testado aqui, so pra nao faltar
@@ -194,6 +194,7 @@ fonte += letObjeto("__lclEdit") + "\n";
 fonte += letEscalar("__lclFotosSec");
 fonte += letObjeto("__lclMetDraft") + "\n";
 fonte += letEscalar("__lclParaLinha");
+fonte += letEscalar("__lclOrigem");
 // escapeHtml DE VERDADE (o laudo escapa o que a pessoa digita e o ensaio precisa ver isso). O extrator
 // por nome se perde com as aspas dentro da expressao regular dela, entao pega pelo fim da funcao.
 const mEsc = /\nfunction escapeHtml\(s\)\{[\s\S]*?\n\}\n/.exec(HTML);
@@ -2342,7 +2343,39 @@ async function testarEditorModelo(){
   roda(`STATE.checklists.modelos = STATE.checklists.modelos.filter(x => x.id !== STATE.ui.chkModeloId); STATE.ui.chkModeloId = ${J(modeloAntes)}; STATE.ui.chkModeloSecaoSel = null; STATE.ui.chkModeloItemSel = null; chkModeloResetTela(); delete globalThis.__M;`);
   T(roda("STATE.checklists.modelos.length") === nAntes, "preparo/limpeza: o modelo de teste saiu");
 }
-testarFotoAmpla().then(() => testarTravas()).then(() => testarDadosLaudo()).then(() => testarLaudoCapitulos()).then(() => testarMemorial()).then(() => testarCapitulosNovos()).then(() => testarEdicaoTexto()).then(() => testarFotosLeituraLaudo()).then(() => testarCadastroProjeto()).then(() => testarEditorModelo()).then(() => {
+async function testarAtalhoLaudo(){
+  const T = (cond, msg)=>{ if(!cond) throw new Error("atalho do laudo: " + msg); };
+  const J = (v)=> JSON.stringify(v);
+  const antes = roda("({ p: STATE.ui.chkProjetoId, s: STATE.ui.chkSetorId, l: STATE.ui.chkLinhaId, n: STATE.checklists.projetos.length })");
+  roda(`(function(){
+    const m = novoChkModelo(); m.nome = "M atalho"; const sc = novoChkSecao(); sc.titulo = "S"; const it = novoChkItem(); it.descricao = "Pergunta"; sc.itens = [it]; m.secoes = [sc];
+    const proj = novoChkProjeto(); proj.empresa = "Empresa atalho"; const st = novoChkSetor(); st.nome = "Setor atalho";
+    const a = novoChkLinha(m); a.nome = "LV-A"; a.status = "em_andamento"; const b = novoChkLinha(m); b.nome = "LV-B"; b.status = "finalizado";
+    st.linhas = [a, b]; proj.setores = [st]; STATE.checklists.projetos.push(proj);
+    STATE.ui.chkProjetoId = proj.id; STATE.ui.chkSetorId = st.id; STATE.ui.chkLinhaId = null;
+  })()`);
+  const setor = roda("getCurrentChkSetor()");
+  T(setor && setor.linhas.length === 2, "preparo: o setor de teste precisa ter 2 linhas (" + (setor && setor.linhas.length) + ")");
+  const l1 = setor.linhas[0], l2 = setor.linhas[1];
+  const h = roda("screenChkLinhas()");
+  T(h.includes("App.chkAbrirLaudoLinha('" + l1.id + "')") && h.includes("App.chkAbrirLaudoLinha('" + l2.id + "')"), "cada cartao de linha tem o botao Laudo ligado ao id certo");
+  T(h.split("class=\"chk-linha-laudo\"").length - 1 === setor.linhas.length, "um botao Laudo por linha, em qualquer status (nao so nas finalizadas)");
+  T(h.includes("event.stopPropagation();App.chkAbrirLaudoLinha("), "o clique no botao nao abre a linha por baixo");
+  // abrir o laudo pelo atalho: escolhe a linha, lembra a origem e descarta montagem antiga
+  roda("STATE.ui.chkLinhaId = null; __lclParaLinha = 'montado'; __lclPaginas = [1]; __lclHtml = 'x';");
+  roda("App.chkAbrirLaudoLinha(" + J(l2.id) + ")");
+  T(roda("STATE.ui.chkLinhaId") === l2.id && roda("__lclOrigem") === "checklist-linhas", "o atalho escolhe a linha tocada e marca a lista como origem");
+  T(roda("__lclParaLinha") === null && roda("__lclPaginas.length") === 0 && roda("__lclHtml") === "", "o laudo abre limpo (monta de novo para a linha escolhida)");
+  roda("App.chkAbrirLaudoLinha('nao-existe')");
+  T(roda("STATE.ui.chkLinhaId") === l2.id, "id que nao existe nao troca a linha");
+  // o caminho antigo (Revisar e finalizar) continua voltando para a finalizacao
+  roda("App.lclAbrir()");
+  T(roda("__lclOrigem") === "", "abrir pela tela de finalizar zera a origem (o voltar continua indo para a finalizacao)");
+  // limpeza
+  roda(`STATE.checklists.projetos = STATE.checklists.projetos.filter(p => p.id !== STATE.ui.chkProjetoId); STATE.ui.chkProjetoId = ${J(antes.p)}; STATE.ui.chkSetorId = ${J(antes.s)}; STATE.ui.chkLinhaId = ${J(antes.l)};`);
+  T(roda("STATE.checklists.projetos.length") === antes.n, "preparo/limpeza: o projeto de teste saiu");
+}
+testarFotoAmpla().then(() => testarTravas()).then(() => testarDadosLaudo()).then(() => testarLaudoCapitulos()).then(() => testarMemorial()).then(() => testarCapitulosNovos()).then(() => testarEdicaoTexto()).then(() => testarFotosLeituraLaudo()).then(() => testarCadastroProjeto()).then(() => testarEditorModelo()).then(() => testarAtalhoLaudo()).then(() => {
   // as arvores do Completo/Simplificado continuam byte a byte identicas apos a foto ampla tambem
   if(JSON.stringify(sandbox.STATE.projetos) !== antesCompleto || JSON.stringify(sandbox.STATE.projetosSimples) !== antesSimples){
     console.error("FALHOU: a foto ampla da linha mexeu em STATE.projetos/projetosSimples");

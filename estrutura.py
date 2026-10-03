@@ -5554,5 +5554,13 @@ chk("no computador o editor de modelo usa a largura inteira da janela (sem teto 
     ".screen.screen-chk-modelo{max-width:none;padding:0 0 24px;}" in novo and "position:sticky;top:var(--chk-topo)" in novo
     and ".screen.screen-chk-modelo{max-width:1180px;}" not in novo)
 
+print("=== 176. ATALHO DO LAUDO NO CARTAO DA LINHA (03/10/2026) ===")
+_tb = novo.index("function topBarChk(")
+_tb_corpo = novo[_tb:novo.index("function crumbBarChk(", _tb)]
+chk("o cartao da linha tem o botao Laudo (nao abre a linha por baixo) e ele abre o laudo sem finalizar",
+    "App.chkAbrirLaudoLinha('${l.id}')" in novo and "event.stopPropagation();App.chkAbrirLaudoLinha(" in novo and "chkAbrirLaudoLinha(id){" in novo)
+chk("o voltar do laudo da linha devolve para a lista quando o laudo foi aberto pelo atalho, e para a finalizacao no caminho de sempre",
+    'backTarget = __lclOrigem || "checklist-finalizar"' in _tb_corpo and "__lclOrigem = origem || \"\";" in novo and 'App.lclAbrir("checklist-linhas")' in novo)
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

@@ -64,6 +64,13 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 03/10/2026 20:30
+
+**Checklist: botão “Laudo” direto no cartão de cada linha de vida.**
+
+- Na lista de linhas de vida do setor, cada cartão ganhou o botão **Laudo**. Ele abre o laudo da linha em capítulos na hora, **sem precisar finalizar** a linha nem passar pelo preenchimento (antes era: abrir a linha → última aba → “Revisar e finalizar” → “Laudo da linha em capítulos”).
+- O botão aparece em qualquer status (não iniciada, em andamento ou finalizada) e a seta de voltar do laudo devolve para a lista de linhas. O caminho antigo, pela tela de finalizar, continua igual (e volta para a finalização).
+
 ## 03/10/2026 19:25
 
 **Checklist: nova tela de montar o modelo (linhas de fluxo), ajustes no preenchimento em campo, cadastro do projeto mais rápido e a prévia do laudo não volta mais ao topo.**

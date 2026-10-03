@@ -888,6 +888,9 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 }
 /* ---------- Foto ampla da linha de vida (identifica o item e o local) ---------- */
 .chk-linha-card .list-thumb{width:104px;}
+.chk-linha-laudo{display:inline-flex;align-items:center;gap:6px;margin-top:10px;background:var(--surface);border:1.5px solid var(--line-strong);border-radius:999px;color:var(--accent-ink);font-size:13px;font-weight:700;padding:6px 14px;cursor:pointer;}
+.chk-linha-laudo svg{width:15px;height:15px;}
+.chk-linha-laudo:hover{border-color:var(--accent);background:var(--accent-soft);}
 .chk-foto-ampla-vazia{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border:1.5px dashed var(--line-strong);background:var(--surface);color:var(--ink-faint);font-size:12.5px;border-radius:var(--radius-sm);}
 .chk-foto-ampla-vazia svg{width:26px;height:26px;}
 .chk-foto-ampla-acoes{display:flex;gap:8px;flex-wrap:wrap;}
@@ -3365,7 +3368,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "03/10/2026 19:25";
+const APP_BUILD = "03/10/2026 20:30";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -13124,6 +13127,7 @@ let __telaDesenhada = "";
    ela volta tanto no redesenho de fundo (sincronização) quanto depois de editar um texto ou uma foto, quando
    o laudo é montado de novo e a prévia some por um instante. lclAbrir() zera (laudo aberto do início). */
 let __lclVisorScroll = null;
+let __lclOrigem = ""; // de onde o laudo da linha foi aberto ("" = da tela de finalizar; "checklist-linhas" = atalho da lista)
 function chaveDaTela(){
   const u = STATE.ui || {};
   return [STATE.modulo, u.screen, u.screenS, u.laudoAba, u.laudoRiscoId,
@@ -13715,7 +13719,7 @@ function topBarChk(){
   if(s==="checklist-nova-linha") backTarget = "checklist-linhas";
   if(s==="checklist-preencher") backTarget = "checklist-linhas";
   if(s==="checklist-finalizar") backTarget = "checklist-preencher";
-  if(s==="checklist-laudo-linha") backTarget = "checklist-finalizar";
+  if(s==="checklist-laudo-linha") backTarget = __lclOrigem || "checklist-finalizar";
   if(s==="checklist-laudo") backTarget = "checklist-setores";
   let action = "";
   if(s==="checklist-modelos") action = `<button class="icon-btn" style="color:var(--on-bar)" onclick="App.trocarModulo()" title="Trocar módulo">${ic('layers')}</button><button class="topbar-action" onclick="App.chkNovoModelo()">${ic('plus')} Novo</button>`;
@@ -14196,6 +14200,7 @@ function screenChkLinhas(){
           ${st==="andamento" ? `<span class="stat-pill">${pct}% preenchido</span>` : ""}
           ${c.pendente>0 && l.status!=="finalizado" ? `<span class="stat-pill alert">${c.pendente} pendente${c.pendente===1?'':'s'}</span>` : ""}
         </div>
+        <button class="chk-linha-laudo" onclick="event.stopPropagation();App.chkAbrirLaudoLinha('${l.id}')" title="Abrir o laudo desta linha de vida (não precisa finalizar)">${ic('print')} Laudo</button>
       </div>
       <div class="list-actions"><button class="icon-btn" onclick="event.stopPropagation();App.chkExcluirLinha('${l.id}')">${ic('trash')}</button></div>
     </div>`;
@@ -29380,9 +29385,18 @@ Devolver agora?`)) return;
     render();
   },
   /* ---------- Laudo em capítulos (uma linha de vida) ---------- */
-  lclAbrir(){
+  lclAbrir(origem){
     __lclPaginas = []; __lclHtml = ""; __lclParaLinha = null; __lclVisorScroll = null;
+    __lclOrigem = origem || "";
     go("checklist-laudo-linha");
+  },
+  // Atalho da lista de linhas: abre o laudo da linha direto (não precisa finalizar nem passar pelo
+  // preenchimento) e o botão de voltar do laudo devolve para a lista.
+  chkAbrirLaudoLinha(id){
+    const setor = getCurrentChkSetor(); if(!setor) return;
+    const l = setor.linhas.find(x=>x.id===id); if(!l) return;
+    STATE.ui.chkLinhaId = id;
+    App.lclAbrir("checklist-linhas");
   },
   // Clique em "ver 3.1" / linha do sumário: rola a prévia até a página (não mexe no endereço do app).
   lclIrPara(ev){
