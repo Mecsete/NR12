@@ -5521,5 +5521,38 @@ chk("os tres botoes estao juntos na tela e o botao de importar continua sendo o 
 chk("importarDadosPlaqueta (a volta) nao foi tocado -- a resposta da IA externa usa o mesmo formato/parser de sempre",
     "PLAQUETA_CAMPOS_IMPORTAVEIS.forEach(campo=>{" in _corpoDe(novo, "importarDadosPlaqueta"))
 
+print("=== 174. ROLAGEM DA PREVIA DO LAUDO DA LINHA NAO VOLTA AO TOPO (03/10/2026) ===")
+_ri = novo.index("function render(){" + chr(10) + "  aplicarContraste();")  # "function render(" tambem existe dentro de uma biblioteca embutida
+_render_corpo = novo[_ri:novo.index("function renderCompleto(", _ri)]
+chk("render() guarda a rolagem interna da previa (.lcl-visor) ANTES de redesenhar e devolve DEPOIS (o redesenho de fundo zerava e jogava o laudo para a primeira pagina)",
+    'document.querySelector(".lcl-visor")' in _render_corpo
+    and "__lclVisorScroll = { top: lclVisorAntes.scrollTop, left: lclVisorAntes.scrollLeft }" in _render_corpo
+    and "lv.scrollTop = __lclVisorScroll.top" in _render_corpo)
+chk("a rolagem guardada sobrevive a remontagem do laudo (editar texto/foto some com a previa por um instante): so lclAbrir zera",
+    novo.count("__lclVisorScroll = null") == 2  # declaracao + lclAbrir
+    and "__lclParaLinha = null; __lclVisorScroll = null;" in novo)
+chk("o zoom da previa leva a rolagem junto, na proporcao da escala (a mesma pagina continua a vista)",
+    "const r = passos[i] / zoomAntes;" in novo and "v2.scrollTop = __lclVisorScroll.top" in novo)
+
+print("=== 175. EDITOR DE MODELO EM LINHAS DE FLUXO + AJUSTES DO CHECKLIST EM CAMPO (03/10/2026) ===")
+_tk = novo.index("chkToggleItemAberto(itemId){")
+_tk_corpo = novo[_tk:novo.index("chkConfirmarAcao(){", _tk)]
+chk("abrir uma pergunta no preenchimento NAO leva mais a pagina ao topo (sem window.scrollTo(0,0) no trocarPara); so ajusta se o card ficou escondido",
+    "window.scrollTo(0,0)" not in _tk_corpo and "if(novoId) chkMostrarItemAberto();" in _tk_corpo)
+_pp = novo.index("function screenChkPreencher(){")
+_pp_corpo = novo[_pp:novo.index("function screenChkFinalizar(", _pp)]
+chk("a tela de preenchimento em campo nao mostra mais a faixa da Foto ampla (continua no cadastro, na finalizacao e na capa do laudo)",
+    "chkFotoAmplaHtml(" not in _pp_corpo and novo.count("chkFotoAmplaHtml(l.fotoAmpla") == 1)
+_pi = novo.index("function chkPendenciasItem(")
+_pi_corpo = novo[_pi:novo.index("/* Prioridade do item e tipo da linha", _pi)]
+chk("Nao aplica nao cobra foto (so Nao atende gera pendencia) e a nota so e cobrada quando falta motivo marcado ou foto",
+    'itemExec.conforme === "na"' not in _pi_corpo and "!(temMotivo && temFoto)" in _pi_corpo)
+chk("o editor de modelo e a lista + linhas de fluxo (Botao -> Laudo -> Acao): sem as classes do editor antigo e com busca, secoes recolhiveis e paineis Orientacao/Contexto",
+    "function chkModeloArvoreHtml(" in novo and 'class="chk-fl-pilula' in novo and "App.chkModeloToggleSecao(" in novo and "App.chkModeloPainel('info')" in novo
+    and "chk-bloco" not in novo and "chk-motivo-card" not in novo and "chk-modelo-split" not in novo)
+chk("no computador o editor de modelo usa a largura inteira da janela (sem teto de 1180px) e a lista fica grudada ao rolar",
+    ".screen.screen-chk-modelo{max-width:none;padding:0 0 24px;}" in novo and "position:sticky;top:var(--chk-topo)" in novo
+    and ".screen.screen-chk-modelo{max-width:1180px;}" not in novo)
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

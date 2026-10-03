@@ -159,6 +159,12 @@ const FUNCOES = [
   "lclListaPt", "lclVariaveis", "lclAplicarVariaveis", "lclMarkup", "lclBlocosMemorial", "lclBlocosAnexos", "lclListaImagensHtml",
   "chkRenderItem", "screenChkPreencher", "screenChkFinalizar", "chkResumoHtml",
   "lclTextoEditado", "lclHtmlParaTexto", "lclTextoParaHtml", "lclConclusaoAuto", "lclFotosSecaoHtml", "lclNumItem",
+  // Cadastro do projeto: mascaras, validade automatica e cadastro de inspetores.
+  "chkSoDigitos", "chkMascaraDocumento", "chkMascaraTelefone", "chkExibirDocumento", "chkExibirTelefone", "chkValidarCpf", "chkValidarCnpj",
+  "chkAvisoDocumento", "chkMaisMesesISO", "chkOpcoesInspetor", "novoChkInspetor", "chkInspetoresHtml", "screenChkProjetoForm",
+  // Editor de modelo (Modelo 3, linhas de fluxo): lista com busca/secoes abertas e o item aberto.
+  "chkBuscaNorm", "chkModeloSvg", "chkAutoAltura", "chkModeloAjustarAlturas", "chkModeloRedesenhar", "chkModeloPreviaPergunta",
+  "chkModeloPainelAberto", "chkModeloSecAberta", "chkMostrarItemAberto", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
 ];
 let fonte = "let __ultimoCarimboVisto = 0;\n";
 fonte += "let __buscaAtual = '';\n"; // usado por chkAbrirSetor (lista de linhas) -- nao testado aqui, so pra nao faltar
@@ -196,6 +202,9 @@ fonte += mEsc[0];
 for(const nome of FUNCOES) fonte += funcao(nome) + "\n";
 fonte += letObjeto("__chkNovaLinhaDraft") + "\n";
 fonte += letEscalar("__chkLinhasFiltro");
+fonte += letEscalar("__chkModeloBusca");
+fonte += letObjeto("__chkModeloSecAbertas") + "\n";
+fonte += letObjeto("__chkModeloPainel") + "\n";
 const metodosApp = trecho(
   "/* ---------- Checklist — só lê/escreve STATE.checklists ---------- */",
   "\n};\nwindow.App = App;"
@@ -219,7 +228,8 @@ function inputFake(id){
 }
 const sandbox = {
   console,
-  document: { getElementById: inputFake },
+  // a lista e o editor do modelo nao existem aqui (sem DOM): getElementById devolve null para eles e as funcoes seguem sem tocar na tela
+  document: { getElementById: (id) => (id === "chkModeloLista" || id === "chkModeloEditor" || id === "chkModeloItens") ? null : inputFake(id), querySelector: () => null, querySelectorAll: () => [] },
   comprimirImagem: async (file) => "data:image/jpeg;base64," + file.nome,
   salvarFotoNaGaleria: () => {},
   getMecseteConfig: () => ({ empresa: "Mecsete Engenharia", respNome: "Luiz Hermelino Araujo", respFuncao: "Engenheiro Mecanico", respCREA: "20037/D-GO", cidade: "Rio Verde - GO", endereco: "R. Major Oscar Campos", telefone: "(64) 99615-4510", email: "luiz@mecsete.com.br", logoLaudo: "", rodapeLaudo: "" }),
@@ -419,41 +429,26 @@ const textosItem2 = chkTextoLaudoItem(item2Modelo, item2);
 if(!Array.isArray(textosItem2) || textosItem2.length !== 1 || textosItem2[0] !== "O cabo de aco esta integro, sem sinais de desgaste.")
   throw new Error("chkTextoLaudoItem deveria devolver array de 1 com o textoAtende de item2: " + JSON.stringify(textosItem2));
 
-// Marcar item como "Nao aplica" aplica NA HORA (sem trava ao marcar) e limpa
-// os motivos; a trava vem ao FECHAR o item sem nenhuma foto -- e so nesse caso
-// (com foto, fecha direto). "Fechar sem foto" (App.chkConfirmarAcao) fecha mesmo assim.
+// Marcar item como "Nao aplica" aplica NA HORA (sem trava ao marcar) e limpa os motivos; e nao
+// cobra foto nenhuma -- nem ao marcar, nem ao fechar o item, nem ao abrir outro (so a SECAO inteira
+// pede confirmacao, testada em testarTravas).
 App.chkSetConforme(item1.itemId, "na");
 if(item1.conforme !== "na" || item1.motivosSelecionados.length !== 0)
   throw new Error("marcar item como Nao aplica deveria aplicar na hora e limpar os motivos: " + JSON.stringify(item1));
 if(__ultimoOverlayHtml && __ultimoOverlayHtml.includes("Item sem foto"))
-  throw new Error("marcar como Nao aplica NAO deveria abrir a trava de item sem foto (ela so vale ao fechar o item)");
-STATE.ui.chkItemAberto = item1.itemId;
-__ultimoOverlayHtml = null;
-App.chkToggleItemAberto(item1.itemId); // tenta FECHAR o item Nao aplica, sem foto
-if(STATE.ui.chkItemAberto !== item1.itemId)
-  throw new Error("fechar item Nao aplica SEM foto deveria pedir confirmacao antes de fechar (o item fechou direto)");
-if(!__ultimoOverlayHtml || !__ultimoOverlayHtml.includes("Item sem foto") || !__ultimoOverlayHtml.includes("Fechar sem foto"))
-  throw new Error("trava de item Nao aplica sem foto nao mostrou o aviso nem o botao 'Fechar sem foto': " + __ultimoOverlayHtml);
-App.chkConfirmarAcao(); // "Fechar sem foto"
-if(STATE.ui.chkItemAberto !== null)
-  throw new Error("confirmar 'Fechar sem foto' deveria fechar o item");
-// Com foto anexada, fecha direto, sem trava nenhuma.
-item1.fotos.push({ foto: "data:image/jpeg;base64,NAFOTO", tags: [] });
-STATE.ui.chkItemAberto = item1.itemId;
-__ultimoOverlayHtml = null;
-App.chkToggleItemAberto(item1.itemId);
-if(STATE.ui.chkItemAberto !== null || __ultimoOverlayHtml)
-  throw new Error("item Nao aplica COM foto deveria fechar direto, sem trava");
-// Abrir OUTRO item tambem cobra a foto do que esta sendo deixado (Nao aplica sem foto).
+  throw new Error("marcar como Nao aplica NAO deveria abrir a trava de item sem foto");
 item1.fotos.length = 0;
 STATE.ui.chkItemAberto = item1.itemId;
 __ultimoOverlayHtml = null;
+App.chkToggleItemAberto(item1.itemId); // FECHAR o item Nao aplica, sem foto
+if(STATE.ui.chkItemAberto !== null || __ultimoOverlayHtml)
+  throw new Error("item Nao aplica SEM foto deveria fechar direto, sem confirmacao: " + __ultimoOverlayHtml);
+// Abrir OUTRO item deixando um Nao aplica sem foto tambem nao pede nada.
+STATE.ui.chkItemAberto = item1.itemId;
+__ultimoOverlayHtml = null;
 App.chkToggleItemAberto(item2.itemId);
-if(STATE.ui.chkItemAberto !== item1.itemId || !__ultimoOverlayHtml || !__ultimoOverlayHtml.includes("Item sem foto"))
-  throw new Error("trocar de item deixando um Nao aplica sem foto deveria pedir confirmacao e nao trocar ainda");
-App.chkConfirmarAcao();
-if(STATE.ui.chkItemAberto !== item2.itemId)
-  throw new Error("confirmar 'Fechar sem foto' ao trocar de item deveria abrir o outro item");
+if(STATE.ui.chkItemAberto !== item2.itemId || __ultimoOverlayHtml)
+  throw new Error("trocar de item deixando um Nao aplica sem foto deveria abrir o outro direto");
 STATE.ui.chkItemAberto = null;
 // Um item "Atende" (nao e Nao aplica) nunca cobra foto ao fechar.
 App.chkSetConforme(item1.itemId, "atende");
@@ -1357,11 +1352,15 @@ async function testarTravas(){
   const comMotivos = { motivosPadrao: [{ motivo: "M", texto: "T" }] }, semMotivos = { motivosPadrao: [] };
   const vazio = { conforme: "naoAtende", motivosSelecionados: [], observacao: "", fotos: [] };
   if(pend(comMotivos, vazio) !== '["motivo","nota","foto"]') throw new Error("nao atende vazio deveria faltar motivo, nota e foto: " + pend(comMotivos, vazio));
-  if(pend(comMotivos, { ...vazio, motivosSelecionados: ["M"] }) !== '["nota","foto"]') throw new Error("nao atende com motivo deveria faltar nota e foto");
+  if(pend(comMotivos, { ...vazio, motivosSelecionados: ["M"] }) !== '["nota","foto"]') throw new Error("nao atende com motivo, sem foto, deveria faltar nota e foto");
+  if(pend(comMotivos, { ...vazio, motivosSelecionados: ["M"], fotos: [{}] }) !== '[]') throw new Error("nao atende com motivo E foto nao deveria cobrar a nota");
+  if(pend(comMotivos, { ...vazio, fotos: [{}] }) !== '["motivo","nota"]') throw new Error("nao atende com foto mas sem motivo deveria faltar motivo e nota: " + pend(comMotivos, { ...vazio, fotos: [{}] }));
+  if(pend(semMotivos, { ...vazio, fotos: [{}] }) !== '["nota"]') throw new Error("modelo sem motivos: foto sozinha ainda pede a nota (nao ha motivo para marcar): " + pend(semMotivos, { ...vazio, fotos: [{}] }));
+  if(pend(semMotivos, { ...vazio, observacao: "n", fotos: [{}] }) !== '[]') throw new Error("modelo sem motivos: foto e nota completam o item");
   if(pend(comMotivos, { ...vazio, motivosSelecionados: ["M"], observacao: "n" }) !== '["foto"]') throw new Error("nao atende com motivo e nota deveria faltar so a foto");
   if(pend(comMotivos, { ...vazio, motivosSelecionados: ["M"], observacao: "n", fotos: [{}] }) !== '[]') throw new Error("nao atende completo nao deveria faltar nada");
   if(pend(semMotivos, vazio) !== '["nota","foto"]') throw new Error("modelo SEM motivos padrao nunca deveria cobrar motivo: " + pend(semMotivos, vazio));
-  if(pend(comMotivos, { conforme: "na", motivosSelecionados: [], observacao: "", fotos: [] }) !== '["foto"]') throw new Error("nao aplica sem foto deveria faltar a foto");
+  if(pend(comMotivos, { conforme: "na", motivosSelecionados: [], observacao: "", fotos: [] }) !== '[]') throw new Error("nao aplica sem foto NAO deveria faltar nada");
   if(pend(comMotivos, { conforme: "na", motivosSelecionados: [], observacao: "", fotos: [{}] }) !== '[]') throw new Error("nao aplica com foto nao deveria faltar nada");
   if(pend(comMotivos, { conforme: "atende", motivosSelecionados: [], observacao: "", fotos: [] }) !== '[]') throw new Error("atende nunca cobra nada");
   if(pend(comMotivos, { conforme: null, motivosSelecionados: [], observacao: "", fotos: [] }) !== '[]') throw new Error("item sem resposta nao cobra nada");
@@ -1385,13 +1384,32 @@ async function testarTravas(){
   roda("App.chkSelecionarMotivo('" + ie.itemId + "', '" + itM.motivosPadrao[0].motivo + "')");
   ie.fotos.push({ foto: "data:image/jpeg;base64,NFOTO", tags: [] });
   tentarFechar();
-  if(roda("STATE.ui.chkItemAberto") !== ie.itemId || !sandbox.__ultimoOverlayHtml.includes("falta: nota."))
-    throw new Error("Nao atende com motivo e foto mas SEM nota deveria avisar que falta a nota: " + sandbox.__ultimoOverlayHtml);
+  if(roda("STATE.ui.chkItemAberto") !== null || sandbox.__ultimoOverlayHtml)
+    throw new Error("Nao atende com motivo e foto, mesmo SEM nota, deveria fechar direto (nota e opcional): " + sandbox.__ultimoOverlayHtml);
+  // tirando a foto, volta a cobrar foto E nota (o item deixa de estar documentado)
+  ie.fotos.length = 0;
+  tentarFechar();
+  if(roda("STATE.ui.chkItemAberto") !== ie.itemId || !sandbox.__ultimoOverlayHtml.includes("nota e foto"))
+    throw new Error("Nao atende com motivo, sem foto e sem nota deveria avisar 'nota e foto': " + sandbox.__ultimoOverlayHtml);
   roda("App.chkConfirmarAcao()");
+  ie.fotos.push({ foto: "data:image/jpeg;base64,NFOTO", tags: [] });
   roda("App.chkSetObservacao('" + ie.itemId + "', 'Nota escrita em campo')");
   tentarFechar();
   if(roda("STATE.ui.chkItemAberto") !== null || sandbox.__ultimoOverlayHtml)
     throw new Error("Nao atende completo (motivo, nota e foto) deveria fechar direto, sem trava");
+  // Nao aplica (o item) nunca cobra foto: fecha direto mesmo sem nenhuma
+  roda("App.chkSetConforme('" + ie.itemId + "', 'na')");
+  ie.fotos.length = 0;
+  tentarFechar();
+  if(roda("STATE.ui.chkItemAberto") !== null || sandbox.__ultimoOverlayHtml)
+    throw new Error("Nao aplica sem foto deveria fechar direto: " + sandbox.__ultimoOverlayHtml);
+  // a faixa da foto ampla nao aparece mais na tela de preenchimento (mas continua na finalizacao)
+  const hPreencher = roda("screenChkPreencher()");
+  if(hPreencher.includes("chk-foto-ampla") || hPreencher.includes("Foto ampla"))
+    throw new Error("a tela de preenchimento nao deveria mais mostrar a faixa da Foto ampla");
+  if(!roda("screenChkFinalizar()").includes("Foto ampla"))
+    throw new Error("a tela de finalizar deveria continuar com o campo da Foto ampla");
+  roda("App.chkSetConforme('" + ie.itemId + "', 'na')"); // desfaz o toggle para o estado seguinte do teste
 
   // --- secao "nao aplica": sempre pede confirmacao, mesmo sem nada respondido
   const secLimpa = lt.modeloSnapshot[1];
@@ -2023,7 +2041,308 @@ async function testarFotosLeituraLaudo(){
   T(J(roda("setor.linhas[0]")) === outraAntes, "mexer nas fotos de uma linha nao toca em outra linha");
   roda("setor.linhas.pop(); delete __f3.l.laudo;");
 }
-testarFotoAmpla().then(() => testarTravas()).then(() => testarDadosLaudo()).then(() => testarLaudoCapitulos()).then(() => testarMemorial()).then(() => testarCapitulosNovos()).then(() => testarEdicaoTexto()).then(() => testarFotosLeituraLaudo()).then(() => {
+// ---------- cadastro do projeto: mascaras de CPF/CNPJ e telefone, validade 12 meses depois, cadastro de inspetores
+// (ativar/desativar), descricao do trabalho editavel no laudo e formatacao no laudo ----------
+async function testarCadastroProjeto(){
+  const T = (cond, msg)=>{ if(!cond) throw new Error("cadastro do projeto: " + msg); };
+  const J = (v)=> JSON.stringify(v);
+  const doc = (v)=> roda("chkMascaraDocumento(" + J(v) + ")"), tel = (v)=> roda("chkMascaraTelefone(" + J(v) + ")");
+
+  // --- CPF ou CNPJ no mesmo campo, conforme a quantidade de digitos
+  T(doc("") === "" && doc("1") === "1" && doc("123") === "123" && doc("1234") === "123.4" && doc("12345678") === "123.456.78" && doc("123456789") === "123.456.789" && doc("1234567890") === "123.456.789-0" && doc("12345678901") === "123.456.789-01", "CPF progressivo: " + doc("12345678901"));
+  T(doc("123456789012") === "12.345.678/9012" && doc("1234567890123") === "12.345.678/9012-3" && doc("12345678901234") === "12.345.678/9012-34", "com o 12o digito vira CNPJ: " + doc("123456789012"));
+  T(doc("12345678901234999") === "12.345.678/9012-34" && doc("abc") === "" && doc("12.345.678/9012-34") === "12.345.678/9012-34" && doc("123.456.789-01") === "123.456.789-01" && doc(null) === "", "limite de 14 digitos, letras ignoradas, valor ja formatado nao muda");
+  // --- telefone com DDD
+  T(tel("") === "" && tel("6") === "(6" && tel("64") === "(64" && tel("649") === "(64) 9" && tel("6499615") === "(64) 9961-5" && tel("6499615451") === "(64) 9961-5451" && tel("64996154510") === "(64) 99615-4510" && tel("649961545109999") === "(64) 99615-4510", "telefone: " + tel("64996154510"));
+  T(tel("(64) 99615-4510") === "(64) 99615-4510" && tel("64 9961-5451") === "(64) 9961-5451", "telefone ja formatado ou com espacos");
+  // --- mostrar valor antigo sem perder nada
+  const ex = (f, v)=> roda(f + "(" + J(v) + ")");
+  T(ex("chkExibirDocumento", "32825302000195") === "32.825.302/0001-95" && ex("chkExibirDocumento", "00000000191") === "000.000.001-91" && ex("chkExibirDocumento", "123") === "123" && ex("chkExibirDocumento", "Isento") === "Isento" && ex("chkExibirDocumento", "") === "", "exibir documento antigo");
+  T(ex("chkExibirTelefone", "64996154510") === "(64) 99615-4510" && ex("chkExibirTelefone", "64 90000-0000") === "(64) 90000-0000" && ex("chkExibirTelefone", "+55 64 99615-4510") === "+55 64 99615-4510" && ex("chkExibirTelefone", "ramal 123") === "ramal 123" && ex("chkExibirTelefone", "") === "", "exibir telefone antigo; numero de fora/ramal fica como foi escrito");
+  // --- validacao (so avisa)
+  T(roda(`chkValidarCpf("52998224725")`) === true && roda(`chkValidarCpf("529.982.247-25")`) === true && roda(`chkValidarCpf("52998224724")`) === false && roda(`chkValidarCpf("11111111111")`) === false && roda(`chkValidarCpf("00000000000")`) === false && roda(`chkValidarCpf("123")`) === false, "CPF: digito verificador");
+  T(roda(`chkValidarCnpj("11444777000161")`) === true && roda(`chkValidarCnpj("32825302000195")`) === true && roda(`chkValidarCnpj("11444777000162")`) === false && roda(`chkValidarCnpj("11111111111111")`) === false && roda(`chkValidarCnpj("00000000000000")`) === false, "CNPJ: digito verificador (todos zeros nao vale)");
+  T(roda(`chkAvisoDocumento("")`) === "" && roda(`chkAvisoDocumento("529.982.247-25")`) === "" && roda(`chkAvisoDocumento("529.982.247-24")`).startsWith("CPF inválido") && roda(`chkAvisoDocumento("11.444.777/0001-61")`) === "" && roda(`chkAvisoDocumento("11.444.777/0001-62")`).startsWith("CNPJ inválido") && roda(`chkAvisoDocumento("12345")`).startsWith("Incompleto"), "mensagens de aviso do CPF/CNPJ");
+
+  // --- validade: 12 meses depois
+  T(roda(`chkMaisMesesISO("2026-09-24", 12)`) === "2027-09-24" && roda(`chkMaisMesesISO("2024-02-29", 12)`) === "2025-02-28" && roda(`chkMaisMesesISO("", 12)`) === "" && roda(`chkMaisMesesISO("lixo", 12)`) === "" && roda(`chkMaisMesesISO("2026-01-31", 1)`) === "2026-02-28" && roda(`chkMaisMesesISO("2026-11-15", 3)`) === "2027-02-15", "chkMaisMesesISO");
+
+  // --- projeto novo e o setter com validade automatica
+  const idAntes = roda("STATE.ui.chkProjetoId"), nAntes = roda("STATE.checklists.projetos.length");
+  roda("App.chkNovoProjeto()");
+  const P = roda("getCurrentChkProjeto()");
+  T(P.validadeInspecao === roda("chkMaisMesesISO(hoje(), 12)") && P.validadeInspecao !== "" && P.inspetorId === "", "projeto novo ja nasce com a validade 12 meses depois e sem inspetor");
+  roda(`App.chkSetProjetoField("dataInspecao", "2026-09-01")`);
+  T(P.validadeInspecao === "2027-09-01" && inputFake("chkPfValidade").value === "2027-09-01", "mudar a data da inspecao acompanha a validade automatica (e o campo na tela)");
+  roda(`App.chkSetProjetoField("validadeInspecao", "2027-03-15")`);
+  roda(`App.chkSetProjetoField("dataInspecao", "2026-10-10")`);
+  T(P.validadeInspecao === "2027-03-15", "validade escolhida pela pessoa nao e mais mexida: " + P.validadeInspecao);
+  roda(`App.chkSetProjetoField("validadeInspecao", "")`);
+  roda(`App.chkSetProjetoField("dataInspecao", "2026-12-31")`);
+  T(P.validadeInspecao === "2027-12-31", "validade apagada volta a acompanhar a data");
+  roda(`App.chkSetProjetoField("dataInspecao", "")`);
+  T(P.validadeInspecao === "" && P.dataInspecao === "", "sem data de inspecao, sem validade automatica");
+  roda(`App.chkSetProjetoField("empresa", "Empresa Y")`);
+  T(P.empresa === "Empresa Y", "os outros campos continuam gravando normalmente");
+
+  // --- mascara enquanto digita (cursor volta para depois do mesmo digito)
+  const el = (valor, pos)=>({ value: valor, selectionStart: pos, pos: null, setSelectionRange(a){ this.pos = a; } });
+  let e = el("1234", 4);
+  roda("App.chkMascarar")(e, "solicitanteCpfCnpj");
+  T(e.value === "123.4" && e.pos === 5 && P.solicitanteCpfCnpj === "123.4", "digitando no fim: formata e o cursor fica no fim: " + e.value + "/" + e.pos);
+  e = el("1234", 2);
+  roda("App.chkMascarar")(e, "solicitanteCpfCnpj");
+  T(e.value === "123.4" && e.pos === 2, "digitando no meio: o cursor fica depois do mesmo digito: " + e.pos);
+  e = el("123456789012", 12);
+  roda("App.chkMascarar")(e, "solicitanteCpfCnpj");
+  T(e.value === "12.345.678/9012" && P.solicitanteCpfCnpj === "12.345.678/9012", "ao passar de 11 digitos o campo vira CNPJ");
+  e = el("64996154510", 11);
+  roda("App.chkMascarar")(e, "solicitanteTelefone");
+  T(e.value === "(64) 99615-4510" && P.solicitanteTelefone === "(64) 99615-4510", "telefone formatado e gravado");
+  e = el("abc", 3);
+  roda("App.chkMascarar")(e, "solicitanteTelefone");
+  T(e.value === "" && P.solicitanteTelefone === "" && e.pos === 0, "so letras: campo fica vazio");
+  e = el("999", 3);
+  roda("App.chkMascarar")(e, "empresa");
+  T(e.value === "999" && P.empresa === "Empresa Y", "campo que nao e de mascara e ignorado");
+  inputFake("chkPfDocAviso").textContent = "velho";
+  roda("App.chkMascarar")(el("5299", 4), "solicitanteCpfCnpj");
+  T(inputFake("chkPfDocAviso").textContent === "", "digitando, o aviso antigo some");
+  roda("App.chkVerificarDocumento")({ value: "529.982.247-24" });
+  T(inputFake("chkPfDocAviso").textContent.startsWith("CPF inválido"), "ao sair do campo, avisa CPF invalido");
+  roda("App.chkVerificarDocumento")({ value: "529.982.247-25" });
+  T(inputFake("chkPfDocAviso").textContent === "", "CPF certo: sem aviso");
+
+  // --- opcoes da lista de inspetores
+  const reg = [{ id:"a", nome:"Zé Silva", cargo:"Engenheiro", ativo:true }, { id:"b", nome:"Ana Souza", cargo:"", ativo:true }, { id:"c", nome:"Carlos", cargo:"Técnico", ativo:false }, { id:"d", nome:"  ", ativo:true }];
+  const op = (proj)=> roda(`chkOpcoesInspetor(${J(proj)}, ${J(reg)})`).map(o=> o.valor + "|" + o.rotulo);
+  T(op({}).join(";") === "|Responsável técnico (padrão);b|Ana Souza;a|Zé Silva — Engenheiro", "so os ativos, em ordem alfabetica, com o cargo; sem nome nao aparece: " + op({}).join(";"));
+  T(op({ inspetorId:"c" }).includes("c|Carlos (inativo)") && !op({}).some(x=> x.startsWith("c|")), "inspetor desativado some da lista, mas continua no projeto que ja o usa");
+  T(op({ inspetorId:"", inspetorNome:"Fulano" }).includes("__texto|Fulano (não cadastrado)") && op({ inspetorId:"a" }).length === 3, "nome antigo sem cadastro continua aparecendo; inspetor ativo nao duplica");
+
+  // --- escolher o inspetor no projeto
+  roda("STATE.checklists.inspetores = " + J(reg));
+  roda(`App.chkSetProjetoInspetor("a")`);
+  T(P.inspetorId === "a" && P.inspetorNome === "Zé Silva" && P.inspetorCargo === "Engenheiro", "escolher inspetor preenche id, nome e cargo");
+  roda(`App.chkSetProjetoInspetor("__texto")`);
+  roda(`App.chkSetProjetoInspetor("nao-existe")`);
+  T(P.inspetorId === "a" && P.inspetorNome === "Zé Silva", "'nao cadastrado' e id desconhecido nao mexem em nada");
+  roda(`App.chkSetProjetoInspetor("")`);
+  T(P.inspetorId === "" && P.inspetorNome === "" && P.inspetorCargo === "", "voltar ao padrao limpa o inspetor (o laudo usa o responsavel tecnico)");
+  roda(`App.chkSetProjetoInspetor("a")`);
+
+  // --- cadastro de inspetores
+  sandbox.__ultimoOverlayHtml = null;
+  roda("App.chkAbrirInspetores()");
+  T(sandbox.__ultimoOverlayHtml && sandbox.__ultimoOverlayHtml.includes('id="chkInspetoresLista"') && sandbox.__ultimoOverlayHtml.includes("Zé Silva") && sandbox.__ultimoOverlayHtml.includes("Inativo"), "a janela do cadastro lista os inspetores, ativos e inativos");
+  const nIns = roda("STATE.checklists.inspetores.length");
+  roda("App.chkInspetorNovo()");
+  const novo = roda("STATE.checklists.inspetores[STATE.checklists.inspetores.length - 1]");
+  T(roda("STATE.checklists.inspetores.length") === nIns + 1 && novo.nome === "" && novo.ativo === true && novo.id, "novo inspetor nasce ativo e em branco");
+  roda(`App.chkInspetorSet("a", "nome", "Zé Silva Jr.")`);
+  T(roda(`STATE.checklists.inspetores.find(i=>i.id==="a").nome`) === "Zé Silva Jr." && P.inspetorNome === "Zé Silva Jr.", "corrigir o nome atualiza os projetos que usam esse inspetor");
+  roda(`App.chkInspetorSet("a", "cargo", "Eng. Mecânico")`);
+  T(P.inspetorCargo === "Eng. Mecânico", "idem para o cargo");
+  roda(`App.chkInspetorSet("a", "ativo", false); App.chkInspetorSet("nao-existe", "nome", "x");`);
+  T(roda(`STATE.checklists.inspetores.find(i=>i.id==="a").ativo`) === true, "so nome e cargo se editam por aqui");
+  roda(`App.chkInspetorAtivo("a")`);
+  T(roda(`STATE.checklists.inspetores.find(i=>i.id==="a").ativo`) === false && P.inspetorNome === "Zé Silva Jr.", "desativar nao mexe no projeto que ja usa");
+  T(roda(`chkOpcoesInspetor(getCurrentChkProjeto(), STATE.checklists.inspetores)`).some(o=> o.valor === "a" && o.rotulo.includes("(inativo)")), "o projeto continua mostrando o inspetor desativado");
+  roda(`App.chkInspetorAtivo("a")`);
+  T(roda(`STATE.checklists.inspetores.find(i=>i.id==="a").ativo`) === true, "ativar de novo");
+
+  // --- a tela do cadastro
+  roda(`App.chkSetProjetoField("solicitanteCpfCnpj", "32825302000195"); App.chkSetProjetoField("solicitanteTelefone", "64996154510"); App.chkSetProjetoField("solicitanteEmail", "a@b.com");`);
+  let tela = roda("screenChkProjetoForm()");
+  T(!/undefined|NaN/.test(tela.replace(/placeholder="[^"]*"/g, "")), "a tela renderiza sem undefined/NaN");
+  T(tela.includes('value="32.825.302/0001-95"') && tela.includes('value="(64) 99615-4510"') && tela.includes(`oninput="App.chkMascarar(this,'solicitanteCpfCnpj')"`) && tela.includes(`oninput="App.chkMascarar(this,'solicitanteTelefone')"`), "valor guardado so em digitos aparece formatado e os campos usam a mascara");
+  T(tela.includes('type="email"') && tela.includes('id="chkPfValidade"') && tela.includes("chk-pf-card") && tela.includes("App.chkAbrirInspetores()") && tela.includes("Descrição do trabalho") && !tela.includes("Conclusão geral") && !tela.includes("conclusaoGeral"), "campos e blocos da tela (sem a Conclusão geral: o laudo da linha não a usa)");
+  T(tela.includes('<option value="a" selected>'), "o inspetor do projeto vem selecionado na lista");
+  roda(`App.chkSetProjetoField("solicitanteCpfCnpj", "529.982.247-24")`);
+  T(roda("screenChkProjetoForm()").includes('id="chkPfDocAviso">CPF inválido'), "CPF completo e errado ja abre com o aviso");
+  roda(`App.chkSetProjetoField("solicitanteCpfCnpj", "12.345")`);
+  T(!roda("screenChkProjetoForm()").includes("Incompleto"), "documento ainda incompleto nao abre com aviso (so ao sair do campo)");
+
+  // --- no laudo: CPF/CNPJ e telefone formatados mesmo se guardados so em digitos
+  const p2 = roda(`lclBlocosPagina2(lclDados({ empresa:"X", solicitanteCpfCnpj:"32825302000195", solicitanteTelefone:"64996154510", dataInspecao:"2026-09-24" }, { nome:"S" }, __f3.l), lclTextos())[0].html`);
+  T(p2.includes("32.825.302/0001-95") && p2.includes("(64) 99615-4510"), "o laudo imprime CPF/CNPJ e telefone formatados");
+
+  // --- descricao do trabalho editavel na janela da Metodologia
+  roda(`App.chkSetProjetoField("objetivo", "Descricao inicial.")`);
+  sandbox.__ultimoOverlayHtml = null;
+  roda("App.lclAbrirMetodologia()");
+  T(sandbox.__ultimoOverlayHtml.includes('id="lclMetObjetivo"') && sandbox.__ultimoOverlayHtml.includes("Descricao inicial."), "a janela da Metodologia mostra a descricao do trabalho do projeto");
+  inputFake("lclMetObjetivo").value = "Descricao editada no laudo.";
+  inputFake("lclMetTexto").value = "Texto base.";
+  roda("App.lclSalvarMetodologia()");
+  T(P.objetivo === "Descricao editada no laudo.", "salvar a Metodologia grava a descricao no projeto");
+  roda("delete STATE.checklists.textos; __lclMetDraft = [];");
+
+  // --- migracoes: cadastro de inspetores a partir dos projetos antigos, e validade em branco
+  const estado = roda(`(function(){
+    const mk = (nome, cargo, data, validade)=> ({ id:uid(), empresa:"E", responsavel:"", data:"2026-01-01", setores:[], numeroDocumento:"", art:"", dataInspecao:data, validadeInspecao:validade, solicitanteCpfCnpj:"", solicitanteEndereco:"", solicitanteCidade:"", solicitanteTelefone:"", solicitanteCargo:"", solicitanteEmail:"", inspetorNome:nome, inspetorCargo:cargo, objetivo:"", conclusaoGeral:"", criadoEm:1, atualizadoEm:1 });
+    const est = { modulo:"checklist", projetos:[], projetosSimples:[], checklists:{ modelos:[], projetos:[ mk("João Silva", "Técnico", "2026-09-24", ""), mk("joão silva ", "", "2026-02-28", "2026-12-01"), mk("", "", "2026-05-10", ""), mk("Maria", "Eng.", "", "") ] }, ui:{ chkModeloPadraoAplicado:true, chkModeloPadraoTextoAplicado:true, chkMotivoArrayMigrado:true } };
+    chkGarantirNamespace(est);
+    const depois1 = JSON.stringify(est.checklists);
+    chkGarantirNamespace(est);
+    return { est, idem: depois1 === JSON.stringify(est.checklists) };
+  })()`);
+  const ps = estado.est.checklists.projetos, ins = estado.est.checklists.inspetores;
+  T(ins.length === 2 && ins[0].nome === "João Silva" && ins[0].cargo === "Técnico" && ins[0].ativo === true && ins[1].nome === "Maria" && ins[1].cargo === "Eng.", "cada nome de inspetor ja digitado vira um inspetor do cadastro (mesmo nome com outra caixa/espaco: um so): " + J(ins));
+  T(ps[0].inspetorId === ins[0].id && ps[1].inspetorId === ins[0].id && !ps[2].inspetorId && ps[3].inspetorId === ins[1].id && ps[1].inspetorNome === "joão silva " && ps[0].inspetorCargo === "Técnico", "projetos passam a apontar para o inspetor, sem mudar o nome/cargo que ja tinham");
+  T(ps[0].validadeInspecao === "2027-09-24" && ps[1].validadeInspecao === "2026-12-01" && ps[2].validadeInspecao === "2027-05-10" && ps[3].validadeInspecao === "", "validade em branco vira 12 meses depois; a ja escolhida e a sem data de inspecao ficam como estavam");
+  T(estado.idem, "as migracoes de inspetores e de validade sao idempotentes");
+  const refeito = roda(`(function(){ const est = { modulo:"checklist", projetos:[], projetosSimples:[], checklists:{ modelos:[], projetos:[{ id:"p1", empresa:"E", setores:[], dataInspecao:"2026-09-24", validadeInspecao:"", inspetorNome:"", inspetorCargo:"" }] }, ui:{ chkModeloPadraoAplicado:true, chkModeloPadraoTextoAplicado:true, chkMotivoArrayMigrado:true } }; chkGarantirNamespace(est); est.checklists.projetos[0].validadeInspecao = ""; chkGarantirNamespace(est); return est.checklists.projetos[0].validadeInspecao; })()`);
+  T(refeito === "", "a validade preenchida na migracao so acontece uma vez: se a pessoa apagar, nao volta sozinha");
+
+  // limpeza: tira o projeto de teste e devolve a selecao
+  roda(`STATE.checklists.projetos = STATE.checklists.projetos.filter(p => p.id !== ${J(P.id)}); STATE.ui.chkProjetoId = ${J(idAntes)}; STATE.checklists.inspetores = [];`);
+  T(roda("STATE.checklists.projetos.length") === nAntes, "preparo/limpeza: o projeto de teste saiu");
+}
+async function testarEditorModelo(){
+  const T = (cond, msg)=>{ if(!cond) throw new Error("editor de modelo: " + msg); };
+  const J = (v)=> JSON.stringify(v);
+  const conta = (html, trecho)=> html.split(trecho).length - 1;
+  const modeloAntes = roda("STATE.ui.chkModeloId"), nAntes = roda("STATE.checklists.modelos.length");
+
+  // --- modelo vazio: so a barra do topo, o aviso e o menu Planilha
+  roda("App.chkNovoModelo()");
+  let h = roda("screenChkModeloForm()");
+  T(h.includes("Nenhuma seção ainda") && h.includes("chk-mod-planilha") && h.includes("App.chkImportarModeloXLSX()") && h.includes("App.chkBaixarModeloXLSX()") && !h.includes("App.chkExportarModeloXLSX()") && !h.includes("chk-mod-split"), "modelo vazio: aviso + menu Planilha (sem 'Baixar esta planilha') e sem painel dividido");
+
+  // --- modelo com 2 secoes: A (3 itens, o primeiro com 2 motivos) e B (2 itens)
+  roda(`(function(){
+    const m = getCurrentChkModelo();
+    m.nome = "Modelo <Teste>"; m.descricao = "Descricao do modelo"; m.tipoLinha = "horizontal_flexivel";
+    const mkS = (t, ctx)=>{ const s = novoChkSecao(); s.titulo = t; s.contexto = ctx || ""; return s; };
+    const mkI = (d)=>{ const i = novoChkItem(); i.descricao = d; return i; };
+    const A = mkS("Ancoragem"), B = mkS("Cabo de Aço");
+    const a1 = mkI("Verificar a ancoragem <b>\\"x\\"</b>"), a2 = mkI("Torque dos parafusos"), a3 = mkI("");
+    a1.normativo = "NBR 16325-2"; a1.textoAtende = "Atende bem."; a1.prioridade = "critica";
+    a1.motivosPadrao = [ { motivo:"Corroida", texto:"Texto da corrosao.", acao:"Substituir." }, { motivo:"Sem ancoragem", texto:"Texto sem.", acao:"" } ];
+    A.itens = [a1, a2, a3];
+    const b1 = mkI("Cabo sem desfiamento"), b2 = mkI("Cabo com protecao galvanica");
+    B.itens = [b1, b2];
+    m.secoes = [A, B];
+    STATE.ui.chkModeloSecaoSel = null; STATE.ui.chkModeloItemSel = null;
+    chkModeloResetTela();
+    globalThis.__M = { A, B, a1, a2, a3, b1, b2 };
+  })()`);
+  const M = roda("globalThis.__M");
+  h = roda("screenChkModeloForm()");
+  T(h.includes("chk-mod-split") && h.includes('id="chkModeloLista"') && h.includes('id="chkModeloItens"') && h.includes('id="chkModeloEditor"') && h.includes('id="chkModeloBusca"'), "painel dividido com lista, itens, editor e busca");
+  T(!h.includes("item-aberto"), "sem selecao explicita o celular abre na lista (nao pula para o editor)");
+  T(!h.includes("chk-bloco") && !h.includes("chk-motivo-card") && !h.includes("chk-modelo-split") && !h.includes("chk-modelo-tree"), "classes do editor antigo nao sobraram");
+  // barra do topo
+  T(h.includes('value="Modelo &lt;Teste&gt;"') && h.includes("Descricao do modelo") && h.includes("selected>Horizontal flexível") && h.includes("App.chkSetModeloField('nome',this.value)") && h.includes("App.chkSetModeloField('descricao',this.value)") && h.includes("App.chkSetModeloField('tipoLinha',this.value)"), "barra: nome (escapado), descricao e tipo de linha ligados ao modelo");
+  T(h.includes("App.chkExportarModeloXLSX()") && h.includes("this.closest('details').open=false"), "menu Planilha com 'Baixar esta planilha' quando ha secoes, e fecha ao escolher");
+  // lista: A aberta por padrao (primeiro item selecionado), B recolhida
+  T(conta(h, "data-chk-item=") === 3 && h.includes(`data-chk-item="${M.a1.id}"`) && !h.includes(`data-chk-item="${M.b1.id}"`), "so a secao da selecao fica aberta na lista (3 itens de A, nenhum de B)");
+  T(h.includes('<span class="chk-mod-item-num">1.1</span>') && h.includes('<span class="chk-mod-item-num">1.3</span>') && h.includes("Pergunta ainda não escrita"), "numeracao 1.1.. e item sem texto avisa 'Pergunta ainda nao escrita'");
+  T(h.includes("Verificar a ancoragem &lt;b&gt;&quot;x&quot;&lt;/b&gt;") && !h.includes("<b>\"x\"</b>"), "o texto da pergunta e escapado na lista e no editor");
+  T(h.includes(`App.chkSelecionarModeloItem('${M.A.id}','${M.a1.id}')`) && h.includes(`App.chkNovoItem('${M.A.id}')`) && h.includes(`App.chkRemoverSecao('${M.A.id}')`) && h.includes(`App.chkModeloToggleSecao('${M.B.id}')`) && h.includes("App.chkNovaSecao()") && h.includes(`App.chkSetSecaoTitulo('${M.A.id}',this.value)`), "lista: selecionar item, + Item, remover secao, abrir/recolher, nova secao, titulo da secao editavel");
+  // item aberto: pergunta, norma, prioridade, remover
+  T(h.includes("Ancoragem · Item 1.1") && h.includes("App.chkSetItemField('" + M.A.id + "','" + M.a1.id + "','descricao',this.value)") && h.includes('value="NBR 16325-2"') && h.includes("App.chkSetItemField('" + M.A.id + "','" + M.a1.id + "','normativo',this.value)") && h.includes("App.chkRemoverItem('" + M.A.id + "','" + M.a1.id + "')"), "item aberto: pergunta, norma e remover item ligados ao item certo");
+  T(h.includes("p-critica") && h.includes('<option value="critica" selected>Crítica</option>') && conta(h, "<option value=\"critica\"") === 1 && h.includes("'prioridade',this.value)"), "prioridade do item (critica marcada) com todas as opcoes");
+  // linhas de fluxo: Atende + 2 motivos
+  T(h.includes("chk-fl-atende") && h.includes("Atende bem.") && h.includes("'textoAtende',this.value)"), "linha Atende com o texto padrao do laudo");
+  T(conta(h, 'class="chk-fl-pilula') === 2 && conta(h, 'class="chk-fl-linha"') === 2 && conta(h, 'class="chk-fl-del"') === 2, "um botao (pilula), uma linha e um excluir por motivo");
+  for(const [mi, campo] of [[0,"motivo"],[0,"texto"],[0,"acao"],[1,"motivo"],[1,"texto"],[1,"acao"]]){
+    T(h.includes(`App.chkSetMotivoPadrao('${M.A.id}','${M.a1.id}',${mi},'${campo}',this.value)`), "motivo " + mi + " campo " + campo + " ligado");
+  }
+  T(h.includes(">Corroida</textarea>") && h.includes(">Texto da corrosao.</textarea>") && h.includes(">Substituir.</textarea>") && h.includes(">Sem ancoragem</textarea>") && h.includes(">Texto sem.</textarea>"), "os textos dos motivos aparecem nos campos certos");
+  T(h.includes(`App.chkRemoverMotivoPadrao('${M.A.id}','${M.a1.id}',1)`) && h.includes(`App.chkNovoMotivoPadrao('${M.A.id}','${M.a1.id}')`), "excluir motivo e + Motivo");
+  T(h.includes("Não atende") && h.includes("chk-fl-cab") && h.includes("chk-fl-seta"), "cabecalho Botao/Laudo/Acao, setas e o grupo 'Nao atende'");
+  T(h.includes("onkeydown=\"if(event.key==='Enter')event.preventDefault()\""), "o botao do motivo nao aceita quebra de linha");
+  // paineis extras recolhidos (info e contexto vazios), com os dois botoes
+  T(h.includes("App.chkModeloPainel('info')") && h.includes("App.chkModeloPainel('contexto')") && !h.includes("chk-mod-painel-tit") && !h.includes('class="dot"'), "Orientacao e Contexto vazios: botoes sem ponto e paineis recolhidos");
+
+  // --- tocar num item: vira selecao explicita (celular abre o editor), so a secao tocada fica aberta
+  roda(`App.chkSelecionarModeloItem(${J(M.B.id)}, ${J(M.b2.id)})`);
+  h = roda("screenChkModeloForm()");
+  T(h.includes("item-aberto") && h.includes("Cabo de Aço · Item 2.2") && h.includes(`data-chk-item="${M.b1.id}"`) && !h.includes(`data-chk-item="${M.a1.id}"`), "tocar em B 2.2: abre o editor, B aberta e A recolhida");
+  T(h.includes("App.chkModeloVoltarLista()") && !h.includes("chkSelecionarModeloItem(null,null)"), "botao Secoes e itens (celular) volta para a lista");
+  roda("App.chkModeloVoltarLista()");
+  T(roda("STATE.ui.chkModeloItemSel") === null && !roda("screenChkModeloForm()").includes("item-aberto"), "voltar para a lista tira a selecao explicita");
+  roda(`App.chkSelecionarModeloItem(${J(M.B.id)}, ${J(M.b2.id)})`);
+
+  // --- abrir/recolher secao: primeira escolha congela o padrao e so muda a secao tocada
+  roda(`App.chkModeloToggleSecao(${J(M.A.id)})`);
+  h = roda("screenChkModeloForm()");
+  T(h.includes(`data-chk-item="${M.a1.id}"`) && h.includes(`data-chk-item="${M.b1.id}"`), "abrir A mantem B aberta");
+  roda(`App.chkModeloToggleSecao(${J(M.B.id)})`);
+  h = roda("screenChkModeloForm()");
+  T(h.includes(`data-chk-item="${M.a1.id}"`) && !h.includes(`data-chk-item="${M.b1.id}"`), "recolher B deixa so A");
+  roda(`App.chkModeloToggleSecao(${J(M.A.id)})`);
+  h = roda("screenChkModeloForm()");
+  T(!h.includes("data-chk-item=") && h.includes("Ancoragem") && h.includes("Cabo de Aço") && h.includes("chk-mod-sec-seta"), "tudo recolhido: so os titulos das secoes");
+
+  // --- busca (sem acento e sem diferenca de maiuscula); ao buscar todas as secoes com resultado abrem
+  roda(`App.chkModeloBusca("ANCORAGEM")`);
+  h = roda("screenChkModeloForm()");
+  T(conta(h, "data-chk-item=") === 3 && h.includes(`data-chk-item="${M.a1.id}"`) && !h.includes(`data-chk-item="${M.b1.id}"`) && h.includes('value="ANCORAGEM"'), "busca ANCORAGEM (titulo da secao A, sem acento nem maiuscula) mostra os 3 itens de A e a caixa guarda o termo");
+  roda(`App.chkModeloBusca("desfiamento")`);
+  h = roda("screenChkModeloForm()");
+  T(conta(h, "data-chk-item=") === 1 && h.includes(`data-chk-item="${M.b1.id}"`) && h.includes("Cabo de Aço"), "busca por trecho da pergunta acha so o item (e abre a secao dele)");
+  roda(`App.chkModeloBusca("cabo")`);
+  h = roda("screenChkModeloForm()");
+  T(conta(h, "data-chk-item=") === 2 && h.includes(`data-chk-item="${M.b1.id}"`) && h.includes(`data-chk-item="${M.b2.id}"`), "busca 'cabo' acha os dois itens da secao B (pelo titulo da secao tambem)");
+  roda(`App.chkModeloBusca("aco")`);
+  h = roda("screenChkModeloForm()");
+  T(conta(h, "data-chk-item=") === 2 && h.includes(`data-chk-item="${M.b1.id}"`) && !h.includes(`data-chk-item="${M.a1.id}"`), "busca 'aco' (sem cedilha nem til) acha o titulo 'Cabo de Aço'");
+  roda(`App.chkModeloBusca("AÇO")`);
+  h = roda("screenChkModeloForm()");
+  T(conta(h, "data-chk-item=") === 2 && h.includes(`data-chk-item="${M.b2.id}"`), "busca 'AÇO' (maiuscula e acento) acha o mesmo");
+  roda(`App.chkModeloBusca("1.2")`);
+  h = roda("screenChkModeloForm()");
+  T(conta(h, "data-chk-item=") === 1 && h.includes(`data-chk-item="${M.a2.id}"`), "busca pelo numero 1.2");
+  roda(`App.chkModeloBusca("zzzzz")`);
+  h = roda("screenChkModeloForm()");
+  T(h.includes("Nada encontrado para essa busca") && !h.includes("data-chk-item="), "busca sem resultado avisa");
+  roda(`App.chkModeloBusca("")`);
+
+  // --- paineis Orientacao/Contexto: abrem sozinhos quando ha conteudo; o clique vale ate trocar de item
+  roda(`App.chkSelecionarModeloItem(${J(M.A.id)}, ${J(M.a1.id)})`);
+  roda(`App.chkSetItemInfoTexto(${J(M.A.id)}, ${J(M.a1.id)}, "Use torquimetro.")`);
+  h = roda("screenChkModeloForm()");
+  T(h.includes("Orientação para o inspetor") && h.includes("Use torquimetro.") && h.includes("App.chkSetItemInfoTexto(") && h.includes("App.chkInfoFotoAdicionar(") && conta(h, 'class="dot"') === 1 && !h.includes('Contexto da seção "Ancoragem"'), "Orientacao preenchida abre sozinha (com fotos e ponto no botao); Contexto vazio continua recolhido");
+  roda("App.chkModeloPainel('info')");
+  h = roda("screenChkModeloForm()");
+  T(!h.includes("Orientação para o inspetor") && conta(h, 'class="dot"') === 1, "clicar em Orientacao aberta recolhe (o ponto continua porque tem conteudo)");
+  roda("App.chkModeloPainel('contexto')");
+  h = roda("screenChkModeloForm()");
+  T(h.includes('Contexto da seção "Ancoragem"') && h.includes(`App.chkSetSecaoContexto('${M.A.id}',this.value)`) && !h.includes("Orientação para o inspetor"), "clicar em Contexto vazio abre o painel da secao");
+  roda(`App.chkSelecionarModeloItem(${J(M.A.id)}, ${J(M.a2.id)})`);
+  h = roda("screenChkModeloForm()");
+  T(!h.includes('Contexto da seção "Ancoragem"'), "trocar de item volta os paineis ao automatico");
+  roda(`App.chkSetSecaoContexto(${J(M.A.id)}, "Pontos fixos da linha.")`);
+  h = roda("screenChkModeloForm()");
+  T(h.includes('Contexto da seção "Ancoragem"') && h.includes("Pontos fixos da linha.") && conta(h, 'class="dot"') === 1, "Contexto preenchido abre sozinho");
+
+  // --- nova secao e novo item entram abertos e selecionados
+  roda("App.chkNovaSecao()");
+  const nova = roda("getCurrentChkModelo().secoes[2]");
+  h = roda("screenChkModeloForm()");
+  T(roda("__chkModeloSecAbertas")[nova.id] === true && h.includes(`data-chk-sec="${nova.id}"`) && h.includes("Nenhum item ainda.") && h.includes(`App.chkNovoItem('${nova.id}')`) && !h.includes(`data-chk-item="${M.a1.id}"`), "nova secao nasce aberta (so ela), com '+ Item'");
+  roda(`App.chkNovoItem(${J(nova.id)})`);
+  const novoItem = roda("getCurrentChkModelo().secoes[2].itens[0]");
+  h = roda("screenChkModeloForm()");
+  T(roda("STATE.ui.chkModeloItemSel") === novoItem.id && h.includes("item-aberto") && h.includes("· Item 3.1") && h.includes(`data-chk-item="${novoItem.id}"`), "novo item ja vem selecionado no editor");
+
+  // --- abrir outro modelo zera busca/secoes/paineis
+  roda(`App.chkModeloBusca("abc"); App.chkAbrirModelo(${J(roda("STATE.ui.chkModeloId"))})`);
+  T(roda("__chkModeloBusca") === "" && Object.keys(roda("__chkModeloSecAbertas")).length === 0 && roda("__chkModeloPainel.info") === null && roda("__chkModeloPainel.contexto") === null, "abrir o modelo reinicia o estado so de tela");
+
+  // --- o editor nunca derruba a tela com dados antigos: item sem info/motivos/prioridade
+  roda(`(function(){ const m = getCurrentChkModelo(); const i = m.secoes[0].itens[0]; delete i.info; delete i.motivosPadrao; delete i.prioridade; delete i.textoAtende; delete i.normativo; m.secoes[0].contexto = undefined; STATE.ui.chkModeloSecaoSel = m.secoes[0].id; STATE.ui.chkModeloItemSel = i.id; })()`);
+  h = roda("screenChkModeloForm()");
+  T(h.includes("chk-fl-atende") && conta(h, 'class="chk-fl-pilula') === 0 && h.includes("p-media"), "item antigo (sem info, motivos, prioridade) abre sem erro");
+
+  // limpeza
+  roda(`STATE.checklists.modelos = STATE.checklists.modelos.filter(x => x.id !== STATE.ui.chkModeloId); STATE.ui.chkModeloId = ${J(modeloAntes)}; STATE.ui.chkModeloSecaoSel = null; STATE.ui.chkModeloItemSel = null; chkModeloResetTela(); delete globalThis.__M;`);
+  T(roda("STATE.checklists.modelos.length") === nAntes, "preparo/limpeza: o modelo de teste saiu");
+}
+testarFotoAmpla().then(() => testarTravas()).then(() => testarDadosLaudo()).then(() => testarLaudoCapitulos()).then(() => testarMemorial()).then(() => testarCapitulosNovos()).then(() => testarEdicaoTexto()).then(() => testarFotosLeituraLaudo()).then(() => testarCadastroProjeto()).then(() => testarEditorModelo()).then(() => {
   // as arvores do Completo/Simplificado continuam byte a byte identicas apos a foto ampla tambem
   if(JSON.stringify(sandbox.STATE.projetos) !== antesCompleto || JSON.stringify(sandbox.STATE.projetosSimples) !== antesSimples){
     console.error("FALHOU: a foto ampla da linha mexeu em STATE.projetos/projetosSimples");

@@ -64,6 +64,43 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 03/10/2026 19:25
+
+**Checklist: nova tela de montar o modelo (linhas de fluxo), ajustes no preenchimento em campo, cadastro do projeto mais rápido e a prévia do laudo não volta mais ao topo.**
+
+Tela do modelo do checklist (onde se escreve as perguntas):
+
+- **Novo visual “Linhas de fluxo”.** À esquerda fica a lista de seções e perguntas (como antes); à direita, a pergunta aberta aparece em linhas: **Botão** (o que o inspetor toca em campo) → **Laudo** (o texto que entra no laudo) → **Ação** (vai para o quadro de ações). A primeira linha é o “Atende”; abaixo vem “Não atende”, com uma linha por motivo e o botão **+ Motivo**.
+- **Aproveita a tela do computador:** a tela usa a largura inteira da janela (antes parava em 1180 px) e a lista da esquerda fica fixa enquanto você rola o editor. Em telas médias as colunas se empilham; no celular continua lista → detalhe, agora com o cabeçalho do modelo escondido quando uma pergunta está aberta, para sobrar espaço.
+- **Lista com busca e seções recolhíveis:** campo **Buscar** (acha por trecho da pergunta, número ou nome da seção, sem diferenciar acento ou maiúscula). Só a seção da pergunta aberta fica expandida; as outras mostram só o nome e a quantidade de itens. O texto da pergunta que você digita aparece na lista na hora.
+- **Orientação e Contexto recolhidos:** a orientação do inspetor (o ⓘ do campo, com fotos) e o contexto da seção (que entra no laudo) viram dois botões no pé da tela. Abrem sozinhos quando já têm conteúdo (com um ponto no botão).
+- **Cabeçalho enxuto:** nome, descrição e tipo de linha de vida numa faixa só, e o menu **Planilha** reúne importar XLSX, baixar o modelo padrão e baixar esta planilha. Prioridade e norma ficam logo abaixo da pergunta.
+- Nada mudou no que é gravado: os mesmos campos (pergunta, norma, prioridade, motivos curto/completo/ação, texto do “Atende”, orientação, contexto) e a mesma planilha.
+
+Preenchimento em campo:
+
+- **Não atende com motivo e foto:** não pede mais a nota. A nota só é cobrada quando falta o motivo marcado ou a foto.
+- **Não aplica não precisa de foto:** não aparece mais o triângulo de aviso nem a pergunta “Item sem foto… Fechar sem foto”. Marcar a **seção inteira** como “não aplica” continua pedindo confirmação.
+- **Abrir uma pergunta não leva mais a página ao topo** (valia para celular e computador): a tela fica onde estava e só rola o necessário se a pergunta aberta ficar escondida.
+- **Sem a faixa da foto da linha de vida** no topo do preenchimento. A foto continua no cadastro da linha, na tela de finalizar e na capa do laudo.
+
+Cadastro do projeto (tela “Projeto”):
+
+- **Mais fluida no computador:** os campos ficam lado a lado, em quatro blocos (Solicitante, Documento, Inspeção, Texto do laudo) mais o Responsável técnico; no celular continua uma coluna só. O campo de **email** agora tem o mesmo visual dos outros.
+- **CPF ou CNPJ no mesmo campo:** formata enquanto digita, com pontos, barra e hífen. Até 11 dígitos vira CPF (000.000.000-00); ao passar disso vira CNPJ (00.000.000/0000-00). Ao sair do campo, avisa (sem bloquear) se o CPF/CNPJ está incompleto ou com os dígitos verificadores errados.
+- **Telefone com DDD:** (64) 99615-4510 ou (64) 9961-5451, conforme os dígitos.
+- **Validade da inspeção** já vem **12 meses depois** da data da inspeção, e acompanha a data enquanto você não escolher outra validade. Projetos que já existiam com a validade em branco foram preenchidos uma vez (a validade que você já tinha escolhido não muda).
+- **Inspetor numa lista:** o nome do inspetor agora é escolhido de um **cadastro de inspetores** (botão “Gerenciar inspetores”). Cada inspetor tem nome e cargo e pode ser **ativado ou desativado**: o desativado sai da lista para projetos novos, mas continua nos projetos que já o usam. Corrigir o nome ou o cargo no cadastro atualiza os projetos que usam aquele inspetor. Os nomes de inspetor já digitados em projetos antigos entraram no cadastro. Sem inspetor escolhido, o laudo usa o responsável técnico.
+- **Texto do laudo:** a **Descrição do trabalho** entra na Metodologia de cada laudo de linha do projeto, antes do texto-base, e agora também pode ser editada no próprio laudo (botão Metodologia). O campo **Conclusão geral** saiu da tela: o laudo da linha não o usa (a conclusão é de cada linha). O que já estava escrito nele continua guardado e segue saindo no laudo do projeto (modelo antigo).
+- No laudo, CPF/CNPJ e telefone saem formatados, mesmo nos projetos antigos que os guardaram só com números.
+
+Rolagem do laudo:
+
+**Laudo da linha em capítulos: a prévia não volta mais ao topo sozinha.**
+
+- A prévia do laudo tem rolagem própria e o app redesenhava a tela sozinho de tempos em tempos (sincronização de fundo), o que jogava o laudo de volta para a primeira página enquanto você lia. Agora a posição de leitura é guardada e devolvida a cada redesenho.
+- A posição também é mantida depois de **editar um texto, mover ou excluir uma foto** (o laudo é montado de novo) e ao **aumentar ou diminuir o zoom** (a mesma página continua à vista). Abrir o laudo outra vez começa do início.
+
 ## 03/10/2026 13:38
 
 **Laudo da linha em capítulos: texto e fotos editáveis durante a leitura, e “ver 3.1” e Sumário clicáveis (na prévia e no PDF).**
