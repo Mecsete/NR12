@@ -64,6 +64,14 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 03/10/2026 23:00
+
+**Laudo da linha: capa mais equilibrada, data da capa em DD/MM/AAAA e o capítulo “Corpo do laudo” agora se chama “Avaliação por Componente”.**
+
+- **Capa:** a tabela de dados (Documento, ART, Responsável Técnico, Solicitante) ficava encolhida e colada à esquerda; agora ocupa a mesma largura da foto, e os nomes não quebram mais em duas linhas.
+- **Data da capa** no formato **03/10/2026** (o resto do laudo segue como estava).
+- **Capítulo 3:** de “Corpo do laudo” para **“Avaliação por Componente”**, no Sumário, no título do capítulo e no botão que liga e desliga os capítulos. Nada muda nos laudos já configurados.
+
 ## 03/10/2026 22:45
 
 **Laudo da linha: a assinatura não sai mais com fundo preto.**

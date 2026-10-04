@@ -164,7 +164,7 @@ const FUNCOES = [
   "chkAvisoDocumento", "chkMaisMesesISO", "chkOpcoesInspetor", "novoChkInspetor", "chkInspetoresHtml", "screenChkProjetoForm",
   // Editor de modelo (Modelo 3, linhas de fluxo): lista com busca/secoes abertas e o item aberto.
   "chkBuscaNorm", "chkModeloSvg", "chkAutoAltura", "chkModeloAjustarAlturas", "chkModeloRedesenhar", "chkModeloPreviaPergunta",
-  "chkModeloPainelAberto", "chkModeloSecAberta", "chkMostrarItemAberto", "screenChkLinhas", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
+  "chkModeloPainelAberto", "chkModeloSecAberta", "chkMostrarItemAberto", "screenChkLinhas", "lclDataBR", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
 ];
 let fonte = "let __ultimoCarimboVisto = 0;\n";
 fonte += "let __buscaAtual = '';\n"; // usado por chkAbrirSetor (lista de linhas) -- nao testado aqui, so pra nao faltar
@@ -2375,7 +2375,22 @@ async function testarAtalhoLaudo(){
   roda(`STATE.checklists.projetos = STATE.checklists.projetos.filter(p => p.id !== STATE.ui.chkProjetoId); STATE.ui.chkProjetoId = ${J(antes.p)}; STATE.ui.chkSetorId = ${J(antes.s)}; STATE.ui.chkLinhaId = ${J(antes.l)};`);
   T(roda("STATE.checklists.projetos.length") === antes.n, "preparo/limpeza: o projeto de teste saiu");
 }
-testarFotoAmpla().then(() => testarTravas()).then(() => testarDadosLaudo()).then(() => testarLaudoCapitulos()).then(() => testarMemorial()).then(() => testarCapitulosNovos()).then(() => testarEdicaoTexto()).then(() => testarFotosLeituraLaudo()).then(() => testarCadastroProjeto()).then(() => testarEditorModelo()).then(() => testarAtalhoLaudo()).then(() => {
+async function testarCapaLaudo(){
+  const T = (cond, msg)=>{ if(!cond) throw new Error("capa do laudo: " + msg); };
+  const J = (v)=> JSON.stringify(v);
+  const br = (v)=> roda("lclDataBR(" + J(v) + ")");
+  T(br("2026-10-03") === "03/10/2026" && br("2027-01-09") === "09/01/2027" && br("") === "" && br(null) === "" && br("texto livre") === "texto livre", "lclDataBR: ISO vira DD/MM/AAAA, vazio fica vazio e texto que nao e data volta como veio");
+  const d = "lclDados(__f3.proj, __f3.setor, __f3.l)";
+  roda("__f3.proj.dataInspecao = '2026-10-03'");
+  const capa = roda("lclBlocoCapa(" + d + ", '').html");
+  T(capa.includes("<br>03/10/2026</div>") && !capa.includes("de outubro de 2026"), "a data da capa sai em DD/MM/AAAA (nao por extenso): " + capa.slice(-160));
+  const capaFoto = roda("lclBlocoCapa(" + d + ", 'data:image/jpeg;base64,AAAA').html");
+  T(capaFoto.includes("lcl-fotocapa") && capaFoto.includes("<br>03/10/2026</div>"), "capa com foto tambem usa DD/MM/AAAA");
+  T(roda("LCL_CAPITULOS.find(c => c.id === 'corpo').rot") === "Avaliação por Componente" && roda("LCL_CAPITULOS.find(c => c.id === 'corpo').curto") === "Avaliação por Componente", "o capitulo 'corpo' agora se chama Avaliacao por Componente (o id interno nao muda)");
+  const sum = roda("lclBlocosSumario(lclPlano(__f3.proj, __f3.l), {}).map(b => b.html).join('')");
+  T(sum.includes("Avaliação por Componente") && !sum.includes("Corpo do laudo"), "o Sumario usa o novo nome do capitulo");
+}
+testarFotoAmpla().then(() => testarTravas()).then(() => testarDadosLaudo()).then(() => testarLaudoCapitulos()).then(() => testarMemorial()).then(() => testarCapitulosNovos()).then(() => testarEdicaoTexto()).then(() => testarFotosLeituraLaudo()).then(() => testarCadastroProjeto()).then(() => testarEditorModelo()).then(() => testarAtalhoLaudo()).then(() => testarCapaLaudo()).then(() => {
   // as arvores do Completo/Simplificado continuam byte a byte identicas apos a foto ampla tambem
   if(JSON.stringify(sandbox.STATE.projetos) !== antesCompleto || JSON.stringify(sandbox.STATE.projetosSimples) !== antesSimples){
     console.error("FALHOU: a foto ampla da linha mexeu em STATE.projetos/projetosSimples");

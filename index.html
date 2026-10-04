@@ -3368,7 +3368,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "03/10/2026 22:45";
+const APP_BUILD = "03/10/2026 23:00";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -14876,7 +14876,7 @@ const LCL_COR = { ok:"#2E9E6B", nok:"#D9534F", na:"#B8BDD0" };
 const LCL_CAPITULOS = [
   { id:"metodologia", rot:"Metodologia", curto:"Metodologia" },
   { id:"checklist",   rot:"Checklist", curto:"Checklist" },
-  { id:"corpo",       rot:"Corpo do laudo", curto:"Corpo do laudo" },
+  { id:"corpo",       rot:"Avaliação por Componente", curto:"Avaliação por Componente" },
   { id:"memorial",    rot:"Memorial de Cálculo — Zona Livre de Queda", curto:"Memorial ZLQ" },
   { id:"conclusao",   rot:"Conclusão", curto:"Conclusão" },
   { id:"anexos",      rot:"Anexos", curto:"Anexos" },
@@ -15331,6 +15331,11 @@ function lclMaisMeses(iso, meses){
   const [ano, mes, dia] = r.split("-");
   return `${dia}/${mes}/${ano}`;
 }
+/* "2026-10-03" -> "03/10/2026" (capa do laudo). Texto que não é data ISO volta como veio. */
+function lclDataBR(iso){
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ""));
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : String(iso || "");
+}
 function lclProximaInspecao(proj){
   if(proj && proj.validadeInspecao){
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(proj.validadeInspecao);
@@ -15394,7 +15399,7 @@ function lclBlocoCapa(d, fotoSrc){
           <tr><td>Solicitante</td><td>${lclEsc((proj.responsavel || "").toUpperCase())}</td></tr>
         </table>
       </div>
-      <div class="lcl-capa-local">${lclEsc((mc.cidade || "").toUpperCase())}<br>${lclEsc(chkDataExtenso(proj.dataInspecao || hoje()))}</div>
+      <div class="lcl-capa-local">${lclEsc((mc.cidade || "").toUpperCase())}<br>${lclEsc(lclDataBR(proj.dataInspecao || hoje()))}</div>
     </div>` };
 }
 function lclBlocosPagina2(d, textos){
@@ -15631,7 +15636,7 @@ const LCL_CSS = `
 .lcl-capa-txt.com-foto .lcl-capa-titulo{margin-bottom:${Math.round(18*LCL_MM)}px}
 .lcl-capa-txt.com-foto .lcl-capa-cliente{margin-bottom:${Math.round(8*LCL_MM)}px}
 .lcl-capa-txt.com-foto .lcl-capa-area{margin-bottom:${Math.round(8*LCL_MM)}px}
-.lcl-capa-txt.com-foto .lcl-capa-tab{position:absolute;left:${Math.round(16*LCL_MM)}px;right:${Math.round(16*LCL_MM)}px;bottom:${Math.round(27*LCL_MM)}px;width:auto}
+.lcl-capa-txt.com-foto .lcl-capa-tab{position:absolute;left:${Math.round(16*LCL_MM)}px;bottom:${Math.round(27*LCL_MM)}px;width:calc(100% - ${Math.round(32*LCL_MM)}px)}
 .lcl-fotocapa{position:relative;padding:9px}
 .lcl-fotocapa img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover}
 .lcl-fotocapa .c{position:absolute;width:30px;height:30px;border:0 solid #E94E1B}

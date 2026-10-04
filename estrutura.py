@@ -5570,5 +5570,14 @@ chk("lclReduzirFoto tem a opcao manterPng (PNG com transparencia) e a foto em JP
 chk("a assinatura do laudo da linha e preparada em PNG (manterPng) e as fotos continuam em JPEG leve",
     'lclReduzirFoto(__assinaturaLaudo, 500, true)' in novo and "await lclReduzirFoto(s, largura)" in novo)
 
+print("=== 178. CAPA DO LAUDO (TABELA NA LARGURA TODA, DATA DD/MM/AAAA) E CAPITULO AVALIACAO POR COMPONENTE (03/10/2026) ===")
+chk("a tabela da capa com foto ocupa a largura do texto (tabela absoluta com width:auto encolhia e ficava colada a esquerda)",
+    ".lcl-capa-txt.com-foto .lcl-capa-tab{position:absolute;left:${Math.round(16*LCL_MM)}px;bottom:${Math.round(27*LCL_MM)}px;width:calc(100% - ${Math.round(32*LCL_MM)}px)}" in novo
+    and "bottom:${Math.round(27*LCL_MM)}px;width:auto}" not in novo)
+chk("a data da capa sai em DD/MM/AAAA (lclDataBR), nao por extenso",
+    "function lclDataBR(iso){" in novo and "lclEsc(lclDataBR(proj.dataInspecao || hoje()))" in novo)
+chk("o capitulo do corpo do laudo se chama Avaliacao por Componente (rotulo e botao); o id interno continua 'corpo'",
+    '{ id:"corpo",       rot:"Avaliação por Componente", curto:"Avaliação por Componente" }' in novo)
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
