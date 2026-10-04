@@ -3368,7 +3368,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "03/10/2026 20:30";
+const APP_BUILD = "03/10/2026 22:45";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -15779,10 +15779,13 @@ a.lcl-sl:hover i{border-bottom-color:#E94E1B}
 let __lclParaLinha = null;
 const __lclCacheFoto = new Map();
 /* Cópia reduzida da foto para a página (o laudo não precisa dos megapixels
-   do campo). Falha de leitura devolve "" — a foto some do laudo, nunca trava. */
-function lclReduzirFoto(src, maxL){
+   do campo). Falha de leitura devolve "" — a foto some do laudo, nunca trava.
+   Foto sai em JPEG (leve), com fundo branco por baixo: JPEG não tem transparência e o que era
+   transparente virava preto. `manterPng` (assinatura) devolve PNG, para a linha aparecer por
+   trás da assinatura. */
+function lclReduzirFoto(src, maxL, manterPng){
   if(!lclTemFoto(src)) return Promise.resolve("");
-  const chave = maxL + "|" + src.length + "|" + src.slice(-32);
+  const chave = maxL + "|" + (manterPng ? "png" : "jpg") + "|" + src.length + "|" + src.slice(-32);
   if(__lclCacheFoto.has(chave)) return Promise.resolve(__lclCacheFoto.get(chave));
   return new Promise((resolve)=>{
     const img = new Image();
@@ -15792,8 +15795,10 @@ function lclReduzirFoto(src, maxL){
         const c = document.createElement("canvas");
         c.width = Math.max(1, Math.round((img.naturalWidth || maxL) * r));
         c.height = Math.max(1, Math.round((img.naturalHeight || maxL) * r));
-        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-        const out = c.toDataURL("image/jpeg", 0.74);
+        const ctx = c.getContext("2d");
+        if(!manterPng){ ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height); }
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        const out = manterPng ? c.toDataURL("image/png") : c.toDataURL("image/jpeg", 0.74);
         __lclCacheFoto.set(chave, out);
         resolve(out);
       }catch(e){ resolve(src); }
@@ -15831,7 +15836,7 @@ async function lclPrepararFotos(linha, textos){
   lclCfg(linha).anexos.forEach(a=> add(a.src, 1500));
   ((textos && textos.metodologia && textos.metodologia.figuras) || []).forEach(f=> add(f.src, 800));
   for(const [s, largura] of alvos) mapa.set(s, await lclReduzirFoto(s, largura));
-  if(typeof __assinaturaLaudo === "string" && lclTemFoto(__assinaturaLaudo)) mapa.set("assinatura", await lclReduzirFoto(__assinaturaLaudo, 500));
+  if(typeof __assinaturaLaudo === "string" && lclTemFoto(__assinaturaLaudo)) mapa.set("assinatura", await lclReduzirFoto(__assinaturaLaudo, 500, true));
   return mapa;
 }
 /* Escolhe uma ou mais imagens do computador/aparelho e devolve cada uma já

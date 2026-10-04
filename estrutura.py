@@ -5562,5 +5562,13 @@ chk("o cartao da linha tem o botao Laudo (nao abre a linha por baixo) e ele abre
 chk("o voltar do laudo da linha devolve para a lista quando o laudo foi aberto pelo atalho, e para a finalizacao no caminho de sempre",
     'backTarget = __lclOrigem || "checklist-finalizar"' in _tb_corpo and "__lclOrigem = origem || \"\";" in novo and 'App.lclAbrir("checklist-linhas")' in novo)
 
+print("=== 177. ASSINATURA NO LAUDO DA LINHA NAO FICA COM FUNDO PRETO (03/10/2026) ===")
+_rf = novo.index("function lclReduzirFoto(")
+_rf_corpo = novo[_rf:novo.index("/* Medidor: um bloco por vez", _rf)]
+chk("lclReduzirFoto tem a opcao manterPng (PNG com transparencia) e a foto em JPEG leva fundo branco por baixo (JPEG nao tem transparencia: virava preto)",
+    "function lclReduzirFoto(src, maxL, manterPng)" in _rf_corpo and 'c.toDataURL("image/png")' in _rf_corpo and 'ctx.fillStyle = "#fff"' in _rf_corpo and "if(!manterPng)" in _rf_corpo)
+chk("a assinatura do laudo da linha e preparada em PNG (manterPng) e as fotos continuam em JPEG leve",
+    'lclReduzirFoto(__assinaturaLaudo, 500, true)' in novo and "await lclReduzirFoto(s, largura)" in novo)
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

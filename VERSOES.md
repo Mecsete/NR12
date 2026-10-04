@@ -64,6 +64,14 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 03/10/2026 22:45
+
+**Laudo da linha: a assinatura não sai mais com fundo preto.**
+
+- Ao montar o laudo da linha em capítulos, o app reduz as imagens para a página. A assinatura passava por esse mesmo caminho, que converte para JPEG, e o JPEG não tem transparência: o fundo transparente da sua assinatura (PNG) virava preto. Agora a assinatura é reduzida em **PNG**, mantendo a transparência, e a linha do nome aparece por trás dela.
+- As fotos (do campo, da capa, anexos e figuras) continuam em JPEG leve, e agora com **fundo branco por baixo**: imagem com transparência que entrar como foto também não vira preto.
+- Não precisa enviar a assinatura de novo: basta abrir o laudo (ele é montado de novo a cada abertura).
+
 ## 03/10/2026 20:30
 
 **Checklist: botão “Laudo” direto no cartão de cada linha de vida.**
