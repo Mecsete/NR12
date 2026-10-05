@@ -103,8 +103,9 @@ print("=== 3. ARQUITETURA DE FOTOS (CAMADA_FOTOS) ===")
 # +1 em "foto:" -- o comentario novo no laco de envio de onedriveSincronizarModulo
 # cita "idbfoto:..." por extenso uma vez, explicando a recusa de gravar
 # referencia no lugar da foto. So comentario: nenhuma ocorrencia nova em
-# codigo. Depois do commit, a referencia (original.html) ja traz isso: zerar.
-_extra_fotos = {"foto:": 1, "idbfoto:": 1}
+# codigo. A referencia (original.html) JA vem do commit 5127d07 agora, entao
+# contar de novo somaria duas vezes. Zerado.
+_extra_fotos = {"foto:": 0, "idbfoto:": 0}
 for marca in ["idbfoto:", "foto:", "CAMADA_FOTOS"]:
     a, b = orig.count(marca) + _extra_fotos.get(marca, 0), novo.count(marca)
     chk("ocorrencias de '%s' inalteradas (%d)" % (marca, a), a == b, "orig+extra=%d novo=%d" % (a, b))
