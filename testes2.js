@@ -13684,6 +13684,91 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  console.log("\n---------------------------------------");
+  /* 05/10/2026: celular da inspeção da Equatorial dizia "sincronização
+     concluída" e o outro aparelho recebia o texto de tudo e NENHUMA foto.
+     Causa: exigirSemReferenciaDeFoto lança erro (de propósito) quando a foto
+     só existe como referência; o erro nascia dentro do trabalhador de
+     executarComConcorrencia, sem try/catch — o trabalhador morria e, com 3
+     itens assim, a fila inteira parava, sem nada na tela. A prova funcional
+     (itens que estouram não travam os outros) está no ENSAIO 39 de banco.js. */
+  {
+    console.log("\n[t183] item que estoura no envio nao trava a fila, e o selo avisa quando ha item sem enviar");
+
+    t("o envio de cada item roda dentro de try/catch e registra a falha em vez de morrer", ()=>{
+      const f = funcao("onedriveSincronizarModulo");
+      const iEnvio = f.indexOf("await executarComConcorrencia(pendentes, 3, async (item) => {");
+      ok(iEnvio >= 0, "faltou o laco de envio dos itens pendentes");
+      const trecho = f.slice(iEnvio);
+      ok(/async \(item\) => \{\s*\/\*[\s\S]*?\*\/\s*try\{/.test(trecho), "o corpo do trabalhador precisa abrir com try");
+      ok(trecho.indexOf("}catch(erroItem){") > 0, "faltou o catch do item");
+      ok(trecho.indexOf("registrarFalhaLocalSync(item.arquivo, item.tipo") > 0, "o catch precisa registrar a falha com o arquivo e o tipo do item");
+      ok(trecho.indexOf("foto sem os bytes neste aparelho") > 0, "a causa mais comum precisa sair com um motivo que a pessoa entenda");
+    });
+
+    t("executarComConcorrencia em si NAO mudou (a protecao e por item, nao mexe nos outros 8 usos dela)", ()=>{
+      const f = funcao("executarComConcorrencia");
+      ok(f.indexOf("await fn(item);") >= 0 && f.indexOf("catch") < 0, "o trabalhador generico continua sem try/catch — quem decide o que fazer com o erro e cada chamador");
+    });
+
+    t("o catch externo do envio automatico tambem registra no historico (antes so ia para o console)", ()=>{
+      const f = funcao("sincronizarIncrementalOneDrive");
+      ok(f.indexOf('registrarFalhaLocalSync("(rodada de envio)"') > 0, "faltou registrar a falha da rodada");
+      ok(f.indexOf("console.error(") > 0, "o console.error continua");
+    });
+
+    t("registrarFalhaLocalSync: conta SEMPRE, mas so registra no historico uma vez a cada 30 min por item (o historico guarda 80 eventos)", ()=>{
+      const cx = vm.createContext({ Date, String, Array });
+      cx.STATE = { logSincronizacao: [] };
+      cx.__falhasEnvioNaSync = 0;
+      cx.__ultimoMotivoFalhaEnvio = "";
+      cx.__registrados = [];
+      // registrarEventoSync de mentira: so guarda no log como o real faz, e conta falha
+      vm.runInContext(`function registrarEventoSync(dir, nome, tipo, bytes, ok, motivo, caminho){
+        if(dir==="up" && ok===false) __falhasEnvioNaSync++;
+        STATE.logSincronizacao.unshift({ ts: Date.now(), dir, nome:String(nome||"").slice(0,80), ok: ok!==false, motivo });
+        __registrados.push(nome);
+      }`, cx);
+      vm.runInContext(funcao("registrarFalhaLocalSync"), cx);
+      vm.runInContext('registrarFalhaLocalSync("risco_a.json","risco","foto sem os bytes","",false)', cx);
+      vm.runInContext('registrarFalhaLocalSync("risco_a.json","risco","foto sem os bytes","",false)', cx);
+      vm.runInContext('registrarFalhaLocalSync("risco_a.json","risco","foto sem os bytes","",false)', cx);
+      eq(cx.__registrados.length, 1, "a mesma falha repetida nao pode inundar o historico");
+      eq(cx.__falhasEnvioNaSync, 3, "mas as tres precisam contar para o aviso 'N itens nao subiram'");
+      eq(cx.__ultimoMotivoFalhaEnvio, "foto sem os bytes", "o aviso final cita o motivo");
+      vm.runInContext('registrarFalhaLocalSync("risco_a.json","risco","foto sem os bytes","",true)', cx);
+      eq(cx.__registrados.length, 2, "na sincronizacao manual (forcar) entra sempre — quem tocou no botao esta olhando");
+      vm.runInContext('registrarFalhaLocalSync("risco_b.json","risco","foto sem os bytes","",false)', cx);
+      eq(cx.__registrados.length, 3, "outro item registra normalmente");
+    });
+
+    t("syncFalhasNaoResolvidas: so conta falha recente de ENVIO que ainda nao deu certo depois", ()=>{
+      const cx = vm.createContext({ Date, Set });
+      vm.runInContext(funcao("syncFalhasNaoResolvidas"), cx);
+      const agora = Date.now(), min = 60*1000;
+      const conta = (log)=>{ cx.STATE = { logSincronizacao: log }; return vm.runInContext("syncFalhasNaoResolvidas()", cx); };
+      eq(conta([]), 0, "sem historico nao ha alerta");
+      eq(conta([{ ts:agora, dir:"up", nome:"risco_a.json", ok:false }]), 1, "uma falha recente conta");
+      eq(conta([{ ts:agora, dir:"up", nome:"risco_a.json", ok:true }, { ts:agora-5*min, dir:"up", nome:"risco_a.json", ok:false }]), 0,
+         "falha seguida de sucesso do MESMO arquivo ja foi resolvida");
+      eq(conta([{ ts:agora, dir:"up", nome:"fotos_risco_a.json", ok:false }, { ts:agora-1*min, dir:"up", nome:"risco_a.json", ok:true }]), 1,
+         "o sucesso do texto NAO resolve a falha do pacote de fotos (sao arquivos diferentes)");
+      eq(conta([{ ts:agora-40*min, dir:"up", nome:"risco_a.json", ok:false }]), 0, "falha de mais de 30 minutos atras nao fica acesa para sempre");
+      eq(conta([{ ts:agora, dir:"up", nome:"a.json", ok:false }, { ts:agora, dir:"up", nome:"b.json", ok:false }, { ts:agora, dir:"up", nome:"a.json", ok:false }]), 2,
+         "conta arquivos distintos, nao eventos");
+      eq(conta([{ ts:agora, dir:"up", nome:"a.json", ok:true, reparo:"x" }, { ts:agora, dir:"down", nome:"b.json", ok:false }]), 0,
+         "correcao automatica e recebimento nao entram na conta de envio");
+    });
+
+    t("o selo do topo avisa quando ha item sem enviar, nos dois estados em que o OneDrive e o unico backup", ()=>{
+      const f = funcao("chipSyncHtml");
+      ok(f.indexOf("syncFalhasNaoResolvidas()") > 0, "o selo precisa consultar as falhas");
+      ok(f.indexOf("sem enviar") > 0, "o texto do selo");
+      ok(f.indexOf('if(oneDriveOk && falhasEnvio>0) return chipFalhas;') > 0, "no estado 'sem-pasta' tambem avisa");
+      ok(f.indexOf('if(oneDriveOk && falhasEnvio>0) return chipFalhas;') !== f.lastIndexOf('if(oneDriveOk && falhasEnvio>0) return chipFalhas;'), "e no estado 'nao-suportado' (iPhone/Android) — duas ocorrencias");
+    });
+  }
+
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);
 })();

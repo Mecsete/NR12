@@ -64,6 +64,33 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 05/10/2026 09:35
+
+**Corrige a fila de envio travando em silêncio (fotos que não chegavam no outro aparelho) e o selo que dizia "tudo certo" com itens sem enviar.**
+
+Relatado na inspeção da Equatorial: o celular mostrava a sincronização
+concluída, o outro aparelho recebia o texto de tudo e nenhuma foto ("ainda
+não subiram do outro aparelho"). Reproduzido na bancada de ensaio do motor
+de sincronização: quando uma foto só existe como referência (os bytes dela
+não estão naquele aparelho), o envio de propósito se recusa a gravar — mas
+essa recusa derrubava o trabalhador de envio inteiro. Com 3 itens assim, os 3
+trabalhadores morriam e **todo o resto da fila ficava sem subir, rodada após
+rodada**; como o erro era engolido e o aviso só contava falha de rede, nada
+aparecia na tela.
+
+- **A fila segue.** Cada item agora é protegido por si: o que falha é
+  registrado com o motivo ("foto sem os bytes neste aparelho") e os outros
+  sobem normalmente. O item que falhou não é regravado nem dado como enviado,
+  e volta à fila na rodada seguinte — nenhum dado é apagado ou alterado.
+- **Aviso honesto.** A falha entra no histórico (uma vez a cada 30 min por
+  item, para não encher os 80 eventos guardados) e conta no aviso "N itens
+  não conseguiram subir" da sincronização manual. Antes o erro só ia para o
+  console, que ninguém vê em campo.
+- **Selo do topo.** Nos aparelhos que só têm o OneDrive como backup (celular),
+  o selo passa a mostrar **"N sem enviar"** em vermelho quando há itens que
+  falharam nos últimos 30 minutos e ainda não deram certo; ao tocar, abre o
+  Backup, onde está o "Diagnóstico da sincronização".
+
 ## 05/10/2026 06:00
 
 **Memorial de cálculo: o cabo de aço agora é calculado como na sua planilha, e a linha rígida não tem mais verificação de resistência.**

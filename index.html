@@ -3374,7 +3374,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "05/10/2026 06:00";
+const APP_BUILD = "05/10/2026 09:35";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -4230,6 +4230,21 @@ function registrarEventoSync(direcao, nome, tipo, bytes, ok, motivo, caminho, re
   STATE.logSincronizacao.unshift({ ts: Date.now(), dir: direcao, nome: String(nome||"").slice(0,80), caminho: String(caminho||"").slice(0,140) || undefined, tipo, bytes: bytes||0, ok: reparo ? true : (ok!==false), reparo: reparo || undefined, motivo: (ok===false || reparo || direcao==="del") ? String(motivo||"").slice(0,60) : undefined });
   if(STATE.logSincronizacao.length > MAX_EVENTOS_LOG_SYNC) STATE.logSincronizacao.length = MAX_EVENTOS_LOG_SYNC;
 }
+/* Falha que nasce AQUI (não da rede): um item que não pôde ser enviado por um
+   motivo local, como foto sem os bytes no aparelho. Sempre conta para o aviso
+   "N itens não subiram"; mas só entra no histórico uma vez a cada 30 minutos
+   por item — o histórico guarda 80 eventos, e uma falha permanente repetida
+   a cada ciclo de 2 minutos apagaria todo o resto dele. Na sincronização
+   manual (forcar) entra sempre: quem tocou no botão está olhando. */
+function registrarFalhaLocalSync(nome, tipo, motivo, caminho, forcar){
+  const nomeLog = String(nome||"").slice(0,80);
+  const jaRegistrada = !forcar && (STATE.logSincronizacao||[]).some(ev=>
+    ev && ev.ok === false && ev.nome === nomeLog && (Date.now() - ev.ts) < 30*60*1000);
+  // O aviso final da sincronização manual cita este motivo.
+  __ultimoMotivoFalhaEnvio = String(motivo||"");
+  if(jaRegistrada){ __falhasEnvioNaSync++; return; }
+  registrarEventoSync("up", nome, tipo, 0, false, motivo, caminho);
+}
 function fmtBytes(b){
   if(!b || b<=0) return "—";
   if(b < 1024) return b + " B";
@@ -4269,6 +4284,26 @@ function syncUltimaFalha(){
   const log = STATE.logSincronizacao || [];
   for(const ev of log){ if(ev && ev.ok === false && !ev.reparo) return ev; }
   return null;
+}
+/* Quantos arquivos falharam no envio nos últimos 30 minutos e AINDA não deram
+   certo depois. O histórico é do mais novo para o mais antigo; para cada
+   arquivo vale o evento mais recente dele — falha seguida de sucesso (a
+   tentativa seguinte resolveu) não conta. Só lê: não mexe em dado nenhum.
+   É o que o selo do topo usa para parar de dizer "tudo certo" quando a fila
+   está travada (05/10/2026: o celular da inspeção mostrava só "há quanto
+   tempo rodou", sem nunca avisar de item que não subiu). */
+function syncFalhasNaoResolvidas(){
+  const log = STATE.logSincronizacao || [];
+  const limite = Date.now() - 30*60*1000;
+  const vistos = new Set(), abertas = new Set();
+  for(const ev of log){
+    if(!ev || ev.reparo || ev.dir !== "up") continue;
+    if(ev.ts < limite) break;
+    if(vistos.has(ev.nome)) continue;
+    vistos.add(ev.nome);
+    if(ev.ok === false) abertas.add(ev.nome);
+  }
+  return abertas.size;
 }
 /* =========================================================================
    SINCRONIZAÇÃO EM DUAS CAMADAS (texto agora, fotos no Wi-Fi) — cada item
@@ -4790,6 +4825,22 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
   // vários MB na memória durante o envio, e muitos simultâneos derrubavam o app
   // em celulares com menos memória.
   await executarComConcorrencia(pendentes, 3, async (item) => {
+   /* UM ITEM QUE ESTOURA NÃO PODE DERRUBAR A FILA DOS OUTROS (05/10/2026).
+      Relatado em campo (inspeção da Equatorial): o celular dizia "sincronização
+      concluída", o outro aparelho recebia o texto de tudo e nenhuma foto.
+      exigirSemReferenciaDeFoto LANÇA erro quando a foto só existe como
+      referência (os bytes não estão neste aparelho) — de propósito, para
+      nunca gravar "idbfoto:..." no lugar da imagem. Só que o erro nascia
+      aqui dentro, sem try/catch: o trabalhador morria, e com 3 itens assim
+      os 3 trabalhadores morriam e TODO o resto da fila ficava sem subir,
+      rodada após rodada (os mesmos itens vêm primeiro). Quem chama engole o
+      erro, e o aviso "N itens não subiram" só contava falha de REDE — então
+      nada na tela dizia que a fila tinha parado.
+      Agora o item que falha é registrado (com o motivo) e a fila segue. O que
+      ele tinha de dado continua intacto aqui e na nuvem: nada é regravado, e
+      ele volta à fila na rodada seguinte. A trava continua valendo — só deixou
+      de ser uma trava para os OUTROS itens. */
+   try{
     const registroAnterior = assinaturas.get(item.id);
     /* SÓ O NOME MUDOU: o arquivo continua onde está. Sem esta linha, uma
        renomeação (aqui ou no outro aparelho) fazia o item e TODOS os filhos
@@ -4897,6 +4948,12 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
        novo, e uma foto a mais na memória é problema menor que uma foto a
        menos no arquivo. */
     __soltarFotosDoItem();
+   }catch(erroItem){
+    const msg = (erroItem && erroItem.message) ? String(erroItem.message) : "erro inesperado";
+    registrarFalhaLocalSync(item.arquivo, item.tipo,
+      /Foto ainda não carregada/.test(msg) ? "foto sem os bytes neste aparelho" : msg,
+      rotuloCaminhoSync(item.pasta), !!onProgresso);
+   }
   });
 
   // Grava de volta no STATE (como objeto simples — Map não é serializável em
@@ -4979,6 +5036,10 @@ async function sincronizarIncrementalOneDrive(onProgresso){
     // não muda o comportamento (continua não incomodando o usuário com
     // toast), só passa a registrar no console para dar pra diagnosticar.
     console.error("Envio automático ao OneDrive falhou nesta rodada:", e && e.message, e);
+    /* E agora também no histórico (05/10/2026): antes o erro só ia para o
+       console — num celular em campo, ninguém vê o console, e a sincronização
+       manual logo depois dizia "concluída" sem nenhum sinal do que parou. */
+    try{ registrarFalhaLocalSync("(rodada de envio)", "erro", (e && e.message) ? String(e.message) : "erro inesperado", "", !!onProgresso); }catch(_){}
   }
   finally{ __uploadAutoRodando = false; }
 }
@@ -10886,13 +10947,19 @@ function chipSyncHtml(){
   // Pasta local não é suportada neste navegador (ex.: iPhone/Safari) — nesse caso o
   // OneDrive é o ÚNICO mecanismo automático possível, então o chip passa a refletir
   // só ele: selo neutro se conectado, alerta pedindo conexão se não.
+  /* Item que falhou no envio e não foi resolvido: o selo deixa de dizer só "há
+     quanto tempo rodou" e avisa, levando ao diagnóstico ao tocar. */
+  const falhasEnvio = oneDriveOk ? syncFalhasNaoResolvidas() : 0;
+  const chipFalhas = `<button class="syncbadge alerta" id="syncChip" onclick="App.irParaConfigBackup()" title="${falhasEnvio} item(ns) não conseguiram subir — toque para ver o diagnóstico">${ic('warn')}<span>${falhasEnvio} sem enviar</span></button>`;
   if(__syncStatusAtual==="nao-suportado"){
+    if(oneDriveOk && falhasEnvio>0) return chipFalhas;
     if(oneDriveOk) return `<button class="syncbadge" id="syncChip" onclick="App.irParaConfigBackup()" title="Backup automático via OneDrive">${ic('onedrive')}${relOneDrive? `<span>${relOneDrive}</span>`:''}</button>`;
     return `<button class="syncbadge alerta" id="syncChip" onclick="App.irParaConfigBackup()" title="Backup automático não configurado">${ic('warn')}<span>Conectar OneDrive</span></button>`;
   }
   if(__syncStatusAtual==="sem-pasta"){
     // Pasta local não configurada, mas o OneDrive pode estar cobrindo o backup
     // automático sozinho — só alerta se NENHUM dos dois estiver ativo.
+    if(oneDriveOk && falhasEnvio>0) return chipFalhas;
     if(oneDriveOk) return `<button class="syncbadge" id="syncChip" onclick="App.irParaConfigBackup()" title="Backup automático via OneDrive">${ic('onedrive')}${relOneDrive? `<span>${relOneDrive}</span>`:''}</button>`;
     return `<button class="syncbadge alerta" id="syncChip" onclick="App.irParaConfigBackup()" title="Backup automático não configurado">${ic('warn')}<span>Configurar backup</span></button>`;
   }

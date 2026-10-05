@@ -99,7 +99,12 @@ print("=== 3. ARQUITETURA DE FOTOS (CAMADA_FOTOS) ===")
 # "idbfoto:" e +1 em "foto:" -- o comentario de plaquetaMaquinasParaExportar
 # cita "idbfoto:" por extenso uma vez. A referencia (original.html) JA vem
 # daquele commit agora, entao contar de novo somaria duas vezes. Zerado.
-_extra_fotos = {"foto:": 0, "idbfoto:": 0}
+# FILA DE ENVIO QUE NAO TRAVA MAIS (05/10/2026, secao 180): +1 em "idbfoto:" e
+# +1 em "foto:" -- o comentario novo no laco de envio de onedriveSincronizarModulo
+# cita "idbfoto:..." por extenso uma vez, explicando a recusa de gravar
+# referencia no lugar da foto. So comentario: nenhuma ocorrencia nova em
+# codigo. Depois do commit, a referencia (original.html) ja traz isso: zerar.
+_extra_fotos = {"foto:": 1, "idbfoto:": 1}
 for marca in ["idbfoto:", "foto:", "CAMADA_FOTOS"]:
     a, b = orig.count(marca) + _extra_fotos.get(marca, 0), novo.count(marca)
     chk("ocorrencias de '%s' inalteradas (%d)" % (marca, a), a == b, "orig+extra=%d novo=%d" % (a, b))
@@ -5593,6 +5598,41 @@ chk("a viga rigida nao tem verificacao de resistencia (so a deflexao entra, por 
     "sig" not in _rig and "M =" not in _rig and "W:" not in novo[novo.index("const CHK_MEMORIAL_VIGA"):novo.index("const CHK_MEMORIAL_VIGA") + 140] and "Tensão de flexão" not in novo and "Momento fletor" not in novo)
 chk("a aba do memorial tem o tipo de linha (vida/restricao), a lista de diametros e o calculo passo a passo para conferir",
     "App.chkMemorialSetUso(" in novo and 'id="chkMem-diametro"' in novo and 'id="chkMemPasso"' in novo and "function chkMemorialPassoHtml(" in novo)
+
+print("\n=== 180. FILA DE ENVIO NAO TRAVA MAIS POR UM ITEM QUE ESTOURA + SELO AVISA ITEM SEM ENVIAR (05/10/2026) ===")
+# Relatado na inspecao da Equatorial: celular "concluido", outro aparelho com o
+# texto de tudo e nenhuma foto. exigirSemReferenciaDeFoto LANCA erro de
+# proposito (nunca gravar "idbfoto:..." no lugar da foto), mas o erro nascia no
+# trabalhador de executarComConcorrencia, sem try/catch: com 3 itens assim os 3
+# trabalhadores morriam e o resto da fila nunca subia. Prova funcional: ENSAIO 39
+# de banco.js (reproduzido ANTES da correcao: so 3 dos 7 riscos chegavam).
+_modsinc = _corpoDe(novo, "onedriveSincronizarModulo")
+_ienvio = _modsinc.index("await executarComConcorrencia(pendentes, 3, async (item) => {")
+_envio = _modsinc[_ienvio:]
+chk("o envio de cada item pendente roda dentro de try/catch e registra a falha em vez de derrubar o trabalhador",
+    "try{" in _envio[:2500] and "}catch(erroItem){" in _envio
+    and "registrarFalhaLocalSync(item.arquivo, item.tipo" in _envio)
+chk("a trava de nao gravar referencia no lugar da foto CONTINUA (so deixou de derrubar a fila dos outros)",
+    'exigirSemReferenciaDeFoto(soFotos, "envio de " + item.arquivo);' in _envio
+    and 'exigirSemReferenciaDeFoto(tinhaFotos ? semFotos : item.dados, "texto de " + item.arquivo);' in _envio)
+_exec = _corpoDe(novo, "executarComConcorrencia")
+chk("executarComConcorrencia em si nao mudou: a protecao e por item, e os outros usos dela seguem iguais",
+    "await fn(item);" in _exec and "catch" not in _exec)
+chk("registrarFalhaLocalSync existe: sempre conta no aviso, mas so registra no historico (80 eventos) 1x a cada 30 min por item",
+    novo.count("function registrarFalhaLocalSync(nome, tipo, motivo, caminho, forcar){") == 1
+    and "(Date.now() - ev.ts) < 30*60*1000" in _corpoDe(novo, "registrarFalhaLocalSync")
+    and "__falhasEnvioNaSync++" in _corpoDe(novo, "registrarFalhaLocalSync"))
+chk("o catch do envio automatico tambem registra no historico (antes so ia para o console, invisivel em campo)",
+    'registrarFalhaLocalSync("(rodada de envio)"' in _corpoDe(novo, "sincronizarIncrementalOneDrive"))
+_chip = _corpoDe(novo, "chipSyncHtml")
+chk("o selo do topo avisa 'N sem enviar' nos dois estados em que o OneDrive e o unico backup (celular)",
+    "syncFalhasNaoResolvidas()" in _chip and "sem enviar" in _chip
+    and _chip.count("if(oneDriveOk && falhasEnvio>0) return chipFalhas;") == 2)
+chk("syncFalhasNaoResolvidas so le o historico (nao grava nada) e ignora reparo, recebimento e falha com mais de 30 min",
+    "function syncFalhasNaoResolvidas(){" in novo
+    and "STATE.logSincronizacao =" not in _corpoDe(novo, "syncFalhasNaoResolvidas")
+    and "ev.reparo" in _corpoDe(novo, "syncFalhasNaoResolvidas")
+    and 'ev.dir !== "up"' in _corpoDe(novo, "syncFalhasNaoResolvidas"))
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

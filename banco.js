@@ -220,7 +220,9 @@ function novoAparelho(nome, nuvem){
    "onedriveMarcarArvoreIncompleta","__areaDoItemNuvem","__areaTeveFalhaNaListagem",
    "onedriveListarArvore","__itemLocalDoCaminhoFotosNuvem",
    "itemTemEspacoDeFotoVazio","recuperarFotosVarrendoNuvem",
-   "__itemExisteAlgumLugar","riscoOrfaoConhecido","marcarRiscoOrfaoConhecido"].forEach(n=>{
+   "__itemExisteAlgumLugar","riscoOrfaoConhecido","marcarRiscoOrfaoConhecido",
+   // Falha local por item (05/10/2026) — ENSAIO 39. Nao existe em original.html.
+   "registrarFalhaLocalSync"].forEach(n=>{
     try{ vm.runInContext(funcao(n), ctx); }
     catch(e){ if(process.env.BANCO_DEBUG) console.log("  [extracao] " + n + " -> " + e.message); }
   });
@@ -2590,6 +2592,52 @@ async function rodarAteParar(ap, maxCiclos, rotulo){
     await ciclo(A); await ciclo(B);
     checar("e a sincronizacao para depois de convergir",
       nuvem.transferencias === 0, "transferencias=" + nuvem.transferencias);
+  }
+
+  console.log("\n" + L + "\nENSAIO 39 - item que estoura no envio NAO trava a fila dos outros\n" + L);
+  {
+    /* RELATADO EM CAMPO (05/10/2026, inspecao da Equatorial): o celular dizia
+       "sincronizacao concluida", o outro aparelho recebia o texto de tudo e
+       NENHUMA foto ("ainda nao subiram do outro aparelho").
+       Causa: exigirSemReferenciaDeFoto LANCA ERRO quando uma foto so existe
+       como referencia (os bytes nao estao neste aparelho) — de proposito, para
+       nunca gravar "idbfoto:..." no lugar da imagem. Mas o erro nascia dentro
+       do trabalhador de executarComConcorrencia, que nao tinha try/catch: o
+       trabalhador morria, e com 3 itens assim os 3 trabalhadores morriam e
+       TODO o resto da fila ficava sem subir — rodada apos rodada, porque os
+       mesmos itens vem primeiro na fila. E como quem chama (o envio
+       automatico) engole o erro e conta so falhas de REDE, nem o aviso de
+       "N itens nao subiram" aparecia. */
+    const nuvem = novaNuvem();
+    const A = novoAparelho("A", nuvem);
+    const p = arvoreExemplo(1, 1, 1, 7, false);
+    p.empresa = "FilaTravada";
+    const riscos = p.areas[0].maquinas[0].tarefas[0].riscos;
+    // 4 primeiros riscos: a foto so existe como referencia (sem bytes aqui).
+    for(let i = 0; i < 4; i++) riscos[i].foto = "idbfoto:sem_bytes_" + i;
+    A.ctx.STATE.projetosSimples = [p];
+    const falhasRegistradas = [];
+    A.ctx.registrarEventoSync = (dir, nome, tipo, bytes, ok, motivo) => {
+      if(ok === false) falhasRegistradas.push({ nome, motivo: String(motivo||"") });
+    };
+    /* Como o app: quem chama o envio engole a excecao (sincronizarIncrementalOneDrive). */
+    let escapou = null;
+    try{
+      await vm.runInContext(`onedriveSincronizarModulo("Simplificado", listarItensSincronizaveisSimples, __assinaturasOneDriveSimples, null)`, A.ctx);
+    }catch(e){ escapou = e; }
+    await new Promise(r => setTimeout(r, 100)); // trabalhadores que sobraram, em segundo plano
+    const riscosNaNuvem = [...nuvem.arquivos.keys()].filter(c => /\/risco_[^/]+\.json$/.test(c)).length;
+
+    checar("O PONTO: os 7 riscos chegaram na nuvem, mesmo com 4 itens que nao conseguem enviar foto",
+      riscosNaNuvem === 7, "chegaram " + riscosNaNuvem + " de 7");
+    checar("nenhuma excecao escapa e derruba a rodada inteira",
+      escapou === null, escapou && escapou.message);
+    checar("cada item que falhou fica REGISTRADO com o motivo (aparece no diagnostico e no aviso final)",
+      falhasRegistradas.length === 4 && falhasRegistradas.every(f => /foto/i.test(f.motivo)),
+      JSON.stringify(falhasRegistradas));
+    const pendentes = vm.runInContext("onedriveEstimarPendentesUpload()", A.ctx);
+    checar("os 4 itens com foto sem bytes continuam na fila para tentar de novo (nada foi dado como enviado)",
+      pendentes.totalItens === 4, "fila=" + pendentes.totalItens);
   }
   console.log("\n" + L);
   console.log(falhas ? "ENSAIOS: " + falhas + " FALHA(S)" : "ENSAIOS: TODOS OK");
