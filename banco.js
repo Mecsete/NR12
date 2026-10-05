@@ -210,6 +210,8 @@ function novoAparelho(nome, nuvem){
      em vez de estourar por função inexistente. */
   ["enderecoLogicoDaPasta","onedriveMesmoEnderecoLogico",
    "__arquivosNoNo","onedriveDuplicatasParaIgnorar",
+   // Pastas irmas de mesmo id viram uma visao so (05/10/2026) — ENSAIO 40.
+   "__fundirFilhosDeNos","onedriveFundirDuplicatas",
    "onedriveEnvioEncolheDemais",
    // Varredura ampla (ENSAIO 29): nao existe em versoes anteriores, entao
    // entra na lista tolerante — rodar a bancada contra original.html
@@ -2638,6 +2640,68 @@ async function rodarAteParar(ap, maxCiclos, rotulo){
     const pendentes = vm.runInContext("onedriveEstimarPendentesUpload()", A.ctx);
     checar("os 4 itens com foto sem bytes continuam na fila para tentar de novo (nada foi dado como enviado)",
       pendentes.totalItens === 4, "fila=" + pendentes.totalItens);
+  }
+
+  console.log("\n" + L + "\nENSAIO 40 - pasta irma do MESMO item com so o arquivo da maquina NAO esconde os riscos e as fotos da outra\n" + L);
+  {
+    /* RELATADO EM CAMPO (05/10/2026, Equatorial): "a imagem do risco e do
+       equipamento nao aparece; diz que o outro aparelho nao enviou". Na nuvem
+       real as fotos ESTAVAM la (centenas de KB, desde 28/09). O que havia era a
+       maquina "Serra" em DUAS pastas com o mesmo codigo no fim do nome:
+         "Serra de mesa (hilhlf)"        -> _maquina.json, riscos, tarefa, FOTOS
+         "Serra Esquadrejadeira (hilhlf)" -> so o _maquina.json (apos a renomeacao)
+       Entre pastas irmas de mesmo id o app escolhe UMA e ignora as outras por
+       inteiro; a preferida e a que tem o nome ATUAL do item — justamente a
+       que so tem um arquivo. Tudo que estava na outra (riscos, fotos, edicoes
+       novas) deixava de existir para o aparelho que recebe. */
+    const nuvem = novaNuvem();
+    const A = novoAparelho("A", nuvem);
+    const B = novoAparelho("B", nuvem);
+    const p = arvoreExemplo(1, 1, 1, 1, true);
+    p.empresa = "PastaPartida";
+    A.ctx.STATE.projetosSimples = [p];
+    await rodarAteParar(A, 10);
+    await rodarAteParar(B, 12);
+
+    const maqA = vm.runInContext("STATE.projetosSimples[0].areas[0].maquinas[0]", A.ctx);
+    const caminhoMaq = [...nuvem.arquivos.keys()].find(c => /\/_maquina\.json$/.test(c));
+    const pastaMaq = caminhoMaq.slice(0, caminhoMaq.length - "/_maquina.json".length);
+    const idMaq = maqA.id;
+    const nomeNovo = "Maquina Renomeada";
+    const pastaNova = pastaMaq.slice(0, pastaMaq.lastIndexOf("/") + 1) + nomeNovo + " (" + idMaq.slice(-6) + ")";
+
+    /* A renomeia a maquina; os dois aparelhos aprendem o nome novo. */
+    vm.runInContext(`(function(){ var m = STATE.projetosSimples[0].areas[0].maquinas[0];
+      m.nome = ${JSON.stringify(nomeNovo)}; m.atualizadoEm = agoraSync(); })()`, A.ctx);
+    await rodarAteParar(A, 10);
+    await rodarAteParar(B, 12);
+    const nomeEmB = vm.runInContext("STATE.projetosSimples[0].areas[0].maquinas[0].nome", B.ctx);
+    checar("preparacao: o B ja conhece o nome novo da maquina", nomeEmB === nomeNovo, "B=" + nomeEmB);
+
+    /* O estado partido da nuvem: o arquivo da maquina TAMBEM numa pasta com o
+       nome novo (como um aparelho sem assinatura sobe), enquanto riscos e
+       fotos continuam na pasta antiga. */
+    nuvem.put(pastaNova + "/_maquina.json", nuvem.arquivos.get(caminhoMaq).texto);
+
+    /* Depois da partida, o A edita o risco e troca a foto — sobe para a
+       pasta ANTIGA, onde os filhos moram. */
+    vm.runInContext(`(function(){ var r = STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos[0];
+      r.nome = "Editado depois da partida"; r.foto = "data:image/jpeg;base64," + "B".repeat(240);
+      r.atualizadoEm = agoraSync(); })()`, A.ctx);
+    await rodarAteParar(A, 10);
+    await rodarAteParar(B, 12);
+
+    const riscoB = vm.runInContext("(function(){ var r = STATE.projetosSimples[0].areas[0].maquinas[0].tarefas[0].riscos[0]; return JSON.stringify({ nome:r.nome, foto:r.foto }); })()", B.ctx);
+    const rb = JSON.parse(riscoB);
+    checar("O PONTO: a edicao do risco feita depois da partida chega no aparelho que recebe",
+      rb.nome === "Editado depois da partida", "nome no B=" + rb.nome);
+    checar("e a foto nova do risco tambem (estava na pasta que era ignorada)",
+      typeof rb.foto === "string" && rb.foto.indexOf("BBBB") > 0, "foto no B=" + String(rb.foto).slice(0, 40));
+    /* O ensaio 24 continua valendo: duas pastas NAO podem gerar vaivem. */
+    nuvem.transferencias = 0;
+    await ciclo(A); await ciclo(B);
+    checar("e a sincronizacao PARA depois (pasta partida nao gera vaivem eterno)",
+      nuvem.transferencias === 0, "transferencias=" + nuvem.transferencias);
   }
   console.log("\n" + L);
   console.log(falhas ? "ENSAIOS: " + falhas + " FALHA(S)" : "ENSAIOS: TODOS OK");

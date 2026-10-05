@@ -64,6 +64,42 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 05/10/2026 10:52
+
+**Corrige as fotos que não apareciam no outro aparelho depois de renomear um equipamento ou área, e simplifica a exclusão (uma pergunta só, que já apaga também no OneDrive e nos outros aparelhos).**
+
+Continuação do problema da Equatorial. Conferindo a pasta real do OneDrive,
+as fotos **estavam lá** (centenas de KB, enviadas em 28/09). O que havia era
+a máquina "Serra" em **duas pastas com o mesmo código no fim do nome**:
+"Serra de mesa (hilhlf)", com os riscos e todas as fotos, e "Serra
+Esquadrejadeira (hilhlf)", só com o arquivo da máquina — resultado de uma
+renomeação. O aparelho que recebe escolhe UMA das duas pastas e ignorava a
+outra por inteiro; escolhia justamente a que tem o nome atual, que era a
+vazia. Por isso não aparecia risco novo nem foto, e a tela dizia "as fotos
+ainda não subiram do outro aparelho". Reproduzido na bancada (ENSAIO 40)
+antes de corrigir.
+
+- **Pastas irmãs viram uma visão só.** Quando o mesmo item existe em mais de
+  uma pasta, o app continua escolhendo a de nome atual como principal, mas
+  agora também enxerga o que só as outras têm (riscos, tarefas e pacotes de
+  fotos), em qualquer profundidade. Onde as duas têm o mesmo arquivo vale o
+  da pasta principal, então a sincronização continua parando sozinha (sem
+  vai e volta). Nada é gravado nem apagado por isso: é só a lista que o app
+  percorre ao classificar o que baixar.
+- **Excluir é uma pergunta só.** Antes vinha uma segunda pergunta ("apagar
+  também do OneDrive?") em que Cancelar significava "manter na nuvem" — e o
+  item voltava para o aparelho na sincronização seguinte. Na prática
+  parecia que a exclusão não tinha funcionado, e era a causa de "excluí num
+  aparelho e ele aparece nos outros". Agora, com o OneDrive conectado, a
+  mensagem avisa "Vai sumir também do OneDrive e dos outros aparelhos" e,
+  ao confirmar, a exclusão já é registrada para os outros aparelhos
+  (mesma lápide de sempre, com as mesmas travas: o freio de exclusão em
+  massa na chegada e a proteção de quem editou o item depois da exclusão).
+  Sem OneDrive a pergunta continua a mesma de antes.
+- Itens já excluídos que ficaram soltos na nuvem (cópias antigas) não são
+  limpos sozinhos: ao excluí-los de novo no app, nesta versão, a exclusão
+  passa a valer também para os outros aparelhos.
+
 ## 05/10/2026 09:35
 
 **Corrige a fila de envio travando em silêncio (fotos que não chegavam no outro aparelho) e o selo que dizia "tudo certo" com itens sem enviar.**

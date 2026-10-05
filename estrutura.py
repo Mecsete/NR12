@@ -2401,18 +2401,18 @@ chk("desempata pelo nome que o app calcularia hoje; sem ele, pela mais completa"
     and "if(!escolhida) escolhida = lista.reduce((a,b)=> __arquivosNoNo(b) > __arquivosNoNo(a) ? b : a);" in novo)
 chk("uma pasta sozinha (o caso normal) nunca e ignorada",
     "if(lista.length <= 1) return;" in novo)
-chk("os quatro niveis pulam as duplicatas",
-    novo.count("if(pularProj.has(nodeProj)) continue;") == 1
-    and novo.count("if(pularArea.has(nodeArea)) continue;") == 1
-    and novo.count("if(pularMaq.has(nodeMaq)) continue;") == 1
-    and novo.count("if(pularTar.has(nodeTar)) continue;") == 1)
+# Desde 05/10/2026 (secao 181) os quatro niveis nao descartam mais a pasta irma
+# por inteiro: aplicam a escolha e fundem os filhos das irmas (onedriveFundirDuplicatas).
+chk("os quatro niveis aplicam a escolha das duplicatas (via fusao das irmas, secao 181)",
+    _corpoDe(novo, "onedriveClassificarNovosSimples").count("onedriveFundirDuplicatas(") == 4
+    and "pularProj" not in _corpoDe(novo, "onedriveClassificarNovosSimples"))
 # 1 definicao + 4 usos + mencoes em comentarios (o numero exato de mencoes em
 # texto explicativo nao e o que importa aqui -- por isso o piso, nao a
 # igualdade). NADA e apagado da nuvem: as copias continuam la, intactas --
 # so param de ser lidas. O ensaio 24 do banco.js cobra isso de verdade,
 # conferindo que a classificacao nao propoe nenhum item vindo da pasta parada.
-chk("a escolha e usada nos quatro niveis, e nada e apagado",
-    novo.count("onedriveDuplicatasParaIgnorar") >= 6
+chk("a escolha continua existindo e e usada pela fusao dos quatro niveis, e nada e apagado",
+    novo.count("onedriveDuplicatasParaIgnorar") >= 2
     and "NADA é apagado da nuvem" in novo)
 
 print("\n=== 78. A FRASE DO RISCO MONTADA DOS QUATRO CAMPOS ===")
@@ -5634,6 +5634,54 @@ chk("syncFalhasNaoResolvidas so le o historico (nao grava nada) e ignora reparo,
     and "STATE.logSincronizacao =" not in _corpoDe(novo, "syncFalhasNaoResolvidas")
     and "ev.reparo" in _corpoDe(novo, "syncFalhasNaoResolvidas")
     and 'ev.dir !== "up"' in _corpoDe(novo, "syncFalhasNaoResolvidas"))
+
+print("\n=== 181. PASTAS IRMAS DO MESMO ITEM VIRAM UMA VISAO SO + EXCLUIR COM UMA PERGUNTA SO (05/10/2026) ===")
+# Equatorial: a maquina "Serra" estava em duas pastas com o mesmo codigo no fim do
+# nome — uma so com o _maquina.json (a de nome atual, a preferida), outra com os
+# riscos e TODAS as fotos. O aparelho que recebe escolhia a vazia e descartava a
+# outra por inteiro. Prova funcional: ENSAIO 40 de banco.js (reproduzido ANTES da
+# correcao). Exclusao: a segunda pergunta ("apagar tambem do OneDrive?") — em que
+# Cancelar "mantinha na nuvem" e o item voltava — foi trocada por uma pergunta so
+# que ja grava a lapide.
+def _so_funcao(txt, nome):
+    # _corpoDe vai ate a proxima funcao e leva junto o comentario que a precede;
+    # para comparar so o codigo, corta no fecho da funcao (chave na coluna 0).
+    c = _corpoDe(txt, nome)
+    i = c.find(chr(10) + "}")
+    return c[:i + 2] if i >= 0 else c
+_classif = _corpoDe(novo, "onedriveClassificarNovosSimples")
+chk("onedriveFundirDuplicatas e __fundirFilhosDeNos existem, uma vez cada, e partem da regra de escolha que ja havia",
+    novo.count("function onedriveFundirDuplicatas(nodes, nomeEsperadoDoId){") == 1
+    and novo.count("function __fundirFilhosDeNos(principais, extras){") == 1
+    and "onedriveDuplicatasParaIgnorar(nodes, nomeEsperadoDoId)" in _corpoDe(novo, "onedriveFundirDuplicatas"))
+chk("a regra de escolha da pasta (onedriveDuplicatasParaIgnorar) nao mudou nem uma linha",
+    _so_funcao(novo, "onedriveDuplicatasParaIgnorar") == _so_funcao(orig, "onedriveDuplicatasParaIgnorar")
+    and _so_funcao(novo, "__arquivosNoNo") == _so_funcao(orig, "__arquivosNoNo"))
+chk("a fusao so monta listas: nao grava, nao apaga e nao chama a nuvem",
+    all(x not in (_corpoDe(novo, "onedriveFundirDuplicatas") + _corpoDe(novo, "__fundirFilhosDeNos"))
+        for x in ["dbSet", "STATE.", "registrarLapides", "onedriveBaixar", "onedriveEnviar", "fetch(", "splice(", ".push(...", "delete "]))
+chk("a classificacao dos itens novos usa as listas fundidas nos 4 niveis (projeto, area, maquina, tarefa)",
+    _classif.count("onedriveFundirDuplicatas(") == 4
+    and "pularProj" not in _classif and "pularArea" not in _classif and "pularMaq" not in _classif and "pularTar" not in _classif
+    and all(("of " + n + ")") in _classif for n in ["projetosFundidos", "areasFundidas", "maquinasFundidas", "tarefasFundidas"]))
+chk("onedriveDuplicatasParaIgnorar so e chamada agora de dentro da fusao (antes: 4 chamadas diretas na classificacao; mais nenhum uso fora delas)",
+    orig.count("onedriveDuplicatasParaIgnorar(") == 5 and novo.count("onedriveDuplicatasParaIgnorar(") == 2)
+chk("a pergunta unica existe e a segunda pergunta, com o 'manter na nuvem' que fazia o item voltar, saiu",
+    novo.count("function confirmarExclusao(pergunta){") == 1 and novo.count("function apagarTambemNaNuvem(ids){") == 1
+    and "perguntarApagarTambemNaNuvem" not in novo and "esquecerAssinaturasDeUpload" not in novo
+    and "Cancelar = manter na nuvem" not in novo)
+chk("os 7 pontos de exclusao do modulo simplificado perguntam por confirmarExclusao e gravam a lapide na hora",
+    novo.count("if(!confirmarExclusao(") == 7 and novo.count("apagarTambemNaNuvem(") == 8)
+chk("a lapide continua sendo registrada pela MESMA funcao de antes (registrarLapidesExclusao) e com as mesmas travas na chegada",
+    "registrarLapidesExclusao(ids)" in _corpoDe(novo, "apagarTambemNaNuvem")
+    and _so_funcao(novo, "registrarLapidesExclusao") == _so_funcao(orig, "registrarLapidesExclusao")
+    and _so_funcao(novo, "exclusaoEmMassaSuspeita") == _so_funcao(orig, "exclusaoEmMassaSuspeita")
+    and _so_funcao(novo, "aplicarLapidesNaArvore") == _so_funcao(orig, "aplicarLapidesNaArvore"))
+chk("o freio de exclusao em massa e a regra 'quem editou depois da exclusao nao perde o trabalho' nao foram tocados",
+    _so_funcao(novo, "lapideVenceDadosRemotos") == _so_funcao(orig, "lapideVenceDadosRemotos"))
+chk("o motor central de envio nao foi alterado por esta entrega (so um comentario do modulo citava o nome antigo da pergunta)",
+    _corpoDe(novo, "executarComConcorrencia") == _corpoDe(orig, "executarComConcorrencia")
+    and _corpoDe(novo, "onedriveSincronizarModulo").replace("apagarTambemNaNuvem grava", "perguntarApagarTambemNaNuvem grava") == _corpoDe(orig, "onedriveSincronizarModulo"))
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

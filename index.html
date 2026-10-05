@@ -3374,7 +3374,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "05/10/2026 09:35";
+const APP_BUILD = "05/10/2026 10:52";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -4546,19 +4546,6 @@ function aplicarLapidesNaArvore(permitirEmMassa){
   if(removidos > 0) marcarAlterado();
   return { removidos, itens:itensQueSaem, bloqueados:0 };
 }
-/* Quando a pessoa escolhe MANTER na nuvem, o app precisa esquecer que um dia
-   enviou aquele item — senão a sincronização seguinte entenderia o sumiço
-   local como "apague lá também". Sem a assinatura, o item simplesmente volta
-   na próxima descida, que é exatamente o que foi prometido na pergunta. */
-function esquecerAssinaturasDeUpload(ids){
-  [__assinaturasOneDriveSimples, __assinaturasOneDriveCompleto].forEach(ref=>{
-    const mapa = onedriveCarregarAssinaturas(ref);
-    ids.forEach(id=>{
-      mapa.delete(id);
-      if(STATE[ref.chaveEstado]) delete STATE[ref.chaveEstado][id];
-    });
-  });
-}
 /* Reúne o id sincronizável do item E de tudo que existe dentro dele — apagar
    uma Área precisa apagar na nuvem também suas Máquinas, Tarefas e Riscos. */
 function idsSincronizaveisDe(tipo, obj){
@@ -4573,15 +4560,27 @@ function idsSincronizaveisDe(tipo, obj){
   else if(tipo==="risco") risco(obj);
   return ids;
 }
-/* Pergunta única, feita NA HORA de apagar (não depois, escondida dentro da
-   sincronização). Devolve true se o usuário quer apagar também na nuvem.
-   Sem OneDrive conectado não há o que perguntar. */
-function perguntarApagarTambemNaNuvem(descricao, ids){
+/* EXCLUIR É UMA PERGUNTA SÓ (05/10/2026).
+   Antes, depois do "Excluir este risco?" vinha uma SEGUNDA pergunta — "Apagar
+   também do OneDrive?" — em que OK apagava na nuvem e Cancelar "mantinha na
+   nuvem", e o item voltava para este mesmo aparelho na sincronização seguinte.
+   Na prática o Cancelar parecia "desisti de excluir" e o item reaparecia (e
+   continuava nos outros aparelhos): era o "excluí num aparelho e ele aparece
+   nos outros". Ninguém lembrava o que tinha respondido.
+   Agora quem confirma a exclusão já confirmou tudo: a pergunta única avisa que
+   some também do OneDrive e dos outros aparelhos (ver confirmarExclusao), e
+   aqui só se registra a lápide — o mesmo que o OK da pergunta antiga fazia, com
+   as mesmas travas de sempre (o freio de exclusão em massa na chegada, e
+   "quem editou depois da exclusão não perde o trabalho"). Sem OneDrive
+   conectado não há o que propagar. */
+function confirmarExclusao(pergunta){
+  const nuvem = getOneDriveConta() ? "\n\nVai sumir também do OneDrive e dos outros aparelhos." : "";
+  return confirm(pergunta + nuvem);
+}
+function apagarTambemNaNuvem(ids){
   if(!getOneDriveConta() || !ids || ids.length===0) return false;
-  const sim = confirm(`Apagar ${descricao} também do OneDrive?\n\nOK = apagar também na nuvem (some dos outros aparelhos na próxima sincronização deles)\nCancelar = manter na nuvem (o item volta para este aparelho na próxima sincronização)`);
-  if(sim) registrarLapidesExclusao(ids);
-  else esquecerAssinaturasDeUpload(ids);
-  return sim;
+  registrarLapidesExclusao(ids);
+  return true;
 }
 function exclusaoEmMassaSuspeita(nExcluidos, nAtuais){
   const total = nAtuais + nExcluidos;
@@ -4714,7 +4713,7 @@ async function onedriveSincronizarModulo(raizModulo, listarItens, mapaAssinatura
 
      Existem dois caminhos até uma exclusão na nuvem:
        1. CONFIRMADA — a pessoa apagou o item e respondeu "sim, apague
-          também na nuvem" (perguntarApagarTambemNaNuvem grava a lápide).
+          também na nuvem" (apagarTambemNaNuvem grava a lápide).
           Este caminho é intenção declarada e segue direto.
        2. INFERIDA — o mapa de assinaturas tem o id, a árvore local não
           tem mais. Isso NÃO é intenção: é uma conclusão tirada da ausência
@@ -5447,6 +5446,62 @@ function onedriveDuplicatasParaIgnorar(nodes, nomeEsperadoDoId){
   });
   return pular;
 }
+/* PASTA IRMÃ NÃO É PASTA A ESQUECER — ela pode ser a que tem tudo (05/10/2026).
+   onedriveDuplicatasParaIgnorar acima escolhe UMA pasta por id e descarta as
+   outras por inteiro. Só que, depois de uma renomeação, a pasta com o NOME
+   ATUAL (a preferida) pode ter só o arquivo do próprio item, enquanto os
+   filhos — riscos, tarefas, TODAS as fotos — continuam na pasta com o nome
+   antigo. Foi o caso da máquina "Serra" na Equatorial: "Serra de mesa
+   (hilhlf)" com 9 arquivos e "Serra Esquadrejadeira (hilhlf)" só com
+   _maquina.json. O aparelho que recebe escolhia a segunda e nunca mais via um
+   risco novo nem uma foto; e a tela dizia "as fotos ainda não subiram do
+   outro aparelho", quando estavam na nuvem desde 28/09.
+   Agora as irmãs viram UMA visão: tudo o que a pasta escolhida tem, mais o que
+   só as outras têm (comparando por nome, em qualquer profundidade). Onde as
+   duas têm o MESMO arquivo, vale o da escolhida — exatamente como era —, então
+   cada item continua com um único tamanho de referência e a regra anterior
+   (nunca um vaivem entre cópias) fica intacta. Não grava nem apaga nada: só
+   monta a lista que a classificação percorre; a árvore original não é tocada. */
+function __fundirFilhosDeNos(principais, extras){
+  const posicao = new Map();
+  const saida = [];
+  for(const f of (principais||[])){ posicao.set(String(f.nome).toLowerCase(), saida.length); saida.push(f); }
+  for(const f of (extras||[])){
+    const k = String(f.nome).toLowerCase();
+    if(!posicao.has(k)){ posicao.set(k, saida.length); saida.push(f); continue; }
+    const atual = saida[posicao.get(k)];
+    // Mesma subpasta nas duas: junta o conteúdo; arquivo repetido fica o de quem já estava.
+    if(atual.pasta && f.pasta) saida[posicao.get(k)] = { ...atual, filhos: __fundirFilhosDeNos(atual.filhos, f.filhos) };
+  }
+  return saida;
+}
+function onedriveFundirDuplicatas(nodes, nomeEsperadoDoId){
+  const ignoradas = onedriveDuplicatasParaIgnorar(nodes, nomeEsperadoDoId);
+  if(ignoradas.size === 0) return nodes;
+  const escolhidaPorId = new Map();
+  for(const no of (nodes||[])){
+    if(!no || !no.pasta || ignoradas.has(no)) continue;
+    const sufixo = extrairSufixoDoNome(no.nome);
+    if(sufixo) escolhidaPorId.set(sufixo, no);
+  }
+  const irmasDe = new Map();
+  ignoradas.forEach(no=>{
+    const escolhida = escolhidaPorId.get(extrairSufixoDoNome(no.nome));
+    if(!escolhida) return;
+    if(!irmasDe.has(escolhida)) irmasDe.set(escolhida, []);
+    irmasDe.get(escolhida).push(no);
+  });
+  const saida = [];
+  for(const no of nodes){
+    if(ignoradas.has(no)) continue;
+    const irmas = irmasDe.get(no);
+    if(!irmas){ saida.push(no); continue; }
+    let filhos = no.filhos || [];
+    for(const irma of irmas) filhos = __fundirFilhosDeNos(filhos, irma.filhos);
+    saida.push({ ...no, filhos });
+  }
+  return saida;
+}
 function onedriveClassificarNovosSimples(arvoreProjetos){
   const pequenos = [], grandes = [];
   const registrar = (tamanho, reg) => {
@@ -5486,13 +5541,13 @@ function onedriveClassificarNovosSimples(arvoreProjetos){
     if(onedriveMesmaVersaoPeloTamanho(tipo, itemLocal, chave, arq.tamanho)) return;
     registrar(arq.tamanho, { tipo, ...ids, atualizacao:true, chaveAssinatura:chave, caminho:arq.caminho, nome:arq.nome, tamanho:arq.tamanho });
   };
-  const pularProj = onedriveDuplicatasParaIgnorar(arvoreProjetos, (sufixo)=>{
+  // Pastas irmãs do mesmo projeto viram UMA visão — ver onedriveFundirDuplicatas.
+  const projetosFundidos = onedriveFundirDuplicatas(arvoreProjetos, (sufixo)=>{
     const p = (STATE.projetosSimples||[]).find(x=>idBateComSufixo(x.id, sufixo));
     return p ? segmentoPastaComId(p.empresa || p.nome || "Projeto", p.id) : null;
   });
-  for(const nodeProj of arvoreProjetos){
+  for(const nodeProj of projetosFundidos){
     if(!nodeProj.pasta) continue;
-    if(pularProj.has(nodeProj)) continue; // cópia parada do mesmo projeto — ver onedriveDuplicatasParaIgnorar
     /* Projeto arquivado neste aparelho: nada dele é baixado nem contado. A
        listagem já nem abre a pasta (ver pularPastaDeProjetoArquivado); esta
        linha cobre o caminho em que a árvore veio de outra origem. */
@@ -5513,13 +5568,12 @@ function onedriveClassificarNovosSimples(arvoreProjetos){
     }
     registrarTextoSeMudou(nodeProj, "_projeto.json", "projeto", projLocal, {});
     registrarFotosSeEsperando(nodeProj, "_projeto.json", projLocal, "projeto", {});
-    const pularArea = onedriveDuplicatasParaIgnorar(nodeProj.filhos, (sufixo)=>{
+    const areasFundidas = onedriveFundirDuplicatas(nodeProj.filhos, (sufixo)=>{
       const a = (projLocal.areas||[]).find(x=>idBateComSufixo(x.id, sufixo));
       return a ? segmentoPastaComId(a.nome || "Área", a.id) : null;
     });
-    for(const nodeArea of nodeProj.filhos){
+    for(const nodeArea of areasFundidas){
       if(!nodeArea.pasta) continue;
-      if(pularArea.has(nodeArea)) continue;
       const areaLocal = projLocal.areas.find(a=>idBateComSufixo(a.id, extrairSufixoDoNome(nodeArea.nome)));
       if(!areaLocal){
         const arq = nodeArea.filhos.find(f=>!f.pasta && f.nome==="_area.json");
@@ -5528,13 +5582,12 @@ function onedriveClassificarNovosSimples(arvoreProjetos){
       }
       registrarTextoSeMudou(nodeArea, "_area.json", "area", areaLocal, { projId:projLocal.id });
       registrarFotosSeEsperando(nodeArea, "_area.json", areaLocal, "area", { projId:projLocal.id });
-      const pularMaq = onedriveDuplicatasParaIgnorar(nodeArea.filhos, (sufixo)=>{
+      const maquinasFundidas = onedriveFundirDuplicatas(nodeArea.filhos, (sufixo)=>{
         const m = (areaLocal.maquinas||[]).find(x=>idBateComSufixo(x.id, sufixo));
         return m ? segmentoPastaComId(nomeMaquinaS(m) || "Máquina", m.id) : null;
       });
-      for(const nodeMaq of nodeArea.filhos){
+      for(const nodeMaq of maquinasFundidas){
         if(!nodeMaq.pasta) continue;
-        if(pularMaq.has(nodeMaq)) continue;
         const maqLocal = areaLocal.maquinas.find(m=>idBateComSufixo(m.id, extrairSufixoDoNome(nodeMaq.nome)));
         if(!maqLocal){
           const arq = nodeMaq.filhos.find(f=>!f.pasta && f.nome==="_maquina.json");
@@ -5543,14 +5596,13 @@ function onedriveClassificarNovosSimples(arvoreProjetos){
         }
         registrarTextoSeMudou(nodeMaq, "_maquina.json", "maquina", maqLocal, { projId:projLocal.id, areaId:areaLocal.id });
         registrarFotosSeEsperando(nodeMaq, "_maquina.json", maqLocal, "maquina", { projId:projLocal.id, areaId:areaLocal.id });
-        const pularTar = onedriveDuplicatasParaIgnorar(nodeMaq.filhos, (sufixo)=>{
+        const tarefasFundidas = onedriveFundirDuplicatas(nodeMaq.filhos, (sufixo)=>{
           const t = (maqLocal.tarefas||[]).find(x=>idBateComSufixo(x.id, sufixo));
           if(!t) return null;
           return segmentoPastaComId(valOuOutro(t.tarefa, t.tarefaOutro) || "Tarefa", t.id);
         });
-        for(const nodeTar of nodeMaq.filhos){
+        for(const nodeTar of tarefasFundidas){
           if(!nodeTar.pasta) continue;
-          if(pularTar.has(nodeTar)) continue;
           const tarLocal = maqLocal.tarefas.find(t=>idBateComSufixo(t.id, extrairSufixoDoNome(nodeTar.nome)));
           if(!tarLocal){
             const arq = nodeTar.filhos.find(f=>!f.pasta && f.nome==="_tarefa.json");
@@ -27120,10 +27172,10 @@ Devolver agora?`)) return;
   },
   removerFotoOutraDraft(idx){ __draftEntity.fotosOutras.splice(idx,1); gravarDraftPersistente(); renderModalEntidade(); },
   removerDraftRisco(){
-    if(!confirm("Remover este risco?")) return;
+    if(!confirmarExclusao("Remover este risco?")) return;
     const tarefa = buscarTarefaSimplesPorId(__draftParent.tarefaSId);
     const alvoR = tarefa.riscos.find(r=>r.id===__draftEntity.id);
-    if(alvoR) perguntarApagarTambemNaNuvem("este risco", idsSincronizaveisDe("risco", alvoR));
+    if(alvoR) apagarTambemNaNuvem(idsSincronizaveisDe("risco", alvoR));
     tarefa.riscos = tarefa.riscos.filter(r=>r.id!==__draftEntity.id);
     marcarAlterado();
     App.fecharModal();
@@ -27310,8 +27362,8 @@ Devolver agora?`)) return;
        "excluir arquivado", ele seja escrito de propósito e não por acidente. */
     if(recusarSeArquivado(id)) return;
     const alvo = STATE.projetosSimples.find(x=>x.id===id);
-    if(!confirm("Excluir este projeto e tudo dentro dele? Esta ação não pode ser desfeita.")) return;
-    if(alvo) perguntarApagarTambemNaNuvem("este projeto e tudo dentro dele", idsSincronizaveisDe("projeto", alvo));
+    if(!confirmarExclusao("Excluir este projeto e tudo dentro dele? Esta ação não pode ser desfeita.")) return;
+    if(alvo) apagarTambemNaNuvem(idsSincronizaveisDe("projeto", alvo));
     STATE.projetosSimples = STATE.projetosSimples.filter(x=>x.id!==id);
     marcarAlterado(); render(); toast("Projeto excluído");
   },
@@ -27397,8 +27449,8 @@ Devolver agora?`)) return;
   removerAreaS(id){
     const p = getCurrentProjetoSimples();
     const alvo = p.areas.find(x=>x.id===id);
-    if(!confirm("Excluir esta área e tudo dentro dela?")) return;
-    if(alvo) perguntarApagarTambemNaNuvem("esta área e tudo dentro dela", idsSincronizaveisDe("area", alvo));
+    if(!confirmarExclusao("Excluir esta área e tudo dentro dela?")) return;
+    if(alvo) apagarTambemNaNuvem(idsSincronizaveisDe("area", alvo));
     p.areas = p.areas.filter(x=>x.id!==id);
     marcarAlterado(); go("simples-areas",{projetoSId:p.id}); toast("Área excluída");
   },
@@ -27669,8 +27721,8 @@ Devolver agora?`)) return;
   removerMaquinaS(id){
     const a = getCurrentAreaSimples();
     const alvo = a.maquinas.find(x=>x.id===id);
-    if(!confirm("Excluir esta máquina e tudo dentro dela?")) return;
-    if(alvo) perguntarApagarTambemNaNuvem("este equipamento e tudo dentro dele", idsSincronizaveisDe("maquina", alvo));
+    if(!confirmarExclusao("Excluir esta máquina e tudo dentro dela?")) return;
+    if(alvo) apagarTambemNaNuvem(idsSincronizaveisDe("maquina", alvo));
     a.maquinas = a.maquinas.filter(x=>x.id!==id);
     marcarAlterado(); go("simples-maquinas",{areaSId:a.id}); toast("Máquina excluída");
   },
@@ -27736,8 +27788,8 @@ Devolver agora?`)) return;
   removerTarefaS(id){
     const m = getCurrentMaquinaSimples();
     const alvo = m.tarefas.find(x=>x.id===id);
-    if(!confirm("Excluir esta tarefa e todos os seus riscos?")) return;
-    if(alvo) perguntarApagarTambemNaNuvem("esta tarefa e todos os seus riscos", idsSincronizaveisDe("tarefa", alvo));
+    if(!confirmarExclusao("Excluir esta tarefa e todos os seus riscos?")) return;
+    if(alvo) apagarTambemNaNuvem(idsSincronizaveisDe("tarefa", alvo));
     m.tarefas = m.tarefas.filter(x=>x.id!==id);
     marcarAlterado(); go("simples-tarefas",{maquinaSId:m.id}); toast("Tarefa excluída");
   },
@@ -27802,8 +27854,8 @@ Devolver agora?`)) return;
   removerRiscoS(id, tarefaId){
     const t = buscarTarefaSimplesPorId(tarefaId) || getCurrentTarefaSimples();
     const alvo = t.riscos.find(x=>x.id===id);
-    if(!confirm("Excluir este risco?")) return;
-    if(alvo) perguntarApagarTambemNaNuvem("este risco", idsSincronizaveisDe("risco", alvo));
+    if(!confirmarExclusao("Excluir este risco?")) return;
+    if(alvo) apagarTambemNaNuvem(idsSincronizaveisDe("risco", alvo));
     t.riscos = t.riscos.filter(x=>x.id!==id);
     marcarAlterado(); render(); toast("Risco excluído");
   },
@@ -27859,11 +27911,11 @@ Devolver agora?`)) return;
     const arr = arrayDoSelMode(); if(!arr) return;
     const n = sm.ids.size;
     const plur = {areaS:"áreas",maquinaS:"máquinas",tarefaS:"tarefas",riscoS:"riscos"}[sm.tipo];
-    if(!confirm(`Excluir ${n} ${plur} selecionada(s)? Tudo o que estiver dentro delas também será excluído.`)) return;
+    if(!confirmarExclusao(`Excluir ${n} ${plur} selecionada(s)? Tudo o que estiver dentro delas também será excluído.`)) return;
     const tipoSync = {areaS:"area", maquinaS:"maquina", tarefaS:"tarefa", riscoS:"risco"}[sm.tipo];
     const idsNuvem = [];
     arr.forEach(x=>{ if(sm.ids.has(x.id)) idsNuvem.push(...idsSincronizaveisDe(tipoSync, x)); });
-    perguntarApagarTambemNaNuvem(`${n} ${plur} e tudo dentro delas`, idsNuvem);
+    apagarTambemNaNuvem(idsNuvem);
     const restantes = arr.filter(x=>!sm.ids.has(x.id));
     arr.length = 0; arr.push(...restantes);
     marcarAlterado();

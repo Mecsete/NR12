@@ -4756,7 +4756,8 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       const f_ini = HTML.indexOf("removerRiscoS(id, tarefaId){");
       ok(f_ini > 0, "método não encontrado");
       const trecho = HTML.slice(f_ini, f_ini + 300);
-      ok(trecho.indexOf('if(!confirm("Excluir este risco?")) return;') > 0);
+      /* Desde 05/10/2026 a pergunta é única e já avisa da nuvem (confirmarExclusao) — o t184 cobre o resto. */
+      ok(trecho.indexOf('if(!confirmarExclusao("Excluir este risco?")) return;') > 0);
     });
   t("o botão '...' do cartão não fica em cima do selo do HRN — ganhou espaço reservado",
     ()=>{
@@ -7498,6 +7499,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
      "__listasIrmasDe","__moverItemEntrePais","__onedriveMesclarItemNovoInterno","onedriveMesclarItemNovo",
      "onedriveItemLocalNoLugarDoDescritor","onedriveItemJaConvergido","onedriveRegistrarAssinaturaDeDownload",
      "arquivoJaExistente","arquivoEstaEmQuarentena","onedriveDuplicatasParaIgnorar","__arquivosNoNo",
+     "__fundirFilhosDeNos","onedriveFundirDuplicatas",
      "__itemExisteAlgumLugar","riscoOrfaoConhecido","marcarRiscoOrfaoConhecido","onedriveClassificarNovosSimples"]
       .forEach(n=> vm.runInContext(funcao(n), ctx));
 
@@ -13766,6 +13768,124 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(f.indexOf("sem enviar") > 0, "o texto do selo");
       ok(f.indexOf('if(oneDriveOk && falhasEnvio>0) return chipFalhas;') > 0, "no estado 'sem-pasta' tambem avisa");
       ok(f.indexOf('if(oneDriveOk && falhasEnvio>0) return chipFalhas;') !== f.lastIndexOf('if(oneDriveOk && falhasEnvio>0) return chipFalhas;'), "e no estado 'nao-suportado' (iPhone/Android) — duas ocorrencias");
+    });
+  }
+
+  /* t184 — PASTAS IRMÃS DO MESMO ITEM VIRAM UMA VISÃO SÓ + EXCLUSÃO COM UMA PERGUNTA SÓ (05/10/2026).
+     Equatorial: a máquina "Serra" estava em duas pastas com o mesmo código no
+     fim do nome (uma só com o _maquina.json, a outra com riscos e fotos). O
+     aparelho que recebe escolhia a vazia e ignorava a outra por inteiro: nenhum
+     risco novo, nenhuma foto. A prova funcional está no ENSAIO 40 de banco.js.
+     Exclusão: a segunda pergunta ("apagar também do OneDrive?") sumiu — quem
+     confirma "Excluir?" já confirma tudo, e a lápide é gravada na hora. */
+  {
+    console.log("\n[t184] pastas irmas do mesmo item viram uma visao so; excluir e uma pergunta so");
+
+    const noA = (nome, filhos)=>({ nome, pasta:true, filhos });
+    const arq = (nome, tamanho)=>({ nome, pasta:false, tamanho });
+
+    t("__fundirFilhosDeNos: junta o que so a irma tem e, no arquivo repetido, vale o da pasta escolhida", ()=>{
+      const cx = vm.createContext({ Map, String });
+      vm.runInContext(funcao("__fundirFilhosDeNos"), cx);
+      cx.principais = [arq("_maquina.json", 100)];
+      cx.extras = [arq("_maquina.json", 999), arq("risco_x.json", 50), arq("fotos_risco_x.json", 7000)];
+      const r = vm.runInContext("__fundirFilhosDeNos(principais, extras)", cx);
+      eq(r.length, 3, "os tres arquivos aparecem");
+      eq(r.find(f=>f.nome==="_maquina.json").tamanho, 100, "no arquivo repetido vale o da pasta escolhida (um unico tamanho de referencia)");
+      ok(r.some(f=>f.nome==="risco_x.json") && r.some(f=>f.nome==="fotos_risco_x.json"), "o risco e as fotos que so a irma tinha entram");
+      eq(cx.principais.length, 1, "a lista original nao e alterada");
+      eq(cx.extras.length, 3, "a lista da irma tambem nao");
+    });
+
+    t("__fundirFilhosDeNos: subpasta com o mesmo nome e fundida por dentro, sem duplicar", ()=>{
+      const cx = vm.createContext({ Map, String });
+      vm.runInContext(funcao("__fundirFilhosDeNos"), cx);
+      cx.p = [noA("Tarefa (aaaaaa)", [arq("_tarefa.json", 10)])];
+      cx.e = [noA("tarefa (AAAAAA)", [arq("_tarefa.json", 11), arq("risco_1.json", 5)]), noA("Outra (bbbbbb)", [arq("_tarefa.json", 3)])];
+      const r = vm.runInContext("__fundirFilhosDeNos(p, e)", cx);
+      eq(r.length, 2, "a subpasta repetida (mesmo nome, so muda a caixa) nao duplica; a nova entra");
+      const tar = r.find(f=>/aaaaaa/i.test(f.nome));
+      eq(tar.filhos.length, 2, "dentro dela: o _tarefa.json e o risco que so a irma tinha");
+      eq(tar.filhos.find(f=>f.nome==="_tarefa.json").tamanho, 10, "e vale o arquivo de quem ja estava");
+    });
+
+    t("onedriveFundirDuplicatas: sem irmas devolve a MESMA lista; com irmas devolve a escolhida com os filhos das outras", ()=>{
+      const cx = vm.createContext({ Map, Set, String });
+      vm.runInContext(["extrairSufixoDoNome","__arquivosNoNo","onedriveDuplicatasParaIgnorar","__fundirFilhosDeNos","onedriveFundirDuplicatas"].map(funcao).join("\n"), cx);
+      const antiga = noA("Serra de mesa (hilhlf)", [arq("_maquina.json", 300), arq("risco_a.json", 80), arq("fotos_risco_a.json", 90000), arq("fotos__maquina.json", 40000)]);
+      const nova = noA("Serra Esquadrejadeira (hilhlf)", [arq("_maquina.json", 301)]);
+      const outra = noA("Prensa (zzzzzz)", [arq("_maquina.json", 5)]);
+      cx.lista = [antiga, nova, outra];
+      cx.semIrmas = [outra];
+      eq(vm.runInContext("onedriveFundirDuplicatas(semIrmas, null) === semIrmas", cx), true, "sem pasta repetida nada muda (mesma lista, mesmo objeto)");
+      cx.esperado = (suf)=> suf === "hilhlf" ? "Serra Esquadrejadeira (hilhlf)" : null;
+      const r = vm.runInContext("onedriveFundirDuplicatas(lista, esperado)", cx);
+      eq(r.length, 2, "as duas pastas do mesmo item viram uma");
+      const f = r.find(x=>/hilhlf/.test(x.nome));
+      eq(f.nome, "Serra Esquadrejadeira (hilhlf)", "vale a pasta com o nome atual do item");
+      eq(f.filhos.length, 4, "mas com os riscos e fotos que estavam na pasta antiga");
+      eq(f.filhos.find(x=>x.nome==="_maquina.json").tamanho, 301, "o arquivo do proprio item e o da pasta com o nome atual");
+      eq(antiga.filhos.length, 4, "a arvore original nao e tocada");
+      eq(nova.filhos.length, 1, "nem a da pasta escolhida");
+      ok(r.indexOf(outra) >= 0, "item sem irma segue na lista, como estava");
+    });
+
+    t("a classificacao dos itens novos percorre as listas fundidas (os 4 niveis) e nao descarta mais pasta irma", ()=>{
+      const f = funcao("onedriveClassificarNovosSimples");
+      eq((f.match(/onedriveFundirDuplicatas\(/g)||[]).length, 4, "projeto, area, maquina e tarefa");
+      ok(!/\bpular(Proj|Area|Maq|Tar)\b/.test(f), "as listas de descarte por inteiro sairam deste ponto");
+      ok(f.indexOf("for(const nodeProj of projetosFundidos)") > 0 && f.indexOf("for(const nodeArea of areasFundidas)") > 0
+        && f.indexOf("for(const nodeMaq of maquinasFundidas)") > 0 && f.indexOf("for(const nodeTar of tarefasFundidas)") > 0, "os quatro lacos andam nas listas fundidas");
+      ok(HTML.indexOf("function onedriveDuplicatasParaIgnorar(") > 0, "a regra de escolha da pasta continua existindo (a fusao parte dela)");
+    });
+
+    t("confirmarExclusao: uma pergunta so; com OneDrive avisa que some dos outros aparelhos, sem OneDrive nao fala de nuvem", ()=>{
+      const cx = vm.createContext({});
+      cx.perguntas = [];
+      cx.resposta = true;
+      cx.conta = null;
+      vm.runInContext(`function getOneDriveConta(){ return conta; } function confirm(p){ perguntas.push(p); return resposta; }`, cx);
+      vm.runInContext(funcao("confirmarExclusao"), cx);
+      eq(vm.runInContext('confirmarExclusao("Excluir este risco?")', cx), true, "OK confirma");
+      eq(cx.perguntas.length, 1, "uma pergunta");
+      eq(cx.perguntas[0], "Excluir este risco?", "sem OneDrive: so a pergunta, sem texto de nuvem");
+      cx.conta = { nome:"x" };
+      vm.runInContext('confirmarExclusao("Excluir este risco?")', cx);
+      eq(cx.perguntas.length, 2, "ainda uma pergunta por exclusao");
+      ok(cx.perguntas[1].indexOf("Excluir este risco?") === 0 && /OneDrive/.test(cx.perguntas[1]) && /outros aparelhos/.test(cx.perguntas[1]), "com OneDrive avisa o efeito");
+      cx.resposta = false;
+      eq(vm.runInContext('confirmarExclusao("Excluir este risco?")', cx), false, "Cancelar nao exclui nada");
+    });
+
+    t("apagarTambemNaNuvem: com OneDrive grava a lapide dos ids; sem OneDrive ou sem ids nao grava nada", ()=>{
+      const cx = vm.createContext({});
+      cx.gravadas = [];
+      cx.conta = { nome:"x" };
+      vm.runInContext(`function getOneDriveConta(){ return conta; } function registrarLapidesExclusao(ids){ gravadas.push(ids); }`, cx);
+      vm.runInContext(funcao("apagarTambemNaNuvem"), cx);
+      eq(vm.runInContext('apagarTambemNaNuvem(["a","b"])', cx), true, "devolve true quando registrou");
+      eq(cx.gravadas.length, 1, "uma lapide por exclusao");
+      eq(cx.gravadas[0].join(","), "a,b", "com os ids de tudo que saiu");
+      eq(vm.runInContext('apagarTambemNaNuvem([])', cx), false, "sem ids nao registra");
+      cx.conta = null;
+      eq(vm.runInContext('apagarTambemNaNuvem(["a"])', cx), false, "sem OneDrive conectado nao ha o que propagar");
+      eq(cx.gravadas.length, 1, "e nada foi gravado");
+    });
+
+    t("os 7 pontos de exclusao do modulo simplificado usam a pergunta unica e a lapide; a segunda pergunta e a limpeza de assinatura sairam", ()=>{
+      ok(HTML.indexOf("perguntarApagarTambemNaNuvem") < 0, "a segunda pergunta nao existe mais em lugar nenhum");
+      ok(HTML.indexOf("esquecerAssinaturasDeUpload") < 0, "o 'manter na nuvem' (que fazia o item voltar) saiu junto");
+      const chamadas = HTML.split("if(!confirmarExclusao(").length - 1;
+      eq(chamadas, 7, "projeto, area, maquina, tarefa, risco (2 telas) e a selecao em lote");
+      let pos = 0, n = 0;
+      while((pos = HTML.indexOf("if(!confirmarExclusao(", pos)) >= 0){
+        const trecho = HTML.slice(pos, pos + 700);
+        ok(trecho.indexOf("apagarTambemNaNuvem(") > 0, "depois de confirmar, a lapide precisa ser gravada: " + trecho.slice(0, 60));
+        ok(!/\bconfirm\(/.test(trecho.slice(0, trecho.indexOf("apagarTambemNaNuvem("))), "nenhum confirm solto entre a pergunta e a lapide");
+        pos += 10; n++;
+      }
+      eq(n, 7, "os sete pontos foram conferidos");
+      eq(HTML.split("apagarTambemNaNuvem(").length - 1, 8, "7 chamadas + a definicao");
     });
   }
 
