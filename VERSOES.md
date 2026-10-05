@@ -64,6 +64,23 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 05/10/2026 11:29
+
+**Sem logotipo, o laudo sai sem marca (antes saía "M7 MecSe7e" em texto) e os dados do responsável podem ser trocados só no laudo aberto.**
+
+- **Sem logotipo = sem nada.** Quem removia o logotipo continuava vendo a marca
+  "M7 MecSe7e ENGENHARIA" em texto na capa, na contracapa e no rodapé. Agora,
+  sem logotipo (removido ou nunca enviado), o espaço fica vazio — no laudo A4
+  e também no laudo de Linha de Vida.
+- **Dados do Responsável só neste laudo.** Botão novo "Responsável" na tela de
+  impressão: empresa, endereço, cidade, contato, e-mail, nome, função e CREA do
+  responsável, e nome e cargo do inspetor. A troca vale só para este laudo
+  (capa, informações iniciais, rodapé automático e linha da assinatura) e não
+  muda Configurações nem o cadastro de inspetores: ao abrir outro laudo ou
+  fechar o app, voltam os dados de sempre. Só o que for diferente do padrão é
+  guardado; o resto continua acompanhando a configuração. Entra no aviso
+  "Trocado só neste laudo" e no "Voltar tudo ao padrão".
+
 ## 05/10/2026 11:15
 
 **Laudo A4: logotipo, rodapé e assinatura passam a ter um padrão em Configurações com troca só no laudo aberto, e dá para unir várias áreas do mesmo projeto num laudo só.**

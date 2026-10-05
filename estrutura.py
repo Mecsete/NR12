@@ -5755,5 +5755,21 @@ chk("o titulo do PDF com areas unidas junta os nomes; o de uma area so e o mesmo
 chk("o modulo de impressao continua removivel sem tocar em mais nada: nenhuma funcao nova dele e chamada de fora do bloco",
     all(novo.find(x, _fim_mod) < 0 for x in ["laudoAlvo(", "lpOverGarantir(", "areaUnida(", "logoPadrao(", "assinaturaPadrao("]))
 
+print("\n=== 183. SEM LOGOTIPO = SEM NADA + DADOS DO RESPONSAVEL SO NESTE LAUDO (05/10/2026) ===")
+chk("sem logotipo o A4 e o laudo da Linha de Vida saem sem marca (a marca em texto M7 MecSe7e deixou de ser o 'logotipo de reserva')",
+    "MecSe7e" not in _corpoMod("marcaHtml") and 'return "";' in _corpoMod("marcaHtml")
+    and "MecSe7e" not in _corpoDe(novo, "lclMarca"))
+chk("com logotipo, marcaHtml continua devolvendo a imagem",
+    '<img class="${classe}" src="${l}" alt="">' in _corpoMod("marcaHtml"))
+chk("dadosDoc: troca de dados do responsavel entra so na copia do documento (Object.assign), a configuracao e o inspetor do cadastro nao sao tocados",
+    "Object.assign({}, getMecseteConfig(), ovR.resp.m)" in _corpoMod("dadosDoc")
+    and "const insp = inspetorDoProjeto(proj);" in _corpoMod("dadosDoc") and "insp: inspEf" in _corpoMod("dadosDoc"))
+_blocoResp = novo[novo.find("    lpAbrirRespLaudo(){"):novo.find('    /* ---------- CARTÃO "PADRÃO DOS LAUDOS"')]
+chk("o modal 'Responsavel deste laudo' guarda so o que difere do padrao e nunca grava no cadastro, na configuracao ou na sincronizacao",
+    len(_blocoResp) > 1000 and "lpOverGarantir()" in _blocoResp
+    and all(x not in _blocoResp for x in ["getMecseteConfig().", "marcarAlterado", "marcarEquipeAlterada", "mecseteEm", "dbSet", "gravarInspetorNoProjeto", "usuariosInspetores"]))
+chk("a tela de impressao tem o botao Responsavel e a linha de aviso cita a troca",
+    "App.lpAbrirRespLaudo()" in _corpoMod("telaImprimir") and '"dados do responsável"' in _corpoMod("telaImprimir"))
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

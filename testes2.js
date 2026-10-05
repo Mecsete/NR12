@@ -14013,8 +14013,10 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       vm.runInContext(`function lpPeneirarRico(h){ return String(h||""); }
         const esc = (s)=> String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
         function getMecseteConfig(){ return {}; }
-        function inspetorDoProjeto(){ return {}; }`, cx);
-      vm.runInContext(["conclusaoFoiEditada","conclusaoLigada","conclusaoDaArea","areaUnida","dadosDoc"].map(funcao).join("\n"), cx);
+        function inspetorDoProjeto(){ return {}; }
+        let __lpOver = { chave:"" };`, cx);
+      cx.STATE = { ui:{ lpAreaId:"a1" } };
+      vm.runInContext(["lpOv","conclusaoFoiEditada","conclusaoLigada","conclusaoDaArea","areaUnida","dadosDoc"].map(funcao).join("\n"), cx);
       cx.A = { id:"a1", nome:"Debulha", conclusaoLaudo:"<p>texto A</p>", conclusaoLigada:true };
       cx.B = { id:"a2", nome:"Secagem <1>" };
       cx.C = { id:"a3", nome:"Moega", conclusaoLaudo:"<p>texto A</p>", conclusaoLigada:true };
@@ -14062,6 +14064,75 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
         const p = HTML.indexOf(m);
         ok(p > ini && p < fim, m + " ficou FORA do bloco removivel");
       });
+    });
+  }
+
+  /* t186 — SEM LOGOTIPO = SEM NADA; DADOS DO RESPONSÁVEL SÓ NESTE LAUDO (05/10/2026). */
+  {
+    console.log("\n[t186] sem logotipo sai sem marca; dados do responsavel so neste laudo");
+
+    t("sem logotipo o laudo NAO traz mais a marca em texto no lugar (A4 e Linha de Vida)", ()=>{
+      const cx = vm.createContext({});
+      vm.runInContext(`function logo(){ return ""; }`, cx);
+      vm.runInContext(funcao("marcaHtml"), cx);
+      eq(vm.runInContext('marcaHtml("lp-logo")', cx), "", "o espaco do logotipo tem de ficar vazio");
+      ok(funcao("marcaHtml").indexOf("MecSe7e") < 0, "a marca em texto voltou");
+      const cl = vm.createContext({});
+      cl.STATE = { ui:{ mecseteConfig:{ logoLaudo:"" } } };
+      vm.runInContext(`function getMecseteConfig(){ return STATE.ui.mecseteConfig; } function lclTemFoto(v){ return typeof v === "string" && v.indexOf("data:image") === 0; }`, cl);
+      vm.runInContext(funcao("lclMarca"), cl);
+      eq(vm.runInContext('lclMarca("lcl-logo")', cl), "", "o laudo da Linha de Vida tambem sai sem marca");
+      cl.STATE.ui.mecseteConfig.logoLaudo = "data:image/png;base64,AAAA";
+      ok(vm.runInContext('lclMarca("lcl-logo")', cl).indexOf("<img") === 0, "com logotipo continua saindo a imagem");
+    });
+    t("com logotipo o laudo A4 continua usando a imagem", ()=>{
+      const cx = vm.createContext({});
+      vm.runInContext(`function logo(){ return "data:image/png;base64,ZZ"; }`, cx);
+      vm.runInContext(funcao("marcaHtml"), cx);
+      ok(vm.runInContext('marcaHtml("lp-logo")', cx).indexOf('<img class="lp-logo" src="data:image/png;base64,ZZ"') === 0);
+    });
+
+    function ctxResp(){
+      const cx = vm.createContext({ Object, String, Date, Array });
+      cx.STATE = { ui:{ lpAreaId:"a1" } };
+      cx.CFG = { empresa:"Mecsete", respNome:"Luiz", respCREA:"123", cidade:"Rio Verde" };
+      cx.INSP = { nome:"Daniel", cargo:"Tecnico", conhecido:true };
+      vm.runInContext(`let __lpOver = { chave:"" };
+        function getMecseteConfig(){ return CFG; }
+        function inspetorDoProjeto(){ return INSP; }
+        function areaUnida(){ return null; }`, cx);
+      vm.runInContext(["lpOv","lpOverGarantir","dadosDoc"].map(funcao).join("\n"), cx);
+      return cx;
+    }
+    t("dadosDoc: sem troca devolve a propria configuracao e o inspetor do projeto, como sempre", ()=>{
+      const cx = ctxResp();
+      const d = vm.runInContext("dadosDoc({id:'p'}, {id:'a1'})", cx);
+      ok(d.m === cx.CFG, "sem troca, d.m e a propria configuracao (mesmo objeto)");
+      eq(d.insp.nome, "Daniel");
+    });
+    t("dadosDoc: a troca de dados do responsavel vale no documento e NAO altera a configuracao", ()=>{
+      const cx = ctxResp();
+      vm.runInContext(`lpOverGarantir().resp = { m:{ respNome:"Outro Eng", cidade:"Itumbiara" }, insp:{ nome:"Fulano" } };`, cx);
+      const d = vm.runInContext("dadosDoc({id:'p'}, {id:'a1'})", cx);
+      eq(d.m.respNome, "Outro Eng"); eq(d.m.cidade, "Itumbiara");
+      eq(d.m.empresa, "Mecsete", "o que nao foi trocado acompanha o padrao");
+      eq(d.insp.nome, "Fulano"); eq(d.insp.cargo, "Tecnico", "so o nome do inspetor foi trocado");
+      eq(cx.CFG.respNome, "Luiz", "a configuracao nao foi tocada");
+      eq(cx.INSP.nome, "Daniel", "o cadastro do inspetor nao foi tocado");
+      cx.STATE.ui.lpAreaId = "a2";
+      eq(vm.runInContext("dadosDoc({id:'p'}, {id:'a1'})", cx).m.respNome, "Luiz", "outro laudo = padrao");
+    });
+    t("o modal de dados do responsavel guarda so o que difere do padrao e nunca grava no cadastro", ()=>{
+      const ini = HTML.indexOf("    lpAbrirRespLaudo(){");
+      const fim = HTML.indexOf('    /* ---------- CARTÃO "PADRÃO DOS LAUDOS"');
+      ok(ini > 0 && fim > ini);
+      const c = HTML.slice(ini, fim);
+      ok(c.indexOf("!== String(base[k]||\"\").trim()") > 0 && c.indexOf("!== String(baseInsp[p[1]]||\"\").trim()") > 0, "so o que difere do padrao");
+      ["getMecseteConfig().","marcarAlterado","marcarEquipeAlterada","mecseteEm","dbSet","gravarInspetorNoProjeto","usuariosInspetores"].forEach(x=>
+        ok(c.indexOf(x) < 0, "o modal nao pode tocar em: " + x));
+      ok(c.indexOf("lpOverGarantir()") > 0);
+      ok(funcao("telaImprimir").indexOf("App.lpAbrirRespLaudo()") > 0, "falta o botao Responsavel na tela de impressao");
+      ok(funcao("telaImprimir").indexOf('"dados do responsável"') > 0, "a linha de aviso precisa citar a troca");
     });
   }
 
