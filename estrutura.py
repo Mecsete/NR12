@@ -937,12 +937,12 @@ chk("PNG pesado e reduzido, nao convertido",
     "const LOGO_LIMITE_BYTES = " in novo
     and "saida.length <= LOGO_LIMITE_BYTES" in novo)
 chk("logotipo no formato antigo e reconhecido e avisado",
-    "function logoSemTransparencia(){" in novo
+    "function logoSemTransparencia(src){" in novo
     and "Este logotipo está sem transparência" in novo)
 chk("da para trocar e remover o logotipo depois de enviado",
     novo.count("lpRemoverLogo(){") == 1
     and novo.count("App.lpRemoverLogo()") == 1
-    and '${logo()? "Trocar" : "Enviar"} logotipo (PNG)' in novo
+    and '${logoPadrao()? "Trocar" : "Enviar"} logotipo (PNG)' in novo
     and "App.lpAbrirLogo()" in novo
     and "lp-logo-previa" in novo)
 chk("remover deixa vazio (a uniao com a nuvem traria de volta uma chave ausente)",
@@ -5665,7 +5665,7 @@ chk("a classificacao dos itens novos usa as listas fundidas nos 4 niveis (projet
     and "pularProj" not in _classif and "pularArea" not in _classif and "pularMaq" not in _classif and "pularTar" not in _classif
     and all(("of " + n + ")") in _classif for n in ["projetosFundidos", "areasFundidas", "maquinasFundidas", "tarefasFundidas"]))
 chk("onedriveDuplicatasParaIgnorar so e chamada agora de dentro da fusao (antes: 4 chamadas diretas na classificacao; mais nenhum uso fora delas)",
-    orig.count("onedriveDuplicatasParaIgnorar(") == 5 and novo.count("onedriveDuplicatasParaIgnorar(") == 2)
+    novo.count("onedriveDuplicatasParaIgnorar(") == 2)
 chk("a pergunta unica existe e a segunda pergunta, com o 'manter na nuvem' que fazia o item voltar, saiu",
     novo.count("function confirmarExclusao(pergunta){") == 1 and novo.count("function apagarTambemNaNuvem(ids){") == 1
     and "perguntarApagarTambemNaNuvem" not in novo and "esquecerAssinaturasDeUpload" not in novo
@@ -5681,7 +5681,7 @@ chk("o freio de exclusao em massa e a regra 'quem editou depois da exclusao nao 
     _so_funcao(novo, "lapideVenceDadosRemotos") == _so_funcao(orig, "lapideVenceDadosRemotos"))
 chk("o motor central de envio nao foi alterado por esta entrega (so um comentario do modulo citava o nome antigo da pergunta)",
     _corpoDe(novo, "executarComConcorrencia") == _corpoDe(orig, "executarComConcorrencia")
-    and _corpoDe(novo, "onedriveSincronizarModulo").replace("apagarTambemNaNuvem grava", "perguntarApagarTambemNaNuvem grava") == _corpoDe(orig, "onedriveSincronizarModulo"))
+    and _corpoDe(novo, "onedriveSincronizarModulo") == _corpoDe(orig, "onedriveSincronizarModulo"))
 
 print("=== 182. SINCRONIZACAO DO CHECKLIST ENTRE APARELHOS; CABOS TODOS IPS; LINHA DE VARIOS VAOS (05/10/2026) ===")
 chk("o Checklist tem pasta propria na nuvem, junto das outras (Backup/Checklist) e as fotos vao a parte, uma por arquivo",
@@ -5706,6 +5706,54 @@ chk("todos os cabos da tabela sao IPS (18 diametros), com a IPS estimada marcada
     and 'grau: "IPS"' in novo and "EIPS" not in novo[novo.index("function chkCaboRuptura("):novo.index("function chkCaboRuptura(") + 700])
 chk("o memorial do cabo calcula linha de varios vaos como a planilha (comprimento da linha, cabo no vao carregado J = L1 - C + L)",
     "const Lt = m.comprimento, nv = Lt / L, L1 = Ls * nv, J = L1 - Lt + L;" in novo and '["comprimento", "Comprimento total da linha (se tiver mais de um vão)", "m", ""],' in novo)
+
+print("\n=== 182. LAUDO A4: PADRAO EM CONFIGURACOES x TROCA SO NO LAUDO + UNIR AREAS DO MESMO PROJETO (05/10/2026) ===")
+_ini_mod = novo.find("INÍCIO DO MÓDULO DE IMPRESSÃO DO LAUDO")
+_fim_mod = novo.find("FIM DO MÓDULO DE IMPRESSÃO DO LAUDO")
+def _corpoMod(nome):
+    # funcoes do modulo de impressao sao indentadas (2 espacos): o fecho e uma chave nessa indentacao
+    i = novo.find("  function " + nome + "(", _ini_mod)
+    j = novo.find("\n  }", i)
+    return novo[i:j + 4] if i >= 0 and j > i else ""
+def _dentro(marca):
+    p = novo.find(marca)
+    return _ini_mod < p < _fim_mod
+chk("a troca so deste laudo mora na memoria do modulo (let __lpOver) e todo o codigo novo esta DENTRO do bloco removivel",
+    all(_dentro(m) for m in ["let __lpOver", "function lpOv(", "function logoPadrao(", "function assinaturaPadrao(", "function areaUnida(",
+                             "function laudoAlvo(", "lpAbrirUnir(){", "lpAbrirLogoLaudo(){", "lpAbrirRodapeLaudo(){", "lpAbrirAssinaturaLaudo(){", "lpCardPadraoHtml(){"]))
+chk("logo(), assinaturaLaudo() e rodapeTexto() consultam a troca do laudo ANTES do padrao; o padrao tem leitor proprio",
+    "lpOv()" in _corpoMod("logo") and "lpOv()" in _corpoMod("assinaturaLaudo") and "lpOv()" in _corpoMod("rodapeTexto")
+    and "c.logoLaudo" in _corpoMod("logoPadrao") and "__assinaturaLaudo" in _corpoMod("assinaturaPadrao")
+    and "getMecseteConfig" not in _corpoMod("assinaturaLaudo"))
+_blocoLaudo = novo[novo.find("    lpAbrirLogoLaudo(){"):novo.find('    /* ---------- CARTÃO "PADRÃO DOS LAUDOS"')]
+chk("os modais 'deste laudo' nao gravam no padrao, no carimbo de sincronizacao, no banco nem no backup",
+    len(_blocoLaudo) > 1000
+    and all(x not in _blocoLaudo for x in ["getMecseteConfig().logoLaudo", "getMecseteConfig().rodapeLaudo", "mecseteEm", "marcarEquipeAlterada",
+                                           "marcarAlterado", "assinaturaGravar", "__assinaturaLaudo =", "dbSet"])
+    and "lpOverGarantir()" in _blocoLaudo)
+chk("os editores do PADRAO seguem iguais (gravam na configuracao / na chave da assinatura) e o leitor do padrao da assinatura nao toca na configuracao",
+    'getMecseteConfig().rodapeLaudo = el ? String(el.value||"").trim() : "";' in novo
+    and "getMecseteConfig().logoLaudo = data;" in novo and "await assinaturaGravar(data);" in novo
+    and _corpoMod("assinaturaPadrao").count("getMecseteConfig") == 0)
+chk("Configuracoes ganhou o cartao 'Padrao dos laudos', protegido por typeof (sem o modulo de impressao a tela segue normal)",
+    'typeof App.lpCardPadraoHtml === "function" ? App.lpCardPadraoHtml() : ""' in _corpoDe(novo, "screenSimplesConfigEmpresa")
+    and "Padrão dos laudos (NR-12)" in novo)
+chk("a tela de impressao abre os modais 'deste laudo' e tem Unir areas e Voltar tudo ao padrao; nao edita mais o padrao daqui",
+    all(x in _corpoMod("telaImprimir") for x in ["App.lpAbrirLogoLaudo()", "App.lpAbrirRodapeLaudo()", "App.lpAbrirAssinaturaLaudo()", "App.lpAbrirUnir()", "App.lpVoltarPadraoTudo()"])
+    and "App.lpAbrirLogo()" not in _corpoMod("telaImprimir") and "App.lpAbrirRodape()" not in _corpoMod("telaImprimir"))
+chk("escolher outra area zera as areas unidas e as trocas so deste laudo (outro laudo = padrao)",
+    "STATE.ui.lpAreasExtra = []; lpOverZerar(); __lpConcAreaId = null;" in novo)
+chk("laudoAlvo junta so areas do MESMO projeto; lpGerar carrega/solta as fotos de cada area e o filtro de ocultos e o de sempre",
+    "a.proj.id === principal.proj.id && extras.indexOf(a.area.id) >= 0" in _corpoMod("laudoAlvo")
+    and "for(const areaDoLaudo of alvo.areas) await garantirFotosDe(areaDoLaudo);" in novo
+    and "alvo.itens.filter(it=> !it.maquina.ocultoLaudo && !it.risco.ocultoLaudo)" in novo
+    and "dadosDoc(alvo.proj, alvo.area, alvo.areas)" in novo)
+chk("com uma area so o documento e identico ao de sempre: areaUnida so entra com 2 ou mais areas",
+    "if(areas && areas.length > 1) area = areaUnida(areas);" in _corpoMod("dadosDoc"))
+chk("o titulo do PDF com areas unidas junta os nomes; o de uma area so e o mesmo de antes",
+    "if(alvo) document.title = nomeArquivoLaudo(alvo.proj, alvo.area);" in novo and 'areas.map(a=> a.nome||"Área").join(" + ")' in novo)
+chk("o modulo de impressao continua removivel sem tocar em mais nada: nenhuma funcao nova dele e chamada de fora do bloco",
+    all(novo.find(x, _fim_mod) < 0 for x in ["laudoAlvo(", "lpOverGarantir(", "areaUnida(", "logoPadrao(", "assinaturaPadrao("]))
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

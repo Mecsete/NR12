@@ -3624,8 +3624,8 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(/const tentativas = \[maxDim,/.test(f), "não tenta dimensões menores");
   });
   t("logotipo salvo no formato antigo é reconhecido e avisado", ()=>{
-    ok(HTML.indexOf("function logoSemTransparencia(){") > 0);
-    ok(HTML.indexOf("/^data:image\\/jpe?g/i.test(logo())") > 0, "não detecta o formato sem transparência");
+    ok(HTML.indexOf("function logoSemTransparencia(src){") > 0);
+    ok(HTML.indexOf("/^data:image\\/jpe?g/i.test(src === undefined ? logo() : src)") > 0, "não detecta o formato sem transparência");
     ok(HTML.indexOf("Este logotipo está sem transparência") > 0, "não avisa quem enviou antes da correção");
   });
   t("dá para trocar e remover o logotipo depois de enviado", ()=>{
@@ -3633,7 +3633,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(HTML.indexOf("lpRemoverLogo(){") > 0);
     ok(HTML.indexOf("${!temLogo? `<div class=\"card card-pad\" style=\"background:#FFF3D6") < 0,
        "o painel voltaria a sumir assim que houvesse logotipo");
-    ok(HTML.indexOf('${logo()? "Trocar" : "Enviar"} logotipo (PNG)') > 0, "o botão do modal sumiu");
+    ok(HTML.indexOf('${logoPadrao()? "Trocar" : "Enviar"} logotipo (PNG)') > 0, "o botão do modal sumiu");
     ok(HTML.indexOf("App.lpAbrirLogo()") > 0, "sem o botão que abre o modal do logotipo");
   });
   t("remover deixa vazio, não apaga a chave", ()=>{
@@ -13886,6 +13886,182 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       }
       eq(n, 7, "os sete pontos foram conferidos");
       eq(HTML.split("apagarTambemNaNuvem(").length - 1, 8, "7 chamadas + a definicao");
+    });
+  }
+
+  /* t185 — LOGOTIPO/RODAPÉ/ASSINATURA: PADRÃO EM CONFIGURAÇÕES + TROCA SÓ NO LAUDO; UNIR ÁREAS (05/10/2026).
+     O padrão (configuração / chave própria da assinatura) alimenta todo laudo.
+     Na tela de impressão a troca fica só na memória daquele laudo: nunca grava
+     no padrão, nunca entra no backup nem na nuvem, e some ao abrir outro laudo.
+     Unir áreas: só do mesmo projeto; o resto do módulo continua vendo "uma
+     área" (uma área virtual montada só para o documento). */
+  {
+    console.log("\n[t185] padrao x so neste laudo (logotipo, rodape, assinatura) e laudo com varias areas");
+
+    const LOGO_P = "data:image/png;base64,PADRAO", LOGO_L = "data:image/png;base64,LAUDO", ASS_P = "data:image/png;base64,ASSPADRAO", ASS_L = "data:image/png;base64,ASSLAUDO";
+    function ctxOver(){
+      const cx = vm.createContext({ Date, String });
+      cx.STATE = { ui:{ lpAreaId:"a1", mecseteConfig:{ logoLaudo: LOGO_P, rodapeLaudo:"Rodape padrao" } } };
+      vm.runInContext(`let __lpOver = { chave:"" }; let __assinaturaLaudo = ${JSON.stringify(ASS_P)};
+        const temFoto = (v)=> (typeof v === "string" && v.indexOf("data:image") === 0);
+        function getMecseteConfig(){ return STATE.ui.mecseteConfig; }`, cx);
+      vm.runInContext(["lpOv","lpOverZerar","lpOverGarantir","logoPadrao","logo","assinaturaPadrao","assinaturaLaudo","logoSemTransparencia"].map(funcao).join("\n"), cx);
+      return cx;
+    }
+
+    t("sem troca nenhuma: logotipo e assinatura saem do PADRAO", ()=>{
+      const cx = ctxOver();
+      eq(vm.runInContext("logo()", cx), LOGO_P);
+      eq(vm.runInContext("assinaturaLaudo()", cx), ASS_P);
+    });
+    t("troca so neste laudo vale no laudo e NAO muda o padrao", ()=>{
+      const cx = ctxOver();
+      vm.runInContext(`(function(){ const o = lpOverGarantir(); o.logo = ${JSON.stringify(LOGO_L)}; o.assinatura = ${JSON.stringify(ASS_L)}; })()`, cx);
+      eq(vm.runInContext("logo()", cx), LOGO_L, "o laudo usa o logotipo trocado");
+      eq(vm.runInContext("assinaturaLaudo()", cx), ASS_L, "o laudo usa a assinatura trocada");
+      eq(vm.runInContext("logoPadrao()", cx), LOGO_P, "o padrao do logotipo continua o mesmo");
+      eq(vm.runInContext("assinaturaPadrao()", cx), ASS_P, "o padrao da assinatura continua o mesmo");
+      eq(cx.STATE.ui.mecseteConfig.logoLaudo, LOGO_P, "a configuracao nao foi tocada");
+    });
+    t("vazio = 'sem' naquele laudo (nao cai no padrao)", ()=>{
+      const cx = ctxOver();
+      vm.runInContext(`(function(){ const o = lpOverGarantir(); o.logo = ""; o.assinatura = ""; })()`, cx);
+      eq(vm.runInContext("logo()", cx), "", "sem logotipo neste laudo");
+      eq(vm.runInContext("assinaturaLaudo()", cx), "", "sem assinatura neste laudo");
+      eq(vm.runInContext("logoPadrao()", cx), LOGO_P, "o padrao segue la");
+    });
+    t("ao abrir OUTRO laudo (outra area principal) as trocas somem e volta o padrao", ()=>{
+      const cx = ctxOver();
+      vm.runInContext(`lpOverGarantir().logo = ${JSON.stringify(LOGO_L)};`, cx);
+      eq(vm.runInContext("logo()", cx), LOGO_L);
+      cx.STATE.ui.lpAreaId = "a2";
+      eq(vm.runInContext("logo()", cx), LOGO_P, "outra area principal = outro laudo = padrao");
+      cx.STATE.ui.lpAreaId = "a1";
+      eq(vm.runInContext("logo()", cx), LOGO_L, "voltando a mesma area na mesma sessao a troca continua");
+      vm.runInContext("lpOverZerar()", cx);
+      eq(vm.runInContext("logo()", cx), LOGO_P, "zerar devolve o padrao");
+    });
+    t("rodapeTexto: a troca so deste laudo vence o padrao; vazio cai nos dados do responsavel", ()=>{
+      const cx = ctxOver();
+      vm.runInContext(funcao("rodapeTexto"), cx);
+      cx.d = { m:{ respFuncao:"Eng", respNome:"Fulano", email:"f@x", telefone:"1" } };
+      eq(vm.runInContext("rodapeTexto(d)", cx), "Rodape padrao");
+      vm.runInContext('lpOverGarantir().rodape = "So este laudo";', cx);
+      eq(vm.runInContext("rodapeTexto(d)", cx), "So este laudo");
+      vm.runInContext('lpOverGarantir().rodape = "";', cx);
+      eq(vm.runInContext("rodapeTexto(d)", cx), "Eng Fulano\nf@x\n1", "vazio = automatico com os dados do responsavel");
+      eq(cx.STATE.ui.mecseteConfig.rodapeLaudo, "Rodape padrao", "o padrao do rodape nao foi tocado");
+    });
+    t("os modais 'deste laudo' NUNCA gravam no padrao, no carimbo de sincronizacao nem na chave da assinatura", ()=>{
+      const ini = HTML.indexOf("    lpAbrirLogoLaudo(){");
+      const fim = HTML.indexOf('    /* ---------- CARTÃO "PADRÃO DOS LAUDOS"');
+      ok(ini > 0 && fim > ini, "bloco das trocas so deste laudo nao encontrado");
+      const corpo = HTML.slice(ini, fim);
+      ["getMecseteConfig().logoLaudo","getMecseteConfig().rodapeLaudo","mecseteEm","marcarEquipeAlterada","marcarAlterado","assinaturaGravar","__assinaturaLaudo =","STATE.ui.mecseteConfig"].forEach(x=>
+        ok(corpo.indexOf(x) < 0, "o bloco 'so neste laudo' nao pode tocar em: " + x));
+      ok(corpo.indexOf("lpOverGarantir()") > 0, "a troca precisa ir para a memoria do laudo");
+    });
+    t("os editores do PADRAO continuam gravando no padrao (e sao os usados em Configuracoes)", ()=>{
+      ok(HTML.indexOf('getMecseteConfig().rodapeLaudo = el ? String(el.value||"").trim() : "";') > 0, "lpSalvarRodape grava o padrao");
+      ok(HTML.indexOf("getMecseteConfig().logoLaudo = data;") > 0, "lpEnviarLogo grava o padrao");
+      ok(HTML.indexOf("await assinaturaGravar(data);") > 0, "lpEnviarAssinatura grava o padrao");
+      const card = HTML.slice(HTML.indexOf("    lpCardPadraoHtml(){"), HTML.indexOf("  });\n})();"));
+      ["App.lpAbrirLogo()","App.lpAbrirRodape()","App.lpAbrirAssinatura()"].forEach(x=> ok(card.indexOf(x) > 0, "o cartao de Configuracoes precisa chamar " + x));
+      const cfg = funcao("screenSimplesConfigEmpresa");
+      ok(cfg.indexOf('typeof App.lpCardPadraoHtml === "function" ? App.lpCardPadraoHtml() : ""') > 0, "o cartao entra em Configuracoes protegido (o modulo de impressao e removivel)");
+    });
+    t("a tela de impressao abre os modais 'deste laudo' (nao os do padrao) e tem o 'voltar tudo ao padrao'", ()=>{
+      const f = funcao("telaImprimir");
+      ["App.lpAbrirLogoLaudo()","App.lpAbrirRodapeLaudo()","App.lpAbrirAssinaturaLaudo()","App.lpAbrirUnir()","App.lpVoltarPadraoTudo()"].forEach(x=> ok(f.indexOf(x) > 0, "faltou " + x));
+      ok(f.indexOf("App.lpAbrirLogo()") < 0 && f.indexOf("App.lpAbrirRodape()") < 0, "a tela de impressao voltou a editar o padrao");
+    });
+    t("escolher outra area (outro laudo) zera as areas unidas e as trocas so deste laudo", ()=>{
+      const i = HTML.indexOf("    lpSetArea(id){");
+      const m = HTML.slice(i, HTML.indexOf("\n", i));
+      ok(m.indexOf("STATE.ui.lpAreasExtra = []") > 0 && m.indexOf("lpOverZerar()") > 0, "lpSetArea precisa zerar as duas coisas");
+    });
+
+    /* ---- varias areas ---- */
+    const aE = (id, projId, nome, itens)=>({ area:{ id, nome }, proj:{ id:projId, empresa:"Corteva" }, itens });
+    function ctxAlvo(areas, ui){
+      const cx = vm.createContext({ Array });
+      cx.STATE = { ui: Object.assign({ lpAreaId:"a1" }, ui||{}) };
+      cx.__areas = areas;
+      vm.runInContext("function areasDoEscopo(){ return __areas; }", cx);
+      vm.runInContext(funcao("laudoAlvo"), cx);
+      return cx;
+    }
+    t("laudoAlvo: uma area so = exatamente o laudo de sempre", ()=>{
+      const cx = ctxAlvo([aE("a1","p1","A",[1,2]), aE("a2","p1","B",[3])]);
+      const r = vm.runInContext("laudoAlvo()", cx);
+      eq(r.areas.length, 1); eq(r.area.id, "a1"); eq(r.itens.length, 2); eq(r.proj.id, "p1");
+    });
+    t("laudoAlvo: junta as areas marcadas, so do MESMO projeto, e ignora o que saiu do escopo", ()=>{
+      const cx = ctxAlvo([aE("a1","p1","A",[1,2]), aE("a2","p1","B",[3]), aE("a3","p2","C",[4,5,6]), aE("a4","p1","D",[7])],
+                         { lpAreasExtra:["a2","a3","a9"] });
+      const r = vm.runInContext("laudoAlvo()", cx);
+      eq(r.areas.map(a=>a.id).join(","), "a1,a2", "a3 e de outro projeto e a9 nao existe mais: ficam de fora");
+      eq(r.itens.join(","), "1,2,3", "os riscos de todas as areas unidas, na ordem da lista");
+      eq(r.proj.id, "p1");
+    });
+    t("laudoAlvo: sem areas no escopo devolve nulo (a tela ja trata)", ()=>{
+      eq(vm.runInContext("laudoAlvo()", ctxAlvo([])), null);
+    });
+    t("dadosDoc/areaUnida: com varias areas o documento enxerga UMA area virtual; as de verdade nao sao tocadas", ()=>{
+      const cx = vm.createContext({ Array, String, Date, Object });
+      cx.LAUDO_CONCLUSAO_PADRAO = "<p>padrao</p>";
+      vm.runInContext(`function lpPeneirarRico(h){ return String(h||""); }
+        const esc = (s)=> String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
+        function getMecseteConfig(){ return {}; }
+        function inspetorDoProjeto(){ return {}; }`, cx);
+      vm.runInContext(["conclusaoFoiEditada","conclusaoLigada","conclusaoDaArea","areaUnida","dadosDoc"].map(funcao).join("\n"), cx);
+      cx.A = { id:"a1", nome:"Debulha", conclusaoLaudo:"<p>texto A</p>", conclusaoLigada:true };
+      cx.B = { id:"a2", nome:"Secagem <1>" };
+      cx.C = { id:"a3", nome:"Moega", conclusaoLaudo:"<p>texto A</p>", conclusaoLigada:true };
+      const d1 = vm.runInContext("dadosDoc({id:'p1'}, A)", cx);
+      eq(d1.area, cx.A, "uma area so: d.area e a propria area, como sempre");
+      eq(d1.areas.length, 1);
+      const d2 = vm.runInContext("dadosDoc({id:'p1'}, A, [A, B])", cx);
+      eq(d2.area.nome, "Debulha / Secagem <1>", "o nome do documento reune as areas");
+      eq(d2.areas.length, 2);
+      ok(d2.area !== cx.A && d2.area.id === "a1", "e uma area virtual (copia), nao a original");
+      eq(vm.runInContext("conclusaoLigada(dadosDoc({id:'p1'}, A, [A, B]).area)", cx), true, "liga se QUALQUER das areas estiver ligada");
+      const html = vm.runInContext("conclusaoDaArea(dadosDoc({id:'p1'}, A, [A, B]).area)", cx);
+      eq(html, "<p>texto A</p>", "so as areas ligadas entram; uma so ligada = o texto dela sem titulo");
+      const html2 = vm.runInContext("conclusaoDaArea(dadosDoc({id:'p1'}, A, [A, C]).area)", cx);
+      eq(html2, "<p>texto A</p>", "textos iguais nao repetem");
+      cx.C.conclusaoLaudo = "<p>texto C</p>";
+      const html3 = vm.runInContext("conclusaoDaArea(dadosDoc({id:'p1'}, A, [A, C]).area)", cx);
+      eq(html3, "<p><b>Debulha</b></p><p>texto A</p><p><b>Moega</b></p><p>texto C</p>", "textos diferentes saem cada um sob o nome da sua area");
+      eq(cx.A.conclusaoLaudo, "<p>texto A</p>", "a area de verdade nao foi alterada");
+      cx.B.conclusaoLigada = false; cx.A.conclusaoLigada = false; cx.C.conclusaoLigada = false;
+      eq(vm.runInContext("conclusaoLigada(dadosDoc({id:'p1'}, A, [A, B]).area)", cx), false, "nenhuma ligada = conclusao curta, como sempre");
+    });
+    t("lpGerar monta o laudo de TODAS as areas unidas: carrega e solta as fotos de cada uma", ()=>{
+      const ini = HTML.indexOf("    async lpGerar(){");
+      const fim = HTML.indexOf("    async lpImprimir(){");
+      const g = HTML.slice(ini, fim);
+      ok(g.indexOf("const alvo = laudoAlvo();") > 0, "lpGerar precisa partir do laudo reunido");
+      ok(g.indexOf("for(const areaDoLaudo of alvo.areas) await garantirFotosDe(areaDoLaudo);") > 0, "carregar as fotos de cada area");
+      ok(g.indexOf("alvo.areas.forEach(areaDoLaudo=>{ try{ liberarFotosDe(areaDoLaudo); }catch(e){} })") > 0, "soltar as fotos de cada area");
+      ok(g.indexOf("dadosDoc(alvo.proj, alvo.area, alvo.areas)") > 0);
+      ok(g.indexOf("alvo.itens.filter(it=> !it.maquina.ocultoLaudo && !it.risco.ocultoLaudo)") > 0, "o filtro de itens ocultos continua o mesmo");
+    });
+    t("o editor da Conclusao, no laudo reunido, deixa escolher de qual area e a area escolhida e a que se grava", ()=>{
+      ok(HTML.indexOf("function lpSeletorConclusao(area){") > 0 && HTML.indexOf("App.lpConclusaoDaArea(this.value)") > 0);
+      const f = funcao("areaAtual");
+      ok(f.indexOf("__lpConcAreaId") > 0 && f.indexOf("laudoAlvo()") > 0, "areaAtual precisa honrar a area escolhida no editor");
+      const salvar = HTML.slice(HTML.indexOf("    lpSalvarConclusao(){"), HTML.indexOf("    lpConclusaoPadrao(){"));
+      ok(salvar.indexOf("const area = areaAtual();") > 0, "salvar grava na area escolhida (areaAtual)");
+    });
+    t("tudo isto vive DENTRO do modulo removivel de impressao (e o cartao de Configuracoes e protegido por typeof)", ()=>{
+      const ini = HTML.indexOf("INÍCIO DO MÓDULO DE IMPRESSÃO DO LAUDO");
+      const fim = HTML.indexOf("FIM DO MÓDULO DE IMPRESSÃO DO LAUDO");
+      ["let __lpOver","function lpOv(","function logoPadrao(","function assinaturaPadrao(","function areaUnida(","function laudoAlvo(",
+       "lpAbrirUnir(){","lpAbrirLogoLaudo(){","lpAbrirRodapeLaudo(){","lpAbrirAssinaturaLaudo(){","lpCardPadraoHtml(){"].forEach(m=>{
+        const p = HTML.indexOf(m);
+        ok(p > ini && p < fim, m + " ficou FORA do bloco removivel");
+      });
     });
   }
 

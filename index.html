@@ -3374,7 +3374,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "05/10/2026 11:10";
+const APP_BUILD = "05/10/2026 11:15";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -24344,6 +24344,7 @@ function screenSimplesConfigEmpresa(){
   <div class="field"><label>Função</label><input type="text" value="${escapeHtml(c.respFuncao)}" oninput="App.onMecseteConfigInput('respFuncao', this.value)"></div>
   <div class="field" style="margin-bottom:0"><label>CREA</label><input type="text" value="${escapeHtml(c.respCREA)}" oninput="App.onMecseteConfigInput('respCREA', this.value)"></div>
 
+  ${typeof App.lpCardPadraoHtml === "function" ? App.lpCardPadraoHtml() : ""}
   <div class="section-title">Inspetores</div>
   <div class="card card-pad">
     <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:10px">Quem faz a vistoria em campo. Ao criar um projeto, você escolhe o inspetor nesta lista.</p>
@@ -32662,15 +32663,38 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
     const imgs = Array.from(el.querySelectorAll("img"));
     return Promise.all(imgs.map(i=> i.complete ? Promise.resolve() : new Promise(r=>{ i.onload = i.onerror = r; })));
   }
-  function logo(){
+  /* PADRÃO x SÓ ESTE LAUDO (05/10/2026).
+     Logotipo, rodapé e assinatura têm um PADRÃO (logotipo e rodapé na
+     configuração, que sincroniza; assinatura na chave própria do aparelho) que
+     alimenta todo laudo. Na tela de impressão dá para trocar qualquer um dos
+     três SÓ no laudo aberto: a troca fica aqui, na memória, e nunca é gravada
+     — não mexe no padrão, não entra no backup, não sobe para a nuvem. Vale
+     enquanto a mesma área principal estiver selecionada; ao escolher outra área
+     (outro laudo) ou ao fechar o app, volta o padrão.
+     Campo ausente = usa o padrão; string vazia = "sem" naquele laudo. */
+  let __lpOver = { chave:"" };
+  function lpOv(){ return (__lpOver.chave && __lpOver.chave === STATE.ui.lpAreaId) ? __lpOver : null; }
+  function lpOverZerar(){ __lpOver = { chave:"" }; }
+  function lpOverGarantir(){ if(!lpOv()) __lpOver = { chave: STATE.ui.lpAreaId }; return __lpOver; }
+  function logoPadrao(){
     const c = getMecseteConfig();
     return c.logoLaudo && temFoto(c.logoLaudo) ? c.logoLaudo : "";
+  }
+  function logo(){
+    const o = lpOv();
+    if(o && o.logo !== undefined) return temFoto(o.logo) ? o.logo : "";
+    return logoPadrao();
   }
   /* A assinatura NÃO vem da configuração: vem da chave própria do banco, que
      é o que a mantém fora do backup, da nuvem e dos pontos de restauração
      (ver DB_KEY_ASSINATURA). Decisão do engenheiro responsável em
      02/09/2026 — ela fica só no aparelho onde foi enviada. */
+  function assinaturaPadrao(){
+    return (__assinaturaLaudo && temFoto(__assinaturaLaudo)) ? __assinaturaLaudo : "";
+  }
   function assinaturaLaudo(){
+    const o = lpOv();
+    if(o && o.assinatura !== undefined) return temFoto(o.assinatura) ? o.assinatura : "";
     return (__assinaturaLaudo && temFoto(__assinaturaLaudo)) ? __assinaturaLaudo : "";
   }
   /* Logotipo guardado em JPEG é, por definição, um logotipo sem transparência:
@@ -32687,20 +32711,35 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
     const c = getMecseteConfig();
     return c.figuraProcesso && temFoto(c.figuraProcesso) ? c.figuraProcesso : FIGURA_PROCESSO_PADRAO;
   }
-  function logoSemTransparencia(){
-    return /^data:image\/jpe?g/i.test(logo());
+  function logoSemTransparencia(src){
+    return /^data:image\/jpe?g/i.test(src === undefined ? logo() : src);
   }
   function marcaHtml(classe){
     const l = logo();
     if(l) return `<img class="${classe}" src="${l}" alt="">`;
     return `<div class="${classe}" style="font-weight:800;color:${NAVY};font-size:17px;letter-spacing:.02em;text-align:center">M7 MecSe7e<div style="font-size:7px;letter-spacing:.42em;color:${LARANJA};font-weight:800">ENGENHARIA</div></div>`;
   }
-  function dadosDoc(proj, area){
+  /* UNIR ÁREAS NO MESMO LAUDO (05/10/2026).
+     Com mais de uma área, o resto do módulo continua trabalhando com "uma
+     área" (d.area): esta é uma área VIRTUAL, montada só para o documento —
+     nome com todas as áreas e a conclusão reunida. Nada é gravado nela, e as
+     áreas de verdade seguem guardando cada uma o seu texto. */
+  function areaUnida(areas){
+    const ligadas = areas.filter(a=> conclusaoLigada(a));
+    const fonte = ligadas.length ? ligadas : areas;
+    const textos = fonte.map(a=> conclusaoDaArea(a));
+    const iguais = textos.every(x=> x === textos[0]);
+    const html = iguais ? textos[0]
+      : fonte.map((a, i)=> `<p><b>${esc(a.nome||"Área")}</b></p>` + textos[i]).join("");
+    return { ...areas[0], nome: areas.map(a=> a.nome||"Área").join(" / "), conclusaoLaudo: html, conclusaoLigada: ligadas.length > 0 };
+  }
+  function dadosDoc(proj, area, areas){
     const m = getMecseteConfig();
+    if(areas && areas.length > 1) area = areaUnida(areas);
     const insp = inspetorDoProjeto(proj); // usa a lista; se este aparelho não conhecer o código, cai na cópia do projeto
     let dataInsp = "";
     try{ dataInsp = proj.criadoEm ? new Date(proj.criadoEm).toLocaleDateString("pt-BR") : ""; }catch(e){}
-    return { proj, area, m, insp, dataInsp, hoje: new Date().toLocaleDateString("pt-BR") };
+    return { proj, area, areas: areas || [area], m, insp, dataInsp, hoje: new Date().toLocaleDateString("pt-BR") };
   }
 
   /* ---------- páginas fixas ---------- */
@@ -33231,6 +33270,14 @@ function lpMaiorPLrDoEquipamento(itens){
     return raiz.innerHTML.trim();
   }
   /* O texto da conclusão desta área: o dela, se houver; o padrão, se não. */
+  /* Laudo reunido: a conclusão é de cada área — este seletor escolhe de qual. */
+  function lpSeletorConclusao(area){
+    const alvo = laudoAlvo();
+    if(!alvo || alvo.areas.length < 2) return "";
+    return `<div class="field" style="margin:0 0 10px"><label>Área deste texto</label>
+      <select class="sp-select-sm" style="width:100%" onchange="App.lpConclusaoDaArea(this.value)">${alvo.areas.map(a=> `<option value="${a.id}" ${a.id===area.id?"selected":""}>${escapeHtml(a.nome||"Área")}</option>`).join("")}</select>
+      <div class="field-hint">No laudo reunido, o texto de cada área ligada entra na Conclusão. Salve antes de trocar de área.</div></div>`;
+  }
   function conclusaoDaArea(area){
     const guardado = lpPeneirarRico(area && area.conclusaoLaudo);
     return guardado || LAUDO_CONCLUSAO_PADRAO;
@@ -33377,7 +33424,8 @@ function lpMaiorPLrDoEquipamento(itens){
   /* Texto da direita do rodapé. Vazio = o padrão montado com os dados do
      responsável; preenchido = exatamente o que o engenheiro escreveu. */
   function rodapeTexto(d){
-    const livre = String(getMecseteConfig().rodapeLaudo || "").trim();
+    const o = lpOv();
+    const livre = String((o && o.rodape !== undefined ? o.rodape : getMecseteConfig().rodapeLaudo) || "").trim();
     if(livre) return livre;
     return `${d.m.respFuncao||""} ${d.m.respNome||""}\n${d.m.email||""}\n${d.m.telefone||""}`;
   }
@@ -33401,6 +33449,26 @@ function lpMaiorPLrDoEquipamento(itens){
     const mapa = new Map();
     itens.forEach(it=>{ if(!mapa.has(it.area.id)) mapa.set(it.area.id, { area:it.area, proj:it.proj, itens:[] }); mapa.get(it.area.id).itens.push(it); });
     return Array.from(mapa.values()).sort((a,b)=> (a.area.nome||"").localeCompare(b.area.nome||"","pt-BR"));
+  }
+  /* O laudo em montagem: a área escolhida na lista (principal) mais as que a
+     pessoa uniu a ela (STATE.ui.lpAreasExtra), SEMPRE do mesmo projeto — capa,
+     nº do documento, ART e solicitante são do projeto, então juntar projetos
+     diferentes num documento só sairia errado. Devolve o mesmo formato de uma
+     área de areasDoEscopo (area, proj, itens) com os itens de todas elas, mais
+     areas = só os objetos de área. */
+  function laudoAlvo(){
+    const todas = areasDoEscopo();
+    const principal = todas.find(a=> a.area.id === STATE.ui.lpAreaId) || todas[0];
+    if(!principal) return null;
+    const extras = Array.isArray(STATE.ui.lpAreasExtra) ? STATE.ui.lpAreasExtra : [];
+    const sel = todas.filter(a=> a === principal || (a.proj.id === principal.proj.id && extras.indexOf(a.area.id) >= 0));
+    return { area: principal.area, proj: principal.proj,
+      itens: sel.reduce((acc, a)=> acc.concat(a.itens), []),
+      areas: sel.map(a=> a.area) };
+  }
+  function conclusaoEditadaNasUnidas(){
+    const alvo = laudoAlvo();
+    return !!alvo && alvo.areas.length > 1 && alvo.areas.some(a=> conclusaoFoiEditada(a));
   }
   /* Nome sugerido ao "Salvar como PDF": "Laudo NR-12 - Empresa - Área".
      Sem barra/dois-pontos/etc (quebrariam nome de arquivo no Windows); sem
@@ -33430,8 +33498,10 @@ function lpMaiorPLrDoEquipamento(itens){
                          : "Enviado antes de o app passar a guardar a ficha do arquivo.";
   }
   function logoFicha(){
-    const meta = getMecseteConfig().logoLaudoMeta || null;
-    if(!logo()) return `<span class="lp-logo-vazio">Sem logotipo — a capa e o rodapé usam a marca em texto.</span>`;
+    const o = lpOv();
+    const provisorio = !!(o && o.logo !== undefined);
+    const meta = (provisorio ? o.logoMeta : getMecseteConfig().logoLaudoMeta) || null;
+    if(!logo()) return `<span class="lp-logo-vazio">${provisorio ? "Este laudo está sem logotipo (só neste laudo) — a capa e o rodapé usam a marca em texto." : "Sem logotipo — a capa e o rodapé usam a marca em texto."}</span>`;
     const partes = [];
     if(meta && meta.nome) partes.push(escapeHtml(meta.nome));
     if(meta && meta.bytes) partes.push(tamanhoLegivel(meta.bytes));
@@ -33439,11 +33509,18 @@ function lpMaiorPLrDoEquipamento(itens){
     const ficha = partes.length ? partes.join(" · ") : "logotipo enviado antes de o app guardar a ficha do arquivo";
     return `<img class="lp-logo-mini" src="${logo()}" alt="">
       <span>${ficha}</span>
+      ${provisorio ? `<b class="lp-logo-alerta" style="color:#8A5B00">só neste laudo — o padrão não mudou</b>` : ""}
       ${logoSemTransparencia()? `<b class="lp-logo-alerta">sem transparência — reenvie o PNG</b>`:""}`;
   }
   /* A área que a aba está mostrando. O editor da conclusão precisa dela para
      saber DE QUEM é o texto que está sendo escrito. */
+  let __lpConcAreaId = null;   // area escolhida DENTRO do editor de conclusao (laudo reunido)
   function areaAtual(){
+    if(__lpConcAreaId){
+      const alvoU = laudoAlvo();
+      const x = alvoU && alvoU.areas.find(a=> a.id === __lpConcAreaId);
+      if(x) return x;
+    }
     const areas = areasDoEscopo();
     const alvo = areas.find(a=> a.area.id === STATE.ui.lpAreaId) || areas[0];
     return alvo ? alvo.area : null;
@@ -33458,6 +33535,11 @@ function lpMaiorPLrDoEquipamento(itens){
     if(!STATE.ui.lpAreaId || !areas.some(a=>a.area.id===STATE.ui.lpAreaId)) STATE.ui.lpAreaId = areas[0].area.id;
     const zoom = STATE.ui.lpZoom || 0.5;
     const temLogo = !!logo();
+    const alvoU = laudoAlvo();
+    const nUnidas = alvoU ? alvoU.areas.length : 1;
+    const podeUnir = areas.some(a=> a.area.id !== alvoU.area.id && a.proj.id === alvoU.proj.id);
+    const ovAtual = lpOv();
+    const trocasLaudo = ovAtual ? [ovAtual.logo !== undefined ? "logotipo" : "", ovAtual.rodape !== undefined ? "rodapé" : "", ovAtual.assinatura !== undefined ? "assinatura" : ""].filter(Boolean) : [];
     return `
     <div class="card card-pad" style="margin-bottom:10px">
       <div style="font-weight:800;font-size:14.5px;margin-bottom:3px">Laudo em A4</div>
@@ -33469,13 +33551,16 @@ function lpMaiorPLrDoEquipamento(itens){
       </select>`:""}
       <button class="btn btn-primary" onclick="App.lpGerar()">${ic('table')} ${__lpPaginas.length? "Atualizar" : "Montar laudo"}</button>
       ${__lpPaginas.length? `<span class="lp-status">${__lpPaginas.length} página(s)</span>`:""}
-      <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirLogo()">${ic('gallery')} Logotipo</button>
-      <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirRodape()">${ic('edit')} Rodapé</button>
+      ${podeUnir ? `<button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirUnir()">${ic('layers')} Unir áreas${nUnidas > 1 ? " (" + nUnidas + ")" : ""}</button>` : ""}
+      <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirLogoLaudo()">${ic('gallery')} Logotipo</button>
+      <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirRodapeLaudo()">${ic('edit')} Rodapé</button>
       <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirFigura()">${ic('layers')} Figura</button>
-      <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirConclusao()">${ic('edit')} Conclusão${conclusaoFoiEditada(areaAtual()) ? " ·" : ""}</button>
-      <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirAssinatura()">${ic('edit')} Assinatura${assinaturaLaudo() ? " ·" : ""}</button>
+      <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirConclusao()">${ic('edit')} Conclusão${(conclusaoFoiEditada(areaAtual()) || conclusaoEditadaNasUnidas()) ? " ·" : ""}</button>
+      <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirAssinaturaLaudo()">${ic('edit')} Assinatura${assinaturaLaudo() ? " ·" : ""}</button>
     </div>
     <div class="lp-logo-linha">${logoFicha()}</div>
+    ${nUnidas > 1 ? `<div class="lp-logo-linha"><span>Laudo reunido: <b>${escapeHtml(alvoU.areas.map(a=> a.nome||"Área").join(" + "))}</b> — ${alvoU.itens.length} risco(s) no total</span></div>` : ""}
+    ${trocasLaudo.length ? `<div class="lp-logo-linha"><span>Trocado só neste laudo: <b>${trocasLaudo.join(", ")}</b> (o padrão não mudou)</span><button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpVoltarPadraoTudo()">Voltar tudo ao padrão</button></div>` : ""}
     ${""}
     ${__lpPaginas.length? `
       <div class="lp-visor-wrap">
@@ -33521,7 +33606,9 @@ function lpMaiorPLrDoEquipamento(itens){
   };
 
   Object.assign(App, {
-    lpSetArea(id){ STATE.ui.lpAreaId = id; __lpPaginas = []; __lpHtml = ""; render(); },
+    /* Escolher outra área é abrir OUTRO laudo: as áreas unidas e as trocas só
+       deste laudo (logotipo, rodapé, assinatura) não acompanham. */
+    lpSetArea(id){ STATE.ui.lpAreaId = id; STATE.ui.lpAreasExtra = []; lpOverZerar(); __lpConcAreaId = null; __lpPaginas = []; __lpHtml = ""; render(); },
     lpZoom(dir){
       const passos = [0.3,0.4,0.5,0.65,0.8,1,1.25,1.5,2];
       let i = passos.indexOf(STATE.ui.lpZoom || 0.5);
@@ -33611,8 +33698,7 @@ function lpMaiorPLrDoEquipamento(itens){
     },
     async lpGerar(){
       if(__lpGerando) return;
-      const areas = areasDoEscopo();
-      const alvo = areas.find(a=> a.area.id === STATE.ui.lpAreaId) || areas[0];
+      const alvo = laudoAlvo();
       if(!alvo){ toast("Nenhuma área no escopo", false); return; }
       __lpGerando = true;
       let __lpSoltarFotos = ()=>{};
@@ -33623,12 +33709,12 @@ function lpMaiorPLrDoEquipamento(itens){
            para UMA área de cada vez — carregar as dela é rápido e é
            exatamente o recorte necessário. Sem isto o laudo sairia com os
            quadros de foto vazios. */
-        await garantirFotosDe(alvo.area);
+        for(const areaDoLaudo of alvo.areas) await garantirFotosDe(areaDoLaudo);
         /* Soltas assim que o laudo estiver montado: o que a prévia mostra são
            cópias reduzidas, feitas por reduzirFoto — segurar também as
            originais na memória seria pagar duas vezes pela mesma foto. */
-        __lpSoltarFotos = ()=>{ try{ liberarFotosDe(alvo.area); }catch(e){} };
-        const d = dadosDoc(alvo.proj, alvo.area);
+        __lpSoltarFotos = ()=>{ alvo.areas.forEach(areaDoLaudo=>{ try{ liberarFotosDe(areaDoLaudo); }catch(e){} }); };
+        const d = dadosDoc(alvo.proj, alvo.area, alvo.areas);
         // Em modo de seleção mostra TUDO (item oculto entra apagado/marcável,
         // para dar para desmarcar E remarcar); fora do modo, o que está
         // oculto simplesmente não entra na montagem — nem no corpo, nem no
@@ -33690,6 +33776,8 @@ function lpMaiorPLrDoEquipamento(itens){
       const areas = areasDoEscopo();
       const alvo = areas.find(a=> a.area.id === STATE.ui.lpAreaId) || areas[0];
       if(alvo) document.title = nomeArquivoLaudo(alvo.proj, alvo.area);
+      const unidoImp = laudoAlvo();
+      if(unidoImp && unidoImp.areas.length > 1) document.title = nomeArquivoLaudo(unidoImp.proj, { nome: unidoImp.areas.map(a=> a.nome||"Área").join(" + ") });
       const limpar = ()=>{ try{ raiz.remove(); }catch(e){} document.body.classList.remove("lp-imprimindo"); document.title = tituloAntigo; };
       window.addEventListener("afterprint", limpar, { once:true });
       setTimeout(()=>{ try{ window.print(); }catch(e){ toast("Impressão não suportada neste navegador", false); } }, 80);
@@ -33714,7 +33802,7 @@ function lpMaiorPLrDoEquipamento(itens){
           marcarEquipeAlterada();
           cacheFoto.clear(); __lpPaginas = []; __lpHtml = "";
           render();
-          toast("Logotipo salvo — toque em Montar laudo para ver no documento");
+          toast("Logotipo padrão salvo — vale para todos os laudos");
         }catch(e){ toast("Não foi possível ler a imagem", false); }
         finally{ input.value = ""; }
       };
@@ -33784,6 +33872,7 @@ function lpMaiorPLrDoEquipamento(itens){
       abrirOverlay(`<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card" style="max-width:660px">
         <h3>Conclusão do laudo</h3>
         <div class="sheet-sub">Vale só para a área <b>${escapeHtml(area.nome||"área")}</b> — cada área guarda a sua. Quando ligado, o texto sai no início da Conclusão, acima da tabela de riscos.</div>
+        ${lpSeletorConclusao(area)}
         <div class="lp-fmt">
           ${btn("bold","<b>N</b>","Negrito")}
           ${btn("italic","<i>I</i>","Itálico")}
@@ -33842,6 +33931,10 @@ function lpMaiorPLrDoEquipamento(itens){
       /* O laudo montado ficou velho: se já havia páginas na tela, refaz. */
       if(__lpPaginas.length) App.lpGerar(); else render();
     },
+    lpConclusaoDaArea(id){
+      __lpConcAreaId = id || null;
+      App.lpAbrirConclusao();
+    },
     lpConclusaoPadrao(){
       const e = document.getElementById("lpConcEditor");
       if(!e) return;
@@ -33855,10 +33948,10 @@ function lpMaiorPLrDoEquipamento(itens){
        estaria em todo arquivo que sai daqui. Por isso ela mora numa chave
        própria do banco, fora do STATE (ver DB_KEY_ASSINATURA). */
     async lpAbrirAssinatura(){
-      const a = assinaturaLaudo();
+      const a = assinaturaPadrao();
       abrirOverlay(`<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card">
         <h3>Assinatura do responsável técnico</h3>
-        <div class="sheet-sub">Sai na última página, sobre a linha do seu nome. O lado do cliente continua em branco, para assinar à mão.</div>
+        <div class="sheet-sub">Esta é a assinatura <b>padrão</b>: sai na última página de todos os laudos, sobre a linha do seu nome. O lado do cliente continua em branco, para assinar à mão. Para trocar só em um laudo, use o botão Assinatura na tela de impressão.</div>
         ${a
           ? `<div class="lp-logo-previa"><img src="${a}" alt="Assinatura" style="max-height:120px"></div>
              <div class="field-hint" style="margin-top:7px">O quadriculado atrás é só da prévia: mostra onde a imagem é transparente. Uma assinatura com fundo branco cobre a linha — prefira PNG com fundo transparente.</div>`
@@ -33906,7 +33999,7 @@ function lpMaiorPLrDoEquipamento(itens){
       const padrao = `${c.respFuncao||""} ${c.respNome||""}\n${c.email||""}\n${c.telefone||""}`;
       abrirOverlay(`<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card">
         <h3>Texto do rodapé</h3>
-        <div class="sheet-sub">Sai no canto direito do rodapé, em todas as páginas do laudo. Uma linha por linha escrita.</div>
+        <div class="sheet-sub">Este é o rodapé <b>padrão</b>: sai no canto direito de todas as páginas de todos os laudos. Uma linha por linha escrita. Para trocar só em um laudo, use o botão Rodapé na tela de impressão.</div>
         <div class="field">
           <textarea id="lpRodapeTxt" placeholder="${escapeHtml(padrao)}">${escapeHtml(c.rodapeLaudo||"")}</textarea>
           <div class="field-hint">Deixando em branco, o app usa os dados do responsável cadastrados em Configurações:<br><b>${escapeHtml(padrao.replace(/\n/g," · "))}</b></div>
@@ -33932,10 +34025,10 @@ function lpMaiorPLrDoEquipamento(itens){
     lpAbrirLogo(){
       abrirOverlay(`<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card">
         <h3>Logotipo do laudo</h3>
-        <div class="sheet-sub">Aparece na capa, na contracapa e no rodapé de todas as páginas. Fica guardado no aparelho e sincroniza com os outros.</div>
-        ${logo()
-          ? `<div class="lp-logo-previa"><img src="${logo()}" alt="Logotipo"></div>
-             ${logoSemTransparencia()
+        <div class="sheet-sub">Este é o logotipo <b>padrão</b>: aparece na capa, na contracapa e no rodapé de todos os laudos. Fica guardado no aparelho e sincroniza com os outros. Para trocar só em um laudo, use o botão Logotipo na tela de impressão.</div>
+        ${logoPadrao()
+          ? `<div class="lp-logo-previa"><img src="${logoPadrao()}" alt="Logotipo"></div>
+             ${logoSemTransparencia(logoPadrao())
                ? `<div style="font-size:12.5px;color:#8A5B00;background:#FFF3D6;border:1px solid #E9C46A;border-radius:8px;padding:9px 10px;margin-top:9px">
                     <b>Este logotipo está sem transparência.</b> Foi salvo num formato que não guarda fundo transparente, e por isso aparece com fundo preto no laudo e estraga a capa. Envie o PNG original de novo.
                   </div>`
@@ -33943,8 +34036,8 @@ function lpMaiorPLrDoEquipamento(itens){
              <div class="field-hint" style="margin-top:6px">${logoFichaTexto()}</div>`
           : `<div class="field-hint" style="margin:4px 0 0">Sem logotipo, a capa e o rodapé usam uma marca em texto.</div>`}
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
-          <button class="btn ${logo() && logoSemTransparencia() ? "btn-primary" : logo() ? "btn-secondary" : "btn-primary"} btn-sm" onclick="App.lpEnviarLogo()">${ic('upload')} ${logo()? "Trocar" : "Enviar"} logotipo (PNG)</button>
-          ${logo()? `<button class="btn btn-secondary btn-sm" onclick="App.lpRemoverLogo()">${ic('trash')} Remover</button>`:""}
+          <button class="btn ${logoPadrao() && logoSemTransparencia(logoPadrao()) ? "btn-primary" : logoPadrao() ? "btn-secondary" : "btn-primary"} btn-sm" onclick="App.lpEnviarLogo()">${ic('upload')} ${logoPadrao()? "Trocar" : "Enviar"} logotipo (PNG)</button>
+          ${logoPadrao()? `<button class="btn btn-secondary btn-sm" onclick="App.lpRemoverLogo()">${ic('trash')} Remover</button>`:""}
         </div>
         <button class="sheet-cancel" style="margin-top:12px" onclick="App.fecharModal()">Fechar</button>
       </div></div>`);
@@ -33961,6 +34054,215 @@ function lpMaiorPLrDoEquipamento(itens){
       cacheFoto.clear(); __lpPaginas = []; __lpHtml = "";
       render();
       toast("Logotipo removido");
+    },
+    /* ---------- UNIR ÁREAS (só do mesmo projeto) ---------- */
+    lpAbrirUnir(){
+      const alvo = laudoAlvo();
+      if(!alvo) return;
+      const outras = areasDoEscopo().filter(a=> a.area.id !== alvo.area.id && a.proj.id === alvo.proj.id);
+      if(!outras.length){ toast("Este projeto não tem outra área no escopo", false); return; }
+      const extras = Array.isArray(STATE.ui.lpAreasExtra) ? STATE.ui.lpAreasExtra : [];
+      abrirOverlay(`<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card">
+        <h3>Unir áreas no mesmo laudo</h3>
+        <div class="sheet-sub">Só aparecem áreas da mesma empresa/projeto (<b>${escapeHtml(alvo.proj.empresa || alvo.proj.nome || "projeto")}</b>) — capa, nº do documento e ART são do projeto. A área <b>${escapeHtml(alvo.area.nome||"Área")}</b>, escolhida na lista, sempre entra. Marque as que devem entrar junto: capa, inventário, equipamentos e conclusão passam a reunir todas.</div>
+        <div style="max-height:46vh;overflow:auto;margin-top:8px">
+        ${outras.map(a=> `<label style="display:flex;gap:9px;align-items:center;padding:8px 2px;border-bottom:1px solid var(--bg-soft);font-size:13.5px;cursor:pointer">
+          <input type="checkbox" name="lpUnir" value="${a.area.id}" ${extras.indexOf(a.area.id) >= 0 ? "checked" : ""}>
+          <span>${escapeHtml(a.area.nome||"Área")} — ${a.itens.length} risco(s)</span></label>`).join("")}
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button class="btn btn-primary btn-sm" style="flex:1" onclick="App.lpAplicarUnir()">${ic('check')} Aplicar</button>
+          <button class="btn btn-secondary btn-sm" style="flex:1" onclick="App.fecharModal()">Cancelar</button>
+        </div>
+      </div></div>`);
+    },
+    lpAplicarUnir(){
+      const ids = Array.from(document.querySelectorAll('input[name="lpUnir"]:checked')).map(x=> x.value);
+      STATE.ui.lpAreasExtra = ids;
+      __lpConcAreaId = null;
+      App.fecharModal();
+      if(__lpPaginas.length) App.lpGerar(); else render();
+    },
+    /* ---------- TROCAS SÓ DESTE LAUDO ---------- */
+    lpRefazerLaudo(){
+      cacheFoto.clear();
+      if(__lpPaginas.length) App.lpGerar(); else { __lpHtml = ""; render(); }
+    },
+    lpVoltarPadraoTudo(){
+      lpOverZerar();
+      App.lpRefazerLaudo();
+      toast("Logotipo, rodapé e assinatura voltaram ao padrão");
+    },
+    lpAbrirLogoLaudo(){
+      const o = lpOv();
+      const provisorio = !!(o && o.logo !== undefined);
+      const atual = logo();
+      const origem = provisorio
+        ? (atual ? "Logotipo trocado só neste laudo." : "Este laudo está sem logotipo (marca em texto).")
+        : "Logotipo padrão, definido em Configurações.";
+      abrirOverlay(`<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card">
+        <h3>Logotipo deste laudo</h3>
+        <div class="sheet-sub">A troca vale só para este laudo e vai para a capa, a contracapa e o rodapé de todas as páginas. <b>O padrão não muda</b>: ao abrir outro laudo (ou fechar o app), volta o logotipo padrão.</div>
+        ${atual
+          ? `<div class="lp-logo-previa"><img src="${atual}" alt="Logotipo"></div>
+             ${logoSemTransparencia(atual) ? `<div style="font-size:12.5px;color:#8A5B00;background:#FFF3D6;border:1px solid #E9C46A;border-radius:8px;padding:9px 10px;margin-top:9px"><b>Este logotipo está sem transparência</b> e pode aparecer com fundo preto no laudo. Envie um PNG.</div>` : ""}`
+          : `<div class="field-hint" style="margin:4px 0 0">Sem logotipo, a capa e o rodapé usam uma marca em texto.</div>`}
+        <div class="field-hint" style="margin-top:7px"><b>${origem}</b></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+          <button class="btn btn-primary btn-sm" onclick="App.lpEnviarLogoLaudo()">${ic('upload')} Trocar só neste laudo (PNG)</button>
+          ${atual ? `<button class="btn btn-secondary btn-sm" onclick="App.lpLogoLaudoSem()">${ic('trash')} Sem logotipo neste laudo</button>` : ""}
+          ${provisorio ? `<button class="btn btn-secondary btn-sm" onclick="App.lpLogoLaudoPadrao()">Voltar ao padrão</button>` : ""}
+        </div>
+        <div class="field-hint" style="margin-top:10px">Para mudar o logotipo de TODOS os laudos: Configurações, Empresa e Responsáveis, Padrão dos laudos.</div>
+        <button class="sheet-cancel" style="margin-top:12px" onclick="App.fecharModal()">Fechar</button>
+      </div></div>`);
+    },
+    lpEnviarLogoLaudo(){
+      const input = document.getElementById("fileGeneralGaleria") || document.getElementById("fileGeneral");
+      if(!input) return;
+      input.onchange = async ()=>{
+        try{
+          if(!input.files[0]) return;
+          const arq = input.files[0];
+          const data = await comprimirLogoPNG(arq, 600);
+          const o = lpOverGarantir();
+          o.logo = data;
+          o.logoMeta = { nome: arq.name || "", bytes: arq.size || 0, quando: Date.now() };
+          App.fecharModal();
+          App.lpRefazerLaudo();
+          toast("Logotipo trocado só neste laudo — o padrão não mudou");
+        }catch(e){ toast("Não foi possível ler a imagem", false); }
+        finally{ input.value = ""; }
+      };
+      input.click();
+    },
+    lpLogoLaudoSem(){
+      const o = lpOverGarantir();
+      o.logo = ""; o.logoMeta = null;
+      App.fecharModal();
+      App.lpRefazerLaudo();
+      toast("Este laudo sai sem logotipo — o padrão não mudou");
+    },
+    lpLogoLaudoPadrao(){
+      const o = lpOv();
+      if(o){ delete o.logo; delete o.logoMeta; }
+      App.fecharModal();
+      App.lpRefazerLaudo();
+      toast("Logotipo padrão de volta neste laudo");
+    },
+    lpAbrirRodapeLaudo(){
+      const c = getMecseteConfig();
+      const o = lpOv();
+      const provisorio = !!(o && o.rodape !== undefined);
+      const padrao = `${c.respFuncao||""} ${c.respNome||""}\n${c.email||""}\n${c.telefone||""}`;
+      const atual = provisorio ? o.rodape : (c.rodapeLaudo || "");
+      abrirOverlay(`<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card">
+        <h3>Rodapé deste laudo</h3>
+        <div class="sheet-sub">A troca vale só para este laudo e <b>não muda o padrão</b>: ao abrir outro laudo (ou fechar o app), volta o rodapé padrão. Uma linha por linha escrita.</div>
+        <div class="field">
+          <textarea id="lpRodapeLaudoTxt" placeholder="${escapeHtml(padrao)}">${escapeHtml(atual)}</textarea>
+          <div class="field-hint">Em branco, o app usa os dados do responsável cadastrados em Configurações:<br><b>${escapeHtml(padrao.replace(/\n/g," · "))}</b></div>
+          <div class="field-hint" style="margin-top:6px"><b>${provisorio ? "Rodapé trocado só neste laudo." : "Rodapé padrão, definido em Configurações."}</b></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+          <button class="btn btn-primary btn-sm" style="flex:1" onclick="App.lpSalvarRodapeLaudo()">${ic('check')} Salvar só neste laudo</button>
+          ${provisorio ? `<button class="btn btn-secondary btn-sm" style="flex:1" onclick="App.lpRodapeLaudoPadrao()">Voltar ao padrão</button>` : ""}
+          <button class="btn btn-secondary btn-sm" style="flex:1" onclick="App.fecharModal()">Cancelar</button>
+        </div>
+      </div></div>`);
+    },
+    lpSalvarRodapeLaudo(){
+      const el = document.getElementById("lpRodapeLaudoTxt");
+      const o = lpOverGarantir();
+      o.rodape = el ? String(el.value||"").trim() : "";
+      App.fecharModal();
+      App.lpRefazerLaudo();
+      toast("Rodapé trocado só neste laudo — o padrão não mudou");
+    },
+    lpRodapeLaudoPadrao(){
+      const o = lpOv();
+      if(o) delete o.rodape;
+      App.fecharModal();
+      App.lpRefazerLaudo();
+      toast("Rodapé padrão de volta neste laudo");
+    },
+    lpAbrirAssinaturaLaudo(){
+      const o = lpOv();
+      const provisorio = !!(o && o.assinatura !== undefined);
+      const a = assinaturaLaudo();
+      const origem = provisorio
+        ? (a ? "Assinatura trocada só neste laudo." : "Este laudo sai sem assinatura (linha em branco).")
+        : (a ? "Assinatura padrão, guardada neste aparelho." : "Sem assinatura padrão: a linha sai em branco, para assinar à mão.");
+      abrirOverlay(`<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card">
+        <h3>Assinatura deste laudo</h3>
+        <div class="sheet-sub">A troca vale só para este laudo e <b>não muda a assinatura padrão</b>: ao abrir outro laudo (ou fechar o app), volta a padrão. Sai na última página, sobre a linha do seu nome.</div>
+        ${a ? `<div class="lp-logo-previa"><img src="${a}" alt="Assinatura" style="max-height:120px"></div>` : ""}
+        <div class="field-hint" style="margin-top:7px"><b>${origem}</b></div>
+        <div style="font-size:12.5px;color:#8A5B00;background:#FFF3D6;border:1px solid #E9C46A;border-radius:8px;padding:9px 10px;margin-top:12px">
+          <b>Nada disso sai deste aparelho.</b> A assinatura trocada aqui fica só na memória, enquanto este laudo estiver aberto: não vai no backup nem para a nuvem.
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+          <button class="btn btn-primary btn-sm" onclick="App.lpEnviarAssinaturaLaudo()">${ic('upload')} Trocar só neste laudo (PNG)</button>
+          ${a ? `<button class="btn btn-secondary btn-sm" onclick="App.lpAssinaturaLaudoSem()">${ic('trash')} Sem assinatura neste laudo</button>` : ""}
+          ${provisorio ? `<button class="btn btn-secondary btn-sm" onclick="App.lpAssinaturaLaudoPadrao()">Voltar ao padrão</button>` : ""}
+        </div>
+        <div class="field-hint" style="margin-top:10px">Para mudar a assinatura padrão: Configurações, Empresa e Responsáveis, Padrão dos laudos.</div>
+        <button class="sheet-cancel" style="margin-top:12px" onclick="App.fecharModal()">Fechar</button>
+      </div></div>`);
+    },
+    lpEnviarAssinaturaLaudo(){
+      const input = document.getElementById("fileGeneralGaleria") || document.getElementById("fileGeneral");
+      if(!input) return;
+      input.onchange = async ()=>{
+        try{
+          if(!input.files[0]) return;
+          const data = await comprimirLogoPNG(input.files[0], 600);
+          const o = lpOverGarantir();
+          o.assinatura = data;
+          App.fecharModal();
+          App.lpRefazerLaudo();
+          toast("Assinatura trocada só neste laudo — a padrão não mudou");
+        }catch(e){ toast("Não foi possível ler a imagem", false); }
+        finally{ input.value = ""; }
+      };
+      input.click();
+    },
+    lpAssinaturaLaudoSem(){
+      const o = lpOverGarantir();
+      o.assinatura = "";
+      App.fecharModal();
+      App.lpRefazerLaudo();
+      toast("Este laudo sai sem assinatura — a padrão não mudou");
+    },
+    lpAssinaturaLaudoPadrao(){
+      const o = lpOv();
+      if(o) delete o.assinatura;
+      App.fecharModal();
+      App.lpRefazerLaudo();
+      toast("Assinatura padrão de volta neste laudo");
+    },
+    /* ---------- CARTÃO "PADRÃO DOS LAUDOS" (aparece em Configurações) ---------- */
+    lpCardPadraoHtml(){
+      const c = getMecseteConfig();
+      const lg = logoPadrao();
+      const as = assinaturaPadrao();
+      const rod = String(c.rodapeLaudo || "").trim();
+      return `<div class="section-title">Padrão dos laudos (NR-12)</div>
+      <div class="card card-pad">
+        <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:12px">Logotipo, rodapé e assinatura que saem em todo laudo. Na tela de impressão do laudo dá para trocar qualquer um deles só naquele laudo, sem mexer aqui — ao abrir outro laudo, volta o padrão.</p>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <div style="flex:1;min-width:0"><b style="font-size:13px">Logotipo</b><div style="font-size:12px;color:var(--ink-dim)">${lg ? `<img src="${lg}" alt="" style="max-height:34px;max-width:140px;vertical-align:middle;background:#fff;border:1px solid var(--line);border-radius:4px;padding:2px">` : "Sem logotipo (marca em texto)"}</div></div>
+          <button class="btn btn-secondary btn-sm" onclick="App.lpAbrirLogo()">${ic('gallery')} Alterar</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <div style="flex:1;min-width:0"><b style="font-size:13px">Rodapé</b><div style="font-size:12px;color:var(--ink-dim);white-space:pre-line">${rod ? escapeHtml(rod) : "Automático, com os dados do responsável"}</div></div>
+          <button class="btn btn-secondary btn-sm" onclick="App.lpAbrirRodape()">${ic('edit')} Alterar</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="flex:1;min-width:0"><b style="font-size:13px">Assinatura</b><div style="font-size:12px;color:var(--ink-dim)">${as ? `<img src="${as}" alt="" style="max-height:34px;max-width:140px;vertical-align:middle;background:#fff;border:1px solid var(--line);border-radius:4px;padding:2px">` : "Sem assinatura (linha em branco)"} · só neste aparelho</div></div>
+          <button class="btn btn-secondary btn-sm" onclick="App.lpAbrirAssinatura()">${ic('edit')} Alterar</button>
+        </div>
+      </div>`;
     },
   });
 })();

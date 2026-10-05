@@ -64,6 +64,38 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 05/10/2026 11:15
+
+**Laudo A4: logotipo, rodapé e assinatura passam a ter um padrão em Configurações com troca só no laudo aberto, e dá para unir várias áreas do mesmo projeto num laudo só.**
+
+Dois pedidos para a tela Laudo → Imprimir.
+
+- **Padrão em Configurações.** Em Configurações → Empresa e Responsáveis há
+  um cartão novo, "Padrão dos laudos (NR-12)", com o logotipo, o rodapé e a
+  assinatura que saem em todo laudo (cada um com o botão Alterar). O logotipo
+  e o rodapé sincronizam entre aparelhos como antes; a assinatura continua
+  só no aparelho, fora do backup e da nuvem (decisão de 02/09/2026).
+- **Troca só neste laudo.** Na tela de impressão os botões Logotipo, Rodapé e
+  Assinatura agora trocam só no laudo aberto: a troca vale para tudo que usa
+  aquela imagem (capa, contracapa e o rodapé de todas as páginas) e **não
+  mexe no padrão**. Ao escolher outra área (outro laudo) ou fechar o app,
+  volta o padrão. A troca fica só na memória: não grava na configuração, não
+  entra no backup e não sobe para a nuvem. Há também "Sem logotipo/assinatura
+  neste laudo", "Voltar ao padrão" em cada modal e "Voltar tudo ao padrão"
+  numa linha que avisa o que foi trocado.
+- **Unir áreas.** O botão novo "Unir áreas" (aparece quando o projeto tem
+  mais de uma área no escopo) deixa marcar quais áreas entram junto com a
+  escolhida na lista. Só áreas do **mesmo projeto** (capa, nº do documento e
+  ART são do projeto). A capa mostra os nomes das áreas, o inventário, os
+  equipamentos e a tabela de riscos reúnem todas, e o PDF sai com o nome
+  "Laudo NR-12 - Empresa - Área 1 + Área 2". A conclusão continua sendo de
+  cada área: o editor ganhou um seletor de área e o laudo reunido junta o
+  texto de cada área que estiver ligada (sob o nome da área quando os textos
+  são diferentes). Com uma área só, o laudo sai exatamente como antes.
+- Os editores do padrão (que antes ficavam na própria tela de impressão)
+  continuam existindo e agora são os usados por Configurações; o laudo de
+  Linha de Vida usa a mesma assinatura padrão.
+
 ## 05/10/2026 11:10
 
 **Checklist: modelos, projetos, linhas de vida e fotos agora sincronizam entre os aparelhos; cabos todos IPS; memorial de linha com vários vãos.**
