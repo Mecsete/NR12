@@ -716,6 +716,8 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 /* Abas de seção — a própria cor de status, não só um indicador pequeno */
 .chk-tabs{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 10px;margin-bottom:2px;scrollbar-width:none;}
 .chk-tabs::-webkit-scrollbar{display:none;}
+/* No computador (mouse) as abas ganham barra fina e arrastar/roda do mouse; no celular continua deslizando com o dedo, sem barra. */
+@media (hover:hover) and (pointer:fine){.chk-tabs{scrollbar-width:thin;cursor:grab;}.chk-tabs::-webkit-scrollbar{display:block;height:8px;}.chk-tabs::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:99px;}.chk-tabs.arrastando{cursor:grabbing;user-select:none;}}
 .chk-tab{flex:0 0 auto;padding:8px 14px;border-radius:999px;background:var(--bg-soft);color:var(--ink-dim);font-size:12px;font-weight:700;white-space:nowrap;border:none;}
 .chk-tab.st-parcial{background:#fbf0db;color:#c98a0a;}
 .chk-tab.st-completa{background:#e4f1e5;color:#2e7d32;}
@@ -3374,7 +3376,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "05/10/2026 11:29";
+const APP_BUILD = "05/10/2026 12:00";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -13992,6 +13994,33 @@ function chkModeloPreviaPergunta(itemId, valor){
     if(t) t.textContent = valor && valor.trim() ? valor : "Pergunta ainda não escrita";
   });
 }
+/* Abas das seções no computador: a roda do mouse rola as abas para o lado e dá para arrastar com o botão pressionado. */
+(function(){
+  if(!window.matchMedia || !window.matchMedia("(hover:hover) and (pointer:fine)").matches) return;
+  document.addEventListener("wheel", e=>{
+    const t = e.target && e.target.closest ? e.target.closest(".chk-tabs") : null;
+    if(!t || t.scrollWidth <= t.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+    t.scrollLeft += e.deltaY; e.preventDefault();
+  }, { passive:false });
+  let arr = null;
+  document.addEventListener("mousedown", e=>{
+    const t = e.target && e.target.closest ? e.target.closest(".chk-tabs") : null;
+    if(!t || e.button !== 0 || t.scrollWidth <= t.clientWidth) return;
+    arr = { t, x:e.clientX, ini:t.scrollLeft, moveu:false };
+  });
+  document.addEventListener("mousemove", e=>{
+    if(!arr) return;
+    const dx = e.clientX - arr.x;
+    if(Math.abs(dx) > 4){ arr.moveu = true; arr.t.classList.add("arrastando"); }
+    if(arr.moveu) arr.t.scrollLeft = arr.ini - dx;
+  });
+  document.addEventListener("mouseup", ()=>{
+    if(!arr) return;
+    const a = arr; arr = null;
+    a.t.classList.remove("arrastando");
+    if(a.moveu) a.t.addEventListener("click", ev=>{ ev.stopPropagation(); ev.preventDefault(); }, { capture:true, once:true });
+  });
+})();
 document.addEventListener("click", e=>{
   document.querySelectorAll("details.chk-mod-planilha[open]").forEach(d=>{ if(!d.contains(e.target)) d.open = false; });
 });

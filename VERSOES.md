@@ -64,6 +64,12 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 05/10/2026 12:00
+
+**Checklist: no computador, as abas das seções passam a deslizar com a roda do mouse e com o arrastar.**
+
+- Quando as abas não cabem na tela, o computador agora mostra uma barra fina embaixo delas, a roda do mouse rola as abas para o lado e dá para arrastar com o botão pressionado. No celular nada mudou (continua deslizando com o dedo, sem barra).
+
 ## 05/10/2026 11:29
 
 **Sem logotipo, o laudo sai sem marca (antes saía "M7 MecSe7e" em texto) e os dados do responsável podem ser trocados só no laudo aberto.**
