@@ -697,6 +697,12 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-mem-nf{display:flex;align-items:center;gap:6px}
 .chk-mem-nf input{flex:1;min-width:0;font-size:16px;padding:9px 10px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);color:var(--ink)}
 .chk-mem-nf span{font-size:12.5px;color:var(--ink-dim);min-width:22px}
+.chk-mem-nf select{flex:1;min-width:0;font-size:16px;padding:9px 10px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);color:var(--ink)}
+.chk-mem-aviso{color:#B3382D;font-weight:700}
+.chk-mem-passo{margin-top:8px}
+.chk-mem-passo .lcl-fl{overflow-x:auto;padding-bottom:4px}
+.chk-mem-passo .lcl-tzg{grid-template-columns:minmax(0,1fr)}
+@media (min-width:700px){.chk-mem-passo .lcl-tzg{grid-template-columns:1fr 1fr}}
 .chk-mem-params{margin-top:6px;border:1px solid var(--line);border-radius:10px;padding:8px 12px;background:var(--bg-soft)}
 .chk-mem-params summary{cursor:pointer;font-size:12.5px;font-weight:800;color:var(--ink-dim)}
 .chk-photo-mv{position:absolute;left:-4px;bottom:-4px;width:22px;height:22px;border-radius:99px;border:none;background:var(--bar);color:#fff;font-weight:800;font-size:14px;line-height:1;padding:0;box-shadow:var(--shadow-sm)}
@@ -3368,7 +3374,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "03/10/2026 23:00";
+const APP_BUILD = "05/10/2026 06:00";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -14560,19 +14566,34 @@ function chkBlocoLaudo(titulo, corpoHtml){
    desligar o capítulo no laudo é linha.laudo.capitulos.memorial (um só interruptor,
    usado no campo e no laudo). Tudo aqui é função pura: lê a linha, nunca grava.
    ══════════════════════════════════════════════════════════════════════════════ */
-const CHK_MEMORIAL_PARAMS = { peso:100, Frup:3900, FS:2, a:1.4, b:1.0, b1:1.0, fren:0.5, C1:1.5, D1:1.0 };
+const CHK_MEMORIAL_PARAMS = { peso:100, Frup:3900, FS:2, a:1.4, b:1.0, b1:1.0, fren:0.5, C1:1.5, D1:1.0, Ecabo:9500, kA:0.416 };
 const CHK_MEMORIAL_PARAMS_ROT = [
   ["peso", "Peso do usuário com equipamentos", "kg"],
-  ["Frup", "Força de ruptura do cabo", "kgf"],
-  ["FS", "Fator de segurança do cabo", ""],
+  ["Frup", "Força de ruptura do cabo (vem da tabela pelo diâmetro)", "kgf"],
+  ["FS", "Fator de segurança do cabo (2 vida, 3 restrição)", ""],
   ["a", "Talabarte (a)", "m"],
   ["b", "Absorvedor de energia (b)", "m"],
   ["b1", "Trava-quedas em trabalho (b1)", "m"],
   ["fren", "Frenagem do trava-quedas", "m"],
   ["C1", "Engate do cinto ao pé (C1)", "m"],
   ["D1", "Distância de segurança (D1)", "m"],
+  ["Ecabo", "Módulo de elasticidade do cabo (E)", "kgf/mm²"],
+  ["kA", "Área metálica do cabo (A = k · d²)", "k"],
 ];
-const CHK_MEMORIAL_VIGA = { perfil:"W200x26,6", aco:"ASTM A572 Gr 50", E:200e9, I:2611e-8, W:261.1e-6, fy:345e6 };
+/* Viga da linha rígida: só a deflexão entra no cálculo (ela faz parte da zona livre de queda); a resistência
+   da viga não é verificada no memorial. */
+const CHK_MEMORIAL_VIGA = { perfil:"W200x26,6", aco:"ASTM A572 Gr 50", E:200e9, I:2611e-8 };
+/* Limites de flecha do cabo (planilha do memorial): linha de vida no mínimo 3%, linha de restrição no máximo 1%. */
+const CHK_MEMORIAL_LIMITES = { flechaMinVida:3, flechaMaxRestricao:1 };
+/* Cabos de aço 6x19 AF alma de fibra (aba Base cabos da planilha do memorial): [diâmetro mm, polegada, massa kg/m,
+   ruptura IPS tf, ruptura EIPS tf]. A ruptura usada é a IPS e, onde a tabela não tem IPS, a EIPS (como na planilha). */
+const CHK_CABOS = [
+  [3.2, "1/8”", 0.036, 0.61, null], [4.8, "3/16”", 0.082, 1.37, null], [6.4, "1/4”", 0.142, 2.5, 2.73], [8, "5/16”", 0.23, 3.9, 4.3],
+  [9.52, "3/8”", 0.343, null, 6.1], [11.1, "7/16”", 0.479, null, 8.3], [12.7, "1/2”", 0.608, null, 10.8], [14.3, "9/16”", 0.775, null, 13.6],
+  [15.88, "5/8”", 0.933, null, 16.8], [19, "3/4”", 1.298, null, 24], [22, "7/8”", 1.805, 29.5, 32.6], [25.4, "1”", 2.442, 38.5, 42.6],
+  [29, "1 1/8”", 3.055, null, 53.9], [32, "1 1/4”", 3.733, 60.1, 66.5], [35, "1 3/8”", 4.529, null, 80.5], [38, "1 1/2”", 5.328, 86.5, 95.8],
+  [45, "1 3/4”", 8.368, null, 130.4], [52, "2”", 9.74, null, 170.3],
+];
 const CHK_MEMORIAL_CAMPOS = [
   ["hanc", "Altura do ponto de ancoragem ao piso", "m", "10"],
   ["hpos", "Altura da posição de trabalho ao piso", "m", "11"],
@@ -14586,16 +14607,35 @@ function chkMemorialNum(v){
   const x = typeof v === "number" ? v : parseFloat(String(v == null ? "" : v).replace(",", "."));
   return (isFinite(x) && x > 0) ? x : null;
 }
-/* Leitura normalizada dos dados do memorial: linha antiga (sem linha.memorial)
-   devolve tudo vazio. Diâmetro e nº de usuários têm padrão (8 mm, 1). */
+/* Ruptura do cabo pelo diâmetro. Diâmetro que não está na tabela usa o maior da tabela que não passa dele (lado seguro). */
+function chkCaboRuptura(d){
+  const x = chkMemorialNum(d);
+  if(!x) return null;
+  let r = CHK_CABOS.find(c=> Math.abs(c[0] - x) < 0.05);
+  const exato = !!r;
+  if(!r){ CHK_CABOS.forEach(c=>{ if(c[0] <= x) r = c; }); }
+  if(!r) return null;
+  const ips = r[3] !== null;
+  return { Frup: Math.round((ips ? r[3] : r[4]) * 1000), grau: ips ? "IPS" : "EIPS", dTab: r[0], pol: r[1], exato };
+}
+function chkMemDiam(x){
+  return String(Math.round(Number(x) * 100) / 100).replace(".", ",");
+}
 function chkMemorialDe(linha){
   const m = (linha && linha.memorial) || {};
-  const params = Object.assign({}, CHK_MEMORIAL_PARAMS);
   const ov = m.params || {};
+  const uso = m.uso === "restricao" ? "restricao" : "vida";
+  const diametro = chkMemorialNum(m.diametro);
+  const cab = chkCaboRuptura(diametro);
+  const params = Object.assign({}, CHK_MEMORIAL_PARAMS);
+  params.FS = uso === "restricao" ? 3 : 2;
+  if(cab) params.Frup = cab.Frup;
   Object.keys(CHK_MEMORIAL_PARAMS).forEach(k=>{ const v = chkMemorialNum(ov[k]); if(v !== null) params[k] = v; });
+  const frupInformada = chkMemorialNum(ov.Frup) !== null;
+  const frupNota = frupInformada ? " (valor informado)" : (cab ? ` (tabela do fabricante, ${cab.grau}${cab.exato ? "" : ", diâmetro de " + chkMemDiam(cab.dTab) + " mm"})` : "");
   return {
     hanc: chkMemorialNum(m.hanc), hpos: chkMemorialNum(m.hpos), vao: chkMemorialNum(m.vao),
-    flechaCm: chkMemorialNum(m.flechaCm), diametro: chkMemorialNum(m.diametro) || 8, usuarios: chkMemorialNum(m.usuarios) || 1,
+    flechaCm: chkMemorialNum(m.flechaCm), diametro, usuarios: chkMemorialNum(m.usuarios) || 1, uso, frupNota,
     epi: m.epi === "tab" ? "tab" : "tq", memoria: m.memoria !== false, params,
   };
 }
@@ -14611,6 +14651,7 @@ function chkMemorialFaltas(linha){
   if(!m.hpos) f.push("altura da posição de trabalho");
   if(!m.vao) f.push("vão entre apoios");
   if(tipo === "horizontal_flexivel" && !m.flechaCm) f.push("flecha");
+  if(tipo === "horizontal_flexivel" && !m.diametro) f.push("diâmetro do cabo");
   return f;
 }
 /* Capítulo ligado? (linha horizontal e interruptor não desligado) */
@@ -14629,36 +14670,75 @@ function chkMemFmt(x, d){
   if(d === undefined) d = 2;
   return Number(x).toFixed(d).replace(".", ",");
 }
-/* O cálculo. m = chkMemorialDe(linha). Devolve null se faltar vão (ou flecha, no cabo).
-   Cabo flexível: flecha inicial f1, comprimento do cabo L1, alongamento ΔL (0,6129% de L1,
-   calibrado no memorial de referência), flecha dinâmica f3, força no cabo T1.
-   Viga rígida: deflexão δ = P·L³/(48·E·I) no meio do vão (que faz o papel de f3), M = P·L/4, σ = M/W.
-   Medidas em metros; T1 e P em kgf; PN e M em N e N·m; σ em Pa. */
+/* O cálculo. m = chkMemorialDe(linha). Devolve null se faltar vão (ou flecha e diâmetro, no cabo).
+   Cabo flexível (planilha do memorial): flecha inicial f1, comprimento do cabo L1, alongamento ΔL = T1 · L1 / (E · k · d²),
+   flecha dinâmica f3 e força no cabo T1 = P · (L1 + ΔL) / (4 · f3). T1 e ΔL dependem um do outro (o cabo estica com o
+   esforço, a flecha cresce e o esforço cai), então o cálculo repete até estabilizar (c.voltas, c.conv).
+   Carga P: linha de vida 600 kgf + peso de cada usuário além do primeiro; linha de restrição, peso de cada usuário.
+   Viga rígida: só a deflexão δ = P · L³ / (48 · E · I) no meio do vão (faz o papel de f3); sem verificação de resistência.
+   Medidas em metros; T1 e P em kgf; PN em N; ΔL em mm. */
 function chkMemorialCalc(tipo, m){
   const K = m.params, L = m.vao;
   if(!L) return null;
   const B1 = K.b1 + K.fren;
   if(tipo === "horizontal_rigida"){
     const R = CHK_MEMORIAL_VIGA, PN = K.peso * 6 * 9.80665;
-    const d = PN * Math.pow(L, 3) / (48 * R.E * R.I), M = PN * L / 4, sig = M / R.W, f3 = d;
-    return { tipo:"rig", f1:0, f3, d, M, sig, uso: sig / R.fy, P: K.peso * 6, PN, B1,
+    const d = PN * Math.pow(L, 3) / (48 * R.E * R.I), f3 = d;
+    return { tipo:"rig", f1:0, f3, d, P: K.peso * 6, PN, B1,
       ZLQ1: f3 + K.a + K.b + K.C1 + K.D1, Hp1: f3 + K.b + K.D1, ZLQ2: f3 + B1 + K.C1 + K.D1, Hp2: f3 + B1 - K.b1 + K.D1 };
   }
-  if(!m.flechaCm) return null;
-  const fl = m.flechaCm / L;
-  const f1 = m.flechaCm / 100, L1 = L + 8 * f1 * f1 / (3 * L);
-  const f2 = Math.sqrt(Math.pow(L1 / 2, 2) - Math.pow(L / 2, 2)), dL = 0.006129 * L1 * 1000;
-  const f3 = Math.sqrt(Math.pow((L1 + dL / 1000) / 2, 2) - Math.pow(L / 2, 2)), th = Math.atan(f3 / (L / 2));
-  const P = K.peso * 6, T1 = P / (2 * Math.sin(th)), Fadm = K.Frup / K.FS;
-  return { tipo:"flex", fl, f1, L1, f2, dL, f3, th: th * 180 / Math.PI, ang: 180 - 2 * th * 180 / Math.PI, P, T1, Fadm, uso: T1 / Fadm, FSs: K.Frup / T1, B1,
+  if(!m.flechaCm || !m.diametro) return null;
+  const n = m.usuarios, d = m.diametro, EA = K.Ecabo * K.kA * d * d;
+  const P = m.uso === "restricao" ? K.peso * n : 600 + (n - 1) * K.peso;
+  const fl = m.flechaCm / L, f1 = m.flechaCm / 100, L1 = L + 8 * f1 * f1 / (3 * L);
+  const f2 = Math.sqrt(Math.pow(L1 / 2, 2) - Math.pow(L / 2, 2));
+  let T = 0, dL = 0, f3 = f2, voltas = 0, conv = false;
+  for(let i = 1; i <= 2000; i++){
+    voltas = i;
+    dL = T * L1 * 1000 / EA;
+    f3 = Math.sqrt(Math.pow((L1 + dL / 1000) / 2, 2) - Math.pow(L / 2, 2));
+    const Tn = P * (L1 + dL / 1000) / (4 * f3);
+    if(!isFinite(Tn)) break;
+    const dif = Math.abs(Tn - T);
+    T = Tn;
+    if(dif < 1e-7){ conv = true; break; }
+  }
+  const th = Math.atan(f3 / (L / 2)), Fadm = K.Frup / K.FS;
+  const dh = (m.hanc && m.hpos) ? m.hanc - m.hpos : null, ab = K.a + K.b;
+  const fq = dh === null ? null : (dh > K.C1 ? (dh - K.C1) / ab : (K.C1 - dh + ab) / ab);
+  return { tipo:"flex", fl, f1, L1, f2, dL, f3, th: th * 180 / Math.PI, ang: 180 - 2 * th * 180 / Math.PI, P, T1: T, Fadm, uso: T / Fadm, FSs: K.Frup / T, B1,
+    fren3: f3 - f2, fq, voltas, conv,
     ZLQ1: f3 + K.a + K.b + K.C1 + K.D1, Hp1: f3 - f1 + K.b + K.D1, ZLQ2: f3 + B1 + K.C1 + K.D1, Hp2: f3 - f1 + B1 - K.b1 + K.D1 };
+}
+/* Menor cabo da tabela que suporta o esforço com o fator de segurança (null se nenhum). */
+function chkMemorialDiametroMin(tipo, m){
+  let achou = null;
+  CHK_CABOS.forEach(r=>{
+    if(achou) return;
+    const mm = Object.assign({}, m, { diametro: r[0], params: Object.assign({}, m.params, { Frup: chkCaboRuptura(r[0]).Frup }) });
+    const c = chkMemorialCalc(tipo, mm);
+    if(c && c.conv && c.T1 <= c.Fadm) achou = r;
+  });
+  return achou;
+}
+/* Avisos do cabo (não bloqueiam): flecha fora do limite e cálculo que não estabilizou. */
+function chkMemorialAlertas(c, m){
+  if(!c || c.tipo !== "flex") return [];
+  const f = chkMemFmt, L = CHK_MEMORIAL_LIMITES, a = [];
+  if(m.uso === "restricao"){
+    if(c.fl > L.flechaMaxRestricao) a.push(`Flecha inicial de ${f(c.fl, 1)}% acima do máximo de ${L.flechaMaxRestricao}% para linha de restrição.`);
+  } else if(c.fl < L.flechaMinVida){
+    a.push(`Flecha inicial de ${f(c.fl, 1)}% abaixo do mínimo de ${L.flechaMinVida}% para linha de vida.`);
+  }
+  if(!c.conv) a.push("O cálculo do esforço no cabo não estabilizou: confira a flecha e o diâmetro informados.");
+  return a;
 }
 /* Cada EPI "pode" quando a altura da ancoragem cobre a zona livre de queda dele. */
 function chkMemorialVeredito(c, m){
   return {
     okTab: m.hanc >= c.ZLQ1,
     okTq: m.hanc >= c.ZLQ2,
-    okC: c.tipo === "rig" ? c.uso <= 1 : c.T1 <= c.Fadm,
+    okC: c.tipo === "rig" ? true : (c.conv && c.T1 <= c.Fadm),
     okHp: m.hpos >= c.Hp2,
   };
 }
@@ -14687,32 +14767,44 @@ function chkMemorialCondicoes(c, m){
     v.okTq ? `Trava-quedas retrátil: <b>permitido</b>, cabo de até ${f(c.B1, 1)} m (ZLQ ${f(c.ZLQ2)} m).` : `Trava-quedas retrátil: <b>não permitido</b> (ZLQ ${f(c.ZLQ2)} m &gt; ${f(m.hanc)} m).`,
     `Altura mínima da posição de trabalho ao piso: <b>${f(c.Hp2)} m</b> (disponível ${f(m.hpos)} m, ${v.okHp ? "atende" : "<b>não atende</b>"}).`,
   ];
-  if(c.tipo === "flex") l.push("Fator de queda do sistema: <b>0,2</b>.");
+  if(c.tipo === "flex"){
+    l.push(`Cabo de aço de ${chkMemDiam(m.diametro)} mm: esforço de <b>${f(c.T1, 0)} kgf</b> para admissível de ${f(c.Fadm, 0)} kgf (utilização de ${f(c.uso * 100, 0)}%, fator de serviço ${f(c.FSs)}): ${v.okC ? "<b>atende</b>" : "<b>não atende</b>"}.`);
+    if(c.fq !== null) l.push(`Fator de queda do sistema: <b>${f(c.fq, 1)}</b>.`);
+    chkMemorialAlertas(c, m).forEach(x=> l.push(x));
+  }
   return l;
 }
 function chkMemorialPremissas(c, m){
   const K = m.params, f = chkMemFmt, V = CHK_MEMORIAL_VIGA;
-  const base = [
+  const engate = `Engate do cinto ao pé (C<sub>1</sub>) de ${f(K.C1, 1)} m e distância de segurança (D<sub>1</sub>) de ${f(K.D1, 1)} m.`;
+  if(c.tipo === "rig") return [
+    `Viga ${V.perfil} em aço ${V.aco} (E de ${f(V.E / 1e9, 0)} GPa e Ix de ${f(V.I * 1e8, 0)} cm⁴), vão de ${f(m.vao)} m, carga central; só a deflexão entra no cálculo.`,
     `Usuário de ${f(K.peso, 0)} kg, com carga dinâmica adotada de ${f(c.P, 0)} kgf.`,
-    `Engate do cinto ao pé (C<sub>1</sub>) de ${f(K.C1, 1)} m e distância de segurança (D<sub>1</sub>) de ${f(K.D1, 1)} m.`,
+    engate,
   ];
-  return c.tipo === "rig"
-    ? [`Viga ${V.perfil} em aço ${V.aco} (fy ${f(V.fy / 1e6, 0)} MPa), vão de ${f(m.vao)} m, carga central.`, `Tensão de flexão de ${f(c.sig / 1e6, 1)} MPa (${f(c.uso * 100, 1)}% de utilização).`, ...base]
-    : [`Cabo de aço de ${f(m.diametro, 0)} mm, 6x19 AF, ruptura mínima de ${f(K.Frup / 1000, 1)} tf e fator de segurança ${f(K.FS, 0)}.`, `Flecha inicial de ${f(c.fl, 1)}% do vão.`, `Força no cabo de ${f(c.T1, 0)} kgf, para admissível de ${f(c.Fadm, 0)} kgf (${f(c.uso * 100, 1)}%).`, ...base];
+  const un = m.usuarios === 1 ? "usuário" : "usuários";
+  const regra = m.uso === "restricao" ? "peso de cada usuário (linha de restrição)" : "600 kgf para o primeiro usuário mais o peso de cada usuário adicional (linha de vida)";
+  return [
+    `Cabo de aço de ${chkMemDiam(m.diametro)} mm, 6x19 AF, ruptura mínima de ${f(K.Frup / 1000, 1)} tf${m.frupNota} e fator de segurança ${f(K.FS, 0)}.`,
+    `Flecha inicial de ${f(c.fl, 1)}% do vão. Carga de cálculo (P) de ${f(c.P, 0)} kgf, para ${f(m.usuarios, 0)} ${un} de ${f(K.peso, 0)} kg: ${regra}.`,
+    `Força no cabo de ${f(c.T1, 0)} kgf (${f(c.uso * 100, 1)}% do admissível de ${f(c.Fadm, 0)} kgf), por iteração com o alongamento (${c.voltas} voltas; E = ${f(K.Ecabo, 0)} kgf/mm², A = ${f(K.kA, 3)} · d²).`,
+    engate,
+  ];
 }
 function chkMemorialParecer(c, m){
   const v = chkMemorialVeredito(c, m), f = chkMemFmt;
-  if(!v.okC) return "O elemento resistente <b>não suporta</b> a carga dinâmica prevista. A linha deve ser redimensionada antes do uso.";
+  if(!v.okC) return c.conv ? "O cabo <b>não suporta</b> a carga dinâmica prevista. A linha deve ser redimensionada antes do uso." : "O esforço no cabo <b>não pôde ser calculado</b>. Confira a flecha e o diâmetro informados.";
   if(v.okTq && v.okTab) return "A linha pode ser utilizada com <b>trava-quedas retrátil ou talabarte com absorvedor</b>, respeitadas as condições de uso acima.";
   if(v.okTq) return `A linha pode ser utilizada <b>somente com trava-quedas retrátil</b> de até ${f(c.B1, 1)} m. O uso de talabarte <b>não é permitido</b>, pois a zona livre de queda necessária (${f(c.ZLQ1)} m) é maior que a altura disponível (${f(m.hanc)} m).`;
   return `Com a altura disponível de ${f(m.hanc)} m, <b>nenhum dos EPI avaliados</b> garante a zona livre de queda. A altura da ancoragem precisa aumentar ou o sistema deve ser alterado.`;
 }
-/* Fórmulas em notação matemática (MathML — o navegador desenha e sai no PDF),
-   cada uma com a forma simbólica e a substituída, na ordem do memorial de referência. */
-function chkMemorialFormulas(c, m){
+/* Fórmulas em notação matemática (MathML — o navegador desenha e sai no PDF), uma por linha, cada uma com a forma
+   simbólica e a substituída, na ordem da planilha do memorial (para dar para conferir linha a linha). */
+function chkMemorialFormulasLista(c, m){
   const K = m.params, L = m.vao, B = K.b1 + K.fren, V0 = CHK_MEMORIAL_VIGA;
   const mr = (...a)=>`<mrow>${a.join("")}</mrow>`;
   const V = (s, i)=> i ? `<msub><mi>${s}</mi><mn>${i}</mn></msub>` : `<mi>${s}</mi>`;
+  const VT = (s, t)=>`<msub><mi>${s}</mi><mi>${t}</mi></msub>`;
   const N = (x, d)=>`<mn>${chkMemFmt(x, d === undefined ? 2 : d)}</mn>`;
   const O = (s)=>`<mo>${s}</mo>`;
   const FR = (a, b)=>`<mfrac>${mr(a)}${mr(b)}</mfrac>`;
@@ -14721,32 +14813,45 @@ function chkMemorialFormulas(c, m){
   const PR = (...a)=> mr(O("("), ...a, O(")"));
   const MM = (...a)=>`<math>${mr(...a)}</math>`;
   const frow = (t, sim, sub)=>`<div class="lcl-fm"><div class="lcl-ft">${t}</div><div class="lcl-fl">${sim}${sub}</div></div>`;
+  const zlq2 = frow("Zona livre de queda — trava-quedas", MM(V("ZLQ", 2), O("="), c.tipo === "rig" ? V("δ") : V("f", 3), O("+"), V("B", 1), O("+"), V("C", 1), O("+"), V("D", 1)), MM(V("ZLQ", 2), O("="), N(c.f3, 3), O("+"), N(B), O("+"), N(K.C1), O("+"), N(K.D1), O("="), N(c.ZLQ2), O("m")));
+  const zlq1 = frow("Zona livre de queda — talabarte", MM(V("ZLQ", 1), O("="), c.tipo === "rig" ? V("δ") : V("f", 3), O("+"), PR(V("a"), O("+"), V("b")), O("+"), V("C", 1), O("+"), V("D", 1)), MM(V("ZLQ", 1), O("="), N(c.f3, 3), O("+"), PR(N(K.a), O("+"), N(K.b)), O("+"), N(K.C1), O("+"), N(K.D1), O("="), N(c.ZLQ1), O("m")));
   if(c.tipo === "rig") return [
     frow("Deflexão da viga", MM(V("δ"), O("="), FR(mr(V("P"), O("·"), SP(V("L"), 3)), mr(N(48, 0), O("·"), V("E"), O("·"), V("I")))), MM(V("δ"), O("="), FR(mr(N(c.PN, 0), O("·"), SP(N(L), 3)), mr(N(48, 0), O("·"), N(V0.E / 1e9, 0), O("·"), N(V0.I * 1e8, 0))), O("="), N(c.d * 1000, 2), O("mm"))),
-    frow("Momento fletor", MM(V("M"), O("="), FR(mr(V("P"), O("·"), V("L")), N(4, 0))), MM(V("M"), O("="), FR(mr(N(c.PN, 0), O("·"), N(L)), N(4, 0)), O("="), N(c.M / 1000, 2), O("kN·m"))),
-    frow("Tensão de flexão", MM(V("σ"), O("="), FR(V("M"), V("W"))), MM(V("σ"), O("="), FR(mr(N(c.M / 1000, 2), O("kN·m")), mr(N(V0.W * 1e6, 1), O("cm³"))), O("="), N(c.sig / 1e6, 1), O("MPa"))),
-    frow("Zona livre de queda — trava-quedas", MM(V("ZLQ", 2), O("="), V("δ"), O("+"), V("B", 1), O("+"), V("C", 1), O("+"), V("D", 1)), MM(V("ZLQ", 2), O("="), N(c.f3, 3), O("+"), N(B), O("+"), N(K.C1), O("+"), N(K.D1), O("="), N(c.ZLQ2), O("m"))),
-    frow("Zona livre de queda — talabarte", MM(V("ZLQ", 1), O("="), V("δ"), O("+"), PR(V("a"), O("+"), V("b")), O("+"), V("C", 1), O("+"), V("D", 1)), MM(V("ZLQ", 1), O("="), N(c.f3, 3), O("+"), PR(N(K.a), O("+"), N(K.b)), O("+"), N(K.C1), O("+"), N(K.D1), O("="), N(c.ZLQ1), O("m"))),
-  ].join("");
-  return [
+    zlq2, zlq1,
+  ];
+  const lista = [
     frow("Flecha inicial", MM(V("f", 1), O("="), FR(V("flecha"), N(100, 0)), O("·"), V("L")), MM(V("f", 1), O("="), FR(N(c.fl, 1), N(100, 0)), O("·"), N(L), O("="), N(c.f1, 3), O("m"))),
     frow("Comprimento do cabo", MM(V("L", 1), O("="), V("L"), O("+"), FR(mr(N(8, 0), SP(V("f", 1), 2)), mr(N(3, 0), O("·"), V("L")))), MM(V("L", 1), O("="), N(L), O("+"), FR(mr(N(8, 0), O("·"), SP(N(c.f1, 3), 2)), mr(N(3, 0), O("·"), N(L))), O("="), N(c.L1, 3), O("m"))),
+    frow("Alongamento do cabo", MM(V("ΔL"), O("="), FR(mr(V("T", 1), O("·"), V("L", 1)), mr(V("E"), O("·"), V("k"), O("·"), SP(V("d"), 2)))), MM(V("ΔL"), O("="), FR(mr(N(c.T1, 0), O("·"), N(c.L1 * 1000, 0)), mr(N(K.Ecabo, 0), O("·"), N(K.kA, 3), O("·"), SP(`<mn>${chkMemDiam(m.diametro)}</mn>`, 2))), O("="), N(c.dL, 1), O("mm"))),
     frow("Flecha dinâmica", MM(V("f", 3), O("="), SQ(SP(PR(FR(mr(V("L", 1), O("+"), V("ΔL")), N(2, 0))), 2), O("−"), SP(PR(FR(V("L"), N(2, 0))), 2))), MM(V("f", 3), O("="), SQ(SP(PR(FR(mr(N(c.L1, 3), O("+"), N(c.dL / 1000, 3)), N(2, 0))), 2), O("−"), SP(PR(FR(N(L), N(2, 0))), 2)), O("="), N(c.f3, 3), O("m"))),
-    frow("Força no cabo", MM(V("T", 1), O("="), FR(V("P"), mr(N(2, 0), O("·"), "<mi>sen</mi>", V("θ")))), MM(V("T", 1), O("="), FR(N(c.P, 0), mr(N(2, 0), O("·"), "<mi>sen</mi>", N(c.th, 1), O("°"))), O("="), N(c.T1, 0), O("kgf"))),
-    frow("Zona livre de queda — trava-quedas", MM(V("ZLQ", 2), O("="), V("f", 3), O("+"), V("B", 1), O("+"), V("C", 1), O("+"), V("D", 1)), MM(V("ZLQ", 2), O("="), N(c.f3, 3), O("+"), N(B), O("+"), N(K.C1), O("+"), N(K.D1), O("="), N(c.ZLQ2), O("m"))),
-    frow("Zona livre de queda — talabarte", MM(V("ZLQ", 1), O("="), V("f", 3), O("+"), PR(V("a"), O("+"), V("b")), O("+"), V("C", 1), O("+"), V("D", 1)), MM(V("ZLQ", 1), O("="), N(c.f3, 3), O("+"), PR(N(K.a), O("+"), N(K.b)), O("+"), N(K.C1), O("+"), N(K.D1), O("="), N(c.ZLQ1), O("m"))),
-    frow("Altura mínima da posição de trabalho", MM(V("Hp", 2), O("="), V("f", 3), O("−"), V("f", 1), O("+"), V("B", 1), O("−"), V("b", 1), O("+"), V("D", 1)), MM(V("Hp", 2), O("="), N(c.f3, 3), O("−"), N(c.f1, 3), O("+"), N(B), O("−"), N(K.b1), O("+"), N(K.D1), O("="), N(c.Hp2), O("m"))),
-  ].join("");
+    frow(`Força no cabo (calculada junto com o alongamento, ${c.voltas} voltas)`, MM(V("T", 1), O("="), FR(V("P"), mr(N(2, 0), O("·"), "<mi>sen</mi>", V("θ")))), MM(V("T", 1), O("="), FR(N(c.P, 0), mr(N(2, 0), O("·"), "<mi>sen</mi>", N(c.th, 1), O("°"))), O("="), N(c.T1, 0), O("kgf"))),
+    frow("Distância de frenagem", MM(V("s"), O("="), V("f", 3), O("−"), V("f", 2)), MM(V("s"), O("="), N(c.f3 * 1000, 1), O("−"), N(c.f2 * 1000, 1), O("="), N(c.fren3 * 1000, 1), O("mm"))),
+    frow(`Utilização e fator de serviço do cabo (Fadm = Frup / FS = ${chkMemFmt(K.Frup, 0)} / ${chkMemFmt(K.FS, 0)} = ${chkMemFmt(c.Fadm, 0)} kgf)`, MM(V("u"), O("="), FR(V("T", 1), VT("F", "adm")), O(";"), VT("FS", "serv"), O("="), FR(VT("F", "rup"), V("T", 1))), MM(V("u"), O("="), FR(N(c.T1, 0), N(c.Fadm, 0)), O("="), N(c.uso * 100, 1), O("%"), O(";"), VT("FS", "serv"), O("="), FR(N(K.Frup, 0), N(c.T1, 0)), O("="), N(c.FSs, 2))),
+  ];
+  if(c.fq !== null && m.hanc && m.hpos){
+    const dh = m.hanc - m.hpos;
+    lista.push(dh > K.C1
+      ? frow("Fator de queda", MM(V("FQ"), O("="), FR(mr(VT("H", "anc"), O("−"), VT("H", "p"), O("−"), V("C", 1)), mr(V("a"), O("+"), V("b")))), MM(V("FQ"), O("="), FR(mr(N(m.hanc), O("−"), N(m.hpos), O("−"), N(K.C1)), mr(N(K.a), O("+"), N(K.b))), O("="), N(c.fq, 2)))
+      : frow("Fator de queda", MM(V("FQ"), O("="), FR(mr(V("C", 1), O("−"), PR(VT("H", "anc"), O("−"), VT("H", "p")), O("+"), PR(V("a"), O("+"), V("b"))), mr(V("a"), O("+"), V("b")))), MM(V("FQ"), O("="), FR(mr(N(K.C1), O("−"), N(dh), O("+"), N(K.a + K.b)), N(K.a + K.b)), O("="), N(c.fq, 2))));
+  }
+  lista.push(zlq2, zlq1);
+  lista.push(frow("Altura mínima da posição de trabalho", MM(V("Hp", 2), O("="), V("f", 3), O("−"), V("f", 1), O("+"), V("B", 1), O("−"), V("b", 1), O("+"), V("D", 1)), MM(V("Hp", 2), O("="), N(c.f3, 3), O("−"), N(c.f1, 3), O("+"), N(B), O("−"), N(K.b1), O("+"), N(K.D1), O("="), N(c.Hp2), O("m"))));
+  return lista;
+}
+function chkMemorialFormulas(c, m){
+  return chkMemorialFormulasLista(c, m).join("");
 }
 /* Tabelas de entrada e de resultado (página da memória de cálculo). */
 function chkMemorialTabelas(c, m){
   const rig = c.tipo === "rig", K = m.params, f = chkMemFmt, V = CHK_MEMORIAL_VIGA;
   const e = rig
-    ? [["Peso do usuário", f(K.peso, 0), "kg"], ["Vão entre apoios (L)", f(m.vao), "m"], ["Altura da ancoragem", f(m.hanc), "m"], ["Altura da posição de trabalho", f(m.hpos), "m"], ["Perfil da viga", V.perfil, "-"], ["Módulo E", f(V.E / 1e9, 0), "GPa"], ["Inércia Ix", f(V.I * 1e8, 0), "cm⁴"], ["Módulo Wx", f(V.W * 1e6, 1), "cm³"], ["Tensão fy", f(V.fy / 1e6, 0), "MPa"], ["Talabarte (a)", f(K.a, 1), "m"], ["Absorvedor (b)", f(K.b, 1), "m"], ["Trava-quedas em trabalho (b1)", f(K.b1, 1), "m"], ["Trava-quedas frenagem", f(K.fren, 1), "m"]]
-    : [["Peso do corpo", f(K.peso, 0), "kg"], ["Vão entre apoios (L)", f(m.vao), "m"], ["Flecha", f(c.fl, 1), "%"], ["Altura da ancoragem", f(m.hanc), "m"], ["Altura da posição de trabalho", f(m.hpos), "m"], ["Diâmetro do cabo", f(m.diametro, 0), "mm"], ["Força de ruptura", f(K.Frup, 0), "kgf"], ["Fator de segurança", f(K.FS, 0), "-"], ["Talabarte (a)", f(K.a, 1), "m"], ["Absorvedor (b)", f(K.b, 1), "m"], ["Trava-quedas em trabalho (b1)", f(K.b1, 1), "m"], ["Trava-quedas frenagem", f(K.fren, 1), "m"]];
+    ? [["Peso do usuário", f(K.peso, 0), "kg"], ["Vão entre apoios (L)", f(m.vao), "m"], ["Altura da ancoragem", f(m.hanc), "m"], ["Altura da posição de trabalho", f(m.hpos), "m"], ["Perfil da viga", V.perfil, "-"], ["Módulo E", f(V.E / 1e9, 0), "GPa"], ["Inércia Ix", f(V.I * 1e8, 0), "cm⁴"], ["Talabarte (a)", f(K.a, 1), "m"], ["Absorvedor (b)", f(K.b, 1), "m"], ["Trava-quedas em trabalho (b1)", f(K.b1, 1), "m"], ["Trava-quedas frenagem", f(K.fren, 1), "m"]]
+    : [["Tipo de linha", m.uso === "restricao" ? "Restrição" : "Vida", "-"], ["Peso do corpo", f(K.peso, 0), "kg"], ["Número de usuários", f(m.usuarios, 0), "n"], ["Vão entre apoios (L)", f(m.vao), "m"], ["Flecha", f(c.fl, 1), "%"], ["Altura da ancoragem", f(m.hanc), "m"], ["Altura da posição de trabalho", f(m.hpos), "m"], ["Diâmetro do cabo", chkMemDiam(m.diametro), "mm"], ["Força de ruptura", f(K.Frup, 0), "kgf"], ["Fator de segurança", f(K.FS, 0), "-"], ["Módulo E do cabo", f(K.Ecabo, 0), "kgf/mm²"], ["Fator de área (k)", f(K.kA, 3), "-"], ["Talabarte (a)", f(K.a, 1), "m"], ["Absorvedor (b)", f(K.b, 1), "m"], ["Trava-quedas em trabalho (b1)", f(K.b1, 1), "m"], ["Trava-quedas frenagem", f(K.fren, 1), "m"]];
   const r = rig
-    ? [["Carga dinâmica (P)", f(c.P, 0), "kgf"], ["Deflexão (δ)", f(c.d * 1000, 2), "mm"], ["Momento (M)", f(c.M / 1000, 2), "kN·m"], ["Tensão (σ)", f(c.sig / 1e6, 1), "MPa"], ["Utilização (σ/fy)", f(c.uso * 100, 1), "%"], ["ZLQ talabarte", f(c.ZLQ1), "m"], ["Hp talabarte", f(c.Hp1), "m"], ["ZLQ trava-quedas", f(c.ZLQ2), "m"], ["Hp trava-quedas", f(c.Hp2), "m"]]
-    : [["Comprimento do cabo (L1)", f(c.L1 * 1000, 1), "mm"], ["Alongamento (ΔL)", f(c.dL, 1), "mm"], ["Flecha f1", f(c.f1 * 1000, 1), "mm"], ["Flecha f2", f(c.f2 * 1000, 1), "mm"], ["Flecha f3", f(c.f3 * 1000, 1), "mm"], ["Ângulo do cabo", f(c.ang, 1), "º"], ["Carga (P)", f(c.P, 0), "kgf"], ["<b>Força no cabo (T1)</b>", "<b>" + f(c.T1, 0) + "</b>", "kgf"], ["Admissível (Fadm)", f(c.Fadm, 0), "kgf"], ["ZLQ talabarte", f(c.ZLQ1), "m"], ["Hp talabarte", f(c.Hp1), "m"], ["ZLQ trava-quedas", f(c.ZLQ2), "m"], ["Hp trava-quedas", f(c.Hp2), "m"], ["Utilização", f(c.uso * 100, 1), "%"], ["Fator de serviço", f(c.FSs), "-"]];
+    ? [["Carga dinâmica (P)", f(c.P, 0), "kgf"], ["Deflexão (δ)", f(c.d * 1000, 2), "mm"], ["ZLQ talabarte", f(c.ZLQ1), "m"], ["Hp talabarte", f(c.Hp1), "m"], ["ZLQ trava-quedas", f(c.ZLQ2), "m"], ["Hp trava-quedas", f(c.Hp2), "m"]]
+    : [["Comprimento do cabo (L1)", f(c.L1 * 1000, 1), "mm"], ["Alongamento (ΔL)", f(c.dL, 1), "mm"], ["Flecha f1", f(c.f1 * 1000, 1), "mm"], ["Flecha f2", f(c.f2 * 1000, 1), "mm"], ["Flecha f3", f(c.f3 * 1000, 1), "mm"], ["Ângulo do cabo", f(c.ang, 1), "º"], ["Distância de frenagem", f(c.fren3 * 1000, 1), "mm"], ["Carga (P)", f(c.P, 0), "kgf"], ["<b>Força no cabo (T1)</b>", "<b>" + f(c.T1, 0) + "</b>", "kgf"], ["Admissível (Fadm)", f(c.Fadm, 0), "kgf"], ["Utilização", f(c.uso * 100, 1), "%"], ["Fator de serviço", f(c.FSs), "-"]]
+      .concat(c.fq !== null ? [["Fator de queda", f(c.fq, 2), "-"]] : [])
+      .concat([["ZLQ talabarte", f(c.ZLQ1), "m"], ["Hp talabarte", f(c.Hp1), "m"], ["ZLQ trava-quedas", f(c.ZLQ2), "m"], ["Hp trava-quedas", f(c.Hp2), "m"]]);
   const tb = (t, rows)=>`<table class="lcl-tz"><tr><th colspan="3">${t}</th></tr>${rows.map(x=>`<tr><td>${x[0]}</td><td class="v">${x[1]}</td><td>${x[2]}</td></tr>`).join("")}</table>`;
   return `<div class="lcl-tzg">${tb("DADOS DE ENTRADA", e)}${tb("RESULTADOS", r)}</div>`;
 }
@@ -14772,7 +14877,7 @@ function chkMemorialFigura(tipo, m){
   let c = chkMemorialCalc(tipo, m);
   const completo = !!(c && m.hanc && m.hpos);
   if(!completo){
-    m = Object.assign({}, m, { hanc: m.hanc || 5, hpos: m.hpos || 3, vao: m.vao || 6.7, flechaCm: m.flechaCm || 46.9 });
+    m = Object.assign({}, m, { hanc: m.hanc || 5, hpos: m.hpos || 3, vao: m.vao || 6.7, flechaCm: m.flechaCm || 46.9, diametro: m.diametro || 8 });
     c = chkMemorialCalc(tipo, m);
   }
   const K = m.params, rig = c.tipo === "rig", yT = 30, xL = 84, xR = 290, xc = 187, half = (xR - xL) / 2;
@@ -14811,6 +14916,13 @@ function chkMemorialFigura(tipo, m){
 }
 /* Parte do memorial que muda a cada número digitado no campo: desenho, legenda dos
    números que se medem (10 e 11) e o resultado preliminar. Dados incompletos: só o desenho de exemplo e o que falta. */
+/* Cálculo passo a passo na própria aba do memorial (para conferir sem montar o laudo). */
+function chkMemorialPassoHtml(l){
+  const tipo = chkTipoLinha(l), m = chkMemorialDe(l), c = chkMemorialCalc(tipo, m);
+  if(!c) return `<div class="chk-mem-nota">Preencha as medidas para ver o cálculo passo a passo.</div>`;
+  const tabelas = (m.hanc && m.hpos) ? chkMemorialTabelas(c, m) : "";
+  return `<div class="chk-mem-passo">${chkMemorialFormulas(c, m)}${tabelas}</div>`;
+}
 function chkMemorialVivoHtml(l){
   const tipo = chkTipoLinha(l), m = chkMemorialDe(l), c = chkMemorialCalc(tipo, m), f = chkMemFmt;
   const completo = !!(c && m.hanc && m.hpos);
@@ -14818,36 +14930,57 @@ function chkMemorialVivoHtml(l){
   if(completo){
     const v = chkMemorialVeredito(c, m);
     const chip = (ok, t, sim, nao)=> `<span class="${ok ? "ok" : "no"}">${t}: ${ok ? sim : nao}</span>`;
-    res = `<div class="chk-mem-res">${chip(v.okTq, "Trava-quedas", "pode", "não pode")}${chip(v.okTab, "Talabarte", "pode", "não pode")}${chip(v.okC, c.tipo === "rig" ? "Viga" : "Cabo", "ok", "excede")}${chip(v.okHp, "Posição de trabalho", "ok", "baixa")}</div>
+    res = `<div class="chk-mem-res">${chip(v.okTq, "Trava-quedas", "pode", "não pode")}${chip(v.okTab, "Talabarte", "pode", "não pode")}${c.tipo === "flex" ? chip(v.okC, "Cabo", "ok", "excede") : ""}${chip(v.okHp, "Posição de trabalho", "ok", "baixa")}</div>
       <div class="chk-mem-nota">ZLQ do trava-quedas ${f(c.ZLQ2)} m · ZLQ do talabarte ${f(c.ZLQ1)} m · ancoragem a ${f(m.hanc)} m do piso.</div>`;
   } else {
     const faltas = chkMemorialFaltas(l);
     res = `<div class="chk-mem-nota">${faltas.length ? "Falta medir: " + faltas.join(", ") + "." : ""} O desenho abaixo é só um exemplo de onde medir.</div>`;
   }
+  if(c && c.tipo === "flex"){
+    const mn = chkMemorialDiametroMin(tipo, m);
+    res += `<div class="chk-mem-nota">Esforço no cabo <b>${f(c.T1, 0)} kgf</b> (admissível ${f(c.Fadm, 0)} kgf, utilização ${f(c.uso * 100, 0)}%) · alongamento ${f(c.dL, 1)} mm · flecha dinâmica ${f(c.f3 * 1000, 0)} mm${c.fq !== null ? " · fator de queda " + f(c.fq, 1) : ""}.${mn ? " Menor cabo da tabela que atende: " + mn[1] + " (" + chkMemDiam(mn[0]) + " mm)." : " Nenhum cabo da tabela atende com esta flecha."}</div>`;
+    chkMemorialAlertas(c, m).forEach(a=>{ res += `<div class="chk-mem-nota chk-mem-aviso">${escapeHtml(a)}</div>`; });
+  }
   return `<div class="chk-mem-fig">${chkMemorialFigura(tipo, m)}</div>
     <div class="chk-mem-leg"><i>10</i><span>Altura do ponto de ancoragem ao piso</span><i>11</i><span>Altura da posição de trabalho ao piso</span><i>&harr;</i><span>Vão entre apoios (L)</span></div>${res}`;
+}
+/* Cada número digitado atualiza só o resultado e o passo a passo, sem refazer a tela. */
+function chkMemorialRedesenhar(l){
+  const el = document.getElementById("chkMemVivo");
+  if(el) el.innerHTML = chkMemorialVivoHtml(l);
+  const ps = document.getElementById("chkMemPasso");
+  if(ps) ps.innerHTML = chkMemorialPassoHtml(l);
 }
 /* Aba "Memorial ZLQ" do preenchimento (só linhas horizontais). */
 function chkMemorialCampoHtml(l){
   const tipo = chkTipoLinha(l), flex = tipo === "horizontal_flexivel", ativo = chkMemorialAtivo(l);
   const raw = l.memorial || {}, ov = raw.params || {};
   const val = (v)=> v != null && v !== "" ? escapeHtml(String(v)) : "";
-  const campos = CHK_MEMORIAL_CAMPOS.filter(c=> flex || (c[0] !== "flechaCm" && c[0] !== "diametro")).map(([k, rot, un, num])=>
+  const campos = CHK_MEMORIAL_CAMPOS.filter(c=> c[0] !== "diametro" && (flex || c[0] !== "flechaCm")).map(([k, rot, un, num])=>
     `<label class="chk-mem-campo"><span class="chk-mem-rot">${escapeHtml(rot)}${num ? `<i class="chk-mem-n">${num}</i>` : ""}</span><div class="chk-mem-nf"><input type="number" step="any" inputmode="decimal" id="chkMem-${k}" value="${val(raw[k])}" oninput="App.chkMemorialSet('${k}',this.value)"><span>${escapeHtml(un)}</span></div></label>`).join("");
-  const params = CHK_MEMORIAL_PARAMS_ROT.map(([k, rot, un])=>
-    `<label class="chk-mem-campo">${escapeHtml(rot)}<div class="chk-mem-nf"><input type="number" step="any" inputmode="decimal" placeholder="${CHK_MEMORIAL_PARAMS[k]}" value="${val(ov[k])}" oninput="App.chkMemorialSetParam('${k}',this.value)"><span>${escapeHtml(un)}</span></div></label>`).join("");
+  const diam = chkMemorialNum(raw.diametro);
+  const opcoes = CHK_CABOS.map(r=> `<option value="${r[0]}" ${diam !== null && Math.abs(diam - r[0]) < 0.05 ? "selected" : ""}>${escapeHtml(r[1])} (${chkMemDiam(r[0])} mm)</option>`).join("");
+  const fora = (diam !== null && !CHK_CABOS.some(r=> Math.abs(diam - r[0]) < 0.05)) ? `<option value="${diam}" selected>${chkMemDiam(diam)} mm (fora da tabela)</option>` : "";
+  const selDiam = `<label class="chk-mem-campo"><span class="chk-mem-rot">Diâmetro do cabo (6x19 AF)</span><div class="chk-mem-nf"><select id="chkMem-diametro" onchange="App.chkMemorialSet('diametro',this.value)"><option value="">Escolher</option>${opcoes}${fora}</select></div></label>`;
+  const selUso = `<label class="chk-mem-campo"><span class="chk-mem-rot">Tipo de linha</span><div class="chk-mem-nf"><select id="chkMem-uso" onchange="App.chkMemorialSetUso(this.value)"><option value="vida" ${raw.uso === "restricao" ? "" : "selected"}>Linha de vida (retenção de quedas)</option><option value="restricao" ${raw.uso === "restricao" ? "selected" : ""}>Linha de restrição</option></select></div></label>`;
+  const dflt = chkMemorialDe({ memorial: Object.assign({}, raw, { params: {} }) }).params;
+  const params = CHK_MEMORIAL_PARAMS_ROT.filter(([k])=> flex || (k !== "Frup" && k !== "FS" && k !== "Ecabo" && k !== "kA")).map(([k, rot, un])=>
+    `<label class="chk-mem-campo">${escapeHtml(rot)}<div class="chk-mem-nf"><input type="number" step="any" inputmode="decimal" placeholder="${dflt[k]}" value="${val(ov[k])}" oninput="App.chkMemorialSetParam('${k}',this.value)"><span>${escapeHtml(un)}</span></div></label>`).join("");
   return `
   <div class="chk-secao-head">
     <h2 style="margin:2px 0">Memorial ZLQ</h2>
     <button class="chk-switch ${ativo ? "on" : "off"}" onclick="App.chkMemorialToggle()">${ativo ? "Esta linha não terá memorial" : ic("check") + " Incluir memorial"}</button>
   </div>
-  <div class="chk-mem-nota">Tipo de linha: <b>${escapeHtml(chkRotuloTipoLinha(tipo))}</b> (definido pelo checklist). O cálculo da zona livre de queda sai destas medidas.</div>
+  <div class="chk-mem-nota">Tipo de linha: <b>${escapeHtml(chkRotuloTipoLinha(tipo))}</b> (definido pelo checklist). O cálculo da zona livre de queda${flex ? " e do esforço no cabo" : ""} sai destas medidas.</div>
   ${ativo ? `
   <div id="chkMemVivo">${chkMemorialVivoHtml(l)}</div>
-  <div class="chk-mem-form">${campos}</div>
+  <div class="chk-mem-form">${campos}${flex ? selDiam + selUso : ""}</div>
   <details class="chk-mem-params"><summary>Parâmetros do cálculo (valores padrão da empresa)</summary>
     <div class="chk-mem-form">${params}</div>
     <div class="chk-mem-nota">Campo vazio usa o valor padrão mostrado dentro dele.</div>
+  </details>
+  <details class="chk-mem-params"><summary>Cálculo passo a passo (para conferir)</summary>
+    <div id="chkMemPasso">${chkMemorialPassoHtml(l)}</div>
   </details>` : `<div class="empty" style="padding:24px"><p>Esta linha não terá memorial de cálculo no laudo.</p></div>`}`;
 }
 /* ══════════════════════════════════════════════════════════════════════════════
@@ -15259,16 +15392,22 @@ function lclBlocosMemorial(d, cap){
   const l = d.linha, tipo = chkTipoLinha(l), m = chkMemorialDe(l), c = chkMemorialCalc(tipo, m);
   if(!c) return [];
   const v = chkMemorialVeredito(c, m), f = chkMemFmt, rig = c.tipo === "rig";
-  const sistema = rig ? `rígida (viga ${CHK_MEMORIAL_VIGA.perfil})` : `flexível (cabo de aço de ${f(m.diametro, 0)} mm)`;
-  const intro = `<p class="lcl-par">Verificação da zona livre de queda (ZLQ) da linha de vida horizontal <b>${sistema}</b> ${lclEsc(l.nome || "")}, com vão de ${f(m.vao)} m e ancoragem a ${f(m.hanc)} m do piso, para ${f(m.usuarios, 0)} ${m.usuarios === 1 ? "usuário" : "usuários"}. A ZLQ é a altura livre mínima abaixo da ancoragem para o usuário ser retido antes de atingir o piso ou um obstáculo.</p>`;
+  const sistema = rig ? `rígida (viga ${CHK_MEMORIAL_VIGA.perfil})` : `flexível (cabo de aço de ${chkMemDiam(m.diametro)} mm)`;
+  const nome = !rig && m.uso === "restricao" ? "linha de restrição" : "linha de vida";
+  const intro = `<p class="lcl-par">Verificação da zona livre de queda (ZLQ) da ${nome} horizontal <b>${sistema}</b> ${lclEsc(l.nome || "")}, com vão de ${f(m.vao)} m e ancoragem a ${f(m.hanc)} m do piso, para ${f(m.usuarios, 0)} ${m.usuarios === 1 ? "usuário" : "usuários"}. A ZLQ é a altura livre mínima abaixo da ancoragem para o usuário ser retido antes de atingir o piso ou um obstáculo.</p>`;
   const card = (nome, zlq, ok)=>`<div class="lcl-mcard ${ok ? "ok" : "no"}"><b>${nome}</b><strong>${ok ? "PODE USAR" : "NÃO USAR"}</strong><small>ZLQ necessária ${f(zlq)} m · disponível ${f(m.hanc)} m · ${ok ? "folga" : "falta"} ${f(Math.abs(m.hanc - zlq))} m</small></div>`;
+  const cardCabo = rig ? "" : `<div class="lcl-mcard ${v.okC ? "ok" : "no"}"><b>Cabo de aço ${chkMemDiam(m.diametro)} mm</b><strong>${v.okC ? "ATENDE" : "NÃO ATENDE"}</strong><small>Esforço ${f(c.T1, 0)} kgf · admissível ${f(c.Fadm, 0)} kgf · utilização ${f(c.uso * 100, 0)}%</small></div>`;
   const blocos = [
-    { quebrarAntes:true, ancora:cap.ancora, html:`${lclFaixa(`${cap.num}  ${cap.rot}`, true)}${intro}<div class="lcl-mcards">${card("Talabarte com absorvedor", c.ZLQ1, v.okTab)}${card("Trava-quedas retrátil", c.ZLQ2, v.okTq)}</div><div class="lcl-mfig">${chkMemorialFigura(tipo, m)}</div>` },
+    { quebrarAntes:true, ancora:cap.ancora, html:`${lclFaixa(`${cap.num}  ${cap.rot}`, true)}${intro}<div class="lcl-mcards"${rig ? "" : ' style="grid-template-columns:1fr 1fr 1fr"'}>${card("Talabarte com absorvedor", c.ZLQ1, v.okTab)}${card("Trava-quedas retrátil", c.ZLQ2, v.okTq)}${cardCabo}</div><div class="lcl-mfig">${chkMemorialFigura(tipo, m)}</div>` },
     { html:`<div class="lcl-mcols"><div><h5>Legenda</h5><div class="lcl-mleg">${chkMemorialLegenda(c, m).map((x, i)=>`<i>${i + 1}</i><span>${x}</span>`).join("")}</div></div><div><h5>Condições de uso</h5><ul>${chkMemorialCondicoes(c, m).map(x=>`<li>${x}</li>`).join("")}</ul></div></div>` },
-    { html:`<div class="lcl-mcols"><div><h5>Premissas</h5><ul>${chkMemorialPremissas(c, m).map(x=>`<li>${x}</li>`).join("")}</ul></div><div class="lcl-mparecer"><b>Parecer.</b> ${chkMemorialParecer(c, m)}</div></div>` },
+    { html:`<div class="lcl-mcols" style="grid-template-columns:1.8fr 1fr"><div><h5>Premissas</h5><ul>${chkMemorialPremissas(c, m).map(x=>`<li>${x}</li>`).join("")}</ul></div><div class="lcl-mparecer"><b>Parecer.</b> ${chkMemorialParecer(c, m)}</div></div>` },
   ];
   if(m.memoria){
-    blocos.push({ quebrarAntes:true, ancora:"cap-memoria", html:`${lclFaixa(`${cap.num}.1  Memória de cálculo`, true)}<div>${chkMemorialFormulas(c, m)}</div>` });
+    chkMemorialFormulasLista(c, m).forEach((fx, i)=>{
+      blocos.push(i === 0
+        ? { quebrarAntes:true, ancora:"cap-memoria", html:`${lclFaixa(`${cap.num}.1  Memória de cálculo`, true)}<div>${fx}</div>` }
+        : { html:`<div>${fx}</div>` });
+    });
     blocos.push({ html:`<div style="margin-top:10px">${chkMemorialTabelas(c, m)}</div>` });
   }
   return blocos;
@@ -15750,14 +15889,14 @@ a.lcl-sl:hover i{border-bottom-color:#E94E1B}
 .lcl-mleg{display:grid;grid-template-columns:20px 1fr;gap:4px 7px;align-items:center}
 .lcl-mleg i{width:18px;height:18px;border-radius:50%;background:#E94E1B;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-style:normal;font-weight:700;font-size:10px}
 .lcl-mparecer{padding:8px 10px;border-left:4px solid #1E2148;background:#eef0f6;align-self:start;font-size:11.5px}
-.lcl-fm{display:grid;gap:2px;padding:6px 0;border-bottom:1px solid #eceef4}
+.lcl-fm{display:grid;gap:2px;padding:3px 0;border-bottom:1px solid #eceef4}
 .lcl-ft{font-weight:700;color:#1E2148;font-size:12px}
 .lcl-fl{display:flex;gap:22px;align-items:center;flex-wrap:wrap}
 .lcl-fl math{font-size:15px}
 .lcl-tzg{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
 .lcl-tz{width:100%;border-collapse:collapse;font-size:11px}
 .lcl-tz th{background:#1E2148;color:#fff;text-align:left;padding:4px 7px}
-.lcl-tz td{padding:3px 7px;border-bottom:1px solid #d9dce6}
+.lcl-tz td{padding:2px 7px;border-bottom:1px solid #d9dce6}
 .lcl-tz td.v{text-align:right;white-space:nowrap}
 .lcl-anexo{text-align:center}
 .lcl-anexo img{max-width:100%;max-height:${LCL_MAX_A - 90}px;object-fit:contain}
@@ -29129,8 +29268,16 @@ Devolver agora?`)) return;
     l.memorial[k] = n === null ? null : n;
     l.atualizadoEm = agoraSync();
     marcarAlterado();
-    const el = document.getElementById("chkMemVivo");
-    if(el) el.innerHTML = chkMemorialVivoHtml(l);
+    // o diametro muda os valores padrao mostrados nos parametros (ruptura): redesenha a aba toda
+    if(k === "diametro") render(); else chkMemorialRedesenhar(l);
+  },
+  chkMemorialSetUso(v){
+    const l = getCurrentChkLinha(); if(!l) return;
+    if(!l.memorial || typeof l.memorial !== "object") l.memorial = {};
+    l.memorial.uso = v === "restricao" ? "restricao" : "vida";
+    l.atualizadoEm = agoraSync();
+    marcarAlterado();
+    render(); // vida e restricao mudam o fator de seguranca padrao
   },
   chkMemorialSetParam(k, v){
     const l = getCurrentChkLinha(); if(!l) return;
@@ -29141,8 +29288,7 @@ Devolver agora?`)) return;
     if(n === null) delete l.memorial.params[k]; else l.memorial.params[k] = n;
     l.atualizadoEm = agoraSync();
     marcarAlterado();
-    const el = document.getElementById("chkMemVivo");
-    if(el) el.innerHTML = chkMemorialVivoHtml(l);
+    chkMemorialRedesenhar(l);
   },
   // Interruptor único do capítulo (o mesmo do laudo). Desligar não apaga as medidas.
   chkMemorialToggle(){

@@ -5579,5 +5579,20 @@ chk("a data da capa sai em DD/MM/AAAA (lclDataBR), nao por extenso",
 chk("o capitulo do corpo do laudo se chama Avaliacao por Componente (rotulo e botao); o id interno continua 'corpo'",
     '{ id:"corpo",       rot:"Avaliação por Componente", curto:"Avaliação por Componente" }' in novo)
 
+print("=== 179. MEMORIAL DO CABO IGUAL AO DA PLANILHA E VIGA RIGIDA SEM RESISTENCIA (05/10/2026) ===")
+_mc = novo.index("function chkMemorialCalc(")
+_mc_corpo = novo[_mc:novo.index("function chkMemorialDiametroMin(", _mc)]
+chk("o alongamento do cabo nao e mais a constante fixa 0,6129% (ele vem do esforco, do comprimento e de E e k, por iteracao)",
+    "0.006129" not in novo and "dL = T * L1 * 1000 / EA;" in _mc_corpo and "for(let i = 1; i <= 2000; i++)" in _mc_corpo and "K.Ecabo * K.kA * d * d" in _mc_corpo)
+chk("a carga do cabo segue a planilha: linha de vida 600 kgf + peso de cada usuario alem do primeiro; restricao, peso de cada usuario",
+    'm.uso === "restricao" ? K.peso * n : 600 + (n - 1) * K.peso' in _mc_corpo)
+chk("o diametro do cabo e obrigatorio (sem padrao escondido de 8 mm) e a ruptura vem da tabela de cabos (CHK_CABOS) pelo diametro",
+    'if(tipo === "horizontal_flexivel" && !m.diametro) f.push("diâmetro do cabo");' in novo and "const CHK_CABOS = [" in novo and "function chkCaboRuptura(" in novo and "usuarios: chkMemorialNum(m.usuarios) || 1, uso, frupNota" in novo and "diametro: chkMemorialNum(m.diametro) || 8" not in novo)
+_rig = _mc_corpo[_mc_corpo.index('if(tipo === "horizontal_rigida")'):_mc_corpo.index("if(!m.flechaCm || !m.diametro) return null;")]
+chk("a viga rigida nao tem verificacao de resistencia (so a deflexao entra, por causa da zona livre de queda)",
+    "sig" not in _rig and "M =" not in _rig and "W:" not in novo[novo.index("const CHK_MEMORIAL_VIGA"):novo.index("const CHK_MEMORIAL_VIGA") + 140] and "Tensão de flexão" not in novo and "Momento fletor" not in novo)
+chk("a aba do memorial tem o tipo de linha (vida/restricao), a lista de diametros e o calculo passo a passo para conferir",
+    "App.chkMemorialSetUso(" in novo and 'id="chkMem-diametro"' in novo and 'id="chkMemPasso"' in novo and "function chkMemorialPassoHtml(" in novo)
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

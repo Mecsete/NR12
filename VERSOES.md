@@ -64,6 +64,26 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 05/10/2026 06:00
+
+**Memorial de cálculo: o cabo de aço agora é calculado como na sua planilha, e a linha rígida não tem mais verificação de resistência.**
+
+Linha flexível (cabo de aço):
+
+- **Esforço e alongamento de verdade.** Antes o alongamento era um valor fixo (0,6129% do comprimento do cabo), que só valia para o caso de cabo de 8 mm e 1 pessoa. Agora o alongamento do cabo (ΔL = T · L1 / (E · k · d²)) e o esforço no cabo (T = P · (L1 + ΔL) / (4 · f3)) são calculados juntos, repetindo até estabilizar. Na planilha você digitava o valor da célula “Força cabo – Iteração” até o resíduo zerar; no app isso é automático.
+- **Dados novos na aba Memorial ZLQ:** **diâmetro do cabo** (lista de 1/8” a 2”, e a força de ruptura vem da tabela “Base cabos” da planilha), **tipo de linha** (linha de vida ou linha de restrição) e o **número de usuários**, que agora entra na carga: linha de vida = 600 kgf + o peso de cada usuário além do primeiro; restrição = o peso de cada usuário. O fator de segurança padrão é 2 (vida) ou 3 (restrição).
+- **Diâmetro é obrigatório.** Antes o app assumia 8 mm sem avisar. Sem o diâmetro, a aba fica como “parcial” e o memorial do cabo não entra no laudo. Linhas já preenchidas precisam ter o diâmetro escolhido uma vez.
+- **Conferir e alterar fácil.** Na própria aba há o bloco **“Cálculo passo a passo (para conferir)”**, na mesma ordem da planilha (f1, L1, ΔL, f3, T1, frenagem, utilização e fator de serviço, fator de queda, ZLQ, Hp), com a fórmula e os números colocados; ele se atualiza a cada número digitado. Em “Parâmetros do cálculo” entram também o módulo de elasticidade do cabo (E = 9500 kgf/mm²) e o fator de área (k = 0,416), com os valores da planilha como padrão.
+- **Resultado na tela:** esforço no cabo, admissível, utilização, alongamento, flecha dinâmica, fator de queda e o **menor cabo da tabela que atende**. Avisos (não bloqueiam): flecha abaixo de 3% em linha de vida ou acima de 1% em linha de restrição, e cálculo que não estabiliza.
+- **No laudo (capítulo 4):** terceiro cartão “Cabo de aço — ATENDE / NÃO ATENDE”, condições de uso com a verificação do cabo e o fator de queda calculado (antes era sempre 0,2), premissas com a origem da ruptura e a carga de cálculo, e a memória de cálculo com todas as linhas da planilha. O capítulo continua em 2 páginas.
+- **Conferência com a planilha:** reproduzi o seu exemplo (vão 6,7 m, flecha 7%, 8 mm, 1 pessoa: esforço 1.549,96 kgf, flecha dinâmica 660,9 mm, ZLQ 5,56 m e 4,66 m) e o da aba oculta “Original” (2 usuários, 12,7 mm, vão 20,5 m: esforço 2.961,6 kgf, igual ao 2961,5 que você iterou à mão). Esses números viram teste automático.
+
+Linha rígida:
+
+- O memorial **não calcula mais momento, tensão nem utilização da viga**. Fica só a deflexão (ela entra na zona livre de queda), as ZLQ e as alturas mínimas.
+
+Não mudei (depende de decisão sua): a fórmula de ZLQ2/Hp2 do trava-quedas continua como estava no app; a ruptura do cabo usa a tabela como está na planilha (IPS onde existe, senão EIPS); só um vão por linha.
+
 ## 03/10/2026 23:00
 
 **Laudo da linha: capa mais equilibrada, data da capa em DD/MM/AAAA e o capítulo “Corpo do laudo” agora se chama “Avaliação por Componente”.**
