@@ -64,6 +64,28 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 05/10/2026 11:10
+
+**Checklist: modelos, projetos, linhas de vida e fotos agora sincronizam entre os aparelhos; cabos todos IPS; memorial de linha com vários vãos.**
+
+Sincronização do Checklist (OneDrive):
+
+- **Modelo de checklist** criado ou alterado num aparelho aparece nos outros, no mesmo modelo (não duplica). Vale também para o modelo pronto “Linhas de Vida (NR-35)”.
+- **Projetos, setores e linhas de vida** criados em qualquer aparelho chegam nos outros, com todas as respostas, notas, fotos, memorial e textos do laudo. Cada linha de vida é um arquivo próprio: duas pessoas trabalhando em linhas diferentes do mesmo projeto não se atrapalham, e um setor novo de cada lado também se encontra sem briga.
+- **Inspetores** cadastrados (e ativados/desativados) também viajam: o que for cadastrado em cada aparelho aparece nos dois.
+- **Fotos** vão à parte, uma por arquivo: a mesma foto sobe uma vez só, e editar um texto não reenvia megabytes. Se a foto de uma linha ainda não chegou na nuvem, a linha espera por ela em vez de chegar com imagem quebrada.
+- **Se os dois aparelhos mexeram na mesma coisa:** vale o mais recente e **a outra versão não se perde**: vira uma cópia chamada “… (versão de dd/mm hh:mm)” (modelos e linhas). Se a mesma alteração foi feita nos dois lados, não cria cópia.
+- **O que você digita durante a sincronização nunca é sobrescrito**: se a linha mudou no meio do caminho, o app espera a próxima rodada e resolve como alteração dos dois lados.
+- **Excluir** modelo, projeto, setor ou linha também vale nos outros aparelhos (a nuvem acompanha). Se outro aparelho tem uma alteração ainda não enviada dentro do que foi excluído, ele **mantém** o que tem e o item volta para a nuvem. A falta de um arquivo na nuvem nunca apaga nada no aparelho.
+- **Quando sincroniza:** junto com a sincronização automática (a cada poucos minutos, com o OneDrive conectado) e no botão “Sincronizar agora”, que passa a mostrar quantos itens do Checklist chegaram. O histórico de sincronização lista cada arquivo do Checklist enviado ou recebido. A pasta na nuvem é `Backup/Checklist`.
+- **Primeira vez:** o que já existe em cada aparelho sobe e se reúne. O modelo pronto que nunca foi editado não briga com um modelo editado em outro aparelho (adota o editado). Se o mesmo modelo pronto foi editado nos dois, ficam as duas versões.
+- Não mexe nos módulos Completo e Simplificado (a sincronização deles continua como estava).
+
+Memorial de cálculo do cabo:
+
+- **Tabela de cabos: todos IPS.** A planilha só traz a IPS em parte dos diâmetros; onde ela traz só a EIPS (3/8”, 7/16”, 1/2”, 9/16”, 5/8”, 3/4”, 1 1/8”, 1 3/8”, 1 3/4” e 2”), a IPS foi **estimada** pela EIPS dividida por 1,11, arredondada para baixo em 0,05 tf (lado seguro). Esses valores estão marcados como estimados no laudo (“IPS estimada pela EIPS da tabela ÷ 1,11, confirmar no catálogo”) e devem ser conferidos no catálogo do fabricante; a ruptura de uma linha pode ser trocada em “Parâmetros do cálculo”. Ex.: o cabo de 1/2” passa de 10,8 tf para 9,7 tf.
+- **Linha com vários vãos.** Novo campo “Comprimento total da linha (se tiver mais de um vão)”, como na planilha: o cabo é contínuo e livre nos apoios intermediários, então a folga de todos os vãos se concentra no vão carregado (comprimento do cabo na linha toda, cabo disponível no vão carregado J = L1 − C + L). Sem preencher, vale um vão. A tela, o passo a passo, as tabelas, as premissas e o laudo mostram o número de vãos; comprimento menor que o vão avisa e usa o vão.
+
 ## 05/10/2026 10:52
 
 **Corrige as fotos que não apareciam no outro aparelho depois de renomear um equipamento ou área, e simplifica a exclusão (uma pergunta só, que já apaga também no OneDrive e nos outros aparelhos).**

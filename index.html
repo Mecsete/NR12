@@ -3374,7 +3374,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "05/10/2026 10:52";
+const APP_BUILD = "05/10/2026 11:10";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -5018,6 +5018,10 @@ async function sincronizarIncrementalOneDrive(onProgresso){
     // Equipe (inspetores e dados da MecSete) — mesmo tamanho e mesmo ritmo.
     const equipe = await onedriveSincronizarEquipe(!!onProgresso);
     if((cfgIA && cfgIA.recebeu) || (equipe && equipe.recebeu)) renderAdiavelSeDigitando();
+    // Checklist (modelos, projetos, linhas, inspetores e fotos): rodada própria; um problema nela nunca derruba as demais.
+    let chkSyncRes = null;
+    try{ chkSyncRes = await onedriveSincronizarChecklist(!!onProgresso); }catch(e){ chkSyncRes = null; }
+    if(chkSyncRes && chkSyncRes.mudou) renderAdiavelSeDigitando();
     STATE.ultimaSincronizacaoOneDriveEm = Date.now();
     await dbSet(STATE); // grava logo o que já foi enviado, sem esperar a próxima edição pra isso ser lembrado
     // O lote inteiro terminou e já está gravado no STATE de verdade — os
@@ -9014,6 +9018,12 @@ async function onedriveSincronizarAgora(){
     if(cfgIAManual && cfgIAManual.recebeu) toast("Configurações de IA recebidas de outro aparelho");
     const equipeManual = await onedriveSincronizarEquipe(true);
     if(equipeManual && equipeManual.recebeu) toast("Lista de inspetores atualizada por outro aparelho");
+    const chkManual = await onedriveSincronizarChecklist(true);
+    if(chkManual && chkManual.mudou){
+      renderAdiavelSeDigitando();
+      toast("Checklist: " + (chkManual.baixou ? chkManual.baixou + " item(ns) recebido(s) de outro aparelho" : "alterações aplicadas") + (chkManual.conflitos ? " — " + chkManual.conflitos + " com alteração dos dois lados (a outra versão ficou como cópia)" : "") + ".");
+    }
+    if(chkManual && (chkManual.erro || chkManual.falhas)) toast("Checklist: " + (chkManual.falhas ? chkManual.falhas + " item(ns) não puderam ser sincronizados agora (veja o histórico)" : "não foi possível sincronizar agora") + ".", false);
     /* Antes da autocura (onedriveReconciliarComArvore) logo abaixo: é ela que
        decide o que "faltou na nuvem" e precisa voltar. Se as exclusões ainda
        não tiverem chegado, ela reenviaria o que foi apagado de propósito. */
@@ -10036,6 +10046,7 @@ function chkGarantirNamespace(estado){
   if(!estado.checklists || typeof estado.checklists !== "object") estado.checklists = { modelos:[], projetos:[] };
   if(!Array.isArray(estado.checklists.modelos)) estado.checklists.modelos = [];
   if(!Array.isArray(estado.checklists.projetos)) estado.checklists.projetos = [];
+  chkSyncGarantir(estado);
   if(Array.isArray(estado.checklists.execucoes) && estado.checklists.execucoes.length){
     const projetoMigrado = {
       id: uid(), empresa: "Dados migrados", responsavel: "", data: hoje(),
@@ -10071,7 +10082,15 @@ function chkGarantirNamespace(estado){
      getUsuariosInspetores/INSPETORES_PADRAO). */
   if(!estado.ui.chkModeloPadraoAplicado){
     const jaTem = estado.checklists.modelos.some(m=>m.id===CHK_MODELO_PADRAO_ID);
-    if(!jaTem) estado.checklists.modelos.push(chkModeloPadraoLinhasDeVida());
+    if(!jaTem){
+      // semente: enquanto ninguém editar, a sincronização trata este modelo como "carimbo zero" e nunca o deixa vencer um modelo editado em outro aparelho
+      const pronto = chkModeloPadraoLinhasDeVida();
+      pronto.atualizadoEm = agoraSync(); // carimbo que só anda para frente: qualquer edição depois dele é estritamente maior
+      pronto.semente = true;
+      pronto.sementeEm = pronto.atualizadoEm;
+      estado.checklists.modelos.push(pronto);
+      estado.ui.chkModeloPadraoTextoAplicado = true; // o modelo recém-criado já nasce com o texto padrão: o upgrade abaixo não tem o que fazer (e não pode carimbá-lo como editado)
+    }
     estado.ui.chkModeloPadraoAplicado = true;
   }
   /* Upgrade do texto padrão no modelo pronto — só entra em aparelhos que
@@ -14642,7 +14661,7 @@ function chkOpcoesInspetor(proj, registro){
   else if(!atual && String(proj.inspetorNome || "").trim()) ops.push({ valor:"__texto", rotulo: String(proj.inspetorNome).trim() + " (não cadastrado)" });
   return ops;
 }
-function novoChkInspetor(){ return { id:uid(), nome:"", cargo:"", ativo:true, criadoEm:Date.now() }; }
+function novoChkInspetor(){ return { id:uid(), nome:"", cargo:"", ativo:true, criadoEm:Date.now(), atualizadoEm:agoraSync() }; }
 /* Lista de inspetores da janela de cadastro. */
 function chkInspetoresHtml(){
   const lista = (STATE.checklists && STATE.checklists.inspetores) || [];
@@ -14704,19 +14723,22 @@ const CHK_MEMORIAL_PARAMS_ROT = [
 const CHK_MEMORIAL_VIGA = { perfil:"W200x26,6", aco:"ASTM A572 Gr 50", E:200e9, I:2611e-8 };
 /* Limites de flecha do cabo (planilha do memorial): linha de vida no mínimo 3%, linha de restrição no máximo 1%. */
 const CHK_MEMORIAL_LIMITES = { flechaMinVida:3, flechaMaxRestricao:1 };
-/* Cabos de aço 6x19 AF alma de fibra (aba Base cabos da planilha do memorial): [diâmetro mm, polegada, massa kg/m,
-   ruptura IPS tf, ruptura EIPS tf]. A ruptura usada é a IPS e, onde a tabela não tem IPS, a EIPS (como na planilha). */
+/* Cabos de aço 6x19 AF alma de fibra, todos considerados IPS (decisão do engenheiro). Vem da aba Base cabos da
+   planilha do memorial: [diâmetro mm, polegada, massa kg/m, ruptura IPS em tf, estimada]. Onde a planilha não traz a IPS
+   (só traz a EIPS), a IPS foi estimada pela EIPS dividida por 1,11 e arredondada para baixo em 0,05 tf (a EIPS da planilha
+   é 9% a 11% maior que a IPS nos diâmetros que têm as duas) — "estimada: true". Confira no catálogo do fabricante. */
 const CHK_CABOS = [
-  [3.2, "1/8”", 0.036, 0.61, null], [4.8, "3/16”", 0.082, 1.37, null], [6.4, "1/4”", 0.142, 2.5, 2.73], [8, "5/16”", 0.23, 3.9, 4.3],
-  [9.52, "3/8”", 0.343, null, 6.1], [11.1, "7/16”", 0.479, null, 8.3], [12.7, "1/2”", 0.608, null, 10.8], [14.3, "9/16”", 0.775, null, 13.6],
-  [15.88, "5/8”", 0.933, null, 16.8], [19, "3/4”", 1.298, null, 24], [22, "7/8”", 1.805, 29.5, 32.6], [25.4, "1”", 2.442, 38.5, 42.6],
-  [29, "1 1/8”", 3.055, null, 53.9], [32, "1 1/4”", 3.733, 60.1, 66.5], [35, "1 3/8”", 4.529, null, 80.5], [38, "1 1/2”", 5.328, 86.5, 95.8],
-  [45, "1 3/4”", 8.368, null, 130.4], [52, "2”", 9.74, null, 170.3],
+  [3.2, "1/8”", 0.036, 0.61, false], [4.8, "3/16”", 0.082, 1.37, false], [6.4, "1/4”", 0.142, 2.5, false], [8, "5/16”", 0.23, 3.9, false],
+  [9.52, "3/8”", 0.343, 5.45, true], [11.1, "7/16”", 0.479, 7.45, true], [12.7, "1/2”", 0.608, 9.7, true], [14.3, "9/16”", 0.775, 12.25, true],
+  [15.88, "5/8”", 0.933, 15.1, true], [19, "3/4”", 1.298, 21.6, true], [22, "7/8”", 1.805, 29.5, false], [25.4, "1”", 2.442, 38.5, false],
+  [29, "1 1/8”", 3.055, 48.55, true], [32, "1 1/4”", 3.733, 60.1, false], [35, "1 3/8”", 4.529, 72.5, true], [38, "1 1/2”", 5.328, 86.5, false],
+  [45, "1 3/4”", 8.368, 117.45, true], [52, "2”", 9.74, 153.4, true],
 ];
 const CHK_MEMORIAL_CAMPOS = [
   ["hanc", "Altura do ponto de ancoragem ao piso", "m", "10"],
   ["hpos", "Altura da posição de trabalho ao piso", "m", "11"],
   ["vao", "Vão entre apoios", "m", ""],
+  ["comprimento", "Comprimento total da linha (se tiver mais de um vão)", "m", ""],
   ["flechaCm", "Flecha medida no meio do vão", "cm", ""],
   ["diametro", "Diâmetro do cabo", "mm", ""],
   ["usuarios", "Número máximo de usuários simultâneos", "", ""],
@@ -14734,8 +14756,7 @@ function chkCaboRuptura(d){
   const exato = !!r;
   if(!r){ CHK_CABOS.forEach(c=>{ if(c[0] <= x) r = c; }); }
   if(!r) return null;
-  const ips = r[3] !== null;
-  return { Frup: Math.round((ips ? r[3] : r[4]) * 1000), grau: ips ? "IPS" : "EIPS", dTab: r[0], pol: r[1], exato };
+  return { Frup: Math.round(r[3] * 1000), grau: "IPS", est: r[4], dTab: r[0], pol: r[1], exato };
 }
 function chkMemDiam(x){
   return String(Math.round(Number(x) * 100) / 100).replace(".", ",");
@@ -14751,9 +14772,10 @@ function chkMemorialDe(linha){
   if(cab) params.Frup = cab.Frup;
   Object.keys(CHK_MEMORIAL_PARAMS).forEach(k=>{ const v = chkMemorialNum(ov[k]); if(v !== null) params[k] = v; });
   const frupInformada = chkMemorialNum(ov.Frup) !== null;
-  const frupNota = frupInformada ? " (valor informado)" : (cab ? ` (tabela do fabricante, ${cab.grau}${cab.exato ? "" : ", diâmetro de " + chkMemDiam(cab.dTab) + " mm"})` : "");
+  const frupNota = frupInformada ? " (valor informado)" : (cab ? ` (${cab.est ? "IPS estimada pela EIPS da tabela ÷ 1,11, confirmar no catálogo" : "IPS da tabela do fabricante"}${cab.exato ? "" : "; diâmetro de " + chkMemDiam(cab.dTab) + " mm"})` : "");
   return {
-    hanc: chkMemorialNum(m.hanc), hpos: chkMemorialNum(m.hpos), vao: chkMemorialNum(m.vao),
+    hanc: chkMemorialNum(m.hanc), hpos: chkMemorialNum(m.hpos), vao: chkMemorialNum(m.vao), comprimentoInformado: chkMemorialNum(m.comprimento),
+    comprimento: chkMemorialNum(m.comprimento) && chkMemorialNum(m.vao) && chkMemorialNum(m.comprimento) >= chkMemorialNum(m.vao) ? chkMemorialNum(m.comprimento) : chkMemorialNum(m.vao),
     flechaCm: chkMemorialNum(m.flechaCm), diametro, usuarios: chkMemorialNum(m.usuarios) || 1, uso, frupNota,
     epi: m.epi === "tab" ? "tab" : "tq", memoria: m.memoria !== false, params,
   };
@@ -14809,14 +14831,17 @@ function chkMemorialCalc(tipo, m){
   if(!m.flechaCm || !m.diametro) return null;
   const n = m.usuarios, d = m.diametro, EA = K.Ecabo * K.kA * d * d;
   const P = m.uso === "restricao" ? K.peso * n : 600 + (n - 1) * K.peso;
-  const fl = m.flechaCm / L, f1 = m.flechaCm / 100, L1 = L + 8 * f1 * f1 / (3 * L);
-  const f2 = Math.sqrt(Math.pow(L1 / 2, 2) - Math.pow(L / 2, 2));
+  const fl = m.flechaCm / L, f1 = m.flechaCm / 100, Ls = L + 8 * f1 * f1 / (3 * L);
+  // Mais de um vão (planilha): o cabo é contínuo e livre nos apoios intermediários, então a folga de todos os vãos
+  // se concentra no vão carregado. L1 = comprimento do cabo na linha toda; J = cabo disponível no vão carregado.
+  const Lt = m.comprimento, nv = Lt / L, L1 = Ls * nv, J = L1 - Lt + L;
+  const f2 = Math.sqrt(Math.pow(J / 2, 2) - Math.pow(L / 2, 2));
   let T = 0, dL = 0, f3 = f2, voltas = 0, conv = false;
   for(let i = 1; i <= 2000; i++){
     voltas = i;
     dL = T * L1 * 1000 / EA;
-    f3 = Math.sqrt(Math.pow((L1 + dL / 1000) / 2, 2) - Math.pow(L / 2, 2));
-    const Tn = P * (L1 + dL / 1000) / (4 * f3);
+    f3 = Math.sqrt(Math.pow((J + dL / 1000) / 2, 2) - Math.pow(L / 2, 2));
+    const Tn = P * (J + dL / 1000) / (4 * f3);
     if(!isFinite(Tn)) break;
     const dif = Math.abs(Tn - T);
     T = Tn;
@@ -14825,7 +14850,7 @@ function chkMemorialCalc(tipo, m){
   const th = Math.atan(f3 / (L / 2)), Fadm = K.Frup / K.FS;
   const dh = (m.hanc && m.hpos) ? m.hanc - m.hpos : null, ab = K.a + K.b;
   const fq = dh === null ? null : (dh > K.C1 ? (dh - K.C1) / ab : (K.C1 - dh + ab) / ab);
-  return { tipo:"flex", fl, f1, L1, f2, dL, f3, th: th * 180 / Math.PI, ang: 180 - 2 * th * 180 / Math.PI, P, T1: T, Fadm, uso: T / Fadm, FSs: K.Frup / T, B1,
+  return { tipo:"flex", fl, f1, Ls, L1, J, Lt, nv, f2, dL, f3, th: th * 180 / Math.PI, ang: 180 - 2 * th * 180 / Math.PI, P, T1: T, Fadm, uso: T / Fadm, FSs: K.Frup / T, B1,
     fren3: f3 - f2, fq, voltas, conv,
     ZLQ1: f3 + K.a + K.b + K.C1 + K.D1, Hp1: f3 - f1 + K.b + K.D1, ZLQ2: f3 + B1 + K.C1 + K.D1, Hp2: f3 - f1 + B1 - K.b1 + K.D1 };
 }
@@ -14849,6 +14874,7 @@ function chkMemorialAlertas(c, m){
   } else if(c.fl < L.flechaMinVida){
     a.push(`Flecha inicial de ${f(c.fl, 1)}% abaixo do mínimo de ${L.flechaMinVida}% para linha de vida.`);
   }
+  if(m.comprimentoInformado && m.comprimentoInformado < m.vao) a.push(`Comprimento da linha (${f(m.comprimentoInformado)} m) menor que o vão (${f(m.vao)} m): foi usado o vão.`);
   if(!c.conv) a.push("O cálculo do esforço no cabo não estabilizou: confira a flecha e o diâmetro informados.");
   return a;
 }
@@ -14905,6 +14931,7 @@ function chkMemorialPremissas(c, m){
   const regra = m.uso === "restricao" ? "peso de cada usuário (linha de restrição)" : "600 kgf para o primeiro usuário mais o peso de cada usuário adicional (linha de vida)";
   return [
     `Cabo de aço de ${chkMemDiam(m.diametro)} mm, 6x19 AF, ruptura mínima de ${f(K.Frup / 1000, 1)} tf${m.frupNota} e fator de segurança ${f(K.FS, 0)}.`,
+    ...(c.nv > 1.0000001 ? [`Linha de ${f(c.Lt)} m com ${f(c.nv, 1)} vãos de ${f(m.vao)} m: a folga do cabo de todos os vãos se concentra no vão carregado (cabo livre nos apoios intermediários).`] : []),
     `Flecha inicial de ${f(c.fl, 1)}% do vão. Carga de cálculo (P) de ${f(c.P, 0)} kgf, para ${f(m.usuarios, 0)} ${un} de ${f(K.peso, 0)} kg: ${regra}.`,
     `Força no cabo de ${f(c.T1, 0)} kgf (${f(c.uso * 100, 1)}% do admissível de ${f(c.Fadm, 0)} kgf), por iteração com o alongamento (${c.voltas} voltas; E = ${f(K.Ecabo, 0)} kgf/mm², A = ${f(K.kA, 3)} · d²).`,
     engate,
@@ -14938,11 +14965,16 @@ function chkMemorialFormulasLista(c, m){
     frow("Deflexão da viga", MM(V("δ"), O("="), FR(mr(V("P"), O("·"), SP(V("L"), 3)), mr(N(48, 0), O("·"), V("E"), O("·"), V("I")))), MM(V("δ"), O("="), FR(mr(N(c.PN, 0), O("·"), SP(N(L), 3)), mr(N(48, 0), O("·"), N(V0.E / 1e9, 0), O("·"), N(V0.I * 1e8, 0))), O("="), N(c.d * 1000, 2), O("mm"))),
     zlq2, zlq1,
   ];
+  const multi = c.nv > 1.0000001;
   const lista = [
     frow("Flecha inicial", MM(V("f", 1), O("="), FR(V("flecha"), N(100, 0)), O("·"), V("L")), MM(V("f", 1), O("="), FR(N(c.fl, 1), N(100, 0)), O("·"), N(L), O("="), N(c.f1, 3), O("m"))),
-    frow("Comprimento do cabo", MM(V("L", 1), O("="), V("L"), O("+"), FR(mr(N(8, 0), SP(V("f", 1), 2)), mr(N(3, 0), O("·"), V("L")))), MM(V("L", 1), O("="), N(L), O("+"), FR(mr(N(8, 0), O("·"), SP(N(c.f1, 3), 2)), mr(N(3, 0), O("·"), N(L))), O("="), N(c.L1, 3), O("m"))),
+    frow(multi ? "Comprimento do cabo em um vão" : "Comprimento do cabo", MM(multi ? VT("L", "s") : V("L", 1), O("="), V("L"), O("+"), FR(mr(N(8, 0), SP(V("f", 1), 2)), mr(N(3, 0), O("·"), V("L")))), MM(multi ? VT("L", "s") : V("L", 1), O("="), N(L), O("+"), FR(mr(N(8, 0), O("·"), SP(N(c.f1, 3), 2)), mr(N(3, 0), O("·"), N(L))), O("="), N(c.Ls, 3), O("m"))),
+    ...(multi ? [
+      frow("Comprimento do cabo na linha toda", MM(V("L", 1), O("="), VT("L", "s"), O("·"), FR(V("C"), V("L"))), MM(V("L", 1), O("="), N(c.Ls, 3), O("·"), FR(N(c.Lt), N(L)), O("="), N(c.L1, 3), O("m"))),
+      frow("Cabo disponível no vão carregado", MM(V("J"), O("="), V("L", 1), O("−"), V("C"), O("+"), V("L")), MM(V("J"), O("="), N(c.L1, 3), O("−"), N(c.Lt), O("+"), N(L), O("="), N(c.J, 3), O("m"))),
+    ] : []),
     frow("Alongamento do cabo", MM(V("ΔL"), O("="), FR(mr(V("T", 1), O("·"), V("L", 1)), mr(V("E"), O("·"), V("k"), O("·"), SP(V("d"), 2)))), MM(V("ΔL"), O("="), FR(mr(N(c.T1, 0), O("·"), N(c.L1 * 1000, 0)), mr(N(K.Ecabo, 0), O("·"), N(K.kA, 3), O("·"), SP(`<mn>${chkMemDiam(m.diametro)}</mn>`, 2))), O("="), N(c.dL, 1), O("mm"))),
-    frow("Flecha dinâmica", MM(V("f", 3), O("="), SQ(SP(PR(FR(mr(V("L", 1), O("+"), V("ΔL")), N(2, 0))), 2), O("−"), SP(PR(FR(V("L"), N(2, 0))), 2))), MM(V("f", 3), O("="), SQ(SP(PR(FR(mr(N(c.L1, 3), O("+"), N(c.dL / 1000, 3)), N(2, 0))), 2), O("−"), SP(PR(FR(N(L), N(2, 0))), 2)), O("="), N(c.f3, 3), O("m"))),
+    frow("Flecha dinâmica", MM(V("f", 3), O("="), SQ(SP(PR(FR(mr(multi ? V("J") : V("L", 1), O("+"), V("ΔL")), N(2, 0))), 2), O("−"), SP(PR(FR(V("L"), N(2, 0))), 2))), MM(V("f", 3), O("="), SQ(SP(PR(FR(mr(N(c.J, 3), O("+"), N(c.dL / 1000, 3)), N(2, 0))), 2), O("−"), SP(PR(FR(N(L), N(2, 0))), 2)), O("="), N(c.f3, 3), O("m"))),
     frow(`Força no cabo (calculada junto com o alongamento, ${c.voltas} voltas)`, MM(V("T", 1), O("="), FR(V("P"), mr(N(2, 0), O("·"), "<mi>sen</mi>", V("θ")))), MM(V("T", 1), O("="), FR(N(c.P, 0), mr(N(2, 0), O("·"), "<mi>sen</mi>", N(c.th, 1), O("°"))), O("="), N(c.T1, 0), O("kgf"))),
     frow("Distância de frenagem", MM(V("s"), O("="), V("f", 3), O("−"), V("f", 2)), MM(V("s"), O("="), N(c.f3 * 1000, 1), O("−"), N(c.f2 * 1000, 1), O("="), N(c.fren3 * 1000, 1), O("mm"))),
     frow(`Utilização e fator de serviço do cabo (Fadm = Frup / FS = ${chkMemFmt(K.Frup, 0)} / ${chkMemFmt(K.FS, 0)} = ${chkMemFmt(c.Fadm, 0)} kgf)`, MM(V("u"), O("="), FR(V("T", 1), VT("F", "adm")), O(";"), VT("FS", "serv"), O("="), FR(VT("F", "rup"), V("T", 1))), MM(V("u"), O("="), FR(N(c.T1, 0), N(c.Fadm, 0)), O("="), N(c.uso * 100, 1), O("%"), O(";"), VT("FS", "serv"), O("="), FR(N(K.Frup, 0), N(c.T1, 0)), O("="), N(c.FSs, 2))),
@@ -14965,10 +14997,10 @@ function chkMemorialTabelas(c, m){
   const rig = c.tipo === "rig", K = m.params, f = chkMemFmt, V = CHK_MEMORIAL_VIGA;
   const e = rig
     ? [["Peso do usuário", f(K.peso, 0), "kg"], ["Vão entre apoios (L)", f(m.vao), "m"], ["Altura da ancoragem", f(m.hanc), "m"], ["Altura da posição de trabalho", f(m.hpos), "m"], ["Perfil da viga", V.perfil, "-"], ["Módulo E", f(V.E / 1e9, 0), "GPa"], ["Inércia Ix", f(V.I * 1e8, 0), "cm⁴"], ["Talabarte (a)", f(K.a, 1), "m"], ["Absorvedor (b)", f(K.b, 1), "m"], ["Trava-quedas em trabalho (b1)", f(K.b1, 1), "m"], ["Trava-quedas frenagem", f(K.fren, 1), "m"]]
-    : [["Tipo de linha", m.uso === "restricao" ? "Restrição" : "Vida", "-"], ["Peso do corpo", f(K.peso, 0), "kg"], ["Número de usuários", f(m.usuarios, 0), "n"], ["Vão entre apoios (L)", f(m.vao), "m"], ["Flecha", f(c.fl, 1), "%"], ["Altura da ancoragem", f(m.hanc), "m"], ["Altura da posição de trabalho", f(m.hpos), "m"], ["Diâmetro do cabo", chkMemDiam(m.diametro), "mm"], ["Força de ruptura", f(K.Frup, 0), "kgf"], ["Fator de segurança", f(K.FS, 0), "-"], ["Módulo E do cabo", f(K.Ecabo, 0), "kgf/mm²"], ["Fator de área (k)", f(K.kA, 3), "-"], ["Talabarte (a)", f(K.a, 1), "m"], ["Absorvedor (b)", f(K.b, 1), "m"], ["Trava-quedas em trabalho (b1)", f(K.b1, 1), "m"], ["Trava-quedas frenagem", f(K.fren, 1), "m"]];
+    : [["Tipo de linha", m.uso === "restricao" ? "Restrição" : "Vida", "-"], ["Peso do corpo", f(K.peso, 0), "kg"], ["Número de usuários", f(m.usuarios, 0), "n"], ["Vão entre apoios (L)", f(m.vao), "m"]].concat(c.nv > 1.0000001 ? [["Comprimento da linha (C)", f(c.Lt), "m"], ["Número de vãos", f(c.nv, 1), "-"]] : []).concat([["Flecha", f(c.fl, 1), "%"], ["Altura da ancoragem", f(m.hanc), "m"], ["Altura da posição de trabalho", f(m.hpos), "m"], ["Diâmetro do cabo", chkMemDiam(m.diametro), "mm"], ["Força de ruptura", f(K.Frup, 0), "kgf"], ["Fator de segurança", f(K.FS, 0), "-"], ["Módulo E do cabo", f(K.Ecabo, 0), "kgf/mm²"], ["Fator de área (k)", f(K.kA, 3), "-"], ["Talabarte (a)", f(K.a, 1), "m"], ["Absorvedor (b)", f(K.b, 1), "m"], ["Trava-quedas em trabalho (b1)", f(K.b1, 1), "m"], ["Trava-quedas frenagem", f(K.fren, 1), "m"]]);
   const r = rig
     ? [["Carga dinâmica (P)", f(c.P, 0), "kgf"], ["Deflexão (δ)", f(c.d * 1000, 2), "mm"], ["ZLQ talabarte", f(c.ZLQ1), "m"], ["Hp talabarte", f(c.Hp1), "m"], ["ZLQ trava-quedas", f(c.ZLQ2), "m"], ["Hp trava-quedas", f(c.Hp2), "m"]]
-    : [["Comprimento do cabo (L1)", f(c.L1 * 1000, 1), "mm"], ["Alongamento (ΔL)", f(c.dL, 1), "mm"], ["Flecha f1", f(c.f1 * 1000, 1), "mm"], ["Flecha f2", f(c.f2 * 1000, 1), "mm"], ["Flecha f3", f(c.f3 * 1000, 1), "mm"], ["Ângulo do cabo", f(c.ang, 1), "º"], ["Distância de frenagem", f(c.fren3 * 1000, 1), "mm"], ["Carga (P)", f(c.P, 0), "kgf"], ["<b>Força no cabo (T1)</b>", "<b>" + f(c.T1, 0) + "</b>", "kgf"], ["Admissível (Fadm)", f(c.Fadm, 0), "kgf"], ["Utilização", f(c.uso * 100, 1), "%"], ["Fator de serviço", f(c.FSs), "-"]]
+    : [["Comprimento do cabo (L1)", f(c.L1 * 1000, 1), "mm"]].concat(c.nv > 1.0000001 ? [["Cabo no vão carregado (J)", f(c.J * 1000, 1), "mm"]] : []).concat([ ["Alongamento (ΔL)", f(c.dL, 1), "mm"], ["Flecha f1", f(c.f1 * 1000, 1), "mm"], ["Flecha f2", f(c.f2 * 1000, 1), "mm"], ["Flecha f3", f(c.f3 * 1000, 1), "mm"], ["Ângulo do cabo", f(c.ang, 1), "º"], ["Distância de frenagem", f(c.fren3 * 1000, 1), "mm"], ["Carga (P)", f(c.P, 0), "kgf"], ["<b>Força no cabo (T1)</b>", "<b>" + f(c.T1, 0) + "</b>", "kgf"], ["Admissível (Fadm)", f(c.Fadm, 0), "kgf"], ["Utilização", f(c.uso * 100, 1), "%"], ["Fator de serviço", f(c.FSs), "-"]])
       .concat(c.fq !== null ? [["Fator de queda", f(c.fq, 2), "-"]] : [])
       .concat([["ZLQ talabarte", f(c.ZLQ1), "m"], ["Hp talabarte", f(c.Hp1), "m"], ["ZLQ trava-quedas", f(c.ZLQ2), "m"], ["Hp trava-quedas", f(c.Hp2), "m"]]);
   const tb = (t, rows)=>`<table class="lcl-tz"><tr><th colspan="3">${t}</th></tr>${rows.map(x=>`<tr><td>${x[0]}</td><td class="v">${x[1]}</td><td>${x[2]}</td></tr>`).join("")}</table>`;
@@ -15075,7 +15107,7 @@ function chkMemorialCampoHtml(l){
   const tipo = chkTipoLinha(l), flex = tipo === "horizontal_flexivel", ativo = chkMemorialAtivo(l);
   const raw = l.memorial || {}, ov = raw.params || {};
   const val = (v)=> v != null && v !== "" ? escapeHtml(String(v)) : "";
-  const campos = CHK_MEMORIAL_CAMPOS.filter(c=> c[0] !== "diametro" && (flex || c[0] !== "flechaCm")).map(([k, rot, un, num])=>
+  const campos = CHK_MEMORIAL_CAMPOS.filter(c=> c[0] !== "diametro" && (flex || (c[0] !== "flechaCm" && c[0] !== "comprimento"))).map(([k, rot, un, num])=>
     `<label class="chk-mem-campo"><span class="chk-mem-rot">${escapeHtml(rot)}${num ? `<i class="chk-mem-n">${num}</i>` : ""}</span><div class="chk-mem-nf"><input type="number" step="any" inputmode="decimal" id="chkMem-${k}" value="${val(raw[k])}" oninput="App.chkMemorialSet('${k}',this.value)"><span>${escapeHtml(un)}</span></div></label>`).join("");
   const diam = chkMemorialNum(raw.diametro);
   const opcoes = CHK_CABOS.map(r=> `<option value="${r[0]}" ${diam !== null && Math.abs(diam - r[0]) < 0.05 ? "selected" : ""}>${escapeHtml(r[1])} (${chkMemDiam(r[0])} mm)</option>`).join("");
@@ -15513,7 +15545,7 @@ function lclBlocosMemorial(d, cap){
   const v = chkMemorialVeredito(c, m), f = chkMemFmt, rig = c.tipo === "rig";
   const sistema = rig ? `rígida (viga ${CHK_MEMORIAL_VIGA.perfil})` : `flexível (cabo de aço de ${chkMemDiam(m.diametro)} mm)`;
   const nome = !rig && m.uso === "restricao" ? "linha de restrição" : "linha de vida";
-  const intro = `<p class="lcl-par">Verificação da zona livre de queda (ZLQ) da ${nome} horizontal <b>${sistema}</b> ${lclEsc(l.nome || "")}, com vão de ${f(m.vao)} m e ancoragem a ${f(m.hanc)} m do piso, para ${f(m.usuarios, 0)} ${m.usuarios === 1 ? "usuário" : "usuários"}. A ZLQ é a altura livre mínima abaixo da ancoragem para o usuário ser retido antes de atingir o piso ou um obstáculo.</p>`;
+  const intro = `<p class="lcl-par">Verificação da zona livre de queda (ZLQ) da ${nome} horizontal <b>${sistema}</b> ${lclEsc(l.nome || "")}, com vão de ${f(m.vao)} m${!rig && c.nv > 1.0000001 ? " (linha de " + f(c.Lt) + " m, " + f(c.nv, 0) + " vãos)" : ""} e ancoragem a ${f(m.hanc)} m do piso, para ${f(m.usuarios, 0)} ${m.usuarios === 1 ? "usuário" : "usuários"}. A ZLQ é a altura livre mínima abaixo da ancoragem para o usuário ser retido antes de atingir o piso ou um obstáculo.</p>`;
   const card = (nome, zlq, ok)=>`<div class="lcl-mcard ${ok ? "ok" : "no"}"><b>${nome}</b><strong>${ok ? "PODE USAR" : "NÃO USAR"}</strong><small>ZLQ necessária ${f(zlq)} m · disponível ${f(m.hanc)} m · ${ok ? "folga" : "falta"} ${f(Math.abs(m.hanc - zlq))} m</small></div>`;
   const cardCabo = rig ? "" : `<div class="lcl-mcard ${v.okC ? "ok" : "no"}"><b>Cabo de aço ${chkMemDiam(m.diametro)} mm</b><strong>${v.okC ? "ATENDE" : "NÃO ATENDE"}</strong><small>Esforço ${f(c.T1, 0)} kgf · admissível ${f(c.Fadm, 0)} kgf · utilização ${f(c.uso * 100, 0)}%</small></div>`;
   const blocos = [
@@ -18205,6 +18237,538 @@ async function onedriveSincronizarEquipe(forcar){
   }finally{
     __equipeSyncEmAndamento = false;
   }
+}
+/* =========================================================================
+   SINCRONIZAÇÃO DO CHECKLIST — modelos, projetos, setores, linhas de vida,
+   inspetores e fotos viajam entre os aparelhos pela mesma conta do OneDrive
+
+   Até aqui o módulo Checklist era só local: o modelo montado no computador
+   não aparecia no celular, e o projeto criado em campo não chegava no escritório.
+
+   COMO FUNCIONA (modelado no que já está provado em campo — a lista de equipe
+   e a configuração de IA —, sem tocar no envio do Completo e do Simplificado):
+   - Pasta `Backup/Checklist` dentro da pasta do app no OneDrive (junto de `Backup/Config` e `Backup/Simplificado`). Cada coisa é um arquivo
+     com o carimbo na PRÓPRIA nome (`l_<id>_<carimbo>.json`): olhar a listagem da pasta
+     já diz o que mudou, sem baixar nada. m = modelo, p = projeto (só os dados do
+     projeto), s = setor (só os dados do setor), l = linha de vida inteira. Uma linha
+     por arquivo de propósito: duas pessoas em linhas diferentes do mesmo projeto
+     nunca se atropelam. i = lista de inspetores, x = lista de excluídos.
+   - As FOTOS vão à parte, uma por arquivo, com o nome vindo do conteúdo
+     (`Backup/Checklist/Fotos/f_<id>.txt`): a mesma foto sobe uma vez só, mesmo usada em
+     vários lugares, e editar um texto não reenvia megabytes de foto.
+   - Mudou aqui? Detecta por ASSINATURA do conteúdo (não só pelo carimbo: alguns
+     campos mudam sem carimbar) e sobe com carimbo novo. Mudou lá? Baixa e aplica.
+   - Mudou nos dois lados desde a última vez: vence o carimbo maior e a outra versão
+     NÃO se perde — vira uma cópia "(versão de dd/mm hh:mm)" no próprio aparelho
+     (modelos e linhas). Nada é apagado por falta de arquivo na nuvem: o app nunca
+     conclui "foi excluído" só porque o arquivo não está lá.
+   - Exclusão feita de propósito viaja como lápide (id + carimbo). A lápide só vale
+     para quem não editou depois dela; quem tem alteração ainda não enviada mantém
+     o que tem (e o item volta para a nuvem).
+   - O modelo pronto "Linhas de Vida (NR-35)" recém-criado e ainda intocado nunca
+     passa por cima de um modelo editado em outro aparelho.
+   ========================================================================= */
+const SUBPASTA_CHECKLIST = SUBPASTA_BACKUP + "/Checklist";
+const SUBPASTA_CHECKLIST_FOTOS = SUBPASTA_BACKUP + "/Checklist/Fotos";
+const CHK_SYNC_INTERVALO_AUTO_MS = 45 * 1000;
+const CHK_SYNC_LIMITE_OPS_AUTO = 40;
+let __chkSyncEmAndamento = false;
+let __chkSyncUltima = 0;
+let __chkSyncSigPadrao = null; // assinatura (sem ids nem carimbos) do modelo pronto de fábrica, calculada uma vez
+function chkSyncHash(s){
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for(let i = 0, ch; i < s.length; i++){
+    ch = s.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (h2 >>> 0).toString(36) + (h1 >>> 0).toString(36) + s.length.toString(36);
+}
+/* Assinatura do conteúdo: chaves em ordem alfabética (a ordem de gravação não conta) e a foto vale pelo id dela,
+   seja embutida ou em referência (a mesma foto muda de forma na memória sem que nada tenha mudado de verdade).
+   semTs = true ignora os carimbos de alteração (compara só o conteúdo). */
+function chkSyncSig(valor, semTs){
+  const s = JSON.stringify(valor, (k, v)=>{
+    if(semTs && k === "atualizadoEm") return undefined;
+    if(ehFotoDataUrlPersist(v)) return "#" + fotoCalcularId(v);
+    if(ehFotoRefPersist(v)) return "#" + v.slice(FOTO_REF_PREFIXO.length);
+    if(v && typeof v === "object" && !Array.isArray(v)){
+      const o = {};
+      Object.keys(v).sort().forEach(x=>{ o[x] = v[x]; });
+      return o;
+    }
+    return v;
+  });
+  return chkSyncHash(s === undefined ? "" : s);
+}
+function chkSyncGarantir(estado){
+  const ns = estado.checklists;
+  if(!ns.sync || typeof ns.sync !== "object" || Array.isArray(ns.sync)) ns.sync = {};
+  const sy = ns.sync;
+  ["vistos", "removidos", "fotos"].forEach(k=>{ if(!sy[k] || typeof sy[k] !== "object" || Array.isArray(sy[k])) sy[k] = {}; });
+  return sy;
+}
+function chkSyncSemCampo(o, campo){
+  const r = {};
+  for(const k in o){ if(k !== campo) r[k] = o[k]; }
+  return r;
+}
+/* O que viaja no arquivo de cada tipo: projeto e setor sem os filhos (setores e linhas têm arquivo próprio). */
+function chkSyncVista(e){
+  if(e.tipo === "p") return chkSyncSemCampo(e.obj, "setores");
+  if(e.tipo === "s") return chkSyncSemCampo(e.obj, "linhas");
+  return e.obj;
+}
+function chkSyncLocais(){
+  const ns = STATE.checklists, lista = [];
+  (ns.modelos || []).forEach(m=>{ if(m && m.id) lista.push({ chave:"m:" + m.id, tipo:"m", id:m.id, obj:m }); });
+  (ns.projetos || []).forEach(p=>{
+    if(!p || !p.id) return;
+    lista.push({ chave:"p:" + p.id, tipo:"p", id:p.id, obj:p });
+    (p.setores || []).forEach(s=>{
+      if(!s || !s.id) return;
+      lista.push({ chave:"s:" + s.id, tipo:"s", id:s.id, obj:s, projetoId:p.id });
+      (s.linhas || []).forEach(l=>{ if(l && l.id) lista.push({ chave:"l:" + l.id, tipo:"l", id:l.id, obj:l, projetoId:p.id, setorId:s.id }); });
+    });
+  });
+  return lista;
+}
+function chkSyncLocalDe(chave){
+  return chkSyncLocais().find(e=> e.chave === chave) || null;
+}
+/* O modelo sem ids, carimbos e marcas de sincronização: só o que a pessoa escreveu. */
+function chkSyncModeloNorm(m){
+  const t = (x)=> String(x == null ? "" : x);
+  return {
+    nome: t(m.nome), descricao: t(m.descricao), tipoLinha: t(m.tipoLinha),
+    secoes: (m.secoes || []).map(s=>({
+      titulo: t(s.titulo), contexto: t(s.contexto),
+      itens: (s.itens || []).map(it=>({
+        descricao: t(it.descricao), normativo: t(it.normativo), prioridade: t(it.prioridade), textoAtende: t(it.textoAtende),
+        motivosPadrao: (it.motivosPadrao || []).map(mp=> (mp && typeof mp === "object") ? { motivo: t(mp.motivo), texto: t(mp.texto), acao: t(mp.acao) } : { motivo: t(mp), texto: "", acao: "" }),
+        info: { texto: t(it.info && it.info.texto), fotos: ((it.info && it.info.fotos) || []).map(f=> f && f.foto) },
+      })),
+    })),
+  };
+}
+/* Modelo pronto recém-semeado e nunca editado: vale carimbo zero, para nunca vencer um modelo editado em outro aparelho. */
+function chkSyncSementeIntocada(e){
+  if(e.tipo !== "m" || !e.obj) return false;
+  if(e.obj.semente === true && e.obj.atualizadoEm === e.obj.sementeEm) return true;
+  if(e.obj.id !== CHK_MODELO_PADRAO_ID) return false;
+  if(__chkSyncSigPadrao === null) __chkSyncSigPadrao = chkSyncSig(chkSyncModeloNorm(chkModeloPadraoLinhasDeVida()));
+  return chkSyncSig(chkSyncModeloNorm(e.obj)) === __chkSyncSigPadrao;
+}
+function chkSyncParseNomes(nomes){
+  const entidades = new Map(), singles = { i:[], x:[] };
+  (nomes || []).forEach(nome=>{
+    let m = /^([mpsl])_(.+)_(\d+)\.json$/.exec(nome);
+    if(m){
+      const chave = m[1] + ":" + m[2], ts = Number(m[3]);
+      let e = entidades.get(chave);
+      if(!e){ e = { chave, tipo:m[1], id:m[2], ts:0, nome:"", antigos:[] }; entidades.set(chave, e); }
+      if(ts > e.ts){ if(e.nome) e.antigos.push(e.nome); e.ts = ts; e.nome = nome; } else e.antigos.push(nome);
+      return;
+    }
+    m = /^([ix])_(\d+)\.json$/.exec(nome);
+    if(m) singles[m[1]].push({ ts:Number(m[2]), nome });
+  });
+  singles.i.sort((a, b)=> b.ts - a.ts);
+  singles.x.sort((a, b)=> b.ts - a.ts);
+  return { entidades, singles };
+}
+/* Chamada por quem exclui de propósito (modelo, projeto, setor, linha): o carimbo da exclusão viaja para os outros aparelhos. */
+function chkSyncRegistrarRemocao(ids){
+  const sy = chkSyncGarantir(STATE), ts = agoraSync();
+  (ids || []).forEach(id=>{ if(id) sy.removidos[id] = ts; });
+}
+function chkSyncMesclarRemovidos(remotos){
+  const sy = chkSyncGarantir(STATE);
+  let mudou = false;
+  if(remotos && typeof remotos === "object"){
+    for(const id in remotos){
+      const ts = remotos[id];
+      if(typeof ts === "number" && ts > (sy.removidos[id] || 0)){ sy.removidos[id] = ts; mudou = true; }
+    }
+  }
+  return mudou;
+}
+/* União: inspetor novo em qualquer lado aparece nos dois; o mesmo inspetor editado nos dois lugares vale o carimbo maior. */
+function chkSyncMesclarInspetores(remotos){
+  const ns = STATE.checklists;
+  if(!Array.isArray(ns.inspetores)) ns.inspetores = [];
+  let mudou = false;
+  (Array.isArray(remotos) ? remotos : []).forEach(r=>{
+    if(!r || !r.id) return;
+    const l = ns.inspetores.find(x=> x.id === r.id);
+    if(!l){ ns.inspetores.push(Object.assign({}, r)); mudou = true; return; }
+    if((r.atualizadoEm || 0) > (l.atualizadoEm || 0)){ Object.assign(l, r); mudou = true; }
+  });
+  return mudou;
+}
+async function chkSyncLerRemoto(ctx, rem){
+  const texto = await ctx.T.baixar(SUBPASTA_CHECKLIST, rem.nome);
+  if(!texto) return null;
+  try{
+    const p = JSON.parse(texto);
+    if(p && typeof p === "object" && p.obj && typeof p.obj === "object") return p;
+  }catch(e){}
+  return null;
+}
+/* Lista de excluídos (x) e de inspetores (i): um arquivo só cada, mesclado por união. */
+async function chkSyncSingleton(ctx, kind){
+  const { T, sy } = ctx, ns = STATE.checklists;
+  const lista = ctx.parse.singles[kind], rem = lista[0] || null;
+  const chaveV = kind + ":";
+  const v = sy.vistos[chaveV] || { ts:0, sig:"" };
+  const canon = (x)=> (kind === "i" && Array.isArray(x)) ? x.slice().sort((a, b)=> String(a && a.id).localeCompare(String(b && b.id))) : x;
+  const local = ()=> kind === "x" ? sy.removidos : canon(ns.inspetores || []);
+  if(rem && rem.ts > v.ts){
+    ctx.ops++;
+    const texto = await T.baixar(SUBPASTA_CHECKLIST, rem.nome);
+    let p = null;
+    try{ p = texto ? JSON.parse(texto) : null; }catch(e){ p = null; }
+    if(p){
+      const dado = kind === "x" ? p.removidos : p.inspetores;
+      const mudou = kind === "x" ? chkSyncMesclarRemovidos(dado) : chkSyncMesclarInspetores(dado);
+      if(mudou) ctx.res.mudouLocal = true;
+      // o que veio da nuvem já é a união quando nada daqui estava a mais: assinatura igual = nada para devolver
+      sy.vistos[chaveV] = { ts: rem.ts, sig: chkSyncSig(canon(dado === undefined ? (kind === "x" ? {} : []) : dado)) };
+      T.log("down", rem.nome, "checklist", texto.length, true, undefined, "Checklist");
+    }
+  }
+  const atual = chkSyncSig(local());
+  const vv = sy.vistos[chaveV] || { ts:0, sig:"" };
+  const temAlgo = kind === "x" ? Object.keys(sy.removidos).length > 0 : (ns.inspetores || []).length > 0;
+  if(temAlgo && (atual !== vv.sig || !rem)){
+    ctx.ops++;
+    const ts = agoraSync();
+    const nome = kind + "_" + ts + ".json";
+    const texto = JSON.stringify(kind === "x" ? { removidos: sy.removidos } : { inspetores: ns.inspetores });
+    const ok = await T.enviar(SUBPASTA_CHECKLIST, nome, texto);
+    T.log("up", nome, "checklist", texto.length, ok, ok ? undefined : T.motivoFalha(), "Checklist");
+    if(!ok){ ctx.res.falhas++; return; }
+    for(const a of lista){ if(a.nome !== nome) await T.apagar(SUBPASTA_CHECKLIST, a.nome); }
+    sy.vistos[chaveV] = { ts, sig: atual };
+    ctx.res.enviou++;
+  }
+}
+async function chkSyncApagarRemoto(ctx, rem){
+  ctx.ops++;
+  for(const nome of [rem.nome].concat(rem.antigos || [])){ await ctx.T.apagar(SUBPASTA_CHECKLIST, nome); }
+  ctx.parse.entidades.delete(rem.chave);
+}
+async function chkSyncEnviar(ctx, loc){
+  const { T, sy, res } = ctx;
+  ctx.ops++;
+  const ts = agoraSync();
+  if(!chkSyncSementeIntocada(loc)) loc.obj.atualizadoEm = ts;
+  const vista = chkSyncVista(loc);
+  const sigEnviada = chkSyncSig(vista);
+  const copia = clonarCompartilhandoFotos(vista);
+  await T.resolverFotos(copia);
+  const pend = new Set();
+  fotosColetarRefs(copia, pend);
+  const nome = loc.tipo + "_" + loc.id + "_" + ts + ".json";
+  if(pend.size){
+    res.falhas++;
+    T.log("up", nome, "checklist", 0, false, "foto sem os dados neste aparelho", "Checklist");
+    return false;
+  }
+  const fotos = new Map();
+  const limpo = fotosExtrairParaRefs(copia, fotos);
+  for(const [fid, dados] of fotos){
+    if(sy.fotos[fid]) continue;
+    const okFoto = await T.enviar(SUBPASTA_CHECKLIST_FOTOS, "f_" + fid + ".txt", dados);
+    T.log("up", "f_" + fid + ".txt", "checklist", dados.length, okFoto, okFoto ? undefined : T.motivoFalha(), "Checklist/Fotos");
+    if(!okFoto){ res.falhas++; return false; }
+    sy.fotos[fid] = 1;
+  }
+  const texto = JSON.stringify({ tipo: loc.tipo, projetoId: loc.projetoId, setorId: loc.setorId, obj: limpo });
+  const ok = await T.enviar(SUBPASTA_CHECKLIST, nome, texto);
+  T.log("up", nome, "checklist", texto.length, ok, ok ? undefined : T.motivoFalha(), "Checklist");
+  if(!ok){ res.falhas++; return false; }
+  const rem = ctx.parse.entidades.get(loc.chave);
+  if(rem){ for(const a of [rem.nome].concat(rem.antigos || [])){ if(a !== nome) await T.apagar(SUBPASTA_CHECKLIST, a); } }
+  sy.vistos[loc.chave] = { ts, sig: sigEnviada };
+  ctx.parse.entidades.set(loc.chave, { chave: loc.chave, tipo: loc.tipo, id: loc.id, ts, nome, antigos: [] });
+  res.enviou++;
+  res.mudouLocal = true;
+  return true;
+}
+function chkSyncRotuloCopia(nome){
+  const d = new Date();
+  const p = (n)=> String(n).padStart(2, "0");
+  return (nome || "Sem nome") + " (versão de " + p(d.getDate()) + "/" + p(d.getMonth() + 1) + " " + p(d.getHours()) + ":" + p(d.getMinutes()) + ")";
+}
+/* Item novo vindo de outro aparelho entra na ordem de criação (todos os aparelhos acabam com a mesma ordem). */
+function chkSyncInserir(lista, obj){
+  const c = obj.criadoEm || 0;
+  const i = c ? lista.findIndex(e=> (e.criadoEm || 0) > c || ((e.criadoEm || 0) === c && String(e.id) > String(obj.id))) : -1;
+  if(i >= 0) lista.splice(i, 0, obj); else lista.push(obj);
+}
+/* Põe o conteúdo vindo da nuvem no lugar certo da árvore local. Devolve "ok" ou "adiado" (falta o pai: projeto/setor). */
+function chkSyncAplicar(payload, tipo, id, comoNovo){
+  const ns = STATE.checklists;
+  const obj = payload.obj;
+  if(tipo === "m"){
+    const i = ns.modelos.findIndex(m=> m.id === id);
+    if(i >= 0 && !comoNovo) ns.modelos[i] = obj; else chkSyncInserir(ns.modelos, obj);
+    return "ok";
+  }
+  if(tipo === "p"){
+    const i = ns.projetos.findIndex(p=> p.id === id);
+    const novo = Object.assign({}, obj, { setores: i >= 0 ? (ns.projetos[i].setores || []) : [] });
+    if(i >= 0) ns.projetos[i] = novo; else chkSyncInserir(ns.projetos, novo);
+    return "ok";
+  }
+  const proj = ns.projetos.find(p=> p.id === payload.projetoId);
+  if(!proj) return "adiado";
+  if(!Array.isArray(proj.setores)) proj.setores = [];
+  if(tipo === "s"){
+    const i = proj.setores.findIndex(s=> s.id === id);
+    const novo = Object.assign({}, obj, { linhas: i >= 0 ? (proj.setores[i].linhas || []) : [] });
+    if(i >= 0) proj.setores[i] = novo; else chkSyncInserir(proj.setores, novo);
+    return "ok";
+  }
+  const setor = proj.setores.find(s=> s.id === payload.setorId);
+  if(!setor) return "adiado";
+  if(!Array.isArray(setor.linhas)) setor.linhas = [];
+  const i = setor.linhas.findIndex(l=> l.id === id);
+  if(i >= 0 && !comoNovo) setor.linhas[i] = obj; else chkSyncInserir(setor.linhas, obj);
+  return "ok";
+}
+/* Baixa o arquivo (e as fotos que este aparelho não tem), confere que nada mudou aqui no meio do caminho e aplica.
+   opc.comoCopia = guarda o conteúdo da nuvem como uma cópia nova (id novo), sem mexer no que existe. */
+async function chkSyncBaixar(ctx, loc, rem, opc){
+  opc = opc || {};
+  const { T, sy, res } = ctx;
+  ctx.ops++;
+  const sigAntes = loc ? chkSyncSig(chkSyncVista(loc)) : null;
+  let payload = opc.payload;
+  if(!payload) payload = await chkSyncLerRemoto(ctx, rem);
+  if(!payload || (!opc.comoCopia && payload.obj.id !== rem.id)){
+    res.falhas++;
+    T.log("down", rem.nome, "checklist", 0, false, "arquivo da nuvem ilegível ou ausente", "Checklist");
+    return false;
+  }
+  if(!ctx.fotosLocais) ctx.fotosLocais = await T.fotosLocais();
+  const refs = new Set();
+  fotosColetarRefs(payload.obj, refs);
+  const baixadas = new Map();
+  for(const fid of refs){
+    if(ctx.fotosLocais.has(fid)) continue;
+    const dados = await T.baixar(SUBPASTA_CHECKLIST_FOTOS, "f_" + fid + ".txt");
+    if(!dados || !ehFotoDataUrlPersist(dados)){
+      res.falhas++;
+      T.log("down", rem.nome, "checklist", 0, false, "foto ainda não chegou na nuvem", "Checklist");
+      return false;
+    }
+    baixadas.set(fid, dados);
+  }
+  __fotosTrocarNoLugar(payload.obj, baixadas, { n: 0 });
+  if(loc && !opc.comoCopia){
+    const atual = chkSyncLocalDe(loc.chave);
+    if(!atual || chkSyncSig(chkSyncVista(atual)) !== sigAntes) return false;
+  }
+  if(opc.comoCopia){
+    payload.obj.id = uid();
+    payload.obj.nome = chkSyncRotuloCopia(payload.obj.nome);
+    payload.obj.atualizadoEm = agoraSync();
+    delete payload.obj.semente; delete payload.obj.sementeEm;
+    const r = chkSyncAplicar(payload, rem.tipo, payload.obj.id, true);
+    if(r !== "ok") return false;
+    res.mudouLocal = true;
+    return true;
+  }
+  const remSemente = chkSyncSementeIntocada({ tipo: rem.tipo, obj: payload.obj });
+  if(!remSemente) payload.obj.atualizadoEm = rem.ts;
+  const r = chkSyncAplicar(payload, rem.tipo, rem.id, false);
+  if(r !== "ok") return false;
+  const novo = chkSyncLocalDe(rem.chave);
+  sy.vistos[rem.chave] = { ts: rem.ts, sig: novo ? chkSyncSig(chkSyncVista(novo)) : "" };
+  registrarCarimboVisto(rem.ts);
+  res.baixou++;
+  res.mudouLocal = true;
+  T.log("down", rem.nome, "checklist", 0, true, undefined, "Checklist");
+  return true;
+}
+/* Guarda a versão que está aqui como cópia (id novo) antes de ela ser substituída. Só modelo e linha têm cópia. */
+function chkSyncCopiarLocal(loc){
+  if(loc.tipo !== "m" && loc.tipo !== "l") return true;
+  const ns = STATE.checklists;
+  const copia = clonarCompartilhandoFotos(loc.obj);
+  copia.id = uid();
+  copia.nome = chkSyncRotuloCopia(copia.nome);
+  copia.atualizadoEm = agoraSync();
+  delete copia.semente; delete copia.sementeEm;
+  if(loc.tipo === "m"){ ns.modelos.push(copia); return true; }
+  const proj = ns.projetos.find(p=> p.id === loc.projetoId);
+  const setor = proj && (proj.setores || []).find(s=> s.id === loc.setorId);
+  if(!setor) return false;
+  setor.linhas.push(copia);
+  return true;
+}
+async function chkSyncConflito(ctx, loc, rem){
+  const { sy, res } = ctx;
+  const payload = await chkSyncLerRemoto(ctx, rem);
+  if(!payload){ res.falhas++; return; }
+  if(chkSyncSig(payload.obj, true) === chkSyncSig(chkSyncVista(loc), true)){
+    // mesmo conteúdo nos dois lados (só o carimbo difere): nada a guardar nem a enviar
+    sy.vistos[loc.chave] = { ts: rem.ts, sig: chkSyncSig(chkSyncVista(loc)) };
+    return;
+  }
+  const remSemente = chkSyncSementeIntocada({ tipo: loc.tipo, obj: payload.obj });
+  if(remSemente){ await chkSyncEnviar(ctx, loc); return; }
+  const remVence = rem.ts > (loc.obj.atualizadoEm || 0);
+  if(remVence){
+    if(!chkSyncCopiarLocal(loc)){ res.falhas++; return; }
+    res.conflitos++;
+    await chkSyncBaixar(ctx, loc, rem, { payload });
+    return;
+  }
+  // o daqui é mais novo: a versão da nuvem vira cópia antes de ser substituída pelo envio
+  if(loc.tipo === "m" || loc.tipo === "l"){
+    const copiaPayload = clonarCompartilhandoFotos(payload);
+    const okCopia = await chkSyncBaixar(ctx, null, rem, { payload: copiaPayload, comoCopia: true });
+    if(!okCopia){ res.falhas++; return; }
+    res.conflitos++;
+  }
+  await chkSyncEnviar(ctx, loc);
+}
+/* Aplica uma lápide num item local. Se o item (ou algo dentro dele) tem alteração que ainda não subiu, NÃO remove:
+   carimba de novo para que ele volte para a nuvem. Devolve true se removeu. */
+function chkSyncRemoverLocal(ctx, loc){
+  const ns = STATE.checklists, sy = ctx.sy;
+  const mudou = (e)=> !chkSyncSementeIntocada(e) && chkSyncSig(chkSyncVista(e)) !== (sy.vistos[e.chave] || { sig:"" }).sig;
+  const filhos = chkSyncLocais().filter(e=> e.chave !== loc.chave && ((loc.tipo === "p" && e.projetoId === loc.id) || (loc.tipo === "s" && e.setorId === loc.id)));
+  if(filhos.some(mudou)){
+    loc.obj.atualizadoEm = agoraSync();
+    filhos.forEach(f=>{ if(f.tipo !== "l") f.obj.atualizadoEm = agoraSync(); });
+    if(loc.tipo === "s"){
+      const pai = ns.projetos.find(p=> p.id === loc.projetoId);
+      if(pai) pai.atualizadoEm = agoraSync();
+    }
+    return false;
+  }
+  if(loc.tipo === "m") ns.modelos = ns.modelos.filter(m=> m.id !== loc.id);
+  else if(loc.tipo === "p") ns.projetos = ns.projetos.filter(p=> p.id !== loc.id);
+  else {
+    const pai = ns.projetos.find(p=> p.id === loc.projetoId);
+    if(pai){
+      if(loc.tipo === "s") pai.setores = (pai.setores || []).filter(s=> s.id !== loc.id);
+      else (pai.setores || []).forEach(s=>{ s.linhas = (s.linhas || []).filter(l=> l.id !== loc.id); });
+    }
+  }
+  delete sy.vistos[loc.chave];
+  filhos.forEach(f=>{ delete sy.vistos[f.chave]; });
+  return true;
+}
+async function chkSyncEntidade(ctx, chave){
+  const { sy, res } = ctx;
+  const loc = chkSyncLocalDe(chave);
+  const rem = ctx.parse.entidades.get(chave) || null;
+  if(!loc && !rem) return;
+  const id = loc ? loc.id : rem.id;
+  const v = sy.vistos[chave] || { ts:0, sig:"" };
+  const tomb = sy.removidos[id] || 0;
+  if(!loc){
+    // nada daqui: excluído de propósito (a nuvem acompanha) ou novo vindo de outro aparelho
+    if(tomb > rem.ts){ await chkSyncApagarRemoto(ctx, rem); return; }
+    await chkSyncBaixar(ctx, null, rem);
+    return;
+  }
+  const semente = chkSyncSementeIntocada(loc);
+  const sigAtual = chkSyncSig(chkSyncVista(loc));
+  const mudou = !semente && sigAtual !== v.sig;
+  const tsLoc = semente ? 0 : (loc.obj.atualizadoEm || 0);
+  if(tomb && !mudou && tomb > tsLoc){
+    if(chkSyncRemoverLocal(ctx, loc)){
+      res.removeu++;
+      res.mudouLocal = true;
+      if(rem && rem.ts <= tomb) await chkSyncApagarRemoto(ctx, rem);
+      return;
+    }
+    await chkSyncEnviar(ctx, loc);
+    return;
+  }
+  if(!rem){ await chkSyncEnviar(ctx, loc); return; }
+  const remMudou = rem.ts > v.ts;
+  if(semente){ if(remMudou) await chkSyncBaixar(ctx, loc, rem); return; }
+  if(!mudou && !remMudou) return;
+  if(mudou && !remMudou){ await chkSyncEnviar(ctx, loc); return; }
+  if(!mudou && remMudou){ await chkSyncBaixar(ctx, loc, rem); return; }
+  await chkSyncConflito(ctx, loc, rem);
+}
+/* Uma rodada completa. T é o transporte (OneDrive de verdade no app; um falso nos ensaios). Nunca apaga nada local por
+   ausência de arquivo na nuvem, e uma falha em um item não impede os demais. */
+async function chkSyncRodar(T, opc){
+  opc = opc || {};
+  const sy = chkSyncGarantir(STATE);
+  const res = { baixou:0, enviou:0, conflitos:0, removeu:0, falhas:0, adiado:false, mudouLocal:false, erro:false };
+  const nomes = await T.listar(SUBPASTA_CHECKLIST);
+  if(!Array.isArray(nomes)){ res.erro = true; return res; }
+  const ctx = { T, sy, res, parse: chkSyncParseNomes(nomes), ops: 0, limite: opc.limite || Infinity, fotosLocais: null };
+  nomes.forEach(n=>{ const m = /_(\d+)\.json$/.exec(n); if(m) registrarCarimboVisto(Number(m[1])); });
+  await chkSyncSingleton(ctx, "x");
+  await chkSyncSingleton(ctx, "i");
+  const chaves = [];
+  const locais = chkSyncLocais();
+  ["m", "p", "s", "l"].forEach(t=>{
+    const conj = new Set();
+    locais.forEach(e=>{ if(e.tipo === t) conj.add(e.chave); });
+    ctx.parse.entidades.forEach((e, k)=>{ if(e.tipo === t) conj.add(k); });
+    conj.forEach(k=> chaves.push(k));
+  });
+  for(const chave of chaves){
+    if(ctx.ops >= ctx.limite){ res.adiado = true; break; }
+    try{ await chkSyncEntidade(ctx, chave); }
+    catch(e){ res.falhas++; T.log("up", chave, "checklist", 0, false, (e && e.message) ? String(e.message) : "erro inesperado", "Checklist"); }
+  }
+  return res;
+}
+function chkSyncTransporteOneDrive(){
+  const base = ONEDRIVE_PASTA_APP;
+  return {
+    async listar(pasta){
+      const caminho = base + "/" + pasta;
+      const mapa = await onedriveListarFilhosEmLote([caminho]);
+      return (mapa.get(caminho) || []).filter(f=> !f.pasta).map(f=> f.nome);
+    },
+    baixar: (pasta, nome)=> onedriveBaixarTexto(base + "/" + pasta + "/" + nome),
+    enviar: (pasta, nome, texto)=> onedriveEnviarBlob(pasta, new Blob([texto], { type:"application/json" }), nome),
+    apagar: (pasta, nome)=> onedriveApagarBlob(pasta, nome),
+    async fotosLocais(){
+      if(!temIndexedDB()) return new Set();
+      const db = await dbOpen();
+      return new Set(await fotosCarregarIndice(db));
+    },
+    resolverFotos: (obj)=> garantirFotosDe(obj),
+    log: (dir, nome, tipo, bytes, ok, motivo, caminho)=> registrarEventoSync(dir, nome, tipo, bytes, ok, motivo, caminho),
+    motivoFalha: ()=> __ultimoMotivoFalhaEnvio,
+  };
+}
+async function onedriveSincronizarChecklist(forcar){
+  if(!getOneDriveConta() || !navigator.onLine) return { mudou:false };
+  if(__chkSyncEmAndamento) return { mudou:false };
+  if(!forcar && (Date.now() - __chkSyncUltima) < CHK_SYNC_INTERVALO_AUTO_MS) return { mudou:false };
+  __chkSyncEmAndamento = true;
+  try{
+    // sem sessão a listagem volta vazia: nunca confundir isso com "a nuvem está vazia"
+    if(!(await onedriveObterToken())) return { mudou:false, erro:true };
+    chkGarantirNamespace(STATE);
+    const r = await chkSyncRodar(chkSyncTransporteOneDrive(), { limite: forcar ? Infinity : CHK_SYNC_LIMITE_OPS_AUTO });
+    __chkSyncUltima = Date.now();
+    if(r.mudouLocal) marcarAlterado();
+    return Object.assign({ mudou: r.mudouLocal }, r);
+  }catch(e){
+    console.error("Sincronização do Checklist falhou nesta rodada:", e && e.message, e);
+    try{ registrarFalhaLocalSync("(Checklist)", "erro", (e && e.message) ? String(e.message) : "erro inesperado", "", !!forcar); }catch(_){}
+    return { mudou:false, erro:true };
+  }
+  finally{ __chkSyncEmAndamento = false; }
 }
 /* =========================================================================
    LÁPIDES QUE VIAJAM — a exclusão feita num aparelho vale nos outros
@@ -29227,6 +29791,8 @@ Devolver agora?`)) return;
   },
   chkExcluirProjeto(id){
     if(!confirm("Excluir este projeto? Todos os setores e linhas de vida dentro dele também serão excluídos. Esta ação não pode ser desfeita.")) return;
+    const alvoP = STATE.checklists.projetos.find(p=>p.id===id);
+    if(alvoP) chkSyncRegistrarRemocao([alvoP.id].concat((alvoP.setores || []).flatMap(s=> [s.id].concat((s.linhas || []).map(l=> l.id)))));
     STATE.checklists.projetos = STATE.checklists.projetos.filter(p=>p.id!==id);
     marcarAlterado();
     render();
@@ -29304,6 +29870,7 @@ Devolver agora?`)) return;
     if(campo !== "nome" && campo !== "cargo") return;
     const i = ((STATE.checklists && STATE.checklists.inspetores) || []).find(x=> x.id === id); if(!i) return;
     i[campo] = valor;
+    i.atualizadoEm = agoraSync();
     (STATE.checklists.projetos || []).forEach(p=>{
       if(p.inspetorId === id){ p[campo === "nome" ? "inspetorNome" : "inspetorCargo"] = valor; p.atualizadoEm = agoraSync(); }
     });
@@ -29312,6 +29879,7 @@ Devolver agora?`)) return;
   chkInspetorAtivo(id){
     const i = ((STATE.checklists && STATE.checklists.inspetores) || []).find(x=> x.id === id); if(!i) return;
     i.ativo = i.ativo === false;
+    i.atualizadoEm = agoraSync();
     marcarAlterado();
     App.chkInspetoresRedesenhar();
   },
@@ -29333,6 +29901,8 @@ Devolver agora?`)) return;
   chkExcluirSetor(id){
     const p = getCurrentChkProjeto(); if(!p) return;
     if(!confirm("Excluir este setor? Todas as linhas de vida dentro dele também serão excluídas. Esta ação não pode ser desfeita.")) return;
+    const alvoS = p.setores.find(s=>s.id===id);
+    if(alvoS) chkSyncRegistrarRemocao([alvoS.id].concat((alvoS.linhas || []).map(l=> l.id)));
     p.setores = p.setores.filter(s=>s.id!==id);
     p.atualizadoEm = agoraSync();
     marcarAlterado();
@@ -29373,6 +29943,7 @@ Devolver agora?`)) return;
   chkExcluirLinha(id){
     const setor = getCurrentChkSetor(); if(!setor) return;
     if(!confirm("Excluir esta linha de vida e o checklist preenchido nela? Esta ação não pode ser desfeita.")) return;
+    chkSyncRegistrarRemocao([id]);
     setor.linhas = setor.linhas.filter(l=>l.id!==id);
     setor.atualizadoEm = agoraSync();
     marcarAlterado();
@@ -30095,6 +30666,7 @@ Devolver agora?`)) return;
   },
   chkExcluirModelo(id){
     if(!confirm("Excluir este modelo de checklist? Execuções já criadas a partir dele não são afetadas (cada uma guarda sua própria cópia das seções e itens).")) return;
+    chkSyncRegistrarRemocao([id]);
     STATE.checklists.modelos = STATE.checklists.modelos.filter(m=>m.id!==id);
     marcarAlterado();
     render();

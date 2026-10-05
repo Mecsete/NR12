@@ -165,12 +165,22 @@ const FUNCOES = [
   "chkAvisoDocumento", "chkMaisMesesISO", "chkOpcoesInspetor", "novoChkInspetor", "chkInspetoresHtml", "screenChkProjetoForm",
   // Editor de modelo (Modelo 3, linhas de fluxo): lista com busca/secoes abertas e o item aberto.
   "chkBuscaNorm", "chkModeloSvg", "chkAutoAltura", "chkModeloAjustarAlturas", "chkModeloRedesenhar", "chkModeloPreviaPergunta",
-  "chkModeloPainelAberto", "chkModeloSecAberta", "chkMostrarItemAberto", "screenChkLinhas", "lclDataBR", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
+  "chkModeloPainelAberto", "chkModeloSecAberta", "chkMostrarItemAberto", "screenChkLinhas", "lclDataBR",
+  // Sincronizacao do Checklist entre aparelhos (nuvem falsa nos ensaios) e as camadas de foto que ela usa.
+  "registrarCarimboVisto", "ehFotoRefPersist", "fotoCalcularId", "fotosColetarRefs", "fotosExtrairParaRefs", "__fotosTrocarNoLugar",
+  "chkSyncHash", "chkSyncSig", "chkSyncModeloNorm", "chkSyncGarantir", "chkSyncSemCampo", "chkSyncVista", "chkSyncLocais", "chkSyncLocalDe", "chkSyncSementeIntocada",
+  "chkSyncParseNomes", "chkSyncRegistrarRemocao", "chkSyncMesclarRemovidos", "chkSyncMesclarInspetores", "chkSyncLerRemoto", "chkSyncSingleton",
+  "chkSyncApagarRemoto", "chkSyncEnviar", "chkSyncRotuloCopia", "chkSyncInserir", "chkSyncAplicar", "chkSyncBaixar", "chkSyncCopiarLocal", "chkSyncConflito",
+  "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
 ];
 let fonte = "let __ultimoCarimboVisto = 0;\n";
 fonte += "let __buscaAtual = '';\n"; // usado por chkAbrirSetor (lista de linhas) -- nao testado aqui, so pra nao faltar
 fonte += "let __imgReg = [];\n"; // registro de fotos pra exibicao (imgReg/data-imgref) -- usado por App.chkInfoItem
 fonte += constString("CHK_MODELO_PADRAO_ID");
+fonte += constString("FOTO_REF_PREFIXO");
+fonte += 'const SUBPASTA_CHECKLIST = "Backup/Checklist";\nconst SUBPASTA_CHECKLIST_FOTOS = "Backup/Checklist/Fotos";\n'; // o valor real e SUBPASTA_BACKUP + ...: conferido em estrutura.py
+fonte += "let __chkSyncSigPadrao = null;\n";
+fonte += "const __fotoIdCache = new Map();\n";
 fonte += letEscalar("__chkAcaoConfirmada");
 fonte += constObjeto("CHK_MODELO_XLSX_COLUNAS") + "\n";
 fonte += constObjeto("CHK_MESES") + "\n";
@@ -1460,13 +1470,28 @@ async function testarMemorial(){
 
   // outros casos da planilha: aba oculta Original (2 usuarios, 12,7 mm, vao 20,5 m, flecha 3%: esforco iterado a mao 2961,5 kgf) e a "Inicial" (4 m, 9,5 mm)
   const cO = roda(`chkMemorialCalc("horizontal_flexivel", chkMemorialDe({ memorial:{ hanc:5, hpos:3, vao:20.5, flechaCm:61.5, diametro:12.7, usuarios:2 } }))`);
-  T(perto(cO.P, 700, 1e-9) && perto(cO.T1, 2961.57, 0.05) && perto(cO.dL, 95.4756, 0.01) && perto(cO.f3, 1.2199, 1e-3) && cO.conv && perto(cO.Fadm, 5400, 1e-9), "caso 2 usuarios/12,7 mm/20,5 m (planilha Original): P 700, T1 2961,6, dL 95,5 mm: " + JSON.stringify([cO.P, cO.T1, cO.dL, cO.f3]));
+  T(perto(cO.P, 700, 1e-9) && perto(cO.T1, 2961.57, 0.05) && perto(cO.dL, 95.4756, 0.01) && perto(cO.f3, 1.2199, 1e-3) && cO.conv && perto(cO.Fadm, 4850, 1e-9), "caso 2 usuarios/12,7 mm/20,5 m (planilha Original; ruptura IPS estimada 9,7 tf): P 700, T1 2961,6, dL 95,5 mm: " + JSON.stringify([cO.P, cO.T1, cO.dL, cO.f3]));
   const cI = roda(`chkMemorialCalc("horizontal_flexivel", chkMemorialDe({ memorial:{ hanc:10, hpos:4, vao:4, flechaCm:12, diametro:9.52 } }))`);
   T(perto(cI.L1, 4.0096, 1e-6) && perto(cI.f2, 0.138647, 1e-5) && cI.conv && cI.T1 > 2000 && cI.T1 < 2500, "caso 4 m / 3% (planilha Inicial): comprimento do cabo 4,0096 m e f2 138,6 mm: " + JSON.stringify([cI.L1, cI.f2, cI.T1]));
   // fator de queda quando a posicao de trabalho fica a menos de 1,5 m da ancoragem (outro ramo da formula da planilha)
   const cBaixo = roda(`chkMemorialCalc("horizontal_flexivel", chkMemorialDe({ memorial:{ hanc:5, hpos:4, vao:6.7, flechaCm:46.9, diametro:8 } }))`);
   T(perto(cBaixo.fq, (1.5 - 1 + 2.4) / 2.4, 1e-9), "fator de queda com ancoragem a 1 m acima: (1,5 - 1 + 2,4) / 2,4 = 1,21: " + cBaixo.fq);
   T(roda(`chkMemorialCalc("horizontal_flexivel", chkMemorialDe({ memorial:{ vao:6.7, flechaCm:46.9, diametro:8 } })).fq`) === null, "sem as alturas nao ha fator de queda (nem erro)");
+  // varios vaos (planilha: comprimento da linha / vao): a folga de todos os vaos se concentra no vao carregado
+  const mV = (comp) => roda(`chkMemorialDe({ memorial:{ hanc:5, hpos:3, vao:6.7, comprimento:${comp}, flechaCm:46.9, diametro:8 } })`);
+  const cV1 = roda(`chkMemorialCalc("horizontal_flexivel", ${JSON.stringify(mV(6.7))})`);
+  T(perto(cV1.T1, cF.T1, 1e-9) && cV1.nv === 1 && perto(cV1.J, cV1.L1, 1e-12) && perto(cV1.f3, cF.f3, 1e-12), "comprimento igual ao vao (1 vao): nada muda");
+  const cV2 = roda(`chkMemorialCalc("horizontal_flexivel", ${JSON.stringify(mV(13.4))})`);
+  T(perto(cV2.nv, 2, 1e-9) && perto(cV2.L1, 13.57509333, 1e-6) && perto(cV2.J, 6.87509333, 1e-6) && perto(cV2.dL, 62.1058, 0.01) && perto(cV2.f3, 0.899268, 2e-5) && perto(cV2.T1, 1157.14, 0.05) && cV2.conv, "2 vaos de 6,7 m (modelo da planilha, conferido em Python): L1 13,575 m, J 6,875 m, dL 62,1 mm, f3 899,3 mm, T1 1157,1 kgf: " + JSON.stringify([cV2.L1, cV2.J, cV2.dL, cV2.f3, cV2.T1]));
+  T(perto(cV2.ZLQ2, 4.899268, 1e-4) && perto(cV2.ZLQ1, 5.799268, 1e-4) && cV2.T1 < cF.T1 && cV2.f3 > cF.f3, "mais vaos: mais folga no vao carregado, flecha dinamica e ZLQ maiores, esforco menor");
+  const cV3 = roda(`chkMemorialCalc("horizontal_flexivel", ${JSON.stringify(mV(20.1))})`);
+  T(perto(cV3.nv, 3, 1e-9) && perto(cV3.f3, 1.082617, 3e-5) && perto(cV3.T1, 975.578, 0.05), "3 vaos: f3 1082,6 mm e T1 975,6 kgf");
+  T(mV(6).comprimento === 6.7 && mV(6).comprimentoInformado === 6 && roda(`(function(){ const m = ${JSON.stringify(mV(6))}; return chkMemorialAlertas(chkMemorialCalc("horizontal_flexivel", m), m); })()`).some(x=> x.includes("menor que o vão")), "comprimento menor que o vao: usa o vao e avisa");
+  T(roda(`chkMemorialDe({ memorial:{ vao:6.7, diametro:8, flechaCm:46.9 } }).comprimento`) === 6.7 && roda(`chkMemorialDe({ memorial:{ comprimento:10 } }).comprimento`) === null, "sem comprimento informado vale o vao; sem vao nao ha comprimento");
+  const fV = roda(`(function(){ const m = ${JSON.stringify(mV(13.4))}; const c = chkMemorialCalc("horizontal_flexivel", m); return { f: chkMemorialFormulas(c, m), t: chkMemorialTabelas(c, m), p: chkMemorialPremissas(c, m) }; })()`);
+  T(fV.f.includes("Comprimento do cabo em um vão") && fV.f.includes("Comprimento do cabo na linha toda") && fV.f.includes("Cabo disponível no vão carregado") && fV.t.includes("Comprimento da linha (C)") && fV.t.includes("Número de vãos") && fV.t.includes("Cabo no vão carregado (J)") && fV.p.some(x=> x.includes("2,0 vãos de 6,70 m") && x.includes("concentra no vão carregado")) && !/NaN|undefined/.test(fV.f + fV.t + fV.p.join("")), "passo a passo, tabelas e premissas de uma linha com 2 vaos");
+  const f1V = roda(`(function(){ const m = ${JSON.stringify(mV(6.7))}; const c = chkMemorialCalc("horizontal_flexivel", m); return { f: chkMemorialFormulas(c, m), t: chkMemorialTabelas(c, m), p: chkMemorialPremissas(c, m) }; })()`);
+  T(!f1V.f.includes("na linha toda") && !f1V.f.includes("vão carregado") && f1V.f.includes("Comprimento do cabo") && !f1V.t.includes("Número de vãos") && !f1V.p.some(x=> x.includes("vãos de")), "1 vao: a tela e o laudo continuam como antes");
   // linha de restricao: carga = peso de cada usuario (100 kgf por pessoa) e fator de seguranca padrao 3
   const mRe = roda(`chkMemorialDe({ memorial:{ hanc:5, hpos:3, vao:6.7, flechaCm:6.7, diametro:8, usuarios:2, uso:"restricao" } })`);
   const cRe = roda(`chkMemorialCalc("horizontal_flexivel", ${JSON.stringify(mRe)})`);
@@ -1480,9 +1505,11 @@ async function testarMemorial(){
   T(cMini && Number.isFinite(cMini.T1) && Number.isFinite(cMini.f3) && cMini.voltas <= 2000, "flecha de 1 cm em 20 m: sem NaN e sem laco infinito: " + JSON.stringify(cMini && [cMini.T1, cMini.voltas, cMini.conv]));
   // diametro e tabela de cabos
   const rup = (d) => roda(`chkCaboRuptura(${JSON.stringify(d)})`);
-  T(rup(8).Frup === 3900 && rup(8).grau === "IPS" && rup(9.52).Frup === 6100 && rup(9.52).grau === "EIPS" && rup(12.7).Frup === 10800 && rup(52).Frup === 170300 && rup(6.4).Frup === 2500 && rup("8,0").Frup === 3900, "ruptura da tabela por diametro (IPS onde existe, senao EIPS, como na planilha)");
+  T(rup(8).Frup === 3900 && rup(8).grau === "IPS" && rup(8).est === false && rup(9.52).Frup === 5450 && rup(9.52).grau === "IPS" && rup(9.52).est === true && rup(12.7).Frup === 9700 && rup(52).Frup === 153400 && rup(6.4).Frup === 2500 && rup(22).Frup === 29500 && rup("8,0").Frup === 3900, "ruptura da tabela por diametro, tudo IPS (a IPS que a planilha nao traz e a EIPS dividida por 1,11, para baixo)");
+  T(roda(`CHK_CABOS.every(r => r[3] > 0 && r.length === 5)`) && roda(`CHK_CABOS.length`) === 18 && roda(`CHK_CABOS.filter(r => r[4]).length`) === 10 && roda(`CHK_CABOS.every((r, i) => i === 0 || r[3] > CHK_CABOS[i - 1][3])`), "tabela de 18 cabos, todos com IPS, 10 deles estimados, ruptura crescente com o diametro");
+  T(roda(`CHK_CABOS.filter(r => r[4]).every(r => r[3] <= ${JSON.stringify([[9.52, 6.1], [11.1, 8.3], [12.7, 10.8], [14.3, 13.6], [15.88, 16.8], [19, 24], [29, 53.9], [35, 80.5], [45, 130.4], [52, 170.3]])}.find(e => e[0] === r[0])[1] / 1.1)`), "a IPS estimada nunca passa da EIPS da planilha dividida por 1,1 (lado seguro)");
   T(rup(10).dTab === 9.52 && rup(10).exato === false && rup(2) === null && rup(null) === null && rup(0) === null, "diametro fora da tabela usa o menor vizinho (lado seguro); menor que a tabela ou vazio, nada");
-  T(roda(`chkMemorialDe({ memorial:{ diametro:12.7 } }).params.Frup`) === 10800 && roda(`chkMemorialDe({ memorial:{ diametro:12.7, params:{ Frup:9000 } } }).params.Frup`) === 9000 && roda(`chkMemorialDe({ memorial:{ diametro:12.7 } }).frupNota`).includes("EIPS") && roda(`chkMemorialDe({ memorial:{ diametro:12.7, params:{ Frup:9000 } } }).frupNota`).includes("informado"), "a ruptura vem do diametro; valor informado na linha vale mais");
+  T(roda(`chkMemorialDe({ memorial:{ diametro:12.7 } }).params.Frup`) === 9700 && roda(`chkMemorialDe({ memorial:{ diametro:12.7, params:{ Frup:9000 } } }).params.Frup`) === 9000 && roda(`chkMemorialDe({ memorial:{ diametro:12.7 } }).frupNota`).includes("IPS estimada") && roda(`chkMemorialDe({ memorial:{ diametro:8 } }).frupNota`).includes("IPS da tabela") && roda(`chkMemorialDe({ memorial:{ diametro:12.7, params:{ Frup:9000 } } }).frupNota`).includes("informado"), "a ruptura vem do diametro; valor informado na linha vale mais");
   // menor cabo da tabela que atende
   const mn = roda(`chkMemorialDiametroMin("horizontal_flexivel", chkMemorialDe({ memorial:{ hanc:5, hpos:3, vao:6.7, flechaCm:46.9, diametro:8 } }))`);
   T(mn && mn[0] <= 8 && mn[0] >= 6.4, "menor cabo que atende com 1 usuario e 7% de flecha: " + JSON.stringify(mn));
@@ -1519,7 +1546,7 @@ async function testarMemorial(){
   T(txt.f.includes("<math>") && txt.f.includes("<mn>4,66</mn>") && txt.f.includes("<mn>1550</mn>") && txt.f.includes("Alongamento do cabo") && txt.f.includes("<mn>41,6</mn>") && txt.f.includes("Distância de frenagem") && txt.f.includes("Fator de queda") && txt.f.includes("<mn>0,21</mn>") && txt.f.includes("voltas") && txt.f.includes("<mn>0,661</mn>") && txt.f.includes("<mn>6,70</mn>"), "formulas com os numeros substituidos (ZLQ2 4,66; T1 1550; f3 0,661; vao 6,70)");
   T(!/NaN|undefined|Infinity/.test(txt.f + txt.t + txt.pr.join("") + txt.co.join("") + txt.le.join("")), "texto do memorial sem NaN/undefined");
   T(txt.t.includes("Força no cabo (T1)") && txt.t.includes("<b>1550</b>") && txt.t.includes("Diâmetro do cabo") && txt.t.includes("<td class=\"v\">8</td>") && txt.t.includes("Alongamento (ΔL)") && txt.t.includes("Fator de queda") && txt.t.includes("Módulo E do cabo"), "tabelas de entrada e resultado, com o diametro, o alongamento e o fator de queda");
-  T(txt.pr[0].includes("Cabo de aço de 8 mm") && txt.pr[0].includes("IPS") && txt.pr[1].includes("600 kgf") && txt.pr[2].includes("9500") && txt.pr[2].includes("voltas") && txt.co.some(x=> x.includes("Fator de queda do sistema: <b>0,2</b>")) && txt.co.some(x=> x.includes("Cabo de aço de 8 mm") && x.includes("atende")) && txt.le.length === 11 && txt.le[9].includes("5,00 m") && txt.le[10].includes("3,00 m") && txt.le[6].includes("4,66 m"), "premissa com o diametro; legenda com 11 itens e os valores 7, 10 e 11");
+  T(txt.pr[0].includes("Cabo de aço de 8 mm") && txt.pr[0].includes("IPS da tabela do fabricante") && txt.pr[1].includes("600 kgf") && txt.pr[2].includes("9500") && txt.pr[2].includes("voltas") && txt.co.some(x=> x.includes("Fator de queda do sistema: <b>0,2</b>")) && txt.co.some(x=> x.includes("Cabo de aço de 8 mm") && x.includes("atende")) && txt.le.length === 11 && txt.le[9].includes("5,00 m") && txt.le[10].includes("3,00 m") && txt.le[6].includes("4,66 m"), "premissa com o diametro; legenda com 11 itens e os valores 7, 10 e 11");
   const txtR = roda(`(function(){ const m = chkMemorialDe({ memorial:{ hanc:5, hpos:3, vao:3 } }); const c = chkMemorialCalc("horizontal_rigida", m); return { f: chkMemorialFormulas(c, m), pr: chkMemorialPremissas(c, m), le: chkMemorialLegenda(c, m) }; })()`);
   T(txtR.f.includes("δ") && txtR.f.includes("<mn>2611</mn>") && txtR.pr[0].includes("W200x26,6") && txtR.le[1].includes("viga W200x26,6") && !/NaN|undefined/.test(txtR.f) && !txtR.f.includes("Momento fletor") && !txtR.f.includes("Tensão de flexão") && !txtR.pr.join("").includes("Tensão") && !txtR.pr.join("").includes("fy"), "viga: formulas de deflexao, premissa e legenda, sem a verificacao de resistencia");
 
@@ -1553,6 +1580,10 @@ async function testarMemorial(){
   T(roda("chkMemorialFaltas(getCurrentChkLinha())").join(",") === "diâmetro do cabo" && roda("chkStatusAbaMemorial(getCurrentChkLinha())") === "parcial", "faltando so o diametro: aba ainda parcial");
   roda("App.chkMemorialSet('diametro', '8')");
   T(roda("chkMemorialFaltas(getCurrentChkLinha())").length === 0 && roda("chkStatusAbaMemorial(getCurrentChkLinha())") === "completa", "tudo medido: aba completa");
+  roda("App.chkMemorialSet('comprimento', '13,4')");
+  T(lm.memorial.comprimento === 13.4 && roda("chkMemorialCalc('horizontal_flexivel', chkMemorialDe(getCurrentChkLinha()))").nv > 1.99, "digitar o comprimento da linha grava na linha e o calculo passa a usar 2 vaos");
+  roda("App.chkMemorialSet('comprimento', '')");
+  T(lm.memorial.comprimento === null, "apagar o comprimento volta a 1 vao");
   roda("App.chkMemorialSetUso('restricao')");
   T(lm.memorial.uso === "restricao" && roda("chkMemorialDe(getCurrentChkLinha()).params.FS") === 3, "tipo de linha de restricao: grava na linha e muda o fator de seguranca padrao");
   roda("App.chkMemorialSetUso('xyz')");
@@ -1583,10 +1614,10 @@ async function testarMemorial(){
   roda("App.chkMemorialToggle()");
   T(lm.laudo.capitulos.memorial === true && !sandbox.__ultimoOverlayHtml, "ligar de novo e direto, sem confirmacao");
   const htmlOn = roda("chkMemorialCampoHtml(getCurrentChkLinha())");
-  T(htmlOn.includes("chkMemorialSet('flechaCm'") && htmlOn.includes("chkMemorialSet('diametro'") && htmlOn.includes("chkMemorialSetUso(") && htmlOn.includes("5/16”") && htmlOn.includes("chkMemorialSetParam('Frup'") && htmlOn.includes("chkMemorialSetParam('Ecabo'") && htmlOn.includes('placeholder="3900"') && htmlOn.includes("Cálculo passo a passo") && htmlOn.includes('id="chkMemPasso"') && htmlOn.includes("Alongamento do cabo") && htmlOn.includes("Esta linha não terá memorial") && htmlOn.includes("Trava-quedas: pode"), "aba do cabo: campos, parametros com o padrao dentro e resultado preliminar");
+  T(htmlOn.includes("chkMemorialSet('flechaCm'") && htmlOn.includes("chkMemorialSet('comprimento'") && htmlOn.includes("chkMemorialSet('diametro'") && htmlOn.includes("chkMemorialSetUso(") && htmlOn.includes("5/16”") && htmlOn.includes("chkMemorialSetParam('Frup'") && htmlOn.includes("chkMemorialSetParam('Ecabo'") && htmlOn.includes('placeholder="3900"') && htmlOn.includes("Cálculo passo a passo") && htmlOn.includes('id="chkMemPasso"') && htmlOn.includes("Alongamento do cabo") && htmlOn.includes("Esta linha não terá memorial") && htmlOn.includes("Trava-quedas: pode"), "aba do cabo: campos, parametros com o padrao dentro e resultado preliminar");
   lm.tipoLinha = "horizontal_rigida";
   const htmlRig = roda("chkMemorialCampoHtml(getCurrentChkLinha())");
-  T(!htmlRig.includes("chkMemorialSet('flechaCm'") && !htmlRig.includes("chkMemorialSet('diametro'") && !htmlRig.includes("chkMemorialSetUso(") && !htmlRig.includes("chkMemorialSetParam('Ecabo'") && htmlRig.includes("chkMemorialSet('hanc'"), "viga nao pede flecha, diametro, tipo de linha nem os dados do cabo");
+  T(!htmlRig.includes("chkMemorialSet('flechaCm'") && !htmlRig.includes("chkMemorialSet('comprimento'") && !htmlRig.includes("chkMemorialSet('diametro'") && !htmlRig.includes("chkMemorialSetUso(") && !htmlRig.includes("chkMemorialSetParam('Ecabo'") && htmlRig.includes("chkMemorialSet('hanc'"), "viga nao pede flecha, diametro, tipo de linha nem os dados do cabo");
   lm.tipoLinha = "horizontal_flexivel";
   T(JSON.stringify(outra) === antesOutra, "mexer no memorial de uma linha nao pode tocar em outra linha");
 
@@ -2435,7 +2466,283 @@ async function testarCapaLaudo(){
   const sum = roda("lclBlocosSumario(lclPlano(__f3.proj, __f3.l), {}).map(b => b.html).join('')");
   T(sum.includes("Avaliação por Componente") && !sum.includes("Corpo do laudo"), "o Sumario usa o novo nome do capitulo");
 }
-testarFotoAmpla().then(() => testarTravas()).then(() => testarDadosLaudo()).then(() => testarLaudoCapitulos()).then(() => testarMemorial()).then(() => testarCapitulosNovos()).then(() => testarEdicaoTexto()).then(() => testarFotosLeituraLaudo()).then(() => testarCadastroProjeto()).then(() => testarEditorModelo()).then(() => testarAtalhoLaudo()).then(() => testarCapaLaudo()).then(() => {
+async function testarSincronizacaoChecklist(){
+  const T = (cond, msg)=>{ if(!cond) throw new Error("sincronizacao do checklist: " + msg); };
+  const J = (v)=> JSON.stringify(v);
+  const estadoOriginal = sandbox.STATE;
+  const nuvem = new Map(); // pasta -> Map(nome -> texto): a "nuvem" compartilhada pelos dois aparelhos de mentira
+  const pasta = (p)=>{ if(!nuvem.has(p)) nuvem.set(p, new Map()); return nuvem.get(p); };
+  const mkT = (opc)=>{
+    opc = opc || {};
+    const log = [];
+    return {
+      log,
+      listar: async (p)=> opc.listagemFalha ? null : Array.from(pasta(p).keys()),
+      baixar: async (p, n)=>{ if(opc.aoBaixar) opc.aoBaixar(p, n); return (opc.falharBaixar && opc.falharBaixar(p, n)) ? null : (pasta(p).has(n) ? pasta(p).get(n) : null); },
+      enviar: async (p, n, t)=>{ if(opc.falharEnvio && opc.falharEnvio(p, n)) return false; pasta(p).set(n, t); return true; },
+      apagar: async (p, n)=>{ pasta(p).delete(n); return true; },
+      fotosLocais: async ()=> new Set(),
+      resolverFotos: async ()=>{},
+      motivoFalha: ()=> "falha simulada",
+    };
+  };
+  const dispositivo = ()=> roda(`(function(){ const e = { modulo:"checklist", projetos:[], projetosSimples:[], checklists:{ modelos:[], projetos:[] }, ui:{} }; chkGarantirNamespace(e); return e; })()`);
+  const sync = async (estado, opc)=>{
+    sandbox.STATE = estado;
+    const t = mkT(opc);
+    t.log = (...a)=>{ t.eventos = t.eventos || []; t.eventos.push(a); };
+    sandbox.__T = t;
+    sandbox.__OPC = { limite: (opc && opc.limite) || Infinity };
+    const r = await roda("chkSyncRodar(__T, __OPC)");
+    r.eventos = t.eventos || [];
+    return r;
+  };
+  const nomesNuvem = (p)=> Array.from(pasta(p || "Backup/Checklist").keys());
+  const emDia = async (a, b)=>{ // roda ate estabilizar (no maximo 4 rodadas por aparelho) e devolve se terminou sem mover nada
+    for(let i = 0; i < 4; i++){
+      const ra = await sync(a), rb = await sync(b);
+      if(!ra.enviou && !ra.baixou && !ra.removeu && !rb.enviou && !rb.baixou && !rb.removeu) return true;
+    }
+    return false;
+  };
+  const doModelo = (e)=> { sandbox.STATE = e; return roda(`STATE.checklists.modelos.find(x => x.id === CHK_MODELO_PADRAO_ID)`); };
+  const difere = (x, y, caminho)=>{ // primeira diferenca entre duas arvores (para mensagem de erro)
+    caminho = caminho || "";
+    if(typeof x !== typeof y) return caminho + ": tipos " + typeof x + " x " + typeof y;
+    if(x && y && typeof x === "object"){
+      const ks = new Set(Object.keys(x).concat(Object.keys(y)));
+      for(const k of ks){ const d = difere(x[k], y[k], caminho + "." + k); if(d) return d; }
+      return "";
+    }
+    return x === y ? "" : caminho + ": " + J(x).slice(0, 60) + " x " + J(y).slice(0, 60);
+  };
+
+  // ---------------------------------------------------------------- 1) o modelo pronto de cada aparelho (sementes) nunca briga
+  const A = dispositivo(), B = dispositivo();
+  const mA0 = doModelo(A), mB0 = doModelo(B);
+  T(mA0.semente === true && mA0.sementeEm === mA0.atualizadoEm && mB0.semente === true, "o modelo pronto nasce como semente (intocado)");
+  T(mA0.secoes[0].id !== mB0.secoes[0].id, "preparo: cada aparelho semeia o modelo pronto com ids proprios");
+  let r = await sync(A);
+  T(r.enviou === 1 && nomesNuvem().filter(n => n.startsWith("m_")).length === 1, "o primeiro aparelho sobe o modelo pronto: " + J(r));
+  r = await sync(B);
+  const mB1 = doModelo(B);
+  T(r.baixou === 1 && r.conflitos === 0 && mB1.secoes[0].id === mA0.secoes[0].id && mB1.semente === true && mB1.atualizadoEm === mB1.sementeEm && B.checklists.modelos.length === 1, "o outro aparelho, com o modelo pronto intocado, adota o da nuvem sem copia nem briga: " + J(r));
+  T(await emDia(A, B), "dois aparelhos em dia: uma segunda rodada nao move nada");
+
+  // ---------------------------------------------------------------- 2) editar o modelo pronto num aparelho chega no outro; semente nunca vence modelo editado
+  sandbox.STATE = A;
+  roda(`(function(){ const m = STATE.checklists.modelos[0]; m.nome = "Linhas de Vida EDITADO"; m.secoes[0].itens[0].descricao = "Pergunta alterada no aparelho A"; m.atualizadoEm = agoraSync(); })()`);
+  r = await sync(A);
+  T(r.enviou === 1 && r.baixou === 0, "a edicao do modelo sobe: " + J(r));
+  r = await sync(B);
+  const mB2 = doModelo(B);
+  T(r.baixou === 1 && mB2.nome === "Linhas de Vida EDITADO" && mB2.secoes[0].itens[0].descricao === "Pergunta alterada no aparelho A" && B.checklists.modelos.length === 1, "o modelo editado em A chega em B, no mesmo modelo (sem duplicar): " + J(r));
+  const C = dispositivo(); // aparelho novo, com o modelo pronto recem-semeado (carimbo mais novo que a edicao de A)
+  r = await sync(C);
+  T(C.checklists.modelos.length === 1 && doModelo(C).nome === "Linhas de Vida EDITADO" && r.conflitos === 0 && r.enviou === 0, "modelo pronto recem-criado nunca passa por cima do editado: " + J(r));
+  T(Array.from(pasta("Backup/Checklist").keys()).filter(n => n.startsWith("m_")).length === 1, "so uma versao do modelo na nuvem");
+
+  // ---------------------------------------------------------------- 3) modelo novo: aparece no outro; editar la volta; nada de copia
+  sandbox.STATE = B;
+  const idNovo = roda(`(function(){ const m = novoChkModelo(); m.nome = "Meu modelo"; const s = novoChkSecao(); s.titulo = "Sec A"; const it = novoChkItem(); it.descricao = "P1"; it.info = { texto:"orientacao", fotos:[{ foto:"data:image/jpeg;base64,INFOFOTO1" }] }; s.itens.push(it); m.secoes.push(s); STATE.checklists.modelos.push(m); return m.id; })()`);
+  await sync(B);
+  T(Array.from(pasta("Backup/Checklist/Fotos").keys()).length === 1, "a foto de orientacao sobe como arquivo proprio (uma vez): " + J(nomesNuvem("Backup/Checklist/Fotos")));
+  r = await sync(A);
+  const mNovoA = A.checklists.modelos.find(x => x.id === idNovo);
+  T(r.baixou === 1 && mNovoA && mNovoA.nome === "Meu modelo" && mNovoA.secoes[0].itens[0].info.fotos[0].foto === "data:image/jpeg;base64,INFOFOTO1", "o modelo novo e a foto de orientacao chegam no outro aparelho");
+  sandbox.STATE = A;
+  roda(`(function(){ const m = STATE.checklists.modelos.find(x => x.id === ${J(idNovo)}); m.secoes[0].itens[0].descricao = "P1 (alterada em A)"; m.atualizadoEm = agoraSync(); })()`);
+  T(await emDia(A, B) && B.checklists.modelos.find(x => x.id === idNovo).secoes[0].itens[0].descricao === "P1 (alterada em A)" && A.checklists.modelos.length === 2 && B.checklists.modelos.length === 2, "editar o modelo em qualquer aparelho chega no outro, sem copias");
+
+  // ---------------------------------------------------------------- 4) projeto > setor > linha, com foto
+  sandbox.STATE = A;
+  const ids = roda(`(function(){ const m = STATE.checklists.modelos.find(x => x.id === CHK_MODELO_PADRAO_ID); const p = novoChkProjeto(); p.empresa = "Empresa X"; const s = novoChkSetor(); s.nome = "Setor 1"; const l = novoChkLinha(m); l.nome = "LV-1"; l.itens[0].fotos = [{ foto:"data:image/jpeg;base64,FOTOLINHA1", tags:[] }]; l.fotoAmpla = "data:image/jpeg;base64,FOTOAMPLA1"; s.linhas.push(l); p.setores.push(s); STATE.checklists.projetos.push(p); return { p:p.id, s:s.id, l:l.id }; })()`);
+  r = await sync(A);
+  const nom = nomesNuvem();
+  T(r.enviou === 3 && nom.some(n => n.startsWith("p_" + ids.p + "_")) && nom.some(n => n.startsWith("s_" + ids.s + "_")) && nom.some(n => n.startsWith("l_" + ids.l + "_")) && nomesNuvem("Backup/Checklist/Fotos").length === 3, "projeto, setor e linha sobem em arquivos separados; as fotos (2 + 1 do modelo) a parte: " + J([r, nom, nomesNuvem("Backup/Checklist/Fotos")]));
+  const textoLinha = pasta("Backup/Checklist").get(nom.find(n => n.startsWith("l_" + ids.l + "_")));
+  T(!textoLinha.includes("FOTOLINHA1") && textoLinha.includes("idbfoto:"), "o arquivo da linha leva so a referencia da foto, nao os bytes");
+  r = await sync(B);
+  T(r.baixou === 3 && difere(A.checklists.projetos, B.checklists.projetos) === "", "o aparelho B recebe o projeto inteiro (projeto, setor, linha e fotos) igualzinho: " + difere(A.checklists.projetos, B.checklists.projetos));
+  T(B.checklists.projetos[0].setores[0].linhas[0].itens[0].fotos[0].foto === "data:image/jpeg;base64,FOTOLINHA1" && B.checklists.projetos[0].setores[0].linhas[0].fotoAmpla === "data:image/jpeg;base64,FOTOAMPLA1", "as fotos chegam com os bytes de verdade");
+  T(await emDia(A, B), "em dia depois da primeira troca");
+
+  // ---------------------------------------------------------------- 5) editar na linha (mesmo campo sem carimbo) e no projeto
+  sandbox.STATE = B;
+  roda(`(function(){ const l = STATE.checklists.projetos[0].setores[0].linhas[0]; l.itens[0].observacao = "nota digitada em campo"; })()`); // chkSetObservacao nao carimba
+  roda(`(function(){ STATE.checklists.projetos[0].empresa = "Empresa X Ltda"; STATE.checklists.projetos[0].atualizadoEm = agoraSync(); })()`);
+  r = await sync(B);
+  T(r.enviou === 2, "alteracao que nao carimba tambem e detectada (por assinatura): " + J(r));
+  r = await sync(A);
+  T(A.checklists.projetos[0].setores[0].linhas[0].itens[0].observacao === "nota digitada em campo" && A.checklists.projetos[0].empresa === "Empresa X Ltda" && A.checklists.projetos[0].setores.length === 1, "as alteracoes de B chegam em A sem mexer nos filhos");
+  T(await emDia(A, B), "em dia de novo");
+
+  // ---------------------------------------------------------------- 6) alteracao dos dois lados na mesma linha: ninguem perde nada
+  sandbox.STATE = A;
+  roda(`(function(){ const l = STATE.checklists.projetos[0].setores[0].linhas[0]; l.itens[1].observacao = "A: sapatilha trincada"; l.atualizadoEm = agoraSync(); })()`);
+  sandbox.STATE = B;
+  roda(`(function(){ const l = STATE.checklists.projetos[0].setores[0].linhas[0]; l.itens[1].observacao = "B: cabo desfiado"; l.atualizadoEm = agoraSync(); })()`);
+  await sync(A);
+  r = await sync(B);
+  const linhasB = B.checklists.projetos[0].setores[0].linhas;
+  T(r.conflitos === 1 && linhasB.length === 2, "alteracao dos dois lados: o aparelho que chega depois guarda as duas versoes (uma vira copia): " + J([r.conflitos, linhasB.length]));
+  const obs = linhasB.map(l => l.itens[1].observacao).sort();
+  T(J(obs) === J(["A: sapatilha trincada", "B: cabo desfiado"]) && linhasB.some(l => l.nome.includes("(versão de ")), "as duas versoes existem e a copia tem o rotulo: " + J(obs));
+  T(await emDia(A, B) && A.checklists.projetos[0].setores[0].linhas.length === 2 && difere(A.checklists.projetos, B.checklists.projetos) === "", "as duas versoes se espalham para os dois aparelhos e tudo estabiliza");
+  // a mesma alteracao feita nos dois lados (so o carimbo difere) nao gera copia
+  sandbox.STATE = A;
+  roda(`(function(){ const l = STATE.checklists.projetos[0].setores[0].linhas[0]; l.conclusaoTexto = "igual"; l.atualizadoEm = agoraSync(); })()`);
+  sandbox.STATE = B;
+  roda(`(function(){ const l = STATE.checklists.projetos[0].setores[0].linhas.find(x => x.id === ${J(ids.l)}); l.conclusaoTexto = "igual"; l.atualizadoEm = agoraSync(); })()`);
+  await sync(A);
+  r = await sync(B);
+  T(r.conflitos === 0 && B.checklists.projetos[0].setores[0].linhas.length === 2, "mesmo conteudo nos dois lados: sem copia: " + J(r));
+  await emDia(A, B);
+
+  // ---------------------------------------------------------------- 7) exclusao: viaja, e a nuvem acompanha
+  sandbox.STATE = A;
+  const idCopia = A.checklists.projetos[0].setores[0].linhas.find(l => l.id !== ids.l).id;
+  A.ui.chkProjetoId = ids.p; A.ui.chkSetorId = ids.s;
+  roda(`App.chkExcluirLinha(${J(idCopia)})`);
+  r = await sync(A);
+  T(!nomesNuvem().some(n => n.startsWith("l_" + idCopia + "_")) && nomesNuvem().some(n => /^x_\d+\.json$/.test(n)), "a linha excluida some da nuvem e a lapide sobe: " + J(nomesNuvem()));
+  r = await sync(B);
+  T(r.removeu === 1 && B.checklists.projetos[0].setores[0].linhas.length === 1 && B.checklists.projetos[0].setores[0].linhas[0].id === ids.l, "a exclusao chega no outro aparelho");
+  T(await emDia(A, B), "em dia depois da exclusao (a linha nao ressuscita)");
+
+  // ---------------------------------------------------------------- 8) exclusao do projeto inteiro; e a protecao de quem tem alteracao ainda nao enviada
+  sandbox.STATE = B;
+  roda(`(function(){ const l = STATE.checklists.projetos[0].setores[0].linhas[0]; l.itens[2].observacao = "B editou depois"; })()`);
+  sandbox.STATE = A;
+  A.ui.chkProjetoId = ids.p;
+  roda(`App.chkExcluirProjeto(${J(ids.p)})`);
+  await sync(A);
+  T(!nomesNuvem().some(n => /^[psl]_/.test(n) && (n.includes(ids.p) || n.includes(ids.s) || n.includes(ids.l))), "projeto excluido: nada dele fica na nuvem: " + J(nomesNuvem()));
+  r = await sync(B);
+  T(B.checklists.projetos.length === 1 && B.checklists.projetos[0].setores[0].linhas[0].itens[2].observacao === "B editou depois", "B tinha alteracao nao enviada: o projeto e mantido (nada se perde): " + J([r, B.checklists.projetos.length]));
+  T(await emDia(A, B) && A.checklists.projetos.length === 1 && A.checklists.projetos[0].setores[0].linhas[0].itens[2].observacao === "B editou depois", "e o projeto volta para o outro aparelho, com a alteracao");
+  // agora sem alteracao pendente: a exclusao vale
+  A.ui.chkProjetoId = ids.p;
+  sandbox.STATE = A;
+  roda(`App.chkExcluirProjeto(${J(ids.p)})`);
+  T(await emDia(A, B) && A.checklists.projetos.length === 0 && B.checklists.projetos.length === 0, "exclusao sem alteracao pendente: projeto sai dos dois aparelhos");
+
+  // ---------------------------------------------------------------- 9) inspetores: uniao
+  sandbox.STATE = A;
+  const idInspA = roda(`(function(){ const i = novoChkInspetor(); i.nome = "Ana"; i.cargo = "Eng"; STATE.checklists.inspetores = [i]; return i.id; })()`);
+  sandbox.STATE = B;
+  const idInspB = roda(`(function(){ const i = novoChkInspetor(); i.nome = "Bruno"; i.cargo = "Tec"; STATE.checklists.inspetores = [i]; return i.id; })()`);
+  T(await emDia(A, B), "inspetores: estabiliza");
+  T(A.checklists.inspetores.length === 2 && B.checklists.inspetores.length === 2 && A.checklists.inspetores.some(i => i.nome === "Bruno") && B.checklists.inspetores.some(i => i.nome === "Ana"), "inspetor cadastrado em cada aparelho aparece nos dois (uniao)");
+  sandbox.STATE = B;
+  B.ui.chkProjetoId = null;
+  roda(`App.chkInspetorSet(${J(idInspA)}, "cargo", "Engenheira")`);
+  roda(`App.chkInspetorAtivo(${J(idInspB)})`);
+  T(await emDia(A, B) && A.checklists.inspetores.find(i => i.id === idInspA).cargo === "Engenheira" && A.checklists.inspetores.find(i => i.id === idInspB).ativo === false, "editar/desativar inspetor num aparelho chega no outro");
+
+  // ---------------------------------------------------------------- 10) falhas: nada se corrompe e a proxima rodada conserta
+  sandbox.STATE = A;
+  const idsF = roda(`(function(){ const m = STATE.checklists.modelos.find(x => x.id === CHK_MODELO_PADRAO_ID); const p = novoChkProjeto(); p.empresa = "F"; const s = novoChkSetor(); s.nome = "S"; const l = novoChkLinha(m); l.nome = "LV-F"; l.fotoAmpla = "data:image/jpeg;base64,FOTOFALHA"; s.linhas.push(l); p.setores.push(s); STATE.checklists.projetos.push(p); return { p:p.id, l:l.id }; })()`);
+  r = await sync(A, { falharEnvio: (p, n) => p === "Backup/Checklist/Fotos" });
+  T(r.falhas >= 1 && !nomesNuvem().some(n => n.startsWith("l_" + idsF.l + "_")), "foto que nao subiu: a linha NAO sobe sem ela (ninguem recebe referencia quebrada): " + J(r));
+  r = await sync(A);
+  T(r.falhas === 0 && nomesNuvem().some(n => n.startsWith("l_" + idsF.l + "_")), "a rodada seguinte, com rede, conclui");
+  r = await sync(B, { listagemFalha: true });
+  T(r.erro === true && r.baixou === 0 && B.checklists.projetos.length === 0, "listagem que falha nao muda nada (nem apaga)");
+  // foto ainda nao disponivel para baixar: a linha fica de fora ate chegar, sem perder nada
+  r = await sync(B, { falharBaixar: (p, n) => p === "Backup/Checklist/Fotos" });
+  T(r.falhas >= 1 && B.checklists.projetos.every(p => p.id !== idsF.p || p.setores.every(s => s.linhas.length === 0)), "linha cuja foto ainda nao veio nao e aplicada pela metade: " + J(r));
+  T(await emDia(A, B) && B.checklists.projetos.some(p => p.id === idsF.p && p.setores[0].linhas[0].fotoAmpla === "data:image/jpeg;base64,FOTOFALHA"), "e chega inteira quando a foto chega");
+
+  // ---------------------------------------------------------------- 11) a nuvem esvaziada nunca apaga o que esta no aparelho (e tudo volta a subir)
+  nuvem.clear();
+  sandbox.STATE = A;
+  const conteudoA = ()=> roda(`chkSyncSig(STATE.checklists.projetos, true)`) + J(A.checklists.modelos.map(m => m.id));
+  const antesA = conteudoA();
+  r = await sync(A);
+  T(conteudoA() === antesA && r.enviou >= 3 && r.removeu === 0, "nuvem vazia: nada local e apagado e o que existe sobe de novo: " + J(r));
+
+  // ---------------------------------------------------------------- 12) limite de operacoes por rodada (ciclo automatico)
+  nuvem.clear();
+  const D = dispositivo();
+  sandbox.STATE = D;
+  roda(`(function(){ const m = STATE.checklists.modelos[0]; const p = novoChkProjeto(); const s = novoChkSetor(); for(let i = 0; i < 6; i++){ const l = novoChkLinha(m); l.nome = "L" + i; s.linhas.push(l); } p.setores.push(s); STATE.checklists.projetos.push(p); })()`);
+  r = await sync(D, { limite: 3 });
+  T(r.adiado === true && r.enviou === 3, "com limite, a rodada para e avisa que sobrou trabalho: " + J(r));
+  T(await emDia(D, dispositivo()), "as rodadas seguintes terminam o servico");
+
+  // ---------------------------------------------------------------- 12b) aparelhos que ja existiam (sem a marca de semente)
+  nuvem.clear();
+  const P = dispositivo(), Q = dispositivo(), R2 = dispositivo();
+  sandbox.STATE = P;
+  roda(`(function(){ const m = STATE.checklists.modelos[0]; m.nome = "Modelo do escritorio"; m.secoes[0].itens[0].descricao = "Texto ajustado no escritorio"; m.atualizadoEm = agoraSync(); })()`);
+  await sync(P);
+  // Q: modelo de fabrica nunca editado, mas de um app antigo (sem marca de semente, carimbo mais novo que o do escritorio)
+  sandbox.STATE = Q;
+  roda(`(function(){ const m = STATE.checklists.modelos[0]; delete m.semente; delete m.sementeEm; m.atualizadoEm = agoraSync(); })()`);
+  r = await sync(Q);
+  T(r.conflitos === 0 && Q.checklists.modelos.length === 1 && doModelo(Q).nome === "Modelo do escritorio", "modelo de fabrica de um aparelho antigo (so tem o conteudo original) adota o da nuvem, sem copia: " + J(r));
+  // R: aparelho antigo que EDITOU o modelo de fabrica por conta propria: nada se perde (a outra versao vira copia)
+  sandbox.STATE = R2;
+  roda(`(function(){ const m = STATE.checklists.modelos[0]; delete m.semente; delete m.sementeEm; m.nome = "Editado no celular"; m.atualizadoEm = agoraSync(); })()`);
+  r = await sync(R2);
+  T(r.conflitos === 1 && R2.checklists.modelos.length === 2 && R2.checklists.modelos.some(m => m.nome === "Editado no celular" || m.nome.startsWith("Editado no celular (versão de ")) && R2.checklists.modelos.some(m => m.nome === "Modelo do escritorio" || m.nome.startsWith("Modelo do escritorio (versão de ")), "os dois aparelhos editaram o modelo de fabrica: as duas versoes ficam (uma como copia): " + J([r, R2.checklists.modelos.map(m => m.nome)]));
+
+  // ---------------------------------------------------------------- 12c) trabalho em paralelo no mesmo projeto, em partes diferentes: sem briga
+  nuvem.clear();
+  const U = dispositivo(), V2 = dispositivo();
+  sandbox.STATE = U;
+  const idsU = roda(`(function(){ const m = STATE.checklists.modelos[0]; const p = novoChkProjeto(); p.empresa = "Paralelo"; const s = novoChkSetor(); s.nome = "Base"; const l = novoChkLinha(m); l.nome = "LV-base"; s.linhas.push(l); p.setores.push(s); STATE.checklists.projetos.push(p); return { p:p.id, s:s.id, l:l.id }; })()`);
+  T(await emDia(U, V2), "preparo: projeto base nos dois aparelhos");
+  sandbox.STATE = U;
+  roda(`(function(){ const p = STATE.checklists.projetos[0]; const s = novoChkSetor(); s.nome = "Setor do U"; const l = novoChkLinha(STATE.checklists.modelos[0]); l.nome = "LV-U"; s.linhas.push(l); p.setores.push(s); p.atualizadoEm = agoraSync(); })()`);
+  sandbox.STATE = V2;
+  roda(`(function(){ const p = STATE.checklists.projetos[0]; const s = novoChkSetor(); s.nome = "Setor do V"; p.setores.push(s); p.atualizadoEm = agoraSync(); const l = p.setores[0].linhas[0]; l.itens[0].observacao = "V editou a linha base"; })()`);
+  T(await emDia(U, V2), "trabalho em paralelo estabiliza");
+  const nomesSet = (e)=> e.checklists.projetos[0].setores.map(s => s.nome).sort();
+  T(J(nomesSet(U)) === J(["Base", "Setor do U", "Setor do V"]) && J(nomesSet(V2)) === J(nomesSet(U)) && U.checklists.projetos[0].setores.find(s => s.nome === "Base").linhas[0].itens[0].observacao === "V editou a linha base" && V2.checklists.projetos[0].setores.find(s => s.nome === "Setor do U").linhas.length === 1, "setor novo de cada lado e edicao de linha em paralelo: tudo chega nos dois, sem copia nem conflito");
+  const conteudo = (e)=> { sandbox.STATE = e; return roda(`chkSyncSig(STATE.checklists.projetos, true)`); };
+  T(U.checklists.projetos[0].setores.every(s => s.linhas.every(l => !l.nome.includes("(versão de "))) && conteudo(U) === conteudo(V2), "nenhuma copia de conflito apareceu e os dois ficaram iguais: " + difere(U.checklists.projetos, V2.checklists.projetos) + " | " + J(U.checklists.projetos[0].setores.map(s => s.linhas.map(l => l.nome))));
+
+  // ---------------------------------------------------------------- 12d) modelo editado nos dois lados, o da nuvem mais novo: o daqui vira copia
+  nuvem.clear();
+  const M1 = dispositivo(), M2 = dispositivo();
+  sandbox.STATE = M1;
+  const idMod = roda(`(function(){ const m = novoChkModelo(); m.nome = "Modelo comum"; const s = novoChkSecao(); s.titulo = "S"; const it = novoChkItem(); it.descricao = "P"; s.itens.push(it); m.secoes.push(s); STATE.checklists.modelos.push(m); return m.id; })()`);
+  T(await emDia(M1, M2), "preparo: modelo comum nos dois");
+  sandbox.STATE = M2;
+  roda(`(function(){ const m = STATE.checklists.modelos.find(x => x.id === ${J(idMod)}); m.secoes[0].itens[0].descricao = "versao do M2"; m.atualizadoEm = agoraSync(); })()`);
+  sandbox.STATE = M1;
+  roda(`(function(){ const m = STATE.checklists.modelos.find(x => x.id === ${J(idMod)}); m.secoes[0].itens[0].descricao = "versao do M1 (mais nova)"; m.atualizadoEm = agoraSync(); })()`);
+  await sync(M1);
+  r = await sync(M2);
+  const descs = M2.checklists.modelos.filter(m => m.secoes.length && m.nome.startsWith("Modelo comum")).map(m => m.secoes[0].itens[0].descricao).sort();
+  T(r.conflitos === 1 && J(descs) === J(["versao do M1 (mais nova)", "versao do M2"]) && M2.checklists.modelos.find(m => m.id === idMod).secoes[0].itens[0].descricao === "versao do M1 (mais nova)", "modelo editado nos dois lados, o da nuvem mais novo: vence o mais novo e o daqui fica como copia: " + J([r.conflitos, descs]));
+  await emDia(M1, M2);
+
+  // ---------------------------------------------------------------- 12e) a pessoa digita no meio da sincronizacao: o que foi digitado nunca e sobrescrito
+  nuvem.clear();
+  const N1 = dispositivo(), N2 = dispositivo();
+  sandbox.STATE = N1;
+  const idsN = roda(`(function(){ const m = STATE.checklists.modelos[0]; const p = novoChkProjeto(); p.empresa = "Digitando"; const s = novoChkSetor(); s.nome = "S"; const l = novoChkLinha(m); l.nome = "LV-N"; s.linhas.push(l); p.setores.push(s); STATE.checklists.projetos.push(p); return { l:l.id }; })()`);
+  T(await emDia(N1, N2), "preparo: linha nos dois aparelhos");
+  sandbox.STATE = N1;
+  roda(`(function(){ const l = STATE.checklists.projetos[0].setores[0].linhas[0]; l.itens[0].observacao = "do N1"; l.atualizadoEm = agoraSync(); })()`);
+  await sync(N1);
+  r = await sync(N2, { aoBaixar: (p, n)=>{ if(n.startsWith("l_")){ sandbox.STATE = N2; roda(`STATE.checklists.projetos[0].setores[0].linhas[0].itens[0].observacao = "digitado no N2 durante a sincronizacao"`); } } });
+  sandbox.STATE = N2;
+  T(r.baixou === 0 && N2.checklists.projetos[0].setores[0].linhas[0].itens[0].observacao === "digitado no N2 durante a sincronizacao", "o que a pessoa digita no meio do download nunca e sobrescrito pelo que veio da nuvem: " + J(r));
+  await emDia(N1, N2);
+  const obsN = N2.checklists.projetos[0].setores[0].linhas.map(l => l.itens[0].observacao).sort();
+  T(obsN.length === 2 && obsN.includes("digitado no N2 durante a sincronizacao") && obsN.includes("do N1"), "na rodada seguinte as duas versoes ficam guardadas: " + J(obsN));
+
+  // ---------------------------------------------------------------- 13) nomes na nuvem e isolamento
+  const pr = roda(`(function(){ const r = chkSyncParseNomes(["l_abc_100.json", "l_abc_200.json", "m_chk-modelo-padrao-linhas-de-vida_50.json", "i_7.json", "x_9.json", "lixo.txt"]); return { l: r.entidades.get("l:abc"), m: r.entidades.get("m:chk-modelo-padrao-linhas-de-vida"), i: r.singles.i, x: r.singles.x }; })()`);
+  T(pr.l.ts === 200 && pr.l.nome === "l_abc_200.json" && pr.l.antigos.length === 1 && pr.m.id === "chk-modelo-padrao-linhas-de-vida" && pr.m.ts === 50 && pr.i[0].ts === 7 && pr.x[0].ts === 9, "leitura dos nomes de arquivo da nuvem (id com hifen, versoes antigas, i e x)");
+  T(roda(`chkSyncSig({ a:1, b:[1,2] })`) === roda(`chkSyncSig({ b:[1,2], a:1 })`) && roda(`chkSyncSig({ f:"data:image/jpeg;base64,ZZZ" })`) === roda(`chkSyncSig({ f:"idbfoto:" + fotoCalcularId("data:image/jpeg;base64,ZZZ") })`) && roda(`chkSyncSig({ a:1, atualizadoEm:5 }, true)`) === roda(`chkSyncSig({ a:1, atualizadoEm:9 }, true)`) && roda(`chkSyncSig({ a:1 })`) !== roda(`chkSyncSig({ a:2 })`), "assinatura: ignora a ordem das chaves, trata foto embutida e em referencia como a mesma e, se pedido, ignora o carimbo");
+  sandbox.STATE = estadoOriginal;
+}
+testarFotoAmpla().then(() => testarTravas()).then(() => testarDadosLaudo()).then(() => testarLaudoCapitulos()).then(() => testarMemorial()).then(() => testarCapitulosNovos()).then(() => testarEdicaoTexto()).then(() => testarFotosLeituraLaudo()).then(() => testarCadastroProjeto()).then(() => testarEditorModelo()).then(() => testarAtalhoLaudo()).then(() => testarCapaLaudo()).then(() => testarSincronizacaoChecklist()).then(() => {
   // as arvores do Completo/Simplificado continuam byte a byte identicas apos a foto ampla tambem
   if(JSON.stringify(sandbox.STATE.projetos) !== antesCompleto || JSON.stringify(sandbox.STATE.projetosSimples) !== antesSimples){
     console.error("FALHOU: a foto ampla da linha mexeu em STATE.projetos/projetosSimples");

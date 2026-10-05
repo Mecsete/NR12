@@ -5683,5 +5683,29 @@ chk("o motor central de envio nao foi alterado por esta entrega (so um comentari
     _corpoDe(novo, "executarComConcorrencia") == _corpoDe(orig, "executarComConcorrencia")
     and _corpoDe(novo, "onedriveSincronizarModulo").replace("apagarTambemNaNuvem grava", "perguntarApagarTambemNaNuvem grava") == _corpoDe(orig, "onedriveSincronizarModulo"))
 
+print("=== 182. SINCRONIZACAO DO CHECKLIST ENTRE APARELHOS; CABOS TODOS IPS; LINHA DE VARIOS VAOS (05/10/2026) ===")
+chk("o Checklist tem pasta propria na nuvem, junto das outras (Backup/Checklist) e as fotos vao a parte, uma por arquivo",
+    'const SUBPASTA_CHECKLIST = SUBPASTA_BACKUP + "/Checklist";' in novo and 'const SUBPASTA_CHECKLIST_FOTOS = SUBPASTA_BACKUP + "/Checklist/Fotos";' in novo
+    and '"f_" + fid + ".txt"' in novo)
+_sinc = novo[novo.index("async function sincronizarIncrementalOneDrive("):novo.index("async function sincronizarIncrementalOneDrive(") + 6000]
+chk("a rodada do Checklist entra no ciclo automatico (sem derrubar as outras) e na sincronizacao manual",
+    "chkSyncRes = await onedriveSincronizarChecklist(!!onProgresso)" in _sinc and "const chkManual = await onedriveSincronizarChecklist(true);" in novo
+    and "if((cfgIA && cfgIA.recebeu) || (equipe && equipe.recebeu)) renderAdiavelSeDigitando();" in _sinc)
+chk("so a lapide (exclusao feita de proposito) remove algo do aparelho: chkSyncRemoverLocal tem um unico ponto de chamada, dentro do ramo da lapide, e a lista de nomes que falha nao vira nuvem vazia",
+    novo.count("chkSyncRemoverLocal(ctx, loc)") == 2 and "if(tomb && !mudou && tomb > tsLoc){" in novo
+    and "if(!Array.isArray(nomes)){ res.erro = true; return res; }" in novo and "if(!(await onedriveObterToken())) return { mudou:false, erro:true };" in novo)
+chk("as quatro exclusoes do Checklist (modelo, projeto, setor, linha) registram a lapide que viaja para os outros aparelhos",
+    novo.count("chkSyncRegistrarRemocao(") >= 5 and "chkSyncRegistrarRemocao([alvoP.id]" in novo and "chkSyncRegistrarRemocao([alvoS.id]" in novo)
+chk("alteracao dos dois lados nunca perde nada (a outra versao vira copia) e o que a pessoa digita durante o download nao e sobrescrito",
+    "function chkSyncCopiarLocal(" in novo and "function chkSyncRotuloCopia(" in novo and "if(!atual || chkSyncSig(chkSyncVista(atual)) !== sigAntes) return false;" in novo
+    and "res.conflitos++;" in novo)
+chk("o Checklist nao introduz clone por texto (JSON.parse(JSON.stringify)) nem mexe nos modulos Completo e Simplificado: copias usam clonarCompartilhandoFotos",
+    "clonarCompartilhandoFotos(loc.obj)" in novo and "clonarCompartilhandoFotos(payload)" in novo)
+chk("todos os cabos da tabela sao IPS (18 diametros), com a IPS estimada marcada onde a planilha so traz a EIPS",
+    "const CHK_CABOS = [" in novo and novo[novo.index("const CHK_CABOS = ["):novo.index("const CHK_CABOS = [") + 2200].count("false]") + novo[novo.index("const CHK_CABOS = ["):novo.index("const CHK_CABOS = [") + 2200].count("true]") == 18
+    and 'grau: "IPS"' in novo and "EIPS" not in novo[novo.index("function chkCaboRuptura("):novo.index("function chkCaboRuptura(") + 700])
+chk("o memorial do cabo calcula linha de varios vaos como a planilha (comprimento da linha, cabo no vao carregado J = L1 - C + L)",
+    "const Lt = m.comprimento, nv = Lt / L, L1 = Ls * nv, J = L1 - Lt + L;" in novo and '["comprimento", "Comprimento total da linha (se tiver mais de um vão)", "m", ""],' in novo)
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
