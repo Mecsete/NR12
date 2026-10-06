@@ -3376,7 +3376,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "05/10/2026 12:00";
+const APP_BUILD = "06/10/2026 10:00";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -13870,7 +13870,7 @@ function topBarChk(){
   let action = "";
   if(s==="checklist-modelos") action = `<button class="icon-btn" style="color:var(--on-bar)" onclick="App.trocarModulo()" title="Trocar módulo">${ic('layers')}</button><button class="topbar-action" onclick="App.chkNovoModelo()">${ic('plus')} Novo</button>`;
   if(s==="checklist-projetos") action = `<button class="icon-btn" style="color:var(--on-bar)" onclick="App.trocarModulo()" title="Trocar módulo">${ic('layers')}</button><button class="topbar-action" onclick="App.chkNovoProjeto()">${ic('plus')} Novo</button>`;
-  if(s==="checklist-setores") action = `<button class="topbar-action" onclick="App.go('checklist-laudo')">${ic('print')} Laudo</button><button class="topbar-action" onclick="App.chkNovoSetor()">${ic('plus')} Setor</button>`;
+  if(s==="checklist-setores") action = `<button class="topbar-action" onclick="App.go('checklist-projeto-form')">${ic('edit')} Dados</button><button class="topbar-action" onclick="App.go('checklist-laudo')">${ic('print')} Laudo</button><button class="topbar-action" onclick="App.chkNovoSetor()">${ic('plus')} Setor</button>`;
   if(s==="checklist-linhas") action = `<button class="topbar-action" onclick="App.go('checklist-nova-linha')">${ic('plus')} Linha</button>`;
   if(s==="checklist-laudo") action = `<button class="topbar-action" onclick="window.print()">${ic('print')} Imprimir</button>`;
   if(s==="checklist-laudo-linha") action = `<button class="topbar-action" onclick="App.lclImprimir()">${ic('print')} Imprimir</button>`;
@@ -14221,7 +14221,7 @@ function screenChkProjetos(){
           ${nLinhas>0? `<span class="stat-pill">${nFinalizadas}/${nLinhas} finalizadas</span>`:''}
         </div>
       </div>
-      <div class="list-actions"><button class="icon-btn" onclick="event.stopPropagation();App.chkExcluirProjeto('${p.id}')">${ic('trash')}</button></div>
+      <div class="list-actions"><button class="icon-btn" title="Editar os dados do projeto (solicitante, documento, inspetor)" onclick="event.stopPropagation();App.chkEditarProjeto('${p.id}')">${ic('edit')}</button><button class="icon-btn" onclick="event.stopPropagation();App.chkExcluirProjeto('${p.id}')">${ic('trash')}</button></div>
     </div>`;
   }).join("");
   return `<div class="section-title">${projetos.length} projeto${projetos.length===1?'':'s'}</div>${cards}
@@ -14733,7 +14733,7 @@ function chkBlocoLaudo(titulo, corpoHtml){
    desligar o capítulo no laudo é linha.laudo.capitulos.memorial (um só interruptor,
    usado no campo e no laudo). Tudo aqui é função pura: lê a linha, nunca grava.
    ══════════════════════════════════════════════════════════════════════════════ */
-const CHK_MEMORIAL_PARAMS = { peso:100, Frup:3900, FS:2, a:1.4, b:1.0, b1:1.0, fren:0.5, C1:1.5, D1:1.0, Ecabo:9500, kA:0.416 };
+const CHK_MEMORIAL_PARAMS = { peso:100, Frup:3755, FS:2, a:1.4, b:1.0, b1:1.0, fren:0.5, C1:1.5, D1:1.0, Ecabo:9500, kA:0.416 };
 const CHK_MEMORIAL_PARAMS_ROT = [
   ["peso", "Peso do usuário com equipamentos", "kg"],
   ["Frup", "Força de ruptura do cabo (vem da tabela pelo diâmetro)", "kgf"],
@@ -14752,16 +14752,14 @@ const CHK_MEMORIAL_PARAMS_ROT = [
 const CHK_MEMORIAL_VIGA = { perfil:"W200x26,6", aco:"ASTM A572 Gr 50", E:200e9, I:2611e-8 };
 /* Limites de flecha do cabo (planilha do memorial): linha de vida no mínimo 3%, linha de restrição no máximo 1%. */
 const CHK_MEMORIAL_LIMITES = { flechaMinVida:3, flechaMaxRestricao:1 };
-/* Cabos de aço 6x19 AF alma de fibra, todos considerados IPS (decisão do engenheiro). Vem da aba Base cabos da
-   planilha do memorial: [diâmetro mm, polegada, massa kg/m, ruptura IPS em tf, estimada]. Onde a planilha não traz a IPS
-   (só traz a EIPS), a IPS foi estimada pela EIPS dividida por 1,11 e arredondada para baixo em 0,05 tf (a EIPS da planilha
-   é 9% a 11% maior que a IPS nos diâmetros que têm as duas) — "estimada: true". Confira no catálogo do fabricante. */
+/* Cabos de aço 6x19 alma de fibra (AF), carga de ruptura da tabela I.P.S. do catálogo SIVA (NBR ISO 2408), em tf:
+   [diâmetro mm, polegada, massa kg/m, ruptura IPS tf, estimada]. Do 1 3/4" para cima o catálogo só traz EIPS para
+   6x19 (sem IPS), por isso a tabela termina em 1 1/2". "estimada" ficou sempre false (todos os valores são do catálogo). */
 const CHK_CABOS = [
-  [3.2, "1/8”", 0.036, 0.61, false], [4.8, "3/16”", 0.082, 1.37, false], [6.4, "1/4”", 0.142, 2.5, false], [8, "5/16”", 0.23, 3.9, false],
-  [9.52, "3/8”", 0.343, 5.45, true], [11.1, "7/16”", 0.479, 7.45, true], [12.7, "1/2”", 0.608, 9.7, true], [14.3, "9/16”", 0.775, 12.25, true],
-  [15.88, "5/8”", 0.933, 15.1, true], [19, "3/4”", 1.298, 21.6, true], [22, "7/8”", 1.805, 29.5, false], [25.4, "1”", 2.442, 38.5, false],
-  [29, "1 1/8”", 3.055, 48.55, true], [32, "1 1/4”", 3.733, 60.1, false], [35, "1 3/8”", 4.529, 72.5, true], [38, "1 1/2”", 5.328, 86.5, false],
-  [45, "1 3/4”", 8.368, 117.45, true], [52, "2”", 9.74, 153.4, true],
+  [4.76, "3/16”", 0.09, 1.351, false], [6.35, "1/4”", 0.16, 2.402, false], [7.94, "5/16”", 0.24, 3.755, false], [9.53, "3/8”", 0.35, 5.409, false],
+  [11.1, "7/16”", 0.48, 7.339, false], [12.7, "1/2”", 0.63, 9.607, false], [14.3, "9/16”", 0.79, 12.18, false], [15.9, "5/8”", 0.98, 15.058, false],
+  [19.1, "3/4”", 1.41, 21.729, false], [22.2, "7/8”", 1.92, 29.354, false], [25.4, "1”", 2.5, 38.427, false], [28.6, "1 1/8”", 3.17, 48.719, false],
+  [31.75, "1 1/4”", 3.91, 60.042, false], [34.9, "1 3/8”", 4.73, 72.547, false], [38.1, "1 1/2”", 5.63, 86.46, false],
 ];
 const CHK_MEMORIAL_CAMPOS = [
   ["hanc", "Altura do ponto de ancoragem ao piso", "m", "10"],
@@ -14781,7 +14779,7 @@ function chkMemorialNum(v){
 function chkCaboRuptura(d){
   const x = chkMemorialNum(d);
   if(!x) return null;
-  let r = CHK_CABOS.find(c=> Math.abs(c[0] - x) < 0.05);
+  let r = CHK_CABOS.find(c=> Math.abs(c[0] - x) < 0.1);
   const exato = !!r;
   if(!r){ CHK_CABOS.forEach(c=>{ if(c[0] <= x) r = c; }); }
   if(!r) return null;
@@ -14801,7 +14799,7 @@ function chkMemorialDe(linha){
   if(cab) params.Frup = cab.Frup;
   Object.keys(CHK_MEMORIAL_PARAMS).forEach(k=>{ const v = chkMemorialNum(ov[k]); if(v !== null) params[k] = v; });
   const frupInformada = chkMemorialNum(ov.Frup) !== null;
-  const frupNota = frupInformada ? " (valor informado)" : (cab ? ` (${cab.est ? "IPS estimada pela EIPS da tabela ÷ 1,11, confirmar no catálogo" : "IPS da tabela do fabricante"}${cab.exato ? "" : "; diâmetro de " + chkMemDiam(cab.dTab) + " mm"})` : "");
+  const frupNota = frupInformada ? " (valor informado)" : (cab ? ` (${cab.est ? "IPS estimada pela EIPS da tabela ÷ 1,11, confirmar no catálogo" : "IPS, catálogo SIVA 6x19 AF"}${cab.exato ? "" : "; diâmetro de " + chkMemDiam(cab.dTab) + " mm"})` : "");
   return {
     hanc: chkMemorialNum(m.hanc), hpos: chkMemorialNum(m.hpos), vao: chkMemorialNum(m.vao), comprimentoInformado: chkMemorialNum(m.comprimento),
     comprimento: chkMemorialNum(m.comprimento) && chkMemorialNum(m.vao) && chkMemorialNum(m.comprimento) >= chkMemorialNum(m.vao) ? chkMemorialNum(m.comprimento) : chkMemorialNum(m.vao),
@@ -15139,8 +15137,8 @@ function chkMemorialCampoHtml(l){
   const campos = CHK_MEMORIAL_CAMPOS.filter(c=> c[0] !== "diametro" && (flex || (c[0] !== "flechaCm" && c[0] !== "comprimento"))).map(([k, rot, un, num])=>
     `<label class="chk-mem-campo"><span class="chk-mem-rot">${escapeHtml(rot)}${num ? `<i class="chk-mem-n">${num}</i>` : ""}</span><div class="chk-mem-nf"><input type="number" step="any" inputmode="decimal" id="chkMem-${k}" value="${val(raw[k])}" oninput="App.chkMemorialSet('${k}',this.value)"><span>${escapeHtml(un)}</span></div></label>`).join("");
   const diam = chkMemorialNum(raw.diametro);
-  const opcoes = CHK_CABOS.map(r=> `<option value="${r[0]}" ${diam !== null && Math.abs(diam - r[0]) < 0.05 ? "selected" : ""}>${escapeHtml(r[1])} (${chkMemDiam(r[0])} mm)</option>`).join("");
-  const fora = (diam !== null && !CHK_CABOS.some(r=> Math.abs(diam - r[0]) < 0.05)) ? `<option value="${diam}" selected>${chkMemDiam(diam)} mm (fora da tabela)</option>` : "";
+  const opcoes = CHK_CABOS.map(r=> `<option value="${r[0]}" ${diam !== null && Math.abs(diam - r[0]) < 0.1 ? "selected" : ""}>${escapeHtml(r[1])} (${chkMemDiam(r[0])} mm)</option>`).join("");
+  const fora = (diam !== null && !CHK_CABOS.some(r=> Math.abs(diam - r[0]) < 0.1)) ? `<option value="${diam}" selected>${chkMemDiam(diam)} mm (fora da tabela)</option>` : "";
   const selDiam = `<label class="chk-mem-campo"><span class="chk-mem-rot">Diâmetro do cabo (6x19 AF)</span><div class="chk-mem-nf"><select id="chkMem-diametro" onchange="App.chkMemorialSet('diametro',this.value)"><option value="">Escolher</option>${opcoes}${fora}</select></div></label>`;
   const selUso = `<label class="chk-mem-campo"><span class="chk-mem-rot">Tipo de linha</span><div class="chk-mem-nf"><select id="chkMem-uso" onchange="App.chkMemorialSetUso(this.value)"><option value="vida" ${raw.uso === "restricao" ? "" : "selected"}>Linha de vida (retenção de quedas)</option><option value="restricao" ${raw.uso === "restricao" ? "selected" : ""}>Linha de restrição</option></select></div></label>`;
   const dflt = chkMemorialDe({ memorial: Object.assign({}, raw, { params: {} }) }).params;
@@ -15746,7 +15744,6 @@ function lclBlocosPagina2(d, textos){
       ${lclFaixa("Dados do Solicitante")}<div class="lcl-campos">${sol}</div>
       <div class="lcl-campos" style="grid-template-columns:1fr">${proj.solicitanteEndereco ? `<div class="lcl-campo"><i>Endereço:</i><b>${lclEsc(proj.solicitanteEndereco)}</b></div>` : ""}</div>
       ${lclFaixa("Dados do Responsável")}<div class="lcl-campos">${resp}</div>` },
-    { ancora:"cap-normativo", editar:{ tipo:"normativo", id:"", editado:false }, html:`${lclFaixa("Normativo")}${intro}${lista}` },
   ];
 }
 
@@ -15755,7 +15752,7 @@ function lclBlocosSumario(caps, mapa){
   const pg = (a)=> (mapa && mapa[a] != null) ? mapa[a] : "00";
   // Cada linha é um link para a página: na prévia rola até ela, e no PDF vira link interno (clique pula para a página).
   const lk = (ancora, cls, txt)=> `<a class="lcl-sl ${cls}" href="#lcl-a-${ancora}" onclick="return App.lclIrPara(event)">${txt}<i></i>${pg(ancora)}</a>`;
-  const linhas = [lk("cap-normativo", "c", "Normativo")];
+  const linhas = [];
   caps.forEach(c=>{
     linhas.push(lk(c.ancora, "c", `${c.num}  ${lclEsc(c.rot)}`));
     c.subs.forEach(s=> linhas.push(lk(s.ancora, "s", `${s.num}  ${lclEsc(s.titulo)}`)));
@@ -15816,12 +15813,12 @@ function lclBlocosCorpo(d, cap, redu){
     const editar = { tipo:"secao", id:sub.id, editado: editado !== null };
     const fotosEd = fotos.length ? { id:sub.id, n:fotos.length } : null;
     const dupla = `${topo}<div class="lcl-sec-grid"><div class="lcl-narr">${texto}</div>${imgs.length ? `<div class="lcl-fotos-col">${imgs.map(x=>`<div class="lcl-fcol"><img src="${x.src}" alt=""><div class="lcl-fnum">Foto ${x.n}</div></div>`).join("")}</div>` : ""}</div>`;
-    const bloco = { quebrarAntes:true, ancora: sub.ancora, editar, fotosEd, html: dupla };
+    const bloco = { quebrarAntes: i === 0, ancora: sub.ancora, editar, fotosEd, html: dupla };
     if(i === 0) bloco.ancoraExtra = cap.ancora;
     // Seção com muitas fotos não cabe numa folha em duas colunas: o texto fica
     // inteiro e as fotos descem em fileiras de 3, uma fileira por bloco.
     bloco.alternativa = ()=>{
-      const out = [{ quebrarAntes:true, ancora: sub.ancora, editar, fotosEd, ancoraExtra: i === 0 ? cap.ancora : undefined, grudaNoProximo: imgs.length > 0, html: `${topo}<div class="lcl-narr lcl-larga">${texto}</div>` }];
+      const out = [{ quebrarAntes: i === 0, ancora: sub.ancora, editar, fotosEd, ancoraExtra: i === 0 ? cap.ancora : undefined, grudaNoProximo: imgs.length > 0, html: `${topo}<div class="lcl-narr lcl-larga">${texto}</div>` }];
       for(let k = 0; k < imgs.length; k += 3){
         out.push({ html: `<div class="lcl-fgrade">${imgs.slice(k, k + 3).map(x=>`<div class="lcl-fcol"><img src="${x.src}" alt=""><div class="lcl-fnum">Foto ${x.n}</div></div>`).join("")}</div>` });
       }
@@ -29813,6 +29810,10 @@ Devolver agora?`)) return;
     STATE.ui.chkProjetoId = p.id;
     STATE.ui.chkSetorId = null; STATE.ui.chkLinhaId = null;
     marcarAlterado();
+    go("checklist-projeto-form");
+  },
+  chkEditarProjeto(id){
+    STATE.ui.chkProjetoId = id; STATE.ui.chkSetorId = null; STATE.ui.chkLinhaId = null;
     go("checklist-projeto-form");
   },
   chkAbrirProjeto(id){

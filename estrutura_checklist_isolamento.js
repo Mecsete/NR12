@@ -1294,7 +1294,7 @@ async function testarLaudoCapitulos(){
   T(capa.paginaInteira && capa.semRodape && capa.html.includes("com-foto") && capa.html.includes("rCAPA") && capa.html.includes("VISTA GERAL · LV-T1") && capa.html.includes("CLIENTE T") && capa.html.includes("SILO 2"), "capa com foto principal errada");
   const capaSem = roda(`(function(){ const l = JSON.parse(JSON.stringify(__lclT.linha)); l.laudo = { fotoCapa:false }; const d = lclDados(__lclT.proj, __lclT.setor, l); return lclMontarBlocos(d, lclTextos(), lclPlano(__lclT.proj, l), new Map([["data:image/jpeg;base64,CAPA","data:image/jpeg;base64,rCAPA"]]), null)[0]; })()`);
   T(!capaSem.html.includes("com-foto") && !capaSem.html.includes("rCAPA"), "com a foto da capa desligada, a capa deveria sair sem foto");
-  T(blocos.some(b=>b.ancora === "cap-normativo" && b.html.includes("NR-35")), "pagina 2 deveria ter o Normativo com ancora");
+  T(!blocos.some(b=>b.ancora === "cap-normativo"), "pagina 2 nao deve mais ter o Normativo (as normas ficam na Metodologia)");
   T(blocos.filter(b=>b.sumario).length === 1 && blocos.find(b=>b.sumario).html.includes("3.2  Ancoragem"), "sumario com os subitens do corpo");
   const ck = blocos.filter(b=>b.html.includes("lcl-cd")).map(b=>b.html).join("");
   T(ck.includes("NR-35 8.2") && ck.includes("ver 3.1") && ck.includes("Seção marcada como") && ck.includes("1 OK · 1 NÃO OK"), "checklist em cartoes: norma do item, 'ver 3.1' no que nao atende, secao NA e contagem por secao");
@@ -1344,10 +1344,10 @@ async function testarLaudoCapitulos(){
   T(fluxo.doc.includes("Página 2 de " + total) && fluxo.doc.includes("Página " + total + " de " + total) && !fluxo.doc.includes("Página 1 de"), "rodape 'Pagina N de M' em todas, menos na capa");
   const pagSumario = fluxo.paginas.find(p=>p.blocos.some(b=>b.sumario));
   const htmlSum = pagSumario.blocos.filter(b=>b.sumario).map(b=>b.html).join("");
-  ["cap-normativo", "cap-metodologia", "cap-checklist", "cap-corpo", "cap-conclusao"].forEach(a=>{
+  ["cap-metodologia", "cap-checklist", "cap-corpo", "cap-conclusao"].forEach(a=>{
     T(fluxo.mapa[a] > 1, "ancora " + a + " sem pagina");
   });
-  T(htmlSum.includes("Normativo<i></i>" + fluxo.mapa["cap-normativo"]) && htmlSum.includes("Checklist<i></i>" + fluxo.mapa["cap-checklist"]) && htmlSum.includes("Conclusão<i></i>" + fluxo.mapa["cap-conclusao"]), "sumario com o numero real de pagina de cada capitulo: " + htmlSum.replace(/<[^>]+>/g, " ").slice(0, 200));
+  T(!htmlSum.includes("Normativo") && htmlSum.includes("Checklist<i></i>" + fluxo.mapa["cap-checklist"]) && htmlSum.includes("Conclusão<i></i>" + fluxo.mapa["cap-conclusao"]), "sumario com o numero real de pagina de cada capitulo: " + htmlSum.replace(/<[^>]+>/g, " ").slice(0, 200));
   T(!htmlSum.includes(">00<") && !/<i><\/i>00/.test(htmlSum), "sumario nao pode ficar com o numero provisorio (00)");
 
   // liga/desliga de capitulo e foto da capa pelo App: grava SO na linha
@@ -1450,9 +1450,9 @@ async function testarMemorial(){
 
   // linha antiga (sem linha.memorial) le tudo vazio, com os padroes
   const vz = roda(`chkMemorialDe({})`);
-  T(vz.hanc === null && vz.hpos === null && vz.vao === null && vz.flechaCm === null && vz.diametro === null && vz.uso === "vida" && vz.usuarios === 1 && vz.params.Ecabo === 9500 && vz.params.kA === 0.416 && vz.epi === "tq" && vz.memoria === true && vz.params.peso === 100 && vz.params.Frup === 3900 && vz.params.FS === 2 && vz.params.b1 === 1 && vz.params.fren === 0.5, "linha antiga deveria ler tudo vazio com os padroes");
+  T(vz.hanc === null && vz.hpos === null && vz.vao === null && vz.flechaCm === null && vz.diametro === null && vz.uso === "vida" && vz.usuarios === 1 && vz.params.Ecabo === 9500 && vz.params.kA === 0.416 && vz.epi === "tq" && vz.memoria === true && vz.params.peso === 100 && vz.params.Frup === 3755 && vz.params.FS === 2 && vz.params.b1 === 1 && vz.params.fren === 0.5, "linha antiga deveria ler tudo vazio com os padroes");
   const ov = roda(`chkMemorialDe({ memorial:{ hanc:"5,5", epi:"tab", memoria:false, params:{ peso:"90", Frup:"abc", FS:0 } } })`);
-  T(ov.hanc === 5.5 && ov.epi === "tab" && ov.memoria === false && ov.params.peso === 90 && ov.params.Frup === 3900 && ov.params.FS === 2, "parametro invalido/zero deveria cair no padrao, valido deveria valer: " + JSON.stringify(ov));
+  T(ov.hanc === 5.5 && ov.epi === "tab" && ov.memoria === false && ov.params.peso === 90 && ov.params.Frup === 3755 && ov.params.FS === 2, "parametro invalido/zero deveria cair no padrao, valido deveria valer: " + JSON.stringify(ov));
   T(roda(`JSON.stringify(CHK_MEMORIAL_PARAMS)`) === roda(`JSON.stringify(chkMemorialDe({}).params)`), "ler nao pode alterar o padrao");
 
   // calculo do cabo (flexivel): bate com o memorial de referencia (vao 6,7 m, flecha 7% = 469 mm)
@@ -1461,16 +1461,16 @@ async function testarMemorial(){
   T(perto(cF.fl, 7, 1e-9) && perto(cF.f1, 0.469, 1e-9), "flecha de 46,9 cm em 6,7 m deveria ser 7% e f1 = 469 mm: " + JSON.stringify([cF.fl, cF.f1]));
   T(perto(cF.f2, 0.5433, 5e-4) && perto(cF.f3, 0.6609, 5e-4), "f2/f3 do memorial de referencia (543,3 e 660,9 mm): " + JSON.stringify([cF.f2, cF.f3]));
   T(perto(cF.T1, 1549.958, 0.01) && perto(cF.dL, 41.5945, 0.005) && perto(cF.f3, 0.660903, 2e-6) && cF.conv === true && cF.voltas > 5 && cF.voltas < 200, "T1 1549,96 kgf, dL 41,59 mm, f3 660,9 mm (planilha do memorial, aba Dimensionamento) e iteracao que estabiliza: " + JSON.stringify([cF.T1, cF.dL, cF.f3, cF.voltas, cF.conv]));
-  T(perto(cF.uso, 0.79485, 1e-4) && perto(cF.FSs, 2.51620, 1e-4) && perto(cF.fq, 0.208333, 1e-5) && perto(cF.fren3 * 1000, 117.58, 0.01) && perto(cF.ang, 157.6795, 1e-3), "utilizacao 79,5%, fator de servico 2,52, fator de queda 0,21, frenagem 117,58 mm e angulo 157,68 (planilha): " + JSON.stringify([cF.uso, cF.FSs, cF.fq, cF.fren3, cF.ang]));
+  T(perto(cF.uso, 0.82554, 1e-4) && perto(cF.FSs, 2.42265, 1e-4) && perto(cF.fq, 0.208333, 1e-5) && perto(cF.fren3 * 1000, 117.58, 0.01) && perto(cF.ang, 157.6795, 1e-3), "utilizacao 79,5%, fator de servico 2,52, fator de queda 0,21, frenagem 117,58 mm e angulo 157,68 (planilha): " + JSON.stringify([cF.uso, cF.FSs, cF.fq, cF.fren3, cF.ang]));
   T(perto(cF.ZLQ1, 5.56, 0.005) && perto(cF.Hp1, 2.19, 0.005) && perto(cF.ZLQ2, 4.66, 0.005) && perto(cF.Hp2, 1.69, 0.005), "ZLQ1 5,56 / Hp1 2,19 / ZLQ2 4,66 / Hp2 1,69: " + JSON.stringify([cF.ZLQ1, cF.Hp1, cF.ZLQ2, cF.Hp2]));
-  T(perto(cF.Fadm, 1950, 1e-9) && cF.uso < 1 && cF.tipo === "flex", "admissivel 1950 kgf e uso abaixo de 100%");
+  T(perto(cF.Fadm, 1877.5, 1e-9) && cF.uso < 1 && cF.tipo === "flex", "admissivel 1877,5 kgf e uso abaixo de 100%");
   T(roda(`chkMemorialCalc("horizontal_flexivel", chkMemorialDe({ memorial:{ hanc:5, hpos:3, flechaCm:46.9, diametro:8 } }))`) === null, "sem vao nao calcula");
   T(roda(`chkMemorialCalc("horizontal_flexivel", chkMemorialDe({ memorial:{ hanc:5, hpos:3, vao:6.7, diametro:8 } }))`) === null, "cabo sem flecha nao calcula");
   T(roda(`chkMemorialCalc("horizontal_flexivel", chkMemorialDe({ memorial:{ hanc:5, hpos:3, vao:6.7, flechaCm:46.9 } }))`) === null, "cabo sem diametro nao calcula (nao ha mais diametro padrao escondido)");
 
   // outros casos da planilha: aba oculta Original (2 usuarios, 12,7 mm, vao 20,5 m, flecha 3%: esforco iterado a mao 2961,5 kgf) e a "Inicial" (4 m, 9,5 mm)
   const cO = roda(`chkMemorialCalc("horizontal_flexivel", chkMemorialDe({ memorial:{ hanc:5, hpos:3, vao:20.5, flechaCm:61.5, diametro:12.7, usuarios:2 } }))`);
-  T(perto(cO.P, 700, 1e-9) && perto(cO.T1, 2961.57, 0.05) && perto(cO.dL, 95.4756, 0.01) && perto(cO.f3, 1.2199, 1e-3) && cO.conv && perto(cO.Fadm, 4850, 1e-9), "caso 2 usuarios/12,7 mm/20,5 m (planilha Original; ruptura IPS estimada 9,7 tf): P 700, T1 2961,6, dL 95,5 mm: " + JSON.stringify([cO.P, cO.T1, cO.dL, cO.f3]));
+  T(perto(cO.P, 700, 1e-9) && perto(cO.T1, 2961.57, 0.05) && perto(cO.dL, 95.4756, 0.01) && perto(cO.f3, 1.2199, 1e-3) && cO.conv && perto(cO.Fadm, 4803.5, 1e-9), "caso 2 usuarios/12,7 mm/20,5 m (planilha Original; ruptura IPS 9,607 tf do catalogo SIVA): P 700, T1 2961,6, dL 95,5 mm: " + JSON.stringify([cO.P, cO.T1, cO.dL, cO.f3]));
   const cI = roda(`chkMemorialCalc("horizontal_flexivel", chkMemorialDe({ memorial:{ hanc:10, hpos:4, vao:4, flechaCm:12, diametro:9.52 } }))`);
   T(perto(cI.L1, 4.0096, 1e-6) && perto(cI.f2, 0.138647, 1e-5) && cI.conv && cI.T1 > 2000 && cI.T1 < 2500, "caso 4 m / 3% (planilha Inicial): comprimento do cabo 4,0096 m e f2 138,6 mm: " + JSON.stringify([cI.L1, cI.f2, cI.T1]));
   // fator de queda quando a posicao de trabalho fica a menos de 1,5 m da ancoragem (outro ramo da formula da planilha)
@@ -1495,7 +1495,7 @@ async function testarMemorial(){
   // linha de restricao: carga = peso de cada usuario (100 kgf por pessoa) e fator de seguranca padrao 3
   const mRe = roda(`chkMemorialDe({ memorial:{ hanc:5, hpos:3, vao:6.7, flechaCm:6.7, diametro:8, usuarios:2, uso:"restricao" } })`);
   const cRe = roda(`chkMemorialCalc("horizontal_flexivel", ${JSON.stringify(mRe)})`);
-  T(mRe.uso === "restricao" && mRe.params.FS === 3 && perto(cRe.P, 200, 1e-9) && perto(cRe.Fadm, 1300, 1e-9) && cRe.conv, "restricao: FS 3, P = 100 kgf x 2 pessoas, admissivel 1300: " + JSON.stringify([mRe.params.FS, cRe.P, cRe.Fadm]));
+  T(mRe.uso === "restricao" && mRe.params.FS === 3 && perto(cRe.P, 200, 1e-9) && perto(cRe.Fadm, 1251.6667, 1e-3) && cRe.conv, "restricao: FS 3, P = 100 kgf x 2 pessoas, admissivel 1251,7: " + JSON.stringify([mRe.params.FS, cRe.P, cRe.Fadm]));
   T(roda(`chkMemorialDe({ memorial:{ uso:"qualquer" } }).uso`) === "vida" && roda(`chkMemorialDe({ memorial:{ uso:"restricao", params:{ FS:5 } } }).params.FS`) === 5, "uso invalido vira vida; FS informado vale mais que o padrao");
   // a carga de uma linha de vida: 600 kgf + peso dos usuarios alem do primeiro
   const pu = (n, peso) => roda(`chkMemorialCalc("horizontal_flexivel", chkMemorialDe({ memorial:{ hanc:5, hpos:3, vao:6.7, flechaCm:46.9, diametro:8, usuarios:${n}, params:{ peso:${peso} } } })).P`);
@@ -1505,11 +1505,10 @@ async function testarMemorial(){
   T(cMini && Number.isFinite(cMini.T1) && Number.isFinite(cMini.f3) && cMini.voltas <= 2000, "flecha de 1 cm em 20 m: sem NaN e sem laco infinito: " + JSON.stringify(cMini && [cMini.T1, cMini.voltas, cMini.conv]));
   // diametro e tabela de cabos
   const rup = (d) => roda(`chkCaboRuptura(${JSON.stringify(d)})`);
-  T(rup(8).Frup === 3900 && rup(8).grau === "IPS" && rup(8).est === false && rup(9.52).Frup === 5450 && rup(9.52).grau === "IPS" && rup(9.52).est === true && rup(12.7).Frup === 9700 && rup(52).Frup === 153400 && rup(6.4).Frup === 2500 && rup(22).Frup === 29500 && rup("8,0").Frup === 3900, "ruptura da tabela por diametro, tudo IPS (a IPS que a planilha nao traz e a EIPS dividida por 1,11, para baixo)");
-  T(roda(`CHK_CABOS.every(r => r[3] > 0 && r.length === 5)`) && roda(`CHK_CABOS.length`) === 18 && roda(`CHK_CABOS.filter(r => r[4]).length`) === 10 && roda(`CHK_CABOS.every((r, i) => i === 0 || r[3] > CHK_CABOS[i - 1][3])`), "tabela de 18 cabos, todos com IPS, 10 deles estimados, ruptura crescente com o diametro");
-  T(roda(`CHK_CABOS.filter(r => r[4]).every(r => r[3] <= ${JSON.stringify([[9.52, 6.1], [11.1, 8.3], [12.7, 10.8], [14.3, 13.6], [15.88, 16.8], [19, 24], [29, 53.9], [35, 80.5], [45, 130.4], [52, 170.3]])}.find(e => e[0] === r[0])[1] / 1.1)`), "a IPS estimada nunca passa da EIPS da planilha dividida por 1,1 (lado seguro)");
-  T(rup(10).dTab === 9.52 && rup(10).exato === false && rup(2) === null && rup(null) === null && rup(0) === null, "diametro fora da tabela usa o menor vizinho (lado seguro); menor que a tabela ou vazio, nada");
-  T(roda(`chkMemorialDe({ memorial:{ diametro:12.7 } }).params.Frup`) === 9700 && roda(`chkMemorialDe({ memorial:{ diametro:12.7, params:{ Frup:9000 } } }).params.Frup`) === 9000 && roda(`chkMemorialDe({ memorial:{ diametro:12.7 } }).frupNota`).includes("IPS estimada") && roda(`chkMemorialDe({ memorial:{ diametro:8 } }).frupNota`).includes("IPS da tabela") && roda(`chkMemorialDe({ memorial:{ diametro:12.7, params:{ Frup:9000 } } }).frupNota`).includes("informado"), "a ruptura vem do diametro; valor informado na linha vale mais");
+  T(rup(8).Frup === 3755 && rup(8).grau === "IPS" && rup(8).est === false && rup(9.52).Frup === 5409 && rup(9.52).est === false && rup(12.7).Frup === 9607 && rup(52).Frup === 86460 && rup(6.4).Frup === 2402 && rup(22.2).Frup === 29354 && rup("8,0").Frup === 3755, "ruptura por diametro, tudo IPS do catalogo SIVA");
+  T(roda(`CHK_CABOS.every(r => r[3] > 0 && r.length === 5)`) && roda(`CHK_CABOS.length`) === 15 && roda(`CHK_CABOS.filter(r => r[4]).length`) === 0 && roda(`CHK_CABOS.every((r, i) => i === 0 || r[3] > CHK_CABOS[i - 1][3])`), "tabela de 15 cabos do catalogo SIVA 6x19 AF, todos IPS, nenhum estimado, ruptura crescente com o diametro");
+  T(rup(10).dTab === 9.53 && rup(10).exato === false && rup(2) === null && rup(null) === null && rup(0) === null, "diametro fora da tabela usa o menor vizinho (lado seguro); menor que a tabela ou vazio, nada");
+  T(roda(`chkMemorialDe({ memorial:{ diametro:12.7 } }).params.Frup`) === 9607 && roda(`chkMemorialDe({ memorial:{ diametro:12.7, params:{ Frup:9000 } } }).params.Frup`) === 9000 && roda(`chkMemorialDe({ memorial:{ diametro:12.7 } }).frupNota`).includes("catálogo SIVA") && roda(`chkMemorialDe({ memorial:{ diametro:8 } }).frupNota`).includes("IPS") && roda(`chkMemorialDe({ memorial:{ diametro:12.7, params:{ Frup:9000 } } }).frupNota`).includes("informado"), "a ruptura vem do diametro; valor informado na linha vale mais");
   // menor cabo da tabela que atende
   const mn = roda(`chkMemorialDiametroMin("horizontal_flexivel", chkMemorialDe({ memorial:{ hanc:5, hpos:3, vao:6.7, flechaCm:46.9, diametro:8 } }))`);
   T(mn && mn[0] <= 8 && mn[0] >= 6.4, "menor cabo que atende com 1 usuario e 7% de flecha: " + JSON.stringify(mn));
@@ -1546,7 +1545,7 @@ async function testarMemorial(){
   T(txt.f.includes("<math>") && txt.f.includes("<mn>4,66</mn>") && txt.f.includes("<mn>1550</mn>") && txt.f.includes("Alongamento do cabo") && txt.f.includes("<mn>41,6</mn>") && txt.f.includes("Distância de frenagem") && txt.f.includes("Fator de queda") && txt.f.includes("<mn>0,21</mn>") && txt.f.includes("voltas") && txt.f.includes("<mn>0,661</mn>") && txt.f.includes("<mn>6,70</mn>"), "formulas com os numeros substituidos (ZLQ2 4,66; T1 1550; f3 0,661; vao 6,70)");
   T(!/NaN|undefined|Infinity/.test(txt.f + txt.t + txt.pr.join("") + txt.co.join("") + txt.le.join("")), "texto do memorial sem NaN/undefined");
   T(txt.t.includes("Força no cabo (T1)") && txt.t.includes("<b>1550</b>") && txt.t.includes("Diâmetro do cabo") && txt.t.includes("<td class=\"v\">8</td>") && txt.t.includes("Alongamento (ΔL)") && txt.t.includes("Fator de queda") && txt.t.includes("Módulo E do cabo"), "tabelas de entrada e resultado, com o diametro, o alongamento e o fator de queda");
-  T(txt.pr[0].includes("Cabo de aço de 8 mm") && txt.pr[0].includes("IPS da tabela do fabricante") && txt.pr[1].includes("600 kgf") && txt.pr[2].includes("9500") && txt.pr[2].includes("voltas") && txt.co.some(x=> x.includes("Fator de queda do sistema: <b>0,2</b>")) && txt.co.some(x=> x.includes("Cabo de aço de 8 mm") && x.includes("atende")) && txt.le.length === 11 && txt.le[9].includes("5,00 m") && txt.le[10].includes("3,00 m") && txt.le[6].includes("4,66 m"), "premissa com o diametro; legenda com 11 itens e os valores 7, 10 e 11");
+  T(txt.pr[0].includes("Cabo de aço de 8 mm") && txt.pr[0].includes("catálogo SIVA") && txt.pr[1].includes("600 kgf") && txt.pr[2].includes("9500") && txt.pr[2].includes("voltas") && txt.co.some(x=> x.includes("Fator de queda do sistema: <b>0,2</b>")) && txt.co.some(x=> x.includes("Cabo de aço de 8 mm") && x.includes("atende")) && txt.le.length === 11 && txt.le[9].includes("5,00 m") && txt.le[10].includes("3,00 m") && txt.le[6].includes("4,66 m"), "premissa com o diametro; legenda com 11 itens e os valores 7, 10 e 11");
   const txtR = roda(`(function(){ const m = chkMemorialDe({ memorial:{ hanc:5, hpos:3, vao:3 } }); const c = chkMemorialCalc("horizontal_rigida", m); return { f: chkMemorialFormulas(c, m), pr: chkMemorialPremissas(c, m), le: chkMemorialLegenda(c, m) }; })()`);
   T(txtR.f.includes("δ") && txtR.f.includes("<mn>2611</mn>") && txtR.pr[0].includes("W200x26,6") && txtR.le[1].includes("viga W200x26,6") && !/NaN|undefined/.test(txtR.f) && !txtR.f.includes("Momento fletor") && !txtR.f.includes("Tensão de flexão") && !txtR.pr.join("").includes("Tensão") && !txtR.pr.join("").includes("fy"), "viga: formulas de deflexao, premissa e legenda, sem a verificacao de resistencia");
 
@@ -1614,7 +1613,7 @@ async function testarMemorial(){
   roda("App.chkMemorialToggle()");
   T(lm.laudo.capitulos.memorial === true && !sandbox.__ultimoOverlayHtml, "ligar de novo e direto, sem confirmacao");
   const htmlOn = roda("chkMemorialCampoHtml(getCurrentChkLinha())");
-  T(htmlOn.includes("chkMemorialSet('flechaCm'") && htmlOn.includes("chkMemorialSet('comprimento'") && htmlOn.includes("chkMemorialSet('diametro'") && htmlOn.includes("chkMemorialSetUso(") && htmlOn.includes("5/16”") && htmlOn.includes("chkMemorialSetParam('Frup'") && htmlOn.includes("chkMemorialSetParam('Ecabo'") && htmlOn.includes('placeholder="3900"') && htmlOn.includes("Cálculo passo a passo") && htmlOn.includes('id="chkMemPasso"') && htmlOn.includes("Alongamento do cabo") && htmlOn.includes("Esta linha não terá memorial") && htmlOn.includes("Trava-quedas: pode"), "aba do cabo: campos, parametros com o padrao dentro e resultado preliminar");
+  T(htmlOn.includes("chkMemorialSet('flechaCm'") && htmlOn.includes("chkMemorialSet('comprimento'") && htmlOn.includes("chkMemorialSet('diametro'") && htmlOn.includes("chkMemorialSetUso(") && htmlOn.includes("5/16”") && htmlOn.includes("chkMemorialSetParam('Frup'") && htmlOn.includes("chkMemorialSetParam('Ecabo'") && htmlOn.includes('placeholder="3755"') && htmlOn.includes("Cálculo passo a passo") && htmlOn.includes('id="chkMemPasso"') && htmlOn.includes("Alongamento do cabo") && htmlOn.includes("Esta linha não terá memorial") && htmlOn.includes("Trava-quedas: pode"), "aba do cabo: campos, parametros com o padrao dentro e resultado preliminar");
   lm.tipoLinha = "horizontal_rigida";
   const htmlRig = roda("chkMemorialCampoHtml(getCurrentChkLinha())");
   T(!htmlRig.includes("chkMemorialSet('flechaCm'") && !htmlRig.includes("chkMemorialSet('comprimento'") && !htmlRig.includes("chkMemorialSet('diametro'") && !htmlRig.includes("chkMemorialSetUso(") && !htmlRig.includes("chkMemorialSetParam('Ecabo'") && htmlRig.includes("chkMemorialSet('hanc'"), "viga nao pede flecha, diametro, tipo de linha nem os dados do cabo");
@@ -1868,8 +1867,8 @@ async function testarCapitulosNovos(){
   const hrefs = [...fluxo.doc.matchAll(/href="#(lcl-a-[^"]+)"/g)].map(m=>m[1]);
   const ids = [...fluxo.doc.matchAll(/class="lcl-alvo" id="([^"]+)"/g)].map(m=>m[1]);
   T(new Set(ids).size === ids.length, "destinos de link duplicados no documento: " + ids.join(","));
-  T(hrefs.length >= 13 && hrefs.every(h=> ids.includes(h)), "link sem destino no documento: " + hrefs.filter(h=> !ids.includes(h)).join(","));
-  T(fluxo.sum.includes('href="#lcl-a-cap-normativo"') && fluxo.sum.includes('href="#lcl-a-cap-memoria"') && fluxo.sum.includes('href="#lcl-a-cap-anexos"') && fluxo.sum.includes('onclick="return App.lclIrPara(event)"'), "linhas do sumario sao links: " + fluxo.sum.slice(0, 200));
+  T(hrefs.length >= 12 && hrefs.every(h=> ids.includes(h)), "link sem destino no documento: " + hrefs.filter(h=> !ids.includes(h)).join(","));
+  T(!fluxo.sum.includes('cap-normativo') && fluxo.sum.includes('href="#lcl-a-cap-memoria"') && fluxo.sum.includes('href="#lcl-a-cap-anexos"') && fluxo.sum.includes('onclick="return App.lclIrPara(event)"'), "linhas do sumario sao links: " + fluxo.sum.slice(0, 200));
   const verLinks = [...fluxo.doc.matchAll(/<a class="lcl-rver" href="#(lcl-a-cap-sec-[^"]+)"[^>]*>ver ([0-9.]+)<\/a>/g)].map(m=>[m[1], m[2]]);
   T(verLinks.length === 3 && verLinks.every(v=> ids.includes(v[0])) && verLinks.map(v=>v[1]).join(",") === "3.1,3.1,3.2", "'ver N' do checklist vira link para a secao certa do corpo: " + JSON.stringify(verLinks));
   T(fluxo.mapa["cap-sec-" + roda("__f3.l.modeloSnapshot[0].id")] >= 1, "a secao de destino tem pagina");
@@ -1966,7 +1965,7 @@ async function testarEdicaoTexto(){
   T(c2.editar.editado === true && c2.html.includes("Conclusao escrita.") && !c2.html.includes("Foram avaliados"), "conclusao escrita: marcada como editada");
   roda("__f3.l.conclusaoTexto = ''");
   const p2 = roda(`lclBlocosPagina2(${d}, lclTextos())`);
-  T(p2.find(b=> b.ancora === "cap-normativo").editar.tipo === "normativo", "o Normativo oferece o atalho para o editor do Normativo");
+  T(!p2.some(b=> b.ancora === "cap-normativo"), "pagina 2 sem Normativo");
   T(roda(`lclBlocosMetodologia(${d}, { num:1, rot:"Metodologia", ancora:"cap-metodologia" }, lclTextos(), (x)=> x)[0].editar.tipo`) === "metodologia", "a Metodologia oferece o atalho para o editor dela");
 
   // --- botao no documento da tela (e so nos blocos que pedem)

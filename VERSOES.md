@@ -64,6 +64,17 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 06/10/2026 10:00
+
+**Cabos pela tabela IPS do catálogo SIVA (6x19, alma de fibra); laudo sem o Normativo repetido e com as seções aproveitando as páginas; dados do projeto editáveis.**
+
+- Cabos de aço: a tabela agora é a do catálogo SIVA, classe 6x19 AF, coluna I.P.S., de 3/16" a 1 1/2" (15 diâmetros, nenhum valor estimado). Exemplo: 8 mm usa o cabo de 7,94 mm (5/16"), ruptura 3.755 kgf. Acima de 1 1/2" o catálogo só traz EIPS, por isso a tabela termina ali.
+- Laudo: a página 2 não traz mais o capítulo "Normativo" (as normas ficam só na Metodologia, em "Normas de referência"); o Sumário também deixou de listá-lo.
+- Laudo, "Avaliação por Componente": as seções curtas deixam de abrir uma página nova cada uma e passam a seguir uma atrás da outra, aproveitando a página.
+- Checklist: agora dá para editar os dados do projeto (solicitante, CPF/CNPJ, documento, inspetor): lápis no cartão do projeto e botão "Dados" na tela de setores.
+
+---
+
 ## 05/10/2026 12:00
 
 **Checklist: no computador, as abas das seções passam a deslizar com a roda do mouse e com o arrastar.**

@@ -5701,8 +5701,8 @@ chk("alteracao dos dois lados nunca perde nada (a outra versao vira copia) e o q
     and "res.conflitos++;" in novo)
 chk("o Checklist nao introduz clone por texto (JSON.parse(JSON.stringify)) nem mexe nos modulos Completo e Simplificado: copias usam clonarCompartilhandoFotos",
     "clonarCompartilhandoFotos(loc.obj)" in novo and "clonarCompartilhandoFotos(payload)" in novo)
-chk("todos os cabos da tabela sao IPS (18 diametros), com a IPS estimada marcada onde a planilha so traz a EIPS",
-    "const CHK_CABOS = [" in novo and novo[novo.index("const CHK_CABOS = ["):novo.index("const CHK_CABOS = [") + 2200].count("false]") + novo[novo.index("const CHK_CABOS = ["):novo.index("const CHK_CABOS = [") + 2200].count("true]") == 18
+chk("tabela de cabos do catalogo SIVA 6x19 AF, IPS (15 diametros, nenhum estimado)",
+    "const CHK_CABOS = [" in novo and novo[novo.index("const CHK_CABOS = ["):novo.index("const CHK_CABOS = [") + 2200].count("false]") + novo[novo.index("const CHK_CABOS = ["):novo.index("const CHK_CABOS = [") + 2200].count("true]") == 15 and novo[novo.index("const CHK_CABOS = ["):novo.index("const CHK_CABOS = [") + 2200].count("true]") == 0
     and 'grau: "IPS"' in novo and "EIPS" not in novo[novo.index("function chkCaboRuptura("):novo.index("function chkCaboRuptura(") + 700])
 chk("o memorial do cabo calcula linha de varios vaos como a planilha (comprimento da linha, cabo no vao carregado J = L1 - C + L)",
     "const Lt = m.comprimento, nv = Lt / L, L1 = Ls * nv, J = L1 - Lt + L;" in novo and '["comprimento", "Comprimento total da linha (se tiver mais de um vão)", "m", ""],' in novo)
@@ -5771,5 +5771,13 @@ chk("o modal 'Responsavel deste laudo' guarda so o que difere do padrao e nunca 
 chk("a tela de impressao tem o botao Responsavel e a linha de aviso cita a troca",
     "App.lpAbrirRespLaudo()" in _corpoMod("telaImprimir") and '"dados do responsável"' in _corpoMod("telaImprimir"))
 
+print("\n=== 184. NORMATIVO SAI DA PAGINA 2, SECOES FLUEM, DADOS DO PROJETO EDITAVEIS (06/10/2026) ===")
+chk("a pagina 2 do laudo nao tem mais o capitulo Normativo nem o item no sumario",
+    'ancora:"cap-normativo"' not in novo and 'lk("cap-normativo"' not in novo)
+chk("as secoes do corpo so abrem pagina nova na primeira (quebrarAntes: i === 0)", novo.count("quebrarAntes: i === 0") >= 2)
+chk("o projeto do Checklist tem caminho para editar os dados: lapis no cartao e botao Dados nos setores",
+    "chkEditarProjeto(id){" in novo and "App.chkEditarProjeto('${p.id}')" in novo and "go('checklist-projeto-form')\">${ic('edit')} Dados" in novo)
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
+
