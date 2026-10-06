@@ -3376,7 +3376,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "06/10/2026 10:00";
+const APP_BUILD = "06/10/2026 11:00";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -13924,14 +13924,24 @@ function screenChkModelos(){
     return `<div class="empty">${ic('folder')}<h3>Nenhum modelo cadastrado</h3><p>Um modelo é o roteiro do checklist: seções e itens que serão preenchidos em campo. Crie um modelo antes de iniciar uma execução.</p>
       <div style="margin-top:18px"><button class="btn btn-primary" onclick="App.chkNovoModelo()">${ic('plus')} Novo modelo</button></div></div>`;
   }
+  const usoModelo = {};
+  (STATE.checklists.projetos || []).forEach(pr=>{
+    (pr.setores || []).forEach(st=> (st.linhas || []).forEach(l=>{
+      const u = usoModelo[l.modeloId] || (usoModelo[l.modeloId] = { projetos:new Set(), linhas:0 });
+      u.projetos.add(pr.id); u.linhas++;
+    }));
+  });
   const cards = modelos.map(m=>{
     const nItens = m.secoes.reduce((n,s)=>n+s.itens.length,0);
+    const uso = usoModelo[m.id] || { projetos:new Set(), linhas:0 };
+    const nProj = uso.projetos.size;
+    const pillUso = `<span class="stat-pill" title="${uso.linhas} ${uso.linhas===1?'linha de vida usa':'linhas de vida usam'} este modelo">${nProj} ${nProj===1?'projeto':'projetos'} em uso</span>`;
     return `
     <div class="card list-card">
       <div class="list-body" onclick="App.chkAbrirModelo('${m.id}')" style="padding:14px">
         <div class="list-name">${escapeHtml(m.nome||'Sem nome (toque para editar)')}</div>
         <div class="list-tag">${escapeHtml(m.descricao||'sem descrição')}</div>
-        <div class="list-meta"><span class="stat-pill">${m.secoes.length} ${m.secoes.length===1?'seção':'seções'}</span><span class="stat-pill">${nItens} ${nItens===1?'item':'itens'}</span></div>
+        <div class="list-meta"><span class="stat-pill">${m.secoes.length} ${m.secoes.length===1?'seção':'seções'}</span><span class="stat-pill">${nItens} ${nItens===1?'item':'itens'}</span>${pillUso}</div>
       </div>
       <div class="list-actions"><button class="icon-btn" onclick="event.stopPropagation();App.chkExcluirModelo('${m.id}')">${ic('trash')}</button></div>
     </div>`;

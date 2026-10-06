@@ -64,6 +64,14 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 06/10/2026 11:00
+
+**Checklist, lista de modelos: cada modelo mostra em quantos projetos está em uso.**
+
+- Novo selo "N projetos em uso" no cartão de cada modelo (conta projetos distintos que têm ao menos uma linha de vida com aquele modelo; ao segurar o dedo/mouse sobre o selo aparece o número de linhas).
+
+---
+
 ## 06/10/2026 10:00
 
 **Cabos pela tabela IPS do catálogo SIVA (6x19, alma de fibra); laudo sem o Normativo repetido e com as seções aproveitando as páginas; dados do projeto editáveis.**

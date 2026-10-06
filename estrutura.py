@@ -5778,6 +5778,8 @@ chk("as secoes do corpo so abrem pagina nova na primeira (quebrarAntes: i === 0)
 chk("o projeto do Checklist tem caminho para editar os dados: lapis no cartao e botao Dados nos setores",
     "chkEditarProjeto(id){" in novo and "App.chkEditarProjeto('${p.id}')" in novo and "go('checklist-projeto-form')\">${ic('edit')} Dados" in novo)
 
+chk("a lista de modelos mostra quantos projetos usam cada modelo", "const usoModelo = {};" in novo and "em uso</span>" in novo)
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
 
