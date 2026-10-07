@@ -64,6 +64,18 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/10/2026 17:15
+
+**Sincronização do Checklist: as cópias "(versão de ...)" deixam de aparecer quando as duas versões não discordam, e as que já existem são juntadas.**
+
+- Causa encontrada (olhando a pasta da nuvem): quando duas versões da mesma linha mudavam ao mesmo tempo, ganhava a de carimbo mais novo e a outra virava cópia. Um único toque numa cópia desatualizada (conferir uma linha no celular, por exemplo) dava carimbo novo a ela e jogava o trabalho de 54 respostas do colega para uma "cópia" (o caso do Depósito de Inflamáveis). Cópias de cópias saíam da mesma regra.
+- Agora, se as duas versões não discordam em nada (o mesmo item nunca respondido de formas diferentes), elas viram uma só, com a união das respostas, das notas, dos motivos e das fotos. Só quando há discordância de verdade a outra versão continua virando cópia.
+- Mudança de carimbo sem mudança de conteúdo deixa de contar como alteração (antes a linha era reenviada à toa).
+- Uma vez por aparelho, com ponto de restauração antes, as cópias que já existem e não discordam do original são juntadas a ele (a cópia sai e a exclusão viaja como lápide). Cópia que discorda do original (resposta diferente no mesmo item) fica para você conferir.
+- Conferir uma linha finalizada não a reabre mais sozinha: "Corrigir" e "Ir" agora pedem confirmação antes de reabrir.
+
+---
+
 ## 07/10/2026 16:15
 
 **Cartão do setor sem o menu de três pontos; "Excluir este setor" passa para a tela de edição do setor.**

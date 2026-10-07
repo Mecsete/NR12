@@ -3422,7 +3422,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/10/2026 16:15";
+const APP_BUILD = "07/10/2026 17:15";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -19036,6 +19036,118 @@ async function chkSyncApagarRemoto(ctx, rem){
   for(const nome of [rem.nome].concat(rem.antigos || [])){ await ctx.T.apagar(SUBPASTA_CHECKLIST, nome); }
   ctx.parse.entidades.delete(rem.chave);
 }
+/* ---- Mescla de linha de vida em conflito (duas versões do mesmo checklist) ----
+   Antes, a versão com o carimbo mais novo ganhava e a outra virava uma cópia "(versão de ...)" — mesmo quando
+   o carimbo novo vinha de um único toque numa cópia velha (o caso do "Depósito de Inflamáveis": 1 resposta
+   numa cópia desatualizada derrubou o trabalho de 54 respostas para uma cópia). Agora, quando as duas versões
+   NÃO discordam em nada (cada item respondido dos dois lados tem a mesma resposta), elas viram uma só, com a
+   união das respostas, das notas, dos motivos e das fotos — nada se perde e não sobra cópia. Quando discordam
+   de verdade (o mesmo item respondido de formas diferentes), vale o caminho de antes: a outra versão vira cópia. */
+function chkSyncFotoValorId(v){
+  if(ehFotoDataUrlPersist(v)) return fotoCalcularId(v);
+  if(ehFotoRefPersist(v)) return v.slice(FOTO_REF_PREFIXO.length);
+  return String(v || "");
+}
+function chkSyncFotoId(f){ return chkSyncFotoValorId(f && f.foto); }
+function chkSyncRespondidos(l){
+  return (l.itens || []).filter(i=> i && i.conforme !== null && i.conforme !== undefined).length;
+}
+const CHK_SYNC_CAMPOS_TEXTO_LINHA = ["descricao", "conclusaoTexto"];
+/* Onde as duas versões discordam de verdade (lista de motivos legíveis; vazia = podem ser mescladas sem perder nada). */
+function chkSyncDivergencias(a, b){
+  const d = [];
+  const ia = {}, ib = {};
+  (a.itens || []).forEach(i=>{ if(i) ia[i.itemId] = i; });
+  (b.itens || []).forEach(i=>{ if(i) ib[i.itemId] = i; });
+  Object.keys(ia).forEach(id=>{
+    const x = ia[id], y = ib[id];
+    if(!y) return;
+    const rx = x.conforme !== null && x.conforme !== undefined, ry = y.conforme !== null && y.conforme !== undefined;
+    if(rx && ry && x.conforme !== y.conforme) d.push("item " + id);
+  });
+  CHK_SYNC_CAMPOS_TEXTO_LINHA.forEach(c=>{
+    const x = String(a[c] || "").trim(), y = String(b[c] || "").trim();
+    if(x && y && x !== y) d.push(c);
+  });
+  if(a.fotoAmpla && b.fotoAmpla && chkSyncFotoValorId(a.fotoAmpla) !== chkSyncFotoValorId(b.fotoAmpla)) d.push("fotoAmpla");
+  ["laudo", "memorial"].forEach(c=>{
+    const x = a[c], y = b[c];
+    const vazio = (o)=> !o || typeof o !== "object" || !Object.keys(o).length;
+    if(!vazio(x) && !vazio(y) && chkSyncSig(x, true) !== chkSyncSig(y, true)) d.push(c);
+  });
+  const na = (a.secoesNA || []).slice().sort().join("|"), nb = (b.secoesNA || []).slice().sort().join("|");
+  if(na !== nb) d.push("secoesNA");
+  return d;
+}
+/* Junta as duas versões (a de mais respostas é a base; empate: a finalizada, depois a mais nova). Só chame sem divergências. */
+function chkSyncMesclarLinha(a, b){
+  const ra = chkSyncRespondidos(a), rb = chkSyncRespondidos(b);
+  let base = a, outra = b;
+  if(rb > ra || (rb === ra && ((b.status === "finalizado" && a.status !== "finalizado") || (b.status === a.status && (b.atualizadoEm || 0) > (a.atualizadoEm || 0))))){ base = b; outra = a; }
+  const m = clonarCompartilhandoFotos(base);
+  if(!Array.isArray(m.itens)) m.itens = [];
+  const porId = {};
+  m.itens.forEach(i=>{ if(i) porId[i.itemId] = i; });
+  (outra.itens || []).forEach(o=>{
+    if(!o) return;
+    const t = porId[o.itemId];
+    if(!t){ const c = clonarCompartilhandoFotos(o); m.itens.push(c); porId[o.itemId] = c; return; }
+    const tem = (x)=> x.conforme !== null && x.conforme !== undefined;
+    if(!tem(t) && tem(o)){ t.conforme = o.conforme; t.motivosSelecionados = (o.motivosSelecionados || []).slice(); }
+    else if(tem(t) && tem(o) && t.conforme === o.conforme){
+      const ms = (t.motivosSelecionados || []).slice();
+      (o.motivosSelecionados || []).forEach(x=>{ if(!ms.includes(x)) ms.push(x); });
+      t.motivosSelecionados = ms;
+    }
+    const nt = String(t.observacao || "").trim(), no = String(o.observacao || "").trim();
+    if(!nt && no) t.observacao = o.observacao;
+    else if(nt && no && nt !== no && !nt.includes(no)) t.observacao = nt + "\n" + no;
+    const ids = new Set((t.fotos || []).map(chkSyncFotoId));
+    (o.fotos || []).forEach(f=>{ if(f && !ids.has(chkSyncFotoId(f))){ if(!Array.isArray(t.fotos)) t.fotos = []; t.fotos.push(Object.assign({}, f)); ids.add(chkSyncFotoId(f)); } });
+    if(o.semFoto && !t.semFoto && !(t.fotos || []).length) t.semFoto = true;
+  });
+  CHK_SYNC_CAMPOS_TEXTO_LINHA.concat(["fotoAmpla"]).forEach(c=>{ if(!m[c] && outra[c]) m[c] = outra[c]; });
+  ["laudo", "memorial"].forEach(c=>{
+    const x = m[c], y = outra[c];
+    if(y && typeof y === "object" && Object.keys(y).length && (!x || typeof x !== "object" || !Object.keys(x).length)) m[c] = clonarCompartilhandoFotos(y);
+  });
+  return m;
+}
+/* Cópias "(versão de ...)" que já existem: quando a cópia não discorda em nada do original (é igual ou só tem menos
+   respostas), junta tudo no original e tira a cópia (a exclusão viaja como lápide). Cópia que discorda fica, para a pessoa
+   decidir. Devolve { fundidas, mantidas }. */
+function chkConsolidarCopiasLinhas(estado){
+  const res = { fundidas: 0, mantidas: 0 };
+  const re = /^(.*?)((?: \(versão de [^)]*\))+)$/;
+  (estado.checklists.projetos || []).forEach(p=> (p.setores || []).forEach(s=>{
+    const copias = (s.linhas || []).filter(l=> re.test(String(l.nome || "")))
+      .sort((x, y)=> (String(x.nome).match(/\(versão/g) || []).length - (String(y.nome).match(/\(versão/g) || []).length);
+    copias.forEach(c=>{
+      const base = re.exec(String(c.nome))[1];
+      const orig = s.linhas.find(l=> l !== c && l.nome === base && l.criadoEm === c.criadoEm && l.modeloId === c.modeloId);
+      if(!orig){ res.mantidas++; return; }
+      if(chkSyncDivergencias(orig, c).length){ res.mantidas++; return; }
+      const m = chkSyncMesclarLinha(orig, c);
+      ["itens", "status", "dataFinalizacao", "descricao", "conclusaoTexto", "fotoAmpla", "laudo", "memorial", "secoesNA"].forEach(k=>{ if(m[k] !== undefined) orig[k] = m[k]; });
+      orig.atualizadoEm = agoraSync();
+      s.linhas = s.linhas.filter(l=> l !== c);
+      chkSyncRegistrarRemocao([c.id]);
+      s.atualizadoEm = agoraSync();
+      res.fundidas++;
+    });
+  }));
+  return res;
+}
+/* Detecção de mudança pelo CONTEÚDO (sem os carimbos): um carimbo que mudou sozinho não é mudança. `v` = o que foi
+   visto da última vez ({ts, sig, sigc}); visto antigo, sem `sigc`, ainda vale pela assinatura completa. */
+function chkSyncVisto(ts, vista){
+  return { ts, sig: chkSyncSig(vista), sigc: chkSyncSig(vista, true) };
+}
+function chkSyncMudou(e, v){
+  v = v || { sig: "", sigc: "" };
+  const vista = chkSyncVista(e);
+  return v.sigc ? chkSyncSig(vista, true) !== v.sigc : chkSyncSig(vista) !== (v.sig || "");
+}
 async function chkSyncEnviar(ctx, loc){
   const { T, sy, res } = ctx;
   ctx.ops++;
@@ -19068,7 +19180,7 @@ async function chkSyncEnviar(ctx, loc){
   if(!ok){ res.falhas++; return false; }
   const rem = ctx.parse.entidades.get(loc.chave);
   if(rem){ for(const a of [rem.nome].concat(rem.antigos || [])){ if(a !== nome) await T.apagar(SUBPASTA_CHECKLIST, a); } }
-  sy.vistos[loc.chave] = { ts, sig: sigEnviada };
+  sy.vistos[loc.chave] = { ts, sig: sigEnviada, sigc: chkSyncSig(vista, true) };
   ctx.parse.entidades.set(loc.chave, { chave: loc.chave, tipo: loc.tipo, id: loc.id, ts, nome, antigos: [] });
   res.enviou++;
   res.mudouLocal = true;
@@ -19160,12 +19272,27 @@ async function chkSyncBaixar(ctx, loc, rem, opc){
     res.mudouLocal = true;
     return true;
   }
+  if(opc.mesclar && loc){
+    // duas versões sem discordância: a daqui e a da nuvem viram uma só (união das respostas, notas, motivos e fotos)
+    const atual = chkSyncLocalDe(loc.chave);
+    if(!atual) return false;
+    const m = chkSyncMesclarLinha(atual.obj, payload.obj);
+    m.id = atual.obj.id; m.nome = atual.obj.nome;
+    m.atualizadoEm = agoraSync();
+    const rm = chkSyncAplicar({ obj: m, projetoId: payload.projetoId, setorId: payload.setorId }, rem.tipo, rem.id, false);
+    if(rm !== "ok") return false;
+    registrarCarimboVisto(rem.ts);
+    res.mesclados = (res.mesclados || 0) + 1;
+    res.mudouLocal = true;
+    T.log("down", rem.nome, "checklist", 0, true, undefined, "Checklist");
+    return true;
+  }
   const remSemente = chkSyncSementeIntocada({ tipo: rem.tipo, obj: payload.obj });
   if(!remSemente) payload.obj.atualizadoEm = rem.ts;
   const r = chkSyncAplicar(payload, rem.tipo, rem.id, false);
   if(r !== "ok") return false;
   const novo = chkSyncLocalDe(rem.chave);
-  sy.vistos[rem.chave] = { ts: rem.ts, sig: novo ? chkSyncSig(chkSyncVista(novo)) : "" };
+  sy.vistos[rem.chave] = novo ? chkSyncVisto(rem.ts, chkSyncVista(novo)) : { ts: rem.ts, sig: "" };
   registrarCarimboVisto(rem.ts);
   res.baixou++;
   res.mudouLocal = true;
@@ -19194,7 +19321,15 @@ async function chkSyncConflito(ctx, loc, rem){
   if(!payload){ res.falhas++; return; }
   if(chkSyncSig(payload.obj, true) === chkSyncSig(chkSyncVista(loc), true)){
     // mesmo conteúdo nos dois lados (só o carimbo difere): nada a guardar nem a enviar
-    sy.vistos[loc.chave] = { ts: rem.ts, sig: chkSyncSig(chkSyncVista(loc)) };
+    sy.vistos[loc.chave] = chkSyncVisto(rem.ts, chkSyncVista(loc));
+    return;
+  }
+  // linha de vida: se as duas versões não discordam em nada, juntam-se numa só, sem cópia (ver chkSyncMesclarLinha)
+  if(loc.tipo === "l" && !chkSyncDivergencias(loc.obj, payload.obj).length){
+    const ok = await chkSyncBaixar(ctx, loc, rem, { payload, mesclar: true });
+    if(!ok){ res.falhas++; return; }
+    const novo = chkSyncLocalDe(loc.chave);
+    if(novo) await chkSyncEnviar(ctx, novo);
     return;
   }
   const remSemente = chkSyncSementeIntocada({ tipo: loc.tipo, obj: payload.obj });
@@ -19219,7 +19354,7 @@ async function chkSyncConflito(ctx, loc, rem){
    carimba de novo para que ele volte para a nuvem. Devolve true se removeu. */
 function chkSyncRemoverLocal(ctx, loc){
   const ns = STATE.checklists, sy = ctx.sy;
-  const mudou = (e)=> !chkSyncSementeIntocada(e) && chkSyncSig(chkSyncVista(e)) !== (sy.vistos[e.chave] || { sig:"" }).sig;
+  const mudou = (e)=> !chkSyncSementeIntocada(e) && chkSyncMudou(e, sy.vistos[e.chave]);
   const filhos = chkSyncLocais().filter(e=> e.chave !== loc.chave && ((loc.tipo === "p" && e.projetoId === loc.id) || (loc.tipo === "s" && e.setorId === loc.id)));
   if(filhos.some(mudou)){
     loc.obj.atualizadoEm = agoraSync();
@@ -19258,8 +19393,8 @@ async function chkSyncEntidade(ctx, chave){
     return;
   }
   const semente = chkSyncSementeIntocada(loc);
-  const sigAtual = chkSyncSig(chkSyncVista(loc));
-  const mudou = !semente && sigAtual !== v.sig;
+  // mudou = o CONTEÚDO mudou (carimbo que anda sozinho não conta)
+  const mudou = !semente && chkSyncMudou(loc, v);
   const tsLoc = semente ? 0 : (loc.obj.atualizadoEm || 0);
   if(tomb && !mudou && tomb > tsLoc){
     if(chkSyncRemoverLocal(ctx, loc)){
@@ -19274,7 +19409,11 @@ async function chkSyncEntidade(ctx, chave){
   if(!rem){ await chkSyncEnviar(ctx, loc); return; }
   const remMudou = rem.ts > v.ts;
   if(semente){ if(remMudou) await chkSyncBaixar(ctx, loc, rem); return; }
-  if(!mudou && !remMudou) return;
+  if(!mudou && !remMudou){
+    // visto antigo (sem a assinatura de conteúdo): completa agora, uma vez, para a detecção por conteúdo valer daqui em diante
+    if(sy.vistos[chave] && !sy.vistos[chave].sigc){ sy.vistos[chave].sigc = chkSyncSig(chkSyncVista(loc), true); res.mudouLocal = true; }
+    return;
+  }
   if(mudou && !remMudou){ await chkSyncEnviar(ctx, loc); return; }
   if(!mudou && remMudou){ await chkSyncBaixar(ctx, loc, rem); return; }
   await chkSyncConflito(ctx, loc, rem);
@@ -19336,6 +19475,20 @@ async function onedriveSincronizarChecklist(forcar){
     // sem sessão a listagem volta vazia: nunca confundir isso com "a nuvem está vazia"
     if(!(await onedriveObterToken())) return { mudou:false, erro:true };
     chkGarantirNamespace(STATE);
+    // uma vez por aparelho: junta as cópias "(versão de ...)" que não discordam do original (com ponto de restauração antes)
+    if(!STATE.ui.chkCopiasConsolidadas){
+      const temCopia = STATE.checklists.projetos.some(p=> (p.setores || []).some(s=> (s.linhas || []).some(l=> /\(versão de [^)]*\)$/.test(String(l.nome || "")))));
+      if(temCopia){
+        const salvou = await salvarPontoDeRestauracao("Antes de juntar as cópias de linhas de vida");
+        if(salvou){
+          const rc = chkConsolidarCopiasLinhas(STATE);
+          STATE.ui.chkCopiasConsolidadas = true;
+          if(rc.fundidas){ marcarAlterado(); try{ toast(rc.fundidas + (rc.fundidas === 1 ? " cópia de linha de vida foi juntada ao original" : " cópias de linhas de vida foram juntadas aos originais") + (rc.mantidas ? "; " + rc.mantidas + " ficaram para você conferir" : "")); }catch(e){} }
+        }
+      }else{
+        STATE.ui.chkCopiasConsolidadas = true;
+      }
+    }
     const r = await chkSyncRodar(chkSyncTransporteOneDrive(), { limite: forcar ? Infinity : CHK_SYNC_LIMITE_OPS_AUTO });
     __chkSyncUltima = Date.now();
     if(r.mudouLocal){
@@ -30451,12 +30604,16 @@ Devolver agora?`)) return;
     </div></div>`);
   },
   chkIrDaRevisao(si, itemId){
-    // linha já finalizada não abre no preenchimento (iria para o laudo em branco): reabre para a correção
+    // linha já finalizada não abre no preenchimento (iria para o laudo em branco): reabrir muda a linha, então só com confirmação
     const lin = getCurrentChkLinha();
     if(lin && lin.status === "finalizado"){
-      lin.status = "em_andamento"; lin.dataFinalizacao = null; lin.atualizadoEm = agoraSync();
-      marcarAlterado();
-      toast("Linha reaberta para correção; finalize de novo ao terminar");
+      chkAbrirConfirmacao("Reabrir a linha para corrigir?", "Esta linha está finalizada. Para corrigir o item ela precisa ser reaberta (as respostas ficam como estão; depois é só finalizar de novo). Quem só quer conferir pode voltar sem reabrir.", "Reabrir e corrigir", ()=>{
+        lin.status = "em_andamento"; lin.dataFinalizacao = null; lin.atualizadoEm = agoraSync();
+        marcarAlterado();
+        toast("Linha reaberta para correção; finalize de novo ao terminar");
+        App.chkIrDaRevisao(si, itemId);
+      });
+      return;
     }
     __chkDaRevisao = true;
     STATE.ui.chkSecaoAtual = si;

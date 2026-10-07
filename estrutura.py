@@ -5924,6 +5924,16 @@ print("\n=== 198. SETOR SEM MENU DE TRES PONTOS (07/10/2026) ===")
 chk("cartao do setor sem o menu; exclusao dentro da edicao do setor e volta para a lista",
     'return extra + (tipo === "setor" ? "" : chkBotaoMenu(tipo, id));' in novo and "Excluir este setor</button>" in novo and 'if(STATE.ui.screen === "checklist-setor-form") go("checklist-setores"); else render();' in novo)
 
+print("\n=== 199. SINCRONIZACAO: MESCLA DE LINHA SEM DISCORDANCIA, DETECCAO POR CONTEUDO E JUNCAO DAS COPIAS (07/10/2026) ===")
+chk("conflito de linha sem discordancia: junta as duas versoes numa so (uniao de respostas, notas, motivos e fotos), sem copia",
+    "function chkSyncMesclarLinha(a, b){" in novo and "function chkSyncDivergencias(a, b){" in novo and 'if(loc.tipo === "l" && !chkSyncDivergencias(loc.obj, payload.obj).length){' in novo and "{ payload, mesclar: true }" in novo and "if(opc.mesclar && loc){" in novo)
+chk("a mudanca e detectada pelo conteudo (sem carimbos): visto guarda sigc e o visto antigo e completado",
+    "function chkSyncVisto(ts, vista){" in novo and "function chkSyncMudou(e, v){" in novo and "const mudou = !semente && chkSyncMudou(loc, v);" in novo and "sigc: chkSyncSig(vista, true) };" in novo)
+chk("copias (versao de ...) que nao discordam do original sao juntadas uma vez por aparelho, com ponto de restauracao antes",
+    "function chkConsolidarCopiasLinhas(estado){" in novo and "chkCopiasConsolidadas" in novo and 'salvarPontoDeRestauracao("Antes de juntar as cópias de linhas de vida")' in novo)
+chk("reabrir uma linha finalizada ao corrigir pede confirmacao (so olhar nao muda a linha)",
+    'chkAbrirConfirmacao("Reabrir a linha para corrigir?"' in novo)
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
 

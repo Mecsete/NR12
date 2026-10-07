@@ -171,7 +171,7 @@ const FUNCOES = [
   "chkSyncHash", "chkSyncSig", "chkSyncModeloNorm", "chkSyncGarantir", "chkSyncSemCampo", "chkSyncVista", "chkSyncLocais", "chkSyncLocalDe", "chkSyncSementeIntocada",
   "chkSyncParseNomes", "chkSyncRegistrarRemocao", "chkSyncMesclarRemovidos", "chkSyncMesclarInspetores", "chkSyncLerRemoto", "chkSyncSingleton",
   "chkSyncApagarRemoto", "chkSyncEnviar", "chkSyncRotuloCopia", "chkSyncInserir", "chkSyncAplicar", "chkSyncBaixar", "chkSyncCopiarLocal", "chkSyncConflito",
-  "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "chkIncoerencias", "lclNumeroSecao", "getMecseteConfig", "chkAcoesCartao", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
+  "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "chkIncoerencias", "lclNumeroSecao", "getMecseteConfig", "chkAcoesCartao", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "chkSyncFotoValorId", "chkSyncFotoId", "chkSyncRespondidos", "chkSyncDivergencias", "chkSyncMesclarLinha", "chkConsolidarCopiasLinhas", "chkSyncVisto", "chkSyncMudou", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
 ];
 let fonte = "let __ultimoCarimboVisto = 0;\n";
 fonte += "let __buscaAtual = '';\n"; // usado por chkAbrirSetor (lista de linhas) -- nao testado aqui, so pra nao faltar
@@ -193,6 +193,7 @@ fonte += constObjeto("CHK_MEMORIAL_VIGA") + "\n";
 fonte += constObjeto("CHK_MEMORIAL_CAMPOS") + "\n";
 fonte += constObjeto("CHK_MEMORIAL_LIMITES") + "\n";
 fonte += constObjeto("CHK_CABOS") + "\n";
+fonte += constObjeto("CHK_SYNC_CAMPOS_TEXTO_LINHA") + "\n";
 fonte += constObjeto("LCL_PARECERES") + "\n";
 fonte += constObjeto("LCL_PRI_COR") + "\n";
 fonte += constObjeto("LCL_METODOLOGIA_PADRAO") + "\n";
@@ -2615,6 +2616,8 @@ async function testarUsabilidade(){
   // Corrigir, na revisao de uma linha ja finalizada: reabre a linha e vai ao item (nao ao laudo em branco)
   roda("(function(){ const l = getCurrentChkLinha(); l.status = 'finalizado'; l.dataFinalizacao = '2026-10-07'; STATE.ui.chkItemAberto = null; })()");
   roda("App.chkIrDaRevisao(0, 'i1')");
+  T(roda("getCurrentChkLinha().status") === "finalizado", "Corrigir numa linha finalizada NAO reabre sozinho: pede confirmacao antes (so olhar nao pode mudar a linha)");
+  roda("App.chkConfirmarAcao()");
   T(roda("getCurrentChkLinha().status") === "em_andamento" && roda("getCurrentChkLinha().dataFinalizacao") === null && roda("STATE.ui.chkItemAberto") === "i1" && roda("STATE.ui.chkSecaoAtual") === 0, "Corrigir numa linha finalizada reabre a linha e abre o item no preenchimento");
   roda("App.chkIrDaRevisao(0, 'i2')");
   T(roda("getCurrentChkLinha().status") === "em_andamento" && roda("STATE.ui.chkItemAberto") === "i2", "Corrigir numa linha em andamento nao muda o status");
@@ -2822,11 +2825,11 @@ async function testarSincronizacaoChecklist(){
   T(A.checklists.projetos[0].setores[0].linhas[0].itens[0].observacao === "nota digitada em campo" && A.checklists.projetos[0].empresa === "Empresa X Ltda" && A.checklists.projetos[0].setores.length === 1, "as alteracoes de B chegam em A sem mexer nos filhos");
   T(await emDia(A, B), "em dia de novo");
 
-  // ---------------------------------------------------------------- 6) alteracao dos dois lados na mesma linha: ninguem perde nada
+  // ---------------------------------------------------------------- 6) alteracao dos dois lados na mesma linha, com DISCORDANCIA (o mesmo item respondido de formas diferentes): ninguem perde nada, uma versao vira copia
   sandbox.STATE = A;
-  roda(`(function(){ const l = STATE.checklists.projetos[0].setores[0].linhas[0]; l.itens[1].observacao = "A: sapatilha trincada"; l.atualizadoEm = agoraSync(); })()`);
+  roda(`(function(){ const l = STATE.checklists.projetos[0].setores[0].linhas[0]; l.itens[1].conforme = "atende"; l.itens[1].observacao = "A: sapatilha trincada"; l.atualizadoEm = agoraSync(); })()`);
   sandbox.STATE = B;
-  roda(`(function(){ const l = STATE.checklists.projetos[0].setores[0].linhas[0]; l.itens[1].observacao = "B: cabo desfiado"; l.atualizadoEm = agoraSync(); })()`);
+  roda(`(function(){ const l = STATE.checklists.projetos[0].setores[0].linhas[0]; l.itens[1].conforme = "naoAtende"; l.itens[1].observacao = "B: cabo desfiado"; l.atualizadoEm = agoraSync(); })()`);
   await sync(A);
   r = await sync(B);
   const linhasB = B.checklists.projetos[0].setores[0].linhas;
@@ -2979,7 +2982,7 @@ async function testarSincronizacaoChecklist(){
   T(r.baixou === 0 && N2.checklists.projetos[0].setores[0].linhas[0].itens[0].observacao === "digitado no N2 durante a sincronizacao", "o que a pessoa digita no meio do download nunca e sobrescrito pelo que veio da nuvem: " + J(r));
   await emDia(N1, N2);
   const obsN = N2.checklists.projetos[0].setores[0].linhas.map(l => l.itens[0].observacao).sort();
-  T(obsN.length === 2 && obsN.includes("digitado no N2 durante a sincronizacao") && obsN.includes("do N1"), "na rodada seguinte as duas versoes ficam guardadas: " + J(obsN));
+  T(obsN.length === 1 && obsN[0].includes("digitado no N2 durante a sincronizacao") && obsN[0].includes("do N1"), "na rodada seguinte as duas notas ficam guardadas na mesma linha (sem discordancia de resposta, as versoes se juntam): " + J(obsN));
 
   // ---------------------------------------------------------------- 14) tudo o que muda o laudo viaja: configuracao e textos da linha, anexos com foto, textos-base (Metodologia e Normas)
   nuvem.clear();
@@ -3007,6 +3010,66 @@ async function testarSincronizacaoChecklist(){
   sandbox.STATE = L3;
   T(roda(`STATE.checklists.textos && STATE.checklists.textos.normativo.intro`) === "Intro do L2" && roda(`STATE.checklists.projetos[0].setores[0].linhas[0].laudo.parecer`) === "ressalvas", "aparelho novo recebe os textos-base e a linha com o laudo configurado");
   T(await emDia(L1, L3) && roda(`STATE.checklists.textos.normativo.intro`) === "Intro do L2", "aparelho novo sem texto-base proprio nao apaga o da nuvem");
+
+  // ---------------------------------------------------------------- 15) caso do Deposito de Inflamaveis: um toque numa copia desatualizada nao derruba o trabalho do colega
+  nuvem.clear();
+  const D1 = dispositivo(), D2 = dispositivo();
+  sandbox.STATE = D1;
+  const idsD = roda(`(function(){ const m = STATE.checklists.modelos[0]; const p = novoChkProjeto(); p.empresa = "Vylor"; const s = novoChkSetor(); s.nome = "Setor D"; const l = novoChkLinha(m); l.nome = "Deposito"; s.linhas.push(l); p.setores.push(s); STATE.checklists.projetos.push(p); return { p:p.id, s:s.id, l:l.id }; })()`);
+  T(await emDia(D1, D2), "preparo (mescla): linha nos dois aparelhos");
+  // o colega (D1) responde 40 itens e finaliza
+  sandbox.STATE = D1;
+  roda(`(function(){ const l = STATE.checklists.projetos[0].setores[0].linhas[0]; l.itens.slice(0, 40).forEach((it, k)=>{ it.conforme = k === 7 ? "naoAtende" : "atende"; if(k === 7) it.motivosSelecionados = ["M"]; }); l.status = "finalizado"; l.atualizadoEm = agoraSync(); })()`);
+  await sync(D1);
+  // o usuario (D2), com a copia ANTIGA, toca em um item (mesma resposta do colega) e fica com o carimbo mais novo
+  sandbox.STATE = D2;
+  roda(`(function(){ const l = STATE.checklists.projetos[0].setores[0].linhas[0]; l.itens[0].conforme = "atende"; l.atualizadoEm = agoraSync(); })()`);
+  r = await sync(D2);
+  const lD2 = D2.checklists.projetos[0].setores[0].linhas;
+  const respD2 = lD2[0].itens.filter(i => i.conforme !== null).length;
+  T(r.conflitos === 0 && r.mesclados === 1 && lD2.length === 1 && respD2 === 40 && lD2[0].status === "finalizado" && lD2[0].itens[7].conforme === "naoAtende" && !lD2.some(l => l.nome.includes("(versão de ")), "um toque numa copia antiga: as respostas do colega ficam, sem copia (mescla): " + J([r.conflitos, r.mesclados, lD2.length, respD2, lD2[0].status]));
+  T(await emDia(D1, D2) && D1.checklists.projetos[0].setores[0].linhas.length === 1 && difere(D1.checklists.projetos, D2.checklists.projetos) === "", "os dois aparelhos terminam iguais, com uma linha so: " + difere(D1.checklists.projetos, D2.checklists.projetos));
+  T(nomesNuvem().filter(n => n.startsWith("l_" + idsD.l + "_")).length === 1 && !nomesNuvem().some(n => n.includes("versão")), "na nuvem fica uma versao da linha");
+  // as duas pessoas respondem itens DIFERENTES ao mesmo tempo: as respostas se somam
+  sandbox.STATE = D1;
+  roda(`(function(){ const l = STATE.checklists.projetos[0].setores[0].linhas[0]; l.status = "em_andamento"; l.itens[41].conforme = "atende"; l.atualizadoEm = agoraSync(); })()`);
+  sandbox.STATE = D2;
+  roda(`(function(){ const l = STATE.checklists.projetos[0].setores[0].linhas[0]; l.status = "em_andamento"; l.itens[42].conforme = "naoAtende"; l.itens[42].observacao = "nota do D2"; l.itens[42].fotos = [{ foto:"data:image/jpeg;base64,FOTOD2", tags:[], motivo:"" }]; l.atualizadoEm = agoraSync(); })()`);
+  await sync(D1);
+  r = await sync(D2);
+  const linhaSoma = D2.checklists.projetos[0].setores[0].linhas;
+  T(r.conflitos === 0 && linhaSoma.length === 1 && linhaSoma[0].itens[41].conforme === "atende" && linhaSoma[0].itens[42].conforme === "naoAtende" && linhaSoma[0].itens[42].observacao === "nota do D2" && linhaSoma[0].itens[42].fotos.length === 1, "itens diferentes respondidos nos dois lados: as respostas, a nota e a foto se somam numa linha so: " + J([r.conflitos, linhaSoma.length]));
+  T(await emDia(D1, D2) && D1.checklists.projetos[0].setores[0].linhas[0].itens[42].fotos[0].foto === "data:image/jpeg;base64,FOTOD2" && D1.checklists.projetos[0].setores[0].linhas.length === 1, "a soma chega no outro aparelho, foto incluida");
+  // so o carimbo mudou (conteudo igual): nao e mudanca, nao envia
+  sandbox.STATE = D1;
+  roda(`(function(){ const l = STATE.checklists.projetos[0].setores[0].linhas[0]; l.atualizadoEm = agoraSync(); })()`);
+  r = await sync(D1);
+  T(r.enviou === 0 && r.conflitos === 0, "carimbo que anda sozinho nao conta como mudanca (nao reenvia a linha): " + J([r.enviou, r.conflitos]));
+
+  // ---------------------------------------------------------------- 16) juntar as copias "(versao de ...)" que ja existem, sem perder nada
+  const E = dispositivo();
+  sandbox.STATE = E;
+  const resC = roda(`(function(){
+    const mk = (nome, conf, extra) => Object.assign({ id: uid(), nome, criadoEm: 100, modeloId: "M", status: "em_andamento", dataFinalizacao: null, secoesNA: [], laudo: {}, descricao: "", conclusaoTexto: "", fotoAmpla: "",
+      itens: conf.map((c, k) => ({ itemId: "i" + k, conforme: c, motivosSelecionados: [], observacao: "", fotos: [] })), atualizadoEm: 5 }, extra || {});
+    const p = novoChkProjeto(); const s = novoChkSetor();
+    const orig = mk("Deposito", ["atende", null, null]);
+    const c1 = mk("Deposito (versão de 07/10 14:36)", ["atende", "atende", "atende"], { status: "finalizado", dataFinalizacao: "2026-10-07" });
+    const c2 = mk("Deposito (versão de 07/10 14:36) (versão de 07/10 15:02)", ["atende", "atende", null]);
+    c1.itens[1].fotos = [{ foto:"data:image/jpeg;base64,FC1", tags:[], motivo:"" }]; c1.itens[2].observacao = "nota da copia";
+    const origY = mk("Secador", ["atende", "atende"], { criadoEm: 200 });
+    const cY = mk("Secador (versão de 07/10 15:09)", ["atende", "naoAtende"], { criadoEm: 200 });
+    const cZ = mk("Fornalha (versão de 07/10 15:09)", ["atende", null], { criadoEm: 300 });
+    s.linhas.push(orig, c1, c2, origY, cY, cZ); p.setores.push(s); STATE.checklists.projetos.push(p);
+    const r = chkConsolidarCopiasLinhas(STATE);
+    const ls = s.linhas;
+    return { r, nomes: ls.map(l => l.nome), orig: ls.find(l => l.nome === "Deposito"), tomb: Object.keys(STATE.checklists.sync.removidos).length, ids: { c1: c1.id, c2: c2.id, cY: cY.id } };
+  })()`);
+  T(resC.r.fundidas === 2 && resC.r.mantidas === 2 && resC.nomes.length === 4 && !resC.nomes.some(n => n.startsWith("Deposito (")) && resC.nomes.includes("Secador (versão de 07/10 15:09)") && resC.nomes.includes("Fornalha (versão de 07/10 15:09)"), "copias que nao discordam sao juntadas; a que discorda e a sem original ficam: " + J(resC));
+  T(resC.orig.itens.every(i => i.conforme === "atende") && resC.orig.status === "finalizado" && resC.orig.itens[1].fotos.length === 1 && resC.orig.itens[2].observacao === "nota da copia", "o original fica com a uniao: respostas, status, foto e nota da copia");
+  T(resC.tomb === 2 && Object.prototype.hasOwnProperty.call(roda("STATE.checklists.sync.removidos"), resC.ids.c1) && Object.prototype.hasOwnProperty.call(roda("STATE.checklists.sync.removidos"), resC.ids.c2) && !Object.prototype.hasOwnProperty.call(roda("STATE.checklists.sync.removidos"), resC.ids.cY), "so as copias juntadas viram lapide (a exclusao viaja para os outros aparelhos)");
+  // divergencia: o mesmo item respondido de formas diferentes nunca e junto
+  T(roda("chkSyncDivergencias({ itens:[{ itemId:'a', conforme:'atende' }], secoesNA:[] }, { itens:[{ itemId:'a', conforme:'naoAtende' }], secoesNA:[] }).length") === 1 && roda("chkSyncDivergencias({ itens:[{ itemId:'a', conforme:'atende' }], secoesNA:[] }, { itens:[{ itemId:'a', conforme:null }], secoesNA:[] }).length") === 0 && roda("chkSyncDivergencias({ itens:[], secoesNA:[], descricao:'x' }, { itens:[], secoesNA:[], descricao:'y' }).length") === 1, "divergencia: so quando o mesmo item/campo tem respostas diferentes dos dois lados");
 
   // ---------------------------------------------------------------- 13) nomes na nuvem e isolamento
   const pr = roda(`(function(){ const r = chkSyncParseNomes(["l_abc_100.json", "l_abc_200.json", "m_chk-modelo-padrao-linhas-de-vida_50.json", "i_7.json", "x_9.json", "lixo.txt"]); return { l: r.entidades.get("l:abc"), m: r.entidades.get("m:chk-modelo-padrao-linhas-de-vida"), i: r.singles.i, x: r.singles.x }; })()`);
