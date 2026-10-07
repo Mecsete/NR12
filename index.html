@@ -763,6 +763,8 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .conf-item span{display:block;font-size:12px;color:var(--ink-dim);margin-top:1px}
 .conf-item em{display:block;font-style:normal;font-size:12px;color:#C23F12;margin-top:3px}
 .conf-item .btn{flex:0 0 auto}
+.chk-pf-salvo{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-dim);margin:0 2px 10px}
+.chk-pf-salvo svg{width:14px;height:14px;color:#2e7d32;flex:0 0 auto}
 .chk-continuar{display:flex;align-items:center;gap:12px;padding:12px 14px;margin-bottom:12px;border-left:4px solid var(--accent);cursor:pointer}
 .chk-continuar b{display:block;font-size:14px}
 .chk-continuar span{display:block;font-size:12px;color:var(--ink-dim);margin-top:2px}
@@ -3422,7 +3424,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/10/2026 17:20";
+const APP_BUILD = "07/10/2026 17:45";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -11331,6 +11333,7 @@ let __selMode = null; // { tipo:'areaS'|'maquinaS'|'tarefaS'|'riscoS', ids:Set<s
 let __ultimoMovimento = null; // { tipo, idsMovidos:Set<string>, origemScreen, origemParams, origemLabel, expiraEm }
 let __buscaAtual = "";
 let __lclLoteEmAndamento = false; // montando vários laudos em um PDF só
+let __chkProjEditado = false; // digitou nos dados do projeto: ao sair da tela avisa que ficou salvo
 let __chkDaRevisao = false;   // veio da tela Revisar e finalizar: mostra "Voltar à revisão" no preenchimento
 let __chkProjFiltro = "todos"; // filtro de status da lista de projetos
 let __chkSetFiltro = "todos"; // filtro de status da lista de setores
@@ -13339,6 +13342,7 @@ function renderCascataModal(){
 function go(screen, params){
   STATE.ui.screen = screen;
   if(params){ Object.assign(STATE.ui, params); }
+  if(STATE.ui.screen === "checklist-projeto-form" && screen !== "checklist-projeto-form" && __chkProjEditado){ __chkProjEditado = false; try{ toast("Dados do projeto salvos"); }catch(e){} }
   __buscaAtual = "";
   if(screen !== "checklist-preencher" && screen !== "checklist-finalizar") __chkDaRevisao = false;
   cancelarLongPressPendente();
@@ -14585,6 +14589,8 @@ function screenChkProjetoForm(){
   const opcoesInsp = ops.map(o=>`<option value="${v(o.valor)}" ${o.valor === valorSel ? "selected" : ""}>${v(o.valor === "" && mc.respNome ? o.rotulo + " — " + mc.respNome : o.rotulo)}</option>`).join("");
   const validadeAuto = chkMaisMesesISO(p.dataInspecao, 12);
   return `
+  <div class="chk-pf-salvo" id="chkPfSalvo">${ic('check')} Tudo o que você digita aqui é salvo na hora, sem precisar de botão.</div>
+  ${chkSyncInfoHtml()}
   <div class="chk-pf">
     <div class="chk-pf-card pf-sol">
       <div class="chk-pf-titulo">Solicitante</div>
@@ -14633,7 +14639,7 @@ function screenChkProjetoForm(){
       <p style="font-size:12px;color:var(--ink-faint);margin:0 0 10px">Estes dados vêm de <b>Configurações → Empresa e Responsáveis</b> e valem para todos os módulos — para corrigir, edite lá.</p>
     </div>
 
-    <div class="chk-pf-acao"><button class="btn btn-primary" onclick="App.go('checklist-setores',{chkProjetoId:'${p.id}'})">${ic('check')} Salvar e ver setores</button></div>
+    <div class="chk-pf-acao"><button class="btn btn-primary" onclick="App.go('checklist-setores',{chkProjetoId:'${p.id}'})">${ic('chevR')} Ver setores</button></div>
   </div>`;
 }
 function screenChkSetores(){
@@ -30669,6 +30675,11 @@ Devolver agora?`)) return;
     }
     p[campo] = valor; p.atualizadoEm = agoraSync();
     marcarAlterado();
+    __chkProjEditado = true;
+    if(typeof document !== "undefined" && document.getElementById){
+      const el = document.getElementById("chkPfSalvo");
+      if(el) el.innerHTML = ic('check') + " Salvo neste aparelho às " + new Date().toLocaleTimeString("pt-BR", { hour:"2-digit", minute:"2-digit", second:"2-digit" });
+    }
   },
   // CPF/CNPJ e telefone: formata enquanto digita e mantém o cursor depois do mesmo dígito.
   chkMascarar(el, campo){

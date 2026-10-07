@@ -5938,6 +5938,10 @@ print("\n=== 200. SINCRONIZACAO: PROJETO E SETOR SE SOMAM CAMPO A CAMPO (07/10/2
 chk("conflito de projeto/setor: campo preenchido vence o em branco; os dois preenchidos e diferentes, vale o do carimbo mais novo",
     'if(loc.tipo === "p" || loc.tipo === "s"){' in novo and "const remNovo = rem.ts > (loc.obj.atualizadoEm || 0);" in novo and "if(vazio(l) || (remNovo && JSON.stringify(l) !== JSON.stringify(r))) loc.obj[k] = r;" in novo)
 
+print("\n=== 201. DADOS DO PROJETO: SALVA SOZINHO E AVISA (07/10/2026) ===")
+chk("o formulario do projeto diz que salva na hora, mostra a hora do ultimo salvamento e avisa ao sair; botao so leva aos setores",
+    "salvo na hora, sem precisar de botão" in novo and 'id="chkPfSalvo"' in novo and "Salvo neste aparelho às" in novo and 'toast("Dados do projeto salvos")' in novo and "Salvar e ver setores" not in novo)
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
 

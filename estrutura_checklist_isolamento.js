@@ -218,6 +218,7 @@ for(const nome of FUNCOES) fonte += funcao(nome) + "\n";
 fonte += letObjeto("__chkNovaLinhaDraft") + "\n";
 fonte += letEscalar("__chkLinhasFiltro");
 fonte += letEscalar("__chkDaRevisao");
+fonte += letEscalar("__chkProjEditado");
 fonte += letEscalar("__chkProjFiltro");
 fonte += letEscalar("__chkSetFiltro");
 fonte += letEscalar("__chkProjFormOrigem");
@@ -2713,6 +2714,13 @@ async function testarUsabilidade(){
   const linOk = linhaCorpo([itn("a", "Item A")], [exe("a", "atende", 0)]);
   const bsOk = corpoDe(linOk);
   T(bsOk.length === 1 && !bsOk[0].html.includes("lcl-ftopo") && bsOk[0].html.includes("Texto a ok."), "so conformes e sem fotos: um bloco, sem faixa e sem pendencias");
+  // ---- dados do projeto: o app deixa claro que salva sozinho (sem botao Salvar) e avisa ao sair
+  roda("STATE.checklists.projetos = [{ id:'PS', empresa:'E', setores:[], solicitanteCpfCnpj:'', solicitanteTelefone:'', validadeInspecao:'', dataInspecao:'' }]; STATE.ui.chkProjetoId = 'PS'; __chkProjEditado = false;");
+  const fPf = roda("screenChkProjetoForm()");
+  T(fPf.includes("salvo na hora, sem precisar de botão") && fPf.includes('id="chkPfSalvo"') && fPf.includes("Ver setores") && !fPf.includes("Salvar e ver setores"), "o formulario do projeto diz que salva sozinho e o botao so leva aos setores");
+  roda("App.chkSetProjetoField('solicitanteCpfCnpj', '11222333000144')");
+  T(roda("STATE.checklists.projetos[0].solicitanteCpfCnpj") === "11222333000144" && roda("__chkProjEditado") === true, "digitar grava na hora e marca que houve edicao (o aviso 'Dados do projeto salvos' sai ao deixar a tela)");
+  roda("STATE.ui.chkProjetoId = " + J(estadoAntes.p) + "; STATE.checklists.projetos = " + J(estadoAntes.lista) + "; __chkProjEditado = false;");
 }
 async function testarSincronizacaoChecklist(){
   const T = (cond, msg)=>{ if(!cond) throw new Error("sincronizacao do checklist: " + msg); };

@@ -64,6 +64,14 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/10/2026 17:45
+
+**Dados do projeto: deixa claro que salva sozinho e avisa ao sair.**
+
+- A gravação já acontecia a cada tecla (o botão do fim só levava aos setores), mas nada na tela dizia isso, e quem digitava e saía ficava na dúvida. Agora o formulário mostra "Tudo o que você digita aqui é salvo na hora, sem precisar de botão", troca para "Salvo neste aparelho às HH:MM:SS" a cada alteração, mostra a hora da última sincronização com a nuvem e, ao sair da tela depois de digitar, aparece o aviso "Dados do projeto salvos". O botão "Salvar e ver setores" virou "Ver setores".
+
+---
+
 ## 07/10/2026 17:20
 
 **Sincronização: dados do projeto e do setor digitados em dois aparelhos agora se somam (antes um lado apagava o outro).**
