@@ -5930,7 +5930,7 @@ chk("conflito de linha sem discordancia: junta as duas versoes numa so (uniao de
 chk("a mudanca e detectada pelo conteudo (sem carimbos): visto guarda sigc e o visto antigo e completado",
     "function chkSyncVisto(ts, vista){" in novo and "function chkSyncMudou(e, v){" in novo and "const mudou = !semente && chkSyncMudou(loc, v);" in novo and "sigc: chkSyncSig(vista, true) };" in novo)
 chk("copias (versao de ...) que nao discordam do original sao juntadas uma vez por aparelho, com ponto de restauracao antes",
-    "function chkConsolidarCopiasLinhas(estado){" in novo and "chkCopiasConsolidadas" in novo and 'salvarPontoDeRestauracao("Antes de juntar as cópias de linhas de vida")' in novo)
+    "function chkConsolidarCopiasLinhas(estado, soContar){" in novo and "chkCopiasConsolidadas" in novo and 'salvarPontoDeRestauracao("Antes de juntar as cópias de linhas de vida")' in novo)
 chk("reabrir uma linha finalizada ao corrigir pede confirmacao (so olhar nao muda a linha)",
     'chkAbrirConfirmacao("Reabrir a linha para corrigir?"' in novo)
 
@@ -5941,6 +5941,10 @@ chk("conflito de projeto/setor: campo preenchido vence o em branco; os dois pree
 print("\n=== 201. DADOS DO PROJETO: SALVA SOZINHO E AVISA (07/10/2026) ===")
 chk("o formulario do projeto diz que salva na hora, mostra a hora do ultimo salvamento e avisa ao sair; botao so leva aos setores",
     "salvo na hora, sem precisar de botão" in novo and 'id="chkPfSalvo"' in novo and "Salvo neste aparelho às" in novo and 'toast("Dados do projeto salvos")' in novo and "Salvar e ver setores" not in novo)
+
+print("\n=== 202. COPIAS: JUNCAO A CADA SINCRONIZACAO (07/10/2026) ===")
+chk("a juncao das copias roda a cada sincronizacao (com contagem previa e ponto de restauracao antes de mexer)",
+    "function chkConsolidarCopiasLinhas(estado, soContar){" in novo and "chkConsolidarCopiasLinhas(STATE, true).fundidas" in novo and "if(soContar){ res.fundidas++; return; }" in novo and "if(!STATE.ui.chkCopiasConsolidadas){" not in novo)
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

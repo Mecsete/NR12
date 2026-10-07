@@ -64,6 +64,14 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/10/2026 18:00
+
+**Cópias "(versão de ...)": a junção agora roda a cada sincronização, então a cópia some sozinha quando a diferença é acertada.**
+
+- Antes a junção das cópias rodava uma única vez por aparelho. Agora, a cada sincronização, o app confere se alguma cópia deixou de discordar do original (porque era igual, ou porque a pessoa acertou o item que diferia) e, se sim, junta e remove a cópia (com ponto de restauração antes). Copia que ainda discorda em algum item continua aparecendo, para a pessoa decidir.
+
+---
+
 ## 07/10/2026 17:45
 
 **Dados do projeto: deixa claro que salva sozinho e avisa ao sair.**

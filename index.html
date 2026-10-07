@@ -3424,7 +3424,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/10/2026 17:45";
+const APP_BUILD = "07/10/2026 18:00";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -19122,7 +19122,7 @@ function chkSyncMesclarLinha(a, b){
 /* Cópias "(versão de ...)" que já existem: quando a cópia não discorda em nada do original (é igual ou só tem menos
    respostas), junta tudo no original e tira a cópia (a exclusão viaja como lápide). Cópia que discorda fica, para a pessoa
    decidir. Devolve { fundidas, mantidas }. */
-function chkConsolidarCopiasLinhas(estado){
+function chkConsolidarCopiasLinhas(estado, soContar){
   const res = { fundidas: 0, mantidas: 0 };
   const re = /^(.*?)((?: \(versão de [^)]*\))+)$/;
   (estado.checklists.projetos || []).forEach(p=> (p.setores || []).forEach(s=>{
@@ -19133,6 +19133,7 @@ function chkConsolidarCopiasLinhas(estado){
       const orig = s.linhas.find(l=> l !== c && l.nome === base && l.criadoEm === c.criadoEm && l.modeloId === c.modeloId);
       if(!orig){ res.mantidas++; return; }
       if(chkSyncDivergencias(orig, c).length){ res.mantidas++; return; }
+      if(soContar){ res.fundidas++; return; } // só conta quantas poderiam ser juntadas, sem mexer em nada
       const m = chkSyncMesclarLinha(orig, c);
       ["itens", "status", "dataFinalizacao", "descricao", "conclusaoTexto", "fotoAmpla", "laudo", "memorial", "secoesNA"].forEach(k=>{ if(m[k] !== undefined) orig[k] = m[k]; });
       orig.atualizadoEm = agoraSync();
@@ -19503,17 +19504,15 @@ async function onedriveSincronizarChecklist(forcar){
     if(!(await onedriveObterToken())) return { mudou:false, erro:true };
     chkGarantirNamespace(STATE);
     // uma vez por aparelho: junta as cópias "(versão de ...)" que não discordam do original (com ponto de restauração antes)
-    if(!STATE.ui.chkCopiasConsolidadas){
-      const temCopia = STATE.checklists.projetos.some(p=> (p.setores || []).some(s=> (s.linhas || []).some(l=> /\(versão de [^)]*\)$/.test(String(l.nome || "")))));
-      if(temCopia){
-        const salvou = await salvarPontoDeRestauracao("Antes de juntar as cópias de linhas de vida");
-        if(salvou){
-          const rc = chkConsolidarCopiasLinhas(STATE);
-          STATE.ui.chkCopiasConsolidadas = true;
-          if(rc.fundidas){ marcarAlterado(); try{ toast(rc.fundidas + (rc.fundidas === 1 ? " cópia de linha de vida foi juntada ao original" : " cópias de linhas de vida foram juntadas aos originais") + (rc.mantidas ? "; " + rc.mantidas + " ficaram para você conferir" : "")); }catch(e){} }
-        }
-      }else{
+    // a cada rodada (barato): cópia "(versão de ...)" que não discorda do original — porque era igual, ou porque a pessoa
+    // acertou a diferença — é juntada ao original; com ponto de restauração antes de mexer
+    const temCopia = STATE.checklists.projetos.some(p=> (p.setores || []).some(s=> (s.linhas || []).some(l=> /\(versão de [^)]*\)$/.test(String(l.nome || "")))));
+    if(temCopia && chkConsolidarCopiasLinhas(STATE, true).fundidas){
+      const salvou = await salvarPontoDeRestauracao("Antes de juntar as cópias de linhas de vida");
+      if(salvou){
+        const rc = chkConsolidarCopiasLinhas(STATE);
         STATE.ui.chkCopiasConsolidadas = true;
+        if(rc.fundidas){ marcarAlterado(); try{ toast(rc.fundidas + (rc.fundidas === 1 ? " cópia de linha de vida foi juntada ao original" : " cópias de linhas de vida foram juntadas aos originais") + (rc.mantidas ? "; " + rc.mantidas + " ficaram para você conferir" : "")); }catch(e){} }
       }
     }
     const r = await chkSyncRodar(chkSyncTransporteOneDrive(), { limite: forcar ? Infinity : CHK_SYNC_LIMITE_OPS_AUTO });

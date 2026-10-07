@@ -3109,6 +3109,24 @@ async function testarSincronizacaoChecklist(){
   T(roda("STATE.checklists.projetos[0].setores[0].descricao") === "Descricao do colega" && roda("STATE.checklists.projetos[0].setores[0].nome") === "Setor P (renomeado)", "setor: nome do usuario e descricao do colega se somam");
   T(await emDia(P1, P2) && difere(P1.checklists.projetos, P2.checklists.projetos) === "", "setor: iguais nos dois aparelhos");
 
+  // ---------------------------------------------------------------- 16b) a copia que discorda fica; quando a pessoa acerta a diferenca, na rodada seguinte ela e juntada sozinha
+  const E2 = dispositivo();
+  sandbox.STATE = E2;
+  roda(`(function(){
+    const mk = (nome, conf, extra) => Object.assign({ id: uid(), nome, criadoEm: 100, modeloId: "M", status: "em_andamento", dataFinalizacao: null, secoesNA: [], laudo: {}, descricao: "", conclusaoTexto: "", fotoAmpla: "",
+      itens: conf.map((c, k) => ({ itemId: "i" + k, conforme: c, motivosSelecionados: [], observacao: "", fotos: [] })), atualizadoEm: 5 }, extra || {});
+    const p = novoChkProjeto(); const s = novoChkSetor();
+    s.linhas.push(mk("Secador 203", ["atende", "naoAtende"]), mk("Secador 203 (versão de 07/10 15:09)", ["atende", "na"]));
+    p.setores.push(s); STATE.checklists.projetos.push(p);
+  })()`);
+  const contar = roda("chkConsolidarCopiasLinhas(STATE, true)");
+  T(contar.fundidas === 0 && contar.mantidas === 1 && roda("STATE.checklists.projetos[0].setores[0].linhas.length") === 2, "copia que discorda (resposta diferente no mesmo item): so conta, nao junta, e nao mexe em nada");
+  roda("STATE.checklists.projetos[0].setores[0].linhas[0].itens[1].conforme = 'na'"); // a pessoa acerta a diferenca no original
+  const contar2 = roda("chkConsolidarCopiasLinhas(STATE, true)");
+  T(contar2.fundidas === 1 && roda("STATE.checklists.projetos[0].setores[0].linhas.length") === 2, "acertada a diferenca, a copia passa a ser 'juntavel' (a contagem nao altera nada)");
+  const feito = roda("chkConsolidarCopiasLinhas(STATE)");
+  T(feito.fundidas === 1 && roda("STATE.checklists.projetos[0].setores[0].linhas.length") === 1 && roda("STATE.checklists.projetos[0].setores[0].linhas[0].nome") === "Secador 203", "juntada: sobra so o original, com o nome original");
+
   // ---------------------------------------------------------------- 13) nomes na nuvem e isolamento
   const pr = roda(`(function(){ const r = chkSyncParseNomes(["l_abc_100.json", "l_abc_200.json", "m_chk-modelo-padrao-linhas-de-vida_50.json", "i_7.json", "x_9.json", "lixo.txt"]); return { l: r.entidades.get("l:abc"), m: r.entidades.get("m:chk-modelo-padrao-linhas-de-vida"), i: r.singles.i, x: r.singles.x }; })()`);
   T(pr.l.ts === 200 && pr.l.nome === "l_abc_200.json" && pr.l.antigos.length === 1 && pr.m.id === "chk-modelo-padrao-linhas-de-vida" && pr.m.ts === 50 && pr.i[0].ts === 7 && pr.x[0].ts === 9, "leitura dos nomes de arquivo da nuvem (id com hifen, versoes antigas, i e x)");
