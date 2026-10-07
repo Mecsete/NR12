@@ -64,6 +64,15 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/10/2026 18:12
+
+**Laudo, página 2: coluna da direita mais à direita e datas em DD/MM/AAAA.**
+
+- Nos quadros "Informações Iniciais", "Dados do Solicitante" e "Dados do Responsável", a coluna da direita começa mais à direita (as colunas passam de 1 para 1,45 de largura na esquerda contra 1 na direita).
+- "Data da Inspeção" e "Validade da Inspeção" saem como 05/10/2026 e 05/10/2027, como na capa (antes "05 de outubro de 2026").
+
+---
+
 ## 07/10/2026 18:05
 
 **Cópias de linha: item deixado em branco de propósito no original não é preenchido pela cópia.**

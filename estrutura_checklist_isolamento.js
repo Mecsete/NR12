@@ -2721,6 +2721,12 @@ async function testarUsabilidade(){
   roda("App.chkSetProjetoField('solicitanteCpfCnpj', '11222333000144')");
   T(roda("STATE.checklists.projetos[0].solicitanteCpfCnpj") === "11222333000144" && roda("__chkProjEditado") === true, "digitar grava na hora e marca que houve edicao (o aviso 'Dados do projeto salvos' sai ao deixar a tela)");
   roda("STATE.ui.chkProjetoId = " + J(estadoAntes.p) + "; STATE.checklists.projetos = " + J(estadoAntes.lista) + "; __chkProjEditado = false;");
+  // ---- pagina 2 do laudo: datas em DD/MM/AAAA (inspecao e validade)
+  const dtAntes = roda("({ a: __f3.proj.dataInspecao, b: __f3.proj.validadeInspecao })");
+  roda("__f3.proj.dataInspecao = '2026-10-03'; __f3.proj.validadeInspecao = '2027-10-03';");
+  const p2d = roda("lclBlocosPagina2(lclDados(__f3.proj, __f3.setor, __f3.l), lclTextos()).map(b => b.html).join('')");
+  T(p2d.includes("<i>Data da Inspeção:</i><b>03/10/2026</b>") && p2d.includes("<i>Validade da Inspeção:</i><b>03/10/2027</b>") && !p2d.includes("de outubro de"), "pagina 2: data e validade da inspecao em DD/MM/AAAA: " + p2d.slice(0, 400));
+  roda("__f3.proj.dataInspecao = " + J(dtAntes.a) + "; __f3.proj.validadeInspecao = " + J(dtAntes.b) + ";");
 }
 async function testarSincronizacaoChecklist(){
   const T = (cond, msg)=>{ if(!cond) throw new Error("sincronizacao do checklist: " + msg); };

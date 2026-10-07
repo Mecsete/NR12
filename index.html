@@ -3424,7 +3424,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/10/2026 18:05";
+const APP_BUILD = "07/10/2026 18:12";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -16259,8 +16259,8 @@ function lclBlocosPagina2(d, textos){
     ["Email", mc.email], ["Cargo Inspetor", proj.inspetorCargo || mc.respFuncao],
   ].map(p=>cp(p[0], p[1])).join("");
   const ini = [
-    ["Data da Inspeção", proj.dataInspecao ? chkDataExtenso(proj.dataInspecao) : ""], ["Nº Documento", proj.numeroDocumento],
-    ["Validade da Inspeção", proj.validadeInspecao ? chkDataExtenso(proj.validadeInspecao) : ""], ["Número da ART", proj.art],
+    ["Data da Inspeção", proj.dataInspecao ? lclDataBR(proj.dataInspecao) : ""], ["Nº Documento", proj.numeroDocumento],
+    ["Validade da Inspeção", proj.validadeInspecao ? lclDataBR(proj.validadeInspecao) : ""], ["Número da ART", proj.art],
   ].map(p=>cp(p[0], p[1])).join("");
   const n = textos.normativo;
   const intro = lclParagrafos(n.intro).join("");
@@ -16508,7 +16508,7 @@ const LCL_CSS = `
 .lcl-par{margin:0 0 10px;text-align:justify;font-size:13.3px;line-height:1.5}
 .lcl-lista{margin:0 0 9px;padding-left:16px;font-size:13.3px;line-height:1.5}
 .lcl-lista li{margin-bottom:3px;text-align:justify}
-.lcl-campos{display:grid;grid-template-columns:1fr 1fr;gap:2px 18px;font-size:10.5px}
+.lcl-campos{display:grid;grid-template-columns:1.45fr 1fr;gap:2px 18px;font-size:10.5px}
 .lcl-campo{display:flex;gap:6px}.lcl-campo i{font-style:normal;color:#444;white-space:nowrap}.lcl-campo b{font-weight:400}
 .lcl-sl{display:flex;gap:8px;align-items:baseline;padding:5px 0;font-size:13px}
 .lcl-sl i{flex:1;border-bottom:1px dotted #9aa;transform:translateY(-3px)}

@@ -5950,6 +5950,10 @@ print("\n=== 203. COPIAS: BRANCO PROPOSITAL NAO E PREENCHIDO (07/10/2026) ===")
 chk("a juncao de copias nao preenche sozinha um item em branco de um original quase completo",
     "const copiaTemMais = " in novo and "chkSyncRespondidos(orig) * 2 >= chkSyncRespondidos(c)" in novo)
 
+print("\n=== 204. LAUDO PAGINA 2: COLUNA DIREITA E DATAS DD/MM/AAAA (07/10/2026) ===")
+chk("pagina 2 do laudo: coluna da direita mais a direita e data/validade em DD/MM/AAAA",
+    ".lcl-campos{display:grid;grid-template-columns:1.45fr 1fr;" in novo and '["Data da Inspeção", proj.dataInspecao ? lclDataBR(proj.dataInspecao) : ""]' in novo and '["Validade da Inspeção", proj.validadeInspecao ? lclDataBR(proj.validadeInspecao) : ""]' in novo)
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
 
