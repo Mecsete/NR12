@@ -5831,6 +5831,10 @@ print("\n=== 190. SAI O LAUDO ANTIGO DO PROJETO (07/10/2026) ===")
 chk("nenhum atalho leva ao laudo antigo (checklist-laudo): setores abre o lote, finalizado vai para a revisao",
     "App.go('checklist-laudo')" not in novo and 'go("checklist-laudo")' not in novo and "App.lclLote('projeto')\" title=" in novo and 'if(STATE.ui.screen === "checklist-laudo") STATE.ui.screen' in novo)
 
+print("\n=== 191. ANTES DE IMPRIMIR AVISA TODOS OS DADOS EM BRANCO DO LAUDO (07/10/2026) ===")
+chk("o quadro Antes de imprimir lista os campos em branco do projeto e da empresa que o laudo mostra",
+    "Dados do projeto em branco no laudo:" in novo and "Dados da empresa e do responsável técnico em branco no laudo:" in novo and '["solicitanteCpfCnpj", "CPF/CNPJ"]' in novo and '["numeroDocumento", "nº do documento"]' in novo)
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
 

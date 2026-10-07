@@ -64,6 +64,14 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/10/2026 22:00
+
+**Laudo: o quadro "Antes de imprimir" passa a avisar de todos os dados em branco que aparecem no laudo, não só da ART.**
+
+- Dados do projeto: lista os que estão em branco entre nº do documento, ART, data e validade da inspeção, responsável do solicitante (campo "Solicitante" da capa), CPF/CNPJ, e-mail, cidade, cargo, telefone e endereço, com o botão Dados. Dados da empresa e do responsável técnico (CREA etc.) em branco também são avisados, com o caminho em Configurações.
+
+---
+
 ## 07/10/2026 21:00
 
 **Checklist: a linha de vida também ganha o ícone de abrir o checklist ao lado do menu "⋮".**

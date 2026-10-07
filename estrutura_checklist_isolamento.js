@@ -171,7 +171,7 @@ const FUNCOES = [
   "chkSyncHash", "chkSyncSig", "chkSyncModeloNorm", "chkSyncGarantir", "chkSyncSemCampo", "chkSyncVista", "chkSyncLocais", "chkSyncLocalDe", "chkSyncSementeIntocada",
   "chkSyncParseNomes", "chkSyncRegistrarRemocao", "chkSyncMesclarRemovidos", "chkSyncMesclarInspetores", "chkSyncLerRemoto", "chkSyncSingleton",
   "chkSyncApagarRemoto", "chkSyncEnviar", "chkSyncRotuloCopia", "chkSyncInserir", "chkSyncAplicar", "chkSyncBaixar", "chkSyncCopiarLocal", "chkSyncConflito",
-  "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "chkAcoesCartao", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
+  "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "getMecseteConfig", "chkAcoesCartao", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
 ];
 let fonte = "let __ultimoCarimboVisto = 0;\n";
 fonte += "let __buscaAtual = '';\n"; // usado por chkAbrirSetor (lista de linhas) -- nao testado aqui, so pra nao faltar
@@ -2503,8 +2503,16 @@ async function testarUsabilidade(){
   roda("STATE.checklists.projetos = [{ id:'PU', empresa:'E', setores:[] }]; STATE.ui.chkProjetoId = 'PU';");
   const avTxt = (conf, extra)=> roda("lclAvisos(" + L(conf, extra) + ")").map(a=> a.txt).join(" | ");
   const t1 = avTxt(["atende", null, null]);
-  T(t1.includes("2 itens sem resposta") && t1.includes("Ancoragem: 1; Cabo: 1") && t1.includes("Sem foto ampla") && t1.includes("Data da inspeção") && t1.includes("ART"), "avisos: sem resposta, sem foto, sem data, sem ART: " + t1);
-  roda("STATE.checklists.projetos[0].dataInspecao = '2026-10-03'; STATE.checklists.projetos[0].art = '123';");
+  T(t1.includes("2 itens sem resposta") && t1.includes("Ancoragem: 1; Cabo: 1") && t1.includes("Sem foto ampla") && t1.includes("Dados do projeto em branco no laudo: nº do documento, ART, data da inspeção, validade da inspeção, responsável do solicitante, CPF/CNPJ, e-mail, cidade, cargo, telefone, endereço."), "avisos: sem resposta, sem foto, sem data, sem ART: " + t1);
+  const tCamp = avTxt(["atende", "atende", "atende"], { fotoAmpla:"idbfoto:x" });
+  roda("Object.assign(STATE.checklists.projetos[0], { dataInspecao:'2026-10-03', art:'123' })");
+  const tParc = avTxt(["atende", "atende", "atende"], { fotoAmpla:"idbfoto:x" });
+  T(tCamp.includes("nº do documento") && tParc.includes("Dados do projeto em branco no laudo: nº do documento, validade da inspeção, responsável do solicitante") && !tParc.includes("ART,") && !tParc.includes("data da inspeção"), "avisos: so lista os campos que faltam (ART e data preenchidas saem da lista): " + tParc);
+  roda("Object.assign(STATE.checklists.projetos[0], { numeroDocumento:'D1', validadeInspecao:'2027-10-03', responsavel:'R', solicitanteCpfCnpj:'1', solicitanteEmail:'a@b', solicitanteCidade:'C', solicitanteCargo:'G', solicitanteTelefone:'9', solicitanteEndereco:'E' })");
+  roda("STATE.ui.mecseteConfig = { empresa:'', respNome:'' }");
+  const tMc = avTxt(["atende", "atende", "atende"], { fotoAmpla:"idbfoto:x" });
+  T(tMc.includes("Dados da empresa e do responsável técnico em branco no laudo: empresa, nome do responsável técnico") && !tMc.includes("Dados do projeto"), "avisos: dados da empresa/responsavel tecnico em branco: " + tMc);
+  roda("delete STATE.ui.mecseteConfig");
   const t2 = avTxt(["atende", "atende", "atende"], { fotoAmpla:"idbfoto:x" });
   T(t2 === "", "linha completa: nenhum aviso (veio: " + t2 + ")");
   const t3 = avTxt(["atende", null, "atende"], { fotoAmpla:"idbfoto:x", laudo:{ parecer:"apta" } });
