@@ -3424,7 +3424,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/10/2026 18:00";
+const APP_BUILD = "07/10/2026 18:05";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -19133,6 +19133,13 @@ function chkConsolidarCopiasLinhas(estado, soContar){
       const orig = s.linhas.find(l=> l !== c && l.nome === base && l.criadoEm === c.criadoEm && l.modeloId === c.modeloId);
       if(!orig){ res.mantidas++; return; }
       if(chkSyncDivergencias(orig, c).length){ res.mantidas++; return; }
+      // a cópia tem resposta onde o original está em branco: só junta se o original for uma "casca" (menos da metade das
+      // respostas da cópia, como o original esquecido de uma cópia velha). Se o original está quase completo, o branco pode
+      // ter sido proposital (a pessoa limpou o item): fica para ela decidir.
+      const porId = {};
+      (c.itens || []).forEach(i=>{ if(i) porId[i.itemId] = i; });
+      const copiaTemMais = (orig.itens || []).some(i=> i && (i.conforme === null || i.conforme === undefined) && porId[i.itemId] && porId[i.itemId].conforme !== null && porId[i.itemId].conforme !== undefined);
+      if(copiaTemMais && chkSyncRespondidos(orig) * 2 >= chkSyncRespondidos(c)){ res.mantidas++; return; }
       if(soContar){ res.fundidas++; return; } // só conta quantas poderiam ser juntadas, sem mexer em nada
       const m = chkSyncMesclarLinha(orig, c);
       ["itens", "status", "dataFinalizacao", "descricao", "conclusaoTexto", "fotoAmpla", "laudo", "memorial", "secoesNA"].forEach(k=>{ if(m[k] !== undefined) orig[k] = m[k]; });

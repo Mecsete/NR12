@@ -5946,6 +5946,10 @@ print("\n=== 202. COPIAS: JUNCAO A CADA SINCRONIZACAO (07/10/2026) ===")
 chk("a juncao das copias roda a cada sincronizacao (com contagem previa e ponto de restauracao antes de mexer)",
     "function chkConsolidarCopiasLinhas(estado, soContar){" in novo and "chkConsolidarCopiasLinhas(STATE, true).fundidas" in novo and "if(soContar){ res.fundidas++; return; }" in novo and "if(!STATE.ui.chkCopiasConsolidadas){" not in novo)
 
+print("\n=== 203. COPIAS: BRANCO PROPOSITAL NAO E PREENCHIDO (07/10/2026) ===")
+chk("a juncao de copias nao preenche sozinha um item em branco de um original quase completo",
+    "const copiaTemMais = " in novo and "chkSyncRespondidos(orig) * 2 >= chkSyncRespondidos(c)" in novo)
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
 

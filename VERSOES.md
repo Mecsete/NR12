@@ -64,6 +64,14 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/10/2026 18:05
+
+**Cópias de linha: item deixado em branco de propósito no original não é preenchido pela cópia.**
+
+- A junção das cópias "(versão de ...)" só junta quando a cópia não discorda do original e, se a cópia tem resposta em item que o original deixou em branco, só quando o original é uma "casca" (menos da metade das respostas da cópia, como o original esquecido de uma cópia velha). Original quase completo com um item em branco (que pode ser proposital, por exemplo à espera de um motivo no modelo) fica como está, e a cópia aparece para a pessoa decidir.
+
+---
+
 ## 07/10/2026 18:00
 
 **Cópias "(versão de ...)": a junção agora roda a cada sincronização, então a cópia some sozinha quando a diferença é acertada.**
