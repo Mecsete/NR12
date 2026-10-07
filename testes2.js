@@ -13965,7 +13965,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(HTML.indexOf('getMecseteConfig().rodapeLaudo = el ? String(el.value||"").trim() : "";') > 0, "lpSalvarRodape grava o padrao");
       ok(HTML.indexOf("getMecseteConfig().logoLaudo = data;") > 0, "lpEnviarLogo grava o padrao");
       ok(HTML.indexOf("await assinaturaGravar(data);") > 0, "lpEnviarAssinatura grava o padrao");
-      const card = HTML.slice(HTML.indexOf("    lpCardPadraoHtml(){"), HTML.indexOf("  });\n})();"));
+      const iCard = HTML.indexOf("    lpCardPadraoHtml(){"); const card = HTML.slice(iCard, iCard + 4000);
       ["App.lpAbrirLogo()","App.lpAbrirRodape()","App.lpAbrirAssinatura()"].forEach(x=> ok(card.indexOf(x) > 0, "o cartao de Configuracoes precisa chamar " + x));
       const cfg = funcao("screenSimplesConfigEmpresa");
       ok(cfg.indexOf('typeof App.lpCardPadraoHtml === "function" ? App.lpCardPadraoHtml() : ""') > 0, "o cartao entra em Configuracoes protegido (o modulo de impressao e removivel)");
@@ -14133,6 +14133,65 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(c.indexOf("lpOverGarantir()") > 0);
       ok(funcao("telaImprimir").indexOf("App.lpAbrirRespLaudo()") > 0, "falta o botao Responsavel na tela de impressao");
       ok(funcao("telaImprimir").indexOf('"dados do responsável"') > 0, "a linha de aviso precisa citar a troca");
+    });
+  }
+
+  /* t187 — IMPRIMIR COMO RASCUNHO + 2 LINHAS ANTES DA TABELA DA CONCLUSÃO (07/10/2026). */
+  {
+    console.log("\n[t187] rascunho (9 marcas por folha) e espaco na conclusao");
+
+    function ctxMd(logoSrc, rasc){
+      const cx = vm.createContext({ String });
+      cx.__lpRascunho = rasc; cx.__logo = logoSrc;
+      vm.runInContext("function logo(){ return __logo; }", cx);
+      vm.runInContext(funcao("marcaDaguaHtml"), cx);
+      return cx;
+    }
+    t("marcaDaguaHtml: 9 marcas por folha; com logo alternam logo e RASCUNHO (5 logos e 4 textos)", ()=>{
+      const h = vm.runInContext("marcaDaguaHtml()", ctxMd("data:image/png;base64,AA", true));
+      eq((h.match(/class="lp-md-cel"/g)||[]).length, 9, "nove marcas");
+      eq((h.match(/lp-md-logo/g)||[]).length, 5, "as posicoes 1, 3, 5, 7 e 9 levam a logo");
+      eq((h.match(/RASCUNHO/g)||[]).length, 4, "as outras 4 levam o texto");
+      ok(h.indexOf("base64") < 0, "a imagem NAO pode ser repetida dentro de cada marca (fica numa regra de estilo so)");
+      ok(/^<div class="lp-marca-dagua"><div class="lp-md-cel"><div class="lp-md-logo">/.test(h), "a primeira e a logo; depois alterna");
+    });
+    t("marcaDaguaHtml: sem logo as 9 marcas sao o texto RASCUNHO", ()=>{
+      const h = vm.runInContext("marcaDaguaHtml()", ctxMd("", true));
+      eq((h.match(/RASCUNHO/g)||[]).length, 9);
+      eq((h.match(/lp-md-logo/g)||[]).length, 0);
+    });
+    t("lpMdEstilo: a logo vai numa regra unica de estilo, so com Rascunho ligado e logo existente", ()=>{
+      const els = {};
+      const doc = { getElementById:(id)=> els[id]||null, createElement:()=>({ remove(){ delete els.lpMdLogoStyle; } }), head:{ appendChild(e){ els[e.id] = e; } } };
+      const cx = vm.createContext({ document: doc, String });
+      cx.__lpRascunho = true; cx.__logo = "data:image/png;base64,AA";
+      vm.runInContext("function logo(){ return __logo; }", cx);
+      vm.runInContext(funcao("lpMdEstilo"), cx);
+      vm.runInContext("lpMdEstilo()", cx);
+      ok(els.lpMdLogoStyle && els.lpMdLogoStyle.textContent.indexOf('url("data:image/png;base64,AA")') > 0, "a regra com a logo precisa existir");
+      cx.__lpRascunho = false;
+      vm.runInContext("lpMdEstilo()", cx);
+      ok(!els.lpMdLogoStyle, "desligado, a regra sai");
+    });
+    t("montarDoc: so acrescenta as marcas com Rascunho ligado; a paginacao nao muda (marca fora do corpo, posicao absoluta)", ()=>{
+      const f = funcao("montarDoc");
+      ok(f.indexOf("${__lpRascunho ? marcaDaguaHtml() : \"\"}") > 0, "a marca so entra ligada");
+      ok(f.indexOf('<div class="lp-corpo">${p.blocos.map(b=>b.html).join("")}</div>') > 0, "o corpo da pagina ficou igual");
+      ok(HTML.indexOf(".lp-marca-dagua{position:absolute;top:0;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);pointer-events:none;opacity:.3;z-index:50}") > 0, "30% de opacidade, 3x3, sem bloquear o toque");
+      ok(HTML.indexOf("transform:rotate(-35deg)") > 0, "inclinadas na diagonal");
+    });
+    t("o Rascunho nunca e gravado (some ao fechar o app) e tem botao na barra", ()=>{
+      ok(HTML.indexOf("let __lpRascunho = false;") > 0);
+      const i = HTML.indexOf("    lpToggleRascunho(){");
+      const c = HTML.slice(i, HTML.indexOf("    lpToggleModoOcultar(){"));
+      ["marcarAlterado","STATE.","dbSet"].forEach(x=> ok(c.indexOf(x) < 0, "o rascunho nao pode gravar: " + x));
+      ok(funcao("telaImprimir").indexOf("App.lpToggleRascunho()") > 0, "falta o botao Rascunho");
+    });
+    t("conclusao: ha um espaco de 2 linhas entre o texto e o cabecalho da tabela; o cabecalho repetido nas outras paginas nao muda", ()=>{
+      const f = funcao("blocosConclusao");
+      ok(f.indexOf('<div class="lp-conc">${texto}</div><div class="lp-esp-concl"></div>${cab}') > 0, "o espaco precisa estar entre o texto e a tabela");
+      ok(f.indexOf("cabRepete: cab") > 0, "o cabecalho repetido segue igual");
+      ok(HTML.indexOf(".lp-esp-concl{height:40px}") > 0, "duas linhas de 13.3px x 1.5");
     });
   }
 

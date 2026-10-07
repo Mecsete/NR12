@@ -64,6 +64,22 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/10/2026 10:40
+
+**Laudo A4: imprimir como Rascunho (9 marcas por folha) e espaço de 2 linhas entre o texto da Conclusão e a tabela de riscos.**
+
+- **Rascunho.** Botão novo "Rascunho" na barra da tela de impressão. Ligado,
+  cada folha do laudo (inclusive a capa e as páginas deitadas do inventário)
+  recebe 9 marcas inclinadas, em grade 3 x 3, a 30% de opacidade, que não
+  ocupam espaço nem mudam a paginação. Com logotipo, as marcas alternam a
+  logo e o texto "RASCUNHO" (5 logos e 4 textos); sem logotipo, as 9 são
+  "RASCUNHO". Usa a logo do próprio laudo, inclusive a trocada só nele. A
+  prévia e o PDF são os mesmos elementos. A escolha vale só na sessão e nunca é
+  gravada, para um rascunho não sair por engano num laudo final.
+- **Conclusão.** Duas linhas em branco entre o texto da Conclusão e o
+  cabeçalho da tabela de riscos; o cabeçalho repetido nas páginas seguintes
+  segue igual.
+
 ## 07/10/2026 22:00
 
 **Laudo: o quadro "Antes de imprimir" passa a avisar de todos os dados em branco que aparecem no laudo, não só da ART.**

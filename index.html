@@ -3411,7 +3411,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/10/2026 22:00";
+const APP_BUILD = "07/10/2026 10:40";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -32967,6 +32967,15 @@ window.addEventListener("pageshow", (event) => {
 .lp-conc ul,.lp-conc ol{margin:0 0 10px;padding-left:18px;font-size:13.3px;line-height:1.5;text-align:justify}
 .lp-conc li{margin-bottom:3px}
 .lp-conc p:last-child,.lp-conc ul:last-child,.lp-conc ol:last-child{margin-bottom:0}
+/* Duas linhas em branco (2 x 13.3px x 1.5) entre o texto da Conclusão e o cabeçalho da tabela de riscos. */
+.lp-esp-concl{height:40px}
+/* RASCUNHO: 9 marcas por folha (3 x 3), inclinadas, a 30% de opacidade, sobre a página inteira e sem ocupar
+   espaço (a paginação não muda). As pares levam a logo (imagem de fundo definida UMA vez em #lpMdLogoStyle,
+   para não repetir a imagem em todas as páginas) e as ímpares o texto; sem logo, todas levam o texto. */
+.lp-marca-dagua{position:absolute;top:0;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);pointer-events:none;opacity:.3;z-index:50}
+.lp-md-cel{display:flex;align-items:center;justify-content:center;transform:rotate(-35deg);overflow:visible}
+.lp-md-cel span{font:800 34px Arial,Helvetica,sans-serif;letter-spacing:.06em;color:#1E2148;white-space:nowrap}
+.lp-md-cel .lp-md-logo{width:78%;height:60%;background-repeat:no-repeat;background-position:center;background-size:contain}
 /* O editor: mesma medida de texto do documento, para o que se escreve ser o
    que se vê. */
 .lp-editor{min-height:190px;max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:10px;
@@ -33173,6 +33182,7 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
   let __lpPaginas = [];
   let __lpHtml = "";
   let __lpGerando = false;
+  let __lpRascunho = false;   // imprimir como Rascunho: so na sessao, nunca gravado (nao sair rascunho por engano depois)
 
   function reduzirFoto(src, maxL){
     if(!temFoto(src)) return Promise.resolve("");
@@ -33883,7 +33893,7 @@ function lpMaiorPLrDoEquipamento(itens){
     const texto = conclusaoLigada(d.area) ? conclusaoDaArea(d.area) : LAUDO_CONCLUSAO_BREVE;
     const blocos = [{ quebrarAntes:true, grudaNoProximo:true, html:`
       <div class="lp-faixa">CONCLUSÃO</div>
-      <div class="lp-conc">${texto}</div>${cab}` }];
+      <div class="lp-conc">${texto}</div><div class="lp-esp-concl"></div>${cab}` }];
     for(let i=0;i<lista.length;i++){
       const it = lista[i], r = it.risco;
       const h = hrnDoItem({ tarefa:it.tarefa, risco:r });
@@ -33981,10 +33991,28 @@ function lpMaiorPLrDoEquipamento(itens){
       <div class="lp-eng">${esc(rodapeTexto(d))}</div>
     </div>`;
   }
+  /* A logo das marcas vai como imagem de fundo numa regra única (<style>), não
+     como <img> dentro de cada marca: um laudo de 30 páginas teria 150 cópias da
+     imagem. A regra é global, então vale também na cópia que vai para a impressão. */
+  function lpMdEstilo(){
+    let st = document.getElementById("lpMdLogoStyle");
+    const l = __lpRascunho ? logo() : "";
+    if(!l){ if(st) st.remove(); return; }
+    if(!st){ st = document.createElement("style"); st.id = "lpMdLogoStyle"; document.head.appendChild(st); }
+    st.textContent = '.lp-md-cel .lp-md-logo{background-image:url("' + l + '")}';
+  }
+  function marcaDaguaHtml(){
+    const comLogo = !!logo();
+    let c = "";
+    for(let i = 0; i < 9; i++) c += `<div class="lp-md-cel">${(comLogo && i % 2 === 0) ? `<div class="lp-md-logo"></div>` : `<span>RASCUNHO</span>`}</div>`;
+    return `<div class="lp-marca-dagua">${c}</div>`;
+  }
   function montarDoc(paginas, d){
+    lpMdEstilo();
     return paginas.map((p, i)=> `<div class="lp-pagina${p.semMargem?" lp-sem-margem":""}${p.paisagem?" lp-paisagem":""}">
       <div class="lp-corpo">${p.blocos.map(b=>b.html).join("")}</div>
       ${p.semRodape ? "" : rodapeHtml(d, i+1, paginas.length)}
+      ${__lpRascunho ? marcaDaguaHtml() : ""}
     </div>`).join("");
   }
 
@@ -34103,6 +34131,7 @@ function lpMaiorPLrDoEquipamento(itens){
       <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirFigura()">${ic('layers')} Figura</button>
       <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirConclusao()">${ic('edit')} Conclusão${(conclusaoFoiEditada(areaAtual()) || conclusaoEditadaNasUnidas()) ? " ·" : ""}</button>
       <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirAssinaturaLaudo()">${ic('edit')} Assinatura${assinaturaLaudo() ? " ·" : ""}</button>
+      <button class="btn btn-sm ${__lpRascunho ? "btn-primary" : "btn-ghost"}" style="${__lpRascunho ? "" : "border:1px solid var(--line)"}" title="Imprimir como rascunho: marcas inclinadas na página inteira" onclick="App.lpToggleRascunho()">${ic('edit')} Rascunho${__lpRascunho ? " ·" : ""}</button>
     </div>
     <div class="lp-logo-linha">${logoFicha()}</div>
     ${nUnidas > 1 ? `<div class="lp-logo-linha"><span>Laudo reunido: <b>${escapeHtml(alvoU.areas.map(a=> a.nome||"Área").join(" + "))}</b> — ${alvoU.itens.length} risco(s) no total</span></div>` : ""}
@@ -34166,6 +34195,21 @@ function lpMaiorPLrDoEquipamento(itens){
     /* Liga/desliga o modo de seleção (botão junto do zoom). Precisa remontar
        o laudo ao trocar: fora do modo, item oculto nem entra na montagem;
        dentro do modo, ele entra de volta (esmaecido) para dar pra remarcar. */
+    /* Liga/desliga a impressão como Rascunho. Só acrescenta/tira as marcas das
+       páginas já montadas — não remonta nem repagina, porque as marcas não
+       ocupam espaço. Não grava nada: a escolha vale na sessão. */
+    lpToggleRascunho(){
+      __lpRascunho = !__lpRascunho;
+      lpMdEstilo();
+      const doc = document.getElementById("lpDoc");
+      if(doc){
+        doc.querySelectorAll(".lp-marca-dagua").forEach(e=> e.remove());
+        if(__lpRascunho) doc.querySelectorAll(".lp-pagina").forEach(p=> p.insertAdjacentHTML("beforeend", marcaDaguaHtml()));
+        __lpHtml = doc.innerHTML;
+      }
+      render();
+      toast(__lpRascunho ? "Rascunho ligado: o laudo sai com a marca RASCUNHO em cada folha" : "Rascunho desligado: o laudo sai normal");
+    },
     lpToggleModoOcultar(){
       STATE.ui.lpModoOcultar = !STATE.ui.lpModoOcultar;
       if(__lpPaginas.length) App.lpGerar(); else render();

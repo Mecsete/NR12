@@ -5835,6 +5835,23 @@ print("\n=== 191. ANTES DE IMPRIMIR AVISA TODOS OS DADOS EM BRANCO DO LAUDO (07/
 chk("o quadro Antes de imprimir lista os campos em branco do projeto e da empresa que o laudo mostra",
     "Dados do projeto em branco no laudo:" in novo and "Dados da empresa e do responsável técnico em branco no laudo:" in novo and '["solicitanteCpfCnpj", "CPF/CNPJ"]' in novo and '["numeroDocumento", "nº do documento"]' in novo)
 
+print("\n=== 184. LAUDO A4: IMPRIMIR COMO RASCUNHO + ESPACO NA CONCLUSAO (07/10/2026) ===")
+_i0 = novo.find("INÍCIO DO MÓDULO DE IMPRESSÃO DO LAUDO"); _i1 = novo.find("FIM DO MÓDULO DE IMPRESSÃO DO LAUDO")
+chk("tudo do Rascunho vive DENTRO do bloco removivel de impressao",
+    all(_i0 < novo.find(m) < _i1 for m in ["let __lpRascunho", "function marcaDaguaHtml(", "function lpMdEstilo(", "lpToggleRascunho(){", ".lp-marca-dagua{", ".lp-esp-concl{"]))
+chk("a marca d'agua tem 9 marcas, inclina, 30% de opacidade e nao ocupa espaco (posicao absoluta, fora do corpo da pagina)",
+    "i < 9" in _corpoMod("marcaDaguaHtml") and "rotate(-35deg)" in novo and "opacity:.3;z-index:50" in novo
+    and "position:absolute;top:0;left:0;right:0;bottom:0" in novo)
+chk("com logo alternam logo e texto; sem logo todas sao texto; a imagem nao e repetida em cada marca",
+    "(comLogo && i % 2 === 0)" in _corpoMod("marcaDaguaHtml") and "base64" not in _corpoMod("marcaDaguaHtml") and 'id = "lpMdLogoStyle"' in novo)
+chk("montarDoc: corpo da pagina identico ao de antes; a marca so entra com o Rascunho ligado",
+    '<div class="lp-corpo">${p.blocos.map(b=>b.html).join("")}</div>' in _corpoMod("montarDoc") and "${__lpRascunho ? marcaDaguaHtml() : \"\"}" in _corpoMod("montarDoc"))
+chk("o Rascunho e so de sessao: lpToggleRascunho nao grava nada e a tela tem o botao",
+    "marcarAlterado" not in novo[novo.find("    lpToggleRascunho(){"):novo.find("    lpToggleModoOcultar(){")]
+    and "App.lpToggleRascunho()" in _corpoMod("telaImprimir"))
+chk("a Conclusao ganhou o espaco de 2 linhas antes da tabela",
+    '<div class="lp-conc">${texto}</div><div class="lp-esp-concl"></div>${cab}' in _corpoDe(novo, "blocosConclusao") or '<div class="lp-conc">${texto}</div><div class="lp-esp-concl"></div>${cab}' in novo)
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
 
