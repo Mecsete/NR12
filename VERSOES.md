@@ -64,6 +64,16 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/10/2026 12:05
+
+**Normas de referência por tipo de linha de vida; memorial e conclusão ajustados.**
+
+- Normas de referência (Metodologia): um texto padrão único, igual em todos os laudos, com as normas agrupadas em Normas gerais, Linhas horizontais rígidas, Linhas horizontais flexíveis (cabo de aço) e Linhas verticais. Entram as normas que o checklist já cita (NBR 16325-1 e 16325-2, 16489, 15834, 15836, 15837, 14629, 14626, 14627, 14628, 6118, 6327, 8800 e outras) e a NR-35. Como o texto é o mesmo, serve para laudo que reúne linhas de tipos diferentes. Quem já tiver salvo o texto das normas em "Normas de referência" continua com o seu; para usar o novo, restaurar o padrão nesse editor. Cada grupo aparece com um subtítulo menor.
+- Memorial, "Condições de uso" da linha rígida: a altura mínima da posição de trabalho passa a citar o talabarte e o trava-quedas (antes só o trava-quedas).
+- Conclusão: a frase "Relatório documentado perante o CREA" só sai quando a ART está preenchida (antes saía mesmo sem número).
+
+---
+
 ## 07/10/2026 11:50
 
 **Botão "Sem foto" nos itens que não atendem, caixa da nota na largura do cartão e o aviso do item sem exigir nota quando há motivo.**

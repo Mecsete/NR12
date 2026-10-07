@@ -5902,6 +5902,12 @@ chk("botao Sem foto (com confirmacao) antes de Galeria e Tirar foto; sem foto co
 chk("a nota so e cobrada quando o modelo nao tem motivos, e a caixa da nota ocupa a largura do cartao",
     "if(!modeloTemMotivos && !(itemExec.observacao||\"\").trim()) faltas.push(\"nota\");" in novo and ".chk-item-detail textarea{width:100%;" in novo)
 
+print("\n=== 195. NORMAS POR TIPO DE LINHA, CREA SO COM ART E ALTURA MINIMA DO TALABARTE (07/10/2026) ===")
+chk("normas de referencia padrao agrupadas por tipo de linha (gerais, rigidas, flexiveis, verticais) com subtitulo ###",
+    '"### Normas gerais (todos os tipos de linha de vida)"' in novo and '"### Linhas de vida horizontais rígidas (viga ou trilho)"' in novo and '"### Linhas de vida horizontais flexíveis (cabo de aço)"' in novo and '"### Linhas de vida verticais"' in novo and 'class="lcl-h4"' in novo)
+chk("a frase do CREA so sai com ART e as condicoes de uso da viga citam a altura minima do talabarte e do trava-quedas",
+    'proj.art ? `<p class="lcl-par" style="margin-top:14px">Relatório documentado perante o CREA na ART nº' in novo and "talabarte <b>${f(c.Hp1)} m</b>; trava-quedas <b>${f(c.Hp2)} m</b>" in novo)
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
 

@@ -3422,7 +3422,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/10/2026 11:50";
+const APP_BUILD = "07/10/2026 12:05";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -15359,7 +15359,9 @@ function chkMemorialCondicoes(c, m){
     `Número máximo de usuários simultâneos: <b>${f(m.usuarios, 0)}</b>.`,
     v.okTab ? `Talabarte com absorvedor: <b>permitido</b> (ZLQ ${f(c.ZLQ1)} m).` : `Talabarte com absorvedor: <b>não permitido</b> (ZLQ ${f(c.ZLQ1)} m &gt; ${f(m.hanc)} m disponíveis).`,
     v.okTq ? `Trava-quedas retrátil: <b>permitido</b>, cabo de até ${f(c.B1, 1)} m (ZLQ ${f(c.ZLQ2)} m).` : `Trava-quedas retrátil: <b>não permitido</b> (ZLQ ${f(c.ZLQ2)} m &gt; ${f(m.hanc)} m).`,
-    `Altura mínima da posição de trabalho ao piso: <b>${f(c.Hp2)} m</b> (disponível ${f(m.hpos)} m, ${v.okHp ? "atende" : "<b>não atende</b>"}).`,
+    (c.Hp1 != null && isFinite(c.Hp1)
+      ? `Altura mínima da posição de trabalho ao piso: talabarte <b>${f(c.Hp1)} m</b>; trava-quedas <b>${f(c.Hp2)} m</b> (disponível ${f(m.hpos)} m, ${v.okHp ? "atende" : "<b>não atende</b>"}).`
+      : `Altura mínima da posição de trabalho ao piso: <b>${f(c.Hp2)} m</b> (disponível ${f(m.hpos)} m, ${v.okHp ? "atende" : "<b>não atende</b>"}).`),
   ];
   if(c.tipo === "flex"){
     l.push(`Cabo de aço de ${chkMemDiam(m.diametro)} mm: esforço de <b>${f(c.T1, 0)} kgf</b> para admissível de ${f(c.Fadm, 0)} kgf (utilização de ${f(c.uso * 100, 0)}%, fator de serviço ${f(c.FSs)}): ${v.okC ? "<b>atende</b>" : "<b>não atende</b>"}.`);
@@ -15645,6 +15647,7 @@ const LCL_METODOLOGIA_PADRAO = [
   "- Média: deve ser programada para a próxima manutenção.",
   "",
   "## Normas de referência",
+  "Este relatório considera a NR-35 e as normas técnicas abaixo, agrupadas pelo tipo de linha de vida. Vale o grupo de cada linha avaliada, além das normas gerais; quando o relatório reúne linhas de tipos diferentes, valem os grupos correspondentes.",
   "{{normas}}",
 ];
 /* Variáveis aceitas no texto da Metodologia (nome, o que vira). */
@@ -15665,10 +15668,31 @@ const LCL_METODOLOGIA_VARIAVEIS = [
 const LCL_NORMATIVO_PADRAO = {
   intro: "Para este estudo foram consideradas as orientações dispostas na NR-35 — Trabalho em Altura, que estabelece os requisitos mínimos e as medidas de proteção para o trabalho em altura, envolvendo o planejamento, a organização e a execução, de forma a garantir a segurança e a saúde dos trabalhadores envolvidos.",
   normas: [
+    "### Normas gerais (todos os tipos de linha de vida)",
+    "NR-35 — Trabalho em Altura, incluindo o Anexo II (Sistemas de ancoragem);",
+    "ABNT NBR 16489:2017 — Sistemas e equipamentos de proteção individual para trabalhos em altura — Recomendações e orientações para seleção, uso e manutenção;",
+    "ABNT NBR 15834:2010 — Equipamento de proteção individual contra queda de altura — Talabarte de segurança;",
+    "ABNT NBR 15836:2010 — Equipamento de proteção individual contra queda de altura — Cinturão de segurança tipo paraquedista;",
+    "ABNT NBR 15837:2010 — Equipamento de proteção individual contra queda de altura — Conectores;",
+    "ABNT NBR 14629:2010 — Equipamento de proteção individual contra queda de altura — Absorvedor de energia;",
+    "ABNT NBR 8800:2008 — Projeto de estruturas de aço e de estruturas mistas de aço e concreto de edifícios;",
+    "ABNT NBR 7007:2002 — Aços-carbono e microligados para uso estrutural e geral;",
+    "ABNT NBR 6118 — Projeto de estruturas de concreto — Procedimento (fixações em concreto);",
+    "ABNT NBR 8681 — Ações e segurança nas estruturas — Procedimento.",
+    "### Linhas de vida horizontais rígidas (viga ou trilho)",
+    "ABNT NBR 16325-1:2014 — Proteção contra quedas de altura — Dispositivos de ancoragem — Parte 1;",
+    "ABNT NBR 14627:2010 — Equipamento de proteção individual contra queda de altura — Trava-queda guiado em linha rígida;",
+    "ABNT NBR 14628:2010 — Equipamento de proteção individual contra queda de altura — Trava-queda retrátil;",
+    "ABNT NBR 14762:2010 — Dimensionamento de estruturas de aço constituídas por perfis formados a frio.",
+    "### Linhas de vida horizontais flexíveis (cabo de aço)",
+    "ABNT NBR 16325-2:2014 — Proteção contra quedas de altura — Dispositivos de ancoragem — Parte 2 (linhas de ancoragem flexíveis);",
     "ABNT NBR 14626:2010 — Equipamento de proteção individual contra queda de altura — Trava-queda deslizante guiado em linha flexível;",
     "ABNT NBR 6327:2006 — Cabos de aço para uso geral — Requisitos mínimos;",
-    "ABNT NBR 7007:2002 — Aços-carbono e microligados para uso estrutural e geral;",
-    "ABNT NBR 8800:2008 — Projeto de estruturas de aço e de estruturas mistas de aço e concreto de edifícios.",
+    "ABNT NBR ISO 2408 — Cabos de aço para uso geral — Requisitos.",
+    "### Linhas de vida verticais",
+    "ABNT NBR 14626:2010 — Trava-queda deslizante guiado em linha flexível (linha vertical de cabo);",
+    "ABNT NBR 14627:2010 — Trava-queda guiado em linha rígida (linha vertical de trilho);",
+    "ABNT NBR 6327:2006 — Cabos de aço para uso geral — Requisitos mínimos (linha vertical de cabo).",
   ],
 };
 let __lclPaginas = [];
@@ -15862,7 +15886,7 @@ function lclVariaveis(d){
 function lclAplicarVariaveis(texto, vars){
   return String(texto || "").split("\n").map(lin=>{
     const sozinha = /^\s*\{\{\s*([a-z_]+)\s*\}\}\s*$/.exec(lin);
-    if(sozinha && Array.isArray(vars[sozinha[1]])) return vars[sozinha[1]].map(x=> "- " + x).join("\n");
+    if(sozinha && Array.isArray(vars[sozinha[1]])) return vars[sozinha[1]].map(x=> /^###\s/.test(x) ? x : "- " + x).join("\n");
     return lin.replace(/\{\{\s*([a-z_]+)\s*\}\}/g, (m, k)=>{
       if(!(k in vars)) return m;
       const v = vars[k];
@@ -15899,6 +15923,7 @@ function lclMarkup(texto, figuras, redu){
     const lin = bruta.replace(/\s+$/, "");
     if(!lin.trim()){ solta(); return; }
     let m;
+    if((m = /^###\s+(.+)$/.exec(lin))){ solta(); blocos.push({ html:`<div class="lcl-h4">${lclEsc(m[1].trim())}</div>`, grudaNoProximo:true }); return; }
     if((m = /^##\s+(.+)$/.exec(lin))){ solta(); blocos.push({ html:`<div class="lcl-h3">${lclEsc(m[1].trim())}</div>`, grudaNoProximo:true }); return; }
     if((m = /^\s*\[figura\s+(\d+)\]\s*$/i.exec(lin))){ solta(); const b = figura(parseInt(m[1], 10)); if(b) blocos.push(b); return; }
     if((m = /^\s*-\s+(.+)$/.exec(lin))){ if(par.length || tab.length){ solta(); } lista.push(m[1].trim()); return; }
@@ -16032,7 +16057,7 @@ function lclBlocosConclusao(d, cap, assinaturaSrc, redu){
     });
   }
   blocos.push({ html:`${prox ? `<p class="lcl-par"><b>Próxima inspeção até: ${lclEsc(prox)}</b> (intervalo máximo de 12 meses).</p>` : ""}
-    <p class="lcl-par" style="margin-top:14px">Relatório documentado perante o CREA${proj.art ? ` na ART nº <b>${lclEsc(proj.art)}</b>` : ""}</p>
+    ${proj.art ? `<p class="lcl-par" style="margin-top:14px">Relatório documentado perante o CREA na ART nº <b>${lclEsc(proj.art)}</b></p>` : ""}
     <p class="lcl-par" style="margin-top:-6px">${lclEsc(mc.cidade || "")}${mc.cidade ? ", " : ""}${lclEsc(hojeExt)}.</p>
     <div class="lcl-assin2">
       <div class="sg"><div class="sgi"></div><div class="ln"></div>${lclEsc(proj.responsavel || "Solicitante")}<small>${lclEsc(proj.solicitanteCargo || "")}</small><small>${lclEsc(proj.empresa || "")}</small></div>
@@ -16481,6 +16506,7 @@ a.lcl-sl:hover i{border-bottom-color:#E94E1B}
 .lcl-alvo{display:block;height:0;overflow:hidden}
 /* corpo do laudo */
 .lcl-h3{font-size:16px;font-weight:800;color:#1E2148;margin:6px 0 8px}
+.lcl-h4{font-size:12.5px;font-weight:800;color:#1E2148;margin:10px 0 4px}
 .lcl-ctx{background:#eef0f6;border-left:4px solid #E94E1B;padding:7px 11px;color:#444;margin-bottom:10px;font-size:12px}
 .lcl-sec-grid{display:flex;gap:18px;align-items:flex-start}
 .lcl-narr{flex:1.6;min-width:0;font-size:13px;line-height:1.55;text-align:justify}

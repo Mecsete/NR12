@@ -1270,7 +1270,7 @@ async function testarLaudoCapitulos(){
   T(cfg0 === '{"fotoCapa":true,"capitulos":{"metodologia":true,"checklist":true,"corpo":true,"memorial":true,"conclusao":true,"anexos":true},"parecer":"","anexos":[]}', "lclCfg sem nada gravado deveria ligar tudo: " + cfg0);
   T(roda("lclCfg({ laudo:{ fotoCapa:false, capitulos:{ corpo:false } } }).capitulos.corpo") === false && roda("lclCfg({ laudo:{ capitulos:{ corpo:false } } }).capitulos.checklist") === true, "lclCfg deveria mesclar so o que foi gravado");
   roda("STATE.checklists.textos = undefined");
-  T(roda("lclTextos().normativo.intro") === roda("LCL_NORMATIVO_PADRAO.intro") && roda("lclTextos().normativo.normas.length") === 4, "sem texto salvo, o Normativo deveria ser o padrao");
+  T(roda("lclTextos().normativo.intro") === roda("LCL_NORMATIVO_PADRAO.intro") && roda("lclTextos().normativo.normas.length") === roda("LCL_NORMATIVO_PADRAO.normas.length") && roda("LCL_NORMATIVO_PADRAO.normas.length") > 15, "sem texto salvo, o Normativo deveria ser o padrao");
   roda(`STATE.checklists.textos = { normativo: { intro: "", normas: ["X"] } }`);
   T(roda("lclTextos().normativo.intro") === "" && roda("lclTextos().normativo.normas.length") === 1, "intro vazio salvo de proposito deveria continuar vazio");
   roda("delete STATE.checklists.textos");
@@ -2650,6 +2650,20 @@ async function testarUsabilidade(){
   T(qSem.includes("lcl-ncr sem-im h") && !qSem.includes("<span>Imagem</span>") && !qSem.includes('class="im') && !qSem.includes("sem foto") && !qSem.includes("Sem registro fotográfico"), "nenhuma nao conformidade com foto: a coluna Imagem some do quadro");
   const qCom = roda("lclBlocosConclusao(" + dF3 + ", " + capC + ", '', (x)=> x ? 'data:image/jpeg;base64,RR' : '').filter(b=> b.html.includes('lcl-ncr')).map(b=> b.html).join('')");
   T(qCom.includes("<span>Imagem</span>") && qCom.includes('class="im"') && !qCom.includes("sem-im"), "com foto em alguma nao conformidade: a coluna Imagem fica");
+  // normas de referencia agrupadas por tipo de linha (texto padrao unico) e cabecalho de grupo na Metodologia
+  T(roda("LCL_NORMATIVO_PADRAO.normas.filter(x => /^###\\s/.test(x)).length") === 4 && roda("LCL_NORMATIVO_PADRAO.normas[0]").startsWith("### Normas gerais") && roda("LCL_NORMATIVO_PADRAO.normas.some(x => x.includes('rígidas'))") && roda("LCL_NORMATIVO_PADRAO.normas.some(x => x.includes('flexíveis'))") && roda("LCL_NORMATIVO_PADRAO.normas.some(x => x.includes('verticais'))"), "normas padrao: gerais, rigidas, flexiveis e verticais");
+  T(roda("LCL_NORMATIVO_PADRAO.normas.join('|')").includes("NBR 16325-1:2014") && roda("LCL_NORMATIVO_PADRAO.normas.join('|')").includes("NBR 16489") && roda("LCL_NORMATIVO_PADRAO.normas.join('|')").includes("NBR 15837") && roda("LCL_NORMATIVO_PADRAO.normas.join('|')").includes("NR-35"), "as normas citadas nos itens do checklist estao na lista");
+  T(roda(`lclAplicarVariaveis("{{normas}}", { normas: ["### G", "NBR 1", "NBR 2"] })`) === "### G\n- NBR 1\n- NBR 2", "cabecalho de grupo (###) nao vira item de lista");
+  const mk4 = roda(`lclMarkup("### Grupo\\n- NBR 1\\n- NBR 2", [], (x)=> x).map(b => b.html).join("")`);
+  T(mk4.includes('<div class="lcl-h4">Grupo</div>') && mk4.includes("<li>NBR 1</li>"), "### vira subtitulo menor e a lista segue: " + mk4);
+  // frase do CREA so quando ha ART
+  const concArt = (art)=> { roda("__f3.proj.art = " + J(art)); return roda("lclBlocosConclusao(lclDados(__f3.proj, __f3.setor, __f3.l), { num:5, rot:'Conclusão', ancora:'cap-conclusao' }, '', (x)=> '').map(b => b.html).join('')"); };
+  const artAntes = roda("__f3.proj.art");
+  T(concArt("ART123").includes("documentado perante o CREA na ART nº <b>ART123</b>") && !concArt("").includes("perante o CREA"), "a frase 'documentado perante o CREA' so sai quando ha ART");
+  roda("__f3.proj.art = " + J(artAntes));
+  // memorial da viga: altura minima da posicao de trabalho para talabarte e para trava-quedas
+  const condR = roda(`(function(){ const m = chkMemorialDe({ memorial:{ hanc:6.5, hpos:4.9, vao:1 } }); const c = chkMemorialCalc("horizontal_rigida", m); return chkMemorialCondicoes(c, m).join("|"); })()`);
+  T(condR.includes("talabarte <b>2,00 m</b>; trava-quedas <b>1,50 m</b>"), "condicoes de uso do memorial citam a altura minima de talabarte e de trava-quedas: " + condR);
   roda("STATE.ui.chkProjetoId = " + J(estadoAntes.p) + "; STATE.ui.chkSetorId = null; STATE.ui.chkLinhaId = null; STATE.checklists.projetos = " + J(estadoAntes.lista) + ";");
 }
 async function testarSincronizacaoChecklist(){
