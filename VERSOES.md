@@ -64,6 +64,14 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/10/2026 21:00
+
+**Checklist: a linha de vida também ganha o ícone de abrir o checklist ao lado do menu "⋮".**
+
+- Cartão da linha: lápis (abrir o checklist da linha), o botão "Laudo" de sempre e o menu "⋮" (laudo e exclusão). Com isso, todos os cartões do Checklist (modelo, projeto, setor e linha) têm ícones discretos ao lado do menu.
+
+---
+
 ## 07/10/2026 20:00
 
 **Checklist: ícones de editar e de laudos ao lado do menu "⋮" nos cartões.**
