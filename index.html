@@ -734,6 +734,15 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-filtros-row{display:flex;gap:6px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:none;}
 .chk-filtros-row::-webkit-scrollbar{display:none;}
 .chk-filtro-chip{flex:0 0 auto;padding:6px 12px;border-radius:999px;background:var(--bg-soft);color:var(--ink-dim);font-size:12px;font-weight:700;border:none;white-space:nowrap;}
+.chk-quick{display:flex;gap:6px;margin-top:10px}
+.chk-quick button{flex:1;display:flex;align-items:center;justify-content:center;gap:5px;padding:9px 4px;border-radius:9px;border:1.5px solid var(--line-strong);background:var(--surface);color:var(--ink-dim);font-size:12.5px;font-weight:700;min-width:0}
+.chk-quick button svg{width:15px;height:15px;flex:0 0 auto}
+.chk-quick button.on{color:#fff}
+.chk-sec-prog{font-size:12px;color:var(--ink-dim);margin:0 2px 10px}
+.chk-link{background:none;border:none;color:var(--accent);font-weight:700;font-size:12px;padding:0;text-decoration:underline;cursor:pointer}
+.chk-proxima{margin-top:14px}
+.chk-foto-btns{display:flex;gap:8px;margin-top:8px}
+.chk-foto-btns .btn{flex:1}
 .chk-continuar{display:flex;align-items:center;gap:12px;padding:12px 14px;margin-bottom:12px;border-left:4px solid var(--accent);cursor:pointer}
 .chk-continuar b{display:block;font-size:14px}
 .chk-continuar span{display:block;font-size:12px;color:var(--ink-dim);margin-top:2px}
@@ -3393,7 +3402,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/10/2026 09:00";
+const APP_BUILD = "07/10/2026 12:00";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -11230,6 +11239,7 @@ let __lendoPlaquetaIA = false; // trava o botão "Ler plaqueta com IA" enquanto 
 let __selMode = null; // { tipo:'areaS'|'maquinaS'|'tarefaS'|'riscoS', ids:Set<string>, ctx:{...} }
 let __ultimoMovimento = null; // { tipo, idsMovidos:Set<string>, origemScreen, origemParams, origemLabel, expiraEm }
 let __buscaAtual = "";
+let __lclLoteEmAndamento = false; // montando vários laudos em um PDF só
 let __chkDaRevisao = false;   // veio da tela Revisar e finalizar: mostra "Voltar à revisão" no preenchimento
 let __chkProjFiltro = "todos"; // filtro de status da lista de projetos
 let __chkSetFiltro = "todos"; // filtro de status da lista de setores
@@ -14450,7 +14460,9 @@ function screenChkSetores(){
     </div>`;
   }).join("");
   const controlesSet = chkBuscaChipsHtml("Buscar setor…", __chkSetFiltro, chkContagensFiltro(proj.setores.map(resSet)), "App.chkSetSetFiltro", proj.setores.length >= 4);
-  return `${controlesSet}<div class="section-title">${setoresFiltrados.length} de ${proj.setores.length} setor${proj.setores.length===1?'':'es'}</div>${cards || `<div class="empty"><p>Nenhum setor encontrado.</p></div>`}
+  const nLoteProj = proj.setores.reduce((n, s)=> n + s.linhas.filter(l=> chkProgresso(l) > 0).length, 0);
+  const botaoLoteProj = nLoteProj >= 2 ? `<button class="btn btn-secondary btn-block" style="margin-bottom:10px" onclick="App.lclLote('projeto')">${ic('print')} Laudos do projeto em um PDF (${nLoteProj} linhas)</button>` : "";
+  return `${botaoLoteProj}${controlesSet}<div class="section-title">${setoresFiltrados.length} de ${proj.setores.length} setor${proj.setores.length===1?'':'es'}</div>${cards || `<div class="empty"><p>Nenhum setor encontrado.</p></div>`}
     <div class="fab-wrap"><button class="fab" onclick="App.chkNovoSetor()">${ic('plus')}</button></div>`;
 }
 function screenChkSetorForm(){
@@ -14513,7 +14525,10 @@ function screenChkLinhas(){
       <div class="list-actions">${chkBotaoMenu('linha', l.id)}</div>
     </div>`;
   }).join("") : `<div class="empty"><p>Nenhuma linha de vida encontrada.</p></div>`;
+  const nLoteSetor = setor.linhas.filter(l=> chkProgresso(l) > 0).length;
+  const botaoLote = nLoteSetor >= 2 ? `<button class="btn btn-secondary btn-block" style="margin-bottom:10px" onclick="App.lclLote('setor')">${ic('print')} Laudos do setor em um PDF (${nLoteSetor} linhas)</button>` : "";
   return `
+  ${botaoLote}
   <div class="search-wrap">
     <input type="text" id="buscaInput" class="search-input" placeholder="Buscar linha de vida…" value="${escapeHtml(__buscaAtual)}" oninput="App.onBuscaChange(this.value)">
     ${__buscaAtual? `<button class="search-clear" onclick="App.onBuscaChange('')">${ic('close')}</button>` : ""}
@@ -14616,6 +14631,45 @@ function chkMostrarItemAberto(){
    contagem) + aviso de pendência (quando "não atende" sem motivo nem nota) +
    ícone de expandir — os botões de status e o resto só aparecem com o card
    aberto (menos risco de toque sem querer, mais espaço pra descrição). */
+/* Depois de responder com um toque, leva a tela ao próximo item ainda sem resposta (a pessoa não precisa rolar). */
+function chkRolarParaProximoItem(itemId){
+  if(typeof document === "undefined" || !document.querySelectorAll) return;
+  const cards = [].slice.call(document.querySelectorAll(".chk-item-card"));
+  const i = cards.findIndex(c=> c.getAttribute("data-item") === itemId);
+  if(i < 0) return;
+  const semResposta = (c)=> /\bst-(\s|$)/.test(c.className);
+  const prox = cards.slice(i + 1).find(semResposta);
+  if(!prox){
+    if(!cards.some(semResposta)) toast("Seção respondida");
+    return;
+  }
+  const barra = document.querySelector(".topbar");
+  const topo = (barra ? barra.getBoundingClientRect().height : 0) + 12;
+  window.scrollTo({ top: window.scrollY + prox.getBoundingClientRect().top - topo, behavior:"smooth" });
+}
+/* Próxima seção (depois da atual, dando a volta) que não é "não aplica" e ainda tem item sem resposta; -1 se não houver. */
+function chkProximaSecaoPendente(l, idx){
+  const sec = l.modeloSnapshot || [];
+  for(let k = 1; k < sec.length; k++){
+    const i = (idx + k) % sec.length;
+    if((l.secoesNA || []).includes(sec[i].id)) continue;
+    if(sec[i].itens.some(it=>{ const ie = chkItemExec(l, it.id); return ie && ie.conforme === null; })) return i;
+  }
+  return -1;
+}
+function chkRodapeSecaoHtml(l, idx, totalAbas){
+  const prox = chkProximaSecaoPendente(l, idx);
+  const ultima = idx === totalAbas - 1;
+  let html = "";
+  if(prox >= 0){
+    const t = l.modeloSnapshot[prox].titulo || ("Seção " + (prox + 1));
+    html += `<button class="btn btn-primary btn-block chk-proxima" onclick="App.chkIrParaSecao(${prox})">Próxima seção com pendência: ${escapeHtml(t)} ${ic('chevR')}</button>`;
+  }
+  if(ultima || prox < 0){
+    html += `<button class="btn ${prox >= 0 ? "" : "btn-primary "}btn-block chk-proxima" onclick="App.go('checklist-finalizar')">Revisar e finalizar ${ic('chevR')}</button>`;
+  }
+  return html;
+}
 function chkRenderItem(linha, item, secaoIdx, itemIdx){
   const ie = chkItemExec(linha, item.id) || {conforme:null, motivosSelecionados:[], observacao:"", fotos:[]};
   const aberto = STATE.ui.chkItemAberto === item.id;
@@ -14645,10 +14699,16 @@ function chkRenderItem(linha, item, secaoIdx, itemIdx){
       ${motivosHtml}
       <textarea placeholder="Nota adicional (opcional) — o texto padrão do motivo já vai sozinho pro laudo" oninput="App.chkSetObservacao('${item.id}',this.value)">${escapeHtml(ie.observacao)}</textarea>
       ${chkFotosItemHtml(item, ie, motivosSel)}
+      ${ie.conforme==="naoAtende" ? `<div class="chk-foto-btns"><button class="btn btn-secondary" onclick="App.chkTirarFoto('${item.id}',false)">${ic('camera')} Tirar foto</button><button class="btn btn-secondary" onclick="App.chkTirarFoto('${item.id}',true)">${ic('gallery')} Galeria</button></div>` : ""}
     </div>`;
   }
+  const ICONE_RAPIDO = { atende:"check", naoAtende:"close", na:"dash" };
+  const respostaRapida = aberto ? "" : `<div class="chk-quick">${Object.keys(CHK_STATUS_META).map(k=>{
+    const meta = CHK_STATUS_META[k], on = ie.conforme === k;
+    return `<button type="button" class="${on ? 'on' : ''}" style="${on ? `background:${meta.cor};border-color:${meta.cor}` : ''}" onclick="event.stopPropagation();App.chkRespostaRapida('${item.id}','${k}')" aria-pressed="${on}">${ic(ICONE_RAPIDO[k])}<span>${escapeHtml(meta.label)}</span></button>`;
+  }).join("")}</div>`;
   return `
-  <div class="card card-pad chk-item-card st-${ie.conforme||''} ${aberto?'aberto':''}">
+  <div class="card card-pad chk-item-card st-${ie.conforme||''} ${aberto?'aberto':''}" data-item="${item.id}">
     <div class="chk-item-top" onclick="App.chkToggleItemAberto('${item.id}')">
       <div class="chk-item-desc"><span class="chk-item-code">Item ${secaoIdx+1}.${itemIdx+1} -</span> ${escapeHtml(item.descricao)}</div>
       <div class="chk-item-icons">
@@ -14657,6 +14717,7 @@ function chkRenderItem(linha, item, secaoIdx, itemIdx){
         <span class="chk-item-chevron">${ic('chev')}</span>
       </div>
     </div>
+    ${respostaRapida}
     ${detalheHtml}
   </div>`;
 }
@@ -14698,8 +14759,9 @@ function screenChkPreencher(){
     <h2 style="margin:2px 0">${escapeHtml(secao.titulo||'Sem título')}</h2>
     <button class="chk-switch ${isNA?'off':'on'}" onclick="App.chkToggleSecaoNA('${secao.id}')">${isNA? ic('check')+' Aplicar seção' : 'Esta seção não aplica'}</button>
   </div>
+  ${(()=>{ if(isNA || !secao.itens.length) return ""; const semR = secao.itens.filter(it=>{ const ie=chkItemExec(l,it.id); return ie && ie.conforme===null; }).length; return `<div class="chk-sec-prog">${secao.itens.length - semR} de ${secao.itens.length} respondidos${semR >= 2 ? ` · <button type="button" class="chk-link" onclick="App.chkMarcarRestantesAtende('${secao.id}')">marcar os ${semR} restantes como Atende</button>` : ""}</div>`; })()}
   ${isNA? `<div class="empty" style="padding:24px"><p>Seção marcada como "não aplica" — nenhum item dela precisa ser preenchido.</p></div>` : (itensHtml || `<div class="empty"><p>Esta seção não tem itens.</p></div>`)}
-  ${(!isNA && idx===totalAbas-1) ? `<button class="btn btn-primary btn-block" style="margin-top:14px" onclick="App.go('checklist-finalizar')">Revisar e finalizar ${ic('chevR')}</button>` : ""}
+  ${chkRodapeSecaoHtml(l, idx, totalAbas)}
   ${voltarRev}
   <div class="chk-fab-stack ${STATE.ui.chkItemAberto?'show':''}">
     <button class="chk-fab-gal" onclick="App.chkTirarFoto(STATE.ui.chkItemAberto,true)" title="Escolher da galeria">${ic('gallery')}</button>
@@ -15511,8 +15573,8 @@ function lclSemResposta(linha){
   return r;
 }
 /* Avisos antes de imprimir: o que falta ou está estranho no laudo desta linha. */
-function lclAvisos(l){
-  const proj = getCurrentChkProjeto(), cfg = lclCfg(l), av = [];
+function lclAvisos(l, projOpc){
+  const proj = projOpc || getCurrentChkProjeto(), cfg = lclCfg(l), av = [];
   const sr = lclSemResposta(l);
   if(sr.length){
     const n = sr.reduce((a, x)=> a + x.n, 0);
@@ -30287,6 +30349,36 @@ Devolver agora?`)) return;
     marcarAlterado();
     render();
   },
+  /* Resposta com um toque no cartão fechado. Atende / Não aplica: grava e leva ao próximo item sem resposta.
+     Não atende: grava e abre o item (motivo e foto). Tocar de novo na mesma resposta desfaz. */
+  chkRespostaRapida(itemId, status){
+    const l = getCurrentChkLinha(); if(!l) return;
+    const ie = chkItemExec(l, itemId); if(!ie) return;
+    ie.conforme = (ie.conforme === status) ? null : status;
+    if(ie.conforme !== "naoAtende") ie.motivosSelecionados = [];
+    l.atualizadoEm = agoraSync();
+    marcarAlterado();
+    STATE.ui.chkItemAberto = ie.conforme === "naoAtende" ? itemId : null;
+    render();
+    if(ie.conforme === "naoAtende"){ if(typeof chkMostrarItemAberto === "function") chkMostrarItemAberto(); }
+    else if(ie.conforme) chkRolarParaProximoItem(itemId);
+  },
+  chkMarcarRestantesAtende(secaoId){
+    const l = getCurrentChkLinha(); if(!l) return;
+    const secao = l.modeloSnapshot.find(s=> s.id === secaoId); if(!secao || l.secoesNA.includes(secaoId)) return;
+    const alvo = secao.itens.map(it=> chkItemExec(l, it.id)).filter(ie=> ie && ie.conforme === null);
+    if(!alvo.length) return;
+    chkAbrirConfirmacao('Marcar os restantes como "Atende"?',
+      `${alvo.length} ${alvo.length === 1 ? 'item sem resposta' : 'itens sem resposta'} da seção "${secao.titulo || 'sem título'}" ${alvo.length === 1 ? 'será marcado' : 'serão marcados'} como Atende. Os itens já respondidos não mudam.`,
+      'Marcar como Atende', ()=>{
+        alvo.forEach(ie=>{ ie.conforme = "atende"; ie.motivosSelecionados = []; });
+        STATE.ui.chkItemAberto = null;
+        l.atualizadoEm = agoraSync();
+        marcarAlterado();
+        render();
+        toast(alvo.length + (alvo.length === 1 ? " item marcado como Atende" : " itens marcados como Atende"));
+      });
+  },
   chkSetObservacao(itemId, valor){
     const l = getCurrentChkLinha(); if(!l) return;
     const item = chkItemExec(l, itemId); if(!item) return;
@@ -30853,6 +30945,82 @@ Devolver agora?`)) return;
   lclAbrirDadosProjeto(){
     __chkProjFormOrigem = "checklist-setores";
     go("checklist-projeto-form");
+  },
+  /* Monta as páginas do laudo de UMA linha (a mesma montagem da prévia) sem mexer na tela: devolve o HTML pronto. */
+  async lclGerarDe(proj, setor, l){
+    await garantirFotosDe(l);
+    if(STATE.checklists.textos) await garantirFotosDe(STATE.checklists.textos);
+    try{
+      const d = lclDados(proj, setor, l), textos = lclTextos(), caps = lclPlano(proj, l);
+      const fotos = await lclPrepararFotos(l, textos);
+      const med = await lclMedidor();
+      try{
+        let mapa = null, paginas = null;
+        for(let rodada = 0; rodada < 3; rodada++){
+          paginas = await lclPaginar(lclMontarBlocos(d, textos, caps, fotos, mapa), med.medir, LCL_MAX_A);
+          const novo = lclAncoras(paginas);
+          if(mapa && JSON.stringify(novo) === JSON.stringify(mapa)) break;
+          mapa = novo;
+        }
+        return { paginas: paginas.length, html: lclMontarDoc(paginas, d) };
+      } finally { med.fechar(); }
+    } finally {
+      try{ liberarFotosDe(l); if(STATE.checklists.textos) liberarFotosDe(STATE.checklists.textos); }catch(e){}
+    }
+  },
+  /* Um único PDF com o laudo de cada linha do setor ou do projeto que já tem checklist preenchido. */
+  async lclLote(escopo){
+    if(__lclLoteEmAndamento || __lclGerando) return;
+    const proj = getCurrentChkProjeto(); if(!proj) return;
+    const setorAtual = getCurrentChkSetor();
+    const setores = escopo === "setor" ? (setorAtual ? [setorAtual] : []) : proj.setores;
+    const todas = [], alvos = [];
+    setores.forEach(s=> s.linhas.forEach(l=>{ todas.push(l); if(chkProgresso(l) > 0) alvos.push({ s, l }); }));
+    if(!alvos.length){ toast("Nenhuma linha com checklist preenchido", false); return; }
+    const comAviso = alvos.map(a=> ({ a, av: lclAvisos(a.l, proj) })).filter(x=> x.av.length);
+    const ignoradas = todas.length - alvos.length;
+    if(comAviso.length || ignoradas || alvos.length > 8){
+      const linhasMsg = comAviso.slice(0, 8).map(x=> `- ${x.a.l.nome || "Linha"}: ${x.av.length} aviso(s), por exemplo "${x.av[0].txt.slice(0, 70)}"`);
+      const msg = `Vão ${alvos.length} laudo(s) em um PDF.`
+        + (ignoradas ? `\n${ignoradas} linha(s) sem nada preenchido ficam de fora.` : "")
+        + (comAviso.length ? `\n\n${comAviso.length} laudo(s) têm avisos:\n${linhasMsg.join("\n")}${comAviso.length > 8 ? "\n..." : ""}` : "")
+        + (alvos.length > 8 ? "\n\nSão muitas linhas: se o aparelho travar, gere por setor." : "")
+        + "\n\nGerar mesmo assim?";
+      if(!confirm(msg)) return;
+    }
+    __lclLoteEmAndamento = true;
+    try{
+      const partes = [];
+      for(let i = 0; i < alvos.length; i++){
+        toast(`Montando laudo ${i + 1} de ${alvos.length}…`);
+        partes.push((await App.lclGerarDe(proj, alvos[i].s, alvos[i].l)).html);
+      }
+      const limpo = (s)=> String(s || "").replace(/[\\/:*?<>|\x22]/g, "").replace(/\s+/g, " ").trim();
+      await App.lclImprimirPartes(partes, ["Laudos NR-35", limpo(proj.empresa), escopo === "setor" && setorAtual ? limpo(setorAtual.nome) : ""].filter(Boolean).join(" - "));
+    }catch(e){
+      toast("Não foi possível montar os laudos: " + (e && e.message ? e.message : e), false);
+    }finally{ __lclLoteEmAndamento = false; }
+  },
+  lclImprimirPartes(partes, titulo){
+    const raiz = document.createElement("div");
+    raiz.id = "lclPrintRoot";
+    partes.forEach((html, k)=>{
+      const tmp = document.createElement("div");
+      tmp.innerHTML = html;
+      tmp.querySelectorAll(".lcl-edit-bar").forEach(b=> b.remove());
+      const pre = k ? "imp" + k + "-" : "imp-"; // cada laudo com os seus destinos de link
+      tmp.querySelectorAll("[id^='lcl-a-']").forEach(e=>{ e.id = pre + e.id; });
+      tmp.querySelectorAll("a[href^='#lcl-a-']").forEach(a=>{ a.setAttribute("href", "#" + pre + a.getAttribute("href").slice(1)); });
+      while(tmp.firstChild) raiz.appendChild(tmp.firstChild);
+    });
+    document.body.appendChild(raiz);
+    document.body.classList.add("lcl-imprimindo");
+    const tituloAntigo = document.title;
+    document.title = titulo;
+    const limpar = ()=>{ try{ raiz.remove(); }catch(e){} document.body.classList.remove("lcl-imprimindo"); document.title = tituloAntigo; };
+    window.addEventListener("afterprint", limpar, { once:true });
+    setTimeout(()=>{ try{ window.print(); }catch(e){ toast("Impressão não suportada neste navegador", false); } }, 80);
+    setTimeout(limpar, 60000);
   },
   async lclImprimir(){
     const lAv = getCurrentChkLinha();

@@ -171,7 +171,7 @@ const FUNCOES = [
   "chkSyncHash", "chkSyncSig", "chkSyncModeloNorm", "chkSyncGarantir", "chkSyncSemCampo", "chkSyncVista", "chkSyncLocais", "chkSyncLocalDe", "chkSyncSementeIntocada",
   "chkSyncParseNomes", "chkSyncRegistrarRemocao", "chkSyncMesclarRemovidos", "chkSyncMesclarInspetores", "chkSyncLerRemoto", "chkSyncSingleton",
   "chkSyncApagarRemoto", "chkSyncEnviar", "chkSyncRotuloCopia", "chkSyncInserir", "chkSyncAplicar", "chkSyncBaixar", "chkSyncCopiarLocal", "chkSyncConflito",
-  "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
+  "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
 ];
 let fonte = "let __ultimoCarimboVisto = 0;\n";
 fonte += "let __buscaAtual = '';\n"; // usado por chkAbrirSetor (lista de linhas) -- nao testado aqui, so pra nao faltar
@@ -2533,6 +2533,40 @@ async function testarUsabilidade(){
   roda("STATE.checklists.projetos = [{ id:'P1', empresa:'Emp', setores:[{ id:'S1', nome:'Setor', linhas:[ Object.assign(" + L(["atende", "atende", "atende"]) + ", { id:'LC', status:'finalizado' }) ] }] }];");
   T(roda("chkContinuarHtml()") === "", "sem linha em andamento, nao ha cartao Continuar");
   roda("STATE.checklists.projetos = " + J(estadoAntes.lista) + ";");
+  // ---- resposta com um toque, marcar restantes, proxima secao pendente, laudo em lote ----
+  T(roda("chkProximaSecaoPendente(" + L(["atende", "atende", null]) + ", 0)") === 1 && roda("chkProximaSecaoPendente(" + L(["atende", "atende", "atende"]) + ", 0)") === -1 && roda("chkProximaSecaoPendente(" + L([null, null, null]) + ", 1)") === 0 && roda("chkProximaSecaoPendente(" + L([null, "atende", "atende"]) + ", 0)") === -1 && roda("chkProximaSecaoPendente(" + L(["atende", "atende", null], { secoesNA:["s2"] }) + ", 0)") === -1, "proxima secao com pendencia (da a volta, pula as que nao se aplicam)");
+  const rp1 = roda("chkRodapeSecaoHtml(" + L(["atende", "atende", null]) + ", 0, 2)");
+  T(rp1.includes("Próxima seção com pendência: Cabo") && !rp1.includes("Revisar e finalizar"), "rodape no meio da lista, com pendencia adiante: so o atalho da proxima secao: " + rp1.slice(0, 200));
+  const rp2 = roda("chkRodapeSecaoHtml(" + L(["atende", "atende", "atende"]) + ", 0, 2)");
+  T(rp2.includes("Revisar e finalizar") && rp2.includes("btn-primary") && !rp2.includes("Próxima seção"), "tudo respondido: Revisar e finalizar em destaque, em qualquer aba");
+  const rp3 = roda("chkRodapeSecaoHtml(" + L(["atende", null, "atende"]) + ", 1, 2)");
+  T(rp3.includes("Próxima seção com pendência: Ancoragem") && rp3.includes("Revisar e finalizar"), "ultima aba com pendencia atras: os dois botoes");
+  roda("STATE.checklists.projetos = [{ id:'P9', empresa:'E9', setores:[{ id:'S9', nome:'S9', linhas:[ Object.assign(" + L([null, null, null]) + ", { id:'L9' }) ] }] }]; STATE.ui.chkProjetoId = 'P9'; STATE.ui.chkSetorId = 'S9'; STATE.ui.chkLinhaId = 'L9'; STATE.ui.chkItemAberto = null;");
+  const conf = (id)=> roda("chkItemExec(getCurrentChkLinha(), '" + id + "').conforme");
+  roda("App.chkRespostaRapida('i1', 'atende')");
+  T(conf("i1") === "atende" && roda("STATE.ui.chkItemAberto") === null, "toque em Atende grava e nao abre o item");
+  roda("App.chkRespostaRapida('i1', 'atende')");
+  T(conf("i1") === null, "tocar de novo na mesma resposta desfaz");
+  roda("App.chkRespostaRapida('i2', 'naoAtende')");
+  T(conf("i2") === "naoAtende" && roda("STATE.ui.chkItemAberto") === "i2", "toque em Nao atende grava e abre o item (motivo e foto)");
+  roda("chkItemExec(getCurrentChkLinha(), 'i2').motivosSelecionados = ['x']; App.chkRespostaRapida('i2', 'na')");
+  T(conf("i2") === "na" && roda("chkItemExec(getCurrentChkLinha(), 'i2').motivosSelecionados.length") === 0 && roda("STATE.ui.chkItemAberto") === null, "trocar de Nao atende para N/A limpa o motivo e fecha o item");
+  roda("App.chkRespostaRapida('i2', 'na')"); // volta a sem resposta
+  roda("App.chkRespostaRapida('i3', 'atende')");
+  // marcar os restantes como Atende: confirma antes; so a secao pedida; nao mexe no que ja foi respondido
+  roda("chkItemExec(getCurrentChkLinha(), 'i1').conforme = 'naoAtende'");
+  roda("App.chkMarcarRestantesAtende('s1')");
+  T(conf("i2") === null, "marcar restantes so age depois de confirmar");
+  roda("App.chkConfirmarAcao()");
+  T(conf("i1") === "naoAtende" && conf("i2") === "atende" && conf("i3") === "atende", "restantes viram Atende, o ja respondido nao muda");
+  // cartao: botoes de resposta so no cartao fechado
+  roda("STATE.ui.chkItemAberto = null");
+  const cardF = roda("chkRenderItem(getCurrentChkLinha(), getCurrentChkLinha().modeloSnapshot[0].itens[0], 0, 0)");
+  T(cardF.includes("chk-quick") && cardF.includes("App.chkRespostaRapida('i1','atende')") && cardF.includes("App.chkRespostaRapida('i1','naoAtende')") && cardF.includes("App.chkRespostaRapida('i1','na')") && cardF.includes('data-item="i1"'), "cartao fechado tem os tres botoes de resposta: " + cardF.slice(0, 200));
+  roda("STATE.ui.chkItemAberto = 'i1'");
+  const cardA = roda("chkRenderItem(getCurrentChkLinha(), getCurrentChkLinha().modeloSnapshot[0].itens[0], 0, 0)");
+  T(!cardA.includes("chk-quick") && cardA.includes("Tirar foto") && cardA.includes("App.chkTirarFoto('i1',false)"), "cartao aberto de Nao atende: sem a fileira rapida, com Tirar foto/Galeria dentro do cartao");
+  roda("STATE.ui.chkItemAberto = null; STATE.ui.chkProjetoId = " + J(estadoAntes.p) + "; STATE.ui.chkSetorId = null; STATE.ui.chkLinhaId = null; STATE.checklists.projetos = " + J(estadoAntes.lista) + ";");
 }
 async function testarSincronizacaoChecklist(){
   const T = (cond, msg)=>{ if(!cond) throw new Error("sincronizacao do checklist: " + msg); };

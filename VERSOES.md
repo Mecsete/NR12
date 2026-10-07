@@ -64,6 +64,18 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/10/2026 12:00
+
+**Checklist: resposta com um toque nos itens e laudos de várias linhas em um PDF só.**
+
+- Preenchimento: cada item fechado ganhou os botões Atende, Não atende e Não aplicável. Um toque grava e, em Atende ou Não aplicável, a tela já rola até o próximo item sem resposta. Não atende abre o item para o motivo e a foto. Tocar de novo na mesma resposta desfaz.
+- Item "Não atende" aberto: botões Tirar foto e Galeria dentro do cartão (além dos do canto da tela).
+- Cada seção mostra "N de M respondidos" e o atalho "marcar os restantes como Atende" (pede confirmação; só mexe nos itens sem resposta daquela seção).
+- Fim da seção: botão "Próxima seção com pendência" (dá a volta e pula seções "não aplica"); quando não sobra pendência, "Revisar e finalizar" aparece em destaque em qualquer aba.
+- Lista de linhas e lista de setores: botões "Laudos do setor em um PDF" e "Laudos do projeto em um PDF". Montam o laudo de cada linha que já tem checklist preenchido, um depois do outro, no mesmo PDF. Avisam antes quais laudos têm pendências e quantas linhas ficam de fora (sem nada preenchido).
+
+---
+
 ## 07/10/2026 09:00
 
 **Checklist: navegação, revisão e laudo mais rápidos de usar.**

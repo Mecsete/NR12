@@ -5800,6 +5800,17 @@ chk("laudo da linha: Gerar PDF, Normas de referencia, quadro Antes de imprimir e
 chk("parecer NAO CONCLUSIVO quando sobra item sem resposta (critica continua INAPTA)",
     'inconclusivo: { rot:"NÃO CONCLUSIVO"' in novo and 'return "inconclusivo";' in novo and "lclSemResposta(linha)" in novo)
 
+print("\n=== 186. RESPOSTA COM UM TOQUE + PROXIMA SECAO PENDENTE + LAUDOS EM LOTE (07/10/2026) ===")
+chk("o cartao fechado do item tem os botoes de resposta (um toque) e o cartao aberto nao os repete",
+    "chkRespostaRapida(itemId, status){" in novo and "App.chkRespostaRapida('${item.id}','${k}')" in novo and 'const respostaRapida = aberto ? ""' in novo and 'data-item="${item.id}"' in novo)
+chk("depois de responder, a tela rola ate o proximo item sem resposta; Nao atende abre o item",
+    "chkRolarParaProximoItem(itemId);" in novo and "function chkRolarParaProximoItem(" in novo and 'STATE.ui.chkItemAberto = ie.conforme === "naoAtende" ? itemId : null;' in novo)
+chk("secao: N de M respondidos, marcar restantes como Atende (com confirmacao) e botao Proxima secao com pendencia",
+    "chkMarcarRestantesAtende(secaoId){" in novo and "chkAbrirConfirmacao('Marcar os restantes como \"Atende\"?'" in novo and "chkRodapeSecaoHtml(l, idx, totalAbas)" in novo and "Próxima seção com pendência" in novo)
+chk("laudos em lote: um PDF com varias linhas, cada laudo com os proprios destinos de link, e botoes nas listas de linhas e de setores",
+    "async lclLote(escopo){" in novo and "async lclGerarDe(proj, setor, l){" in novo and "lclImprimirPartes(partes, titulo){" in novo
+    and "App.lclLote('setor')" in novo and "App.lclLote('projeto')" in novo and 'const pre = k ? "imp" + k + "-" : "imp-"' in novo)
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
 
