@@ -2695,7 +2695,17 @@ async function testarUsabilidade(){
   // pendencia sem motivo (ou motivo sem texto) nunca some: entra com a descricao do item e a nota
   const linNc = linhaCorpo([itn("t", "Plaqueta de identificação do trólei"), itn("u", "Item U", { motivosPadrao:[{ motivo:"M1", texto:"", acao:"" }] })], [exe("t", "naoAtende", 0, { observacao:"Plaqueta ausente" }), exe("u", "naoAtende", 0, { motivosSelecionados:["M1"] })]);
   const nNc = roda("chkNarrativaSecao(" + linNc + ".modeloSnapshot[0], " + linNc + ")");
-  T(nNc.pend.includes("Não atende: Plaqueta de identificação do trólei Nota do inspetor: Plaqueta ausente") && nNc.pend.includes("Não atende: Item U"), "nao atende sem motivo de texto continua no laudo, com a descricao do item e a nota do inspetor: " + nNc.pend);
+  T(nNc.pend.includes("Não atendem os requisitos dos itens 1.1 — nota do inspetor: Plaqueta ausente e 1.2, conforme o Checklist deste relatório.") && !nNc.pend.includes("Plaqueta de identificação do trólei") && !nNc.pend.includes("Item U"), "nao atende sem texto de motivo continua no laudo pelo numero do item e pela nota, SEM repetir a pergunta do checklist: " + nNc.pend);
+  // com norma e foto: "item 1.1 (NR-35 Anexo II 3.3; Foto 3.1.1)"; um item so no singular
+  const linNc2 = linhaCorpo([itn("t", "Pergunta do checklist?", { normativo:"NR-35 Anexo II 3.3" })], [exe("t", "naoAtende", 1)]);
+  const nNc2 = roda("chkNarrativaSecao(" + linNc2 + ".modeloSnapshot[0], " + linNc2 + ", '3.1')");
+  T(nNc2.pend.includes("Não atende o requisito do item 1.1 (NR-35 Anexo II 3.3; Foto 3.1.1), conforme o Checklist deste relatório.") && !nNc2.pend.includes("Pergunta do checklist"), "um item sem motivo, com norma e foto: frase no singular, sem a pergunta: " + nNc2.pend);
+  // secao com todos os itens 'nao se aplica' nao diz que falta responder
+  const linTodosNa = linhaCorpo([itn("a", "Item A"), itn("b", "Item B")], [exe("a", "na", 0), exe("b", "na", 0)]);
+  const bsNa = corpoDe(linTodosNa);
+  T(junta(bsNa).includes("Todos os itens desta seção foram marcados como não se aplicam") && !junta(bsNa).includes("Nenhum item desta seção foi respondido ainda"), "secao so com 'nao se aplica': mensagem propria, nao 'nenhum item respondido'");
+  const bsPend = corpoDe(linhaCorpo([itn("a", "Item A")], [exe("a", null, 0)]));
+  T(junta(bsPend).includes("Nenhum item desta seção foi respondido ainda"), "secao sem resposta continua com a mensagem de pendencia");
   // faixa do topo: 1 foto = 1 coluna; 2 = 2; 3 = 3; 4 = 2 por linha; 5 e 6 = 3 por linha; no maximo 6 (as outras descem ao fim)
   const faixaDe = (n)=>{
     const itens = Array.from({ length:n }, (_, k)=> itn("p" + k, "Item " + k)), ex = Array.from({ length:n }, (_, k)=> exe("p" + k, "atende", 1));

@@ -64,6 +64,16 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/10/2026 19:40
+
+**Laudo: o corpo não repete mais a pergunta do checklist; seção só com "não se aplica" não diz que falta responder.**
+
+- Item "Não atende" sem texto de motivo (nenhum motivo escolhido, ou motivo sem texto no modelo) entrava no corpo do laudo com a pergunta do checklist ("Não atende: A empresa possui o projeto...?"). Agora entra por uma frase só no fim das pendências da seção, com o número do item, a norma, as fotos e a nota do inspetor: "Não atendem os requisitos dos itens 1.1 (NR-35 Anexo II 3.3 e 4.1), 1.2 (...) e 1.4 (...), conforme o Checklist deste relatório."
+- Seção em que todos os itens foram marcados "não se aplica" mostra "Todos os itens desta seção foram marcados como não se aplicam a esta linha de vida." (antes dizia "Nenhum item desta seção foi respondido ainda").
+- O quadro de não conformidades da Conclusão continua listando a pergunta do item (é a tabela de referência).
+
+---
+
 ## 07/10/2026 18:10
 
 **Cartão da linha de vida com o resumo do checklist e das fotos do laudo.**

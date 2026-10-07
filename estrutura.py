@@ -5917,8 +5917,8 @@ chk("secao do laudo: faixa de ate 6 fotos (max 3 por linha) dos itens que atende
     'lcl-ftopo c${colsTopo}' in novo and "okImgs.slice(0, 6), sobraFotos = okImgs.slice(6)" in novo and "colsTopo = nTopo === 1 ? 1 : (nTopo === 4 ? 2 : Math.min(3, nTopo))" in novo and 'class="lcl-pend"' in novo and ".lcl-ftopo{" in novo)
 chk("numeracao das fotos: itens que atendem primeiro (nOk), depois as pendencias; citacao em faixa so para os conformes",
     "return { fotos, porItem, porMotivo, objetos, nOk };" in novo and "function chkCitarFotos(nums, pref, faixa){" in novo and "chkCitarFotos(Array.from({ length: nOk }" in novo)
-chk("nao atende sem texto de motivo nunca some do laudo: entra com a descricao do item e a nota",
-    'Não atende: ${escapeHtml(String(it.descricao || "").trim())}' in novo)
+chk("nao atende sem texto de motivo nunca some do laudo: entra pelo numero do item, norma, fotos e nota (sem a pergunta)",
+    "return { agg: " in novo and "nota do inspetor: ${escapeHtml(nota)}" in novo)
 
 print("\n=== 198. SETOR SEM MENU DE TRES PONTOS (07/10/2026) ===")
 chk("cartao do setor sem o menu; exclusao dentro da edicao do setor e volta para a lista",
@@ -5957,6 +5957,12 @@ chk("pagina 2 do laudo: coluna da direita mais a direita e data/validade em DD/M
 print("\n=== 205. CARTAO DA LINHA: RESUMO E FOTOS DO LAUDO (07/10/2026) ===")
 chk("o cartao da linha mostra atendem/nao atendem/N-A e as fotos do laudo em conformidade e nao conformidade, mantendo os pendentes",
     "function chkResumoCardLinha(l){" in novo and "${r.atende} atendem" in novo and "${r.naoAtende} não atendem" in novo and "de conformidade</span>" in novo and "de não conformidade</span>" in novo and "${c.pendente>0 ? `<span class=\"stat-pill alert\">" in novo)
+
+print("\n=== 206. LAUDO: SEM A PERGUNTA DO CHECKLIST NO CORPO; SECAO SO COM NAO SE APLICA (07/10/2026) ===")
+chk("nao atende sem texto de motivo vira uma frase pelo numero do item e norma, sem repetir a pergunta do checklist",
+    "return { agg: " in novo and "Não atendem os requisitos dos itens" in novo and "atende o requisito do item" in novo and 'Não atende: ${escapeHtml(String(it.descricao' not in novo)
+chk("secao com todos os itens 'nao se aplica' tem mensagem propria",
+    "Todos os itens desta seção foram marcados como não se aplicam a esta linha de vida." in novo and "const todosNa = " in novo)
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

@@ -3426,7 +3426,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/10/2026 18:10";
+const APP_BUILD = "07/10/2026 19:40";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -10110,9 +10110,15 @@ function chkNarrativaSecao(secaoModelo, linha, pref){
         return escapeHtml(mp.texto) + (cit ? ` (${cit})` : "");
       }).filter(Boolean);
       const solta = chkCitarFotos(pm[""] || [], pref);
-      // não atende sem texto de motivo (nenhum motivo escolhido, ou motivo sem texto no modelo): nunca some do laudo;
-      // entra com a descrição do item e a nota do inspetor, para a não conformidade sempre aparecer explicada
-      if(!segs.length) return `<mark class="nc">Não atende: ${escapeHtml(String(it.descricao || "").trim())}${solta ? ` (${solta})` : ""}${notaHtml}</mark>`;
+      // não atende sem texto de motivo (nenhum motivo escolhido, ou motivo sem texto no modelo): nunca some do laudo, mas
+      // também não repete a PERGUNTA do checklist no corpo do laudo: entra pelo número do item, pela norma, pelas fotos e pela
+      // nota do inspetor, numa frase só no fim das pendências da seção ("Não atendem os requisitos dos itens 1.1 (...) e 1.2 (...)")
+      if(!segs.length){
+        const si = (linha.modeloSnapshot || []).findIndex(x=> x === secaoModelo || (x && secaoModelo && x.id === secaoModelo.id));
+        const ii = (secaoModelo.itens || []).indexOf(it);
+        const detalhes = [String(it.normativo || "").trim() ? escapeHtml(String(it.normativo).trim()) : "", solta].filter(Boolean).join("; ");
+        return { agg: `${si + 1}.${ii + 1}${detalhes ? ` (${detalhes})` : ""}${nota ? ` — nota do inspetor: ${escapeHtml(nota)}` : ""}` };
+      }
       return `<mark class="nc">${segs.join(" ")}${solta ? ` (${solta})` : ""}${notaHtml}</mark>`;
     }
     const textos = chkTextoLaudoItem(it, ie);
@@ -10125,7 +10131,11 @@ function chkNarrativaSecao(secaoModelo, linha, pref){
   const okTxt = itens.filter(it=> !ehNc(it)).map(trecho).filter(Boolean).join(" ");
   const citOk = nOk > 0 ? chkCitarFotos(Array.from({ length: nOk }, (_, k)=> k + 1), pref, true) : "";
   const conforme = okTxt ? okTxt + (citOk ? ` (${citOk})` : "") : "";
-  const pend = itens.filter(ehNc).map(trecho).filter(Boolean).join(" ");
+  const ncTrechos = itens.filter(ehNc).map(trecho).filter(Boolean);
+  const comTexto = ncTrechos.filter(x=> typeof x === "string");
+  const semTexto = ncTrechos.filter(x=> typeof x !== "string").map(x=> x.agg);
+  if(semTexto.length) comTexto.push(`<mark class="nc">Não ${semTexto.length === 1 ? "atende o requisito do item" : "atendem os requisitos dos itens"} ${lclListaPt(semTexto)}, conforme o Checklist deste relatório.</mark>`);
+  const pend = comTexto.join(" ");
   return { html: [conforme, pend].filter(Boolean).join(" "), conforme, pend, fotos, nOk };
 }
 /* Linhas da tabela-resumo "Checklist" do laudo (4 colunas: número, norma,
@@ -16372,7 +16382,10 @@ function lclBlocosCorpo(d, cap, redu){
     // texto editado à mão substitui os dois parágrafos automáticos
     const textoConforme = editado === null && conforme ? `<div class="lcl-narr lcl-larga">${conforme}</div>` : "";
     const textoPend = editado !== null ? lclTextoParaHtml(editado) : pend;
-    const vazio = editado === null && !conforme && !pend ? `<p class="lcl-vazio">Nenhum item desta seção foi respondido ainda.</p>` : "";
+    const todosNa = (s.itens || []).length > 0 && (s.itens || []).every(it=>{ const e = chkItemExec(l, it.id); return !!e && e.conforme === "na"; });
+    const vazio = editado === null && !conforme && !pend
+      ? (todosNa ? `<p class="lcl-vazio">Todos os itens desta seção foram marcados como não se aplicam a esta linha de vida.</p>` : `<p class="lcl-vazio">Nenhum item desta seção foi respondido ainda.</p>`)
+      : "";
     const editar = { tipo:"secao", id:sub.id, editado: editado !== null };
     const fotosEd = fotos.length ? { id:sub.id, n:fotos.length } : null;
     const blocoA = { quebrarAntes: i === 0, ancora: sub.ancora, editar, fotosEd, html: `${cabeca}${textoConforme}${vazio}` };
