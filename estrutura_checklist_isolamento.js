@@ -171,7 +171,7 @@ const FUNCOES = [
   "chkSyncHash", "chkSyncSig", "chkSyncModeloNorm", "chkSyncGarantir", "chkSyncSemCampo", "chkSyncVista", "chkSyncLocais", "chkSyncLocalDe", "chkSyncSementeIntocada",
   "chkSyncParseNomes", "chkSyncRegistrarRemocao", "chkSyncMesclarRemovidos", "chkSyncMesclarInspetores", "chkSyncLerRemoto", "chkSyncSingleton",
   "chkSyncApagarRemoto", "chkSyncEnviar", "chkSyncRotuloCopia", "chkSyncInserir", "chkSyncAplicar", "chkSyncBaixar", "chkSyncCopiarLocal", "chkSyncConflito",
-  "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
+  "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
 ];
 let fonte = "let __ultimoCarimboVisto = 0;\n";
 fonte += "let __buscaAtual = '';\n"; // usado por chkAbrirSetor (lista de linhas) -- nao testado aqui, so pra nao faltar
@@ -216,6 +216,10 @@ fonte += mEsc[0];
 for(const nome of FUNCOES) fonte += funcao(nome) + "\n";
 fonte += letObjeto("__chkNovaLinhaDraft") + "\n";
 fonte += letEscalar("__chkLinhasFiltro");
+fonte += letEscalar("__chkDaRevisao");
+fonte += letEscalar("__chkProjFiltro");
+fonte += letEscalar("__chkSetFiltro");
+fonte += letEscalar("__chkProjFormOrigem");
 fonte += letEscalar("__chkModeloBusca");
 fonte += letObjeto("__chkModeloSecAbertas") + "\n";
 fonte += letObjeto("__chkModeloPainel") + "\n";
@@ -2465,6 +2469,71 @@ async function testarCapaLaudo(){
   const sum = roda("lclBlocosSumario(lclPlano(__f3.proj, __f3.l), {}).map(b => b.html).join('')");
   T(sum.includes("Avaliação por Componente") && !sum.includes("Corpo do laudo"), "o Sumario usa o novo nome do capitulo");
 }
+async function testarUsabilidade(){
+  const T = (cond, msg)=>{ if(!cond) throw new Error("usabilidade: " + msg); };
+  const J = (v)=> JSON.stringify(v);
+  const mk = (conf, extra)=> J(Object.assign({ id:"LU", nome:"LV usab", status:"em_andamento", secoesNA:[], laudo:{},
+    modeloSnapshot:[ { id:"s1", titulo:"Ancoragem", itens:[ { id:"i1", descricao:"Item 1", prioridade:"media", motivosPadrao:[] }, { id:"i2", descricao:"Item 2", prioridade:"media", motivosPadrao:[] } ] },
+                     { id:"s2", titulo:"Cabo", itens:[ { id:"i3", descricao:"Item 3", prioridade:"media", motivosPadrao:[] } ] } ],
+    itens:[ "i1", "i2", "i3" ].map((id, k)=>({ itemId:id, conforme:conf[k], motivosSelecionados:[], observacao:"", fotos:[] })) }, extra || {}));
+  const L = (conf, extra)=> "(" + mk(conf, extra) + ")";
+  // parecer: item sem resposta -> NAO CONCLUSIVO; tudo respondido -> APTA; nao conformidade critica continua INAPTA
+  T(roda("lclParecerAuto(" + L(["atende", null, null]) + ")") === "inconclusivo", "item sem resposta deveria dar parecer inconclusivo");
+  T(roda("lclParecerAuto(" + L(["atende", "atende", "atende"]) + ")") === "apta", "tudo respondido e conforme deveria ser apta");
+  T(roda("lclParecerAuto(" + L([null, null, null]) + ")") === "", "nada avaliado continua sem parecer");
+  T(roda("lclParecerAuto(" + L(["atende", "naoAtende", null]) + ")") === "inconclusivo", "nao conformidade nao critica + item sem resposta tambem e inconclusivo");
+  T(roda("lclParecerAuto(" + L(["atende", "naoAtende", "atende"]) + ")") === "ressalvas", "nao conformidade nao critica, tudo respondido: com ressalvas");
+  const critica = { modeloSnapshot:[ { id:"s1", titulo:"Ancoragem", itens:[ { id:"i1", descricao:"Item 1", prioridade:"media", motivosPadrao:[] }, { id:"i2", descricao:"Item 2", prioridade:"critica", motivosPadrao:[] } ] }, { id:"s2", titulo:"Cabo", itens:[ { id:"i3", descricao:"Item 3", prioridade:"media", motivosPadrao:[] } ] } ] };
+  T(roda("lclParecerAuto(" + L(["atende", "naoAtende", null], critica) + ")") === "inapta", "critica que nao atende vence: inapta mesmo com item sem resposta");
+  T(roda("LCL_PARECERES.inconclusivo.rot") === "NÃO CONCLUSIVO", "rotulo do parecer inconclusivo");
+  // sem resposta por secao; secao que nao se aplica nao conta
+  const sr = roda("lclSemResposta(" + L(["atende", null, null]) + ")");
+  T(sr.length === 2 && sr[0].secao === "Ancoragem" && sr[0].n === 1 && sr[1].secao === "Cabo" && sr[1].n === 1, "itens sem resposta por secao: " + J(sr));
+  const srNA = roda("lclSemResposta(" + L(["atende", null, null], { secoesNA:["s2"] }) + ")");
+  T(srNA.length === 1 && srNA[0].secao === "Ancoragem", "secao que nao se aplica nao entra nos itens sem resposta: " + J(srNA));
+  T(roda("lclParecerAuto(" + L(["atende", "atende", null], { secoesNA:["s2"] }) + ")") === "apta", "pendencia so em secao que nao se aplica: apta");
+  // a conclusao automatica diz o que ficou sem resposta
+  const concl = roda("lclConclusaoAuto(" + L(["atende", null, null]) + ")");
+  T(concl.includes("sem resposta") && concl.includes("Ancoragem: 1") && concl.includes("Cabo: 1") && concl.includes("Não foi possível concluir"), "conclusao automatica lista o que falta: " + concl);
+  T(!roda("lclConclusaoAuto(" + L(["atende", "atende", "atende"]) + ")").includes("sem resposta"), "sem pendencia, a conclusao nao fala de itens sem resposta");
+  // primeira secao pendente (para 'Continuar' e 'Preencher')
+  T(roda("chkPrimeiraSecaoPendente(" + L(["atende", null, null]) + ")") === 0 && roda("chkPrimeiraSecaoPendente(" + L(["atende", "atende", null]) + ")") === 1 && roda("chkPrimeiraSecaoPendente(" + L(["atende", "atende", "atende"]) + ")") === 0 && roda("chkPrimeiraSecaoPendente(" + L([null, null, null], { secoesNA:["s1"] }) + ")") === 1, "primeira secao com item sem resposta (pula as que nao se aplicam)");
+  // avisos antes de imprimir
+  const estadoAntes = roda("({ p: STATE.ui.chkProjetoId, lista: STATE.checklists.projetos })");
+  roda("STATE.checklists.projetos = [{ id:'PU', empresa:'E', setores:[] }]; STATE.ui.chkProjetoId = 'PU';");
+  const avTxt = (conf, extra)=> roda("lclAvisos(" + L(conf, extra) + ")").map(a=> a.txt).join(" | ");
+  const t1 = avTxt(["atende", null, null]);
+  T(t1.includes("2 itens sem resposta") && t1.includes("Ancoragem: 1; Cabo: 1") && t1.includes("Sem foto ampla") && t1.includes("Data da inspeção") && t1.includes("ART"), "avisos: sem resposta, sem foto, sem data, sem ART: " + t1);
+  roda("STATE.checklists.projetos[0].dataInspecao = '2026-10-03'; STATE.checklists.projetos[0].art = '123';");
+  const t2 = avTxt(["atende", "atende", "atende"], { fotoAmpla:"idbfoto:x" });
+  T(t2 === "", "linha completa: nenhum aviso (veio: " + t2 + ")");
+  const t3 = avTxt(["atende", null, "atende"], { fotoAmpla:"idbfoto:x", laudo:{ parecer:"apta" } });
+  T(t3.includes("1 item sem resposta") && t3.includes("escolhido à mão (APTA)") && t3.includes("automático (NÃO CONCLUSIVO)"), "avisos: parecer manual diferente do automatico: " + t3);
+  roda("STATE.ui.chkProjetoId = " + J(estadoAntes.p) + "; STATE.checklists.projetos = " + J(estadoAntes.lista) + ";");
+  // filtros de status das listas
+  const res = (n, fin)=> J({ n, fin, aberta: n - fin });
+  T(roda("chkResumoLinhas([{status:'finalizado'},{status:'em_andamento'},{}]).aberta") === 2, "resumo de linhas: abertas = total - finalizadas");
+  T(roda("chkPassaFiltroStatus(" + res(2, 1) + ", 'andamento')") === true && roda("chkPassaFiltroStatus(" + res(2, 2) + ", 'andamento')") === false && roda("chkPassaFiltroStatus(" + res(2, 2) + ", 'concluidos')") === true && roda("chkPassaFiltroStatus(" + res(0, 0) + ", 'concluidos')") === false && roda("chkPassaFiltroStatus(" + res(0, 0) + ", 'todos')") === true, "filtro de status: em aberto, concluido (precisa ter linha) e todos");
+  const cf = roda("chkContagensFiltro([" + res(2, 1) + "," + res(2, 2) + "," + res(0, 0) + "])");
+  T(cf[0].n === 3 && cf[1].n === 1 && cf[2].n === 1, "contagem dos filtros: " + J(cf));
+  // revisao: nao conformidades com motivo, foto e atalho para corrigir
+  T(roda("chkNaoConformesHtml(" + L(["atende", "atende", "atende"]) + ")") === "", "sem nao conformidade, o bloco some");
+  const nc = roda("chkNaoConformesHtml(" + L(["atende", "naoAtende", "atende"]) + ")");
+  T(nc.includes("Não conformidades (1)") && nc.includes("1.2") && nc.includes("Item 2") && nc.includes("Sem motivo informado") && nc.includes("Sem foto") && nc.includes("App.chkIrDaRevisao(0,'i2')"), "bloco de nao conformidades: " + nc.slice(0, 300));
+  T(roda("chkNaoConformesHtml(" + L(["atende", "atende", "naoAtende"], { secoesNA:["s2"] }) + ")") === "", "nao conformidade em secao que nao se aplica nao entra");
+  // cartoes: menu com nome das acoes, em vez da lixeira solta
+  const bm = roda("chkBotaoMenu('projeto', 'P1')");
+  T(bm.includes("App.chkMenuCartao('projeto','P1')") && bm.includes('aria-label="Mais opções"') && !bm.includes("chkExcluir"), "botao de menu do cartao");
+  // continuar de onde parou: a linha em andamento mais recente
+  roda("STATE.checklists.projetos = [{ id:'P1', empresa:'Emp', setores:[{ id:'S1', nome:'Setor', linhas:[ Object.assign(" + L(["atende", null, null]) + ", { id:'LA', atualizadoEm:5 }), Object.assign(" + L(["atende", "atende", null]) + ", { id:'LB', atualizadoEm:9 }), Object.assign(" + L(["atende", "atende", "atende"]) + ", { id:'LC', status:'finalizado', atualizadoEm:99 }) ] }] }];");
+  const u = roda("chkUltimaLinhaEmAndamento()");
+  T(u && u.l.id === "LB" && u.s.id === "S1" && u.p.id === "P1", "continuar: a linha em andamento mais recente (nao a finalizada): " + (u && u.l.id));
+  const ch = roda("chkContinuarHtml()");
+  T(ch.includes("Continuar de onde parou") && ch.includes("App.chkContinuar('P1','S1','LB')") && ch.includes("67% preenchido"), "cartao Continuar: " + ch.slice(0, 200));
+  roda("STATE.checklists.projetos = [{ id:'P1', empresa:'Emp', setores:[{ id:'S1', nome:'Setor', linhas:[ Object.assign(" + L(["atende", "atende", "atende"]) + ", { id:'LC', status:'finalizado' }) ] }] }];");
+  T(roda("chkContinuarHtml()") === "", "sem linha em andamento, nao ha cartao Continuar");
+  roda("STATE.checklists.projetos = " + J(estadoAntes.lista) + ";");
+}
 async function testarSincronizacaoChecklist(){
   const T = (cond, msg)=>{ if(!cond) throw new Error("sincronizacao do checklist: " + msg); };
   const J = (v)=> JSON.stringify(v);
@@ -2741,7 +2810,7 @@ async function testarSincronizacaoChecklist(){
   T(roda(`chkSyncSig({ a:1, b:[1,2] })`) === roda(`chkSyncSig({ b:[1,2], a:1 })`) && roda(`chkSyncSig({ f:"data:image/jpeg;base64,ZZZ" })`) === roda(`chkSyncSig({ f:"idbfoto:" + fotoCalcularId("data:image/jpeg;base64,ZZZ") })`) && roda(`chkSyncSig({ a:1, atualizadoEm:5 }, true)`) === roda(`chkSyncSig({ a:1, atualizadoEm:9 }, true)`) && roda(`chkSyncSig({ a:1 })`) !== roda(`chkSyncSig({ a:2 })`), "assinatura: ignora a ordem das chaves, trata foto embutida e em referencia como a mesma e, se pedido, ignora o carimbo");
   sandbox.STATE = estadoOriginal;
 }
-testarFotoAmpla().then(() => testarTravas()).then(() => testarDadosLaudo()).then(() => testarLaudoCapitulos()).then(() => testarMemorial()).then(() => testarCapitulosNovos()).then(() => testarEdicaoTexto()).then(() => testarFotosLeituraLaudo()).then(() => testarCadastroProjeto()).then(() => testarEditorModelo()).then(() => testarAtalhoLaudo()).then(() => testarCapaLaudo()).then(() => testarSincronizacaoChecklist()).then(() => {
+testarFotoAmpla().then(() => testarTravas()).then(() => testarDadosLaudo()).then(() => testarLaudoCapitulos()).then(() => testarMemorial()).then(() => testarCapitulosNovos()).then(() => testarEdicaoTexto()).then(() => testarFotosLeituraLaudo()).then(() => testarCadastroProjeto()).then(() => testarEditorModelo()).then(() => testarAtalhoLaudo()).then(() => testarCapaLaudo()).then(() => testarUsabilidade()).then(() => testarSincronizacaoChecklist()).then(() => {
   // as arvores do Completo/Simplificado continuam byte a byte identicas apos a foto ampla tambem
   if(JSON.stringify(sandbox.STATE.projetos) !== antesCompleto || JSON.stringify(sandbox.STATE.projetosSimples) !== antesSimples){
     console.error("FALHOU: a foto ampla da linha mexeu em STATE.projetos/projetosSimples");

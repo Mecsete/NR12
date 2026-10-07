@@ -5776,9 +5776,29 @@ chk("a pagina 2 do laudo nao tem mais o capitulo Normativo nem o item no sumario
     'ancora:"cap-normativo"' not in novo and 'lk("cap-normativo"' not in novo)
 chk("as secoes do corpo so abrem pagina nova na primeira (quebrarAntes: i === 0)", novo.count("quebrarAntes: i === 0") >= 2)
 chk("o projeto do Checklist tem caminho para editar os dados: lapis no cartao e botao Dados nos setores",
-    "chkEditarProjeto(id){" in novo and "App.chkEditarProjeto('${p.id}')" in novo and "go('checklist-projeto-form')\">${ic('edit')} Dados" in novo)
+    "chkEditarProjeto(id){" in novo and "App.chkEditarProjeto('${id}')" in novo and "chkAbrirDadosProjeto()\">${ic('edit')} Dados" in novo)
 
 chk("a lista de modelos mostra quantos projetos usam cada modelo", "const usoModelo = {};" in novo and "em uso</span>" in novo)
+
+print("\n=== 185. USABILIDADE DO CHECKLIST: NAVEGACAO, REVISAO, LAUDO E PARECER NAO CONCLUSIVO (07/10/2026) ===")
+chk("escolha do modulo sem emoji nos titulos e com o resumo de cada modulo",
+    "Módulo Completo</div>" in novo and "📋" not in novo[novo.index("function screenModuloSelect"):novo.index("function screenModuloSelect") + 3500] and "selo(cont.checklist)" in novo)
+chk("lista de projetos: Continuar de onde parou, busca, filtro de status e hora da sincronizacao",
+    "chkContinuarHtml()" in novo and "chkSetProjFiltro" in novo and "chkSyncInfoHtml()" in novo and "chkUltimaLinhaEmAndamento" in novo)
+chk("lista de setores tem busca e filtro; setor pode ser editado",
+    "chkSetSetFiltro" in novo and "chkEditarSetor(id){" in novo)
+chk("a lixeira solta saiu dos cartoes de modelo, projeto, setor e linha: entrou o menu com as acoes escritas",
+    all(("chkBotaoMenu('%s'," % t) in novo for t in ("modelo", "projeto", "setor", "linha")) and "chkMenuCartao(tipo, id){" in novo
+    and "App.chkExcluirModelo('${m.id}')\">${ic('trash')}" not in novo and "App.chkExcluirLinha('${l.id}')\">${ic('trash')}" not in novo)
+chk("o botao voltar dos dados do projeto volta para onde se estava", "__chkProjFormOrigem || \"checklist-projetos\"" in novo and "chkAbrirDadosProjeto()" in novo)
+chk("revisar e finalizar: nao conformidades com motivo/foto/Corrigir e volta para a revisao",
+    "chkNaoConformesHtml(l)" in novo and "chkIrDaRevisao(" in novo and "Voltar à revisão" in novo and "__chkDaRevisao = false;" in novo)
+chk("finalizar a linha abre o laudo da linha (um caminho so), sem o rotulo (novo)",
+    'toast("Checklist finalizado");\n    App.lclAbrir("checklist-linhas");' in novo and "Laudo da linha em capítulos (novo)" not in novo)
+chk("laudo da linha: Gerar PDF, Normas de referencia, quadro Antes de imprimir e confirmacao ao imprimir com aviso",
+    "Gerar PDF</button>" in novo and "Normas de referência</button>" in novo and "lclAvisosHtml(l)" in novo and "Antes de imprimir:" in novo)
+chk("parecer NAO CONCLUSIVO quando sobra item sem resposta (critica continua INAPTA)",
+    'inconclusivo: { rot:"NÃO CONCLUSIVO"' in novo and 'return "inconclusivo";' in novo and "lclSemResposta(linha)" in novo)
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

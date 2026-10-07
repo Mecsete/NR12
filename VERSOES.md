@@ -64,6 +64,22 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/10/2026 09:00
+
+**Checklist: navegação, revisão e laudo mais rápidos de usar.**
+
+- Escolha do módulo: sem os emojis dos títulos e com um resumo em cada cartão (projetos e, no Checklist, linhas em aberto).
+- Lista de projetos: cartão "Continuar de onde parou" (abre a linha em andamento mais recente, já na primeira seção com item sem resposta), busca e filtro (Todos, Com linhas em aberto, Concluídos) e selo "N em aberto" em cada projeto. Com a nuvem ligada, mostra a hora da última sincronização.
+- Lista de setores: o mesmo selo "em aberto", busca e filtro. Setor agora também pode ser editado.
+- Modelos, projetos, setores e linhas: a lixeira solta saiu do cartão. No lugar entrou o menu "⋮", com as ações escritas (Editar, Laudo, Excluir). Cada exclusão confirma e avisa depois.
+- Dados do projeto: o botão voltar volta para onde você estava (setores ou lista de projetos).
+- Revisar e finalizar: novo bloco "Não conformidades" com o motivo, as fotos e o botão Corrigir. Depois de corrigir, o botão "Voltar à revisão" fica na tela de preenchimento. O resumo do checklist virou um bloco recolhível.
+- Finalizar a linha agora abre o laudo da linha (antes abria o laudo do projeto inteiro). Os botões ficaram "Laudo da linha" e "Laudo do projeto (todas as linhas)".
+- Laudo da linha: botão "Gerar PDF" na frente, "Atualizar prévia" ao lado, e o botão "Normativo" passou a se chamar "Normas de referência". Novo quadro "Antes de imprimir" avisa o que falta (itens sem resposta, memorial incompleto, sem foto ampla, sem data de inspeção, sem ART, parecer escolhido à mão diferente do automático), com atalho para resolver cada um, e pede confirmação ao imprimir com avisos.
+- Parecer NÃO CONCLUSIVO: se sobrar item sem resposta nas seções que se aplicam, o parecer automático passa a ser NÃO CONCLUSIVO (não conformidade crítica continua INAPTA) e a conclusão automática lista as seções com itens sem resposta. Dá para escolher outro parecer à mão, como antes.
+
+---
+
 ## 06/10/2026 11:00
 
 **Checklist, lista de modelos: cada modelo mostra em quantos projetos está em uso.**

@@ -734,6 +734,23 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-filtros-row{display:flex;gap:6px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:none;}
 .chk-filtros-row::-webkit-scrollbar{display:none;}
 .chk-filtro-chip{flex:0 0 auto;padding:6px 12px;border-radius:999px;background:var(--bg-soft);color:var(--ink-dim);font-size:12px;font-weight:700;border:none;white-space:nowrap;}
+.chk-continuar{display:flex;align-items:center;gap:12px;padding:12px 14px;margin-bottom:12px;border-left:4px solid var(--accent);cursor:pointer}
+.chk-continuar b{display:block;font-size:14px}
+.chk-continuar span{display:block;font-size:12px;color:var(--ink-dim);margin-top:2px}
+.chk-continuar .btn{margin-left:auto;flex:0 0 auto}
+.chk-sync-info{font-size:11.5px;color:var(--ink-faint);margin:0 2px 10px}
+.chk-voltar-revisao{position:sticky;bottom:8px;z-index:6;margin-top:14px}
+.chk-nc-fotos{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px}
+.chk-nc-foto{width:54px;height:54px;object-fit:cover;border-radius:8px;border:1px solid var(--line);cursor:pointer}
+.chk-nc-mais{font-size:12px;font-weight:700;color:var(--ink-dim)}
+.chk-det{margin-bottom:14px}
+.chk-det>summary{font-weight:800;font-size:13px;cursor:pointer;padding:8px 0;color:var(--ink)}
+.lcl-avisos{background:var(--surface);border:1px solid var(--line);border-left:4px solid #C23F12;border-radius:10px;padding:10px 12px;margin:10px 0}
+.lcl-avisos.ok{border-left-color:#2e7d32;font-size:12.5px;color:var(--ink-dim)}
+.lcl-avisos-t{font-weight:800;font-size:13px;margin-bottom:6px}
+.lcl-aviso{display:flex;gap:10px;align-items:center;justify-content:space-between;font-size:12.5px;line-height:1.4;padding:5px 0;border-top:1px solid var(--line)}
+.lcl-aviso:first-of-type{border-top:none}
+.lcl-aviso .btn{flex:0 0 auto}
 .chk-filtro-chip.on{background:var(--bar);color:#fff;}
 .chk-linha-card.st-finalizado{border-left:4px solid #2e7d32;}
 .chk-linha-card.st-andamento{border-left:4px solid #c98a0a;}
@@ -3376,7 +3393,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "06/10/2026 11:00";
+const APP_BUILD = "07/10/2026 09:00";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -11213,6 +11230,10 @@ let __lendoPlaquetaIA = false; // trava o botão "Ler plaqueta com IA" enquanto 
 let __selMode = null; // { tipo:'areaS'|'maquinaS'|'tarefaS'|'riscoS', ids:Set<string>, ctx:{...} }
 let __ultimoMovimento = null; // { tipo, idsMovidos:Set<string>, origemScreen, origemParams, origemLabel, expiraEm }
 let __buscaAtual = "";
+let __chkDaRevisao = false;   // veio da tela Revisar e finalizar: mostra "Voltar à revisão" no preenchimento
+let __chkProjFiltro = "todos"; // filtro de status da lista de projetos
+let __chkSetFiltro = "todos"; // filtro de status da lista de setores
+let __chkProjFormOrigem = "";  // de onde se abriu os dados do projeto (para o botão voltar)
 let __chkLinhasFiltro = "todas"; // 'todas' | 'pendente' | 'andamento' | 'finalizado' — filtro da lista de linhas de vida, some ao sair do setor
 /* A cada tecla digitada a tela inteira é redesenhada — o campo de busca é
    destruído e recriado, e com ele some o foco: no celular isso FECHA o teclado
@@ -13118,6 +13139,7 @@ function go(screen, params){
   STATE.ui.screen = screen;
   if(params){ Object.assign(STATE.ui, params); }
   __buscaAtual = "";
+  if(screen !== "checklist-preencher" && screen !== "checklist-finalizar") __chkDaRevisao = false;
   cancelarLongPressPendente();
   render();
   window.scrollTo(0,0);
@@ -13379,6 +13401,15 @@ function renderCompleto(){
    MÓDULO SIMPLIFICADO
    ========================================================================= */
 function screenModuloSelect(){
+  const plural = (n, um, varios)=> n + " " + (n === 1 ? um : varios);
+  const projs = (STATE.checklists && STATE.checklists.projetos) || [];
+  const emAberto = projs.reduce((n, p)=> n + (p.setores || []).reduce((m, s)=> m + (s.linhas || []).filter(l=> l.status !== "finalizado").length, 0), 0);
+  const cont = {
+    completo: plural((STATE.projetos || []).length, "projeto", "projetos"),
+    simplificado: plural((STATE.projetosSimples || []).length, "projeto", "projetos"),
+    checklist: plural(projs.length, "projeto", "projetos") + (emAberto ? " · " + plural(emAberto, "linha em aberto", "linhas em aberto") : ""),
+  };
+  const selo = (t)=> `<div style="font-size:12px;font-weight:800;color:var(--accent);margin-top:8px">${escapeHtml(t)}</div>`;
   return `
   <div style="min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;justify-content:center;padding:24px;background:var(--bar)">
     <div style="text-align:center;margin-bottom:26px">
@@ -13386,16 +13417,16 @@ function screenModuloSelect(){
       <div style="color:var(--on-bar-dim);font-size:12.5px;margin-top:2px">MecSete Engenharia · Escolha o módulo</div>
     </div>
     <button class="module-pick card card-pad" style="margin-bottom:14px" onclick="App.selecionarModulo('completo')">
-      <div style="font-weight:800;font-size:16px;margin-bottom:4px">📋 Módulo Completo</div>
-      <div style="font-size:12.5px;color:var(--ink-dim)">Avaliação de risco detalhada (Severidade/Exposição/Evitabilidade, PLr) — Projeto, Área, Máquina, Tarefa e Perigo com todos os campos.</div>
+      <div style="font-weight:800;font-size:16px;margin-bottom:4px">Módulo Completo</div>
+      <div style="font-size:12.5px;color:var(--ink-dim)">Avaliação de risco detalhada (Severidade/Exposição/Evitabilidade, PLr) — Projeto, Área, Máquina, Tarefa e Perigo com todos os campos.</div>${selo(cont.completo)}
     </button>
     <button class="module-pick card card-pad" style="border:2px solid var(--accent)" onclick="App.selecionarModulo('simplificado')">
-      <div style="font-weight:800;font-size:16px;margin-bottom:4px">⚡ Módulo Simplificado</div>
-      <div style="font-size:12.5px;color:var(--ink-dim)">Levantamento rápido de campo — poucos campos, fotos em checklist e cadastro de risco em qualquer tela do projeto.</div>
+      <div style="font-weight:800;font-size:16px;margin-bottom:4px">Módulo Simplificado</div>
+      <div style="font-size:12.5px;color:var(--ink-dim)">Levantamento rápido de campo — poucos campos, fotos em checklist e cadastro de risco em qualquer tela do projeto.</div>${selo(cont.simplificado)}
     </button>
     <button class="module-pick card card-pad" style="margin-top:14px" onclick="App.selecionarModulo('checklist')">
-      <div style="font-weight:800;font-size:16px;margin-bottom:4px">✅ Checklist</div>
-      <div style="font-size:12.5px;color:var(--ink-dim)">Vistoria de campo por modelo próprio — marque conformidade item a item, registre fotos e observações, e gere o laudo ao final.</div>
+      <div style="font-weight:800;font-size:16px;margin-bottom:4px">Checklist</div>
+      <div style="font-size:12.5px;color:var(--ink-dim)">Vistoria de campo por modelo próprio — marque conformidade item a item, registre fotos e observações, e gere o laudo ao final.</div>${selo(cont.checklist)}
     </button>
   </div>`;
 }
@@ -13858,7 +13889,7 @@ function topBarChk(){
   const showBack = s!=="checklist-modelos" && s!=="checklist-projetos";
   let backTarget = "checklist-modelos";
   if(s==="checklist-modelo-form") backTarget = "checklist-modelos";
-  if(s==="checklist-projeto-form") backTarget = "checklist-projetos";
+  if(s==="checklist-projeto-form") backTarget = __chkProjFormOrigem || "checklist-projetos";
   if(s==="checklist-setores") backTarget = "checklist-projetos";
   if(s==="checklist-setor-form") backTarget = "checklist-setores";
   if(s==="checklist-linhas") backTarget = "checklist-setores";
@@ -13870,7 +13901,7 @@ function topBarChk(){
   let action = "";
   if(s==="checklist-modelos") action = `<button class="icon-btn" style="color:var(--on-bar)" onclick="App.trocarModulo()" title="Trocar módulo">${ic('layers')}</button><button class="topbar-action" onclick="App.chkNovoModelo()">${ic('plus')} Novo</button>`;
   if(s==="checklist-projetos") action = `<button class="icon-btn" style="color:var(--on-bar)" onclick="App.trocarModulo()" title="Trocar módulo">${ic('layers')}</button><button class="topbar-action" onclick="App.chkNovoProjeto()">${ic('plus')} Novo</button>`;
-  if(s==="checklist-setores") action = `<button class="topbar-action" onclick="App.go('checklist-projeto-form')">${ic('edit')} Dados</button><button class="topbar-action" onclick="App.go('checklist-laudo')">${ic('print')} Laudo</button><button class="topbar-action" onclick="App.chkNovoSetor()">${ic('plus')} Setor</button>`;
+  if(s==="checklist-setores") action = `<button class="topbar-action" onclick="App.chkAbrirDadosProjeto()">${ic('edit')} Dados</button><button class="topbar-action" onclick="App.go('checklist-laudo')">${ic('print')} Laudo</button><button class="topbar-action" onclick="App.chkNovoSetor()">${ic('plus')} Setor</button>`;
   if(s==="checklist-linhas") action = `<button class="topbar-action" onclick="App.go('checklist-nova-linha')">${ic('plus')} Linha</button>`;
   if(s==="checklist-laudo") action = `<button class="topbar-action" onclick="window.print()">${ic('print')} Imprimir</button>`;
   if(s==="checklist-laudo-linha") action = `<button class="topbar-action" onclick="App.lclImprimir()">${ic('print')} Imprimir</button>`;
@@ -13918,6 +13949,89 @@ function bottomNavChk(){
     return `<button class="bottomnav-item ${active?'active':''}" onclick="App.go('${it.k}')">${ic(it.icon)}<span>${it.label}</span></button>`;
   }).join("")}</div>`;
 }
+/* Menu "⋮" dos cartões: as ações aparecem com o nome escrito (no celular não existe dica ao passar o mouse). */
+function chkBotaoMenu(tipo, id){
+  return `<button class="icon-btn" aria-label="Mais opções" title="Mais opções" onclick="event.stopPropagation();App.chkMenuCartao('${tipo}','${id}')">${ic('dots')}</button>`;
+}
+function chkBuscaChipsHtml(placeholder, ativo, itens, setter, mostrarBusca){
+  const busca = mostrarBusca ? `<div class="search-wrap"><input type="text" id="buscaInput" class="search-input" placeholder="${placeholder}" value="${escapeHtml(__buscaAtual)}" oninput="App.onBuscaChange(this.value)">${__buscaAtual ? `<button class="search-clear" onclick="App.onBuscaChange('')">${ic('close')}</button>` : ""}</div>` : "";
+  const chips = itens.length > 1 ? `<div class="chk-filtros-row">${itens.map(f=>`<button class="chk-filtro-chip ${ativo === f.k ? 'on' : ''}" onclick="${setter}('${f.k}')">${escapeHtml(f.label)} (${f.n})</button>`).join("")}</div>` : "";
+  return busca + chips;
+}
+/* Resumo de uma lista de linhas, para os cartões de projeto e de setor e para o filtro por status. */
+function chkResumoLinhas(linhas){
+  const n = linhas.length, fin = linhas.filter(l=> l.status === "finalizado").length;
+  return { n, fin, aberta: n - fin };
+}
+function chkPassaFiltroStatus(r, f){
+  if(f === "andamento") return r.aberta > 0;
+  if(f === "concluidos") return r.n > 0 && r.aberta === 0;
+  return true;
+}
+function chkContagensFiltro(resumos){
+  return [
+    { k:"todos", label:"Todos", n: resumos.length },
+    { k:"andamento", label:"Com linhas em aberto", n: resumos.filter(r=> chkPassaFiltroStatus(r, "andamento")).length },
+    { k:"concluidos", label:"Concluídos", n: resumos.filter(r=> chkPassaFiltroStatus(r, "concluidos")).length },
+  ];
+}
+/* Primeira seção (não marcada "não aplica") que ainda tem item sem resposta; 0 se não houver. */
+function chkPrimeiraSecaoPendente(l){
+  const sec = l.modeloSnapshot || [];
+  for(let i = 0; i < sec.length; i++){
+    if((l.secoesNA || []).includes(sec[i].id)) continue;
+    if(sec[i].itens.some(it=>{ const ie = chkItemExec(l, it.id); return ie && ie.conforme === null; })) return i;
+  }
+  return 0;
+}
+function chkUltimaLinhaEmAndamento(){
+  let melhor = null;
+  ((STATE.checklists && STATE.checklists.projetos) || []).forEach(p=> (p.setores || []).forEach(s=> (s.linhas || []).forEach(l=>{
+    if(chkStatusLinha(l) !== "andamento") return;
+    if(!melhor || (l.atualizadoEm || 0) > (melhor.l.atualizadoEm || 0)) melhor = { p, s, l };
+  })));
+  return melhor;
+}
+function chkContinuarHtml(){
+  const u = chkUltimaLinhaEmAndamento();
+  if(!u) return "";
+  const pct = chkProgresso(u.l);
+  return `<div class="card chk-continuar" onclick="App.chkContinuar('${u.p.id}','${u.s.id}','${u.l.id}')">
+    <div><b>Continuar de onde parou</b><span>${escapeHtml(u.l.nome || u.l.modeloNome || "Linha de vida")} · ${escapeHtml(u.s.nome || "Setor")} · ${escapeHtml(u.p.empresa || "Projeto")} · ${pct}% preenchido</span></div>
+    <button class="btn btn-primary btn-sm" type="button">${ic('chevR')}</button>
+  </div>`;
+}
+function chkSyncInfoHtml(){
+  if(typeof getOneDriveConta !== "function" || !getOneDriveConta()) return "";
+  const hm = __chkSyncUltima ? new Date(__chkSyncUltima).toLocaleTimeString("pt-BR", { hour:"2-digit", minute:"2-digit" }) : "";
+  return `<div class="chk-sync-info">${hm ? "Sincronizado com a nuvem às " + hm : "Ainda não sincronizado neste aparelho desde que o app abriu"}</div>`;
+}
+/* Itens que NÃO atendem, para conferir (motivo e fotos) e corrigir antes de finalizar. */
+function chkNaoConformesHtml(l){
+  const itens = [];
+  l.modeloSnapshot.forEach((s, si)=>{
+    if(l.secoesNA.includes(s.id)) return;
+    s.itens.forEach((it, ii)=>{
+      const ie = chkItemExec(l, it.id);
+      if(ie && ie.conforme === "naoAtende") itens.push({ si, it, ii, ie });
+    });
+  });
+  if(!itens.length) return "";
+  const cor = CHK_STATUS_META.naoAtende.cor;
+  const lis = itens.map(({ si, it, ii, ie })=>{
+    const nota = [(ie.motivosSelecionados || []).join(", "), ie.observacao].filter(Boolean).join(" — ");
+    const fotos = ie.fotos || [];
+    return `<div class="chk-resumo-linha" style="border-left-color:${cor}">
+      <div class="chk-resumo-desc"><b>${si + 1}.${ii + 1}</b> ${escapeHtml(it.descricao)}</div>
+      ${nota ? `<div class="chk-resumo-motivo">${escapeHtml(nota)}</div>` : `<div class="chk-resumo-motivo" style="color:#C23F12">Sem motivo informado</div>`}
+      ${fotos.length ? `<div class="chk-nc-fotos">${fotos.slice(0, 6).map(f=>`<img class="chk-nc-foto" data-imgref="${imgReg(f.foto)}" onclick="App.verFotoReg(this)">`).join("")}${fotos.length > 6 ? `<span class="chk-nc-mais">+${fotos.length - 6}</span>` : ""}</div>` : `<div class="chk-resumo-motivo" style="color:#C23F12">Sem foto</div>`}
+      <button class="btn" style="margin-top:6px;padding:4px 10px;font-size:12px" onclick="App.chkIrDaRevisao(${si},'${it.id}')">Corrigir</button>
+    </div>`;
+  }).join("");
+  return `<div class="card card-pad" style="margin-bottom:14px;border-left:4px solid ${cor}">
+    <div class="section-title" style="margin-top:0">Não conformidades (${itens.length})</div>${lis}
+  </div>`;
+}
 function screenChkModelos(){
   const modelos = STATE.checklists.modelos.slice().sort((a,b)=>b.atualizadoEm-a.atualizadoEm);
   if(modelos.length===0){
@@ -13943,7 +14057,7 @@ function screenChkModelos(){
         <div class="list-tag">${escapeHtml(m.descricao||'sem descrição')}</div>
         <div class="list-meta"><span class="stat-pill">${m.secoes.length} ${m.secoes.length===1?'seção':'seções'}</span><span class="stat-pill">${nItens} ${nItens===1?'item':'itens'}</span>${pillUso}</div>
       </div>
-      <div class="list-actions"><button class="icon-btn" onclick="event.stopPropagation();App.chkExcluirModelo('${m.id}')">${ic('trash')}</button></div>
+      <div class="list-actions">${chkBotaoMenu('modelo', m.id)}</div>
     </div>`;
   }).join("");
   return `<div class="section-title">${modelos.length} modelo${modelos.length===1?'':'s'}</div>${cards}
@@ -14211,8 +14325,11 @@ function screenChkModeloForm(){
   `;
 }
 function screenChkProjetos(){
-  const projetos = STATE.checklists.projetos.slice().sort((a,b)=>b.atualizadoEm-a.atualizadoEm);
-  if(projetos.length===0){
+  const todosProj = STATE.checklists.projetos.slice().sort((a,b)=>b.atualizadoEm-a.atualizadoEm);
+  const termoProj = __buscaAtual.trim().toLowerCase();
+  const resProj = (p)=> chkResumoLinhas(p.setores.flatMap(s=> s.linhas));
+  const projetos = todosProj.filter(p=> chkPassaFiltroStatus(resProj(p), __chkProjFiltro) && (!termoProj || [p.empresa, p.responsavel].join(" ").toLowerCase().includes(termoProj)));
+  if(todosProj.length===0){
     return `<div class="empty">${ic('table')}<h3>Nenhum projeto cadastrado</h3><p>Um projeto é o serviço para uma empresa. Dentro dele você organiza os setores e, em cada setor, as linhas de vida a inspecionar.</p>
       <div style="margin-top:18px"><button class="btn btn-primary" onclick="App.chkNovoProjeto()">${ic('plus')} Novo projeto</button></div></div>`;
   }
@@ -14229,12 +14346,14 @@ function screenChkProjetos(){
           <span class="stat-pill">${nSetores} ${nSetores===1?'setor':'setores'}</span>
           <span class="stat-pill">${nLinhas} ${nLinhas===1?'linha':'linhas'}</span>
           ${nLinhas>0? `<span class="stat-pill">${nFinalizadas}/${nLinhas} finalizadas</span>`:''}
+          ${nLinhas-nFinalizadas>0? `<span class="stat-pill alert">${nLinhas-nFinalizadas} em aberto</span>`:''}
         </div>
       </div>
-      <div class="list-actions"><button class="icon-btn" title="Editar os dados do projeto (solicitante, documento, inspetor)" onclick="event.stopPropagation();App.chkEditarProjeto('${p.id}')">${ic('edit')}</button><button class="icon-btn" onclick="event.stopPropagation();App.chkExcluirProjeto('${p.id}')">${ic('trash')}</button></div>
+      <div class="list-actions">${chkBotaoMenu('projeto', p.id)}</div>
     </div>`;
   }).join("");
-  return `<div class="section-title">${projetos.length} projeto${projetos.length===1?'':'s'}</div>${cards}
+  const controlesProj = chkBuscaChipsHtml("Buscar projeto ou empresa…", __chkProjFiltro, chkContagensFiltro(todosProj.map(resProj)), "App.chkSetProjFiltro", todosProj.length >= 4);
+  return `${chkSyncInfoHtml()}${chkContinuarHtml()}${controlesProj}<div class="section-title">${projetos.length} de ${todosProj.length} projeto${todosProj.length===1?'':'s'}</div>${cards || `<div class="empty"><p>Nenhum projeto encontrado.</p></div>`}
     <div class="fab-wrap"><button class="fab" onclick="App.chkNovoProjeto()">${ic('plus')}</button></div>`;
 }
 /* Cadastro do projeto (dados do solicitante e do documento). No computador as caixas ficam lado a lado, no
@@ -14309,7 +14428,11 @@ function screenChkSetores(){
     return `<div class="empty">${ic('map')}<h3>Nenhum setor cadastrado</h3><p>Um setor é uma área dentro da empresa (ex.: Recepção, Secagem, Silo 2).</p>
       <div style="margin-top:18px"><button class="btn btn-primary" onclick="App.chkNovoSetor()">${ic('plus')} Novo setor</button></div></div>`;
   }
-  const cards = proj.setores.slice().sort((a,b)=>b.atualizadoEm-a.atualizadoEm).map(s=>{
+  const termoSet = __buscaAtual.trim().toLowerCase();
+  const resSet = (s)=> chkResumoLinhas(s.linhas);
+  const setoresFiltrados = proj.setores.slice().sort((a,b)=>b.atualizadoEm-a.atualizadoEm)
+    .filter(s=> chkPassaFiltroStatus(resSet(s), __chkSetFiltro) && (!termoSet || String(s.nome || "").toLowerCase().includes(termoSet)));
+  const cards = setoresFiltrados.map(s=>{
     const nLinhas = s.linhas.length;
     const nFinalizadas = s.linhas.filter(l=>l.status==="finalizado").length;
     return `
@@ -14320,12 +14443,14 @@ function screenChkSetores(){
         <div class="list-meta">
           <span class="stat-pill">${nLinhas} ${nLinhas===1?'linha de vida':'linhas de vida'}</span>
           ${nLinhas>0? `<span class="stat-pill">${nFinalizadas}/${nLinhas} finalizadas</span>`:''}
+          ${nLinhas-nFinalizadas>0? `<span class="stat-pill alert">${nLinhas-nFinalizadas} em aberto</span>`:''}
         </div>
       </div>
-      <div class="list-actions"><button class="icon-btn" onclick="event.stopPropagation();App.chkExcluirSetor('${s.id}')">${ic('trash')}</button></div>
+      <div class="list-actions">${chkBotaoMenu('setor', s.id)}</div>
     </div>`;
   }).join("");
-  return `<div class="section-title">${proj.setores.length} setor${proj.setores.length===1?'':'es'}</div>${cards}
+  const controlesSet = chkBuscaChipsHtml("Buscar setor…", __chkSetFiltro, chkContagensFiltro(proj.setores.map(resSet)), "App.chkSetSetFiltro", proj.setores.length >= 4);
+  return `${controlesSet}<div class="section-title">${setoresFiltrados.length} de ${proj.setores.length} setor${proj.setores.length===1?'':'es'}</div>${cards || `<div class="empty"><p>Nenhum setor encontrado.</p></div>`}
     <div class="fab-wrap"><button class="fab" onclick="App.chkNovoSetor()">${ic('plus')}</button></div>`;
 }
 function screenChkSetorForm(){
@@ -14385,7 +14510,7 @@ function screenChkLinhas(){
         </div>
         <button class="chk-linha-laudo" onclick="event.stopPropagation();App.chkAbrirLaudoLinha('${l.id}')" title="Abrir o laudo desta linha de vida (não precisa finalizar)">${ic('print')} Laudo</button>
       </div>
-      <div class="list-actions"><button class="icon-btn" onclick="event.stopPropagation();App.chkExcluirLinha('${l.id}')">${ic('trash')}</button></div>
+      <div class="list-actions">${chkBotaoMenu('linha', l.id)}</div>
     </div>`;
   }).join("") : `<div class="empty"><p>Nenhuma linha de vida encontrada.</p></div>`;
   return `
@@ -14550,6 +14675,7 @@ function screenChkPreencher(){
   }
   const isNA = !!secao && l.secoesNA.includes(secao.id); // na aba do memorial não há seção
   const pct = chkProgresso(l);
+  const voltarRev = __chkDaRevisao ? `<div class="chk-voltar-revisao"><button class="btn btn-primary btn-block" onclick="App.chkVoltarRevisao()">${ic('back')} Voltar à revisão</button></div>` : "";
   const tabsHtml = secoes.map((s,si)=>{
     const st = chkStatusAbaSecao(l, s);
     return `<button class="chk-tab st-${st}" aria-selected="${si===idx}" onclick="App.chkIrParaSecao(${si})">${escapeHtml(s.titulo||'Seção '+(si+1))}</button>`;
@@ -14561,7 +14687,8 @@ function screenChkPreencher(){
   <div class="chk-progress-bar"><div class="chk-progress-fill" style="width:${pct}%"></div></div>
   <div class="chk-tabs">${tabsHtml}${tabMemorial}</div>
   ${chkMemorialCampoHtml(l)}
-  <button class="btn btn-primary btn-block" style="margin-top:14px" onclick="App.go('checklist-finalizar')">Revisar e finalizar ${ic('chevR')}</button>`;
+  <button class="btn btn-primary btn-block" style="margin-top:14px" onclick="App.go('checklist-finalizar')">Revisar e finalizar ${ic('chevR')}</button>
+  ${voltarRev}`;
   }
   const itensHtml = secao.itens.map((it,ii)=>chkRenderItem(l, it, idx, ii)).join("");
   return `
@@ -14573,6 +14700,7 @@ function screenChkPreencher(){
   </div>
   ${isNA? `<div class="empty" style="padding:24px"><p>Seção marcada como "não aplica" — nenhum item dela precisa ser preenchido.</p></div>` : (itensHtml || `<div class="empty"><p>Esta seção não tem itens.</p></div>`)}
   ${(!isNA && idx===totalAbas-1) ? `<button class="btn btn-primary btn-block" style="margin-top:14px" onclick="App.go('checklist-finalizar')">Revisar e finalizar ${ic('chevR')}</button>` : ""}
+  ${voltarRev}
   <div class="chk-fab-stack ${STATE.ui.chkItemAberto?'show':''}">
     <button class="chk-fab-gal" onclick="App.chkTirarFoto(STATE.ui.chkItemAberto,true)" title="Escolher da galeria">${ic('gallery')}</button>
     <button class="chk-fab-cam" onclick="App.chkTirarFoto(STATE.ui.chkItemAberto,false)" title="Tirar foto">${ic('camera')}</button>
@@ -14587,7 +14715,7 @@ function screenChkFinalizar(){
     if(l.secoesNA.includes(s.id)) return null;
     const pend = s.itens.filter(it=>{ const ie=chkItemExec(l,it.id); return ie && ie.conforme===null; });
     if(!pend.length) return null;
-    return `<li>${escapeHtml(s.titulo||'Seção '+(si+1))}: ${pend.length} ${pend.length===1?'item':'itens'} sem resposta <button class="btn" style="margin-left:6px;padding:4px 10px;font-size:12px" onclick="STATE.ui.chkSecaoAtual=${si};App.go('checklist-preencher')">Ir</button></li>`;
+    return `<li>${escapeHtml(s.titulo||'Seção '+(si+1))}: ${pend.length} ${pend.length===1?'item':'itens'} sem resposta <button class="btn" style="margin-left:6px;padding:4px 10px;font-size:12px" onclick="App.chkIrDaRevisao(${si})">Ir</button></li>`;
   }).filter(Boolean).join("");
   return `
   <div class="card card-pad" style="margin-bottom:14px">
@@ -14599,6 +14727,7 @@ function screenChkFinalizar(){
       ${c.pendente>0? `<span class="stat-pill alert">${c.pendente} pendente${c.pendente===1?'':'s'}</span>`:''}
     </div>
   </div>
+  ${chkNaoConformesHtml(l)}
   ${pendentesPorSecao? `<div class="card card-pad" style="margin-bottom:14px;border-left:4px solid #C23F12">
     <div class="section-title" style="margin-top:0">Itens sem resposta</div>
     <ul style="margin:0;padding-left:18px;font-size:13.5px;line-height:1.9">${pendentesPorSecao}</ul>
@@ -14606,18 +14735,19 @@ function screenChkFinalizar(){
   </div>` : ""}
   ${(()=>{ const fm = chkMemorialAtivo(l) ? chkMemorialFaltas(l) : []; return fm.length ? `<div class="card card-pad" style="margin-bottom:14px;border-left:4px solid #C23F12">
     <div class="section-title" style="margin-top:0">Memorial ZLQ incompleto</div>
-    <p style="font-size:13.5px;margin:0 0 6px">Falta medir: ${escapeHtml(fm.join(", "))}. <button class="btn" style="margin-left:6px;padding:4px 10px;font-size:12px" onclick="STATE.ui.chkSecaoAtual=${l.modeloSnapshot.length};App.go('checklist-preencher')">Ir</button></p>
+    <p style="font-size:13.5px;margin:0 0 6px">Falta medir: ${escapeHtml(fm.join(", "))}. <button class="btn" style="margin-left:6px;padding:4px 10px;font-size:12px" onclick="App.chkIrDaRevisao(${l.modeloSnapshot.length})">Ir</button></p>
     <p style="font-size:12px;color:var(--ink-faint);margin:0">Sem esses dados o memorial não entra no laudo. Você pode finalizar mesmo assim.</p>
   </div>` : ""; })()}
-  <div class="section-title">Resumo do checklist</div>
+  <details class="chk-det" open><summary>Resumo do checklist</summary>
   ${chkResumoHtml(l)}
+  </details>
   <div class="field"><label>Foto ampla</label>${chkFotoAmplaHtml(l.fotoAmpla, 'linha', false)}</div>
   <div class="field"><label>Descrição da linha</label><textarea placeholder="Função, quantas pessoas usam e onde fica (opcional) — Ex.: Acesso para manutenção de exaustores e limpeza do telhado, uso por até 2 pessoas simultâneas, cobertura do Silo 2" oninput="App.chkSetLinhaDescricao(this.value)">${escapeHtml(l.descricao)}</textarea></div>
   <div class="field"><label>Conclusão da linha</label><textarea placeholder="Parecer sobre esta linha de vida (opcional) — aparece no laudo" oninput="App.chkSetConclusao(this.value)">${escapeHtml(l.conclusaoTexto)}</textarea></div>
-  <button class="btn btn-block" style="margin-bottom:8px" onclick="App.lclAbrir()">${ic('print')} Laudo da linha em capítulos (novo)</button>
+  <button class="btn btn-block" style="margin-bottom:8px" onclick="App.lclAbrir()">${ic('print')} Laudo da linha</button>
   ${l.status==="finalizado"
     ? `<button class="btn btn-block" onclick="App.chkReabrirLinha()">${ic('edit')} Reabrir para editar</button>
-       <button class="btn btn-primary btn-block" style="margin-top:8px" onclick="App.go('checklist-laudo')">${ic('print')} Ver laudo do projeto</button>`
+       <button class="btn btn-primary btn-block" style="margin-top:8px" onclick="App.go('checklist-laudo')">${ic('print')} Laudo do projeto (todas as linhas)</button>`
     : `<button class="btn btn-primary btn-block" onclick="App.chkFinalizar()">${ic('check')} Finalizar checklist</button>`}
   `;
 }
@@ -15208,6 +15338,7 @@ const LCL_CAPITULOS = [
 const LCL_PARECERES = {
   apta:      { rot:"APTA", cls:"ok", frase:"A linha de vida está apta para uso, de acordo com os itens avaliados." },
   ressalvas: { rot:"APTA COM RESSALVAS", cls:"av", frase:"A linha de vida pode ser utilizada com as ressalvas descritas neste relatório; as não conformidades devem ser regularizadas conforme a prioridade indicada." },
+  inconclusivo: { rot:"NÃO CONCLUSIVO", cls:"av", frase:"Não foi possível concluir o parecer: há itens sem resposta. Complete a avaliação para emitir o parecer final." },
   inapta:    { rot:"INAPTA", cls:"no", frase:"A linha de vida não deve ser utilizada até a regularização das não conformidades críticas descritas neste relatório." },
 };
 const LCL_PRI_COR = { critica:"#D9534F", alta:"#E9812B", media:"#E7A93B" };
@@ -15364,8 +15495,44 @@ function lclNaoConformidades(linha){
 function lclParecerAuto(linha){
   const nc = lclNaoConformidades(linha);
   if(nc.some(x=> x.prioridade === "critica")) return "inapta";
+  const res = lclResultado(linha);
+  if(res.pend > 0 && res.avaliados > 0) return "inconclusivo";
   if(nc.length) return "ressalvas";
   return lclResultado(linha).avaliados ? "apta" : "";
+}
+/* Itens sem resposta nas seções que se aplicam, agrupados por seção: [{secao, n}]. */
+function lclSemResposta(linha){
+  const r = [];
+  (linha.modeloSnapshot || []).forEach((s, si)=>{
+    if((linha.secoesNA || []).includes(s.id)) return;
+    const n = (s.itens || []).filter(it=>{ const ie = chkItemExec(linha, it.id); return !ie || ie.conforme === null; }).length;
+    if(n) r.push({ secao: s.titulo || ("Seção " + (si + 1)), n });
+  });
+  return r;
+}
+/* Avisos antes de imprimir: o que falta ou está estranho no laudo desta linha. */
+function lclAvisos(l){
+  const proj = getCurrentChkProjeto(), cfg = lclCfg(l), av = [];
+  const sr = lclSemResposta(l);
+  if(sr.length){
+    const n = sr.reduce((a, x)=> a + x.n, 0);
+    av.push({ txt: `${n} ${n === 1 ? "item sem resposta" : "itens sem resposta"} (${sr.map(x=> x.secao + ": " + x.n).join("; ")}). Com isso o parecer automático fica NÃO CONCLUSIVO.`, acao:"App.lclIrPreencher()", rot:"Preencher" });
+  }
+  if(chkTipoHorizontal(chkTipoLinha(l)) && cfg.capitulos.memorial){
+    const f = chkMemorialFaltas(l);
+    if(f.length) av.push({ txt: `Memorial incompleto: falta medir ${f.join(", ")}. Sem isso o memorial não entra no laudo.`, acao:"App.lclIrMemorial()", rot:"Medidas" });
+  }
+  if(!l.fotoAmpla) av.push({ txt:"Sem foto ampla: a capa do laudo sai sem foto.", acao:"App.go('checklist-finalizar')", rot:"Adicionar" });
+  if(proj && !String(proj.dataInspecao || "").trim()) av.push({ txt:"Data da inspeção não informada nos dados do projeto.", acao:"App.lclAbrirDadosProjeto()", rot:"Dados" });
+  if(proj && !String(proj.art || "").trim()) av.push({ txt:"ART não informada nos dados do projeto.", acao:"App.lclAbrirDadosProjeto()", rot:"Dados" });
+  const auto = lclParecerAuto(l);
+  if(cfg.parecer && auto && cfg.parecer !== auto) av.push({ txt: `Parecer escolhido à mão (${LCL_PARECERES[cfg.parecer].rot}) é diferente do automático (${LCL_PARECERES[auto].rot}).`, acao:"App.lclSetParecer('')", rot:"Usar automático" });
+  return av;
+}
+function lclAvisosHtml(l){
+  const av = lclAvisos(l);
+  if(!av.length) return `<div class="lcl-avisos ok">Nada pendente: o laudo está pronto para imprimir.</div>`;
+  return `<div class="lcl-avisos"><div class="lcl-avisos-t">Antes de imprimir (${av.length})</div>${av.map(a=>`<div class="lcl-aviso"><span>${escapeHtml(a.txt)}</span><button class="btn btn-sm" type="button" onclick="${a.acao}">${escapeHtml(a.rot)}</button></div>`).join("")}</div>`;
 }
 function lclParecer(linha){
   return lclCfg(linha).parecer || lclParecerAuto(linha);
@@ -15533,7 +15700,7 @@ function lclTextoParaHtml(texto){
 /* Texto automático da conclusão (simples), usado quando não há conclusão escrita pelo engenheiro. */
 function lclConclusaoAuto(linha){
   const res = lclResultado(linha), pk = lclParecer(linha), par = pk ? LCL_PARECERES[pk] : null;
-  return `Foram avaliados ${res.avaliados} itens da linha de vida ${linha.nome || ""}: ${res.ok} atendem e ${res.nok} não atendem${res.na ? `; ${res.na} não se aplicam` : ""}.${par ? " " + par.frase : ""}`;
+  return `Foram avaliados ${res.avaliados} itens da linha de vida ${linha.nome || ""}: ${res.ok} atendem e ${res.nok} não atendem${res.na ? `; ${res.na} não se aplicam` : ""}.${res.pend ? ` Ficaram ${res.pend} ${res.pend === 1 ? "item" : "itens"} sem resposta (${lclSemResposta(linha).map(x=> x.secao + ": " + x.n).join("; ")}).` : ""}${par ? " " + par.frase : ""}`;
 }
 function lclBlocosConclusao(d, cap, assinaturaSrc, redu){
   redu = redu || (()=> "");
@@ -16218,16 +16385,18 @@ function screenChkLaudoLinha(){
     <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:0">Um laudo para esta linha, em páginas A4. O que aparece na prévia é o que sai no PDF.</p>
   </div>
   <div class="lcl-barra">
-    <button class="btn btn-primary" onclick="App.lclGerar()">${ic('table')} ${__lclPaginas.length ? "Atualizar" : "Montar laudo"}</button>
+    <button class="btn btn-primary" onclick="App.lclImprimir()">${ic('print')} Gerar PDF</button>
+    <button class="btn btn-secondary" onclick="App.lclGerar()">${ic('table')} ${__lclPaginas.length ? "Atualizar prévia" : "Montar prévia"}</button>
     ${__lclPaginas.length ? `<span class="lcl-status">${__lclPaginas.length} página(s)</span>` : (__lclGerando ? `<span class="lcl-status">Montando…</span>` : "")}
     <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lclAbrirMetodologia()">${ic('edit')} Metodologia</button>
-    <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lclAbrirTextos()">${ic('edit')} Normativo</button>
+    <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lclAbrirTextos()">${ic('edit')} Normas de referência</button>
     <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lclAbrirAnexos()">${ic('edit')} Anexos${cfg.anexos.length ? " (" + cfg.anexos.length + ")" : ""}</button>
     ${typeof App.lpAbrirAssinatura === "function" ? `<button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirAssinatura()">${ic('edit')} Assinatura${(typeof __assinaturaLaudo === "string" && __assinaturaLaudo) ? " ·" : ""}</button>` : ""}
   </div>
   <div class="lcl-caps"><span style="font-weight:800;color:var(--ink)">Capítulos:</span>${caps}${l.fotoAmpla ? `<label style="margin-left:6px"><input type="checkbox" ${cfg.fotoCapa ? "checked" : ""} onchange="App.lclSetFotoCapa(this.checked)"><span>Foto na capa</span></label>` : ""}</div>
   <div class="lcl-caps"><span style="font-weight:800;color:var(--ink)">Parecer:</span>${selParecer}</div>
   ${memLinha}
+  ${lclAvisosHtml(l)}
   ${__lclPaginas.length ? `
     <div class="lcl-visor-wrap">
       <div class="lcl-visor"><div class="lcl-doc" id="lclDoc" style="transform:scale(${zoom});width:${LCL_PAG_L}px;margin-bottom:${Math.round(-altura * (1 - zoom))}px">${__lclHtml}</div></div>
@@ -29824,8 +29993,42 @@ Devolver agora?`)) return;
   },
   chkEditarProjeto(id){
     STATE.ui.chkProjetoId = id; STATE.ui.chkSetorId = null; STATE.ui.chkLinhaId = null;
+    __chkProjFormOrigem = "checklist-projetos";
     go("checklist-projeto-form");
   },
+  chkAbrirDadosProjeto(){
+    __chkProjFormOrigem = "checklist-setores";
+    go("checklist-projeto-form");
+  },
+  chkEditarSetor(id){ STATE.ui.chkSetorId = id; STATE.ui.chkLinhaId = null; go("checklist-setor-form"); },
+  chkSetProjFiltro(f){ __chkProjFiltro = f; render(); },
+  chkSetSetFiltro(f){ __chkSetFiltro = f; render(); },
+  chkContinuar(pid, sid, lid){
+    STATE.ui.chkProjetoId = pid; STATE.ui.chkSetorId = sid; STATE.ui.chkLinhaId = lid;
+    const l = getCurrentChkLinha(); if(!l) return;
+    STATE.ui.chkSecaoAtual = chkPrimeiraSecaoPendente(l);
+    go("checklist-preencher");
+  },
+  chkMenuCartao(tipo, id){
+    const acoes = {
+      modelo:  [["edit", "Editar modelo", `App.chkAbrirModelo('${id}')`], ["trash", "Excluir modelo", `App.chkExcluirModelo('${id}')`, true]],
+      projeto: [["edit", "Editar dados do projeto", `App.chkEditarProjeto('${id}')`], ["trash", "Excluir projeto", `App.chkExcluirProjeto('${id}')`, true]],
+      setor:   [["edit", "Editar setor", `App.chkEditarSetor('${id}')`], ["trash", "Excluir setor", `App.chkExcluirSetor('${id}')`, true]],
+      linha:   [["print", "Abrir o laudo desta linha", `App.chkAbrirLaudoLinha('${id}')`], ["trash", "Excluir linha de vida", `App.chkExcluirLinha('${id}')`, true]],
+    }[tipo];
+    if(!acoes) return;
+    abrirOverlay(`<div class="sheet-overlay" onclick="if(event.target===this)App.fecharModal()"><div class="sheet">
+      ${acoes.map(([ico, rot, fn, perigo])=>`<button class="btn btn-secondary btn-block" style="justify-content:flex-start;margin-top:8px;${perigo ? 'color:#C23F12' : ''}" onclick="App.fecharModal();${fn}">${ic(ico)} ${rot}</button>`).join("")}
+      <button class="btn btn-block" style="margin-top:8px" onclick="App.fecharModal()">Cancelar</button>
+    </div></div>`);
+  },
+  chkIrDaRevisao(si, itemId){
+    __chkDaRevisao = true;
+    STATE.ui.chkSecaoAtual = si;
+    if(itemId) STATE.ui.chkItemAberto = itemId;
+    go("checklist-preencher");
+  },
+  chkVoltarRevisao(){ __chkDaRevisao = false; go("checklist-finalizar"); },
   chkAbrirProjeto(id){
     STATE.ui.chkProjetoId = id; STATE.ui.chkSetorId = null; STATE.ui.chkLinhaId = null;
     go("checklist-setores");
@@ -29836,6 +30039,7 @@ Devolver agora?`)) return;
     if(alvoP) chkSyncRegistrarRemocao([alvoP.id].concat((alvoP.setores || []).flatMap(s=> [s.id].concat((s.linhas || []).map(l=> l.id)))));
     STATE.checklists.projetos = STATE.checklists.projetos.filter(p=>p.id!==id);
     marcarAlterado();
+    toast("Projeto excluído");
     render();
   },
   chkSetProjetoField(campo, valor){
@@ -29945,6 +30149,7 @@ Devolver agora?`)) return;
     const alvoS = p.setores.find(s=>s.id===id);
     if(alvoS) chkSyncRegistrarRemocao([alvoS.id].concat((alvoS.linhas || []).map(l=> l.id)));
     p.setores = p.setores.filter(s=>s.id!==id);
+    toast("Setor excluído");
     p.atualizadoEm = agoraSync();
     marcarAlterado();
     render();
@@ -29988,6 +30193,7 @@ Devolver agora?`)) return;
     setor.linhas = setor.linhas.filter(l=>l.id!==id);
     setor.atualizadoEm = agoraSync();
     marcarAlterado();
+    toast("Linha de vida excluída");
     render();
   },
   // Medidas do memorial (campo): cada número digitado atualiza só o desenho e o resultado, sem refazer a tela.
@@ -30639,7 +30845,19 @@ Devolver agora?`)) return;
       render();
     }finally{ __lclGerando = false; soltar(); }
   },
+  lclIrPreencher(){
+    const l = getCurrentChkLinha(); if(!l) return;
+    STATE.ui.chkSecaoAtual = chkPrimeiraSecaoPendente(l);
+    if(l.status === "finalizado") App.chkReabrirLinha(); else go("checklist-preencher");
+  },
+  lclAbrirDadosProjeto(){
+    __chkProjFormOrigem = "checklist-setores";
+    go("checklist-projeto-form");
+  },
   async lclImprimir(){
+    const lAv = getCurrentChkLinha();
+    const avisos = lAv ? lclAvisos(lAv) : [];
+    if(avisos.length && !confirm("Antes de imprimir:\n\n- " + avisos.map(a=> a.txt).join("\n- ") + "\n\nImprimir mesmo assim?")) return;
     while(__lclGerando) await new Promise(r=>setTimeout(r, 30));
     await App.lclGerar(); // remonta com os dados de agora, como o laudo NR-12 faz
     const doc = document.getElementById("lclDoc");
@@ -30678,7 +30896,7 @@ Devolver agora?`)) return;
     l.atualizadoEm = agoraSync();
     marcarAlterado();
     toast("Checklist finalizado");
-    go("checklist-laudo");
+    App.lclAbrir("checklist-linhas");
   },
   chkReabrirLinha(){
     const l = getCurrentChkLinha(); if(!l) return;
@@ -30686,6 +30904,7 @@ Devolver agora?`)) return;
     l.dataFinalizacao = null;
     l.atualizadoEm = agoraSync();
     marcarAlterado();
+    toast("Linha reaberta para edição");
     go("checklist-preencher");
   },
   chkNovoModelo(){
@@ -30710,6 +30929,7 @@ Devolver agora?`)) return;
     chkSyncRegistrarRemocao([id]);
     STATE.checklists.modelos = STATE.checklists.modelos.filter(m=>m.id!==id);
     marcarAlterado();
+    toast("Modelo excluído");
     render();
   },
   chkSetModeloField(campo, valor){
