@@ -171,7 +171,7 @@ const FUNCOES = [
   "chkSyncHash", "chkSyncSig", "chkSyncModeloNorm", "chkSyncGarantir", "chkSyncSemCampo", "chkSyncVista", "chkSyncLocais", "chkSyncLocalDe", "chkSyncSementeIntocada",
   "chkSyncParseNomes", "chkSyncRegistrarRemocao", "chkSyncMesclarRemovidos", "chkSyncMesclarInspetores", "chkSyncLerRemoto", "chkSyncSingleton",
   "chkSyncApagarRemoto", "chkSyncEnviar", "chkSyncRotuloCopia", "chkSyncInserir", "chkSyncAplicar", "chkSyncBaixar", "chkSyncCopiarLocal", "chkSyncConflito",
-  "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "chkIncoerencias", "lclNumeroSecao", "getMecseteConfig", "chkAcoesCartao", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "chkSyncFotoValorId", "chkSyncFotoId", "chkSyncRespondidos", "chkSyncDivergencias", "chkSyncMesclarLinha", "chkConsolidarCopiasLinhas", "chkSyncVisto", "chkSyncMudou", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
+  "chkResumoCardLinha", "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "chkIncoerencias", "lclNumeroSecao", "getMecseteConfig", "chkAcoesCartao", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "chkSyncFotoValorId", "chkSyncFotoId", "chkSyncRespondidos", "chkSyncDivergencias", "chkSyncMesclarLinha", "chkConsolidarCopiasLinhas", "chkSyncVisto", "chkSyncMudou", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
 ];
 let fonte = "let __ultimoCarimboVisto = 0;\n";
 fonte += "let __buscaAtual = '';\n"; // usado por chkAbrirSetor (lista de linhas) -- nao testado aqui, so pra nao faltar
@@ -2727,6 +2727,13 @@ async function testarUsabilidade(){
   const p2d = roda("lclBlocosPagina2(lclDados(__f3.proj, __f3.setor, __f3.l), lclTextos()).map(b => b.html).join('')");
   T(p2d.includes("<i>Data da Inspeção:</i><b>03/10/2026</b>") && p2d.includes("<i>Validade da Inspeção:</i><b>03/10/2027</b>") && !p2d.includes("de outubro de"), "pagina 2: data e validade da inspecao em DD/MM/AAAA: " + p2d.slice(0, 400));
   roda("__f3.proj.dataInspecao = " + J(dtAntes.a) + "; __f3.proj.validadeInspecao = " + J(dtAntes.b) + ";");
+  // ---- cartao da linha: resumo (atendem / nao atendem / N/A / pendentes) e fotos do laudo separadas em conformidade e nao conformidade
+  const fotoCard = (id, n)=> Array.from({ length:n }, (_, k)=> ({ foto:"data:image/jpeg;base64,FC" + id + k, motivo:"" }));
+  const linhaCard = J({ id:"LCARD", nome:"LV card", secoesNA:["s2"], laudo:{},
+    modeloSnapshot:[ { id:"s1", titulo:"A", itens:[ { id:"a", descricao:"A", motivosPadrao:[] }, { id:"b", descricao:"B", motivosPadrao:[] }, { id:"c", descricao:"C", motivosPadrao:[] }, { id:"d", descricao:"D", motivosPadrao:[] } ] }, { id:"s2", titulo:"B", itens:[ { id:"e", descricao:"E", motivosPadrao:[] } ] } ],
+    itens:[ { itemId:"a", conforme:"naoAtende", motivosSelecionados:[], observacao:"", fotos: fotoCard("a", 2) }, { itemId:"b", conforme:"atende", motivosSelecionados:[], observacao:"", fotos: fotoCard("b", 1) }, { itemId:"c", conforme:"na", motivosSelecionados:[], observacao:"", fotos:[] }, { itemId:"d", conforme:null, motivosSelecionados:[], observacao:"", fotos:[] }, { itemId:"e", conforme:"na", motivosSelecionados:[], observacao:"", fotos: fotoCard("e", 3) } ] });
+  const rc = roda("chkResumoCardLinha(" + linhaCard + ")");
+  T(rc.atende === 1 && rc.naoAtende === 1 && rc.na === 2 && rc.pendente === 1 && rc.fotosOk === 1 && rc.fotosNc === 2, "resumo do cartao: itens por situacao e fotos do laudo (conformidade x nao conformidade; secao que nao se aplica fica de fora): " + J(rc));
 }
 async function testarSincronizacaoChecklist(){
   const T = (cond, msg)=>{ if(!cond) throw new Error("sincronizacao do checklist: " + msg); };

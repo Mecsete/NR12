@@ -5954,6 +5954,10 @@ print("\n=== 204. LAUDO PAGINA 2: COLUNA DIREITA E DATAS DD/MM/AAAA (07/10/2026)
 chk("pagina 2 do laudo: coluna da direita mais a direita e data/validade em DD/MM/AAAA",
     ".lcl-campos{display:grid;grid-template-columns:1.45fr 1fr;" in novo and '["Data da Inspeção", proj.dataInspecao ? lclDataBR(proj.dataInspecao) : ""]' in novo and '["Validade da Inspeção", proj.validadeInspecao ? lclDataBR(proj.validadeInspecao) : ""]' in novo)
 
+print("\n=== 205. CARTAO DA LINHA: RESUMO E FOTOS DO LAUDO (07/10/2026) ===")
+chk("o cartao da linha mostra atendem/nao atendem/N-A e as fotos do laudo em conformidade e nao conformidade, mantendo os pendentes",
+    "function chkResumoCardLinha(l){" in novo and "${r.atende} atendem" in novo and "${r.naoAtende} não atendem" in novo and "de conformidade</span>" in novo and "de não conformidade</span>" in novo and "${c.pendente>0 ? `<span class=\"stat-pill alert\">" in novo)
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
 

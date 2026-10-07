@@ -64,6 +64,14 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/10/2026 18:10
+
+**Cartão da linha de vida com o resumo do checklist e das fotos do laudo.**
+
+- Cada cartão da lista de linhas mostra: quantos itens atendem, não atendem e não se aplicam (N/A), e quantas fotos o laudo leva, separadas em fotos de conformidade (itens que atendem) e fotos de não conformidade (itens que não atendem). Seções marcadas "não aplica" ficam de fora, como no laudo. Continuam o status, o percentual preenchido e o selo de itens pendentes (agora também em linha finalizada que ainda tem item sem resposta).
+
+---
+
 ## 07/10/2026 18:12
 
 **Laudo, página 2: coluna da direita mais à direita e datas em DD/MM/AAAA.**

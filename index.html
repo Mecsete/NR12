@@ -765,6 +765,8 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .conf-item .btn{flex:0 0 auto}
 .chk-pf-salvo{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-dim);margin:0 2px 10px}
 .chk-pf-salvo svg{width:14px;height:14px;color:#2e7d32;flex:0 0 auto}
+.chk-card-resumo{margin-top:6px}
+.chk-card-resumo .stat-pill svg{width:12px;height:12px;vertical-align:-2px;margin-right:2px}
 .chk-continuar{display:flex;align-items:center;gap:12px;padding:12px 14px;margin-bottom:12px;border-left:4px solid var(--accent);cursor:pointer}
 .chk-continuar b{display:block;font-size:14px}
 .chk-continuar span{display:block;font-size:12px;color:var(--ink-dim);margin-top:2px}
@@ -3424,7 +3426,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/10/2026 18:12";
+const APP_BUILD = "07/10/2026 18:10";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -14694,6 +14696,19 @@ function chkStatusLinha(linha){
   if(linha.status==="finalizado") return "finalizado";
   return chkProgresso(linha)>0 ? "andamento" : "pendente";
 }
+/* Resumo da linha para o cartão da lista: quantos itens atendem, não atendem, não se aplicam e ficaram sem resposta, e quantas
+   fotos o laudo leva — separadas em fotos de itens que atendem (conformidade) e de itens que não atendem (não conformidade).
+   Conta as mesmas fotos que o laudo mostra: seções "não aplica" ficam de fora. */
+function chkResumoCardLinha(l){
+  const c = chkContarStatus(l);
+  let fotosOk = 0, fotosNc = 0;
+  (l.modeloSnapshot || []).forEach(s=>{
+    if((l.secoesNA || []).includes(s.id)) return;
+    const f = chkFotosDaSecao(s, l);
+    fotosOk += f.nOk; fotosNc += f.fotos.length - f.nOk;
+  });
+  return { atende:c.atende, naoAtende:c.naoAtende, na:c.na, pendente:c.pendente, fotosOk, fotosNc };
+}
 function screenChkLinhas(){
   const setor = getCurrentChkSetor();
   if(!setor){ go("checklist-setores"); return ""; }
@@ -14721,6 +14736,7 @@ function screenChkLinhas(){
     const c = chkContarStatus(l);
     const pct = chkProgresso(l);
     const statusLabel = st==="finalizado"?"Finalizado":st==="andamento"?"Em andamento":"Não iniciado";
+    const r = chkResumoCardLinha(l);
     return `
     <div class="card list-card chk-linha-card st-${st}">
       <div class="list-thumb" onclick="App.chkAbrirLinha('${l.id}')">${l.fotoAmpla? `<img data-imgref="${imgReg(l.fotoAmpla)}">`:ic('gallery')}</div>
@@ -14730,7 +14746,16 @@ function screenChkLinhas(){
         <div class="list-meta">
           <span class="stat-pill chk-status-pill st-${st}">${statusLabel}</span>
           ${st==="andamento" ? `<span class="stat-pill">${pct}% preenchido</span>` : ""}
-          ${c.pendente>0 && l.status!=="finalizado" ? `<span class="stat-pill alert">${c.pendente} pendente${c.pendente===1?'':'s'}</span>` : ""}
+          ${c.pendente>0 ? `<span class="stat-pill alert">${c.pendente} pendente${c.pendente===1?'':'s'}</span>` : ""}
+        </div>
+        <div class="list-meta chk-card-resumo">
+          <span class="stat-pill" style="color:${CHK_STATUS_META.atende.cor}" title="Itens que atendem">${r.atende} atendem</span>
+          <span class="stat-pill" style="color:${CHK_STATUS_META.naoAtende.cor}" title="Itens que não atendem">${r.naoAtende} não atendem</span>
+          <span class="stat-pill" title="Itens que não se aplicam">${r.na} N/A</span>
+        </div>
+        <div class="list-meta chk-card-resumo">
+          <span class="stat-pill" title="Fotos do laudo em itens que atendem">${ic('camera')} ${r.fotosOk} ${r.fotosOk === 1 ? "foto" : "fotos"} de conformidade</span>
+          <span class="stat-pill" title="Fotos do laudo em itens que não atendem">${ic('camera')} ${r.fotosNc} ${r.fotosNc === 1 ? "foto" : "fotos"} de não conformidade</span>
         </div>
         <button class="chk-linha-laudo" onclick="event.stopPropagation();App.chkAbrirLaudoLinha('${l.id}')" title="Abrir o laudo desta linha de vida (não precisa finalizar)">${ic('print')} Laudo</button>
       </div>
