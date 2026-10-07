@@ -3422,7 +3422,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/10/2026 16:05";
+const APP_BUILD = "07/10/2026 16:15";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -14162,7 +14162,8 @@ function chkAcoesCartao(tipo, id){
     setor:   btn('edit', 'Editar setor', `App.chkEditarSetor('${id}')`) + btn('print', 'Laudos do setor em um PDF', `App.chkLaudosSetor('${id}')`),
     linha:   btn('edit', 'Abrir o checklist da linha', `App.chkAbrirLinha('${id}')`),
   }[tipo] || "";
-  return extra + chkBotaoMenu(tipo, id);
+  // cartão de setor: só os ícones (a exclusão fica dentro da edição do setor)
+  return extra + (tipo === "setor" ? "" : chkBotaoMenu(tipo, id));
 }
 function chkBotaoMenu(tipo, id){
   return `<button class="icon-btn" aria-label="Mais opções" title="Mais opções" onclick="event.stopPropagation();App.chkMenuCartao('${tipo}','${id}')">${ic('dots')}</button>`;
@@ -14676,6 +14677,7 @@ function screenChkSetorForm(){
   <div class="field"><label>Nome do setor <span class="req">*</span></label><input type="text" placeholder="Ex.: Recepção de Grãos" value="${escapeHtml(s.nome)}" oninput="App.chkSetSetorField('nome',this.value)"></div>
   <div class="field"><label>Descrição</label><textarea placeholder="Observação sobre este setor (opcional)" oninput="App.chkSetSetorField('descricao',this.value)">${escapeHtml(s.descricao)}</textarea></div>
   <button class="btn btn-primary btn-block" onclick="App.go('checklist-linhas',{chkSetorId:'${s.id}'})">${ic('check')} Salvar e ver linhas de vida</button>
+  <button class="btn btn-block" style="margin-top:18px;color:#C23F12" onclick="App.chkExcluirSetor('${s.id}')">${ic('trash')} Excluir este setor</button>
   `;
 }
 /* Status da LINHA (não confundir com o status de conformidade de um item):
@@ -30585,7 +30587,7 @@ Devolver agora?`)) return;
     toast("Setor excluído");
     p.atualizadoEm = agoraSync();
     marcarAlterado();
-    render();
+    if(STATE.ui.screen === "checklist-setor-form") go("checklist-setores"); else render();
   },
   chkSetSetorField(campo, valor){
     const s = getCurrentChkSetor(); if(!s) return;

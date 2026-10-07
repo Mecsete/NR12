@@ -5920,6 +5920,10 @@ chk("numeracao das fotos: itens que atendem primeiro (nOk), depois as pendencias
 chk("nao atende sem texto de motivo nunca some do laudo: entra com a descricao do item e a nota",
     'Não atende: ${escapeHtml(String(it.descricao || "").trim())}' in novo)
 
+print("\n=== 198. SETOR SEM MENU DE TRES PONTOS (07/10/2026) ===")
+chk("cartao do setor sem o menu; exclusao dentro da edicao do setor e volta para a lista",
+    'return extra + (tipo === "setor" ? "" : chkBotaoMenu(tipo, id));' in novo and "Excluir este setor</button>" in novo and 'if(STATE.ui.screen === "checklist-setor-form") go("checklist-setores"); else render();' in novo)
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
 

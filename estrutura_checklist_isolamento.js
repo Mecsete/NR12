@@ -158,7 +158,7 @@ const FUNCOES = [
   // Capitulos novos: parecer, quadro de nao conformidades, Metodologia, Memorial, Anexos.
   "lclItemModeloAtual", "lclPrioridade", "lclAcaoMotivo", "lclNaoConformidades", "lclParecerAuto", "lclParecer",
   "lclListaPt", "lclVariaveis", "lclAplicarVariaveis", "lclMarkup", "lclBlocosMemorial", "lclBlocosAnexos", "lclListaImagensHtml",
-  "chkRenderItem", "screenChkPreencher", "screenChkFinalizar", "chkResumoHtml",
+  "screenChkSetorForm", "chkRenderItem", "screenChkPreencher", "screenChkFinalizar", "chkResumoHtml",
   "lclTextoEditado", "lclHtmlParaTexto", "lclTextoParaHtml", "lclConclusaoAuto", "lclFotosSecaoHtml", "lclNumItem",
   // Cadastro do projeto: mascaras, validade automatica e cadastro de inspetores.
   "chkSoDigitos", "chkMascaraDocumento", "chkMascaraTelefone", "chkExibirDocumento", "chkExibirTelefone", "chkValidarCpf", "chkValidarCnpj",
@@ -2567,7 +2567,8 @@ async function testarUsabilidade(){
   // icones discretos ao lado do menu: editar e laudos nos cartoes grandes; a exclusao so no menu
   const aP = roda("chkAcoesCartao('projeto', 'P1')"), aS = roda("chkAcoesCartao('setor', 'S1')"), aM = roda("chkAcoesCartao('modelo', 'M1')"), aL = roda("chkAcoesCartao('linha', 'L1')");
   T(aP.includes("App.chkEditarProjeto('P1')") && aP.includes("App.chkLaudosProjeto('P1')") && aP.includes("App.chkMenuCartao('projeto','P1')") && aP.includes('aria-label="Laudos do projeto em um PDF"') && !aP.includes("chkExcluir"), "projeto: editar, laudos e menu; sem excluir solto");
-  T(aS.includes("App.chkEditarSetor('S1')") && aS.includes("App.chkLaudosSetor('S1')") && aS.includes("chkMenuCartao('setor','S1')") && !aS.includes("chkExcluir"), "setor: editar, laudos e menu");
+  T(aS.includes("App.chkEditarSetor('S1')") && aS.includes("App.chkLaudosSetor('S1')") && !aS.includes("chkMenuCartao") && !aS.includes("chkExcluir"), "setor: so editar e laudos, sem o menu de tres pontos");
+  T(roda("screenChkSetorForm.toString()").includes("App.chkExcluirSetor('${s.id}')"), "a exclusao do setor fica na tela de edicao do setor");
   T(aM.includes("App.chkAbrirModelo('M1')") && aM.includes("chkMenuCartao('modelo','M1')") && !aM.includes("chkExcluir") && !aL.includes("chkEditar") && aL.includes("chkMenuCartao('linha','L1')") && aL.includes("App.chkAbrirLinha('L1')") && !aL.includes("chkExcluir"), "modelo: editar e menu; linha: abrir o checklist e menu (o botao Laudo ja fica no cartao)");
   // continuar de onde parou: a linha em andamento mais recente
   roda("STATE.checklists.projetos = [{ id:'P1', empresa:'Emp', setores:[{ id:'S1', nome:'Setor', linhas:[ Object.assign(" + L(["atende", null, null]) + ", { id:'LA', atualizadoEm:5 }), Object.assign(" + L(["atende", "atende", null]) + ", { id:'LB', atualizadoEm:9 }), Object.assign(" + L(["atende", "atende", "atende"]) + ", { id:'LC', status:'finalizado', atualizadoEm:99 }) ] }] }];");

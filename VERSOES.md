@@ -64,6 +64,14 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/10/2026 16:15
+
+**Cartão do setor sem o menu de três pontos; "Excluir este setor" passa para a tela de edição do setor.**
+
+- O cartão do setor fica só com os ícones de editar e de laudos. Para excluir um setor: lápis, e no fim da tela "Excluir este setor" (a confirmação de sempre; ao excluir, volta para a lista de setores).
+
+---
+
 ## 07/10/2026 16:05
 
 **Laudo, "Avaliação por Componente": seção com faixa de fotos no topo, conformidades num parágrafo e pendências em texto com as fotos ao lado.**
