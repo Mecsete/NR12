@@ -64,6 +64,15 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/10/2026 17:20
+
+**Sincronização: dados do projeto e do setor digitados em dois aparelhos agora se somam (antes um lado apagava o outro).**
+
+- Achado na pasta da nuvem: o projeto "Vylor" estava lá só com a empresa e a data; os dados do solicitante (CPF/CNPJ, telefone, responsável etc.) que o colega digitou nunca apareceram. Quando projeto ou setor mudava nos dois aparelhos ao mesmo tempo, ganhava o carimbo mais novo e o outro lado perdia tudo o que tinha digitado, sem cópia (só modelo e linha de vida tinham cópia).
+- Agora a junção é campo a campo: o campo preenchido vence o que está em branco; se os dois lados têm o campo preenchido e diferente, vale o do carimbo mais novo. Os setores e as linhas do projeto não são tocados.
+
+---
+
 ## 07/10/2026 17:15
 
 **Sincronização do Checklist: as cópias "(versão de ...)" deixam de aparecer quando as duas versões não discordam, e as que já existem são juntadas.**

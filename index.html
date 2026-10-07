@@ -3422,7 +3422,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/10/2026 17:15";
+const APP_BUILD = "07/10/2026 17:20";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -19322,6 +19322,27 @@ async function chkSyncConflito(ctx, loc, rem){
   if(chkSyncSig(payload.obj, true) === chkSyncSig(chkSyncVista(loc), true)){
     // mesmo conteúdo nos dois lados (só o carimbo difere): nada a guardar nem a enviar
     sy.vistos[loc.chave] = chkSyncVisto(rem.ts, chkSyncVista(loc));
+    return;
+  }
+  // projeto e setor: campo a campo — o que está preenchido vence o que está em branco; os dois preenchidos e diferentes:
+  // vale o do carimbo mais novo. Antes, o carimbo mais novo levava o objeto inteiro e o outro lado perdia o que tinha digitado.
+  if(loc.tipo === "p" || loc.tipo === "s"){
+    const vazio = (v)=> v === null || v === undefined || (typeof v === "string" && !v.trim()) || (Array.isArray(v) && !v.length);
+    const remNovo = rem.ts > (loc.obj.atualizadoEm || 0);
+    Object.keys(payload.obj).forEach(k=>{
+      if(k === "id" || k === "setores" || k === "linhas" || k === "criadoEm" || k === "atualizadoEm") return;
+      const l = loc.obj[k], r = payload.obj[k];
+      if(vazio(r)) return;
+      if(vazio(l) || (remNovo && JSON.stringify(l) !== JSON.stringify(r))) loc.obj[k] = r;
+    });
+    if(chkSyncSig(chkSyncVista(loc), true) === chkSyncSig(payload.obj, true)){
+      sy.vistos[loc.chave] = chkSyncVisto(rem.ts, chkSyncVista(loc));
+      registrarCarimboVisto(rem.ts);
+      res.mudouLocal = true;
+      return;
+    }
+    res.mesclados = (res.mesclados || 0) + 1;
+    await chkSyncEnviar(ctx, loc);
     return;
   }
   // linha de vida: se as duas versões não discordam em nada, juntam-se numa só, sem cópia (ver chkSyncMesclarLinha)

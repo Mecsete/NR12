@@ -3071,6 +3071,36 @@ async function testarSincronizacaoChecklist(){
   // divergencia: o mesmo item respondido de formas diferentes nunca e junto
   T(roda("chkSyncDivergencias({ itens:[{ itemId:'a', conforme:'atende' }], secoesNA:[] }, { itens:[{ itemId:'a', conforme:'naoAtende' }], secoesNA:[] }).length") === 1 && roda("chkSyncDivergencias({ itens:[{ itemId:'a', conforme:'atende' }], secoesNA:[] }, { itens:[{ itemId:'a', conforme:null }], secoesNA:[] }).length") === 0 && roda("chkSyncDivergencias({ itens:[], secoesNA:[], descricao:'x' }, { itens:[], secoesNA:[], descricao:'y' }).length") === 1, "divergencia: so quando o mesmo item/campo tem respostas diferentes dos dois lados");
 
+  // ---------------------------------------------------------------- 17) dados do projeto digitados em dois aparelhos: o que esta preenchido nunca e apagado por um aparelho que tem o campo em branco
+  nuvem.clear();
+  const P1 = dispositivo(), P2 = dispositivo();
+  sandbox.STATE = P1;
+  const idsP = roda(`(function(){ const m = STATE.checklists.modelos[0]; const p = novoChkProjeto(); p.empresa = "Vylor"; const s = novoChkSetor(); s.nome = "Setor P"; p.setores.push(s); STATE.checklists.projetos.push(p); return { p:p.id, s:s.id }; })()`);
+  T(await emDia(P1, P2), "preparo (projeto): projeto nos dois aparelhos");
+  // o colega (P1) preenche os dados do solicitante
+  sandbox.STATE = P1;
+  roda(`(function(){ const p = STATE.checklists.projetos[0]; p.solicitanteCpfCnpj = "11.222.333/0001-44"; p.solicitanteTelefone = "(64) 99999-0000"; p.responsavel = "Joao"; p.numeroDocumento = "DOC-A"; p.atualizadoEm = agoraSync(); })()`);
+  await sync(P1);
+  // o usuario (P2), ainda sem esses dados, mexe em OUTRO campo e fica com o carimbo mais novo
+  sandbox.STATE = P2;
+  roda(`(function(){ const p = STATE.checklists.projetos[0]; p.art = "ART-9"; p.numeroDocumento = "DOC-B"; p.atualizadoEm = agoraSync(); })()`);
+  r = await sync(P2);
+  const pP2 = roda("STATE.checklists.projetos[0]");
+  T(r.mesclados === 1 && pP2.solicitanteCpfCnpj === "11.222.333/0001-44" && pP2.solicitanteTelefone === "(64) 99999-0000" && pP2.responsavel === "Joao" && pP2.art === "ART-9" && pP2.numeroDocumento === "DOC-B" && pP2.setores.length === 1, "dados do projeto: o preenchido do colega e o do usuario se somam; no campo em disputa vale o mais novo: " + J([r.mesclados, pP2.solicitanteCpfCnpj, pP2.art, pP2.numeroDocumento]));
+  T(await emDia(P1, P2), "projeto: os dois aparelhos terminam iguais");
+  sandbox.STATE = P1;
+  const pP1 = roda("STATE.checklists.projetos[0]");
+  T(pP1.solicitanteCpfCnpj === "11.222.333/0001-44" && pP1.art === "ART-9" && pP1.numeroDocumento === "DOC-B" && pP1.setores.length === 1, "projeto: o colega tambem recebe o que o usuario digitou");
+  // setor: o mesmo vale
+  sandbox.STATE = P1;
+  roda(`(function(){ const s = STATE.checklists.projetos[0].setores[0]; s.descricao = "Descricao do colega"; s.atualizadoEm = agoraSync(); })()`);
+  await sync(P1);
+  sandbox.STATE = P2;
+  roda(`(function(){ const s = STATE.checklists.projetos[0].setores[0]; s.nome = "Setor P (renomeado)"; s.atualizadoEm = agoraSync(); })()`);
+  await sync(P2);
+  T(roda("STATE.checklists.projetos[0].setores[0].descricao") === "Descricao do colega" && roda("STATE.checklists.projetos[0].setores[0].nome") === "Setor P (renomeado)", "setor: nome do usuario e descricao do colega se somam");
+  T(await emDia(P1, P2) && difere(P1.checklists.projetos, P2.checklists.projetos) === "", "setor: iguais nos dois aparelhos");
+
   // ---------------------------------------------------------------- 13) nomes na nuvem e isolamento
   const pr = roda(`(function(){ const r = chkSyncParseNomes(["l_abc_100.json", "l_abc_200.json", "m_chk-modelo-padrao-linhas-de-vida_50.json", "i_7.json", "x_9.json", "lixo.txt"]); return { l: r.entidades.get("l:abc"), m: r.entidades.get("m:chk-modelo-padrao-linhas-de-vida"), i: r.singles.i, x: r.singles.x }; })()`);
   T(pr.l.ts === 200 && pr.l.nome === "l_abc_200.json" && pr.l.antigos.length === 1 && pr.m.id === "chk-modelo-padrao-linhas-de-vida" && pr.m.ts === 50 && pr.i[0].ts === 7 && pr.x[0].ts === 9, "leitura dos nomes de arquivo da nuvem (id com hifen, versoes antigas, i e x)");
