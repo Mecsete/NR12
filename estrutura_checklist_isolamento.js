@@ -2572,6 +2572,13 @@ async function testarUsabilidade(){
   T(roda("getCurrentChkLinha().status") === "em_andamento" && roda("getCurrentChkLinha().dataFinalizacao") === null && roda("STATE.ui.chkItemAberto") === "i1" && roda("STATE.ui.chkSecaoAtual") === 0, "Corrigir numa linha finalizada reabre a linha e abre o item no preenchimento");
   roda("App.chkIrDaRevisao(0, 'i2')");
   T(roda("getCurrentChkLinha().status") === "em_andamento" && roda("STATE.ui.chkItemAberto") === "i2", "Corrigir numa linha em andamento nao muda o status");
+  // revisao: o cartao Itens sem resposta e o primeiro da tela e o toque nele leva ao primeiro item sem resposta
+  roda("(function(){ const l = getCurrentChkLinha(); l.itens.forEach(i=>{ i.conforme = 'atende'; }); l.itens.find(i=> i.itemId === 'i2').conforme = null; l.itens.find(i=> i.itemId === 'i3').conforme = null; l.status = 'em_andamento'; })()");
+  const fin = roda("screenChkFinalizar()");
+  T(fin.indexOf("Itens sem resposta") > -1 && fin.indexOf("Itens sem resposta") < fin.indexOf(">Resumo<") && fin.includes("class=\"card card-pad chk-pend-card\"") && fin.includes("onclick=\"App.chkIrDaRevisao(0,'i2')\"") && fin.includes("Toque aqui para responder"), "o cartao Itens sem resposta vem antes do Resumo e o toque leva ao primeiro item sem resposta: " + fin.slice(0, 300));
+  T(fin.includes("event.stopPropagation();App.chkIrDaRevisao(0,'i2')") && fin.includes("event.stopPropagation();App.chkIrDaRevisao(1,'i3')"), "cada Ir leva ao primeiro item sem resposta da propria secao");
+  roda("(function(){ getCurrentChkLinha().itens.forEach(i=>{ i.conforme = 'atende'; }); })()");
+  T(!roda("screenChkFinalizar()").includes("Itens sem resposta"), "sem pendencia, o cartao some");
   roda("STATE.ui.chkItemAberto = null; STATE.ui.chkProjetoId = " + J(estadoAntes.p) + "; STATE.ui.chkSetorId = null; STATE.ui.chkLinhaId = null; STATE.checklists.projetos = " + J(estadoAntes.lista) + ";");
 }
 async function testarSincronizacaoChecklist(){

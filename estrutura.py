@@ -5823,6 +5823,10 @@ print("\n=== 188. CORRIGIR NA REVISAO DE LINHA FINALIZADA REABRE A LINHA (07/10/
 chk("chkIrDaRevisao reabre a linha finalizada antes de ir ao preenchimento (que redirecionava ao laudo em branco)",
     'if(lin && lin.status === "finalizado"){' in novo and "Linha reaberta para correção; finalize de novo ao terminar" in novo)
 
+print("\n=== 189. REVISAO: ITENS SEM RESPOSTA NO TOPO E CLICAVEL (07/10/2026) ===")
+chk("o cartao Itens sem resposta vem antes do Resumo e leva ao primeiro item sem resposta",
+    "const cartaoPend = " in novo and "${cartaoPend}\n  ${cartaoMemorial}\n" in novo and "chk-pend-card" in novo and "primeiroPend = [si, pend[0].id]" in novo)
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
 

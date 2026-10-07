@@ -64,6 +64,14 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/10/2026 18:00
+
+**Revisão: o cartão "Itens sem resposta" vai para o topo e o toque nele abre o checklist no primeiro item sem resposta.**
+
+- Na tela Revisar e finalizar, "Itens sem resposta" (e "Memorial ZLQ incompleto") agora aparecem antes do Resumo e das não conformidades. Tocar no cartão leva ao primeiro item sem resposta, já aberto; cada botão "Ir" leva ao primeiro item sem resposta da própria seção.
+
+---
+
 ## 07/10/2026 17:00
 
 **Revisão: "Corrigir" numa linha já finalizada abre o item no checklist (antes caía no laudo em branco).**
