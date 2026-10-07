@@ -5827,6 +5827,10 @@ print("\n=== 189. REVISAO: ITENS SEM RESPOSTA NO TOPO E CLICAVEL (07/10/2026) ==
 chk("o cartao Itens sem resposta vem antes do Resumo e leva ao primeiro item sem resposta",
     "const cartaoPend = " in novo and "${cartaoPend}\n  ${cartaoMemorial}\n" in novo and "chk-pend-card" in novo and "primeiroPend = [si, pend[0].id]" in novo)
 
+print("\n=== 190. SAI O LAUDO ANTIGO DO PROJETO (07/10/2026) ===")
+chk("nenhum atalho leva ao laudo antigo (checklist-laudo): setores abre o lote, finalizado vai para a revisao",
+    "App.go('checklist-laudo')" not in novo and 'go("checklist-laudo")' not in novo and "App.lclLote('projeto')\" title=" in novo and 'if(STATE.ui.screen === "checklist-laudo") STATE.ui.screen' in novo)
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
 

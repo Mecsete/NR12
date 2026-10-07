@@ -64,6 +64,14 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/10/2026 19:00
+
+**Checklist: saiu o laudo antigo do projeto (a página simples, sem capítulos); o laudo é só o da linha em capítulos.**
+
+- O laudo antigo do projeto (uma folha com capa e três quadros, sem capítulos) não abre mais. Os atalhos que levavam até ele foram trocados: o botão "Laudo" da tela de setores virou "Laudos" e abre a lista para escolher quais linhas entram no PDF; numa linha finalizada, a revisão não oferece mais o "Laudo do projeto" (o "Laudo da linha" continua); e tocar numa linha finalizada abre a revisão dela, não mais o laudo antigo. Quem reabrir o app nessa tela cai na lista de setores.
+
+---
+
 ## 07/10/2026 18:00
 
 **Revisão: o cartão "Itens sem resposta" vai para o topo e o toque nele abre o checklist no primeiro item sem resposta.**
