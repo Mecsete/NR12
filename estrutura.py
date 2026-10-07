@@ -810,7 +810,7 @@ chk("o seletor unico e o botao do fluxo antigo sairam de cena",
     and "App.aplicarTextoMedidaExistente()" not in novo
     and "aplicarTextoMedidaExistente(){" not in novo)
 chk("as tres acoes de marcar gravam o rascunho e reescrevem o texto",
-    novo.count("sincronizarDescMedidaExistente(r);\n    gravarDraftPersistente();") == 4)
+    novo.count("sincronizarDescMedidaExistente(r);\n    gravarDraftPersistente();") == 5)
 chk("o texto so e reescrito enquanto for automatico",
     novo.count('atual === String(r.descMedidaAuto||"").trim()') == 1
     and novo.count("function sincronizarDescMedidaExistente(") == 1)
@@ -5866,6 +5866,22 @@ chk("o freio de exclusao em massa em si nao mudou (so ganhou um contador para o 
 chk("o selo 'N exclusoes a confirmar' existe, perde para falha de envio e o toque pede confirmacao antes de aplicar",
     "exclusões a confirmar" in _corpoDe(novo, "chipSyncHtml") and "falhasEnvio === 0 && __exclusoesSegurasItens > 0" in _corpoDe(novo, "chipSyncHtml")
     and "if(!confirm(`Outro aparelho excluiu" in novo)
+
+print("\n=== 186. SITUACAO POR MEDIDA NA MITIGACAO EXISTENTE (07/10/2026) ===")
+chk("as funcoes novas existem uma vez cada e o par antigo (medidaExistenteSituacao / Ressalva) continua sendo o padrao de toda medida sem situacao propria",
+    all(novo.count("function " + f + "(") == 1 for f in ["itensExistentesDe", "temSituacaoPorMedida", "situacaoDaMedida", "situacaoGeralExistente", "definirSituacaoMedida", "medidaTextoExistentePorMedida", "medidaSitPorMedidaHtml"])
+    and "(r && r.medidaExistenteSituacao) || \"ok\"" in _corpoDe(novo, "situacaoDaMedida"))
+chk("risco sem situacao por medida: o texto antigo (citacoes agrupadas no fim) esta no mesmo lugar, intacto",
+    "if(temSituacaoPorMedida(r)) return medidaTextoExistentePorMedida(r);" in _corpoDe(novo, "medidaTextoExistenteMulti")
+    and 'const citacao = refs.length ? (" " + sit.frase + " na " + refs.join(" e na ") + ".") : "";' in _corpoDe(novo, "medidaTextoExistenteMulti"))
+chk("as citacoes de norma continuam vindo da MESMA biblioteca (medidaReferencia); nenhuma norma nova foi escrita nesta entrega",
+    "medidaReferencia(it.m)" in _corpoDe(novo, "medidaTextoExistentePorMedida") and _corpoDe(novo, "medidaReferencia") == _corpoDe(orig, "medidaReferencia")
+    and novo.count("const BIBLIOTECA_MEDIDAS") == 1 and _corpoDe(novo, "medidaPorChave") == _corpoDe(orig, "medidaPorChave"))
+chk("os dois blocos de tela (rascunho do risco e revisao do laudo) mostram uma linha por medida quando ha 2 ou mais",
+    novo.count("itensExistentesDe(r).length >= 2 ? medidaSitPorMedidaHtml(r,") == 2
+    and "onDraftMedidaExistentePM(i, campo, valor){" in novo and "laudoSetMedidaExistentePM(rid, i, campo, valor){" in novo)
+chk("laudo impresso, planilha e entradas da IA entendem a situacao por medida",
+    "situacaoGeralExistente(r).k" in novo and "medExistGeral" in novo and "Situação de CADA medida em relação à norma" in novo)
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

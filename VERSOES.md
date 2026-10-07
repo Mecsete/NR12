@@ -64,6 +64,34 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/10/2026 10:50
+
+**Mitigação existente: cada medida marcada passa a ter a sua própria situação (Atende / Atende em parte / Não atende) e o seu "o que falta", e a citação da norma sai no fim do trecho de cada medida.**
+
+Antes, ao marcar várias mitigações existentes no mesmo risco, a situação e o
+"o que falta" eram um valor só para o conjunto, e o texto saía como se todas
+tivessem o mesmo julgamento — errado sobre metade delas quando uma proteção
+atende e outra não.
+
+- **Interface.** Com 2 ou mais medidas marcadas (da lista ou digitadas por
+  você), cada uma ganha a sua fileira Atende / Atende em parte / Não atende e,
+  se não atende por completo, o seu "o que falta". Com uma medida só, a tela é a
+  de sempre. Vale nos dois lugares: no cadastro do risco e na revisão do laudo.
+- **Texto.** Continua um texto só, corrido, mas cada trecho descreve a medida,
+  traz o que falta (quando não atende) e termina com a citação da norma dela
+  ("... Atende ao disposto na NR-12 ...."). As citações são as mesmas da
+  biblioteca, só mudaram de lugar; nenhuma norma nova foi escrita. Medida
+  digitada à mão, que não tem norma na biblioteca, leva o julgamento por extenso
+  ("Atende parcialmente ao exigido.").
+- **Riscos já preenchidos não mudam.** Sem situação própria, toda medida herda o
+  julgamento único de antes, e o texto sai exatamente como saía (citações
+  juntas no fim). O texto só muda de forma no risco em que você der situação
+  própria a alguma medida.
+- **Laudo, planilha e IA.** O laudo impresso e a planilha usam a situação do
+  conjunto (atende só se todas atendem; não atende só se nenhuma atende; senão
+  "atende em parte", com o que falta de cada uma). A IA recebe a situação de
+  cada medida para escrever o texto certo.
+
 ## 07/10/2026 10:45
 
 **O selo "fotos" passa a procurar na nuvem em vez de afirmar que o outro aparelho não enviou, e as exclusões de outro aparelho seguradas pelo freio ganham um selo que não some.**

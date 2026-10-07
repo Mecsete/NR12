@@ -3411,7 +3411,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/10/2026 10:45";
+const APP_BUILD = "07/10/2026 10:50";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -12430,15 +12430,84 @@ function medidasExistentesDe(r){
 function outrosExistentesDe(r){
   return (r && Array.isArray(r.medidasExistentesOutros)) ? r.medidasExistentesOutros : [];
 }
+/* SITUAÇÃO POR MEDIDA (07/10/2026).
+   Até aqui a situação (atende / atende em parte / não atende) e o "o que falta"
+   eram UM valor para o conjunto das medidas marcadas, e o texto saía como se
+   todas tivessem o mesmo julgamento — errado sobre metade delas quando uma
+   proteção atende e outra não. Agora cada medida (da lista ou digitada) pode ter
+   a sua, em r.medidaExistenteSituacoes = { chave: { sit, obs } } (chave da
+   biblioteca, ou "o:" + o texto digitado).
+   COMPATIBILIDADE: o par antigo (medidaExistenteSituacao / Ressalva) continua
+   valendo como padrão de toda medida que não tem entrada própria — então risco
+   antigo segue exatamente como estava, sem migração, e o texto só muda de forma
+   (citação no fim de cada medida) quando alguma medida ganha situação própria. */
+function itensExistentesDe(r){
+  const lista = [];
+  medidasExistentesDe(r).forEach(k=>{ const m = medidaPorChave(k); if(m) lista.push({ k, rot:m.rot, m }); });
+  outrosExistentesDe(r).map(x=>String(x||"").trim()).filter(Boolean)
+    .forEach(o=> lista.push({ k:"o:" + o, rot:o, outro:o }));
+  return lista;
+}
+function temSituacaoPorMedida(r){
+  const mapa = r && r.medidaExistenteSituacoes;
+  return !!mapa && typeof mapa === "object" && Object.keys(mapa).some(k=> mapa[k] && mapa[k].sit);
+}
+function situacaoDaMedida(r, k){
+  const p = r && r.medidaExistenteSituacoes && r.medidaExistenteSituacoes[k];
+  if(p && p.sit) return { sit:p.sit, obs:String(p.obs||"").trim() };
+  return { sit:(r && r.medidaExistenteSituacao) || "ok", obs:String((r && r.medidaExistenteRessalva)||"").trim() };
+}
+/* Situação do conjunto: onde só havia um valor, é ele; com situação por medida,
+   "atende" só se todas atendem, "não atende" só se nenhuma atende, senão "em parte". */
+function situacaoGeralExistente(r){
+  const legado = { k:(r && r.medidaExistenteSituacao) || "ok", obs:String((r && r.medidaExistenteRessalva)||"").trim() };
+  if(!temSituacaoPorMedida(r)) return legado;
+  const itens = itensExistentesDe(r);
+  if(!itens.length) return legado;
+  const sits = itens.map(i=> situacaoDaMedida(r, i.k));
+  const ks = sits.map(s=> s.sit);
+  const k = ks.every(x=> x === "ok") ? "ok" : (ks.every(x=> x === "nao") ? "nao" : "parcial");
+  const obs = sits.filter(s=> s.sit !== "ok" && s.obs).map(s=> s.obs).filter((v,i,a)=> a.indexOf(v) === i).join("; ");
+  return { k, obs };
+}
+function definirSituacaoMedida(r, k, campo, valor){
+  if(!r || !k) return;
+  if(!r.medidaExistenteSituacoes || typeof r.medidaExistenteSituacoes !== "object") r.medidaExistenteSituacoes = {};
+  const atual = situacaoDaMedida(r, k);   // parte do valor que ela já tem (próprio ou herdado)
+  const novo = { sit:atual.sit, obs:atual.obs };
+  if(campo === "sit"){ novo.sit = valor; if(valor === "ok") novo.obs = ""; }
+  else if(campo === "obs") novo.obs = String(valor||"");
+  r.medidaExistenteSituacoes[k] = novo;
+}
+/* Texto com situação por medida: cada trecho descreve a medida, diz o que falta (se
+   não atende por completo) e termina com a citação da norma DELA — a mesma
+   referência validada da biblioteca, só que no fim do trecho de cada medida. */
+function medidaTextoExistentePorMedida(r){
+  const alvo = medidaAlvo(r);
+  const trechos = [];
+  itensExistentesDe(r).forEach(it=>{
+    const s = situacaoDaMedida(r, it.k);
+    const def = MEDIDA_SITUACOES.find(x=> x.k === s.sit) || MEDIDA_SITUACOES[0];
+    let t = it.m ? substituirAlvoNoModelo(it.m.ex, alvo) : (it.outro.charAt(0).toUpperCase() + it.outro.slice(1));
+    if(def.k !== "ok" && s.obs) t += ", porém " + s.obs;
+    t += ".";
+    const ref = it.m ? medidaReferencia(it.m) : "";
+    if(ref) t += " " + def.frase + " na " + ref + ".";
+    else if(def.k !== "ok") t += " " + def.frase.replace("ao disposto", "ao exigido") + ".";
+    trechos.push(t);
+  });
+  return trechos.join(" ");
+}
 /* Texto da mitigacao existente a partir de TUDO que foi marcado, mais o que
-   foi digitado a mao. A situacao (atende / atende em parte / nao atende) e a
-   ressalva valem para o conjunto — e o julgamento do engenheiro sobre o que
-   existe, nao sobre cada peca isolada. As citacoes de norma de todas as
-   medidas marcadas entram juntas, sem repetir. */
+   foi digitado a mao. Sem situação por medida (todo risco antigo), a situação
+   e a ressalva valem para o conjunto e as citacoes de norma de todas as
+   medidas marcadas entram juntas, sem repetir, no fim do texto. Com situação
+   por medida, cada trecho leva a sua (ver medidaTextoExistentePorMedida). */
 function medidaTextoExistenteMulti(r){
   const chaves = medidasExistentesDe(r);
   const outros = outrosExistentesDe(r).map(x=>String(x||"").trim()).filter(Boolean);
   if(chaves.length===0 && outros.length===0) return "";
+  if(temSituacaoPorMedida(r)) return medidaTextoExistentePorMedida(r);
   const alvo = medidaAlvo(r);
   const sit = MEDIDA_SITUACOES.find(x=>x.k===(r.medidaExistenteSituacao||"ok")) || MEDIDA_SITUACOES[0];
   const partes = [];
@@ -12808,6 +12877,28 @@ function medidaRodapeHtml(m){
   if(!m) return "";
   return `<div class="field-hint" style="margin-top:6px">Base normativa: <b>${escapeHtml(medidaReferencia(m))}</b>${m.obs? " · " + escapeHtml(m.obs) : ""}</div>`;
 }
+/* Uma linha por medida marcada (quando há 2 ou mais): situação própria e "o que
+   falta". Os botões chamam por ÍNDICE (a ordem de itensExistentesDe) e não pela
+   chave, porque o texto digitado à mão pode ter aspas. */
+function medidaSitPorMedidaHtml(r, noClique, noSelect){
+  const itens = itensExistentesDe(r);
+  return `<div class="field-hint" style="margin-top:10px">Cada medida atende ao exigido pela norma?</div>` + itens.map((it, i)=>{
+    const s = situacaoDaMedida(r, it.k);
+    return `<div style="margin:8px 0;padding:8px 10px;border:1px solid var(--line);border-radius:8px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:6px">${escapeHtml(it.rot)}</div>
+      <div class="medida-sit">
+        ${MEDIDA_SITUACOES.map(x=>`<button type="button" class="${s.sit===x.k?'ativo':''}" style="${s.sit===x.k?`background:${x.fundo};color:${x.cor};border-color:${x.cor}`:''}" onclick="${noClique(i, x.k)}">${escapeHtml(x.rot)}</button>`).join("")}
+      </div>
+      ${s.sit!=="ok"? `<div class="field" style="margin:8px 0 0">
+        <label>O que falta</label>
+        <select class="sp-select-sm" onchange="${noSelect(i)}">
+          <option value="">Selecionar…</option>
+          ${MEDIDA_RESSALVAS.map(x=>`<option value="${escapeHtml(x)}" ${s.obs===x?'selected':''}>${escapeHtml(x)}</option>`).join("")}
+        </select>
+      </div>`:""}
+    </div>`;
+  }).join("");
+}
 /* ---------- Bloco: medida JÁ EXISTENTE (o que o cliente já tem) ---------- */
 function blocoMedidaExistenteHtml(r){
   const marcadas = medidasExistentesDe(r);
@@ -12837,6 +12928,7 @@ function blocoMedidaExistenteHtml(r){
       </div>
     </div>
     ${temAlgo? `
+      ${itensExistentesDe(r).length >= 2 ? medidaSitPorMedidaHtml(r, (i,k)=>`App.onDraftMedidaExistentePM(${i},'situacao','${k}')`, (i)=>`App.onDraftMedidaExistentePM(${i},'ressalva', this.value)`) : `
       <div class="field-hint" style="margin-top:10px">O que existe atende ao exigido pela norma?</div>
       <div class="medida-sit">
         ${MEDIDA_SITUACOES.map(s=>`<button type="button" class="${sit===s.k?'ativo':''}" style="${sit===s.k?`background:${s.fundo};color:${s.cor};border-color:${s.cor}`:''}" onclick="App.onDraftMedidaExistente('situacao','${s.k}')">${escapeHtml(s.rot)}</button>`).join("")}
@@ -12848,6 +12940,7 @@ function blocoMedidaExistenteHtml(r){
           ${MEDIDA_RESSALVAS.map(x=>`<option value="${escapeHtml(x)}" ${r.medidaExistenteRessalva===x?'selected':''}>${escapeHtml(x)}</option>`).join("")}
         </select>
       </div>`:""}
+`}
       ${podeAplicar? `<div class="medida-rot">Texto sugerido pelo que foi marcado</div>
         <div class="medida-frase" style="background:${sitDef.fundo};border-color:${sitDef.cor}33">${escapeHtml(sugestao)}</div>`:""}
       ${podeAplicar? `<button type="button" class="btn btn-secondary btn-sm btn-block" style="margin-top:8px" onclick="App.aplicarTextoMedidaExistenteMulti()">${ic('copy')} Usar este texto</button>`:""}
@@ -12917,17 +13010,22 @@ function laudoBlocoExistenteHtml(item, compacto){
       <div style="font-size:13px;color:var(--ink-faint)">Nada registrado — a máquina não tem proteção para este risco. A solução abaixo parte do zero.</div>
     </div>`;
   }
-  const sit = MEDIDA_SITUACOES.find(x=>x.k===(r.medidaExistenteSituacao||"ok")) || MEDIDA_SITUACOES[0];
+  const geral = situacaoGeralExistente(r);
+  const porMedida = temSituacaoPorMedida(r);
+  const sit = MEDIDA_SITUACOES.find(x=>x.k===geral.k) || MEDIDA_SITUACOES[0];
   const rots = chaves.map(k=>{ const m = medidaPorChave(k); return m ? m.rot : ""; }).filter(Boolean).concat(outros);
   const refs = [];
   chaves.forEach(k=>{ const ref = medidaReferencia(medidaPorChave(k)); if(ref && refs.indexOf(ref)<0) refs.push(ref); });
-  const obs = String(r.medidaExistenteRessalva||"").trim();
+  const obs = geral.obs;
   return `<div class="laudo-quadro-existente">
     <div class="laudo-quadro-tit">Mitigação existente na máquina
       <span class="laudo-quadro-sit" style="color:${sit.cor};background:${sit.fundo}">${escapeHtml(sit.rot)}</span>
     </div>
-    ${rots.length? `<div class="laudo-quadro-lista">${rots.map(x=>`<span class="medida-chip estatico">${escapeHtml(x)}</span>`).join("")}</div>`:""}
-    ${obs && sit.k!=="ok" ? `<div style="font-size:12.5px;color:var(--ink-dim);margin-top:6px">Ressalva: ${escapeHtml(obs)}</div>`:""}
+    ${porMedida
+      ? `<div class="laudo-quadro-lista">${itensExistentesDe(r).map(it=>{ const s = situacaoDaMedida(r, it.k); const d = MEDIDA_SITUACOES.find(x=>x.k===s.sit) || MEDIDA_SITUACOES[0];
+          return `<span class="medida-chip estatico" style="color:${d.cor};background:${d.fundo};border-color:${d.cor}55">${escapeHtml(it.rot)} — ${escapeHtml(d.rot)}${s.sit!=="ok" && s.obs ? ": " + escapeHtml(s.obs) : ""}</span>`; }).join("")}</div>`
+      : (rots.length? `<div class="laudo-quadro-lista">${rots.map(x=>`<span class="medida-chip estatico">${escapeHtml(x)}</span>`).join("")}</div>`:"")}
+    ${!porMedida && obs && sit.k!=="ok" ? `<div style="font-size:12.5px;color:var(--ink-dim);margin-top:6px">Ressalva: ${escapeHtml(obs)}</div>`:""}
     ${desc && !compacto? `<div style="font-size:13px;color:var(--ink);background:var(--bg-soft);border-radius:8px;padding:9px 10px;white-space:pre-wrap;margin-top:6px">${escapeHtml(desc)}</div>`:""}
     ${refs.length? `<div class="field-hint" style="margin-top:6px">Base normativa do que existe: <b>${escapeHtml(refs.join(" · "))}</b></div>`:""}
     ${compacto? "" : `<div class="field-hint" style="margin-top:6px">Ajuste o que está marcado logo abaixo. A solução do cartão seguinte deve complementar ou corrigir isto.</div>`}
@@ -12979,6 +13077,7 @@ function laudoBlocoMedidaExistenteEditavelHtml(item, soChecklist){
       </div>
     </div>
     ${temAlgo? `
+      ${itensExistentesDe(r).length >= 2 ? medidaSitPorMedidaHtml(r, (i,k)=>`App.laudoSetMedidaExistentePM('${rid}',${i},'situacao','${k}')`, (i)=>`App.laudoSetMedidaExistentePM('${rid}',${i},'ressalva', this.value)`) : `
       <div class="field-hint" style="margin-top:10px">O que existe atende ao exigido pela norma?</div>
       <div class="medida-sit">
         ${MEDIDA_SITUACOES.map(s=>`<button type="button" class="${sit===s.k?'ativo':''}" style="${sit===s.k?`background:${s.fundo};color:${s.cor};border-color:${s.cor}`:''}" onclick="App.laudoSetMedidaExistenteCampo('${rid}','situacao','${s.k}')">${escapeHtml(s.rot)}</button>`).join("")}
@@ -12990,6 +13089,7 @@ function laudoBlocoMedidaExistenteEditavelHtml(item, soChecklist){
           ${MEDIDA_RESSALVAS.map(x=>`<option value="${escapeHtml(x)}" ${r.medidaExistenteRessalva===x?'selected':''}>${escapeHtml(x)}</option>`).join("")}
         </select>
       </div>`:""}
+`}
       ${podeAplicar? `<div class="medida-rot">Texto sugerido pelo que foi marcado</div>
         <div class="medida-frase" style="background:${sitDef.fundo};border-color:${sitDef.cor}33">${escapeHtml(sugestao)}</div>`:""}
       ${podeAplicar? `<button type="button" class="btn btn-secondary btn-sm btn-block" style="margin-top:8px" onclick="App.laudoAplicarTextoMedidaExistenteMulti('${rid}')">${ic('copy')} Usar este texto</button>`:""}
@@ -20825,7 +20925,9 @@ function baseIACamposDaLinha(ctx){
      ali o padrao e "ok" (Atende) ate a pessoa trocar. Exportar sem repetir
      esse default deixaria a coluna vazia bem no caso mais comum. */
   const medExistSitK = risco ? (risco.medidaExistenteSituacao || (marcadas.length ? "ok" : "")) : "";
-  const medExistSit = MEDIDA_SITUACOES.find(s=> s.k === medExistSitK);
+  /* Com situação por medida, a coluna traz a do conjunto e o que falta junta as de cada uma. */
+  const medExistGeral = (risco && temSituacaoPorMedida(risco)) ? situacaoGeralExistente(risco) : null;
+  const medExistSit = MEDIDA_SITUACOES.find(s=> s.k === (medExistGeral ? medExistGeral.k : medExistSitK));
   const prop = risco ? medidaPorChave(String(risco.medidaPropostaTipo||"")) : null;
   const decid = [];
   LAUDO_CAMPOS_IMPORTAVEIS.forEach(c=>{
@@ -20863,7 +20965,7 @@ function baseIACamposDaLinha(ctx){
     "Descrição da Mitigação Existente": risco ? (risco.descMedida || "") : "",
     "Medidas existentes marcadas": marcadas.join(" | "),
     "Situação da mitigação existente": medExistSit ? medExistSit.rot : "",
-    "O que falta na mitigação existente": risco ? (risco.medidaExistenteRessalva || "") : "",
+    "O que falta na mitigação existente": risco ? (medExistGeral ? medExistGeral.obs : (risco.medidaExistenteRessalva || "")) : "",
     "Solução Editável": risco ? (risco.sugestaoMitigacao || "") : "",
     "Medida proposta marcada": prop ? prop.rot : "",
     "Sugestão Solução": (risco && prop) ? medidaTextoProposto(risco, risco.medidaPropostaTipo) : "",
@@ -21527,8 +21629,15 @@ function laudoEntradaSolucao(item){
   if(marcadas.length) partes.push("Já existe na máquina: " + marcadas.join("; "));
   if(existente) partes.push("Descrição do que já existe: " + existente);
   if(marcadas.length || existente){
-    const sit = MEDIDA_SITUACOES.find(x=>x.k===(r.medidaExistenteSituacao||"ok")) || MEDIDA_SITUACOES[0];
-    partes.push("Situação do que já existe: " + sit.rot);
+    if(temSituacaoPorMedida(r)){
+      partes.push("Situação de cada medida que já existe: " + itensExistentesDe(r).map(it=>{
+        const s = situacaoDaMedida(r, it.k); const d = MEDIDA_SITUACOES.find(x=>x.k===s.sit) || MEDIDA_SITUACOES[0];
+        return it.rot + " — " + d.rot + (s.sit !== "ok" && s.obs ? " (" + s.obs + ")" : "");
+      }).join("; "));
+    }else{
+      const sit = MEDIDA_SITUACOES.find(x=>x.k===(r.medidaExistenteSituacao||"ok")) || MEDIDA_SITUACOES[0];
+      partes.push("Situação do que já existe: " + sit.rot);
+    }
     partes.push("A solução deve COMPLEMENTAR ou CORRIGIR o que já existe, sem repetir o que já está atendido.");
   }
   return partes.join("\n");
@@ -21552,8 +21661,15 @@ function laudoEntradaExistente(item){
   const partes = [];
   partes.push("O que já está instalado na máquina: " + (marcadas.length? marcadas.join("; ") : "(nada marcado na lista)"));
   if(desc) partes.push("Descrição de campo: " + desc);
-  partes.push("Situação em relação à norma: " + sit.rot);
-  if(obs && sit.k!=="ok") partes.push("O que falta para atender: " + obs);
+  if(temSituacaoPorMedida(r)){
+    partes.push("Situação de CADA medida em relação à norma (descreva cada uma dizendo se atende, atende em parte ou não atende):\n" + itensExistentesDe(r).map(it=>{
+      const s = situacaoDaMedida(r, it.k); const d = MEDIDA_SITUACOES.find(x=>x.k===s.sit) || MEDIDA_SITUACOES[0];
+      return "- " + it.rot + ": " + d.rot + (s.sit !== "ok" && s.obs ? " — falta: " + s.obs : "");
+    }).join("\n"));
+  }else{
+    partes.push("Situação em relação à norma: " + sit.rot);
+    if(obs && sit.k!=="ok") partes.push("O que falta para atender: " + obs);
+  }
   partes.push("Escreva uma descrição técnica e objetiva do que JÁ EXISTE, como um registro do estado atual — não proponha nenhuma ação nova nem repita isto como se fosse uma solução a ser feita.");
   return partes.join("\n");
 }
@@ -27952,6 +28068,15 @@ Devolver agora?`)) return;
     gravarDraftPersistente();
     renderModalEntidade();
   },
+  /* Situação de UMA medida (índice em itensExistentesDe) — ver situacaoDaMedida. */
+  onDraftMedidaExistentePM(i, campo, valor){
+    const r = __draftEntity; if(!r) return;
+    const it = itensExistentesDe(r)[i]; if(!it) return;
+    definirSituacaoMedida(r, it.k, campo === "situacao" ? "sit" : "obs", valor);
+    sincronizarDescMedidaExistente(r);
+    gravarDraftPersistente();
+    renderModalEntidade();
+  },
   aplicarTextoMedidaExistenteMulti(){
     const r = __draftEntity; if(!r) return;
     const t = medidaTextoExistenteMulti(r);
@@ -30021,6 +30146,15 @@ Devolver agora?`)) return;
     if(i < 0 || i >= lista.length) return;
     lista.splice(i, 1);
     r.medidasExistentesOutros = lista;
+    sincronizarDescMedidaExistente(r);
+    r.atualizadoEm = agoraSync();
+    marcarAlterado(); render();
+  },
+  laudoSetMedidaExistentePM(rid, i, campo, valor){
+    const item = laudoItemPorId(rid); if(!item) return;
+    const r = item.risco;
+    const it = itensExistentesDe(r)[i]; if(!it) return;
+    definirSituacaoMedida(r, it.k, campo === "situacao" ? "sit" : "obs", valor);
     sincronizarDescMedidaExistente(r);
     r.atualizadoEm = agoraSync();
     marcarAlterado(); render();
@@ -33752,7 +33886,7 @@ function lpMaiorPLrDoEquipamento(itens){
              segue a MESMA regra de risco/tarefa/escopo: aprovado > sugestão >
              o que está registrado. */
           const existente = laudoTextoFinal(it, "existente");
-          const sitDef = MEDIDA_SITUACOES.find(x=>x.k===(r.medidaExistenteSituacao||"ok")) || MEDIDA_SITUACOES[0];
+          const sitDef = MEDIDA_SITUACOES.find(x=>x.k===situacaoGeralExistente(r).k) || MEDIDA_SITUACOES[0];
           const plr = plrExigido(r, it.tarefa);
           blocos.push({ html:`<div class="lp-rc${r.ocultoLaudo?' lp-oculto':''}">
             <div class="lp-rc-cab">

@@ -12271,7 +12271,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       const corpo = funcao("baseIACamposDaLinha");
       ok(corpo.indexOf("medExistSitK") > 0, "falta a variável que calcula a situação");
       ok(corpo.indexOf('"Situação da mitigação existente": medExistSit ? medExistSit.rot : ""') > 0);
-      ok(corpo.indexOf('"O que falta na mitigação existente": risco ? (risco.medidaExistenteRessalva || "") : ""') > 0);
+      ok(corpo.indexOf('"O que falta na mitigação existente": risco ? (medExistGeral ? medExistGeral.obs : (risco.medidaExistenteRessalva || "")) : ""') > 0);
     });
     /* EXECUTADO: a parte com risco real de bug e o default -- quando o
        inspetor marcou algo como existente mas nunca tocou no seletor de
@@ -14228,6 +14228,90 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       const c = HTML.slice(i, HTML.indexOf("  tentarSalvarNovamente(){"));
       ok(c.indexOf("if(!confirm(") > 0 && c.indexOf("await onedriveSincronizarAgora();") > c.indexOf("if(!confirm("), "so depois do OK");
       ok(c.indexOf("aplicarLapidesNaArvore") < 0 && c.indexOf("marcarAlterado") < 0, "nao aplica por conta propria: usa o fluxo de sempre");
+    });
+  }
+
+  /* t189 — SITUAÇÃO POR MEDIDA NA MITIGAÇÃO EXISTENTE (07/10/2026). */
+  {
+    console.log("\n[t189] situacao por medida; citacao no fim do trecho de cada medida");
+    const base = ()=>({ componente:"Correia", medidasExistentes:["prot_fixa","loto"] });
+
+    t("risco antigo (sem situacao por medida) segue EXATAMENTE como era: um julgamento so e citacoes juntas no fim", ()=>{
+      const r = Object.assign(base(), { medidaExistenteSituacao:"parcial", medidaExistenteRessalva:"sem dispositivo de intertravamento" });
+      const txt = C.medidaTextoExistenteMulti(r);
+      ok(txt.indexOf(", porém sem dispositivo de intertravamento") > 0, txt);
+      ok(txt.indexOf(" e na ") > 0 && txt.indexOf("Atende parcialmente ao disposto") > 0, "citacoes agrupadas no fim: " + txt);
+      eq(C.temSituacaoPorMedida(r), false);
+      const g = C.situacaoGeralExistente(r);
+      eq(g.k, "parcial"); eq(g.obs, "sem dispositivo de intertravamento");
+    });
+    t("situacaoDaMedida: a propria quando existe; senao herda o valor unico antigo; senao Atende", ()=>{
+      const r = Object.assign(base(), { medidaExistenteSituacao:"parcial", medidaExistenteRessalva:"X" });
+      eq(C.situacaoDaMedida(r, "prot_fixa").sit, "parcial", "herda o valor antigo");
+      C.definirSituacaoMedida(r, "loto", "sit", "nao");
+      eq(C.situacaoDaMedida(r, "loto").sit, "nao");
+      eq(C.situacaoDaMedida(r, "prot_fixa").sit, "parcial", "a outra segue herdando");
+      eq(C.situacaoDaMedida({}, "qualquer").sit, "ok");
+    });
+    t("definirSituacaoMedida: 'Atende' limpa o que falta daquela medida; o 'o que falta' fica so nela", ()=>{
+      const r = base();
+      C.definirSituacaoMedida(r, "prot_fixa", "sit", "parcial");
+      C.definirSituacaoMedida(r, "prot_fixa", "obs", "com abertura que ainda permite o acesso à zona de perigo");
+      eq(C.situacaoDaMedida(r, "prot_fixa").obs, "com abertura que ainda permite o acesso à zona de perigo");
+      eq(C.situacaoDaMedida(r, "loto").obs, "", "a outra medida nao herdou a ressalva");
+      C.definirSituacaoMedida(r, "prot_fixa", "sit", "ok");
+      eq(C.situacaoDaMedida(r, "prot_fixa").obs, "");
+    });
+    t("O PONTO: cada medida diz a sua situacao e leva a SUA citacao no fim do proprio trecho", ()=>{
+      const r = base();
+      C.definirSituacaoMedida(r, "prot_fixa", "sit", "ok");
+      C.definirSituacaoMedida(r, "loto", "sit", "nao");
+      C.definirSituacaoMedida(r, "loto", "obs", "sem sinalização ou identificação");
+      const txt = C.medidaTextoExistenteMulti(r);
+      const mFixa = C.medidaPorChave("prot_fixa"), mLoto = C.medidaPorChave("loto");
+      const refFixa = C.medidaReferencia(mFixa), refLoto = C.medidaReferencia(mLoto);
+      const iFixa = txt.indexOf("Atende ao disposto na " + refFixa + ".");
+      const iLoto = txt.indexOf("Não atende ao disposto na " + refLoto + ".");
+      ok(iFixa > 0, "a medida que atende leva a frase 'Atende' com a norma dela: " + txt);
+      ok(iLoto > iFixa, "a que nao atende leva a dela, depois: " + txt);
+      ok(txt.indexOf(", porém sem sinalização ou identificação.") > 0, "o que falta entra so no trecho da medida que nao atende: " + txt);
+      eq(txt.split(", porém").length - 1, 1, "a ressalva nao vaza para a outra medida");
+      ok(txt.indexOf(" e na ") < 0, "as citacoes nao ficam mais agrupadas no fim");
+    });
+    t("o texto digitado a mao tambem tem situacao propria (sem norma, o julgamento sai por extenso)", ()=>{
+      const r = { componente:"Correia", medidasExistentes:["prot_fixa"], medidasExistentesOutros:["corrimão em toda a extensão"] };
+      C.definirSituacaoMedida(r, "prot_fixa", "sit", "ok");
+      C.definirSituacaoMedida(r, "o:corrimão em toda a extensão", "sit", "parcial");
+      C.definirSituacaoMedida(r, "o:corrimão em toda a extensão", "obs", "danificada, deformada ou com partes faltando");
+      const txt = C.medidaTextoExistenteMulti(r);
+      ok(txt.indexOf("Corrimão em toda a extensão, porém danificada, deformada ou com partes faltando. Atende parcialmente ao exigido.") > 0, txt);
+    });
+    t("situacaoGeralExistente: todas atendem = Atende; nenhuma = Nao atende; mistura = Atende em parte (com as ressalvas)", ()=>{
+      const r = base();
+      C.definirSituacaoMedida(r, "prot_fixa", "sit", "ok"); C.definirSituacaoMedida(r, "loto", "sit", "ok");
+      eq(C.situacaoGeralExistente(r).k, "ok");
+      C.definirSituacaoMedida(r, "loto", "sit", "nao"); C.definirSituacaoMedida(r, "loto", "obs", "sem sinalização ou identificação");
+      const g = C.situacaoGeralExistente(r);
+      eq(g.k, "parcial"); eq(g.obs, "sem sinalização ou identificação");
+      C.definirSituacaoMedida(r, "prot_fixa", "sit", "nao");
+      eq(C.situacaoGeralExistente(r).k, "nao");
+    });
+    t("a tela mostra uma linha por medida quando ha 2 ou mais, e o fluxo de uma medida so continua igual", ()=>{
+      const r = base();
+      const h2 = C.medidaSitPorMedidaHtml(r, (i,k)=>`A(${i},${k})`, (i)=>`B(${i})`);
+      eq((h2.match(/class="medida-sit"/g)||[]).length, 2, "uma fileira de botoes por medida");
+      ok(h2.indexOf("A(0,ok)") > 0 && h2.indexOf("A(1,nao)") > 0);
+      C.definirSituacaoMedida(r, "loto", "sit", "parcial");
+      ok(C.medidaSitPorMedidaHtml(r, (i,k)=>`A(${i},${k})`, (i)=>`B(${i})`).indexOf("B(1)") > 0, "a medida que nao atende por completo ganha o 'o que falta'");
+      eq((HTML.match(/itensExistentesDe\(r\)\.length >= 2 \? medidaSitPorMedidaHtml\(r,/g)||[]).length, 2, "nos dois blocos (rascunho do risco e revisao do laudo)");
+      ok(HTML.indexOf("onDraftMedidaExistentePM(i, campo, valor){") > 0 && HTML.indexOf("laudoSetMedidaExistentePM(rid, i, campo, valor){") > 0);
+    });
+    t("o laudo impresso e a planilha usam a situacao do conjunto quando ha situacao por medida", ()=>{
+      ok(HTML.indexOf("x.k===situacaoGeralExistente(r).k") > 0, "o impresso precisa usar a do conjunto");
+      ok(HTML.indexOf("const medExistGeral = (risco && temSituacaoPorMedida(risco)) ? situacaoGeralExistente(risco) : null;") > 0);
+    });
+    t("a IA recebe a situacao de CADA medida quando ela existe", ()=>{
+      ok(HTML.indexOf("Situação de CADA medida em relação à norma") > 0 && HTML.indexOf("Situação de cada medida que já existe: ") > 0);
     });
   }
 
