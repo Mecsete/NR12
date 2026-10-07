@@ -64,6 +64,17 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/10/2026 16:05
+
+**Laudo, "Avaliação por Componente": seção com faixa de fotos no topo, conformidades num parágrafo e pendências em texto com as fotos ao lado.**
+
+- Cada seção passa a ter: título; faixa com as fotos dos itens que atendem (no máximo 6 e no máximo 3 por linha: 1, 2 ou 3 fotos numa linha; 4 em duas linhas de 2; 5 ou 6 em duas linhas de 3; as que passam de 6 descem para o fim da seção); o "Como deve estar"; um parágrafo com o texto do que está conforme, sem citar o item, terminando com "(Fotos 3.1.1 a 3.1.3)"; e, depois de uma linha fina, o texto fluido das pendências com as fotos delas empilhadas à direita.
+- Cada pendência cita todas as suas fotos ("Fotos 3.1.4 e 3.1.5"), como o inspetor colocou no checklist de campo. A numeração é 3.1.1, 3.1.2... na ordem: primeiro as fotos do topo (itens que atendem), depois as das pendências. As fotos não têm descrição, só o número.
+- Correção importante: um item "Não atende" sem motivo escolhido, ou com motivo que não tem texto no modelo, deixava de aparecer no texto da seção (a nota do inspetor também se perdia). Agora ele sempre entra: "Não atende: <descrição do item>", seguido da nota do inspetor, se houver.
+- Texto editado à mão continua substituindo os dois parágrafos automáticos; as fotos continuam como acima.
+
+---
+
 ## 07/10/2026 15:20
 
 **Memorial: o resultado do dimensionamento não parece mais um parecer de aptidão.**

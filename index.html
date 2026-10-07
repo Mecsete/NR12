@@ -3422,7 +3422,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/10/2026 15:20";
+const APP_BUILD = "07/10/2026 16:05";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -10031,10 +10031,12 @@ function chkTextoLaudoItem(itemModelo, itemExec){
   return [];
 }
 /* "Foto 2" / "Fotos 2 e 3" / "Fotos 2, 3 e 5" — como o laudo cita as fotos. */
-function chkCitarFotos(nums, pref){
+function chkCitarFotos(nums, pref, faixa){
   if(!nums || !nums.length) return "";
   const r = nums.map(n=> pref ? pref + "." + n : String(n));
   if(r.length === 1) return `Foto ${r[0]}`;
+  // faixa: números seguidos (3 ou mais) viram "Fotos 3.1.1 a 3.1.6"
+  if(faixa && r.length >= 3 && nums.every((n, i)=> i === 0 || n === nums[i - 1] + 1)) return `Fotos ${r[0]} a ${r[r.length-1]}`;
   return `Fotos ${r.slice(0,-1).join(", ")} e ${r[r.length-1]}`;
 }
 /* Número da seção no laudo ("3.4"), usado como prefixo das fotos ("Foto 3.4.1"); "" se a seção não está no corpo do laudo. */
@@ -10057,7 +10059,12 @@ function chkFotosDaSecao(secaoModelo, linha){
   const porItem = {};
   const porMotivo = {};
   const objetos = []; // as mesmas fotos, como objetos {foto, motivo...}, na mesma ordem de `fotos`
-  (secaoModelo.itens||[]).forEach(it=>{
+  // Ordem da numeração: primeiro as fotos dos itens que NÃO são "não atende" (a faixa do topo da seção),
+  // depois as dos itens que não atendem (ao lado do texto das pendências). nOk = quantas são do primeiro grupo.
+  const ehNc = (it)=>{ const e = chkItemExec(linha, it.id); return !!e && e.conforme === "naoAtende"; };
+  const itensOrdem = (secaoModelo.itens||[]).filter(it=> !ehNc(it)).concat((secaoModelo.itens||[]).filter(ehNc));
+  let nOk = 0;
+  itensOrdem.forEach(it=>{
     const ie = chkItemExec(linha, it.id);
     const sel = (ie && ie.motivosSelecionados) || [];
     // Numera na ordem dos motivos marcados (as fotos de um motivo ficam em sequência, como na tela de
@@ -10075,8 +10082,9 @@ function chkFotosDaSecao(secaoModelo, linha){
       const pm = (porMotivo[it.id] = porMotivo[it.id] || {});
       (pm[chave] = pm[chave] || []).push(n);
     });
+    if(!ehNc(it)) nOk = fotos.length;
   });
-  return { fotos, porItem, porMotivo, objetos };
+  return { fotos, porItem, porMotivo, objetos, nOk };
 }
 /* Parágrafo corrido da seção pro laudo — NUNCA guardado, sempre calculado na
    hora a partir do texto padrão de cada item. Item "não atende" fica
@@ -10084,8 +10092,8 @@ function chkFotosDaSecao(secaoModelo, linha){
    e termina citando as fotos DELE ("(Fotos 2 e 3)"); foto sem motivo é citada
    no fim do item; a nota do inspetor entra no fim do item. */
 function chkNarrativaSecao(secaoModelo, linha, pref){
-  const { fotos, porMotivo } = chkFotosDaSecao(secaoModelo, linha);
-  const partes = (secaoModelo.itens||[]).map(it=>{
+  const { fotos, porMotivo, nOk } = chkFotosDaSecao(secaoModelo, linha);
+  const trecho = (it)=>{
     const ie = chkItemExec(linha, it.id) || {conforme:null, motivosSelecionados:[]};
     const nota = String(ie.observacao || "").trim();
     const notaHtml = nota ? ` Nota do inspetor: ${escapeHtml(nota)}` : "";
@@ -10097,15 +10105,24 @@ function chkNarrativaSecao(secaoModelo, linha, pref){
         const cit = chkCitarFotos(pm[m] || [], pref);
         return escapeHtml(mp.texto) + (cit ? ` (${cit})` : "");
       }).filter(Boolean);
-      if(!segs.length) return "";
       const solta = chkCitarFotos(pm[""] || [], pref);
+      // não atende sem texto de motivo (nenhum motivo escolhido, ou motivo sem texto no modelo): nunca some do laudo;
+      // entra com a descrição do item e a nota do inspetor, para a não conformidade sempre aparecer explicada
+      if(!segs.length) return `<mark class="nc">Não atende: ${escapeHtml(String(it.descricao || "").trim())}${solta ? ` (${solta})` : ""}${notaHtml}</mark>`;
       return `<mark class="nc">${segs.join(" ")}${solta ? ` (${solta})` : ""}${notaHtml}</mark>`;
     }
     const textos = chkTextoLaudoItem(it, ie);
     if(!textos.length) return "";
     return escapeHtml(textos.join(" ")) + notaHtml;
-  }).filter(Boolean);
-  return { html: partes.join(" "), fotos };
+  };
+  const ehNc = (it)=>{ const e = chkItemExec(linha, it.id); return !!e && e.conforme === "naoAtende"; };
+  const itens = secaoModelo.itens || [];
+  // o que está conforme vem primeiro, num parágrafo só, citando em faixa as fotos do topo da seção; depois as pendências
+  const okTxt = itens.filter(it=> !ehNc(it)).map(trecho).filter(Boolean).join(" ");
+  const citOk = nOk > 0 ? chkCitarFotos(Array.from({ length: nOk }, (_, k)=> k + 1), pref, true) : "";
+  const conforme = okTxt ? okTxt + (citOk ? ` (${citOk})` : "") : "";
+  const pend = itens.filter(ehNc).map(trecho).filter(Boolean).join(" ");
+  return { html: [conforme, pend].filter(Boolean).join(" "), conforme, pend, fotos, nOk };
 }
 /* Linhas da tabela-resumo "Checklist" do laudo (4 colunas: número, norma,
    pergunta, status) — pula seção marcada "não aplica" na linha inteira e
@@ -16305,28 +16322,43 @@ function lclBlocosCorpo(d, cap, redu){
   cap.subs.forEach((sub, i)=>{
     const s = (l.modeloSnapshot || []).find(x=> x.id === sub.id);
     if(!s) return;
-    const { html: narr, fotos } = chkNarrativaSecao(s, l, sub.num);
-    const imgs = fotos.map((f, k)=>({ n: sub.num + "." + (k + 1), src: redu(f) })).filter(x=> x.src);
-    const topo = (i === 0 ? lclFaixa(`${cap.num}  ${cap.rot}`, true) : "")
-      + `<div class="lcl-h3">${sub.num}  ${lclEsc(sub.titulo)}</div>`
-      + (s.contexto ? `<div class="lcl-ctx"><b>Como deve estar:</b> ${lclEsc(s.contexto)}</div>` : "");
+    const { conforme, pend, fotos, nOk } = chkNarrativaSecao(s, l, sub.num);
+    const todas = fotos.map((f, k)=>({ n: sub.num + "." + (k + 1), src: redu(f), ok: k < nOk })).filter(x=> x.src);
+    const okImgs = todas.filter(x=> x.ok), ncImgs = todas.filter(x=> !x.ok);
+    // Faixa do topo: fotos dos itens que atendem, no máximo 6 e no máximo 3 por linha (2 ou 3 em uma linha; 4 a 6 em duas);
+    // as que passam de 6 descem para o fim da seção. As fotos das pendências ficam ao lado do texto das pendências.
+    const topoFotos = okImgs.slice(0, 6), sobraFotos = okImgs.slice(6);
+    const figura = (x)=>`<div class="lcl-fcol"><img src="${x.src}" alt=""><div class="lcl-fnum">Foto ${x.n}</div></div>`;
+    const nTopo = topoFotos.length, colsTopo = nTopo === 1 ? 1 : (nTopo === 4 ? 2 : Math.min(3, nTopo));
+    const faixaTopo = nTopo ? `<div class="lcl-ftopo c${colsTopo}">${topoFotos.map(figura).join("")}</div>` : "";
     const editado = lclTextoEditado(l, sub.id);
-    const texto = editado !== null ? lclTextoParaHtml(editado) : (narr || `<p class="lcl-vazio">Nenhum item desta seção foi respondido ainda.</p>`);
+    const cabeca = (i === 0 ? lclFaixa(`${cap.num}  ${cap.rot}`, true) : "")
+      + `<div class="lcl-h3">${sub.num}  ${lclEsc(sub.titulo)}</div>`
+      + faixaTopo
+      + (s.contexto ? `<div class="lcl-ctx"><b>Como deve estar:</b> ${lclEsc(s.contexto)}</div>` : "");
+    // texto editado à mão substitui os dois parágrafos automáticos
+    const textoConforme = editado === null && conforme ? `<div class="lcl-narr lcl-larga">${conforme}</div>` : "";
+    const textoPend = editado !== null ? lclTextoParaHtml(editado) : pend;
+    const vazio = editado === null && !conforme && !pend ? `<p class="lcl-vazio">Nenhum item desta seção foi respondido ainda.</p>` : "";
     const editar = { tipo:"secao", id:sub.id, editado: editado !== null };
     const fotosEd = fotos.length ? { id:sub.id, n:fotos.length } : null;
-    const dupla = `${topo}<div class="lcl-sec-grid"><div class="lcl-narr">${texto}</div>${imgs.length ? `<div class="lcl-fotos-col">${imgs.map(x=>`<div class="lcl-fcol"><img src="${x.src}" alt=""><div class="lcl-fnum">Foto ${x.n}</div></div>`).join("")}</div>` : ""}</div>`;
-    const bloco = { quebrarAntes: i === 0, ancora: sub.ancora, editar, fotosEd, html: dupla };
-    if(i === 0) bloco.ancoraExtra = cap.ancora;
-    // Seção com muitas fotos não cabe numa folha em duas colunas: o texto fica
-    // inteiro e as fotos descem em fileiras de 3, uma fileira por bloco.
-    bloco.alternativa = ()=>{
-      const out = [{ quebrarAntes: i === 0, ancora: sub.ancora, editar, fotosEd, ancoraExtra: i === 0 ? cap.ancora : undefined, grudaNoProximo: imgs.length > 0, html: `${topo}<div class="lcl-narr lcl-larga">${texto}</div>` }];
-      for(let k = 0; k < imgs.length; k += 3){
-        out.push({ html: `<div class="lcl-fgrade">${imgs.slice(k, k + 3).map(x=>`<div class="lcl-fcol"><img src="${x.src}" alt=""><div class="lcl-fnum">Foto ${x.n}</div></div>`).join("")}</div>` });
-      }
-      return out;
-    };
-    blocos.push(bloco);
+    const blocoA = { quebrarAntes: i === 0, ancora: sub.ancora, editar, fotosEd, html: `${cabeca}${textoConforme}${vazio}` };
+    if(i === 0) blocoA.ancoraExtra = cap.ancora;
+    blocos.push(blocoA);
+    if(textoPend){
+      const colFotos = ncImgs.length ? `<div class="lcl-fotos-col">${ncImgs.map(figura).join("")}</div>` : "";
+      const blocoB = { html: `<div class="lcl-pend"><div class="lcl-sec-grid"><div class="lcl-narr">${textoPend}</div>${colFotos}</div></div>` };
+      // pendências com muitas fotos não cabem numa folha em duas colunas: o texto fica inteiro e as fotos descem em fileiras de 3
+      blocoB.alternativa = ()=>{
+        const out = [{ grudaNoProximo: ncImgs.length > 0, html: `<div class="lcl-pend"><div class="lcl-narr lcl-larga">${textoPend}</div></div>` }];
+        for(let k = 0; k < ncImgs.length; k += 3) out.push({ html: `<div class="lcl-fgrade">${ncImgs.slice(k, k + 3).map(figura).join("")}</div>` });
+        return out;
+      };
+      blocos.push(blocoB);
+    }else if(ncImgs.length){
+      for(let k = 0; k < ncImgs.length; k += 3) blocos.push({ html: `<div class="lcl-fgrade">${ncImgs.slice(k, k + 3).map(figura).join("")}</div>` });
+    }
+    for(let k = 0; k < sobraFotos.length; k += 3) blocos.push({ html: `<div class="lcl-fgrade">${sobraFotos.slice(k, k + 3).map(figura).join("")}</div>` });
   });
   return blocos;
 }
@@ -16518,6 +16550,9 @@ a.lcl-sl:hover i{border-bottom-color:#E94E1B}
 .lcl-fcol img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:2px;background:#e6e8f0}
 .lcl-fnum{font-size:10px;color:#555;margin-top:3px}
 .lcl-fgrade{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:6px}
+.lcl-ftopo{display:grid;gap:12px;margin:0 0 10px}
+.lcl-ftopo.c1{grid-template-columns:minmax(0,50%)}.lcl-ftopo.c2{grid-template-columns:repeat(2,minmax(0,1fr))}.lcl-ftopo.c3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.lcl-pend{border-top:1px solid #dfe2ec;margin-top:6px;padding-top:8px}
 /* conclusão */
 .lcl-kc{display:flex;gap:18px;align-items:center;margin:2px 0 14px;padding:10px 14px;border:1px solid #dfe2ec;border-radius:10px}
 .lcl-selos{margin-bottom:6px}

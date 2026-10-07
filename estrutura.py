@@ -5886,7 +5886,7 @@ chk("laudo impresso, planilha e entradas da IA entendem a situacao por medida",
 
 print("\n=== 192. FOTOS NUMERADAS PELA SECAO E CAPA COM O QUADRO JUNTO DA FOTO (08/10/2026) ===")
 chk("fotos do laudo numeradas pela secao (3.4.1) na legenda, na citacao do texto e na janela de fotos",
-    "function chkCitarFotos(nums, pref){" in novo and "function lclNumeroSecao(linha, secaoId){" in novo and "chkNarrativaSecao(s, l, sub.num)" in novo and 'n: sub.num + "." + (k + 1)' in novo and "prefSec ? prefSec" in novo)
+    "function chkCitarFotos(nums, pref, faixa){" in novo and "function lclNumeroSecao(linha, secaoId){" in novo and "chkNarrativaSecao(s, l, sub.num)" in novo and 'n: sub.num + "." + (k + 1)' in novo and "prefSec ? prefSec" in novo)
 chk("capa com foto: o quadro de dados fica logo abaixo da foto (nao mais absoluto no rodape)",
     ".lcl-capa-txt.com-foto .lcl-capa-tab{margin-top:${Math.round(12*LCL_MM)}px}" in novo and "bottom:${Math.round(27*LCL_MM)}px;width:calc" not in novo)
 
@@ -5911,6 +5911,14 @@ chk("a frase do CREA so sai com ART e as condicoes de uso da viga citam a altura
 print("\n=== 196. MEMORIAL: ZLQ ATENDE E CONCLUSAO DO DIMENSIONAMENTO (07/10/2026) ===")
 chk("o memorial diz ZLQ ATENDE / ZLQ NAO ATENDE e conclusao do dimensionamento, sem parecer de aptidao",
     'ok ? "ZLQ ATENDE" : "ZLQ NÃO ATENDE"' in novo and "<b>Conclusão do dimensionamento.</b>" in novo and "não substitui o parecer da Conclusão" in novo and "PODE USAR" not in novo)
+
+print("\n=== 197. SECAO DO LAUDO: FAIXA DE FOTOS NO TOPO, CONFORMES E PENDENCIAS EM BLOCOS (07/10/2026) ===")
+chk("secao do laudo: faixa de ate 6 fotos (max 3 por linha) dos itens que atendem, conformes num paragrafo, pendencias em bloco com fotos ao lado",
+    'lcl-ftopo c${colsTopo}' in novo and "okImgs.slice(0, 6), sobraFotos = okImgs.slice(6)" in novo and "colsTopo = nTopo === 1 ? 1 : (nTopo === 4 ? 2 : Math.min(3, nTopo))" in novo and 'class="lcl-pend"' in novo and ".lcl-ftopo{" in novo)
+chk("numeracao das fotos: itens que atendem primeiro (nOk), depois as pendencias; citacao em faixa so para os conformes",
+    "return { fotos, porItem, porMotivo, objetos, nOk };" in novo and "function chkCitarFotos(nums, pref, faixa){" in novo and "chkCitarFotos(Array.from({ length: nOk }" in novo)
+chk("nao atende sem texto de motivo nunca some do laudo: entra com a descricao do item e a nota",
+    'Não atende: ${escapeHtml(String(it.descricao || "").trim())}' in novo)
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

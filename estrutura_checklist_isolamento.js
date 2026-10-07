@@ -1184,7 +1184,7 @@ async function testarDadosLaudo(){
   // item que atende: texto padrao e nota, sem destaque
   roda(`__lclN.ie.conforme = "atende"; __lclN.ie.motivosSelecionados = []`);
   const n4 = roda("chkNarrativaSecao(__lclN.s, __lclN.l)");
-  T(n4.html === "Atende N. Nota do inspetor: Medido em campo.", "item que atende nao tem destaque e leva a nota: " + n4.html);
+  T(n4.html === "Atende N. Nota do inspetor: Medido em campo. (Fotos 1 a 5)" && n4.conforme === n4.html && n4.pend === "" && n4.nOk === 5, "item que atende nao tem destaque, leva a nota e cita as fotos em faixa: " + n4.html);
 
   // migracao aditiva: tipo da linha, prioridade e acao
   const estadoNovo = roda(`(function(){
@@ -1306,8 +1306,9 @@ async function testarLaudoCapitulos(){
   const ck = blocos.filter(b=>b.html.includes("lcl-cd")).map(b=>b.html).join("");
   T(ck.includes("NR-35 8.2") && ck.includes("ver 3.1") && ck.includes("Seção marcada como") && ck.includes("1 OK · 1 NÃO OK"), "checklist em cartoes: norma do item, 'ver 3.1' no que nao atende, secao NA e contagem por secao");
   const corpoBl = blocos.filter(b=>b.ancora && b.ancora.startsWith("cap-sec-"));
-  T(corpoBl.length === 2 && corpoBl[0].ancoraExtra === "cap-corpo" && typeof corpoBl[0].alternativa === "function", "um bloco de corpo por secao que se aplica, o 1o carregando a ancora do capitulo");
-  T(corpoBl[0].html.includes("rF1") && /Foto \d+\.\d+\.1</.test(corpoBl[0].html) && !corpoBl[0].html.includes(">Foto 1<") && corpoBl[0].html.includes("Texto M1.") && corpoBl[0].html.includes("Contexto A."), "corpo: narrativa, contexto e foto numerada");
+  T(corpoBl.length === 2 && corpoBl[0].ancoraExtra === "cap-corpo", "um bloco de corpo por secao que se aplica, o 1o carregando a ancora do capitulo");
+  const corpo0 = blocos.slice(blocos.indexOf(corpoBl[0]), blocos.indexOf(corpoBl[1])).map(b=>b.html).join("");
+  T(corpo0.includes("rF1") && /Foto \d+\.\d+\.1</.test(corpo0) && !corpo0.includes(">Foto 1<") && corpo0.includes("Texto M1.") && corpoBl[0].html.includes("Contexto A.") && corpo0.includes("lcl-pend"), "corpo: contexto no 1o bloco; texto das pendencias e foto numerada no bloco das pendencias");
   const conc = blocos.slice(blocos.findIndex(b=>b.ancora === "cap-conclusao")).map(b=>b.html).join("");
   T(/ART nº <b>ART123<\/b><\/p>\s*<p[^>]*>Rio Verde - GO, /.test(conc), "conclusao: a cidade e a data ficam numa linha ABAIXO do 'Relatorio documentado...'");
   T(conc.includes("Próxima inspeção até: 24/09/2027") && conc.includes("data:image/jpeg;base64,ASS") && conc.includes("67%"), "conclusao: proxima inspecao, assinatura e percentual");
@@ -1968,14 +1969,21 @@ async function testarEdicaoTexto(){
   const d = "lclDados(__f3.proj, __f3.setor, __f3.l)";
   const capCorpo = "lclPlano(__f3.proj, __f3.l).find(c=>c.id === 'corpo')";
   const fotosReduzidas = "(x)=> x";
+  const secBlocos = (arr, k)=>{ const idx = []; for(let q = 0; q < arr.length; q++) if(arr[q].ancora) idx.push(q); return arr.slice(idx[k], idx[k + 1] === undefined ? arr.length : idx[k + 1]); };
+  const juntar = (bs)=> bs.map(b=> b.html).join("");
   const corpoAuto = roda(`lclBlocosCorpo(${d}, ${capCorpo}, ${fotosReduzidas})`);
-  T(corpoAuto[0].editar.tipo === "secao" && corpoAuto[0].editar.id === secId && corpoAuto[0].editar.editado === false && corpoAuto[0].html.includes(roda("chkNarrativaSecao(__f3.l.modeloSnapshot[0], __f3.l, " + capCorpo + ".subs[0].num).html")), "sem edicao: o corpo usa a narrativa automatica e o botao diz 'Editar texto'");
+  const narrAuto = roda("chkNarrativaSecao(__f3.l.modeloSnapshot[0], __f3.l, " + capCorpo + ".subs[0].num)");
+  const sec0 = secBlocos(corpoAuto, 0);
+  T(corpoAuto[0].editar.tipo === "secao" && corpoAuto[0].editar.id === secId && corpoAuto[0].editar.editado === false && (!narrAuto.conforme || juntar(sec0).includes(narrAuto.conforme)) && (!narrAuto.pend || juntar(sec0).includes(narrAuto.pend)), "sem edicao: o corpo usa a narrativa automatica (conformes no 1o bloco, pendencias no bloco proprio) e o botao diz 'Editar texto'");
   roda("__f3.l.laudo = " + J({ textos: { [secId]: "Texto do engenheiro com **destaque**.\n\nSegundo paragrafo." } }));
   const corpoEd = roda(`lclBlocosCorpo(${d}, ${capCorpo}, ${fotosReduzidas})`);
-  T(corpoEd[0].html.includes('<p>Texto do engenheiro com <mark class="nc">destaque</mark>.</p><p>Segundo paragrafo.</p>') && !corpoEd[0].html.includes(auto) && corpoEd[0].editar.editado === true, "com edicao: o texto do engenheiro substitui a narrativa");
-  T(corpoEd[0].html.includes("lcl-fotos-col") && /Foto \d+\.\d+\.1</.test(corpoEd[0].html), "as fotos da secao continuam ao lado do texto editado");
-  T(corpoEd[1].editar.editado === false && corpoEd[1].editar.id === secId2 && !corpoEd[1].html.includes("Texto do engenheiro"), "a edicao de uma secao nao vaza para a outra");
-  T(corpoEd[0].alternativa().every((b, i)=> i > 0 || (b.editar && b.editar.id === secId)), "o layout alternativo (muitas fotos) tambem leva o botao de editar");
+  const ed0 = juntar(secBlocos(corpoEd, 0));
+  T(ed0.includes('<p>Texto do engenheiro com <mark class="nc">destaque</mark>.</p><p>Segundo paragrafo.</p>') && !ed0.includes(auto) && corpoEd[0].editar.editado === true, "com edicao: o texto do engenheiro substitui a narrativa");
+  T(ed0.includes("lcl-fotos-col") && /Foto \d+\.\d+\.\d+</.test(ed0), "as fotos da secao continuam ao lado do texto editado");
+  const sec1 = secBlocos(corpoEd, 1);
+  T(sec1[0].editar.editado === false && sec1[0].editar.id === secId2 && !juntar(sec1).includes("Texto do engenheiro"), "a edicao de uma secao nao vaza para a outra");
+  const comAlt = secBlocos(corpoEd, 0).filter(b=> typeof b.alternativa === "function");
+  T(comAlt.length === 1 && comAlt[0].alternativa().length >= 1 && comAlt[0].alternativa()[0].html.includes("lcl-larga"), "o layout alternativo (muitas fotos) existe no bloco do texto das pendencias e deixa o texto em largura cheia");
   const outra = roda("(function(){ const l2 = JSON.parse(JSON.stringify(__f3.l)); delete l2.laudo; return lclTextoEditado(l2, '" + secId + "'); })()");
   T(outra === null, "uma copia da linha sem a edicao continua automatica (a edicao e por linha)");
 
@@ -2082,7 +2090,7 @@ async function testarFotosLeituraLaudo(){
   // --- botao "Fotos (n)" so quando a secao tem foto; barra unica no canto da pagina
   const d = "lclDados(__f3.proj, __f3.setor, __f3.l)";
   const corpo = roda(`lclBlocosCorpo(${d}, lclPlano(__f3.proj, __f3.l).find(c=>c.id === 'corpo'), (x)=> x)`);
-  T(corpo[0].fotosEd && corpo[0].fotosEd.id === sec1 && corpo[0].fotosEd.n === 2 && corpo[0].alternativa()[0].fotosEd.n === 2, "secao com foto oferece 'Fotos (2)' (tambem no layout alternativo)");
+  T(corpo[0].fotosEd && corpo[0].fotosEd.id === sec1 && corpo[0].fotosEd.n === 2, "secao com foto oferece 'Fotos (2)' no bloco que leva a ancora e o botao de editar");
   T(!corpo[1].fotosEd, "secao sem foto nao oferece o botao de fotos");
   const doc = roda(`lclMontarDoc([{ blocos:[{ html:"<i>x</i>", editar:{ tipo:"secao", id:"abc", editado:false }, fotosEd:{ id:"abc", n:3 } }] }, { blocos:[{ html:"<i>y</i>", editar:{ tipo:"conclusao", id:"", editado:false } }] }, { blocos:[{ html:"<i>z</i>" }] }], ${d})`);
   T(doc.includes(`<div class="lcl-edit-bar"><button type="button" class="lcl-edit-btn" onclick="App.lclEditarTexto('secao','abc')">Editar texto</button><button type="button" class="lcl-edit-btn" onclick="App.lclAbrirFotos('abc')">Fotos (3)</button></div><div class="lcl-corpo">`), "uma barra por pagina, com os dois botoes juntos: " + doc.slice(0, 330));
@@ -2665,6 +2673,42 @@ async function testarUsabilidade(){
   const condR = roda(`(function(){ const m = chkMemorialDe({ memorial:{ hanc:6.5, hpos:4.9, vao:1 } }); const c = chkMemorialCalc("horizontal_rigida", m); return chkMemorialCondicoes(c, m).join("|"); })()`);
   T(condR.includes("talabarte <b>2,00 m</b>; trava-quedas <b>1,50 m</b>"), "condicoes de uso do memorial citam a altura minima de talabarte e de trava-quedas: " + condR);
   roda("STATE.ui.chkProjetoId = " + J(estadoAntes.p) + "; STATE.ui.chkSetorId = null; STATE.ui.chkLinhaId = null; STATE.checklists.projetos = " + J(estadoAntes.lista) + ";");
+  // ---- secao do laudo: faixa de fotos no topo (itens que atendem), texto de conformidade, pendencias com fotos ao lado ----
+  const itn = (id, desc, extra)=> Object.assign({ id, descricao:desc, prioridade:"media", textoAtende:"Texto " + id + " ok.", motivosPadrao:[{ motivo:"M1", texto:"Pendencia " + id + ".", acao:"A" }] }, extra || {});
+  const exe = (id, conf, nFotos, extra)=> Object.assign({ itemId:id, conforme:conf, motivosSelecionados:[], observacao:"", fotos: Array.from({ length:nFotos }, (_, k)=> ({ foto:"data:image/jpeg;base64,F" + id + k, motivo:"" })) }, extra || {});
+  const linhaCorpo = (itens, execs)=> J({ id:"LC", nome:"LV corpo", secoesNA:[], laudo:{}, modeloSnapshot:[{ id:"s1", titulo:"Documentação", contexto:"Como deve estar X.", itens }], itens: execs });
+  const capC1 = "{ num:3, rot:'Avaliação por Componente', ancora:'cap-corpo', subs:[{ id:'s1', num:'3.1', titulo:'Documentação', ancora:'cap-sec-s1' }] }";
+  const corpoDe = (lin)=> roda("lclBlocosCorpo({ linha:" + lin + " }, " + capC1 + ", (x)=> x)");
+  const junta = (bs)=> bs.map(b=> b.html).join("");
+  // numeracao: fotos dos itens que atendem primeiro, depois as das pendencias; nOk = quantas sao do primeiro grupo
+  const lin1 = linhaCorpo([itn("a", "Item A"), itn("b", "Item B"), itn("c", "Item C")], [exe("a", "naoAtende", 2, { motivosSelecionados:["M1"] }), exe("b", "atende", 1), exe("c", "atende", 2)]);
+  const fs = roda("chkFotosDaSecao(" + lin1 + ".modeloSnapshot[0], " + lin1 + ")");
+  T(fs.nOk === 3 && fs.fotos.length === 5 && fs.fotos[0].endsWith("Fb0") && fs.fotos[1].endsWith("Fc0") && fs.fotos[3].endsWith("Fa0"), "numeracao: fotos dos itens que atendem primeiro (nOk=3), depois as das pendencias: " + J(fs.fotos));
+  T(roda("chkCitarFotos([1,2,3], '3.1', true)") === "Fotos 3.1.1 a 3.1.3" && roda("chkCitarFotos([1,2], '3.1', true)") === "Fotos 3.1.1 e 3.1.2" && roda("chkCitarFotos([1,3,4], '3.1', true)") === "Fotos 3.1.1, 3.1.3 e 3.1.4" && roda("chkCitarFotos([3,4,5], '', false)") === "Fotos 3, 4 e 5", "citacao em faixa so quando pedida e so para numeros seguidos");
+  const nr = roda("chkNarrativaSecao(" + lin1 + ".modeloSnapshot[0], " + lin1 + ", '3.1')");
+  T(nr.conforme === "Texto b ok. Texto c ok. (Fotos 3.1.1 a 3.1.3)" && nr.pend.includes("Pendencia a. (Fotos 3.1.4 e 3.1.5)") && nr.pend.includes('<mark class="nc">'), "conformes num paragrafo so, sem citar o item, com as fotos em faixa; pendencia cita as duas fotos: " + J(nr));
+  // pendencia sem motivo (ou motivo sem texto) nunca some: entra com a descricao do item e a nota
+  const linNc = linhaCorpo([itn("t", "Plaqueta de identificação do trólei"), itn("u", "Item U", { motivosPadrao:[{ motivo:"M1", texto:"", acao:"" }] })], [exe("t", "naoAtende", 0, { observacao:"Plaqueta ausente" }), exe("u", "naoAtende", 0, { motivosSelecionados:["M1"] })]);
+  const nNc = roda("chkNarrativaSecao(" + linNc + ".modeloSnapshot[0], " + linNc + ")");
+  T(nNc.pend.includes("Não atende: Plaqueta de identificação do trólei Nota do inspetor: Plaqueta ausente") && nNc.pend.includes("Não atende: Item U"), "nao atende sem motivo de texto continua no laudo, com a descricao do item e a nota do inspetor: " + nNc.pend);
+  // faixa do topo: 1 foto = 1 coluna; 2 = 2; 3 = 3; 4 = 2 por linha; 5 e 6 = 3 por linha; no maximo 6 (as outras descem ao fim)
+  const faixaDe = (n)=>{
+    const itens = Array.from({ length:n }, (_, k)=> itn("p" + k, "Item " + k)), ex = Array.from({ length:n }, (_, k)=> exe("p" + k, "atende", 1));
+    const bs = corpoDe(linhaCorpo(itens, ex));
+    const h0 = bs[0].html, m = /lcl-ftopo c(\d)/.exec(h0);
+    return { cols: m ? Number(m[1]) : 0, fotos: (h0.match(/class="lcl-fnum"/g) || []).length, extra: bs.slice(1).filter(b=> b.html.includes("lcl-fgrade")).reduce((a, b)=> a + (b.html.match(/class="lcl-fnum"/g) || []).length, 0), resto: junta(bs.slice(1)) };
+  };
+  const f1 = faixaDe(1), f2 = faixaDe(2), f3 = faixaDe(3), f4 = faixaDe(4), f5 = faixaDe(5), f6 = faixaDe(6), f8 = faixaDe(8);
+  T(f1.cols === 1 && f2.cols === 2 && f3.cols === 3 && f4.cols === 2 && f5.cols === 3 && f6.cols === 3 && f1.fotos === 1 && f4.fotos === 4 && f6.fotos === 6, "faixa do topo: colunas e quantidade de fotos: " + J([f1.cols, f2.cols, f3.cols, f4.cols, f5.cols, f6.cols]));
+  T(f8.fotos === 6 && f8.cols === 3 && f8.extra === 2 && f8.resto.includes("Foto 3.1.7") && f8.resto.includes("Foto 3.1.8"), "mais de 6 fotos: seis no topo, as outras descem para o fim da secao: " + J([f8.fotos, f8.extra]));
+  // ordem na pagina: foto(s) do topo, 'Como deve estar', texto das conformidades; pendencias em bloco proprio com as fotos ao lado
+  const bsMix = corpoDe(lin1);
+  const hA = bsMix[0].html;
+  T(hA.indexOf("lcl-ftopo") < hA.indexOf("Como deve estar") && hA.indexOf("Como deve estar") < hA.indexOf("Texto b ok.") && bsMix[1].html.includes("lcl-pend") && bsMix[1].html.includes("lcl-fotos-col") && bsMix[1].html.includes("Foto 3.1.4") && bsMix[1].html.includes("Foto 3.1.5") && bsMix[1].html.includes("Pendencia a."), "pagina: fotos do topo, Como deve estar, conformes; pendencias com as fotos empilhadas ao lado");
+  // sem pendencia: nao ha bloco de pendencias; sem foto: nao ha faixa
+  const linOk = linhaCorpo([itn("a", "Item A")], [exe("a", "atende", 0)]);
+  const bsOk = corpoDe(linOk);
+  T(bsOk.length === 1 && !bsOk[0].html.includes("lcl-ftopo") && bsOk[0].html.includes("Texto a ok."), "so conformes e sem fotos: um bloco, sem faixa e sem pendencias");
 }
 async function testarSincronizacaoChecklist(){
   const T = (cond, msg)=>{ if(!cond) throw new Error("sincronizacao do checklist: " + msg); };
