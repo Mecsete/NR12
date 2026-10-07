@@ -1555,7 +1555,7 @@ async function testarMemorial(){
   // veredito e parecer
   const vd = (hanc, hpos, extra) => roda(`(function(){ const m = chkMemorialDe({ memorial:{ hanc:${hanc}, hpos:${hpos}, vao:6.7, flechaCm:46.9, diametro:8${extra || ""} } }); const c = chkMemorialCalc("horizontal_flexivel", m); return { v: chkMemorialVeredito(c, m), p: chkMemorialParecer(c, m) }; })()`);
   let r = vd(5, 3);
-  T(r.v.okTq === true && r.v.okTab === false && r.v.okC === true && r.v.okHp === true && r.p.includes("somente com trava-quedas"), "ancoragem 5 m: so trava-quedas: " + r.p);
+  T(r.v.okTq === true && r.v.okTab === false && r.v.okC === true && r.v.okHp === true && r.p.includes("somente trava-quedas") && r.p.includes("O talabarte <b>não atende</b>") && r.p.includes("não substitui o parecer da Conclusão"), "ancoragem 5 m: so trava-quedas: " + r.p);
   r = vd(6, 3);
   T(r.v.okTq && r.v.okTab && r.p.includes("trava-quedas retrátil ou talabarte"), "ancoragem 6 m: os dois EPI");
   r = vd(4, 3);
@@ -1838,8 +1838,8 @@ async function testarCapitulosNovos(){
   // --- memorial
   const memB = todos.filter(x=> { const i = todos.indexOf(x); const iM = todos.findIndex(y=> y.ancora === "cap-memorial"); return i >= iM && i < iConc; });
   const iFx = memB.findIndex(x=> x.ancora === "cap-memoria"), nFx = memB.length - iFx - 1;
-  T(iFx === 3 && nFx >= 10 && memB.length === 3 + nFx + 1 && memB[0].ancora === "cap-memorial" && memB[0].html.includes("4  Memorial de Cálculo — Zona Livre de Queda") && memB[0].html.includes("<svg") && memB[0].html.includes("lcl-mcard") && memB[0].html.includes("PODE USAR") && memB[0].html.includes("NÃO USAR") && memB[0].html.includes("Cabo de aço 8 mm") && memB[0].html.includes("ATENDE"), "memorial: blocos (uma formula por bloco), ancora, cartoes dos 2 EPI e do cabo e ilustracao: " + memB.length);
-  T(memB[1].html.includes("Legenda") && memB[1].html.includes("Condições de uso") && memB[2].html.includes("Premissas") && memB[2].html.includes("Parecer.") && memB[3].ancora === "cap-memoria" && memB[3].quebrarAntes === true && memB[3].html.includes("4.1  Memória de cálculo") && memB[3].html.includes("<math>") && memB[memB.length - 1].html.includes("lcl-tz") && memB.slice(3, -1).every(x=> x.html.includes("lcl-fm")), "memorial: legenda, condicoes, premissas, parecer, e a memoria de calculo em pagina nova (uma formula por bloco)");
+  T(iFx === 3 && nFx >= 10 && memB.length === 3 + nFx + 1 && memB[0].ancora === "cap-memorial" && memB[0].html.includes("4  Memorial de Cálculo — Zona Livre de Queda") && memB[0].html.includes("<svg") && memB[0].html.includes("lcl-mcard") && memB[0].html.includes("ZLQ ATENDE") && memB[0].html.includes("ZLQ NÃO ATENDE") && !memB[0].html.includes("PODE USAR") && memB[0].html.includes("Cabo de aço 8 mm") && memB[0].html.includes("ATENDE"), "memorial: blocos (uma formula por bloco), ancora, cartoes dos 2 EPI e do cabo e ilustracao: " + memB.length);
+  T(memB[1].html.includes("Legenda") && memB[1].html.includes("Condições de uso") && memB[2].html.includes("Premissas") && memB[2].html.includes("Conclusão do dimensionamento.") && !memB[2].html.includes("Parecer.") && memB[3].ancora === "cap-memoria" && memB[3].quebrarAntes === true && memB[3].html.includes("4.1  Memória de cálculo") && memB[3].html.includes("<math>") && memB[memB.length - 1].html.includes("lcl-tz") && memB.slice(3, -1).every(x=> x.html.includes("lcl-fm")), "memorial: legenda, condicoes, premissas, parecer, e a memoria de calculo em pagina nova (uma formula por bloco)");
   roda("__f3.l.memorial.memoria = false");
   T(roda(`lclMontarBlocos(${d}, lclTextos(), lclPlano(__f3.proj, __f3.l), new Map(), null).filter(x=> x.ancora === "cap-memoria").length`) === 0 && roda("lclPlano(__f3.proj, __f3.l).find(c=>c.id === 'memorial').subs.length") === 0, "sem a pagina da memoria de calculo: sem bloco e sem subitem");
   roda("__f3.l.memorial.memoria = true");

@@ -5908,6 +5908,10 @@ chk("normas de referencia padrao agrupadas por tipo de linha (gerais, rigidas, f
 chk("a frase do CREA so sai com ART e as condicoes de uso da viga citam a altura minima do talabarte e do trava-quedas",
     'proj.art ? `<p class="lcl-par" style="margin-top:14px">Relatório documentado perante o CREA na ART nº' in novo and "talabarte <b>${f(c.Hp1)} m</b>; trava-quedas <b>${f(c.Hp2)} m</b>" in novo)
 
+print("\n=== 196. MEMORIAL: ZLQ ATENDE E CONCLUSAO DO DIMENSIONAMENTO (07/10/2026) ===")
+chk("o memorial diz ZLQ ATENDE / ZLQ NAO ATENDE e conclusao do dimensionamento, sem parecer de aptidao",
+    'ok ? "ZLQ ATENDE" : "ZLQ NÃO ATENDE"' in novo and "<b>Conclusão do dimensionamento.</b>" in novo and "não substitui o parecer da Conclusão" in novo and "PODE USAR" not in novo)
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
 

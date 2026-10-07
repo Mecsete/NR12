@@ -3422,7 +3422,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/10/2026 12:05";
+const APP_BUILD = "07/10/2026 15:20";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -15391,9 +15391,10 @@ function chkMemorialPremissas(c, m){
 function chkMemorialParecer(c, m){
   const v = chkMemorialVeredito(c, m), f = chkMemFmt;
   if(!v.okC) return c.conv ? "O cabo <b>não suporta</b> a carga dinâmica prevista. A linha deve ser redimensionada antes do uso." : "O esforço no cabo <b>não pôde ser calculado</b>. Confira a flecha e o diâmetro informados.";
-  if(v.okTq && v.okTab) return "A linha pode ser utilizada com <b>trava-quedas retrátil ou talabarte com absorvedor</b>, respeitadas as condições de uso acima.";
-  if(v.okTq) return `A linha pode ser utilizada <b>somente com trava-quedas retrátil</b> de até ${f(c.B1, 1)} m. O uso de talabarte <b>não é permitido</b>, pois a zona livre de queda necessária (${f(c.ZLQ1)} m) é maior que a altura disponível (${f(m.hanc)} m).`;
-  return `Com a altura disponível de ${f(m.hanc)} m, <b>nenhum dos EPI avaliados</b> garante a zona livre de queda. A altura da ancoragem precisa aumentar ou o sistema deve ser alterado.`;
+  const ressalva = " Este resultado trata apenas do dimensionamento e não substitui o parecer da Conclusão.";
+  if(v.okTq && v.okTab) return "Pelas dimensões da zona livre de queda, a linha comporta o uso com <b>trava-quedas retrátil ou talabarte com absorvedor</b>, respeitadas as condições de uso acima." + ressalva;
+  if(v.okTq) return `Pelas dimensões da zona livre de queda, a linha comporta <b>somente trava-quedas retrátil</b> de até ${f(c.B1, 1)} m. O talabarte <b>não atende</b>, pois a zona livre de queda necessária (${f(c.ZLQ1)} m) é maior que a altura disponível (${f(m.hanc)} m).` + ressalva;
+  return `Com a altura disponível de ${f(m.hanc)} m, <b>nenhum dos EPI avaliados</b> garante a zona livre de queda. A altura da ancoragem precisa aumentar ou o sistema deve ser alterado.` + ressalva;
 }
 /* Fórmulas em notação matemática (MathML — o navegador desenha e sai no PDF), uma por linha, cada uma com a forma
    simbólica e a substituída, na ordem da planilha do memorial (para dar para conferir linha a linha). */
@@ -16074,12 +16075,12 @@ function lclBlocosMemorial(d, cap){
   const sistema = rig ? `rígida (viga ${CHK_MEMORIAL_VIGA.perfil})` : `flexível (cabo de aço de ${chkMemDiam(m.diametro)} mm)`;
   const nome = !rig && m.uso === "restricao" ? "linha de restrição" : "linha de vida";
   const intro = `<p class="lcl-par">Verificação da zona livre de queda (ZLQ) da ${nome} horizontal <b>${sistema}</b> ${lclEsc(l.nome || "")}, com vão de ${f(m.vao)} m${!rig && c.nv > 1.0000001 ? " (linha de " + f(c.Lt) + " m, " + f(c.nv, 0) + " vãos)" : ""} e ancoragem a ${f(m.hanc)} m do piso, para ${f(m.usuarios, 0)} ${m.usuarios === 1 ? "usuário" : "usuários"}. A ZLQ é a altura livre mínima abaixo da ancoragem para o usuário ser retido antes de atingir o piso ou um obstáculo.</p>`;
-  const card = (nome, zlq, ok)=>`<div class="lcl-mcard ${ok ? "ok" : "no"}"><b>${nome}</b><strong>${ok ? "PODE USAR" : "NÃO USAR"}</strong><small>ZLQ necessária ${f(zlq)} m · disponível ${f(m.hanc)} m · ${ok ? "folga" : "falta"} ${f(Math.abs(m.hanc - zlq))} m</small></div>`;
+  const card = (nome, zlq, ok)=>`<div class="lcl-mcard ${ok ? "ok" : "no"}"><b>${nome}</b><strong>${ok ? "ZLQ ATENDE" : "ZLQ NÃO ATENDE"}</strong><small>ZLQ necessária ${f(zlq)} m · disponível ${f(m.hanc)} m · ${ok ? "folga" : "falta"} ${f(Math.abs(m.hanc - zlq))} m</small></div>`;
   const cardCabo = rig ? "" : `<div class="lcl-mcard ${v.okC ? "ok" : "no"}"><b>Cabo de aço ${chkMemDiam(m.diametro)} mm</b><strong>${v.okC ? "ATENDE" : "NÃO ATENDE"}</strong><small>Esforço ${f(c.T1, 0)} kgf · admissível ${f(c.Fadm, 0)} kgf · utilização ${f(c.uso * 100, 0)}%</small></div>`;
   const blocos = [
     { quebrarAntes:true, ancora:cap.ancora, html:`${lclFaixa(`${cap.num}  ${cap.rot}`, true)}${intro}<div class="lcl-mcards"${rig ? "" : ' style="grid-template-columns:1fr 1fr 1fr"'}>${card("Talabarte com absorvedor", c.ZLQ1, v.okTab)}${card("Trava-quedas retrátil", c.ZLQ2, v.okTq)}${cardCabo}</div><div class="lcl-mfig">${chkMemorialFigura(tipo, m)}</div>` },
     { html:`<div class="lcl-mcols"><div><h5>Legenda</h5><div class="lcl-mleg">${chkMemorialLegenda(c, m).map((x, i)=>`<i>${i + 1}</i><span>${x}</span>`).join("")}</div></div><div><h5>Condições de uso</h5><ul>${chkMemorialCondicoes(c, m).map(x=>`<li>${x}</li>`).join("")}</ul></div></div>` },
-    { html:`<div class="lcl-mcols" style="grid-template-columns:1.8fr 1fr"><div><h5>Premissas</h5><ul>${chkMemorialPremissas(c, m).map(x=>`<li>${x}</li>`).join("")}</ul></div><div class="lcl-mparecer"><b>Parecer.</b> ${chkMemorialParecer(c, m)}</div></div>` },
+    { html:`<div class="lcl-mcols" style="grid-template-columns:1.8fr 1fr"><div><h5>Premissas</h5><ul>${chkMemorialPremissas(c, m).map(x=>`<li>${x}</li>`).join("")}</ul></div><div class="lcl-mparecer"><b>Conclusão do dimensionamento.</b> ${chkMemorialParecer(c, m)}</div></div>` },
   ];
   if(m.memoria){
     chkMemorialFormulasLista(c, m).forEach((fx, i)=>{

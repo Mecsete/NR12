@@ -64,6 +64,15 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/10/2026 15:20
+
+**Memorial: o resultado do dimensionamento não parece mais um parecer de aptidão.**
+
+- Os cartões do Memorial trocam "PODE USAR" e "NÃO USAR" por "ZLQ ATENDE" e "ZLQ NÃO ATENDE".
+- O bloco "Parecer." virou "Conclusão do dimensionamento." e a frase passou a dizer "Pelas dimensões da zona livre de queda, a linha comporta o uso com ...", terminando com: "Este resultado trata apenas do dimensionamento e não substitui o parecer da Conclusão."
+
+---
+
 ## 07/10/2026 12:05
 
 **Normas de referência por tipo de linha de vida; memorial e conclusão ajustados.**
