@@ -5578,7 +5578,8 @@ chk("a assinatura do laudo da linha e preparada em PNG (manterPng) e as fotos co
 
 print("=== 178. CAPA DO LAUDO (TABELA NA LARGURA TODA, DATA DD/MM/AAAA) E CAPITULO AVALIACAO POR COMPONENTE (03/10/2026) ===")
 chk("a tabela da capa com foto ocupa a largura do texto (tabela absoluta com width:auto encolhia e ficava colada a esquerda)",
-    ".lcl-capa-txt.com-foto .lcl-capa-tab{position:absolute;left:${Math.round(16*LCL_MM)}px;bottom:${Math.round(27*LCL_MM)}px;width:calc(100% - ${Math.round(32*LCL_MM)}px)}" in novo
+    ".lcl-capa-tab{width:100%;border-collapse:collapse;font-size:10.5px}" in novo
+    and ".lcl-capa-txt.com-foto .lcl-capa-tab{margin-top:${Math.round(12*LCL_MM)}px}" in novo
     and "bottom:${Math.round(27*LCL_MM)}px;width:auto}" not in novo)
 chk("a data da capa sai em DD/MM/AAAA (lclDataBR), nao por extenso",
     "function lclDataBR(iso){" in novo and "lclEsc(lclDataBR(proj.dataInspecao || hoje()))" in novo)
@@ -5882,6 +5883,12 @@ chk("os dois blocos de tela (rascunho do risco e revisao do laudo) mostram uma l
     and "onDraftMedidaExistentePM(i, campo, valor){" in novo and "laudoSetMedidaExistentePM(rid, i, campo, valor){" in novo)
 chk("laudo impresso, planilha e entradas da IA entendem a situacao por medida",
     "situacaoGeralExistente(r).k" in novo and "medExistGeral" in novo and "Situação de CADA medida em relação à norma" in novo)
+
+print("\n=== 192. FOTOS NUMERADAS PELA SECAO E CAPA COM O QUADRO JUNTO DA FOTO (08/10/2026) ===")
+chk("fotos do laudo numeradas pela secao (3.4.1) na legenda, na citacao do texto e na janela de fotos",
+    "function chkCitarFotos(nums, pref){" in novo and "function lclNumeroSecao(linha, secaoId){" in novo and "chkNarrativaSecao(s, l, sub.num)" in novo and 'n: sub.num + "." + (k + 1)' in novo and "prefSec ? prefSec" in novo)
+chk("capa com foto: o quadro de dados fica logo abaixo da foto (nao mais absoluto no rodape)",
+    ".lcl-capa-txt.com-foto .lcl-capa-tab{margin-top:${Math.round(12*LCL_MM)}px}" in novo and "bottom:${Math.round(27*LCL_MM)}px;width:calc" not in novo)
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

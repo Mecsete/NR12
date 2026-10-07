@@ -3411,7 +3411,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/10/2026 10:50";
+const APP_BUILD = "07/10/2026 11:05";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -10018,10 +10018,19 @@ function chkTextoLaudoItem(itemModelo, itemExec){
   return [];
 }
 /* "Foto 2" / "Fotos 2 e 3" / "Fotos 2, 3 e 5" — como o laudo cita as fotos. */
-function chkCitarFotos(nums){
+function chkCitarFotos(nums, pref){
   if(!nums || !nums.length) return "";
-  if(nums.length === 1) return `Foto ${nums[0]}`;
-  return `Fotos ${nums.slice(0,-1).join(", ")} e ${nums[nums.length-1]}`;
+  const r = nums.map(n=> pref ? pref + "." + n : String(n));
+  if(r.length === 1) return `Foto ${r[0]}`;
+  return `Fotos ${r.slice(0,-1).join(", ")} e ${r[r.length-1]}`;
+}
+/* Número da seção no laudo ("3.4"), usado como prefixo das fotos ("Foto 3.4.1"); "" se a seção não está no corpo do laudo. */
+function lclNumeroSecao(linha, secaoId){
+  try{
+    const cap = lclPlano(getCurrentChkProjeto(), linha).find(c=> c.id === "corpo");
+    const sub = cap && cap.subs.find(s=> s.id === secaoId);
+    return sub ? sub.num : "";
+  }catch(e){ return ""; }
 }
 /* Fotos de todos os itens de UMA seção, na ordem dos itens, numeradas
    sequencialmente dentro da seção (1, 2, 3...) — é essa numeração que o
@@ -10061,7 +10070,7 @@ function chkFotosDaSecao(secaoModelo, linha){
    destacado (<mark>): cada motivo marcado em campo vira o seu trecho de texto
    e termina citando as fotos DELE ("(Fotos 2 e 3)"); foto sem motivo é citada
    no fim do item; a nota do inspetor entra no fim do item. */
-function chkNarrativaSecao(secaoModelo, linha){
+function chkNarrativaSecao(secaoModelo, linha, pref){
   const { fotos, porMotivo } = chkFotosDaSecao(secaoModelo, linha);
   const partes = (secaoModelo.itens||[]).map(it=>{
     const ie = chkItemExec(linha, it.id) || {conforme:null, motivosSelecionados:[]};
@@ -10072,11 +10081,11 @@ function chkNarrativaSecao(secaoModelo, linha){
       const segs = (ie.motivosSelecionados||[]).map(m=>{
         const mp = (it.motivosPadrao||[]).find(x=> x.motivo === m);
         if(!mp || !mp.texto) return "";
-        const cit = chkCitarFotos(pm[m] || []);
+        const cit = chkCitarFotos(pm[m] || [], pref);
         return escapeHtml(mp.texto) + (cit ? ` (${cit})` : "");
       }).filter(Boolean);
       if(!segs.length) return "";
-      const solta = chkCitarFotos(pm[""] || []);
+      const solta = chkCitarFotos(pm[""] || [], pref);
       return `<mark class="nc">${segs.join(" ")}${solta ? ` (${solta})` : ""}${notaHtml}</mark>`;
     }
     const textos = chkTextoLaudoItem(it, ie);
@@ -15888,7 +15897,8 @@ function lclFotosSecaoHtml(linha, secaoId){
   const s = (linha.modeloSnapshot || []).find(x=> x.id === secaoId);
   if(!s) return "";
   const num = new Map();
-  chkFotosDaSecao(s, linha).objetos.forEach((f, i)=> num.set(f, i + 1));
+  const prefSec = lclNumeroSecao(linha, secaoId);
+  chkFotosDaSecao(s, linha).objetos.forEach((f, i)=> num.set(f, (prefSec ? prefSec + "." : "") + (i + 1)));
   const alvo = (itemId, mi)=> `ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="this.classList.remove('over');App.lclFotoDrop(event,'${itemId}',${mi})"`;
   const itensHtml = [];
   (s.itens || []).forEach((it, ii)=>{
@@ -16224,8 +16234,8 @@ function lclBlocosCorpo(d, cap, redu){
   cap.subs.forEach((sub, i)=>{
     const s = (l.modeloSnapshot || []).find(x=> x.id === sub.id);
     if(!s) return;
-    const { html: narr, fotos } = chkNarrativaSecao(s, l);
-    const imgs = fotos.map((f, k)=>({ n: k + 1, src: redu(f) })).filter(x=> x.src);
+    const { html: narr, fotos } = chkNarrativaSecao(s, l, sub.num);
+    const imgs = fotos.map((f, k)=>({ n: sub.num + "." + (k + 1), src: redu(f) })).filter(x=> x.src);
     const topo = (i === 0 ? lclFaixa(`${cap.num}  ${cap.rot}`, true) : "")
       + `<div class="lcl-h3">${sub.num}  ${lclEsc(sub.titulo)}</div>`
       + (s.contexto ? `<div class="lcl-ctx"><b>Como deve estar:</b> ${lclEsc(s.contexto)}</div>` : "");
@@ -16373,7 +16383,7 @@ const LCL_CSS = `
 .lcl-capa-txt.com-foto .lcl-capa-titulo{margin-bottom:${Math.round(18*LCL_MM)}px}
 .lcl-capa-txt.com-foto .lcl-capa-cliente{margin-bottom:${Math.round(8*LCL_MM)}px}
 .lcl-capa-txt.com-foto .lcl-capa-area{margin-bottom:${Math.round(8*LCL_MM)}px}
-.lcl-capa-txt.com-foto .lcl-capa-tab{position:absolute;left:${Math.round(16*LCL_MM)}px;bottom:${Math.round(27*LCL_MM)}px;width:calc(100% - ${Math.round(32*LCL_MM)}px)}
+.lcl-capa-txt.com-foto .lcl-capa-tab{margin-top:${Math.round(12*LCL_MM)}px}
 .lcl-fotocapa{position:relative;padding:9px}
 .lcl-fotocapa img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover}
 .lcl-fotocapa .c{position:absolute;width:30px;height:30px;border:0 solid #E94E1B}
@@ -30894,7 +30904,7 @@ Devolver agora?`)) return;
     let titulo, atual, auto, editado, dica;
     if(tipo === "secao"){
       const sec = (l.modeloSnapshot || []).find(x=> x.id === id); if(!sec) return;
-      auto = lclHtmlParaTexto(chkNarrativaSecao(sec, l).html);
+      auto = lclHtmlParaTexto(chkNarrativaSecao(sec, l, lclNumeroSecao(l, id)).html);
       const ed = lclTextoEditado(l, id);
       atual = ed !== null ? ed : auto; editado = ed !== null;
       titulo = 'Texto da seção "' + (sec.titulo || "Seção") + '"';

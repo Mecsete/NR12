@@ -64,6 +64,15 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/10/2026 11:05
+
+**Laudo: fotos numeradas pela seção (3.4.1, 3.4.2) e capa com as informações junto da foto.**
+
+- As fotos do laudo passam a ter o número da seção seguido da sequência: a primeira foto da seção 3.4 é "Foto 3.4.1", a segunda "Foto 3.4.2". Vale na legenda da foto, na citação do texto ("Fotos 3.5.1 e 3.5.2") e na janela de fotos da seção. Antes, cada seção reiniciava em "Foto 1".
+- Capa com foto: o quadro Documento, ART, Responsável Técnico e Solicitante agora fica logo abaixo da foto, a cerca de 3 linhas de distância, em vez de preso ao rodapé da página.
+
+---
+
 ## 07/10/2026 10:50
 
 **Mitigação existente: cada medida marcada passa a ter a sua própria situação (Atende / Atende em parte / Não atende) e o seu "o que falta", e a citação da norma sai no fim do trecho de cada medida.**

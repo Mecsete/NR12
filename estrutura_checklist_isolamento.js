@@ -171,7 +171,7 @@ const FUNCOES = [
   "chkSyncHash", "chkSyncSig", "chkSyncModeloNorm", "chkSyncGarantir", "chkSyncSemCampo", "chkSyncVista", "chkSyncLocais", "chkSyncLocalDe", "chkSyncSementeIntocada",
   "chkSyncParseNomes", "chkSyncRegistrarRemocao", "chkSyncMesclarRemovidos", "chkSyncMesclarInspetores", "chkSyncLerRemoto", "chkSyncSingleton",
   "chkSyncApagarRemoto", "chkSyncEnviar", "chkSyncRotuloCopia", "chkSyncInserir", "chkSyncAplicar", "chkSyncBaixar", "chkSyncCopiarLocal", "chkSyncConflito",
-  "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "getMecseteConfig", "chkAcoesCartao", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
+  "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "lclNumeroSecao", "getMecseteConfig", "chkAcoesCartao", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
 ];
 let fonte = "let __ultimoCarimboVisto = 0;\n";
 fonte += "let __buscaAtual = '';\n"; // usado por chkAbrirSetor (lista de linhas) -- nao testado aqui, so pra nao faltar
@@ -1150,6 +1150,7 @@ async function testarFotoAmpla(){
 async function testarDadosLaudo(){
   const T = (cond, msg)=>{ if(!cond) throw new Error("dados do laudo: " + msg); };
   // helpers puros
+  T(roda("chkCitarFotos([1], \"3.4\")") === "Foto 3.4.1" && roda("chkCitarFotos([1,2], \"3.4\")") === "Fotos 3.4.1 e 3.4.2" && roda("chkCitarFotos([1,2,3], \"3.4\")") === "Fotos 3.4.1, 3.4.2 e 3.4.3", "foto numerada pela secao: 3.4.1, 3.4.2...");
   T(roda("chkCitarFotos([])") === "" && roda("chkCitarFotos([2])") === "Foto 2" && roda("chkCitarFotos([2,3])") === "Fotos 2 e 3" && roda("chkCitarFotos([2,3,5])") === "Fotos 2, 3 e 5", "chkCitarFotos");
   T(roda(`chkPrioridadeDeTexto("Crítica")`) === "critica" && roda(`chkPrioridadeDeTexto(" ALTA ")`) === "alta" && roda(`chkPrioridadeDeTexto("Média")`) === "media" && roda(`chkPrioridadeDeTexto("xx")`) === "", "chkPrioridadeDeTexto");
   T(roda(`chkPrioridadeItem({})`) === "media" && roda(`chkPrioridadeItem({ prioridade:"critica" })`) === "critica" && roda(`chkPrioridadeItem({ prioridade:"zzz" })`) === "media", "chkPrioridadeItem");
@@ -1169,6 +1170,8 @@ async function testarDadosLaudo(){
   })()`);
   const n1 = roda("chkNarrativaSecao(__lclN.s, __lclN.l)");
   T(n1.html === '<mark class="nc">Texto A. (Foto 1) Texto B. (Fotos 2 e 3) (Fotos 4 e 5) Nota do inspetor: Medido em campo.</mark>', "narrativa por motivo errada: " + n1.html);
+  const n1p = roda("chkNarrativaSecao(__lclN.s, __lclN.l, \"3.4\")");
+  T(n1p.html === '<mark class="nc">Texto A. (Foto 3.4.1) Texto B. (Fotos 3.4.2 e 3.4.3) (Fotos 3.4.4 e 3.4.5) Nota do inspetor: Medido em campo.</mark>', "narrativa com o numero da secao nas fotos: " + n1p.html);
   T(n1.fotos.length === 5, "a lista de fotos da secao continua com todas, na ordem");
   // foto reatribuida a outro motivo muda a citacao dos dois
   roda(`__lclN.ie.fotos[2].motivo = "MA"`);
@@ -1304,7 +1307,7 @@ async function testarLaudoCapitulos(){
   T(ck.includes("NR-35 8.2") && ck.includes("ver 3.1") && ck.includes("Seção marcada como") && ck.includes("1 OK · 1 NÃO OK"), "checklist em cartoes: norma do item, 'ver 3.1' no que nao atende, secao NA e contagem por secao");
   const corpoBl = blocos.filter(b=>b.ancora && b.ancora.startsWith("cap-sec-"));
   T(corpoBl.length === 2 && corpoBl[0].ancoraExtra === "cap-corpo" && typeof corpoBl[0].alternativa === "function", "um bloco de corpo por secao que se aplica, o 1o carregando a ancora do capitulo");
-  T(corpoBl[0].html.includes("rF1") && corpoBl[0].html.includes("Foto 1") && corpoBl[0].html.includes("Texto M1.") && corpoBl[0].html.includes("Contexto A."), "corpo: narrativa, contexto e foto numerada");
+  T(corpoBl[0].html.includes("rF1") && /Foto \d+\.\d+\.1</.test(corpoBl[0].html) && !corpoBl[0].html.includes(">Foto 1<") && corpoBl[0].html.includes("Texto M1.") && corpoBl[0].html.includes("Contexto A."), "corpo: narrativa, contexto e foto numerada");
   const conc = blocos.slice(blocos.findIndex(b=>b.ancora === "cap-conclusao")).map(b=>b.html).join("");
   T(/ART nº <b>ART123<\/b><\/p>\s*<p[^>]*>Rio Verde - GO, /.test(conc), "conclusao: a cidade e a data ficam numa linha ABAIXO do 'Relatorio documentado...'");
   T(conc.includes("Próxima inspeção até: 24/09/2027") && conc.includes("data:image/jpeg;base64,ASS") && conc.includes("67%"), "conclusao: proxima inspecao, assinatura e percentual");
@@ -1948,11 +1951,11 @@ async function testarEdicaoTexto(){
   const capCorpo = "lclPlano(__f3.proj, __f3.l).find(c=>c.id === 'corpo')";
   const fotosReduzidas = "(x)=> x";
   const corpoAuto = roda(`lclBlocosCorpo(${d}, ${capCorpo}, ${fotosReduzidas})`);
-  T(corpoAuto[0].editar.tipo === "secao" && corpoAuto[0].editar.id === secId && corpoAuto[0].editar.editado === false && corpoAuto[0].html.includes(auto), "sem edicao: o corpo usa a narrativa automatica e o botao diz 'Editar texto'");
+  T(corpoAuto[0].editar.tipo === "secao" && corpoAuto[0].editar.id === secId && corpoAuto[0].editar.editado === false && corpoAuto[0].html.includes(roda("chkNarrativaSecao(__f3.l.modeloSnapshot[0], __f3.l, " + capCorpo + ".subs[0].num).html")), "sem edicao: o corpo usa a narrativa automatica e o botao diz 'Editar texto'");
   roda("__f3.l.laudo = " + J({ textos: { [secId]: "Texto do engenheiro com **destaque**.\n\nSegundo paragrafo." } }));
   const corpoEd = roda(`lclBlocosCorpo(${d}, ${capCorpo}, ${fotosReduzidas})`);
   T(corpoEd[0].html.includes('<p>Texto do engenheiro com <mark class="nc">destaque</mark>.</p><p>Segundo paragrafo.</p>') && !corpoEd[0].html.includes(auto) && corpoEd[0].editar.editado === true, "com edicao: o texto do engenheiro substitui a narrativa");
-  T(corpoEd[0].html.includes("lcl-fotos-col") && corpoEd[0].html.includes("Foto 1"), "as fotos da secao continuam ao lado do texto editado");
+  T(corpoEd[0].html.includes("lcl-fotos-col") && /Foto \d+\.\d+\.1</.test(corpoEd[0].html), "as fotos da secao continuam ao lado do texto editado");
   T(corpoEd[1].editar.editado === false && corpoEd[1].editar.id === secId2 && !corpoEd[1].html.includes("Texto do engenheiro"), "a edicao de uma secao nao vaza para a outra");
   T(corpoEd[0].alternativa().every((b, i)=> i > 0 || (b.editar && b.editar.id === secId)), "o layout alternativo (muitas fotos) tambem leva o botao de editar");
   const outra = roda("(function(){ const l2 = JSON.parse(JSON.stringify(__f3.l)); delete l2.laudo; return lclTextoEditado(l2, '" + secId + "'); })()");
@@ -2042,7 +2045,8 @@ async function testarFotosLeituraLaudo(){
   // --- HTML da janela
   let h = roda(`lclFotosSecaoHtml(__f3.l, ${J(sec1)})`);
   T(h.includes("1.1 · Cabo integro") && !h.includes("1.2 · Grampos") && h.includes('<div class="chk-mfoto-t">Corrosao</div>') && h.includes('<div class="chk-mfoto-t">Fios rompidos</div>') && !h.includes("Sem motivo</div>"), "so itens com foto, uma caixa por motivo marcado, sem caixa 'Sem motivo' quando todas tem motivo");
-  T(h.indexOf("Foto 1") < h.indexOf("Foto 2") && h.indexOf('chk-mfoto-t">Corrosao') < h.indexOf("Foto 1") && h.indexOf("Foto 1") < h.indexOf('chk-mfoto-t">Fios rompidos'), "o numero e o da foto no laudo (P2, do 1o motivo, e a Foto 1)");
+  const f1 = h.indexOf("Foto 3.1.1"), f2 = h.indexOf("Foto 3.1.2");
+  T(f1 > -1 && f1 < f2 && h.indexOf('chk-mfoto-t">Corrosao') < f1 && f1 < h.indexOf('chk-mfoto-t">Fios rompidos'), "o numero e o da foto no laudo, com o numero da secao (3.1.1 do 1o motivo, 3.1.2 do 2o)");
   T((h.match(/draggable="true"/g) || []).length === 2 && h.includes(`App.lclFotoDrop(event,'${itA}',0)`) && h.includes(`App.lclFotoDrop(event,'${itA}',1)`) && h.includes("App.lclFotoExcluir(") && h.includes('<option value="-1"'), "fotos arrastaveis, caixas que recebem, lixeira e 'Mover para'");
   T(roda(`lclFotosSecaoHtml(__f3.l, ${J(sec2)})`).includes("Nenhuma foto nesta seção.") && roda(`lclFotosSecaoHtml(__f3.l, "nao-existe")`) === "", "secao sem foto avisa; secao inexistente nao devolve nada");
   // item que atende com foto: so lixeira, sem arrastar nem 'Mover para'
