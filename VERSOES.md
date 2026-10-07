@@ -64,6 +64,14 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/10/2026 17:00
+
+**Revisão: "Corrigir" numa linha já finalizada abre o item no checklist (antes caía no laudo em branco).**
+
+- Na tela Revisar e finalizar de uma linha finalizada, os botões Corrigir (e Ir) agora reabrem a linha para edição e levam direto ao item. O aviso "Linha reaberta para correção; finalize de novo ao terminar" aparece na tela, e "Voltar à revisão" leva de volta.
+
+---
+
 ## 07/10/2026 15:00
 
 **Laudos em lote com escolha de quais entram; textos-base do laudo passam a sincronizar entre os aparelhos.**

@@ -2566,6 +2566,12 @@ async function testarUsabilidade(){
   roda("STATE.ui.chkItemAberto = 'i1'");
   const cardA = roda("chkRenderItem(getCurrentChkLinha(), getCurrentChkLinha().modeloSnapshot[0].itens[0], 0, 0)");
   T(!cardA.includes("chk-quick") && cardA.includes("Tirar foto") && cardA.includes("App.chkTirarFoto('i1',false)"), "cartao aberto de Nao atende: sem a fileira rapida, com Tirar foto/Galeria dentro do cartao");
+  // Corrigir, na revisao de uma linha ja finalizada: reabre a linha e vai ao item (nao ao laudo em branco)
+  roda("(function(){ const l = getCurrentChkLinha(); l.status = 'finalizado'; l.dataFinalizacao = '2026-10-07'; STATE.ui.chkItemAberto = null; })()");
+  roda("App.chkIrDaRevisao(0, 'i1')");
+  T(roda("getCurrentChkLinha().status") === "em_andamento" && roda("getCurrentChkLinha().dataFinalizacao") === null && roda("STATE.ui.chkItemAberto") === "i1" && roda("STATE.ui.chkSecaoAtual") === 0, "Corrigir numa linha finalizada reabre a linha e abre o item no preenchimento");
+  roda("App.chkIrDaRevisao(0, 'i2')");
+  T(roda("getCurrentChkLinha().status") === "em_andamento" && roda("STATE.ui.chkItemAberto") === "i2", "Corrigir numa linha em andamento nao muda o status");
   roda("STATE.ui.chkItemAberto = null; STATE.ui.chkProjetoId = " + J(estadoAntes.p) + "; STATE.ui.chkSetorId = null; STATE.ui.chkLinhaId = null; STATE.checklists.projetos = " + J(estadoAntes.lista) + ";");
 }
 async function testarSincronizacaoChecklist(){

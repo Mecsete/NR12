@@ -3411,7 +3411,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/10/2026 15:00";
+const APP_BUILD = "07/10/2026 17:00";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -30105,6 +30105,13 @@ Devolver agora?`)) return;
     </div></div>`);
   },
   chkIrDaRevisao(si, itemId){
+    // linha já finalizada não abre no preenchimento (iria para o laudo em branco): reabre para a correção
+    const lin = getCurrentChkLinha();
+    if(lin && lin.status === "finalizado"){
+      lin.status = "em_andamento"; lin.dataFinalizacao = null; lin.atualizadoEm = agoraSync();
+      marcarAlterado();
+      toast("Linha reaberta para correção; finalize de novo ao terminar");
+    }
     __chkDaRevisao = true;
     STATE.ui.chkSecaoAtual = si;
     if(itemId) STATE.ui.chkItemAberto = itemId;

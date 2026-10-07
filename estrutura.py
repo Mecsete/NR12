@@ -5819,6 +5819,10 @@ chk("os textos-base do laudo viajam como arquivo proprio (t_), com carimbo na ed
 chk("antes de montar/imprimir/escolher laudos o app busca novidades da nuvem (com limite de tempo) e a previa se refaz",
     "async lclSincronizarAntes(){" in novo and "await App.lclSincronizarAntes();" in novo and novo.count("await App.lclSincronizarAntes();") >= 2 and "a prévia do laudo foi montada com dados que acabaram de mudar" in novo)
 
+print("\n=== 188. CORRIGIR NA REVISAO DE LINHA FINALIZADA REABRE A LINHA (07/10/2026) ===")
+chk("chkIrDaRevisao reabre a linha finalizada antes de ir ao preenchimento (que redirecionava ao laudo em branco)",
+    'if(lin && lin.status === "finalizado"){' in novo and "Linha reaberta para correção; finalize de novo ao terminar" in novo)
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
 
