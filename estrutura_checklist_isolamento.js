@@ -1372,15 +1372,18 @@ async function testarTravas(){
   const pend = (itemModelo, exec) => JSON.stringify(vm.runInContext("chkPendenciasItem(" + JSON.stringify(itemModelo) + "," + JSON.stringify(exec) + ")", sandbox));
   const comMotivos = { motivosPadrao: [{ motivo: "M", texto: "T" }] }, semMotivos = { motivosPadrao: [] };
   const vazio = { conforme: "naoAtende", motivosSelecionados: [], observacao: "", fotos: [] };
-  if(pend(comMotivos, vazio) !== '["motivo","nota","foto"]') throw new Error("nao atende vazio deveria faltar motivo, nota e foto: " + pend(comMotivos, vazio));
-  if(pend(comMotivos, { ...vazio, motivosSelecionados: ["M"] }) !== '["nota","foto"]') throw new Error("nao atende com motivo, sem foto, deveria faltar nota e foto");
-  if(pend(comMotivos, { ...vazio, motivosSelecionados: ["M"], fotos: [{}] }) !== '[]') throw new Error("nao atende com motivo E foto nao deveria cobrar a nota");
-  if(pend(comMotivos, { ...vazio, fotos: [{}] }) !== '["motivo","nota"]') throw new Error("nao atende com foto mas sem motivo deveria faltar motivo e nota: " + pend(comMotivos, { ...vazio, fotos: [{}] }));
+  if(pend(comMotivos, vazio) !== '["motivo","foto"]') throw new Error("nao atende vazio deveria faltar motivo e foto (a nota so e cobrada quando o modelo nao tem motivos): " + pend(comMotivos, vazio));
+  if(pend(comMotivos, { ...vazio, motivosSelecionados: ["M"] }) !== '["foto"]') throw new Error("nao atende com motivo, sem foto, deveria faltar so a foto (nota opcional com motivo): " + pend(comMotivos, { ...vazio, motivosSelecionados: ["M"] }));
+  if(pend(comMotivos, { ...vazio, motivosSelecionados: ["M"], fotos: [{}] }) !== '[]') throw new Error("nao atende com motivo E foto nao deveria cobrar nada");
+  if(pend(comMotivos, { ...vazio, fotos: [{}] }) !== '["motivo"]') throw new Error("nao atende com foto mas sem motivo deveria faltar so o motivo: " + pend(comMotivos, { ...vazio, fotos: [{}] }));
   if(pend(semMotivos, { ...vazio, fotos: [{}] }) !== '["nota"]') throw new Error("modelo sem motivos: foto sozinha ainda pede a nota (nao ha motivo para marcar): " + pend(semMotivos, { ...vazio, fotos: [{}] }));
   if(pend(semMotivos, { ...vazio, observacao: "n", fotos: [{}] }) !== '[]') throw new Error("modelo sem motivos: foto e nota completam o item");
   if(pend(comMotivos, { ...vazio, motivosSelecionados: ["M"], observacao: "n" }) !== '["foto"]') throw new Error("nao atende com motivo e nota deveria faltar so a foto");
   if(pend(comMotivos, { ...vazio, motivosSelecionados: ["M"], observacao: "n", fotos: [{}] }) !== '[]') throw new Error("nao atende completo nao deveria faltar nada");
   if(pend(semMotivos, vazio) !== '["nota","foto"]') throw new Error("modelo SEM motivos padrao nunca deveria cobrar motivo: " + pend(semMotivos, vazio));
+  if(pend(comMotivos, { ...vazio, motivosSelecionados: ["M"], semFoto: true }) !== '[]') throw new Error("'Sem foto' confirmado, com motivo, nao deixa pendencia: " + pend(comMotivos, { ...vazio, motivosSelecionados: ["M"], semFoto: true }));
+  if(pend(comMotivos, { ...vazio, semFoto: true }) !== '["motivo"]') throw new Error("'Sem foto' confirmado tira so a foto da lista: o motivo continua faltando");
+  if(pend(semMotivos, { ...vazio, semFoto: true }) !== '["nota"]') throw new Error("'Sem foto' confirmado, modelo sem motivos: falta so a nota");
   if(pend(comMotivos, { conforme: "na", motivosSelecionados: [], observacao: "", fotos: [] }) !== '[]') throw new Error("nao aplica sem foto NAO deveria faltar nada");
   if(pend(comMotivos, { conforme: "na", motivosSelecionados: [], observacao: "", fotos: [{}] }) !== '[]') throw new Error("nao aplica com foto nao deveria faltar nada");
   if(pend(comMotivos, { conforme: "atende", motivosSelecionados: [], observacao: "", fotos: [] }) !== '[]') throw new Error("atende nunca cobra nada");
@@ -1397,8 +1400,8 @@ async function testarTravas(){
   roda("App.chkSetConforme('" + ie.itemId + "', 'naoAtende')");
   tentarFechar();
   let aberto = roda("STATE.ui.chkItemAberto");
-  if(aberto !== ie.itemId || !sandbox.__ultimoOverlayHtml || !sandbox.__ultimoOverlayHtml.includes("motivo, nota e foto"))
-    throw new Error("fechar Nao atende vazio deveria avisar 'motivo, nota e foto' e nao fechar: " + sandbox.__ultimoOverlayHtml);
+  if(aberto !== ie.itemId || !sandbox.__ultimoOverlayHtml || !sandbox.__ultimoOverlayHtml.includes("motivo e foto"))
+    throw new Error("fechar Nao atende vazio deveria avisar 'motivo e foto' e nao fechar: " + sandbox.__ultimoOverlayHtml);
   if(!sandbox.__ultimoOverlayHtml.includes("Fechar mesmo assim")) throw new Error("trava de Nao atende incompleto deveria oferecer 'Fechar mesmo assim'");
   roda("App.chkConfirmarAcao()");
   if(roda("STATE.ui.chkItemAberto") !== null) throw new Error("'Fechar mesmo assim' deveria fechar o item");
@@ -1407,12 +1410,27 @@ async function testarTravas(){
   tentarFechar();
   if(roda("STATE.ui.chkItemAberto") !== null || sandbox.__ultimoOverlayHtml)
     throw new Error("Nao atende com motivo e foto, mesmo SEM nota, deveria fechar direto (nota e opcional): " + sandbox.__ultimoOverlayHtml);
-  // tirando a foto, volta a cobrar foto E nota (o item deixa de estar documentado)
+  // tirando a foto, volta a cobrar a foto (a nota e opcional quando ha motivo)
   ie.fotos.length = 0;
   tentarFechar();
-  if(roda("STATE.ui.chkItemAberto") !== ie.itemId || !sandbox.__ultimoOverlayHtml.includes("nota e foto"))
-    throw new Error("Nao atende com motivo, sem foto e sem nota deveria avisar 'nota e foto': " + sandbox.__ultimoOverlayHtml);
+  if(roda("STATE.ui.chkItemAberto") !== ie.itemId || !sandbox.__ultimoOverlayHtml.includes("Item sem foto") || sandbox.__ultimoOverlayHtml.includes("nota"))
+    throw new Error("Nao atende com motivo, sem foto, deveria avisar so da foto: " + sandbox.__ultimoOverlayHtml);
   roda("App.chkConfirmarAcao()");
+  // 'Sem foto' confirmado: pede confirmacao, depois o item fecha direto e nao deixa pendencia; desfazer volta a cobrar
+  sandbox.__ultimoOverlayHtml = null;
+  roda("App.chkSemFoto('" + ie.itemId + "')");
+  if(!sandbox.__ultimoOverlayHtml || !sandbox.__ultimoOverlayHtml.includes("Item sem foto?") || ie.semFoto) throw new Error("'Sem foto' deveria pedir confirmacao antes de marcar");
+  roda("App.chkConfirmarAcao()");
+  if(ie.semFoto !== true) throw new Error("confirmando, o item deveria ficar marcado como sem foto");
+  tentarFechar();
+  if(roda("STATE.ui.chkItemAberto") !== null || sandbox.__ultimoOverlayHtml) throw new Error("item 'sem foto' confirmado deveria fechar direto, sem trava: " + sandbox.__ultimoOverlayHtml);
+  roda("App.chkSemFoto('" + ie.itemId + "')");
+  if(ie.semFoto !== false) throw new Error("tocar de novo em 'Sem foto' deveria desfazer");
+  ie.fotos.push({ foto: "data:image/jpeg;base64,NFOTO", tags: [] });
+  sandbox.__ultimoOverlayHtml = null;
+  roda("App.chkSemFoto('" + ie.itemId + "')");
+  if(sandbox.__ultimoOverlayHtml || ie.semFoto) throw new Error("item que ja tem foto nao pode ser marcado sem foto");
+  ie.fotos.length = 0;
   ie.fotos.push({ foto: "data:image/jpeg;base64,NFOTO", tags: [] });
   roda("App.chkSetObservacao('" + ie.itemId + "', 'Nota escrita em campo')");
   tentarFechar();
@@ -2533,6 +2551,8 @@ async function testarUsabilidade(){
   const nc = roda("chkNaoConformesHtml(" + L(["atende", "naoAtende", "atende"]) + ")");
   T(nc.includes("Não conformidades (1)") && nc.includes("1.2") && nc.includes("Item 2") && nc.includes("Sem motivo informado") && nc.includes("Sem foto") && nc.includes("App.chkIrDaRevisao(0,'i2')"), "bloco de nao conformidades: " + nc.slice(0, 300));
   T(roda("chkNaoConformesHtml(" + L(["atende", "atende", "naoAtende"], { secoesNA:["s2"] }) + ")") === "", "nao conformidade em secao que nao se aplica nao entra");
+  const ncSF = roda("chkNaoConformesHtml(" + L(["atende", "naoAtende", "atende"], { itens:[{ itemId:"i1", conforme:"atende", motivosSelecionados:[], observacao:"", fotos:[] }, { itemId:"i2", conforme:"naoAtende", motivosSelecionados:[], observacao:"", fotos:[], semFoto:true }, { itemId:"i3", conforme:"atende", motivosSelecionados:[], observacao:"", fotos:[] }] }) + ")");
+  T(ncSF.includes("Sem foto (confirmado)") && !ncSF.includes('color:#C23F12">Sem foto<'), "revisao: item com 'Sem foto' confirmado mostra a marca discreta, nao o vermelho de pendencia");
   // cartoes: menu com nome das acoes, em vez da lixeira solta
   const bm = roda("chkBotaoMenu('projeto', 'P1')");
   T(bm.includes("App.chkMenuCartao('projeto','P1')") && bm.includes('aria-label="Mais opções"') && !bm.includes("chkExcluir"), "botao de menu do cartao");

@@ -668,6 +668,10 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-item-warn{display:flex;color:#c98a0a;}
 .chk-item-chevron{transition:transform .18s;color:var(--ink-faint);}
 .chk-item-card.aberto .chk-item-chevron{transform:rotate(180deg);}
+.chk-item-detail .ta-caixa{width:100%}
+.chk-item-detail textarea{width:100%;box-sizing:border-box;min-height:74px;resize:vertical;background:var(--surface);border:1.5px solid var(--line-strong);border-radius:var(--radius-sm);padding:11px 12px;font-size:14.5px;color:var(--ink);appearance:none}
+.chk-item-detail textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.chk-foto-btns .btn.on{background:var(--ink-dim);border-color:var(--ink-dim);color:#fff}
 .chk-item-detail{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);display:flex;flex-direction:column;gap:10px;}
 .chk-item-statusrow{display:flex;align-items:center;gap:6px;}
 .chk-status-btn2{width:34px;height:34px;border-radius:50%;border:1.5px solid var(--line);background:var(--surface);display:flex;align-items:center;justify-content:center;color:var(--ink-faint);flex-shrink:0;}
@@ -3418,7 +3422,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/10/2026 11:25";
+const APP_BUILD = "07/10/2026 11:50";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -9977,8 +9981,10 @@ function chkPendenciasItem(itemModelo, itemExec){
     const temMotivo = (itemExec.motivosSelecionados||[]).length > 0;
     const modeloTemMotivos = !!(itemModelo && (itemModelo.motivosPadrao||[]).length);
     if(modeloTemMotivos && !temMotivo) faltas.push("motivo");
-    if(!(temMotivo && temFoto) && !(itemExec.observacao||"").trim()) faltas.push("nota");
-    if(!temFoto) faltas.push("foto");
+    // com motivo escolhido a nota é opcional; só cobra nota quando o modelo não tem motivos para escolher
+    if(!modeloTemMotivos && !(itemExec.observacao||"").trim()) faltas.push("nota");
+    // "Sem foto" confirmado pela pessoa (item inexistente ou que não dá para fotografar) não é pendência
+    if(!temFoto && !itemExec.semFoto) faltas.push("foto");
   }
   return faltas;
 }
@@ -14215,7 +14221,7 @@ function chkNaoConformesHtml(l){
     return `<div class="chk-resumo-linha" style="border-left-color:${cor}">
       <div class="chk-resumo-desc"><b>${si + 1}.${ii + 1}</b> ${escapeHtml(it.descricao)}</div>
       ${nota ? `<div class="chk-resumo-motivo">${escapeHtml(nota)}</div>` : `<div class="chk-resumo-motivo" style="color:#C23F12">Sem motivo informado</div>`}
-      ${fotos.length ? `<div class="chk-nc-fotos">${fotos.slice(0, 6).map(f=>`<img class="chk-nc-foto" data-imgref="${imgReg(f.foto)}" onclick="App.verFotoReg(this)">`).join("")}${fotos.length > 6 ? `<span class="chk-nc-mais">+${fotos.length - 6}</span>` : ""}</div>` : `<div class="chk-resumo-motivo" style="color:#C23F12">Sem foto</div>`}
+      ${fotos.length ? `<div class="chk-nc-fotos">${fotos.slice(0, 6).map(f=>`<img class="chk-nc-foto" data-imgref="${imgReg(f.foto)}" onclick="App.verFotoReg(this)">`).join("")}${fotos.length > 6 ? `<span class="chk-nc-mais">+${fotos.length - 6}</span>` : ""}</div>` : (ie.semFoto ? `<div class="chk-resumo-motivo" style="color:var(--ink-faint)">Sem foto (confirmado)</div>` : `<div class="chk-resumo-motivo" style="color:#C23F12">Sem foto</div>`)}
       <button class="btn" style="margin-top:6px;padding:4px 10px;font-size:12px" onclick="App.chkIrDaRevisao(${si},'${it.id}')">Corrigir</button>
     </div>`;
   }).join("");
@@ -14880,7 +14886,7 @@ function chkRenderItem(linha, item, secaoIdx, itemIdx){
       ${motivosHtml}
       <textarea placeholder="Nota adicional (opcional) — o texto padrão do motivo já vai sozinho pro laudo" oninput="App.chkSetObservacao('${item.id}',this.value)">${escapeHtml(ie.observacao)}</textarea>
       ${chkFotosItemHtml(item, ie, motivosSel)}
-      ${ie.conforme==="naoAtende" ? `<div class="chk-foto-btns"><button class="btn btn-secondary" onclick="App.chkTirarFoto('${item.id}',false)">${ic('camera')} Tirar foto</button><button class="btn btn-secondary" onclick="App.chkTirarFoto('${item.id}',true)">${ic('gallery')} Galeria</button></div>` : ""}
+      ${ie.conforme==="naoAtende" ? `<div class="chk-foto-btns"><button class="btn btn-secondary${ie.semFoto && !nFotos ? ' on' : ''}" aria-pressed="${!!(ie.semFoto && !nFotos)}" onclick="App.chkSemFoto('${item.id}')">${ic('dash')} Sem foto</button><button class="btn btn-secondary" onclick="App.chkTirarFoto('${item.id}',true)">${ic('gallery')} Galeria</button><button class="btn btn-secondary" onclick="App.chkTirarFoto('${item.id}',false)">${ic('camera')} Tirar foto</button></div>` : ""}
     </div>`;
   }
   const ICONE_RAPIDO = { atende:"check", naoAtende:"close", na:"dash" };
@@ -30666,6 +30672,19 @@ Devolver agora?`)) return;
     if(ie.conforme === "naoAtende"){ if(typeof chkMostrarItemAberto === "function") chkMostrarItemAberto(); }
     else if(ie.conforme) chkRolarParaProximoItem(itemId);
   },
+  /* "Sem foto": a pessoa confirma que o item não tem foto (não existe ou não dá para fotografar); deixa de ser pendência. */
+  chkSemFoto(itemId){
+    const l = getCurrentChkLinha(); if(!l) return;
+    const ie = chkItemExec(l, itemId); if(!ie) return;
+    if(ie.semFoto){ ie.semFoto = false; l.atualizadoEm = agoraSync(); marcarAlterado(); render(); return; }
+    if((ie.fotos || []).length){ toast("O item já tem foto", false); return; }
+    chkAbrirConfirmacao("Item sem foto?", "Este item ficará sem foto no laudo e não será cobrado como pendência. Use quando o item não existe ou não pode ser fotografado.", "Marcar sem foto", ()=>{
+      ie.semFoto = true;
+      l.atualizadoEm = agoraSync();
+      marcarAlterado();
+      render();
+    });
+  },
   chkMarcarRestantesAtende(secaoId){
     const l = getCurrentChkLinha(); if(!l) return;
     const secao = l.modeloSnapshot.find(s=> s.id === secaoId); if(!secao || l.secoesNA.includes(secaoId)) return;
@@ -30786,6 +30805,7 @@ Devolver agora?`)) return;
         // Foto nasce ligada ao motivo pedido; sem pedido, ao único motivo marcado (se for um só).
         const motivoFoto = (typeof motivo === "string") ? motivo : ((item.conforme === "naoAtende" && (item.motivosSelecionados||[]).length === 1) ? item.motivosSelecionados[0] : "");
         item.fotos.push({ foto:data, tags:[], motivo:motivoFoto });
+        item.semFoto = false;
         l.atualizadoEm = agoraSync();
         marcarAlterado();
         render();

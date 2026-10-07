@@ -5551,8 +5551,8 @@ chk("a tela de preenchimento em campo nao mostra mais a faixa da Foto ampla (con
     "chkFotoAmplaHtml(" not in _pp_corpo and novo.count("chkFotoAmplaHtml(l.fotoAmpla") == 1)
 _pi = novo.index("function chkPendenciasItem(")
 _pi_corpo = novo[_pi:novo.index("/* Prioridade do item e tipo da linha", _pi)]
-chk("Nao aplica nao cobra foto (so Nao atende gera pendencia) e a nota so e cobrada quando falta motivo marcado ou foto",
-    'itemExec.conforme === "na"' not in _pi_corpo and "!(temMotivo && temFoto)" in _pi_corpo)
+chk("Nao aplica nao cobra foto (so Nao atende gera pendencia) e a foto some da pendencia com Sem foto confirmado",
+    'itemExec.conforme === "na"' not in _pi_corpo and "!itemExec.semFoto" in _pi_corpo)
 chk("o editor de modelo e a lista + linhas de fluxo (Botao -> Laudo -> Acao): sem as classes do editor antigo e com busca, secoes recolhiveis e paineis Orientacao/Contexto",
     "function chkModeloArvoreHtml(" in novo and 'class="chk-fl-pilula' in novo and "App.chkModeloToggleSecao(" in novo and "App.chkModeloPainel('info')" in novo
     and "chk-bloco" not in novo and "chk-motivo-card" not in novo and "chk-modelo-split" not in novo)
@@ -5895,6 +5895,12 @@ chk("Finalizar checklist abre a conferencia quando ha incoerencia (nao atende se
     "function chkIncoerencias(l){" in novo and "const inc = chkIncoerencias(l);" in novo and "chkAbrirConferencia(inc){" in novo and "chkFinalizarConfirmado(){" in novo and "Está certo, finalizar" in novo)
 chk("o quadro de nao conformidades nao usa mais o quadrado cinza 'sem foto': a coluna some ou fica o texto discreto",
     "lcl-ncr sem-im" in novo and "Sem registro fotográfico" in novo and "<span>sem foto</span>" not in novo)
+
+print("\n=== 194. SEM FOTO CONFIRMADO, NOTA OPCIONAL COM MOTIVO E CAIXA DA NOTA LARGA (07/10/2026) ===")
+chk("botao Sem foto (com confirmacao) antes de Galeria e Tirar foto; sem foto confirmado nao e pendencia",
+    "chkSemFoto(itemId){" in novo and "!temFoto && !itemExec.semFoto" in novo and novo.index("Sem foto</button><button class=\"btn btn-secondary\" onclick=\"App.chkTirarFoto('${item.id}',true)") > 0 and "item.semFoto = false;" in novo and "Sem foto (confirmado)" in novo)
+chk("a nota so e cobrada quando o modelo nao tem motivos, e a caixa da nota ocupa a largura do cartao",
+    "if(!modeloTemMotivos && !(itemExec.observacao||\"\").trim()) faltas.push(\"nota\");" in novo and ".chk-item-detail textarea{width:100%;" in novo)
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

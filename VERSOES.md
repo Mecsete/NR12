@@ -64,6 +64,16 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/10/2026 11:50
+
+**Botão "Sem foto" nos itens que não atendem, caixa da nota na largura do cartão e o aviso do item sem exigir nota quando há motivo.**
+
+- Item "Não atende": os botões de foto agora são, nesta ordem, "Sem foto", "Galeria" e "Tirar foto". "Sem foto" pede confirmação ("Item sem foto?") e, depois dela, o item deixa de ser pendência de foto (serve para item que não existe ou não dá para fotografar). Tocar de novo em "Sem foto" desfaz; tirar uma foto também tira a marca. Na revisão, o item aparece como "Sem foto (confirmado)", em cinza, e não em vermelho.
+- O alerta amarelo do item não cobra mais a nota quando já há motivo escolhido (a nota é opcional). A nota só é cobrada quando o modelo do item não tem motivos para escolher.
+- A caixa "Nota adicional" ocupa a largura do cartão (antes era uma caixa estreita).
+
+---
+
 ## 07/10/2026 11:25
 
 **Finalizar abre uma conferência das incoerências; quadro de não conformidades sem o quadrado cinza "sem foto".**
