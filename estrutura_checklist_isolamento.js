@@ -171,7 +171,7 @@ const FUNCOES = [
   "chkSyncHash", "chkSyncSig", "chkSyncModeloNorm", "chkSyncGarantir", "chkSyncSemCampo", "chkSyncVista", "chkSyncLocais", "chkSyncLocalDe", "chkSyncSementeIntocada",
   "chkSyncParseNomes", "chkSyncRegistrarRemocao", "chkSyncMesclarRemovidos", "chkSyncMesclarInspetores", "chkSyncLerRemoto", "chkSyncSingleton",
   "chkSyncApagarRemoto", "chkSyncEnviar", "chkSyncRotuloCopia", "chkSyncInserir", "chkSyncAplicar", "chkSyncBaixar", "chkSyncCopiarLocal", "chkSyncConflito",
-  "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
+  "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "chkAcoesCartao", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
 ];
 let fonte = "let __ultimoCarimboVisto = 0;\n";
 fonte += "let __buscaAtual = '';\n"; // usado por chkAbrirSetor (lista de linhas) -- nao testado aqui, so pra nao faltar
@@ -2524,6 +2524,11 @@ async function testarUsabilidade(){
   // cartoes: menu com nome das acoes, em vez da lixeira solta
   const bm = roda("chkBotaoMenu('projeto', 'P1')");
   T(bm.includes("App.chkMenuCartao('projeto','P1')") && bm.includes('aria-label="Mais opções"') && !bm.includes("chkExcluir"), "botao de menu do cartao");
+  // icones discretos ao lado do menu: editar e laudos nos cartoes grandes; a exclusao so no menu
+  const aP = roda("chkAcoesCartao('projeto', 'P1')"), aS = roda("chkAcoesCartao('setor', 'S1')"), aM = roda("chkAcoesCartao('modelo', 'M1')"), aL = roda("chkAcoesCartao('linha', 'L1')");
+  T(aP.includes("App.chkEditarProjeto('P1')") && aP.includes("App.chkLaudosProjeto('P1')") && aP.includes("App.chkMenuCartao('projeto','P1')") && aP.includes('aria-label="Laudos do projeto em um PDF"') && !aP.includes("chkExcluir"), "projeto: editar, laudos e menu; sem excluir solto");
+  T(aS.includes("App.chkEditarSetor('S1')") && aS.includes("App.chkLaudosSetor('S1')") && aS.includes("chkMenuCartao('setor','S1')") && !aS.includes("chkExcluir"), "setor: editar, laudos e menu");
+  T(aM.includes("App.chkAbrirModelo('M1')") && aM.includes("chkMenuCartao('modelo','M1')") && !aM.includes("chkExcluir") && !aL.includes("chkEditar") && aL.includes("chkMenuCartao('linha','L1')") && !aL.includes("chkExcluir"), "modelo: editar e menu; linha: so o menu (o botao Laudo ja fica no cartao)");
   // continuar de onde parou: a linha em andamento mais recente
   roda("STATE.checklists.projetos = [{ id:'P1', empresa:'Emp', setores:[{ id:'S1', nome:'Setor', linhas:[ Object.assign(" + L(["atende", null, null]) + ", { id:'LA', atualizadoEm:5 }), Object.assign(" + L(["atende", "atende", null]) + ", { id:'LB', atualizadoEm:9 }), Object.assign(" + L(["atende", "atende", "atende"]) + ", { id:'LC', status:'finalizado', atualizadoEm:99 }) ] }] }];");
   const u = roda("chkUltimaLinhaEmAndamento()");

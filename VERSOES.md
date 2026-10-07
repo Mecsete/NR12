@@ -64,6 +64,14 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/10/2026 20:00
+
+**Checklist: ícones de editar e de laudos ao lado do menu "⋮" nos cartões.**
+
+- Projeto: lápis (editar dados) e impressora (laudos do projeto em um PDF). Setor: lápis (editar) e impressora (laudos do setor em um PDF). Modelo: lápis (editar). Cada ícone tem nome ao segurar/passar o mouse. A exclusão continua só dentro do menu "⋮", longe do toque sem querer. A linha de vida segue com o botão "Laudo" no cartão e o menu.
+
+---
+
 ## 07/10/2026 19:00
 
 **Checklist: saiu o laudo antigo do projeto (a página simples, sem capítulos); o laudo é só o da linha em capítulos.**

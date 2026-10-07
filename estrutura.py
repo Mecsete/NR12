@@ -5788,7 +5788,7 @@ chk("lista de projetos: Continuar de onde parou, busca, filtro de status e hora 
 chk("lista de setores tem busca e filtro; setor pode ser editado",
     "chkSetSetFiltro" in novo and "chkEditarSetor(id){" in novo)
 chk("a lixeira solta saiu dos cartoes de modelo, projeto, setor e linha: entrou o menu com as acoes escritas",
-    all(("chkBotaoMenu('%s'," % t) in novo for t in ("modelo", "projeto", "setor", "linha")) and "chkMenuCartao(tipo, id){" in novo
+    all(("chkAcoesCartao('%s'," % t) in novo for t in ("modelo", "projeto", "setor", "linha")) and "chkMenuCartao(tipo, id){" in novo
     and "App.chkExcluirModelo('${m.id}')\">${ic('trash')}" not in novo and "App.chkExcluirLinha('${l.id}')\">${ic('trash')}" not in novo)
 chk("o botao voltar dos dados do projeto volta para onde se estava", "__chkProjFormOrigem || \"checklist-projetos\"" in novo and "chkAbrirDadosProjeto()" in novo)
 chk("revisar e finalizar: nao conformidades com motivo/foto/Corrigir e volta para a revisao",

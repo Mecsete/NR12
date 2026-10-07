@@ -3411,7 +3411,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/10/2026 19:00";
+const APP_BUILD = "07/10/2026 20:00";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -13971,6 +13971,16 @@ function bottomNavChk(){
   }).join("")}</div>`;
 }
 /* Menu "⋮" dos cartões: as ações aparecem com o nome escrito (no celular não existe dica ao passar o mouse). */
+/* Ícones discretos de uso frequente ao lado do menu "⋮" (a exclusão fica só dentro do menu, longe do toque sem querer). */
+function chkAcoesCartao(tipo, id){
+  const btn = (ico, rot, fn)=> `<button class="icon-btn" aria-label="${rot}" title="${rot}" onclick="event.stopPropagation();${fn}">${ic(ico)}</button>`;
+  const extra = {
+    modelo:  btn('edit', 'Editar modelo', `App.chkAbrirModelo('${id}')`),
+    projeto: btn('edit', 'Editar dados do projeto', `App.chkEditarProjeto('${id}')`) + btn('print', 'Laudos do projeto em um PDF', `App.chkLaudosProjeto('${id}')`),
+    setor:   btn('edit', 'Editar setor', `App.chkEditarSetor('${id}')`) + btn('print', 'Laudos do setor em um PDF', `App.chkLaudosSetor('${id}')`),
+  }[tipo] || "";
+  return extra + chkBotaoMenu(tipo, id);
+}
 function chkBotaoMenu(tipo, id){
   return `<button class="icon-btn" aria-label="Mais opções" title="Mais opções" onclick="event.stopPropagation();App.chkMenuCartao('${tipo}','${id}')">${ic('dots')}</button>`;
 }
@@ -14078,7 +14088,7 @@ function screenChkModelos(){
         <div class="list-tag">${escapeHtml(m.descricao||'sem descrição')}</div>
         <div class="list-meta"><span class="stat-pill">${m.secoes.length} ${m.secoes.length===1?'seção':'seções'}</span><span class="stat-pill">${nItens} ${nItens===1?'item':'itens'}</span>${pillUso}</div>
       </div>
-      <div class="list-actions">${chkBotaoMenu('modelo', m.id)}</div>
+      <div class="list-actions">${chkAcoesCartao('modelo', m.id)}</div>
     </div>`;
   }).join("");
   return `<div class="section-title">${modelos.length} modelo${modelos.length===1?'':'s'}</div>${cards}
@@ -14370,7 +14380,7 @@ function screenChkProjetos(){
           ${nLinhas-nFinalizadas>0? `<span class="stat-pill alert">${nLinhas-nFinalizadas} em aberto</span>`:''}
         </div>
       </div>
-      <div class="list-actions">${chkBotaoMenu('projeto', p.id)}</div>
+      <div class="list-actions">${chkAcoesCartao('projeto', p.id)}</div>
     </div>`;
   }).join("");
   const controlesProj = chkBuscaChipsHtml("Buscar projeto ou empresa…", __chkProjFiltro, chkContagensFiltro(todosProj.map(resProj)), "App.chkSetProjFiltro", todosProj.length >= 4);
@@ -14467,7 +14477,7 @@ function screenChkSetores(){
           ${nLinhas-nFinalizadas>0? `<span class="stat-pill alert">${nLinhas-nFinalizadas} em aberto</span>`:''}
         </div>
       </div>
-      <div class="list-actions">${chkBotaoMenu('setor', s.id)}</div>
+      <div class="list-actions">${chkAcoesCartao('setor', s.id)}</div>
     </div>`;
   }).join("");
   const controlesSet = chkBuscaChipsHtml("Buscar setor…", __chkSetFiltro, chkContagensFiltro(proj.setores.map(resSet)), "App.chkSetSetFiltro", proj.setores.length >= 4);
@@ -14533,7 +14543,7 @@ function screenChkLinhas(){
         </div>
         <button class="chk-linha-laudo" onclick="event.stopPropagation();App.chkAbrirLaudoLinha('${l.id}')" title="Abrir o laudo desta linha de vida (não precisa finalizar)">${ic('print')} Laudo</button>
       </div>
-      <div class="list-actions">${chkBotaoMenu('linha', l.id)}</div>
+      <div class="list-actions">${chkAcoesCartao('linha', l.id)}</div>
     </div>`;
   }).join("") : `<div class="empty"><p>Nenhuma linha de vida encontrada.</p></div>`;
   const nLoteSetor = setor.linhas.filter(l=> chkProgresso(l) > 0).length;
@@ -30088,6 +30098,8 @@ Devolver agora?`)) return;
     __chkProjFormOrigem = "checklist-setores";
     go("checklist-projeto-form");
   },
+  chkLaudosProjeto(id){ STATE.ui.chkProjetoId = id; STATE.ui.chkSetorId = null; return App.lclLote("projeto"); },
+  chkLaudosSetor(id){ STATE.ui.chkSetorId = id; return App.lclLote("setor"); },
   chkEditarSetor(id){ STATE.ui.chkSetorId = id; STATE.ui.chkLinhaId = null; go("checklist-setor-form"); },
   chkSetProjFiltro(f){ __chkProjFiltro = f; render(); },
   chkSetSetFiltro(f){ __chkSetFiltro = f; render(); },
