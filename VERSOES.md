@@ -64,6 +64,18 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/10/2026 15:00
+
+**Laudos em lote com escolha de quais entram; textos-base do laudo passam a sincronizar entre os aparelhos.**
+
+- Laudos do setor/projeto em um PDF: abre uma lista com uma caixa para cada linha de vida (todas marcadas), mostrando o modelo, o quanto está preenchido e quantos avisos o laudo tem. Dá para desmarcar as que não devem entrar, "Marcar todos" e "Desmarcar todos"; o botão mostra quantos laudos vão.
+- Sincronização, erro encontrado e corrigido: os textos-base do laudo (Metodologia, com as figuras, e Normas de referência) ficavam só no aparelho onde foram editados, então o mesmo laudo saía diferente em outro aparelho. Agora viajam em um arquivo próprio na pasta Checklist; vale a edição mais nova e um aparelho novo, sem texto próprio, recebe o da nuvem.
+- Conferido e sem erro: configuração do laudo da linha (capítulos, foto da capa, parecer escolhido), textos editados por seção, anexos com foto, conclusão, descrição e medidas do memorial já viajavam com a linha de vida.
+- Antes de montar ou imprimir um laudo (e antes de abrir a lista dos laudos em lote), o app busca as novidades dos outros aparelhos (espera até 12 s; sem internet ou sem conta do OneDrive, segue com o que há no aparelho). Se chegar alguma mudança com o laudo aberto, a prévia se refaz sozinha.
+- Continua só no aparelho, de propósito: o logotipo e a assinatura padrão (Configurações). Num aparelho sem assinatura cadastrada o laudo sai com a linha em branco.
+
+---
+
 ## 07/10/2026 12:00
 
 **Checklist: resposta com um toque nos itens e laudos de várias linhas em um PDF só.**

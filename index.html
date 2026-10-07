@@ -743,6 +743,15 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-proxima{margin-top:14px}
 .chk-foto-btns{display:flex;gap:8px;margin-top:8px}
 .chk-foto-btns .btn{flex:1}
+.lote-acoes{display:flex;gap:8px;margin:10px 0 6px}
+.lote-lista{max-height:50vh;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:4px 10px;margin-bottom:12px}
+.lote-setor{font-size:11.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-dim);margin:10px 0 2px}
+.lote-item{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-top:1px solid var(--line);cursor:pointer}
+.lote-setor + .lote-item,.lote-lista > .lote-item:first-child{border-top:none}
+.lote-item input{margin-top:3px;width:18px;height:18px;flex:0 0 auto}
+.lote-item b{display:block;font-size:13.5px}
+.lote-item small{display:block;font-size:11.5px;color:var(--ink-dim);margin-top:2px}
+.lote-item small em{font-style:normal;color:#C23F12;font-weight:700}
 .chk-continuar{display:flex;align-items:center;gap:12px;padding:12px 14px;margin-bottom:12px;border-left:4px solid var(--accent);cursor:pointer}
 .chk-continuar b{display:block;font-size:14px}
 .chk-continuar span{display:block;font-size:12px;color:var(--ink-dim);margin-top:2px}
@@ -3402,7 +3411,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/10/2026 12:00";
+const APP_BUILD = "07/10/2026 15:00";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -18591,6 +18600,12 @@ function chkSyncVista(e){
 function chkSyncLocais(){
   const ns = STATE.checklists, lista = [];
   (ns.modelos || []).forEach(m=>{ if(m && m.id) lista.push({ chave:"m:" + m.id, tipo:"m", id:m.id, obj:m }); });
+  // textos-base do laudo (Metodologia com figuras e Normas de referência): um arquivo só, vale a edição mais nova
+  const tx = ns.textos;
+  if(tx && typeof tx === "object" && !Array.isArray(tx) && (tx.metodologia || tx.normativo)){
+    if(!tx.id) tx.id = "textos";
+    lista.push({ chave:"t:textos", tipo:"t", id:"textos", obj:tx });
+  }
   (ns.projetos || []).forEach(p=>{
     if(!p || !p.id) return;
     lista.push({ chave:"p:" + p.id, tipo:"p", id:p.id, obj:p });
@@ -18631,7 +18646,7 @@ function chkSyncSementeIntocada(e){
 function chkSyncParseNomes(nomes){
   const entidades = new Map(), singles = { i:[], x:[] };
   (nomes || []).forEach(nome=>{
-    let m = /^([mpsl])_(.+)_(\d+)\.json$/.exec(nome);
+    let m = /^([mpslt])_(.+)_(\d+)\.json$/.exec(nome);
     if(m){
       const chave = m[1] + ":" + m[2], ts = Number(m[3]);
       let e = entidades.get(chave);
@@ -18780,6 +18795,7 @@ function chkSyncInserir(lista, obj){
 function chkSyncAplicar(payload, tipo, id, comoNovo){
   const ns = STATE.checklists;
   const obj = payload.obj;
+  if(tipo === "t"){ ns.textos = obj; return "ok"; }
   if(tipo === "m"){
     const i = ns.modelos.findIndex(m=> m.id === id);
     if(i >= 0 && !comoNovo) ns.modelos[i] = obj; else chkSyncInserir(ns.modelos, obj);
@@ -18983,7 +18999,7 @@ async function chkSyncRodar(T, opc){
   await chkSyncSingleton(ctx, "i");
   const chaves = [];
   const locais = chkSyncLocais();
-  ["m", "p", "s", "l"].forEach(t=>{
+  ["m", "t", "p", "s", "l"].forEach(t=>{
     const conj = new Set();
     locais.forEach(e=>{ if(e.tipo === t) conj.add(e.chave); });
     ctx.parse.entidades.forEach((e, k)=>{ if(e.tipo === t) conj.add(k); });
@@ -19028,7 +19044,11 @@ async function onedriveSincronizarChecklist(forcar){
     chkGarantirNamespace(STATE);
     const r = await chkSyncRodar(chkSyncTransporteOneDrive(), { limite: forcar ? Infinity : CHK_SYNC_LIMITE_OPS_AUTO });
     __chkSyncUltima = Date.now();
-    if(r.mudouLocal) marcarAlterado();
+    if(r.mudouLocal){
+      marcarAlterado();
+      // a prévia do laudo foi montada com dados que acabaram de mudar: na próxima exibição ela se refaz sozinha
+      if(typeof __lclParaLinha !== "undefined" && __lclParaLinha !== null && !__lclGerando){ __lclPaginas = []; __lclHtml = ""; __lclParaLinha = null; }
+    }
     return Object.assign({ mudou: r.mudouLocal }, r);
   }catch(e){
     console.error("Sincronização do Checklist falhou nesta rodada:", e && e.message, e);
@@ -30824,6 +30844,7 @@ Devolver agora?`)) return;
     if(ob && pr && String(ob.value) !== String(pr.objetivo || "")){ pr.objetivo = String(ob.value); pr.atualizadoEm = agoraSync(); }
     if(!STATE.checklists.textos) STATE.checklists.textos = {};
     STATE.checklists.textos.metodologia = { texto: ta.value, figuras: __lclMetDraft.map(f=>({ src:f.src, legenda:f.legenda })) };
+    STATE.checklists.textos.atualizadoEm = agoraSync();
     marcarAlterado();
     App.fecharModal();
     __lclMetDraft = [];
@@ -30897,6 +30918,7 @@ Devolver agora?`)) return;
     if(!a || !b) return;
     if(!STATE.checklists.textos) STATE.checklists.textos = {};
     STATE.checklists.textos.normativo = { intro: a.value, normas: b.value.split("\n").map(s=>s.trim()).filter(Boolean) };
+    STATE.checklists.textos.atualizadoEm = agoraSync();
     marcarAlterado();
     App.fecharModal();
     __lclPaginas = []; __lclHtml = ""; __lclParaLinha = null;
@@ -30946,6 +30968,16 @@ Devolver agora?`)) return;
     __chkProjFormOrigem = "checklist-setores";
     go("checklist-projeto-form");
   },
+  /* Antes de montar um laudo, confere se há novidade dos outros aparelhos (espera no máximo 12 s; sem internet ou sem
+     conta, segue com o que há aqui). Devolve true se algo mudou. */
+  async lclSincronizarAntes(){
+    try{
+      if(typeof onedriveSincronizarChecklist !== "function" || typeof getOneDriveConta !== "function" || !getOneDriveConta() || !navigator.onLine) return false;
+      const r = await Promise.race([onedriveSincronizarChecklist(true), new Promise(res=> setTimeout(()=> res({ mudou:false, tempo:true }), 12000))]);
+      if(r && r.tempo) toast("Sincronização demorou; o laudo usa os dados que estão neste aparelho", false);
+      return !!(r && r.mudou);
+    }catch(e){ return false; }
+  },
   /* Monta as páginas do laudo de UMA linha (a mesma montagem da prévia) sem mexer na tela: devolve o HTML pronto. */
   async lclGerarDe(proj, setor, l){
     await garantirFotosDe(l);
@@ -30968,21 +31000,58 @@ Devolver agora?`)) return;
       try{ liberarFotosDe(l); if(STATE.checklists.textos) liberarFotosDe(STATE.checklists.textos); }catch(e){}
     }
   },
-  /* Um único PDF com o laudo de cada linha do setor ou do projeto que já tem checklist preenchido. */
+  /* Laudos de várias linhas em um PDF só: primeiro traz as novidades dos outros aparelhos, depois deixa escolher quais entram. */
   async lclLote(escopo){
+    if(__lclLoteEmAndamento || __lclGerando) return;
+    await App.lclSincronizarAntes();
+    const proj = getCurrentChkProjeto(); if(!proj) return;
+    const setorAtual = getCurrentChkSetor();
+    const setores = escopo === "setor" ? (setorAtual ? [setorAtual] : []) : proj.setores;
+    const grupos = setores.map(s=> ({ s, linhas: s.linhas.filter(l=> chkProgresso(l) > 0) })).filter(g=> g.linhas.length);
+    if(!grupos.length){ toast("Nenhuma linha com checklist preenchido", false); return; }
+    const ignoradas = setores.reduce((n, s)=> n + s.linhas.length, 0) - grupos.reduce((n, g)=> n + g.linhas.length, 0);
+    const total = grupos.reduce((n, g)=> n + g.linhas.length, 0);
+    const item = (l)=>{
+      const av = lclAvisos(l, proj).length;
+      return `<label class="lote-item"><input type="checkbox" data-lote="${l.id}" checked onchange="App.lclLoteContar()"><span><b>${escapeHtml(l.nome || "Linha de vida")}</b><small>${escapeHtml(l.modeloNome || "")} · ${chkProgresso(l)}% preenchido · ${av ? `<em>${av} aviso${av === 1 ? "" : "s"}</em>` : "sem avisos"}</small></span></label>`;
+    };
+    const lista = grupos.map(g=> (escopo === "setor" ? "" : `<div class="lote-setor">${escapeHtml(g.s.nome || "Setor")}</div>`) + g.linhas.map(item).join("")).join("");
+    abrirOverlay(`<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card" style="max-width:520px">
+      <h3>Laudos em um PDF</h3>
+      <div class="sheet-sub">Desmarque os laudos que não devem entrar.${ignoradas ? ` ${ignoradas} linha${ignoradas === 1 ? "" : "s"} sem nada preenchido não aparece${ignoradas === 1 ? "" : "m"} aqui.` : ""}</div>
+      <div class="lote-acoes"><button type="button" class="btn btn-sm" onclick="App.lclLoteTodos(true)">Marcar todos</button><button type="button" class="btn btn-sm" onclick="App.lclLoteTodos(false)">Desmarcar todos</button></div>
+      <div class="lote-lista">${lista}</div>
+      <div class="modal-actions"><button class="btn btn-secondary" onclick="App.fecharModal()">Cancelar</button><button class="btn btn-primary" id="lclLoteGo" onclick="App.lclLoteGerar('${escopo}')">Gerar PDF (${total})</button></div>
+    </div></div>`);
+  },
+  lclLoteTodos(on){
+    document.querySelectorAll("#overlayRoot input[data-lote]").forEach(c=>{ c.checked = !!on; });
+    App.lclLoteContar();
+  },
+  lclLoteContar(){
+    const n = document.querySelectorAll("#overlayRoot input[data-lote]:checked").length;
+    const b = document.getElementById("lclLoteGo");
+    if(b){ b.textContent = "Gerar PDF (" + n + ")"; b.disabled = n === 0; }
+  },
+  lclLoteGerar(escopo){
+    const ids = [].slice.call(document.querySelectorAll("#overlayRoot input[data-lote]:checked")).map(c=> c.getAttribute("data-lote"));
+    App.fecharModal();
+    if(!ids.length){ toast("Marque ao menos um laudo", false); return; }
+    return App.lclLoteExecutar(escopo, ids);
+  },
+  /* Monta e imprime, em um PDF só, o laudo das linhas escolhidas (na ordem do projeto). */
+  async lclLoteExecutar(escopo, ids){
     if(__lclLoteEmAndamento || __lclGerando) return;
     const proj = getCurrentChkProjeto(); if(!proj) return;
     const setorAtual = getCurrentChkSetor();
     const setores = escopo === "setor" ? (setorAtual ? [setorAtual] : []) : proj.setores;
-    const todas = [], alvos = [];
-    setores.forEach(s=> s.linhas.forEach(l=>{ todas.push(l); if(chkProgresso(l) > 0) alvos.push({ s, l }); }));
-    if(!alvos.length){ toast("Nenhuma linha com checklist preenchido", false); return; }
+    const alvos = [];
+    setores.forEach(s=> s.linhas.forEach(l=>{ if(ids.includes(l.id)) alvos.push({ s, l }); }));
+    if(!alvos.length){ toast("Nenhum dos laudos escolhidos foi encontrado", false); return; }
     const comAviso = alvos.map(a=> ({ a, av: lclAvisos(a.l, proj) })).filter(x=> x.av.length);
-    const ignoradas = todas.length - alvos.length;
-    if(comAviso.length || ignoradas || alvos.length > 8){
+    if(comAviso.length || alvos.length > 8){
       const linhasMsg = comAviso.slice(0, 8).map(x=> `- ${x.a.l.nome || "Linha"}: ${x.av.length} aviso(s), por exemplo "${x.av[0].txt.slice(0, 70)}"`);
       const msg = `Vão ${alvos.length} laudo(s) em um PDF.`
-        + (ignoradas ? `\n${ignoradas} linha(s) sem nada preenchido ficam de fora.` : "")
         + (comAviso.length ? `\n\n${comAviso.length} laudo(s) têm avisos:\n${linhasMsg.join("\n")}${comAviso.length > 8 ? "\n..." : ""}` : "")
         + (alvos.length > 8 ? "\n\nSão muitas linhas: se o aparelho travar, gere por setor." : "")
         + "\n\nGerar mesmo assim?";
@@ -31023,6 +31092,7 @@ Devolver agora?`)) return;
     setTimeout(limpar, 60000);
   },
   async lclImprimir(){
+    await App.lclSincronizarAntes();
     const lAv = getCurrentChkLinha();
     const avisos = lAv ? lclAvisos(lAv) : [];
     if(avisos.length && !confirm("Antes de imprimir:\n\n- " + avisos.map(a=> a.txt).join("\n- ") + "\n\nImprimir mesmo assim?")) return;

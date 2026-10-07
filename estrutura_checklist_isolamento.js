@@ -2838,6 +2838,33 @@ async function testarSincronizacaoChecklist(){
   const obsN = N2.checklists.projetos[0].setores[0].linhas.map(l => l.itens[0].observacao).sort();
   T(obsN.length === 2 && obsN.includes("digitado no N2 durante a sincronizacao") && obsN.includes("do N1"), "na rodada seguinte as duas versoes ficam guardadas: " + J(obsN));
 
+  // ---------------------------------------------------------------- 14) tudo o que muda o laudo viaja: configuracao e textos da linha, anexos com foto, textos-base (Metodologia e Normas)
+  nuvem.clear();
+  const L1 = dispositivo(), L2 = dispositivo();
+  sandbox.STATE = L1;
+  roda(`(function(){ const m = STATE.checklists.modelos[0]; const p = novoChkProjeto(); p.empresa = "Laudo"; const s = novoChkSetor(); s.nome = "S"; const l = novoChkLinha(m); l.nome = "LV-L"; s.linhas.push(l); p.setores.push(s); STATE.checklists.projetos.push(p); })()`);
+  T(await emDia(L1, L2), "preparo (laudo): linha nos dois aparelhos");
+  sandbox.STATE = L1;
+  roda(`(function(){ const l = STATE.checklists.projetos[0].setores[0].linhas[0]; l.laudo = { fotoCapa:false, capitulos:{ memorial:false, anexos:false }, parecer:"ressalvas", textos:{ "sec-x":"Texto editado no L1" }, anexos:[{ src:"data:image/jpeg;base64,ANEXO1", legenda:"Legenda 1" }] }; l.conclusaoTexto = "Conclusao L1"; l.descricao = "Descricao L1"; l.memorial = { hanc:5, hpos:3 };
+    STATE.checklists.textos = { metodologia:{ texto:"Metodologia nova", figuras:[{ src:"data:image/jpeg;base64,FIGMET1", legenda:"Fig 1" }] }, normativo:{ intro:"Intro nova", normas:["NR-35", "ABNT X"] } }; })()`);
+  T(await emDia(L1, L2), "em dia depois de configurar o laudo em L1");
+  sandbox.STATE = L2;
+  const lL2 = roda(`STATE.checklists.projetos[0].setores[0].linhas[0]`);
+  T(lL2.laudo && lL2.laudo.parecer === "ressalvas" && lL2.laudo.fotoCapa === false && lL2.laudo.capitulos.memorial === false && lL2.laudo.textos["sec-x"] === "Texto editado no L1" && lL2.laudo.anexos[0].src === "data:image/jpeg;base64,ANEXO1" && lL2.laudo.anexos[0].legenda === "Legenda 1" && lL2.conclusaoTexto === "Conclusao L1" && lL2.descricao === "Descricao L1" && lL2.memorial.hanc === 5, "configuracao, textos, anexo com foto, conclusao e memorial da linha chegam no outro aparelho: " + J(lL2.laudo));
+  const tx = roda(`STATE.checklists.textos`);
+  T(tx && tx.metodologia && tx.metodologia.texto === "Metodologia nova" && tx.metodologia.figuras[0].src === "data:image/jpeg;base64,FIGMET1" && tx.normativo.normas.length === 2 && tx.normativo.intro === "Intro nova", "os textos-base do laudo (Metodologia com figura e Normas de referencia) chegam no outro aparelho: " + J(tx));
+  // editar os textos-base no L2 volta para o L1; a edicao mais nova vence, sem duplicar nada
+  roda(`(function(){ STATE.checklists.textos.normativo = { intro:"Intro do L2", normas:["NR-35"] }; STATE.checklists.textos.atualizadoEm = agoraSync(); })()`);
+  T(await emDia(L1, L2), "em dia depois de editar os textos-base em L2");
+  sandbox.STATE = L1;
+  T(roda(`STATE.checklists.textos.normativo.intro`) === "Intro do L2" && roda(`STATE.checklists.textos.metodologia.texto`) === "Metodologia nova" && roda(`STATE.checklists.projetos.length`) === 1 && Array.from(pasta("Backup/Checklist").keys()).filter(n => n.startsWith("t_")).length === 1, "a edicao dos textos-base em L2 chega em L1 (um so arquivo na nuvem)");
+  // aparelho novo, sem nenhum texto-base editado, recebe os da nuvem; texto-base vazio nunca apaga o da nuvem
+  const L3 = dispositivo();
+  await sync(L3);
+  sandbox.STATE = L3;
+  T(roda(`STATE.checklists.textos && STATE.checklists.textos.normativo.intro`) === "Intro do L2" && roda(`STATE.checklists.projetos[0].setores[0].linhas[0].laudo.parecer`) === "ressalvas", "aparelho novo recebe os textos-base e a linha com o laudo configurado");
+  T(await emDia(L1, L3) && roda(`STATE.checklists.textos.normativo.intro`) === "Intro do L2", "aparelho novo sem texto-base proprio nao apaga o da nuvem");
+
   // ---------------------------------------------------------------- 13) nomes na nuvem e isolamento
   const pr = roda(`(function(){ const r = chkSyncParseNomes(["l_abc_100.json", "l_abc_200.json", "m_chk-modelo-padrao-linhas-de-vida_50.json", "i_7.json", "x_9.json", "lixo.txt"]); return { l: r.entidades.get("l:abc"), m: r.entidades.get("m:chk-modelo-padrao-linhas-de-vida"), i: r.singles.i, x: r.singles.x }; })()`);
   T(pr.l.ts === 200 && pr.l.nome === "l_abc_200.json" && pr.l.antigos.length === 1 && pr.m.id === "chk-modelo-padrao-linhas-de-vida" && pr.m.ts === 50 && pr.i[0].ts === 7 && pr.x[0].ts === 9, "leitura dos nomes de arquivo da nuvem (id com hifen, versoes antigas, i e x)");
