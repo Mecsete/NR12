@@ -132,7 +132,7 @@ function novoAparelho(nome, nuvem){
   /* SUBPASTA_CONFIG_LAPIDES e uma const de EXPRESSAO (concatenacao), que o
      extrator constante() nao sabe delimitar — vem escrita aqui. */
   vm.runInContext("var SUBPASTA_CONFIG_LAPIDES = SUBPASTA_BACKUP + '/Config';", ctx);
-  vm.runInContext("var LAPIDES_SYNC_INTERVALO_AUTO_MS = 600000; var __lapidesSyncUltimaVerificacao=0; var __lapidesSyncEmAndamento=false; var __avisoLapidesMassaEm=0;", ctx);
+  vm.runInContext("var LAPIDES_SYNC_INTERVALO_AUTO_MS = 600000; var __lapidesSyncUltimaVerificacao=0; var __lapidesSyncEmAndamento=false; var __avisoLapidesMassaEm=0; var __exclusoesSegurasItens=0;", ctx);
   /* Arquivamento por aparelho (03/09/2026) — ver o mesmo trecho em testes2.js. */
   vm.runInContext("var __projArquivados = new Set();", ctx);
   /* 23/09/2026: gravar a lista de pontos atualiza o resumo em memoria

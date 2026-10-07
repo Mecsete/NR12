@@ -14195,6 +14195,42 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  /* t188 — SELO "FOTOS" PROCURA NA NUVEM + SELO PERMANENTE DE EXCLUSÕES SEGURADAS (07/10/2026). */
+  {
+    console.log("\n[t188] selo fotos procura na nuvem; exclusoes seguradas ficam no selo");
+
+    t("sem pendente, o toque no selo de fotos PROCURA na nuvem antes de falar qualquer coisa", ()=>{
+      const f = funcao("onedriveBaixarFotosDeItem");
+      ok(f.indexOf("await sincronizarDownloadOneDriveUmaPassada();") > 0, "precisa varrer a nuvem");
+      ok(f.indexOf("As fotos deste item ainda não subiram do outro aparelho") < 0, "a frase que afirmava sem olhar voltou");
+      ok(f.indexOf("Não achei as fotos deste item na nuvem agora") > 0, "o aviso final precisa ser honesto");
+      ok(f.indexOf("if(!__downloadAutoRodando)") > 0, "nao pode disputar com a varredura automatica");
+      ok(f.indexOf("As fotos deste item já chegaram.") > 0, "se chegaram durante a procura, avisa");
+    });
+    t("__itemSimplesPorId acha o item em qualquer nivel", ()=>{
+      const cx = vm.createContext({});
+      vm.runInContext(funcao("__itemSimplesPorId"), cx);
+      cx.STATE = { projetosSimples:[{ id:"p", areas:[{ id:"a", maquinas:[{ id:"m", tarefas:[{ id:"t", riscos:[{ id:"r" }] }] }] }] }] };
+      ["p","a","m","t","r"].forEach(id=> eq(vm.runInContext(`__itemSimplesPorId("${id}")`, cx).id, id));
+      eq(vm.runInContext('__itemSimplesPorId("x")', cx), null);
+    });
+    t("o freio de exclusao em massa mantem um contador e o selo do topo mostra 'N exclusoes a confirmar' ate concluir", ()=>{
+      ok(HTML.indexOf("let __exclusoesSegurasItens = 0;") > 0);
+      const l = funcao("onedriveSincronizarLapides");
+      ok(l.indexOf("__exclusoesSegurasItens = res.bloqueados > 0 ? res.itens : 0;") > 0, "o contador acompanha o freio a cada rodada");
+      const c = funcao("chipSyncHtml");
+      ok(c.indexOf("exclusões a confirmar") > 0 && c.indexOf("App.exclusoesSegurasPerguntar()") > 0, "o selo precisa existir");
+      ok(c.indexOf("falhasEnvio === 0 && __exclusoesSegurasItens > 0") > 0, "falha de envio continua tendo prioridade");
+    });
+    t("confirmar roda a sincronizacao manual (que aplica a exclusao); cancelar nao faz nada", ()=>{
+      const i = HTML.indexOf("  async exclusoesSegurasPerguntar(){");
+      ok(i > 0);
+      const c = HTML.slice(i, HTML.indexOf("  tentarSalvarNovamente(){"));
+      ok(c.indexOf("if(!confirm(") > 0 && c.indexOf("await onedriveSincronizarAgora();") > c.indexOf("if(!confirm("), "so depois do OK");
+      ok(c.indexOf("aplicarLapidesNaArvore") < 0 && c.indexOf("marcarAlterado") < 0, "nao aplica por conta propria: usa o fluxo de sempre");
+    });
+  }
+
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);
 })();

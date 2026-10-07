@@ -5852,6 +5852,21 @@ chk("o Rascunho e so de sessao: lpToggleRascunho nao grava nada e a tela tem o b
 chk("a Conclusao ganhou o espaco de 2 linhas antes da tabela",
     '<div class="lp-conc">${texto}</div><div class="lp-esp-concl"></div>${cab}' in _corpoDe(novo, "blocosConclusao") or '<div class="lp-conc">${texto}</div><div class="lp-esp-concl"></div>${cab}' in novo)
 
+print("\n=== 185. SELO 'FOTOS' PROCURA NA NUVEM + SELO DE EXCLUSOES SEGURADAS (07/10/2026) ===")
+_bf = _corpoDe(novo, "onedriveBaixarFotosDeItem")
+chk("sem pendente o toque no selo de fotos varre a nuvem e so entao fala; a frase que afirmava sem olhar saiu",
+    "await sincronizarDownloadOneDriveUmaPassada();" in _bf and "ainda não subiram do outro aparelho — elas ficam" not in novo
+    and "Não achei as fotos deste item na nuvem agora" in _bf)
+chk("o caminho com pendente (baixar o pacote) continua o mesmo",
+    "onedriveBaixarTexto(pend.caminho)" in _bf and "onedriveMesclarItemNovo(pend, dados)" in _bf)
+chk("o freio de exclusao em massa em si nao mudou (so ganhou um contador para o selo)",
+    _corpoDe(novo, "aplicarLapidesNaArvore") == _corpoDe(orig, "aplicarLapidesNaArvore")
+    and _corpoDe(novo, "exclusaoEmMassaSuspeita") == _corpoDe(orig, "exclusaoEmMassaSuspeita")
+    and "__exclusoesSegurasItens = res.bloqueados > 0 ? res.itens : 0;" in novo)
+chk("o selo 'N exclusoes a confirmar' existe, perde para falha de envio e o toque pede confirmacao antes de aplicar",
+    "exclusões a confirmar" in _corpoDe(novo, "chipSyncHtml") and "falhasEnvio === 0 && __exclusoesSegurasItens > 0" in _corpoDe(novo, "chipSyncHtml")
+    and "if(!confirm(`Outro aparelho excluiu" in novo)
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
 

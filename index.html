@@ -3411,7 +3411,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/10/2026 10:40";
+const APP_BUILD = "07/10/2026 10:45";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -7437,11 +7437,50 @@ function pendenteFotosDoItem(itemId){
    mostrando o tamanho exato — a pessoa decide se aquele arquivo específico
    vale o consumo agora, sem mudar a regra geral (o resto continua esperando
    o Wi-Fi normalmente). */
+/* Procura um item do módulo simplificado (qualquer nível) pelo id. */
+function __itemSimplesPorId(id){
+  let achado = null;
+  (STATE.projetosSimples||[]).forEach(p=>{
+    if(p.id === id) achado = p;
+    (p.areas||[]).forEach(a=>{
+      if(a.id === id) achado = a;
+      (a.maquinas||[]).forEach(m=>{
+        if(m.id === id) achado = m;
+        (m.tarefas||[]).forEach(t=>{
+          if(t.id === id) achado = t;
+          (t.riscos||[]).forEach(r=>{ if(r.id === id) achado = r; });
+        });
+      });
+    });
+  });
+  return achado;
+}
 async function onedriveBaixarFotosDeItem(itemId){
-  const pend = pendenteFotosDoItem(itemId);
+  let pend = pendenteFotosDoItem(itemId);
   if(!pend){
-    toast("As fotos deste item ainda não subiram do outro aparelho — elas ficam disponíveis assim que ele tiver Wi-Fi (ou tocar em Sincronizar agora).");
-    return;
+    /* ANTES (até 07/10/2026) este caminho afirmava "as fotos ainda não subiram do
+       outro aparelho" sem olhar a nuvem. Na Equatorial isso era falso: as fotos
+       estavam lá, só não tinham sido registradas como pendentes neste aparelho
+       (pasta repetida). Agora procura de verdade e só depois diz o que achou. */
+    if(!getOneDriveConta()){
+      toast("O OneDrive não está conectado neste aparelho — conecte para baixar as fotos deste item.", false);
+      return;
+    }
+    toast("Procurando as fotos deste item na nuvem…");
+    if(!__downloadAutoRodando){
+      try{ await sincronizarDownloadOneDriveUmaPassada(); await dbSet(STATE); }catch(e){}
+    }
+    pend = pendenteFotosDoItem(itemId);
+    const achado = __itemSimplesPorId(itemId);
+    if(!pend && achado && !achado.__fotosOmitidas){
+      renderAdiavelSeDigitando();
+      toast("As fotos deste item já chegaram.");
+      return;
+    }
+    if(!pend){
+      toast("Não achei as fotos deste item na nuvem agora. Se o outro aparelho já terminou de sincronizar, toque em Sincronizar agora aqui e tente de novo; se continuar assim, ele ainda não as enviou.", false);
+      return;
+    }
   }
   if(!onedriveEstaEmWifi()){
     if(!confirm(`Baixar as fotos deste item agora usando DADOS MÓVEIS?\n\nTamanho: ${fmtBytes(pend.tamanho)}\n\n(No Wi-Fi este download acontece sozinho, sem custo de dados.)`)) return;
@@ -11058,6 +11097,10 @@ function chipSyncHtml(){
   /* Item que falhou no envio e não foi resolvido: o selo deixa de dizer só "há
      quanto tempo rodou" e avisa, levando ao diagnóstico ao tocar. */
   const falhasEnvio = oneDriveOk ? syncFalhasNaoResolvidas() : 0;
+  /* Exclusão de outro aparelho segurada pelo freio de massa: fica no selo até concluir. */
+  if(oneDriveOk && falhasEnvio === 0 && __exclusoesSegurasItens > 0 && __syncStatusAtual !== "erro"){
+    return `<button class="syncbadge alerta" id="syncChip" onclick="App.exclusoesSegurasPerguntar()" title="Outro aparelho excluiu ${__exclusoesSegurasItens} item(ns); por segurança não foi aplicado sozinho — toque para decidir">${ic('warn')}<span>${__exclusoesSegurasItens} exclusões a confirmar</span></button>`;
+  }
   const chipFalhas = `<button class="syncbadge alerta" id="syncChip" onclick="App.irParaConfigBackup()" title="${falhasEnvio} item(ns) não conseguiram subir — toque para ver o diagnóstico">${ic('warn')}<span>${falhasEnvio} sem enviar</span></button>`;
   if(__syncStatusAtual==="nao-suportado"){
     if(oneDriveOk && falhasEnvio>0) return chipFalhas;
@@ -19116,6 +19159,10 @@ const LAPIDES_SYNC_INTERVALO_AUTO_MS = 10*60*1000;
 let __lapidesSyncUltimaVerificacao = 0;
 let __lapidesSyncEmAndamento = false;
 let __avisoLapidesMassaEm = 0;
+/* Quantos itens de exclusões de OUTRO aparelho o freio de exclusão em massa está
+   segurando agora. O aviso (toast) some em 2 s e só repete a cada 6 h; este número
+   fica no selo do topo até a pessoa concluir ou o outro aparelho desfazer. */
+let __exclusoesSegurasItens = 0;
 function getLapidesSyncEm(){
   if(typeof STATE.ui.lapidesSyncEm !== "number") STATE.ui.lapidesSyncEm = 0;
   return STATE.ui.lapidesSyncEm;
@@ -19199,6 +19246,9 @@ async function onedriveSincronizarLapides(forcar){
        mesmo lugar. */
     const res = aplicarLapidesNaArvore(!!forcar);
     removidos = res.removidos;
+    const eraSeguras = __exclusoesSegurasItens;
+    __exclusoesSegurasItens = res.bloqueados > 0 ? res.itens : 0;
+    if(__exclusoesSegurasItens !== eraSeguras) atualizarChipSync();
     if(res.bloqueados > 0 && (Date.now() - __avisoLapidesMassaEm) > 6*60*60*1000){
       __avisoLapidesMassaEm = Date.now();
       toast(`Chegou uma exclusão de ${res.itens} itens feita em outro aparelho. Por segurança ela NÃO foi aplicada sozinha — use "Sincronizar agora" para revisar e concluir.`, false);
@@ -27062,6 +27112,15 @@ const App = {
   onedriveBaixarFotosDeItem,
   onedriveVerificarBootstrapNovoDispositivo,
   onedriveSincronizarAgora,
+  /* Toque no selo "N exclusões a confirmar": pergunta e, se confirmado, roda a
+     sincronização manual, que aplica as exclusões seguradas (forcar = true). */
+  async exclusoesSegurasPerguntar(){
+    const n = __exclusoesSegurasItens;
+    if(!(n > 0)){ atualizarChipSync(); return; }
+    if(!confirm(`Outro aparelho excluiu ${n} item(ns) (contando tudo que estava dentro).\n\nPor segurança isso não foi aplicado sozinho aqui.\n\nOK = excluir daqui também\nCancelar = manter por enquanto`)) return;
+    await onedriveSincronizarAgora();
+    atualizarChipSync();
+  },
   tentarSalvarNovamente(){
     if(!__ultimoErroSalvar) return; // toque no selo em estado normal não faz nada
     marcarAlterado();

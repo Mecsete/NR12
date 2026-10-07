@@ -64,6 +64,23 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/10/2026 10:45
+
+**O selo "fotos" passa a procurar na nuvem em vez de afirmar que o outro aparelho não enviou, e as exclusões de outro aparelho seguradas pelo freio ganham um selo que não some.**
+
+- **Selo "fotos" do cartão.** Tocando nele sem haver pacote registrado, o app
+  dizia "as fotos ainda não subiram do outro aparelho" sem olhar a nuvem — o que
+  foi falso na Equatorial. Agora ele avisa que está procurando, faz uma
+  varredura da nuvem e só então diz: "as fotos já chegaram", baixa o pacote
+  encontrado (com a confirmação de dados móveis de sempre) ou "não achei as
+  fotos na nuvem agora" com o que fazer.
+- **Exclusões seguradas.** Quando outro aparelho exclui muita coisa de uma vez (8
+  itens ou mais e mais de 30% do total) o app segura a exclusão por segurança, e o
+  aviso sumia em 2 segundos. Agora o selo do topo mostra "N exclusões a confirmar"
+  até concluir; tocando, pergunta e, se confirmado, roda a sincronização manual,
+  que aplica. A regra do freio não mudou, e falha de envio continua tendo
+  prioridade no selo.
+
 ## 07/10/2026 10:40
 
 **Laudo A4: imprimir como Rascunho (9 marcas por folha) e espaço de 2 linhas entre o texto da Conclusão e a tabela de riscos.**
