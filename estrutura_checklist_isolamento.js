@@ -171,7 +171,7 @@ const FUNCOES = [
   "chkSyncHash", "chkSyncSig", "chkSyncModeloNorm", "chkSyncGarantir", "chkSyncSemCampo", "chkSyncVista", "chkSyncLocais", "chkSyncLocalDe", "chkSyncSementeIntocada",
   "chkSyncParseNomes", "chkSyncRegistrarRemocao", "chkSyncMesclarRemovidos", "chkSyncMesclarInspetores", "chkSyncLerRemoto", "chkSyncSingleton",
   "chkSyncApagarRemoto", "chkSyncEnviar", "chkSyncRotuloCopia", "chkSyncInserir", "chkSyncAplicar", "chkSyncBaixar", "chkSyncCopiarLocal", "chkSyncConflito",
-  "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "lclNumeroSecao", "getMecseteConfig", "chkAcoesCartao", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
+  "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "chkIncoerencias", "lclNumeroSecao", "getMecseteConfig", "chkAcoesCartao", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
 ];
 let fonte = "let __ultimoCarimboVisto = 0;\n";
 fonte += "let __buscaAtual = '';\n"; // usado por chkAbrirSetor (lista de linhas) -- nao testado aqui, so pra nao faltar
@@ -1807,7 +1807,7 @@ async function testarCapitulosNovos(){
   T(c0.includes("PARECER: INAPTA") && c0.includes("lcl-selo no") && c0.includes("1 não atendem") === false, "selo do parecer na conclusao: " + c0.slice(0, 400));
   T(/lcl-pb"><span>Crítica<\/span><div class="tr"><i style="width:100%;background:#D9534F"><\/i><\/div><b>1<\/b>/.test(c0) && c0.includes("<b>1</b></div><div class=\"lcl-pb\"><span>Média") , "barras de acao por prioridade: " + c0.slice(c0.indexOf("lcl-pri"), c0.indexOf("lcl-pri") + 500));
   T(c0.includes("Foram avaliados 3 itens") && c0.includes("não atendem") && c0.includes("não deve ser utilizada"), "texto automatico com a frase do parecer");
-  T(conc[1].grudaNoProximo === true && conc[1].html.includes("Quadro de não conformidades") && cq.includes("1.1 · Cabo de Aço") && cq.includes("rP2") && cq.includes("sem foto") && cq.includes("Substituir o cabo.<br>Regularizar: Fios rompidos") && cq.indexOf("1.1 · ") < cq.indexOf("2.1 · ") && cq.indexOf("2.1 · ") < cq.indexOf("1.2 · "), "quadro: imagem do item, prioridade, acao e ordem: " + cq.slice(0, 300));
+  T(conc[1].grudaNoProximo === true && conc[1].html.includes("Quadro de não conformidades") && cq.includes("1.1 · Cabo de Aço") && cq.includes("rP2") && cq.includes("Sem registro fotográfico") && !cq.includes(">sem foto<") && cq.includes("Substituir o cabo.<br>Regularizar: Fios rompidos") && cq.indexOf("1.1 · ") < cq.indexOf("2.1 · ") && cq.indexOf("2.1 · ") < cq.indexOf("1.2 · "), "quadro: imagem do item, prioridade, acao e ordem: " + cq.slice(0, 300));
   T(cFim.includes("ART nº <b>ART999</b>") && cFim.includes("Próxima inspeção até: 24/09/2027") && cFim.includes(FOTO("ASS")) && !cFim.includes("lcl-ncr"), "fim da conclusao: ART, proxima inspecao e assinatura");
   roda("__f3.l.conclusaoTexto = 'Texto do engenheiro.'");
   T(roda(`lclBlocosConclusao(${d}, { num:5, rot:"Conclusão", ancora:"cap-conclusao" }, "", (x)=> x)[0].html`).includes("Texto do engenheiro.") && !roda(`lclBlocosConclusao(${d}, { num:5, rot:"Conclusão", ancora:"cap-conclusao" }, "", (x)=> x)[0].html`).includes("Foram avaliados"), "a conclusao escrita pelo engenheiro substitui a automatica");
@@ -2597,6 +2597,40 @@ async function testarUsabilidade(){
   roda("(function(){ getCurrentChkLinha().itens.forEach(i=>{ i.conforme = 'atende'; }); })()");
   T(!roda("screenChkFinalizar()").includes("Itens sem resposta"), "sem pendencia, o cartao some");
   roda("STATE.ui.chkItemAberto = null; STATE.ui.chkProjetoId = " + J(estadoAntes.p) + "; STATE.ui.chkSetorId = null; STATE.ui.chkLinhaId = null; STATE.checklists.projetos = " + J(estadoAntes.lista) + ";");
+  // ---- conferencia ao finalizar: nao atende sem explicacao, motivo sem texto/acao no modelo, sem resposta ----
+  const mkM = (conf, motivos, sel, nota)=> "(" + J({ id:"LM", nome:"LV conf", status:"em_andamento", secoesNA:[], laudo:{},
+    modeloSnapshot:[ { id:"s1", titulo:"Trólei", itens:[ { id:"i1", descricao:"Capacidade marcada?", prioridade:"alta", motivosPadrao: motivos }, { id:"i2", descricao:"Plaqueta?", prioridade:"media", motivosPadrao: motivos } ] } ],
+    itens:[ { itemId:"i1", conforme:"atende", motivosSelecionados:[], observacao:"", fotos:[] }, { itemId:"i2", conforme:conf, motivosSelecionados:sel || [], observacao:nota || "", fotos:[] } ] }) + ")";
+  const mp = (texto, acao)=> [{ motivo:"M1", texto, acao }];
+  const inc = (l)=> roda("chkIncoerencias(" + l + ")");
+  let r1 = inc(mkM("naoAtende", mp("T1", "A1"), [], ""));
+  T(r1.length === 1 && r1[0].tipo === "motivo" && r1[0].ref === "1.2" && r1[0].itemId === "i2" && r1[0].txt.includes("Regularizar o item"), "nao atende sem motivo escolhido (o caso do item 7.2): " + J(r1));
+  T(inc(mkM("naoAtende", mp("T1", "A1"), ["M1"], "")).length === 0, "motivo escolhido, com texto e acao no modelo: sem incoerencia");
+  const r3 = inc(mkM("naoAtende", mp("T1", ""), ["M1"], ""));
+  T(r3.length === 1 && r3[0].tipo === "modelo" && r3[0].txt.includes("não tem ação recomendada") && r3[0].txt.includes("Regularizar: M1"), "motivo sem acao no modelo: " + J(r3));
+  const r4 = inc(mkM("naoAtende", mp("", "A1"), ["M1"], ""));
+  T(r4.length === 1 && r4[0].tipo === "modelo" && r4[0].txt.includes("não tem texto"), "motivo sem texto no modelo: " + J(r4));
+  T(inc(mkM("naoAtende", [], [], "")).length === 1 && inc(mkM("naoAtende", [], [], "Falta a plaqueta")).length === 0, "item sem motivos no modelo: exige a nota; com nota nao ha incoerencia");
+  const r6 = inc(mkM(null, mp("T1", "A1"), [], ""));
+  T(r6.length === 1 && r6[0].tipo === "sem-resposta" && r6[0].itemId === "i2" && r6[0].txt.includes("1 item sem resposta"), "item sem resposta entra na conferencia: " + J(r6));
+  T(inc(mkM("atende", mp("T1", "A1"), [], "")).length === 0 && inc(mkM("na", mp("T1", "A1"), [], "")).length === 0, "atende e nao se aplica nao geram incoerencia");
+  T(inc("(" + J(Object.assign(JSON.parse(mkM("naoAtende", mp("T1", "A1"), [], "").slice(1, -1)), { secoesNA:["s1"] })) + ")").length === 0, "secao que nao se aplica fica de fora");
+  // Finalizar: com incoerencia nao fecha a linha (abre a conferencia); sem incoerencia fecha direto; o botao 'Esta certo' fecha
+  roda("STATE.checklists.projetos = [{ id:'PF', empresa:'EF', setores:[{ id:'SF', nome:'SF', linhas:[ Object.assign(" + mkM("naoAtende", mp("T1", "A1"), [], "") + ", { id:'LF' }) ] }] }]; STATE.ui.chkProjetoId = 'PF'; STATE.ui.chkSetorId = 'SF'; STATE.ui.chkLinhaId = 'LF';");
+  roda("App.chkFinalizar()");
+  T(roda("getCurrentChkLinha().status") === "em_andamento", "com incoerencia, Finalizar nao fecha a linha: abre a conferencia");
+  roda("App.chkFinalizarConfirmado()");
+  T(roda("getCurrentChkLinha().status") === "finalizado" && roda("getCurrentChkLinha().dataFinalizacao") !== null, "confirmando na conferencia, a linha finaliza");
+  roda("(function(){ const l = getCurrentChkLinha(); l.status = 'em_andamento'; l.dataFinalizacao = null; l.itens.find(i=> i.itemId === 'i2').motivosSelecionados = ['M1']; })()");
+  roda("App.chkFinalizar()");
+  T(roda("getCurrentChkLinha().status") === "finalizado", "sem incoerencia, Finalizar fecha direto");
+  // quadro de nao conformidades da Conclusao: sem nenhuma foto a coluna Imagem some; com algumas, sem quadro cinza "sem foto"
+  const capC = "{ num:5, rot:'Conclusão', ancora:'cap-conclusao' }", dF3 = "lclDados(__f3.proj, __f3.setor, __f3.l)";
+  const qSem = roda("lclBlocosConclusao(" + dF3 + ", " + capC + ", '', (x)=> '').filter(b=> b.html.includes('lcl-ncr')).map(b=> b.html).join('')");
+  T(qSem.includes("lcl-ncr sem-im h") && !qSem.includes("<span>Imagem</span>") && !qSem.includes('class="im') && !qSem.includes("sem foto") && !qSem.includes("Sem registro fotográfico"), "nenhuma nao conformidade com foto: a coluna Imagem some do quadro");
+  const qCom = roda("lclBlocosConclusao(" + dF3 + ", " + capC + ", '', (x)=> x ? 'data:image/jpeg;base64,RR' : '').filter(b=> b.html.includes('lcl-ncr')).map(b=> b.html).join('')");
+  T(qCom.includes("<span>Imagem</span>") && qCom.includes('class="im"') && !qCom.includes("sem-im"), "com foto em alguma nao conformidade: a coluna Imagem fica");
+  roda("STATE.ui.chkProjetoId = " + J(estadoAntes.p) + "; STATE.ui.chkSetorId = null; STATE.ui.chkLinhaId = null; STATE.checklists.projetos = " + J(estadoAntes.lista) + ";");
 }
 async function testarSincronizacaoChecklist(){
   const T = (cond, msg)=>{ if(!cond) throw new Error("sincronizacao do checklist: " + msg); };

@@ -64,6 +64,15 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 07/10/2026 11:25
+
+**Finalizar abre uma conferência das incoerências; quadro de não conformidades sem o quadrado cinza "sem foto".**
+
+- Ao tocar em "Finalizar checklist", se houver incoerência o app abre uma tela de conferência antes de fechar a linha: "Não atende" sem motivo escolhido (o caso que deixava a ação como "Regularizar o item." e o item fora do texto do laudo), "Não atende" sem motivo cadastrado no modelo e sem nota, motivo escolhido que não tem texto ou ação recomendada no modelo, itens sem resposta e memorial incompleto. Cada ponto tem o botão Corrigir (abre o item) e há os botões "Voltar e corrigir" e "Está certo, finalizar".
+- Quadro de não conformidades da Conclusão: quando nenhuma não conformidade tem foto, a coluna Imagem some; quando só algumas têm, as sem foto mostram um texto discreto "Sem registro fotográfico", sem o quadrado cinza. A foto da capa não é usada no lugar (poderia parecer evidência do item).
+
+---
+
 ## 07/10/2026 11:05
 
 **Laudo: fotos numeradas pela seção (3.4.1, 3.4.2) e capa com as informações junto da foto.**

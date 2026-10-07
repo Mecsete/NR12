@@ -752,6 +752,13 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .lote-item b{display:block;font-size:13.5px}
 .lote-item small{display:block;font-size:11.5px;color:var(--ink-dim);margin-top:2px}
 .lote-item small em{font-style:normal;color:#C23F12;font-weight:700}
+.conf-lista{max-height:50vh;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:2px 10px;margin:10px 0 12px}
+.conf-item{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:9px 0;border-top:1px solid var(--line)}
+.conf-item:first-child{border-top:none}
+.conf-item b{display:block;font-size:13px}
+.conf-item span{display:block;font-size:12px;color:var(--ink-dim);margin-top:1px}
+.conf-item em{display:block;font-style:normal;font-size:12px;color:#C23F12;margin-top:3px}
+.conf-item .btn{flex:0 0 auto}
 .chk-continuar{display:flex;align-items:center;gap:12px;padding:12px 14px;margin-bottom:12px;border-left:4px solid var(--accent);cursor:pointer}
 .chk-continuar b{display:block;font-size:14px}
 .chk-continuar span{display:block;font-size:12px;color:var(--ink-dim);margin-top:2px}
@@ -3411,7 +3418,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "07/10/2026 11:05";
+const APP_BUILD = "07/10/2026 11:25";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -14943,6 +14950,35 @@ function screenChkPreencher(){
   </div>
   `;
 }
+/* Incoerências que fariam o laudo sair sem explicar uma não conformidade (ou com texto/ação genéricos), para a pessoa
+   conferir e confirmar ao finalizar: [{tipo, si, itemId, ref, secao, descricao, txt}]. */
+function chkIncoerencias(l){
+  const out = [];
+  (l.modeloSnapshot || []).forEach((s, si)=>{
+    if((l.secoesNA || []).includes(s.id)) return;
+    let primeiroSemResp = null, nSemResp = 0;
+    (s.itens || []).forEach((it, ii)=>{
+      const ie = chkItemExec(l, it.id);
+      if(!ie) return;
+      const base = { si, itemId: it.id, ref: `${si + 1}.${ii + 1}`, secao: s.titulo || "Seção", descricao: it.descricao || "" };
+      if(ie.conforme === null){ nSemResp++; if(!primeiroSemResp) primeiroSemResp = it.id; return; }
+      if(ie.conforme !== "naoAtende") return;
+      const sel = ie.motivosSelecionados || [], temMotivos = (it.motivosPadrao || []).length > 0;
+      const nota = String(ie.observacao || "").trim();
+      if(temMotivos && !sel.length) out.push(Object.assign({ tipo:"motivo", txt:'Não atende sem motivo escolhido: o laudo não explica a não conformidade e a ação sai como "Regularizar o item."' }, base));
+      else if(!temMotivos && !nota) out.push(Object.assign({ tipo:"motivo", txt:"Não atende, sem motivo cadastrado no modelo e sem nota: nada explica a não conformidade no laudo." }, base));
+      sel.forEach(m=>{
+        const mp = (it.motivosPadrao || []).find(x=> x.motivo === m);
+        if(!mp || !String(mp.texto || "").trim()) out.push(Object.assign({ tipo:"modelo", txt:`O motivo "${m}" não tem texto no modelo: ele não aparece no texto do laudo.` }, base));
+        else if(!String(mp.acao || "").trim()) out.push(Object.assign({ tipo:"modelo", txt:`O motivo "${m}" não tem ação recomendada no modelo: a ação sai como "Regularizar: ${m}".` }, base));
+      });
+    });
+    if(nSemResp) out.push({ tipo:"sem-resposta", si, itemId: primeiroSemResp, ref: String(si + 1), secao: s.titulo || "Seção", descricao: "", txt: `${nSemResp} ${nSemResp === 1 ? "item sem resposta" : "itens sem resposta"} nesta seção; o parecer fica NÃO CONCLUSIVO.` });
+  });
+  const fm = chkMemorialAtivo(l) ? chkMemorialFaltas(l) : [];
+  if(fm.length) out.push({ tipo:"memorial", si: (l.modeloSnapshot || []).length, itemId: null, ref: "", secao: "Memorial ZLQ", descricao: "", txt: "Falta medir: " + fm.join(", ") + ". Sem isso o memorial não entra no laudo." });
+  return out;
+}
 function screenChkFinalizar(){
   const l = getCurrentChkLinha();
   if(!l){ go("checklist-linhas"); return ""; }
@@ -15980,10 +16016,13 @@ function lclBlocosConclusao(d, cap, assinaturaSrc, redu){
     <div class="lcl-kc">${lclDonut([res.ok, res.nok, res.na], [LCL_COR.ok, LCL_COR.nok, LCL_COR.na], 6.6, `<b>${res.pct}%</b><small>conforme</small>`)}<div><div class="lcl-selos">${selo}</div><div class="lcl-kc-t">${res.ok} atendem · ${res.nok} não atendem · ${res.na} não se aplicam</div></div><div class="lcl-pri"><h4>Ações recomendadas por prioridade</h4>${barras}</div></div>
     ${texto}` }];
   if(ncs.length){
-    blocos.push({ grudaNoProximo:true, html:`<div class="lcl-h3">Quadro de não conformidades</div><div class="lcl-ncr h"><span>Imagem</span><span>Item</span><span>Prioridade</span><span>Ação recomendada</span></div>` });
+    // sem nenhuma foto nas não conformidades, a coluna Imagem some; com algumas, as sem foto ficam só com um texto discreto (sem quadro cinza)
+    const comColunaFoto = ncs.some(x=> redu(x.imagem));
+    const cls = comColunaFoto ? "lcl-ncr" : "lcl-ncr sem-im";
+    blocos.push({ grudaNoProximo:true, html:`<div class="lcl-h3">Quadro de não conformidades</div><div class="${cls} h">${comColunaFoto ? "<span>Imagem</span>" : ""}<span>Item</span><span>Prioridade</span><span>Ação recomendada</span></div>` });
     ncs.forEach(x=>{
       const foto = redu(x.imagem);
-      blocos.push({ html:`<div class="lcl-ncr"><div class="im">${foto ? `<img src="${foto}" alt="">` : `<span>sem foto</span>`}</div><div class="it"><b>${lclEsc(x.num)} · ${lclEsc(x.secao)}</b><span>${lclEsc(x.descricao)}</span>${x.motivos.length ? `<small>${x.motivos.map(m=> lclEsc(m)).join("; ")}</small>` : ""}</div><div class="pr"><i style="background:${LCL_PRI_COR[x.prioridade]}">${lclEsc(chkPrioridadeRotulo(x.prioridade))}</i></div><div class="ac">${x.acoes.map(a=> lclEsc(a)).join("<br>")}</div></div>` });
+      blocos.push({ html:`<div class="${cls}">${comColunaFoto ? `<div class="im${foto ? "" : " vazio"}">${foto ? `<img src="${foto}" alt="">` : `<span>Sem registro fotográfico</span>`}</div>` : ""}<div class="it"><b>${lclEsc(x.num)} · ${lclEsc(x.secao)}</b><span>${lclEsc(x.descricao)}</span>${x.motivos.length ? `<small>${x.motivos.map(m=> lclEsc(m)).join("; ")}</small>` : ""}</div><div class="pr"><i style="background:${LCL_PRI_COR[x.prioridade]}">${lclEsc(chkPrioridadeRotulo(x.prioridade))}</i></div><div class="ac">${x.acoes.map(a=> lclEsc(a)).join("<br>")}</div></div>` });
     });
   }
   blocos.push({ html:`${prox ? `<p class="lcl-par"><b>Próxima inspeção até: ${lclEsc(prox)}</b> (intervalo máximo de 12 meses).</p>` : ""}
@@ -16468,6 +16507,8 @@ a.lcl-sl:hover i{border-bottom-color:#E94E1B}
 .lcl-pb b{text-align:right;color:#1E2148}
 .lcl-pb-vazio{font-size:11px;color:#8a8fa8}
 .lcl-ncr{display:grid;grid-template-columns:78px 1.4fr 70px 1.3fr;gap:10px;align-items:start;padding:7px 4px;border-bottom:1px solid #dfe2ec;font-size:11px}
+.lcl-ncr.sem-im{grid-template-columns:1.4fr 70px 1.3fr}
+.lcl-ncr .im.vazio{background:none;height:auto;justify-content:flex-start;text-align:left;line-height:1.3}
 .lcl-ncr.h{background:#eef0f6;font-weight:800;color:#1E2148;font-size:10.5px;padding:5px 4px;border-bottom:none}
 .lcl-ncr .im{width:78px;height:58px;background:#eef0f6;display:flex;align-items:center;justify-content:center;color:#9a9fb3;font-size:9px;overflow:hidden;border-radius:2px}
 .lcl-ncr .im img{width:100%;height:100%;object-fit:cover;display:block}
@@ -31369,7 +31410,24 @@ Devolver agora?`)) return;
     l.descricao = valor;
     marcarAlterado();
   },
+  /* Ao finalizar: se houver incoerência (não atende sem motivo, motivo sem texto ou ação no modelo, itens sem resposta, memorial
+     incompleto), abre a conferência antes de fechar a linha. */
   chkFinalizar(){
+    const l = getCurrentChkLinha(); if(!l) return;
+    const inc = chkIncoerencias(l);
+    if(inc.length){ App.chkAbrirConferencia(inc); return; }
+    App.chkFinalizarConfirmado();
+  },
+  chkAbrirConferencia(inc){
+    const linhas = inc.map(x=>`<div class="conf-item"><div><b>${x.ref ? escapeHtml(x.ref) + " · " : ""}${escapeHtml(x.secao)}</b>${x.descricao ? `<span>${escapeHtml(x.descricao)}</span>` : ""}<em>${escapeHtml(x.txt)}</em></div><button class="btn btn-sm" type="button" onclick="App.fecharModal();App.chkIrDaRevisao(${x.si}${x.itemId ? `,'${x.itemId}'` : ""})">Corrigir</button></div>`).join("");
+    abrirOverlay(`<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card" style="max-width:560px">
+      <h3>${ic('warn')} Conferir antes de finalizar (${inc.length})</h3>
+      <div class="sheet-sub">Estes pontos deixariam o laudo sem explicar uma não conformidade, ou com texto genérico. Corrija, ou confirme que está certo.</div>
+      <div class="conf-lista">${linhas}</div>
+      <div class="modal-actions"><button class="btn btn-secondary" onclick="App.fecharModal()">Voltar e corrigir</button><button class="btn btn-primary" onclick="App.fecharModal();App.chkFinalizarConfirmado()">Está certo, finalizar</button></div>
+    </div></div>`);
+  },
+  chkFinalizarConfirmado(){
     const l = getCurrentChkLinha(); if(!l) return;
     l.status = "finalizado";
     l.dataFinalizacao = hoje();

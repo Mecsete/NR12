@@ -5890,6 +5890,12 @@ chk("fotos do laudo numeradas pela secao (3.4.1) na legenda, na citacao do texto
 chk("capa com foto: o quadro de dados fica logo abaixo da foto (nao mais absoluto no rodape)",
     ".lcl-capa-txt.com-foto .lcl-capa-tab{margin-top:${Math.round(12*LCL_MM)}px}" in novo and "bottom:${Math.round(27*LCL_MM)}px;width:calc" not in novo)
 
+print("\n=== 193. FINALIZAR COM CONFERENCIA + QUADRO DE NAO CONFORMIDADES SEM QUADRADO CINZA (07/10/2026) ===")
+chk("Finalizar checklist abre a conferencia quando ha incoerencia (nao atende sem motivo, motivo sem texto/acao, sem resposta, memorial)",
+    "function chkIncoerencias(l){" in novo and "const inc = chkIncoerencias(l);" in novo and "chkAbrirConferencia(inc){" in novo and "chkFinalizarConfirmado(){" in novo and "Está certo, finalizar" in novo)
+chk("o quadro de nao conformidades nao usa mais o quadrado cinza 'sem foto': a coluna some ou fica o texto discreto",
+    "lcl-ncr sem-im" in novo and "Sem registro fotográfico" in novo and "<span>sem foto</span>" not in novo)
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
 
