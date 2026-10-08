@@ -19121,6 +19121,180 @@ async function chkSyncApagarRemoto(ctx, rem){
   for(const nome of [rem.nome].concat(rem.antigos || [])){ await ctx.T.apagar(SUBPASTA_CHECKLIST, nome); }
   ctx.parse.entidades.delete(rem.chave);
 }
+/* =========================================================================
+   MIGRAÇÃO DE CHECKLISTS (modelo antigo -> modelo novo), guiada pelo De-Para
+
+   Cada linha de vida guarda uma cópia congelada do modelo com que nasceu. Para trocar o checklist por um novo SEM perder
+   nada, a linha é reconstruída sobre o modelo novo seguindo a planilha De-Para (texto exato da pergunta e do motivo):
+   - pergunta 1->1 ou N->1: junta as respostas (qualquer "Não atende" vence; "Atende" só se todas atendem ou não se
+     aplicam; qualquer sem resposta deixa a nova sem resposta - nunca se infere "Atende");
+   - motivos marcados vão para o motivo novo indicado; motivo sem equivalente vira observação da pergunta nova;
+   - fotos de itens que NÃO eram "Não atende" vão para as fotos da seção; as de "Não atende" ficam na pergunta (e no
+     motivo novo); pergunta removida vai para o histórico (e as fotos de "Dispositivos de Ancoragem" na linha rígida,
+     que deixou de ter essa seção, vão para as fotos da seção "Ancoragem Estrutural");
+   - TUDO o que era da linha antiga fica guardado, inteiro, em linha.versaoAnterior (nada é apagado), e a linha fica
+     marcada em linha.migracao. A conta fecha: fotos e motivos de antes = os de depois + os só do histórico.
+   As funções abaixo são puras (testáveis); só chkMigracaoAplicar altera o estado. */
+const CHK_MIG_TIPOS = { "Vertical":"vertical", "Horizontal Flexível":"horizontal_flexivel", "Horizontal Rígida":"horizontal_rigida" };
+const CHK_MIG_FOTOS_REMOVIDAS = { horizontal_rigida: { "Dispositivos de Ancoragem":"Ancoragem Estrutural" } };
+function chkMigN(s){ return String(s == null ? "" : s).replace(/\s+/g, " ").trim(); }
+/* Linhas lidas da planilha (baseIALerCelulas) -> objetos pelo texto do cabeçalho (a 1a linha cuja coluna A começa com "Checklist"). */
+function chkMigTabela(linhas){
+  let cab = null;
+  const out = [];
+  (linhas || []).forEach(l=>{
+    const c = l.cells || {};
+    if(!cab){
+      if(chkMigN(c.A).toLowerCase().indexOf("checklist") === 0){ cab = {}; Object.keys(c).forEach(k=>{ cab[k] = chkMigN(c[k]); }); }
+      return;
+    }
+    const o = {}; let algum = false;
+    Object.keys(cab).forEach(k=>{ const v = c[k]; o[cab[k]] = v == null ? "" : String(v); if(chkMigN(v)) algum = true; });
+    if(algum) out.push(o);
+  });
+  return out;
+}
+/* Plano por tipo de linha: { perguntas:{antigaTexto -> {relacao, nova, secaoAntiga, secaoNova}}, motivos:{antiga\u0001motivoAntigo -> {tipo, novaPergunta, motivoNovo}}, novas:[...] } */
+function chkMigPlano(tabPerg, tabMot){
+  const plano = {};
+  const de = (tk)=> plano[tk] || (plano[tk] = { perguntas:{}, motivos:{}, novas:[] });
+  (tabPerg || []).forEach(r=>{
+    const tk = CHK_MIG_TIPOS[chkMigN(r["Checklist"])]; if(!tk) return;
+    const rel = chkMigN(r["Relação"]);
+    if(rel.indexOf("Nova") === 0){ de(tk).novas.push(chkMigN(r["Pergunta nova (texto exato)"])); return; }
+    de(tk).perguntas[chkMigN(r["Pergunta antiga (texto exato)"])] = { relacao: rel, nova: chkMigN(r["Pergunta nova (texto exato)"]), secaoAntiga: chkMigN(r["Seção antiga"]), secaoNova: chkMigN(r["Seção nova"]) };
+  });
+  (tabMot || []).forEach(r=>{
+    const tk = CHK_MIG_TIPOS[chkMigN(r["Checklist"])]; if(!tk) return;
+    const antigo = chkMigN(r["Motivo antigo (texto exato)"]);
+    if(!antigo) return;
+    de(tk).motivos[chkMigN(r["Pergunta antiga (texto exato)"]) + "\u0001" + antigo] = { tipo: chkMigN(r["Tipo"]), novaPergunta: chkMigN(r["Pergunta nova (texto exato)"]), motivoNovo: chkMigN(r["Motivo novo (texto exato)"]) };
+  });
+  return plano;
+}
+/* Qual modelo do aparelho é o "novo" de um tipo: o que tem todas as perguntas novas do plano (texto exato). */
+function chkMigAcharModeloNovo(modelos, planoTipo){
+  const novas = new Set();
+  Object.keys(planoTipo.perguntas).forEach(k=>{ const p = planoTipo.perguntas[k]; if(p.relacao !== "Removida" && p.nova) novas.add(p.nova); });
+  let melhor = null, melhorN = 0;
+  (modelos || []).forEach(m=>{
+    const t = new Set();
+    (m.secoes || []).forEach(s=> (s.itens || []).forEach(it=> t.add(chkMigN(it.descricao))));
+    let n = 0; novas.forEach(x=>{ if(t.has(x)) n++; });
+    if(n > melhorN){ melhor = m; melhorN = n; }
+  });
+  return melhor && melhorN === novas.size ? melhor : null;
+}
+/* Reconstrói UMA linha sobre o modelo novo. Não altera a linha recebida. Devolve { linha, rel }. */
+function chkMigrarLinha(linha, modeloNovo, planoTipo, tipoKey){
+  const rel = { itensAntes:(linha.itens || []).length, respondidosAntes:0, fotosAntes:0, fotosNoItem:0, fotosNaSecao:0, fotosSoHistorico:0,
+    motivosAntes:0, motivosMigrados:0, motivosComoObservacao:0, motivosSoHistorico:0, perguntasSoHistorico:0, semDestino:[], revisar:[], fundidasAtende:[] };
+  const novaSnap = clonarCompartilhandoFotos(modeloNovo.secoes);
+  const idxNovo = {};
+  novaSnap.forEach(s=> (s.itens || []).forEach(it=>{ idxNovo[chkMigN(it.descricao)] = { s, it }; }));
+  const execNovo = {};
+  novaSnap.forEach(s=> (s.itens || []).forEach(it=>{ execNovo[it.id] = { itemId: it.id, conforme: null, motivosSelecionados: [], observacao: "", fotos: [] }; }));
+  const fotosSecao = {};
+  const paraSecao = (sid, f, origem)=>{ const c = Object.assign({}, f); c.origem = origem; c.motivo = ""; (fotosSecao[sid] = fotosSecao[sid] || []).push(c); rel.fotosNaSecao++; };
+  const desc = {};
+  (linha.modeloSnapshot || []).forEach(s=> (s.itens || []).forEach(it=>{ desc[it.id] = { txt: chkMigN(it.descricao), sec: chkMigN(s.titulo) }; }));
+  const grupos = {};
+  const pendMot = []; // [novoItemId, motivoAntigoMapeado|"" , foto] para ligar foto de nao atende ao motivo novo
+  (linha.itens || []).forEach(x=>{
+    if(!x) return;
+    const d = desc[x.itemId] || { txt: "", sec: "" };
+    const resp = x.conforme !== null && x.conforme !== undefined;
+    const nf = (x.fotos || []).length, nm = (x.motivosSelecionados || []).length;
+    if(resp) rel.respondidosAntes++;
+    rel.fotosAntes += nf; rel.motivosAntes += nm;
+    const m = planoTipo.perguntas[d.txt];
+    if(!m){ rel.semDestino.push(d.txt); rel.fotosSoHistorico += nf; rel.motivosSoHistorico += nm; return; }
+    if(m.relacao === "Removida"){
+      rel.perguntasSoHistorico++;
+      rel.motivosSoHistorico += nm;
+      const destTit = ((CHK_MIG_FOTOS_REMOVIDAS[tipoKey] || {})[d.sec]) || "";
+      const secDest = destTit ? novaSnap.find(s=> chkMigN(s.titulo) === chkMigN(destTit)) : null;
+      (x.fotos || []).forEach(f=>{ if(secDest) paraSecao(secDest.id, f, d.txt); else rel.fotosSoHistorico++; });
+      return;
+    }
+    const alvo = idxNovo[m.nova];
+    if(!alvo){ rel.semDestino.push(d.txt); rel.fotosSoHistorico += nf; rel.motivosSoHistorico += nm; return; }
+    const g = grupos[alvo.it.id] || (grupos[alvo.it.id] = { statuses: [], n: 0 });
+    g.statuses.push(resp ? x.conforme : null); g.n++;
+    const ex = execNovo[alvo.it.id];
+    const mapa = {}; // motivo antigo -> motivo novo (so os migrados)
+    if(x.conforme === "naoAtende"){
+      (x.motivosSelecionados || []).forEach(mo=>{
+        const mm = planoTipo.motivos[d.txt + "\u0001" + chkMigN(mo)];
+        const ok = mm && mm.novaPergunta === m.nova && /^(Igual|Renomeado|Provável)/.test(mm.tipo);
+        const novoMo = ok ? (alvo.it.motivosPadrao || []).find(p=> chkMigN(p.motivo) === mm.motivoNovo) : null;
+        if(novoMo){
+          if(!ex.motivosSelecionados.includes(novoMo.motivo)) ex.motivosSelecionados.push(novoMo.motivo);
+          mapa[mo] = novoMo.motivo; rel.motivosMigrados++;
+        }else{
+          ex.observacao += (ex.observacao ? "\n" : "") + "Motivo do checklist antigo (sem equivalente no novo): " + mo;
+          rel.motivosComoObservacao++;
+        }
+      });
+    }
+    const obs = chkMigN(x.observacao);
+    if(obs) ex.observacao += (ex.observacao ? "\n" : "") + x.observacao;
+    (x.fotos || []).forEach(f=>{
+      if(x.conforme === "naoAtende"){
+        const c = Object.assign({}, f); c.origem = d.txt; c.motivo = mapa[f.motivo] || "";
+        ex.fotos.push(c); rel.fotosNoItem++;
+      }else{
+        paraSecao(alvo.s.id, f, d.txt);
+      }
+    });
+  });
+  Object.keys(grupos).forEach(id=>{
+    const g = grupos[id], ss = g.statuses, ex = execNovo[id];
+    if(ss.indexOf("naoAtende") >= 0) ex.conforme = "naoAtende";
+    else if(ss.some(s=> s === null)) ex.conforme = null;
+    else ex.conforme = ss.indexOf("atende") >= 0 ? "atende" : "na";
+    if(ex.conforme === "atende" && g.n > 1) (linha.status === "finalizado" ? rel.fundidasAtende : rel.revisar).push(id);
+  });
+  const secNA = novaSnap.filter(s=> (s.itens || []).length && s.itens.every(it=> execNovo[it.id].conforme === "na")).map(s=> s.id);
+  const nova = Object.assign({}, linha);
+  nova.modeloId = modeloNovo.id; nova.modeloNome = modeloNovo.nome; nova.tipoLinha = modeloNovo.tipoLinha || linha.tipoLinha || tipoKey;
+  nova.modeloSnapshot = novaSnap;
+  nova.itens = novaSnap.flatMap(s=> (s.itens || []).map(it=> execNovo[it.id]));
+  nova.secoesNA = secNA;
+  nova.fotosSecao = fotosSecao;
+  nova.versaoAnterior = { migradoEm: hoje(), modeloId: linha.modeloId, modeloNome: linha.modeloNome, tipoLinha: linha.tipoLinha || tipoKey, modeloSnapshot: linha.modeloSnapshot, itens: linha.itens,
+    secoesNA: linha.secoesNA || [], fotosSecao: linha.fotosSecao || {}, status: linha.status, dataFinalizacao: linha.dataFinalizacao || null };
+  nova.migracao = { em: hoje(), estado: linha.status === "finalizado" ? "migrada-finalizada" : "migrada-revisar", de: linha.modeloNome || "", revisar: rel.revisar, fundidasAtende: rel.fundidasAtende };
+  nova.atualizadoEm = agoraSync();
+  return { linha: nova, rel };
+}
+/* Simula a migração de todas as linhas do aparelho (sem alterar nada): uma entrada por linha. */
+function chkMigracaoSimular(estado, plano, modelosPorTipo){
+  const out = [];
+  ((estado.checklists && estado.checklists.projetos) || []).forEach(p=> (p.setores || []).forEach(s=> (s.linhas || []).forEach(l=>{
+    const base = { projeto: p.empresa || "", setor: s.nome || "", nome: l.nome || "", id: l.id, status: l.status };
+    if(l.migracao){ out.push(Object.assign(base, { estado:"ja-migrada" })); return; }
+    const tk = l.tipoLinha || "";
+    const pl = plano && plano[tk], mn = modelosPorTipo && modelosPorTipo[tk];
+    if(!pl || !mn){ out.push(Object.assign(base, { estado:"sem-modelo-novo", tipo: tk })); return; }
+    out.push(Object.assign(base, { estado:"ok", tipo: tk, rel: chkMigrarLinha(l, mn, pl, tk).rel }));
+  })));
+  return out;
+}
+/* Aplica de verdade (altera as linhas do estado). Chame depois do ponto de restauração. Devolve quantas linhas migrou. */
+function chkMigracaoAplicar(estado, plano, modelosPorTipo){
+  let n = 0;
+  ((estado.checklists && estado.checklists.projetos) || []).forEach(p=> (p.setores || []).forEach(s=> (s.linhas || []).forEach(l=>{
+    if(l.migracao) return;
+    const tk = l.tipoLinha || "";
+    const pl = plano && plano[tk], mn = modelosPorTipo && modelosPorTipo[tk];
+    if(!pl || !mn) return;
+    const r = chkMigrarLinha(l, mn, pl, tk);
+    Object.keys(r.linha).forEach(k=>{ l[k] = r.linha[k]; });
+    n++;
+  })));
+  return n;
+}
 /* ---- Mescla de linha de vida em conflito (duas versões do mesmo checklist) ----
    Antes, a versão com o carimbo mais novo ganhava e a outra virava uma cópia "(versão de ...)" — mesmo quando
    o carimbo novo vinha de um único toque numa cópia velha (o caso do "Depósito de Inflamáveis": 1 resposta

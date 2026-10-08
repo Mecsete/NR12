@@ -171,7 +171,7 @@ const FUNCOES = [
   "chkSyncHash", "chkSyncSig", "chkSyncModeloNorm", "chkSyncGarantir", "chkSyncSemCampo", "chkSyncVista", "chkSyncLocais", "chkSyncLocalDe", "chkSyncSementeIntocada",
   "chkSyncParseNomes", "chkSyncRegistrarRemocao", "chkSyncMesclarRemovidos", "chkSyncMesclarInspetores", "chkSyncLerRemoto", "chkSyncSingleton",
   "chkSyncApagarRemoto", "chkSyncEnviar", "chkSyncRotuloCopia", "chkSyncInserir", "chkSyncAplicar", "chkSyncBaixar", "chkSyncCopiarLocal", "chkSyncConflito",
-  "chkResumoCardLinha", "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "chkIncoerencias", "lclNumeroSecao", "getMecseteConfig", "chkAcoesCartao", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "lclPrioridadeNc", "chkSyncFotoValorId", "chkSyncFotoId", "chkSyncRespondidos", "chkSyncDivergencias", "chkSyncMesclarLinha", "chkConsolidarCopiasLinhas", "chkSyncVisto", "chkSyncMudou", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
+  "chkResumoCardLinha", "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "chkIncoerencias", "lclNumeroSecao", "getMecseteConfig", "chkAcoesCartao", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "lclPrioridadeNc", "chkMigN", "chkMigTabela", "chkMigPlano", "chkMigAcharModeloNovo", "chkMigrarLinha", "chkMigracaoSimular", "chkMigracaoAplicar", "chkSyncFotoValorId", "chkSyncFotoId", "chkSyncRespondidos", "chkSyncDivergencias", "chkSyncMesclarLinha", "chkConsolidarCopiasLinhas", "chkSyncVisto", "chkSyncMudou", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
 ];
 let fonte = "let __ultimoCarimboVisto = 0;\n";
 fonte += "let __buscaAtual = '';\n"; // usado por chkAbrirSetor (lista de linhas) -- nao testado aqui, so pra nao faltar
@@ -194,6 +194,8 @@ fonte += constObjeto("CHK_MEMORIAL_CAMPOS") + "\n";
 fonte += constObjeto("CHK_MEMORIAL_LIMITES") + "\n";
 fonte += constObjeto("CHK_CABOS") + "\n";
 fonte += constObjeto("CHK_PRIORIDADE_PESO") + "\n";
+fonte += constObjeto("CHK_MIG_TIPOS") + "\n";
+fonte += constObjeto("CHK_MIG_FOTOS_REMOVIDAS") + "\n";
 fonte += constObjeto("CHK_SYNC_CAMPOS_TEXTO_LINHA") + "\n";
 fonte += constObjeto("LCL_PARECERES") + "\n";
 fonte += constObjeto("LCL_PRI_COR") + "\n";
@@ -2794,6 +2796,97 @@ async function testarUsabilidade(){
   // ---- versoes da mesma linha com modelos diferentes nunca se juntam
   const snapA = [{ id:"s1", itens:[{ id:"i1" }, { id:"i2" }] }], snapB = [{ id:"sN", itens:[{ id:"n1" }] }];
   T(roda("chkSyncDivergencias({ itens:[], secoesNA:[], modeloSnapshot:" + J(snapA) + " }, { itens:[], secoesNA:[], modeloSnapshot:" + J(snapB) + " }).includes('modelo')") === true && roda("chkSyncDivergencias({ itens:[], secoesNA:[], modeloSnapshot:" + J(snapA) + " }, { itens:[], secoesNA:[], modeloSnapshot:" + J(snapA) + " }).length") === 0, "mescla: modelos diferentes (linha migrada x nao migrada) contam como divergencia; o mesmo modelo nao");
+  // ---- migracao de checklists (modelo antigo -> novo) pelo De-Para
+  const CP = ["Checklist", "ID antigo", "Seção antiga", "Pergunta antiga (texto exato)", "Relação", "ID novo", "Seção nova", "Pergunta nova (texto exato)", "O que fazer com as fotos", "Observação"];
+  const CM = ["Checklist", "ID perg. antiga", "Pergunta antiga (texto exato)", "Motivo antigo (texto exato)", "ID perg. nova", "Pergunta nova (texto exato)", "Motivo novo (texto exato)", "Tipo", "Prioridade do motivo novo", "Observação"];
+  const lin = (vals, n)=> { const cells = {}; vals.forEach((v, i)=>{ if(v !== "") cells[String.fromCharCode(65 + i)] = v; }); return { n, cells }; };
+  const R = "Horizontal Rígida";
+  const tabP = [lin(CP, 1),
+    lin([R, "2", "Documentação", "Q1 projeto?", "Fundida (N→1)", "2", "Documentação", "N1 projeto e inspecoes?", "", ""], 2),
+    lin([R, "5", "Documentação", "Q2 relatorio?", "Fundida (N→1)", "2", "Documentação", "N1 projeto e inspecoes?", "", ""], 3),
+    lin([R, "8", "Viga / Trilho", "Q3 viga integra?", "Ajustada (1→1)", "5", "Viga / Trilho", "N2 viga?", "", ""], 4),
+    lin([R, "11", "Compatibilidade e Uso", "Q4 cinturao?", "Removida", "", "", "", "", ""], 5),
+    lin([R, "14", "Dispositivos de Ancoragem", "Q5 olhal integro?", "Removida", "", "", "", "", ""], 6),
+    lin([R, "", "", "", "Nova (sem pergunta antiga)", "9", "Viga / Trilho", "N9 validade?", "", ""], 7)];
+  const tabM = [lin(CM, 1),
+    lin([R, "2", "Q1 projeto?", "m projeto ausente", "2", "N1 projeto e inspecoes?", "n projeto ausente", "Igual", "Alta", ""], 2),
+    lin([R, "5", "Q2 relatorio?", "m sem relatorio", "2", "N1 projeto e inspecoes?", "n sem relatorio periodico", "Renomeado", "Alta", ""], 3),
+    lin([R, "5", "Q2 relatorio?", "m outro", "", "", "", "Sem equivalente (removido)", "", ""], 4),
+    lin([R, "8", "Q3 viga integra?", "m viga trincada", "5", "N2 viga?", "n viga deformada", "Igual", "Crítica", ""], 5)];
+  const plano = roda("chkMigPlano(chkMigTabela(" + J(tabP) + "), chkMigTabela(" + J(tabM) + "))");
+  T(Object.keys(plano.horizontal_rigida.perguntas).length === 5 && plano.horizontal_rigida.novas.length === 1 && plano.horizontal_rigida.perguntas["Q4 cinturao?"].relacao === "Removida" && Object.keys(plano.horizontal_rigida.motivos).length === 4, "plano lido do De-Para (perguntas, motivos e a pergunta nova sem dados): " + J(Object.keys(plano.horizontal_rigida.perguntas)));
+  const modeloNovo = { id:"MN", nome:"Rigida v2", tipoLinha:"horizontal_rigida", secoes:[
+    { id:"sd", titulo:"Documentação", contexto:"", itens:[{ id:"n1", descricao:"N1 projeto e inspecoes?", motivosPadrao:[{ motivo:"n projeto ausente", texto:"t", acao:"a" }, { motivo:"n sem relatorio periodico", texto:"t", acao:"a" }] }] },
+    { id:"sv", titulo:"Viga / Trilho", contexto:"", itens:[{ id:"n2", descricao:"N2 viga?", motivosPadrao:[{ motivo:"n viga deformada", texto:"t", acao:"a" }] }] },
+    { id:"sa", titulo:"Ancoragem Estrutural", contexto:"", itens:[{ id:"n3", descricao:"N3 ancoragem?", motivosPadrao:[] }] } ] };
+  T(roda("chkMigAcharModeloNovo([" + J(modeloNovo) + ", { secoes:[] }], chkMigPlano(chkMigTabela(" + J(tabP) + "), chkMigTabela(" + J(tabM) + ")).horizontal_rigida)") !== null, "acha o modelo novo pelo texto exato das perguntas novas");
+  const ft = (id, mo)=> ({ foto:"data:image/jpeg;base64,MG" + id, tags:[], motivo: mo || "" });
+  const velha = (status, extra)=> Object.assign({ id:"LM", nome:"LV mig", status, dataFinalizacao: status === "finalizado" ? "2026-10-07" : null, tipoLinha:"horizontal_rigida", modeloId:"MV", modeloNome:"Rigida v1", secoesNA:[], laudo:{}, descricao:"d", conclusaoTexto:"", fotoAmpla:"", criadoEm:100,
+    modeloSnapshot:[ { id:"o1", titulo:"Documentação", itens:[{ id:"q1", descricao:"Q1 projeto?" }, { id:"q2", descricao:"Q2 relatorio?" }] }, { id:"o2", titulo:"Viga / Trilho", itens:[{ id:"q3", descricao:"Q3 viga integra?" }] }, { id:"o3", titulo:"Compatibilidade e Uso", itens:[{ id:"q4", descricao:"Q4 cinturao?" }] }, { id:"o4", titulo:"Dispositivos de Ancoragem", itens:[{ id:"q5", descricao:"Q5 olhal integro?" }] } ],
+    itens:[ { itemId:"q1", conforme:"naoAtende", motivosSelecionados:["m projeto ausente"], observacao:"obs q1", fotos:[ft("A1", "m projeto ausente")] },
+            { itemId:"q2", conforme:"naoAtende", motivosSelecionados:["m sem relatorio", "m outro"], observacao:"", fotos:[] },
+            { itemId:"q3", conforme:"atende", motivosSelecionados:[], observacao:"", fotos:[ft("P3"), ft("P3b")] },
+            { itemId:"q4", conforme:"naoAtende", motivosSelecionados:["m epi"], observacao:"", fotos:[] },
+            { itemId:"q5", conforme:"atende", motivosSelecionados:[], observacao:"", fotos:[ft("D1"), ft("D2")] } ] }, extra || {});
+  const args = (l)=> J(l) + ", " + J(modeloNovo) + ", chkMigPlano(chkMigTabela(" + J(tabP) + "), chkMigTabela(" + J(tabM) + ")).horizontal_rigida, 'horizontal_rigida'";
+  const lv = velha("em_andamento"); const lvAntes = J(lv);
+  const mg = roda("chkMigrarLinha(" + args(lv) + ")");
+  const nl = mg.linha, rl = mg.rel;
+  const e1 = nl.itens.find(i => i.itemId === "n1"), e2 = nl.itens.find(i => i.itemId === "n2");
+  T(e1.conforme === "naoAtende" && J(e1.motivosSelecionados) === J(["n projeto ausente", "n sem relatorio periodico"]) && e1.observacao.includes("obs q1") && e1.observacao.includes("Motivo do checklist antigo (sem equivalente no novo): m outro") && e1.fotos.length === 1 && e1.fotos[0].motivo === "n projeto ausente" && e1.fotos[0].origem === "Q1 projeto?", "pergunta fundida: Nao atende vence, motivos migrados, motivo sem equivalente vira observacao, foto fica no motivo novo: " + J(e1));
+  T(e2.conforme === "atende" && e2.fotos.length === 0 && nl.fotosSecao.sv.length === 2 && nl.fotosSecao.sa.length === 2 && nl.fotosSecao.sa[0].origem === "Q5 olhal integro?", "fotos de itens que atendem vao para a secao; as de 'Dispositivos de Ancoragem' (removida) vao para Ancoragem Estrutural");
+  T(rl.fotosAntes === 5 && rl.fotosNoItem + rl.fotosNaSecao + rl.fotosSoHistorico === 5 && rl.fotosNoItem === 1 && rl.fotosNaSecao === 4 && rl.fotosSoHistorico === 0, "a conta das fotos fecha (antes = no item + na secao + so historico): " + J(rl));
+  T(rl.motivosAntes === 4 && rl.motivosMigrados === 2 && rl.motivosComoObservacao === 1 && rl.motivosSoHistorico === 1 && rl.perguntasSoHistorico === 2, "a conta dos motivos fecha (antes = migrados + observacao + so historico): " + J(rl));
+  T(nl.versaoAnterior.modeloSnapshot.length === 4 && nl.versaoAnterior.itens.length === 5 && nl.versaoAnterior.itens[3].motivosSelecionados[0] === "m epi" && nl.migracao.estado === "migrada-revisar" && nl.modeloId === "MN" && nl.itens.find(i => i.itemId === "n3").conforme === null, "a linha antiga fica inteira em versaoAnterior (inclusive a pergunta removida) e a nova pergunta sem dados fica sem resposta");
+  T(J(lv) === lvAntes, "migrar nao altera a linha original (funcao pura)");
+  // atende em pergunta fundida: em andamento -> revisar; finalizada -> sinalizada; resposta faltando nunca vira 'atende'
+  const fundAtende = (status)=> { const l = velha(status); l.itens[0].conforme = "atende"; l.itens[0].motivosSelecionados = []; l.itens[1].conforme = "atende"; l.itens[1].motivosSelecionados = []; return roda("chkMigrarLinha(" + args(l) + ")"); };
+  const fa1 = fundAtende("em_andamento"), fa2 = fundAtende("finalizado");
+  T(fa1.linha.itens.find(i => i.itemId === "n1").conforme === "atende" && fa1.rel.revisar.length === 1 && fa1.rel.fundidasAtende.length === 0 && fa2.rel.fundidasAtende.length === 1 && fa2.rel.revisar.length === 0 && fa2.linha.migracao.estado === "migrada-finalizada", "Atende em pergunta fundida: em andamento marca 'revisar', finalizada marca a origem antiga");
+  const semR = velha("em_andamento"); semR.itens[1].conforme = null; semR.itens[0].conforme = "atende"; semR.itens[0].motivosSelecionados = [];
+  T(roda("chkMigrarLinha(" + args(semR) + ")").linha.itens.find(i => i.itemId === "n1").conforme === null, "uma das antigas sem resposta: a nova fica sem resposta (nunca se infere Atende)");
+  // aplicar: so uma vez; simulacao nao altera
+  roda("STATE.checklists.projetos = [{ id:'PM', empresa:'E', setores:[{ id:'SM', nome:'S', linhas:[ " + J(velha("finalizado")) + ", Object.assign(" + J(velha("em_andamento")) + ", { id:'LM2', tipoLinha:'vertical' }) ] }] }];");
+  const modelosPT = "{ horizontal_rigida: " + J(modeloNovo) + " }";
+  const simu = roda("chkMigracaoSimular(STATE, chkMigPlano(chkMigTabela(" + J(tabP) + "), chkMigTabela(" + J(tabM) + ")), " + modelosPT + ")");
+  T(simu.length === 2 && simu[0].estado === "ok" && simu[1].estado === "sem-modelo-novo" && !roda("STATE.checklists.projetos[0].setores[0].linhas[0].migracao"), "simulacao: uma ok, outra sem modelo novo para o tipo; nada e alterado");
+  const ap1 = roda("chkMigracaoAplicar(STATE, chkMigPlano(chkMigTabela(" + J(tabP) + "), chkMigTabela(" + J(tabM) + ")), " + modelosPT + ")");
+  const ap2 = roda("chkMigracaoAplicar(STATE, chkMigPlano(chkMigTabela(" + J(tabP) + "), chkMigTabela(" + J(tabM) + ")), " + modelosPT + ")");
+  T(ap1 === 1 && ap2 === 0 && roda("STATE.checklists.projetos[0].setores[0].linhas[0].modeloId") === "MN" && roda("STATE.checklists.projetos[0].setores[0].linhas[1].modeloId") === "MV", "aplicar migra so a linha com modelo novo e e idempotente (segunda vez nao faz nada)");
+  roda("STATE.checklists.projetos = " + J(estadoAntes.lista) + ";");
+  // ---- migracao com os dados reais (15 linhas) e os 3 checklists novos
+  const fx = JSON.parse(require("fs").readFileSync("C:/Users/luiza/AppData/Local/Temp/claude/novos/fixture_migracao.json", "utf8"));
+  const planoReal = roda("chkMigPlano(chkMigTabela(" + J(fx.perg) + "), chkMigTabela(" + J(fx.mot) + "))");
+  const modelosReal = {};
+  Object.keys(fx.modelos).forEach(tk=>{ const r = roda("chkModeloXLSXLinhasParaSecoes(" + J(fx.modelos[tk]) + ")"); modelosReal[tk] = { id:"MN_" + tk, nome:"Novo " + tk, tipoLinha:tk, secoes:r.secoes }; });
+  T(Object.keys(planoReal).length === 3 && Object.keys(modelosReal).every(tk => modelosReal[tk].secoes.length > 0), "plano e os 3 modelos novos lidos: " + J(Object.keys(planoReal)) + " " + J(Object.keys(modelosReal).map(tk => modelosReal[tk].secoes.length)));
+  Object.keys(modelosReal).forEach(tk=>{ T(roda("chkMigAcharModeloNovo([" + J(modelosReal[tk]) + "], " + J(planoReal[tk]) + ")") !== null, "modelo novo " + tk + " reconhecido pelo De-Para"); });
+  const linhasReal = JSON.parse(JSON.stringify(fx.linhas));
+  roda("STATE.checklists.projetos = [{ id:'PR', empresa:'Real', setores:[{ id:'SR', nome:'S', linhas:" + J(linhasReal) + " }] }];");
+  const antesReal = J(linhasReal);
+  const simuReal = roda("chkMigracaoSimular(STATE, " + J(planoReal) + ", " + J(modelosReal) + ")");
+  T(simuReal.length === 15 && simuReal.every(s => s.estado === "ok"), "as 15 linhas reais tem modelo novo: " + J(simuReal.map(s => s.estado)));
+  T(J(roda("STATE.checklists.projetos[0].setores[0].linhas")) === antesReal, "simulacao nao altera nenhuma linha real");
+  let tot = { fotosAntes:0, fotosNoItem:0, fotosNaSecao:0, fotosSoHistorico:0, motivosAntes:0, motivosMigrados:0, motivosComoObservacao:0, motivosSoHistorico:0 };
+  simuReal.forEach(s=>{
+    const r = s.rel;
+    T(r.fotosAntes === r.fotosNoItem + r.fotosNaSecao + r.fotosSoHistorico, "fotos fecham na linha " + s.nome + ": " + J(r));
+    T(r.motivosAntes === r.motivosMigrados + r.motivosComoObservacao + r.motivosSoHistorico, "motivos fecham na linha " + s.nome + ": " + J(r));
+    Object.keys(tot).forEach(k=>{ tot[k] += (r[k] || 0); });
+  });
+  const aplicadas = roda("chkMigracaoAplicar(STATE, " + J(planoReal) + ", " + J(modelosReal) + ")");
+  const linhasMig = roda("STATE.checklists.projetos[0].setores[0].linhas");
+  T(aplicadas === 15 && linhasMig.every(l => l.migracao && l.versaoAnterior && l.modeloId === "MN_" + l.tipoLinha), "aplicadas as 15 e todas guardam a versao anterior");
+  linhasMig.forEach((l, i)=>{
+    const o = linhasReal[i];
+    T(J(l.versaoAnterior.itens) === J(o.itens) && J(l.versaoAnterior.modeloSnapshot) === J(o.modeloSnapshot), "versaoAnterior identica ao original (linha " + o.nome + ")");
+    const fotosOrig = o.itens.reduce((a, it)=> a + (it.fotos || []).length, 0);
+    const fotosNova = l.itens.reduce((a, it)=> a + (it.fotos || []).length, 0) + Object.keys(l.fotosSecao || {}).reduce((a, k)=> a + l.fotosSecao[k].length, 0);
+    T(fotosNova <= fotosOrig && fotosNova + l.migracao.fotosSoHistorico === fotosOrig || fotosNova === fotosOrig - (l.migracao.fotosSoHistorico || 0), "nenhuma foto some sem ir para o historico (linha " + o.nome + "): " + fotosOrig + " -> " + fotosNova);
+  });
+  T(roda("chkMigracaoAplicar(STATE, " + J(planoReal) + ", " + J(modelosReal) + ")") === 0, "segunda aplicacao nao faz nada");
+  console.log("MIGRACAO REAL (15 linhas): " + J(tot) + " revisar=" + simuReal.reduce((a, s)=> a + s.rel.revisar.length, 0) + " fundidasAtende=" + simuReal.reduce((a, s)=> a + s.rel.fundidasAtende.length, 0));
+  roda("STATE.checklists.projetos = " + J(estadoAntes.lista) + ";");
 }
 async function testarSincronizacaoChecklist(){
   const T = (cond, msg)=>{ if(!cond) throw new Error("sincronizacao do checklist: " + msg); };
