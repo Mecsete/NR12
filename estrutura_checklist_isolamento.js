@@ -2791,6 +2791,9 @@ async function testarUsabilidade(){
   const mB = { itens:[], secoesNA:[], status:"em_andamento", fotosSecao:{ s1:[{ foto:"data:image/jpeg;base64,U1" }, { foto:"data:image/jpeg;base64,U2" }], s2:[{ foto:"data:image/jpeg;base64,U3" }] } };
   const mm = roda("chkSyncMesclarLinha(" + J(mA) + ", " + J(mB) + ")");
   T(mm.fotosSecao.s1.length === 2 && mm.fotosSecao.s2.length === 1, "mescla de versoes: as fotos da secao se somam sem repetir: " + J(mm.fotosSecao));
+  // ---- versoes da mesma linha com modelos diferentes nunca se juntam
+  const snapA = [{ id:"s1", itens:[{ id:"i1" }, { id:"i2" }] }], snapB = [{ id:"sN", itens:[{ id:"n1" }] }];
+  T(roda("chkSyncDivergencias({ itens:[], secoesNA:[], modeloSnapshot:" + J(snapA) + " }, { itens:[], secoesNA:[], modeloSnapshot:" + J(snapB) + " }).includes('modelo')") === true && roda("chkSyncDivergencias({ itens:[], secoesNA:[], modeloSnapshot:" + J(snapA) + " }, { itens:[], secoesNA:[], modeloSnapshot:" + J(snapA) + " }).length") === 0, "mescla: modelos diferentes (linha migrada x nao migrada) contam como divergencia; o mesmo modelo nao");
 }
 async function testarSincronizacaoChecklist(){
   const T = (cond, msg)=>{ if(!cond) throw new Error("sincronizacao do checklist: " + msg); };

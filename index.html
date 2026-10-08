@@ -19162,6 +19162,9 @@ function chkSyncDivergencias(a, b){
   });
   const na = (a.secoesNA || []).slice().sort().join("|"), nb = (b.secoesNA || []).slice().sort().join("|");
   if(na !== nb) d.push("secoesNA");
+  // versões da mesma linha feitas com modelos diferentes (uma já migrada, outra não): nunca se juntam (iriam sobrar itens órfãos)
+  const idsModelo = (l)=> (l.modeloSnapshot || []).map(s=> (s.itens || []).map(i=> i.id).join(",")).join("|");
+  if(Array.isArray(a.modeloSnapshot) && Array.isArray(b.modeloSnapshot) && idsModelo(a) !== idsModelo(b)) d.push("modelo");
   return d;
 }
 /* Junta as duas versões (a de mais respostas é a base; empate: a finalizada, depois a mais nova). Só chame sem divergências. */
