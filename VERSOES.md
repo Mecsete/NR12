@@ -64,6 +64,15 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 08/10/2026 15:43
+
+**Cartão da linha separa "fotos da seção"; aba da seção mostra quantas fotos da seção tem.**
+
+- O cartão da linha mostra "N fotos da seção" à parte de "fotos de conformidade" (as dos itens que atendem).
+- Na tela de preenchimento, a aba de cada seção que tem fotos da seção mostra o ícone de câmera com o número.
+
+---
+
 ## 08/10/2026 15:33
 
 **Migração: "Não atende" sem motivo marcado volta a ficar sem resposta (pendência); pendências evidentes nos cartões.**

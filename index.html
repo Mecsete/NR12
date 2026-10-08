@@ -769,6 +769,8 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-pf-salvo svg{width:14px;height:14px;color:#2e7d32;flex:0 0 auto}
 .chk-card-resumo{margin-top:6px}
 .chk-card-resumo .stat-pill svg{width:12px;height:12px;vertical-align:-2px;margin-right:2px}
+.chk-tab-fotos{font-weight:600;font-size:11px;opacity:.85;margin-left:4px;white-space:nowrap}
+.chk-tab-fotos svg{width:12px;height:12px;vertical-align:-2px;margin-right:2px}
 .chk-secao-fotos{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 12px}
 .chk-secao-fotos-t{font-weight:800;font-size:13px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
 .chk-secao-fotos-t svg{width:16px;height:16px}
@@ -3436,7 +3438,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "08/10/2026 15:33";
+const APP_BUILD = "08/10/2026 15:43";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -14744,13 +14746,15 @@ function chkPendenciasLinhas(linhas){
 }
 function chkResumoCardLinha(l){
   const c = chkContarStatus(l);
-  let fotosOk = 0, fotosNc = 0;
+  let fotosOk = 0, fotosNc = 0, fotosSecao = 0;
   (l.modeloSnapshot || []).forEach(s=>{
     if((l.secoesNA || []).includes(s.id)) return;
     const f = chkFotosDaSecao(s, l);
-    fotosOk += f.nOk; fotosNc += f.fotos.length - f.nOk;
+    const nSec = (((l.fotosSecao || {})[s.id]) || []).length;
+    fotosSecao += nSec;
+    fotosOk += f.nOk - nSec; fotosNc += f.fotos.length - f.nOk;
   });
-  return { atende:c.atende, naoAtende:c.naoAtende, na:c.na, pendente:c.pendente, fotosOk, fotosNc };
+  return { atende:c.atende, naoAtende:c.naoAtende, na:c.na, pendente:c.pendente, fotosOk, fotosNc, fotosSecao };
 }
 function screenChkLinhas(){
   const setor = getCurrentChkSetor();
@@ -14797,6 +14801,7 @@ function screenChkLinhas(){
           <span class="stat-pill" title="Itens que não se aplicam">${r.na} N/A</span>
         </div>
         <div class="list-meta chk-card-resumo">
+          <span class="stat-pill" title="Fotos gerais das seções (abrem cada seção no laudo)">${ic('camera')} ${r.fotosSecao} ${r.fotosSecao === 1 ? "foto" : "fotos"} da seção</span>
           <span class="stat-pill" title="Fotos do laudo em itens que atendem">${ic('camera')} ${r.fotosOk} ${r.fotosOk === 1 ? "foto" : "fotos"} de conformidade</span>
           <span class="stat-pill" title="Fotos do laudo em itens que não atendem">${ic('camera')} ${r.fotosNc} ${r.fotosNc === 1 ? "foto" : "fotos"} de não conformidade</span>
         </div>
@@ -15029,7 +15034,8 @@ function screenChkPreencher(){
   const voltarRev = __chkDaRevisao ? `<div class="chk-voltar-revisao"><button class="btn btn-primary btn-block" onclick="App.chkVoltarRevisao()">${ic('back')} Voltar à revisão</button></div>` : "";
   const tabsHtml = secoes.map((s,si)=>{
     const st = chkStatusAbaSecao(l, s);
-    return `<button class="chk-tab st-${st}" aria-selected="${si===idx}" onclick="App.chkIrParaSecao(${si})">${escapeHtml(s.titulo||'Seção '+(si+1))}</button>`;
+    const nFs = (((l.fotosSecao || {})[s.id]) || []).length;
+    return `<button class="chk-tab st-${st}" aria-selected="${si===idx}" onclick="App.chkIrParaSecao(${si})">${escapeHtml(s.titulo||'Seção '+(si+1))}${nFs ? ` <small class="chk-tab-fotos" title="${nFs} ${nFs===1?'foto':'fotos'} da seção">${ic('camera')}${nFs}</small>` : ""}</button>`;
   }).join("");
   // Linha horizontal: uma aba a mais, depois das seções, com as medidas do memorial.
   const tabMemorial = totalAbas > secoes.length ? `<button class="chk-tab st-${chkStatusAbaMemorial(l)}" aria-selected="${emMemorial}" onclick="App.chkIrParaSecao(${secoes.length})">Memorial ZLQ</button>` : "";

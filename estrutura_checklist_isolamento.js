@@ -2952,6 +2952,9 @@ async function testarUsabilidade(){
     console.log("PENDENCIAS REAIS: itens=" + rz.zeradas + " linhas com pendencia=" + comPend + " finalizadas reabertas=" + reabertas + " sem resposta por linha=" + lz.map(l => l.nome.slice(0, 14) + ":" + l.itens.filter(i => i.conforme === null).length).join(", "));
     roda("STATE.checklists.modelos = " + modelosOrig + "; delete STATE.checklists.migracao2026; STATE.checklists.projetos = " + J(estadoAntes.lista) + ";");
   }
+  // ---- cartao: fotos da secao contadas a parte das fotos de conformidade dos itens
+  const rcs = roda("chkResumoCardLinha(Object.assign(" + linhaCard + ", { fotosSecao: { s1:[{ foto:'data:image/jpeg;base64,CS1' }, { foto:'data:image/jpeg;base64,CS2' }], s2:[{ foto:'data:image/jpeg;base64,CS3' }] } }))");
+  T(rcs.fotosSecao === 2 && rcs.fotosOk === 1 && rcs.fotosNc === 2, "cartao: 2 fotos da secao (a secao que nao se aplica fica de fora) separadas das de conformidade dos itens: " + J(rcs));
 }
 async function testarSincronizacaoChecklist(){
   const T = (cond, msg)=>{ if(!cond) throw new Error("sincronizacao do checklist: " + msg); };
