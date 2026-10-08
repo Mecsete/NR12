@@ -64,15 +64,17 @@ antigo, feche e abra o app novamente.
 
 ---
 
-## 08/10/2026 14:25
+## 08/10/2026 14:58
 
-**Migração dos checklists de linha de vida (Vertical, Horizontal flexível, Horizontal rígida) para os modelos novos; fotos da seção; prioridade por motivo.**
+**Checklists novos de linha de vida (Vertical, Horizontal flexível, Horizontal rígida): modelos inseridos e linhas migradas automaticamente, uma única vez; fotos da seção; prioridade por motivo.**
 
-- Modelos > "Migrar linhas para os novos checklists": lê o De-Para, mostra o que vai acontecer em cada linha e só então aplica (com ponto de restauração antes). A linha antiga fica inteira guardada dentro da migrada.
-- Fotos das perguntas que atendem vão para "Fotos da seção"; as de Não atende ficam no item/motivo equivalente. Motivo sem equivalente vira observação; nunca se deduz "Atende" por falta de resposta.
+- Na primeira sincronização bem-sucedida da versão nova, o app cria os modelos "Novo - Vertical", "Novo - Horizontal Flexível" e "Novo - Horizontal Rígida" (ids fixos) e migra as linhas da Horizontal Rígida (em andamento e finalizadas) pelo De-Para, depois de criar um ponto de restauração. Não há botão: roda sozinho e avisa com uma mensagem.
+- A linha antiga fica inteira guardada dentro da linha migrada. Motivo sem equivalente vira observação; nunca se deduz "Atende" por falta de resposta.
+- Fotos de perguntas que atendem vão para "Fotos da seção"; as de Não atende ficam no item/motivo equivalente.
 - Em campo, cada seção ganha o bloco "Fotos da seção" (galeria ou câmera), que abre a seção no laudo.
 - Prioridade passa a ser por motivo, com o nível "Boa prática".
 - A sincronização não junta versões da mesma linha com checklists diferentes (migrada x não migrada).
+- A lista de linhas mostra o nome atual do modelo (renomear o modelo vale para todas as linhas).
 
 ---
 

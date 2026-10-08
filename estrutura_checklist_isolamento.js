@@ -171,7 +171,7 @@ const FUNCOES = [
   "chkSyncHash", "chkSyncSig", "chkSyncModeloNorm", "chkSyncGarantir", "chkSyncSemCampo", "chkSyncVista", "chkSyncLocais", "chkSyncLocalDe", "chkSyncSementeIntocada",
   "chkSyncParseNomes", "chkSyncRegistrarRemocao", "chkSyncMesclarRemovidos", "chkSyncMesclarInspetores", "chkSyncLerRemoto", "chkSyncSingleton",
   "chkSyncApagarRemoto", "chkSyncEnviar", "chkSyncRotuloCopia", "chkSyncInserir", "chkSyncAplicar", "chkSyncBaixar", "chkSyncCopiarLocal", "chkSyncConflito",
-  "chkResumoCardLinha", "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "chkIncoerencias", "lclNumeroSecao", "getMecseteConfig", "chkAcoesCartao", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "lclPrioridadeNc", "chkMigRelatorioHtml", "chkMigModelosDoAparelho", "chkMigN", "chkMigTabela", "chkMigPlano", "chkMigAcharModeloNovo", "chkMigrarLinha", "chkMigracaoSimular", "chkMigracaoAplicar", "chkSyncFotoValorId", "chkSyncFotoId", "chkSyncRespondidos", "chkSyncDivergencias", "chkSyncMesclarLinha", "chkConsolidarCopiasLinhas", "chkSyncVisto", "chkSyncMudou", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
+  "chkResumoCardLinha", "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "chkIncoerencias", "lclNumeroSecao", "getMecseteConfig", "chkAcoesCartao", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "lclPrioridadeNc", "chkMigPlanoEmbutido", "chkMigModelosEmbutidos", "chkMigAutoPendente", "chkMigAutoAplicar", "chkMigN", "chkMigTabela", "chkMigPlano", "chkMigAcharModeloNovo", "chkMigrarLinha", "chkMigracaoSimular", "chkMigracaoAplicar", "chkSyncFotoValorId", "chkSyncFotoId", "chkSyncRespondidos", "chkSyncDivergencias", "chkSyncMesclarLinha", "chkConsolidarCopiasLinhas", "chkSyncVisto", "chkSyncMudou", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
 ];
 let fonte = "let __ultimoCarimboVisto = 0;\n";
 fonte += "let __buscaAtual = '';\n"; // usado por chkAbrirSetor (lista de linhas) -- nao testado aqui, so pra nao faltar
@@ -196,6 +196,8 @@ fonte += constObjeto("CHK_CABOS") + "\n";
 fonte += constObjeto("CHK_PRIORIDADE_PESO") + "\n";
 fonte += constObjeto("CHK_MIG_TIPOS") + "\n";
 fonte += constObjeto("CHK_MIG_FOTOS_REMOVIDAS") + "\n";
+fonte += constObjeto("CHK_MIG_NOMES") + "\n";
+fonte += constObjeto("CHK_MIG_DADOS") + "\n";
 fonte += constObjeto("CHK_SYNC_CAMPOS_TEXTO_LINHA") + "\n";
 fonte += constObjeto("LCL_PARECERES") + "\n";
 fonte += constObjeto("LCL_PRI_COR") + "\n";
@@ -2887,14 +2889,27 @@ async function testarUsabilidade(){
   T(roda("chkMigracaoAplicar(STATE, " + J(planoReal) + ", " + J(modelosReal) + ")") === 0, "segunda aplicacao nao faz nada");
   console.log("MIGRACAO REAL (15 linhas): " + J(tot) + " revisar=" + simuReal.reduce((a, s)=> a + s.rel.revisar.length, 0) + " fundidasAtende=" + simuReal.reduce((a, s)=> a + s.rel.fundidasAtende.length, 0));
   roda("STATE.checklists.projetos = " + J(estadoAntes.lista) + ";");
-  // ---- tela da migracao: relatorio com os modelos novos presentes no aparelho
+  // ---- migracao automatica (dados embutidos no codigo)
   const modelosOrig = J(roda("STATE.checklists.modelos"));
-  roda("STATE.checklists.modelos = " + J(Object.keys(modelosReal).map(tk => modelosReal[tk])) + ".concat(STATE.checklists.modelos); STATE.checklists.projetos = [{ id:'PR2', empresa:'Real', setores:[{ id:'SR2', nome:'S', linhas:" + J(linhasReal) + " }] }];");
-  const relHtml = roda("chkMigRelatorioHtml(" + J(planoReal) + ")");
-  T(relHtml.includes("15 linha(s) serão migradas") && relHtml.includes("Migrar 15 linha(s)") && !relHtml.includes("Falta o checklist novo"), "relatorio da migracao lista as 15 linhas e oferece o botao: " + relHtml.slice(0, 300));
-  const relSem = roda("STATE.checklists.modelos = STATE.checklists.modelos.filter(m => m.tipoLinha !== 'vertical'); chkMigRelatorioHtml(" + J(planoReal) + ")");
-  T(relSem.includes("Falta o checklist novo no aparelho:</b> Vertical"), "sem o modelo novo de um tipo, o relatorio avisa qual falta");
-  roda("STATE.checklists.modelos = " + modelosOrig + "; STATE.checklists.projetos = " + J(estadoAntes.lista) + ";");
+  const emb1 = roda("chkMigModelosEmbutidos()"), emb2 = roda("chkMigModelosEmbutidos()");
+  const semHora = (o)=> J(Object.keys(o).map(k => Object.assign({}, o[k], { criadoEm:0, atualizadoEm:0 })));
+  T(Object.keys(emb1).sort().join() === "horizontal_flexivel,horizontal_rigida,vertical" && semHora(emb1) === semHora(emb2) && emb1.horizontal_rigida.id === "mg_horizontal_rigida" && emb1.vertical.secoes[0].id === "mg_vertical_s0", "modelos embutidos: 3 tipos, ids fixos e resultado igual a cada chamada");
+  T(emb1.horizontal_rigida.secoes.length === modelosReal.horizontal_rigida.secoes.length && emb1.vertical.secoes.length === modelosReal.vertical.secoes.length && emb1.horizontal_flexivel.secoes.length === modelosReal.horizontal_flexivel.secoes.length, "os modelos embutidos tem as mesmas secoes das planilhas novas");
+  T(J(roda("chkMigPlanoEmbutido()").horizontal_rigida) === J(planoReal.horizontal_rigida), "o De-Para embutido da rigida e o mesmo lido da planilha");
+  roda("STATE.checklists.modelos = []; delete STATE.checklists.migracao2026; STATE.checklists.projetos = [{ id:'PA', empresa:'Real', setores:[{ id:'SA', nome:'S', linhas:" + J(linhasReal.concat([Object.assign(JSON.parse(J(linhasReal[0])), { id:'LVERT', tipoLinha:'vertical' })])) + " }] }];");
+  T(roda("chkMigAutoPendente(STATE)") === true, "pendente antes de migrar");
+  const aa = roda("chkMigAutoAplicar(STATE)");
+  const linhasAuto = roda("STATE.checklists.projetos[0].setores[0].linhas");
+  T(aa.criados === 3 && aa.linhas === 15 && roda("STATE.checklists.modelos.length") === 3 && roda("STATE.checklists.migracao2026") && linhasAuto.filter(l => l.migracao).length === 15 && !linhasAuto.find(l => l.id === 'LVERT').migracao, "aplicacao automatica: 3 modelos, 15 linhas rigidas migradas, a vertical (sem plano) intacta: " + J(aa));
+  T(linhasAuto.filter(l => l.migracao).every(l => l.modeloId === "mg_horizontal_rigida") && linhasAuto.filter(l => l.migracao).reduce((a, l) => a + Object.keys(l.fotosSecao).reduce((b, k) => b + l.fotosSecao[k].length, 0), 0) === 90, "todas apontam para o modelo novo e as 90 fotos da secao estao la");
+  T(roda("chkMigAutoPendente(STATE)") === false, "depois de migrar nao ha mais nada pendente");
+  const ab = roda("chkMigAutoAplicar(STATE)");
+  T(ab.criados === 0 && ab.linhas === 0 && roda("STATE.checklists.modelos.length") === 3, "rodar de novo nao cria modelo nem migra de novo");
+  roda("STATE.checklists.modelos = STATE.checklists.modelos.filter(m => m.tipoLinha !== 'vertical');");
+  T(roda("chkMigAutoAplicar(STATE).criados") === 0 && roda("STATE.checklists.modelos.length") === 2, "modelo novo apagado depois pelo usuario nao e recriado");
+  roda("STATE.checklists.projetos[0].setores[0].linhas.push(" + J(Object.assign(JSON.parse(J(linhasReal[0])), { id:'LNOVA' })) + ");");
+  T(roda("chkMigAutoPendente(STATE)") === true && roda("chkMigAutoAplicar(STATE).linhas") === 1, "linha rigida antiga que chegar depois (de outro aparelho) tambem e migrada");
+  roda("STATE.checklists.modelos = " + modelosOrig + "; delete STATE.checklists.migracao2026; STATE.checklists.projetos = " + J(estadoAntes.lista) + ";");
 }
 async function testarSincronizacaoChecklist(){
   const T = (cond, msg)=>{ if(!cond) throw new Error("sincronizacao do checklist: " + msg); };
