@@ -171,7 +171,7 @@ const FUNCOES = [
   "chkSyncHash", "chkSyncSig", "chkSyncModeloNorm", "chkSyncGarantir", "chkSyncSemCampo", "chkSyncVista", "chkSyncLocais", "chkSyncLocalDe", "chkSyncSementeIntocada",
   "chkSyncParseNomes", "chkSyncRegistrarRemocao", "chkSyncMesclarRemovidos", "chkSyncMesclarInspetores", "chkSyncLerRemoto", "chkSyncSingleton",
   "chkSyncApagarRemoto", "chkSyncEnviar", "chkSyncRotuloCopia", "chkSyncInserir", "chkSyncAplicar", "chkSyncBaixar", "chkSyncCopiarLocal", "chkSyncConflito",
-  "chkResumoCardLinha", "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "chkIncoerencias", "lclNumeroSecao", "getMecseteConfig", "chkAcoesCartao", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "lclPrioridadeNc", "chkMigPlanoEmbutido", "chkMigModelosEmbutidos", "chkMigAutoPendente", "chkMigAutoAplicar", "chkMigPendenciasAplicar", "chkPendenciasLinhas", "chkMigN", "chkMigTabela", "chkMigPlano", "chkMigAcharModeloNovo", "chkMigrarLinha", "chkMigracaoSimular", "chkMigracaoAplicar", "chkSyncFotoValorId", "chkSyncFotoId", "chkSyncRespondidos", "chkSyncDivergencias", "chkSyncMesclarLinha", "chkConsolidarCopiasLinhas", "chkSyncVisto", "chkSyncMudou", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
+  "chkResumoCardLinha", "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "chkIncoerencias", "lclNumeroSecao", "getMecseteConfig", "chkAcoesCartao", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "lclPrioridadeNc", "chkMigPlanoEmbutido", "chkMigModelosEmbutidos", "chkMoverLinha", "chkMigAutoPendente", "chkMigAutoAplicar", "chkMigPendenciasAplicar", "chkPendenciasLinhas", "chkMigN", "chkMigTabela", "chkMigPlano", "chkMigAcharModeloNovo", "chkMigrarLinha", "chkMigracaoSimular", "chkMigracaoAplicar", "chkSyncFotoValorId", "chkSyncFotoId", "chkSyncRespondidos", "chkSyncDivergencias", "chkSyncMesclarLinha", "chkConsolidarCopiasLinhas", "chkSyncVisto", "chkSyncMudou", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
 ];
 let fonte = "let __ultimoCarimboVisto = 0;\n";
 fonte += "let __buscaAtual = '';\n"; // usado por chkAbrirSetor (lista de linhas) -- nao testado aqui, so pra nao faltar
@@ -2957,6 +2957,29 @@ async function testarUsabilidade(){
   // ---- cartao: fotos da secao contadas a parte das fotos de conformidade dos itens
   const rcs = roda("chkResumoCardLinha(Object.assign(" + linhaCard + ", { fotosSecao: { s1:[{ foto:'data:image/jpeg;base64,CS1' }, { foto:'data:image/jpeg;base64,CS2' }], s2:[{ foto:'data:image/jpeg;base64,CS3' }] } }))");
   T(rcs.fotosSecao === 2 && rcs.fotosOk === 1 && rcs.fotosNc === 2, "cartao: 2 fotos da secao (a secao que nao se aplica fica de fora) separadas das de conformidade dos itens: " + J(rcs));
+  // ---- mover linha de vida entre setores
+  { const lnA = (id, n)=> ({ id, nome:n, status:"em_andamento", itens:[], modeloSnapshot:[], secoesNA:[], criadoEm: id === "LMV1" ? 1 : 2 });
+    roda("STATE.checklists.projetos = [{ id:'PMV', empresa:'Emp', setores:[ { id:'S1', nome:'Setor 1', linhas:[ " + J(lnA("LMV1", "Linha 1")) + ", " + J(lnA("LMV2", "Linha 2")) + " ] }, { id:'S2', nome:'Setor 2', linhas:[] } ] }, { id:'PMV2', empresa:'Outra', setores:[ { id:'S3', nome:'Setor 3', linhas:[] } ] }];");
+    const sigAntes = roda("chkSyncVisto(1, chkSyncVista(chkSyncLocalDe('l:LMV1'))) ");
+    T(roda("chkMoverLinha(STATE, 'LMV1', 'S1')") === null && roda("chkMoverLinha(STATE, 'LMV1', 'NAOEXISTE')") === null && roda("chkMoverLinha(STATE, 'NAOEXISTE', 'S2')") === null, "mover para o mesmo setor, setor ou linha inexistente: nada acontece");
+    const mv = roda("chkMoverLinha(STATE, 'LMV1', 'S2')");
+    const setores = roda("STATE.checklists.projetos[0].setores");
+    T(mv.para === "Setor 2" && setores[0].linhas.map(l => l.id).join() === "LMV2" && setores[1].linhas.map(l => l.id).join() === "LMV1" && setores[1].linhas[0].setorId === "S2" && setores[1].linhas[0].projetoId === "PMV", "linha sai do setor de origem e entra no de destino, sem duplicar: " + J(setores.map(s => s.linhas.map(l => l.id))));
+    T(roda("chkSyncLocais().filter(e => e.chave === 'l:LMV1').length") === 1 && roda("chkSyncLocalDe('l:LMV1').setorId") === "S2", "a sincronizacao enxerga a linha uma vez, no setor novo");
+    T(roda("chkSyncMudou(chkSyncLocalDe('l:LMV1'), " + J(sigAntes) + ")") === true, "mover conta como mudanca da linha (vai para a nuvem)");
+    roda("chkMoverLinha(STATE, 'LMV1', 'S3')");
+    T(roda("STATE.checklists.projetos[1].setores[0].linhas[0].projetoId") === "PMV2" && roda("STATE.checklists.projetos[0].setores.every(s => s.linhas.every(l => l.id !== 'LMV1'))"), "tambem pode mover para um setor de outro projeto");
+    // outro aparelho: a linha chega da nuvem com o setor novo; a copia local no setor antigo some
+    roda("chkMoverLinha(STATE, 'LMV1', 'S1')");
+    const objVelho = roda("JSON.parse(JSON.stringify(chkSyncLocalDe('l:LMV1').obj))");
+    roda("chkMoverLinha(STATE, 'LMV1', 'S2')");
+    roda("chkMoverLinha(STATE, 'LMV1', 'S1')");   // aparelho "local" deixa a linha em S1
+    const objNuvem = Object.assign({}, objVelho, { setorId:"S2", projetoId:"PMV", nome:"Linha 1 editada" });
+    T(roda("chkSyncAplicar(" + J({ obj: objNuvem, projetoId:"PMV", setorId:"S2" }) + ", 'l', 'LMV1', false)") === "ok", "aplicar da nuvem ok");
+    const sx = roda("STATE.checklists.projetos[0].setores");
+    T(sx[0].linhas.every(l => l.id !== "LMV1") && sx[1].linhas.filter(l => l.id === "LMV1").length === 1 && sx[1].linhas.find(l => l.id === "LMV1").nome === "Linha 1 editada", "linha movida em outro aparelho: sai do setor antigo e fica uma so no novo: " + J(sx.map(s => s.linhas.map(l => l.id))));
+    roda("STATE.checklists.projetos = " + J(estadoAntes.lista) + ";");
+  }
 }
 async function testarSincronizacaoChecklist(){
   const T = (cond, msg)=>{ if(!cond) throw new Error("sincronizacao do checklist: " + msg); };

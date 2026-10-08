@@ -64,6 +64,15 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 08/10/2026 16:10
+
+**Mover linha de vida para outro setor.**
+
+- No menu (três pontos) do cartão da linha: "Mover para outro setor". Lista os setores do projeto e de outros projetos; a linha vai com checklist, fotos e laudo.
+- A mudança vai para a nuvem e os outros aparelhos movem a linha também, sem deixar cópia no setor antigo.
+
+---
+
 ## 08/10/2026 16:06
 
 **Botões de resposta na ordem Não aplicável, Não atende, Atende.**
