@@ -158,7 +158,7 @@ const FUNCOES = [
   // Capitulos novos: parecer, quadro de nao conformidades, Metodologia, Memorial, Anexos.
   "lclItemModeloAtual", "lclPrioridade", "lclAcaoMotivo", "lclNaoConformidades", "lclParecerAuto", "lclParecer",
   "lclListaPt", "lclVariaveis", "lclAplicarVariaveis", "lclMarkup", "lclBlocosMemorial", "lclBlocosAnexos", "lclListaImagensHtml",
-  "screenChkSetorForm", "chkRenderItem", "screenChkPreencher", "screenChkFinalizar", "chkResumoHtml",
+  "screenChkSetorForm", "chkFotosSecaoHtml", "chkRenderItem", "screenChkPreencher", "screenChkFinalizar", "chkResumoHtml",
   "lclTextoEditado", "lclHtmlParaTexto", "lclTextoParaHtml", "lclConclusaoAuto", "lclFotosSecaoHtml", "lclNumItem",
   // Cadastro do projeto: mascaras, validade automatica e cadastro de inspetores.
   "chkSoDigitos", "chkMascaraDocumento", "chkMascaraTelefone", "chkExibirDocumento", "chkExibirTelefone", "chkValidarCpf", "chkValidarCnpj",
@@ -2764,6 +2764,33 @@ async function testarUsabilidade(){
   T(roda("lclParecerAuto(" + linPr("boa", ["M"]) + ")") === "apta" && roda("lclParecerAuto(" + linPr("media", ["M"]) + ")") === "ressalvas" && roda("lclParecerAuto(" + linPr("critica", ["M"]) + ")") === "inapta", "parecer: Boa pratica nao tira a aptidao, Media da ressalvas, Critica deixa inapta");
   const ncBoa = roda("lclNaoConformidades(" + linPr("boa", ["M"]) + ")");
   T(ncBoa.length === 1 && ncBoa[0].prioridade === "boa", "quadro de nao conformidades usa a prioridade do motivo escolhido");
+  // ---- fotos da secao (gerais, sem ligar a item): numeracao, laudo, campo, mescla
+  const linSec = (extra)=> JSON.parse(linhaCorpo([itn("a", "Item A"), itn("b", "Item B")], [exe("a", "atende", 1), exe("b", "naoAtende", 1, { motivosSelecionados:["M1"] })]).replace(/^/, "")); // objeto
+  const comFs = Object.assign(linSec(), { fotosSecao: { s1: [{ foto:"data:image/jpeg;base64,FS1", tags:[], motivo:"" }, { foto:"data:image/jpeg;base64,FS2", tags:[], motivo:"" }] } });
+  const fsx = roda("chkFotosDaSecao(" + J(comFs) + ".modeloSnapshot[0], " + J(comFs) + ")");
+  T(fsx.fotos.length === 4 && fsx.nOk === 3 && fsx.fotos[0].endsWith("FS1") && fsx.fotos[1].endsWith("FS2") && fsx.fotos[2].endsWith("Fa0") && fsx.fotos[3].endsWith("Fb0"), "numeracao: fotos da secao primeiro, depois as dos itens que atendem, depois as das pendencias: " + J(fsx.fotos) + " nOk=" + fsx.nOk);
+  const nrs = roda("chkNarrativaSecao(" + J(comFs) + ".modeloSnapshot[0], " + J(comFs) + ", '3.1')");
+  T(nrs.conforme === "Texto a ok. (Fotos 3.1.1 a 3.1.3)" && nrs.pend.includes("Pendencia b. (Foto 3.1.4)"), "o paragrafo das conformidades cita as fotos da secao e as dos itens em faixa; a pendencia cita a sua: " + J([nrs.conforme, nrs.pend]));
+  const bsFs = corpoDe(J(comFs));
+  T(/lcl-ftopo c3/.test(bsFs[0].html) && (bsFs[0].html.match(/class="lcl-fnum"/g) || []).length === 3 && bsFs[0].html.includes("Foto 3.1.1") && bsFs[0].html.includes("Foto 3.1.3") && bsFs[1].html.includes("Foto 3.1.4"), "laudo: as fotos da secao abrem a faixa do topo junto das dos itens que atendem; a pendencia fica ao lado do texto dela");
+  // so fotos da secao, nenhum item com foto nem texto de conformidade: a faixa aparece mesmo assim
+  const soSec = Object.assign(JSON.parse(linhaCorpo([itn("a", "Item A")], [exe("a", null, 0)])), { fotosSecao: { s1: [{ foto:"data:image/jpeg;base64,FS9", tags:[], motivo:"" }] } });
+  const bsSoSec = corpoDe(J(soSec));
+  T(bsSoSec[0].html.includes("lcl-ftopo c1") && bsSoSec[0].html.includes("Foto 3.1.1"), "so com foto da secao (sem itens respondidos): a faixa do topo aparece");
+  // campo: bloco, adicionar/remover
+  const hFs = roda("chkFotosSecaoHtml(" + J(comFs) + ", " + J(comFs) + ".modeloSnapshot[0])");
+  T(hFs.includes("Fotos da seção") && hFs.includes("2 fotos") && hFs.includes("App.chkSecaoFoto('s1',true)") && hFs.includes("App.chkSecaoFoto('s1',false)") && hFs.includes("App.chkSecaoFotoRemover('s1',1)"), "tela de campo: bloco Fotos da secao com contagem, camera, galeria e excluir: " + hFs.slice(0, 200));
+  roda("STATE.checklists.projetos = [{ id:'PF2', empresa:'E', setores:[{ id:'SF2', nome:'S', linhas:[ Object.assign(" + J(comFs) + ", { id:'LF2' }) ] }] }]; STATE.ui.chkProjetoId = 'PF2'; STATE.ui.chkSetorId = 'SF2'; STATE.ui.chkLinhaId = 'LF2';");
+  roda("App.chkSecaoFotoRemover('s1', 0)");
+  T(roda("getCurrentChkLinha().fotosSecao.s1.length") === 2, "excluir foto da secao pede confirmacao antes");
+  roda("App.chkConfirmarAcao()");
+  T(roda("getCurrentChkLinha().fotosSecao.s1.length") === 1 && roda("getCurrentChkLinha().fotosSecao.s1[0].foto").endsWith("FS2"), "confirmado: so a foto escolhida sai");
+  roda("STATE.ui.chkProjetoId = " + J(estadoAntes.p) + "; STATE.ui.chkSetorId = null; STATE.ui.chkLinhaId = null; STATE.checklists.projetos = " + J(estadoAntes.lista) + ";");
+  // mescla: uniao das fotos da secao
+  const mA = { itens:[], secoesNA:[], status:"em_andamento", fotosSecao:{ s1:[{ foto:"data:image/jpeg;base64,U1" }] } };
+  const mB = { itens:[], secoesNA:[], status:"em_andamento", fotosSecao:{ s1:[{ foto:"data:image/jpeg;base64,U1" }, { foto:"data:image/jpeg;base64,U2" }], s2:[{ foto:"data:image/jpeg;base64,U3" }] } };
+  const mm = roda("chkSyncMesclarLinha(" + J(mA) + ", " + J(mB) + ")");
+  T(mm.fotosSecao.s1.length === 2 && mm.fotosSecao.s2.length === 1, "mescla de versoes: as fotos da secao se somam sem repetir: " + J(mm.fotosSecao));
 }
 async function testarSincronizacaoChecklist(){
   const T = (cond, msg)=>{ if(!cond) throw new Error("sincronizacao do checklist: " + msg); };

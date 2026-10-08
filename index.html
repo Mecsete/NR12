@@ -767,6 +767,11 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-pf-salvo svg{width:14px;height:14px;color:#2e7d32;flex:0 0 auto}
 .chk-card-resumo{margin-top:6px}
 .chk-card-resumo .stat-pill svg{width:12px;height:12px;vertical-align:-2px;margin-right:2px}
+.chk-secao-fotos{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 12px}
+.chk-secao-fotos-t{font-weight:800;font-size:13px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
+.chk-secao-fotos-t svg{width:16px;height:16px}
+.chk-secao-fotos-t small{font-weight:500;font-size:11.5px;color:var(--ink-dim)}
+.chk-secao-fotos .chk-foto-btns{margin-top:8px}
 .chk-continuar{display:flex;align-items:center;gap:12px;padding:12px 14px;margin-bottom:12px;border-left:4px solid var(--accent);cursor:pointer}
 .chk-continuar b{display:block;font-size:14px}
 .chk-continuar span{display:block;font-size:12px;color:var(--ink-dim);margin-top:2px}
@@ -10071,7 +10076,9 @@ function chkFotosDaSecao(secaoModelo, linha){
   // depois as dos itens que não atendem (ao lado do texto das pendências). nOk = quantas são do primeiro grupo.
   const ehNc = (it)=>{ const e = chkItemExec(linha, it.id); return !!e && e.conforme === "naoAtende"; };
   const itensOrdem = (secaoModelo.itens||[]).filter(it=> !ehNc(it)).concat((secaoModelo.itens||[]).filter(ehNc));
-  let nOk = 0;
+  // fotos da seção (gerais, sem ligar a item): linha.fotosSecao[idDaSecao]; entram primeiro e contam como fotos "de conformidade"
+  ((linha.fotosSecao || {})[secaoModelo.id] || []).forEach(f=>{ fotos.push(f.foto); objetos.push(f); });
+  let nOk = fotos.length;
   itensOrdem.forEach(it=>{
     const ie = chkItemExec(linha, it.id);
     const sel = (ie && ie.motivosSelecionados) || [];
@@ -14922,6 +14929,16 @@ function chkRodapeSecaoHtml(l, idx, totalAbas){
   }
   return html;
 }
+/* Fotos gerais da seção (não ligadas a nenhum item): o inspetor fotografa a seção ao começar e depois percorre os itens. */
+function chkFotosSecaoHtml(l, secao){
+  const fs = (l.fotosSecao || {})[secao.id] || [];
+  const cartoes = fs.map((f, fi)=>`<div class="chk-photo-card"><img data-imgref="${imgReg(f.foto)}" onclick="event.stopPropagation();App.verFotoReg(this)"><button class="icon-btn chk-photo-remove" title="Excluir foto" onclick="event.stopPropagation();App.chkSecaoFotoRemover('${secao.id}',${fi})">${ic('trash')}</button></div>`).join("");
+  return `<div class="chk-secao-fotos">
+    <div class="chk-secao-fotos-t">${ic('camera')} Fotos da seção <small>${fs.length} ${fs.length === 1 ? "foto" : "fotos"} · gerais, sem ligar a um item; vão para o topo da seção no laudo</small></div>
+    ${cartoes ? `<div class="chk-photo-grid">${cartoes}</div>` : ""}
+    <div class="chk-foto-btns"><button class="btn btn-secondary" onclick="App.chkSecaoFoto('${secao.id}',true)">${ic('gallery')} Galeria</button><button class="btn btn-secondary" onclick="App.chkSecaoFoto('${secao.id}',false)">${ic('camera')} Tirar foto</button></div>
+  </div>`;
+}
 function chkRenderItem(linha, item, secaoIdx, itemIdx){
   const ie = chkItemExec(linha, item.id) || {conforme:null, motivosSelecionados:[], observacao:"", fotos:[]};
   const aberto = STATE.ui.chkItemAberto === item.id;
@@ -15012,6 +15029,7 @@ function screenChkPreencher(){
     <button class="chk-switch ${isNA?'off':'on'}" onclick="App.chkToggleSecaoNA('${secao.id}')">${isNA? ic('check')+' Aplicar seção' : 'Esta seção não aplica'}</button>
   </div>
   ${(()=>{ if(isNA || !secao.itens.length) return ""; const semR = secao.itens.filter(it=>{ const ie=chkItemExec(l,it.id); return ie && ie.conforme===null; }).length; return `<div class="chk-sec-prog">${secao.itens.length - semR} de ${secao.itens.length} respondidos${semR >= 2 ? ` · <button type="button" class="chk-link" onclick="App.chkMarcarRestantesAtende('${secao.id}')">marcar os ${semR} restantes como Atende</button>` : ""}</div>`; })()}
+  ${isNA ? "" : chkFotosSecaoHtml(l, secao)}
   ${isNA? `<div class="empty" style="padding:24px"><p>Seção marcada como "não aplica" — nenhum item dela precisa ser preenchido.</p></div>` : (itensHtml || `<div class="empty"><p>Esta seção não tem itens.</p></div>`)}
   ${chkRodapeSecaoHtml(l, idx, totalAbas)}
   ${voltarRev}
@@ -16074,6 +16092,10 @@ function lclFotosSecaoHtml(linha, secaoId){
     }
     itensHtml.push(`<div class="lcl-fitem"><div class="lcl-fitem-t">${lclNumItem(linha, s, ii)} · ${escapeHtml(it.descricao || "Item")}</div>${corpo}</div>`);
   });
+  const fsec = (linha.fotosSecao || {})[secaoId] || [];
+  if(fsec.length){
+    itensHtml.unshift(`<div class="lcl-fitem"><div class="lcl-fitem-t">Fotos da seção (gerais)</div><div class="lcl-fgrid">${fsec.map((f, fi)=>`<div class="lcl-fcard"><img data-imgref="${imgReg(f.foto)}" alt=""><button class="icon-btn chk-photo-remove" title="Excluir foto" onclick="App.lclSecaoFotoExcluir('${secaoId}',${fi})">${ic("trash")}</button><div class="lcl-fnum2">Foto ${num.get(f)}</div></div>`).join("")}</div></div>`);
+  }
   return itensHtml.length ? itensHtml.join("") : `<div class="lcl-dica">Nenhuma foto nesta seção.</div>`;
 }
 /* "6.2": número da seção no checklist . número do item (o mesmo do quadro de não conformidades). */
@@ -19169,6 +19191,13 @@ function chkSyncMesclarLinha(a, b){
     (o.fotos || []).forEach(f=>{ if(f && !ids.has(chkSyncFotoId(f))){ if(!Array.isArray(t.fotos)) t.fotos = []; t.fotos.push(Object.assign({}, f)); ids.add(chkSyncFotoId(f)); } });
     if(o.semFoto && !t.semFoto && !(t.fotos || []).length) t.semFoto = true;
   });
+  // fotos da seção: união por foto (nenhuma se perde, nenhuma se repete)
+  Object.keys(outra.fotosSecao || {}).forEach(sid=>{
+    if(!m.fotosSecao || typeof m.fotosSecao !== "object") m.fotosSecao = {};
+    if(!Array.isArray(m.fotosSecao[sid])) m.fotosSecao[sid] = [];
+    const lst = m.fotosSecao[sid], ids = new Set(lst.map(chkSyncFotoId));
+    (outra.fotosSecao[sid] || []).forEach(f=>{ if(f && !ids.has(chkSyncFotoId(f))){ lst.push(Object.assign({}, f)); ids.add(chkSyncFotoId(f)); } });
+  });
   CHK_SYNC_CAMPOS_TEXTO_LINHA.concat(["fotoAmpla"]).forEach(c=>{ if(!m[c] && outra[c]) m[c] = outra[c]; });
   ["laudo", "memorial"].forEach(c=>{
     const x = m[c], y = outra[c];
@@ -19199,7 +19228,7 @@ function chkConsolidarCopiasLinhas(estado, soContar){
       if(copiaTemMais && chkSyncRespondidos(orig) * 2 >= chkSyncRespondidos(c)){ res.mantidas++; return; }
       if(soContar){ res.fundidas++; return; } // só conta quantas poderiam ser juntadas, sem mexer em nada
       const m = chkSyncMesclarLinha(orig, c);
-      ["itens", "status", "dataFinalizacao", "descricao", "conclusaoTexto", "fotoAmpla", "laudo", "memorial", "secoesNA"].forEach(k=>{ if(m[k] !== undefined) orig[k] = m[k]; });
+      ["itens", "status", "dataFinalizacao", "descricao", "conclusaoTexto", "fotoAmpla", "laudo", "memorial", "secoesNA", "fotosSecao"].forEach(k=>{ if(m[k] !== undefined) orig[k] = m[k]; });
       orig.atualizadoEm = agoraSync();
       s.linhas = s.linhas.filter(l=> l !== c);
       chkSyncRegistrarRemocao([c.id]);
@@ -31170,6 +31199,39 @@ Devolver agora?`)) return;
     acoes.push({ label:"Excluir foto", icon:"trash", danger:true, onclick:`App.chkRemoverFoto('${itemId}',${idx})` });
     abrirMenuAcoes("Foto " + (idx + 1), "", acoes);
   },
+  chkSecaoFoto(secaoId, daGaleria){
+    const input = document.getElementById(daGaleria ? "fileGeneralGaleria" : "fileGeneral");
+    input.onchange = async ()=>{
+      if(!input.files[0]) return;
+      const file = input.files[0];
+      input.value = "";
+      const l = getCurrentChkLinha();
+      if(l && (l.modeloSnapshot || []).some(s=> s.id === secaoId)){
+        const data = await comprimirImagem(file, 1920, 0.82);
+        salvarFotoNaGaleria(data, "apr_checklist");
+        if(!l.fotosSecao || typeof l.fotosSecao !== "object") l.fotosSecao = {};
+        if(!Array.isArray(l.fotosSecao[secaoId])) l.fotosSecao[secaoId] = [];
+        const nova = {}; nova.foto = data; nova.tags = []; nova.motivo = "";
+        l.fotosSecao[secaoId].push(nova);
+        l.atualizadoEm = agoraSync();
+        marcarAlterado();
+        render();
+      }
+      if(!daGaleria){ try{ input.click(); }catch(e){} }
+    };
+    input.click();
+  },
+  chkSecaoFotoRemover(secaoId, idx){
+    const l = getCurrentChkLinha(); if(!l) return;
+    const lista = l.fotosSecao && l.fotosSecao[secaoId];
+    if(!lista || !lista[idx]) return;
+    chkAbrirConfirmacao("Excluir a foto da seção?", "Ela sai da seção e do laudo, e não dá para desfazer.", "Excluir foto", ()=>{
+      lista.splice(idx, 1);
+      l.atualizadoEm = agoraSync();
+      marcarAlterado();
+      render();
+    });
+  },
   chkRemoverFoto(itemId, idx){
     const l = getCurrentChkLinha(); if(!l) return;
     const item = chkItemExec(l, itemId); if(!item) return;
@@ -31378,6 +31440,14 @@ Devolver agora?`)) return;
     const [id, n] = dado.split("|");
     const idx = parseInt(n, 10);
     if(id === itemId && idx >= 0) App.lclFotoMover(itemId, idx, mi);
+  },
+  lclSecaoFotoExcluir(secaoId, idx){
+    const l = getCurrentChkLinha(); if(!l) return;
+    const lista = l.fotosSecao && l.fotosSecao[secaoId];
+    if(!lista || !lista[idx]) return;
+    if(!confirm("Excluir esta foto? Ela sai da seção e do laudo, e não dá para desfazer.")) return;
+    lista.splice(idx, 1);
+    App.lclFotoMudou(l);
   },
   lclFotoExcluir(itemId, idx){
     const l = getCurrentChkLinha(); if(!l) return;
