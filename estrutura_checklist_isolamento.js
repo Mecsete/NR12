@@ -158,7 +158,7 @@ const FUNCOES = [
   // Capitulos novos: parecer, quadro de nao conformidades, Metodologia, Memorial, Anexos.
   "lclItemModeloAtual", "lclPrioridade", "lclAcaoMotivo", "lclNaoConformidades", "lclParecerAuto", "lclParecer",
   "lclListaPt", "lclVariaveis", "lclAplicarVariaveis", "lclMarkup", "lclBlocosMemorial", "lclBlocosAnexos", "lclListaImagensHtml",
-  "screenChkSetorForm", "chkFotosSecaoHtml", "chkRenderItem", "screenChkPreencher", "screenChkFinalizar", "chkResumoHtml",
+  "screenChkSetorForm", "chkFotosSecaoHtml", "chkFotosSecaoResumoHtml", "chkRenderItem", "screenChkPreencher", "screenChkFinalizar", "chkResumoHtml",
   "lclTextoEditado", "lclHtmlParaTexto", "lclTextoParaHtml", "lclConclusaoAuto", "lclFotosSecaoHtml", "lclNumItem",
   // Cadastro do projeto: mascaras, validade automatica e cadastro de inspetores.
   "chkSoDigitos", "chkMascaraDocumento", "chkMascaraTelefone", "chkExibirDocumento", "chkExibirTelefone", "chkValidarCpf", "chkValidarCnpj",
@@ -2910,6 +2910,11 @@ async function testarUsabilidade(){
   roda("STATE.checklists.projetos[0].setores[0].linhas.push(" + J(Object.assign(JSON.parse(J(linhasReal[0])), { id:'LNOVA' })) + ");");
   T(roda("chkMigAutoPendente(STATE)") === true && roda("chkMigAutoAplicar(STATE).linhas") === 1, "linha rigida antiga que chegar depois (de outro aparelho) tambem e migrada");
   roda("STATE.checklists.modelos = " + modelosOrig + "; delete STATE.checklists.migracao2026; STATE.checklists.projetos = " + J(estadoAntes.lista) + ";");
+  // ---- fotos da secao tambem na tela de Finalizar (linha finalizada nao abre o preenchimento)
+  const lfr = Object.assign(JSON.parse(linhaCorpo([itn("a", "Item A")], [exe("a", "atende", 0)])), { fotosSecao: { s1: [{ foto:"data:image/jpeg;base64,FR1", tags:[], motivo:"" }, { foto:"data:image/jpeg;base64,FR2", tags:[], motivo:"" }] } });
+  const hfr = roda("chkFotosSecaoResumoHtml(" + J(lfr) + ")");
+  T(hfr.includes("Fotos da seção") && hfr.includes("2 fotos da seção") && (hfr.match(/data-imgref/g) || []).length === 2, "tela de Finalizar lista as fotos da secao: " + hfr.slice(0, 160));
+  T(roda("chkFotosSecaoResumoHtml(" + J(Object.assign({}, lfr, { fotosSecao:{} })) + ")") === "", "sem fotos da secao, nada aparece na tela de Finalizar");
 }
 async function testarSincronizacaoChecklist(){
   const T = (cond, msg)=>{ if(!cond) throw new Error("sincronizacao do checklist: " + msg); };

@@ -64,6 +64,14 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 08/10/2026 15:17
+
+**Fotos da seção também aparecem na tela de Finalizar.**
+
+- Linha finalizada não abre a tela de preenchimento; por isso as fotos da seção (as que vieram de perguntas "Atende" na migração) não eram vistas. Agora a tela de Finalizar lista, por seção, as fotos da seção.
+
+---
+
 ## 08/10/2026 14:58
 
 **Checklists novos de linha de vida (Vertical, Horizontal flexível, Horizontal rígida): modelos inseridos e linhas migradas automaticamente, uma única vez; fotos da seção; prioridade por motivo.**
