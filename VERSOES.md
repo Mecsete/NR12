@@ -64,6 +64,17 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 08/10/2026 16:37
+
+**Barra de abas mantém a posição; envio mais rápido; selo "não enviada à nuvem"; abrir a linha confere a nuvem antes.**
+
+- Tela de preenchimento: ao trocar de seção, a barra de abas não volta mais para a primeira; a aba ativa fica sempre visível.
+- Sincronização do Checklist: a janela mínima entre rodadas caiu de 45 para 20 segundos, e uma edição feita dentro da janela agenda uma passada logo ao fim dela (antes esperava o ciclo de 2 minutos). Ao sair do app (tela apagada, outro app), tenta subir na hora o que ficou pendente.
+- Cartão da linha e do setor mostram "não enviada à nuvem" quando há alteração que ainda não subiu (só com OneDrive conectado).
+- Ao entrar numa linha, se faz mais de 20 segundos que a nuvem não é conferida, o app confere antes (espera no máximo 3 segundos) e avisa se a linha foi atualizada por outro aparelho.
+
+---
+
 ## 08/10/2026 16:23
 
 **Fim das cópias "(versão de dd/mm hh:mm)" na lista: a versão que perde a disputa fica guardada dentro da linha.**

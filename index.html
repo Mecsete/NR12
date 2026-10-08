@@ -772,6 +772,8 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-tab-fotos{font-weight:600;font-size:11px;opacity:.85;margin-left:4px;white-space:nowrap}
 .chk-tab-fotos svg{width:12px;height:12px;vertical-align:-2px;margin-right:2px}
 .chk-alt-pill{border:0;cursor:pointer;font:inherit;color:var(--ink);background:#E4E7F2}
+.chk-nao-enviada{background:#FFF1CC;color:#8A5A00}
+.chk-nao-enviada svg{width:13px;height:13px;vertical-align:-2px}
 .chk-secao-fotos{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 12px}
 .chk-secao-fotos-t{font-weight:800;font-size:13px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
 .chk-secao-fotos-t svg{width:16px;height:16px}
@@ -3439,7 +3441,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "08/10/2026 16:23";
+const APP_BUILD = "08/10/2026 16:37";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -14077,8 +14079,16 @@ function chkFotosSecaoResumoHtml(l){
   }).join("");
   return blocos ? `<details class="chk-det" open><summary>Fotos da seção</summary>${blocos}</details>` : "";
 }
+/* Nova posição de rolagem da barra de abas: só mexe se a aba ativa estiver (em parte) fora da área visível. */
+function chkTabsRolagem(scrollLeft, larguraVisivel, abaEsq, abaLarg){
+  if(abaEsq < scrollLeft) return Math.max(0, abaEsq - 12);
+  if(abaEsq + abaLarg > scrollLeft + larguraVisivel) return abaEsq + abaLarg - larguraVisivel + 12;
+  return scrollLeft;
+}
 function renderChecklistModulo(){
   const app = document.getElementById("app");
+  const tabsAntes = app.querySelector(".chk-tabs");
+  const rolagemTabs = tabsAntes ? tabsAntes.scrollLeft : null; // a tela é refeita a cada toque: sem isto a barra voltava para a primeira aba
   // o laudo antigo do projeto (uma folha só, sem capítulos) saiu: quem estava nele (app reaberto) cai na lista de setores
   if(STATE.ui.screen === "checklist-laudo") STATE.ui.screen = STATE.ui.chkProjetoId ? "checklist-setores" : "checklist-projetos";
   const s = STATE.ui.screen;
@@ -14111,6 +14121,17 @@ function renderChecklistModulo(){
     ${(s==='checklist-laudo' || s==='checklist-laudo-linha') ? '' : bottomNavChk()}
   `;
   if(s==='checklist-modelo-form') chkModeloAjustarAlturas();
+  if(s==='checklist-preencher'){
+    const t = app.querySelector(".chk-tabs");
+    if(t){
+      if(rolagemTabs !== null) t.scrollLeft = rolagemTabs;
+      const a = t.querySelector('[aria-selected="true"]');
+      if(a){
+        const esq = a.getBoundingClientRect().left - t.getBoundingClientRect().left + t.scrollLeft;
+        t.scrollLeft = chkTabsRolagem(t.scrollLeft, t.clientWidth, esq, a.offsetWidth);
+      }
+    }
+  }
   setSaveChip(false);
 }
 function topBarChk(){
@@ -14701,6 +14722,7 @@ function screenChkSetores(){
     const nLinhas = s.linhas.length;
     const nFinalizadas = s.linhas.filter(l=>l.status==="finalizado").length;
     const nPend = chkPendenciasLinhas(s.linhas);
+    const nNaoEnv = getOneDriveConta() ? chkLinhasPendentesEnvio(s.linhas, chkVistosAtuais()).size : 0;
     return `
     <div class="card list-card">
       <div class="list-body" onclick="App.chkAbrirSetor('${s.id}')" style="padding:14px">
@@ -14711,6 +14733,7 @@ function screenChkSetores(){
           ${nLinhas>0? `<span class="stat-pill">${nFinalizadas}/${nLinhas} finalizadas</span>`:''}
           ${nLinhas-nFinalizadas>0? `<span class="stat-pill alert">${nLinhas-nFinalizadas} em aberto</span>`:''}
           ${nPend>0? `<span class="stat-pill alert pend">${ic('warn')} ${nPend} ${nPend===1?'pendência':'pendências'} para responder</span>`:''}
+          ${nNaoEnv>0? `<span class="stat-pill chk-nao-enviada" title="Linhas com alteração que ainda não subiu para a nuvem">${ic('upload')} ${nNaoEnv} ${nNaoEnv===1?'linha não enviada':'linhas não enviadas'} à nuvem</span>`:''}
         </div>
       </div>
       <div class="list-actions">${chkAcoesCartao('setor', s.id)}</div>
@@ -14858,6 +14881,7 @@ function screenChkLinhas(){
     if(termo && !(l.nome||"").toLowerCase().includes(termo)) return false;
     return true;
   }).sort((a,b)=>b.atualizadoEm-a.atualizadoEm);
+  const naoEnviadas = getOneDriveConta() ? chkLinhasPendentesEnvio(setor.linhas, chkVistosAtuais()) : new Set();
   const cards = filtradas.length ? filtradas.map(l=>{
     const st = chkStatusLinha(l);
     const c = chkContarStatus(l);
@@ -14874,6 +14898,7 @@ function screenChkLinhas(){
           <span class="stat-pill chk-status-pill st-${st}">${statusLabel}</span>
           ${st==="andamento" ? `<span class="stat-pill">${pct}% preenchido</span>` : ""}
           ${c.pendente>0 ? `<span class="stat-pill alert pend">${ic('warn')} ${c.pendente} ${c.pendente===1?'pendência':'pendências'} para responder</span>` : ""}
+          ${naoEnviadas.has(l.id) ? `<span class="stat-pill chk-nao-enviada" title="Esta linha tem alteração que ainda não subiu para a nuvem; os outros aparelhos só enxergam depois que subir. Mantenha o app aberto.">${ic('upload')} não enviada à nuvem</span>` : ""}
           ${(l.versoesAlternativas || []).length ? `<button class="stat-pill chk-alt-pill" onclick="event.stopPropagation();App.chkAltAbrir('${l.id}')" title="Versões antigas desta linha, guardadas (nada foi perdido)">${ic('folder')} ${l.versoesAlternativas.length} ${l.versoesAlternativas.length===1?'versão guardada':'versões guardadas'}</button>` : ""}
         </div>
         <div class="list-meta chk-card-resumo">
@@ -19034,7 +19059,9 @@ async function onedriveSincronizarEquipe(forcar){
    ========================================================================= */
 const SUBPASTA_CHECKLIST = SUBPASTA_BACKUP + "/Checklist";
 const SUBPASTA_CHECKLIST_FOTOS = SUBPASTA_BACKUP + "/Checklist/Fotos";
-const CHK_SYNC_INTERVALO_AUTO_MS = 45 * 1000;
+const CHK_SYNC_INTERVALO_AUTO_MS = 20 * 1000;
+let __chkSyncRetry = null;
+let __chkAbrindoLinha = false;
 const CHK_SYNC_LIMITE_OPS_AUTO = 40;
 let __chkSyncEmAndamento = false;
 let __chkSyncUltima = 0;
@@ -19969,6 +19996,23 @@ async function chkSyncConflito(ctx, loc, rem){
   }
   await chkSyncEnviar(ctx, loc);
 }
+/* Linhas com alteração que ainda não subiu para a nuvem (conteúdo diferente do que foi visto na última sincronização).
+   vistos = STATE.checklists.sync.vistos. Devolve o conjunto de ids. */
+function chkLinhasPendentesEnvio(linhas, vistos){
+  const out = new Set();
+  (linhas || []).forEach(l=>{
+    if(!l || !l.id) return;
+    const e = { tipo:"l", id:l.id, obj:l, chave:"l:" + l.id };
+    if(chkSyncSementeIntocada(e)) return;
+    if(chkSyncMudou(e, (vistos || {})[e.chave])) out.add(l.id);
+  });
+  return out;
+}
+function chkVistosAtuais(){ return (STATE.checklists && STATE.checklists.sync && STATE.checklists.sync.vistos) || {}; }
+/* Entrar na linha: confere a nuvem antes (se faz tempo que não conferiu), para começar da versão mais nova. */
+function chkDevePuxarAntesDeAbrir(temConta, podeAuto, emAndamento, msDesdeUltima){
+  return !!temConta && !!podeAuto && !emAndamento && msDesdeUltima >= 20000;
+}
 /* Aplica uma lápide num item local. Se o item (ou algo dentro dele) tem alteração que ainda não subiu, NÃO remove:
    carimba de novo para que ele volte para a nuvem. Devolve true se removeu. */
 function chkSyncRemoverLocal(ctx, loc){
@@ -20085,10 +20129,22 @@ function chkSyncTransporteOneDrive(){
     motivoFalha: ()=> __ultimoMotivoFalhaEnvio,
   };
 }
+document.addEventListener("visibilitychange", ()=>{
+  // saindo do app (tela apagada, outro app): tenta subir já o que ficou pendente, antes de o sistema congelar a aba
+  if(document.visibilityState === "hidden" && getOneDriveConta() && navigator.onLine && STATE.checklists && chkLinhasPendentesEnvio((STATE.checklists.projetos || []).flatMap(p=> (p.setores || []).flatMap(s=> s.linhas || [])), chkVistosAtuais()).size){
+    onedriveSincronizarChecklist(true).catch(()=>{});
+  }
+});
 async function onedriveSincronizarChecklist(forcar){
   if(!getOneDriveConta() || !navigator.onLine) return { mudou:false };
   if(__chkSyncEmAndamento) return { mudou:false };
-  if(!forcar && (Date.now() - __chkSyncUltima) < CHK_SYNC_INTERVALO_AUTO_MS) return { mudou:false };
+  if(!forcar && (Date.now() - __chkSyncUltima) < CHK_SYNC_INTERVALO_AUTO_MS){
+    // dentro da janela: agenda uma passada para logo depois dela (antes, uma edição feita aqui esperava o ciclo de 2 minutos)
+    if(!__chkSyncRetry && podeSincronizarAutomaticoAgora()){
+      __chkSyncRetry = setTimeout(()=>{ __chkSyncRetry = null; onedriveSincronizarChecklist(false).catch(()=>{}); }, CHK_SYNC_INTERVALO_AUTO_MS - (Date.now() - __chkSyncUltima) + 300);
+    }
+    return { mudou:false };
+  }
   __chkSyncEmAndamento = true;
   try{
     // sem sessão a listagem volta vazia: nunca confundir isso com "a nuvem está vazia"
@@ -31464,12 +31520,30 @@ Devolver agora?`)) return;
   },
   chkAbrirLinha(id){
     const setor = getCurrentChkSetor(); if(!setor) return;
-    const l = setor.linhas.find(x=>x.id===id); if(!l) return;
-    STATE.ui.chkLinhaId = id;
-    STATE.ui.chkSecaoAtual = 0;
-    // Laudo agora é do projeto inteiro (ver screenChkLaudo) — uma linha
-    // finalizada abre na revisão dela mesma, com opção de reabrir para editar.
-    go(l.status==="finalizado" ? "checklist-finalizar" : "checklist-preencher");
+    const l0 = setor.linhas.find(x=>x.id===id); if(!l0) return;
+    const abrir = ()=>{
+      const l = chkAcharLinhaPorId(STATE, id);
+      if(!l){ go("checklist-linhas"); return; }
+      STATE.ui.chkLinhaId = id;
+      STATE.ui.chkSecaoAtual = 0;
+      // Laudo agora é do projeto inteiro (ver screenChkLaudo) — uma linha
+      // finalizada abre na revisão dela mesma, com opção de reabrir para editar.
+      go(l.status==="finalizado" ? "checklist-finalizar" : "checklist-preencher");
+    };
+    let conta = null; try{ conta = getOneDriveConta(); }catch(e){}
+    if(!chkDevePuxarAntesDeAbrir(conta, podeSincronizarAutomaticoAgora(), __chkSyncEmAndamento, Date.now() - __chkSyncUltima) || __chkAbrindoLinha){ abrir(); return; }
+    // faz tempo que não confere a nuvem: puxa a versão mais nova da linha antes de entrar (no máximo ~3 s de espera)
+    __chkAbrindoLinha = true;
+    const antes = chkSyncSig(l0, true);
+    toast("Conferindo a nuvem…");
+    Promise.race([onedriveSincronizarChecklist(true), new Promise(res=> setTimeout(()=> res(null), 3000))])
+      .catch(()=> null)
+      .then(()=>{
+        __chkAbrindoLinha = false;
+        const depois = chkAcharLinhaPorId(STATE, id);
+        abrir();
+        if(depois && chkSyncSig(depois, true) !== antes) toast("Esta linha foi atualizada com alterações de outro aparelho");
+      });
   },
   chkExcluirLinha(id){
     const setor = getCurrentChkSetor(); if(!setor) return;
