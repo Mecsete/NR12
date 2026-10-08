@@ -180,7 +180,9 @@ for marca, n in [('body = screenSimplesLaudo();', 1),
                  # duplicada. Zerado em 14/09/2026: original.html regerado a partir de
                  # HEAD, que ja inclui o modulo Checklist (mesmo padrao do _extra da
                  # secao 4).
-                 ('App.trocarModulo()', orig.count('App.trocarModulo()')),
+                 # 08/10/2026: +2 de proposito -- o modulo Linhas de vida ganhou "Modulos" na barra de baixo e "Trocar de modulo"
+                 # na sua tela de Configuracoes (a funcao e a mesma de sempre, nao duplicada).
+                 ('App.trocarModulo()', orig.count('App.trocarModulo()') + 2),
                  ('function laudoAbaRevisao(', 1),
                  ('function laudoAbaAreas(', 1),
                  ('function laudoAbaExportar(', 1),

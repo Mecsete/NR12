@@ -3441,7 +3441,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "08/10/2026 17:00";
+const APP_BUILD = "08/10/2026 17:01";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -14244,14 +14244,7 @@ function screenChkConfig(){
   ${linha('onedrive', 'Backup', sub, "App.go('checklist-config-backup')")}
   ${linha('briefcase', 'Empresa e Responsáveis', 'Dados fixos do laudo e lista de inspetores', "App.go('checklist-config-empresa')")}
   ${linha('layers', 'Trocar de módulo', 'Voltar à escolha de módulos', "App.trocarModulo()")}
-  <div class="section-title">Aparência</div>
-  <div class="card card-pad" style="display:flex;align-items:center;gap:12px">
-    <div style="flex:1">
-      <div style="font-weight:800;font-size:14px">Alto contraste</div>
-      <div style="font-size:12px;color:var(--ink-dim)">Facilita a leitura sob luz forte / sol direto.</div>
-    </div>
-    <label class="switch"><input type="checkbox" ${STATE.contrasteAlto?'checked':''} onchange="App.toggleContraste()"><span class="switch-track"></span></label>
-  </div>
+  ${configAparenciaHtml()}
   <p style="text-align:center;font-size:11px;color:var(--ink-faint);margin-top:22px">Versão ${APP_BUILD}</p>`;
 }
 /* Menu "⋮" dos cartões: as ações aparecem com o nome escrito (no celular não existe dica ao passar o mouse). */
@@ -25446,6 +25439,18 @@ function laudoSheetCopiarHtml(item, campo){
     </div>
   </div>`;
 }
+function configAparenciaHtml(){
+  return `
+  <div class="section-title">Aparência</div>
+  <div class="card card-pad" style="display:flex;align-items:center;gap:12px">
+    <div style="flex:1">
+      <div style="font-weight:800;font-size:14px">Alto contraste</div>
+      <div style="font-size:12px;color:var(--ink-dim)">Facilita a leitura sob luz forte / sol direto.</div>
+    </div>
+    <label class="switch"><input type="checkbox" ${STATE.contrasteAlto?'checked':''} onchange="App.toggleContraste()"><span class="switch-track"></span></label>
+  </div>
+  `;
+}
 function screenSimplesConfig(){
   return `
   <div class="card card-pad">
@@ -25467,14 +25472,7 @@ function screenSimplesConfig(){
   <button class="btn btn-secondary btn-block" style="display:flex;align-items:center;gap:10px;justify-content:flex-start;padding:14px 16px;margin-top:10px" onclick="App.trocarModulo()">
     ${ic('layers')}<span style="flex:1;text-align:left"><b>Trocar de módulo</b><br><span style="font-size:12px;color:var(--ink-dim);font-weight:400">Voltar para o Módulo Completo</span></span>${ic('chevR')}
   </button>
-  <div class="section-title">Aparência</div>
-  <div class="card card-pad" style="display:flex;align-items:center;gap:12px">
-    <div style="flex:1">
-      <div style="font-weight:800;font-size:14px">Alto contraste</div>
-      <div style="font-size:12px;color:var(--ink-dim)">Facilita a leitura sob luz forte / sol direto.</div>
-    </div>
-    <label class="switch"><input type="checkbox" ${STATE.contrasteAlto?'checked':''} onchange="App.toggleContraste()"><span class="switch-track"></span></label>
-  </div>
+  ${configAparenciaHtml()}
   <p style="text-align:center;font-size:11px;color:var(--ink-faint);margin-top:22px">Versão ${APP_BUILD}</p>
   `;
 }
