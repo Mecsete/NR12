@@ -64,6 +64,14 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 08/10/2026 16:06
+
+**Botões de resposta na ordem Não aplicável, Não atende, Atende.**
+
+- Só a posição dos botões mudou (cartão fechado e cartão aberto do item); as funções são as mesmas.
+
+---
+
 ## 08/10/2026 15:43
 
 **Cartão da linha separa "fotos da seção"; aba da seção mostra quantas fotos da seção tem.**
