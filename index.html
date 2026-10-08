@@ -142,6 +142,8 @@ html.teclado-aberto .laudo-fab{display:none!important;}
 .stat-pill .risk-icn{display:flex;align-items:center;justify-content:center;}
 .stat-pill .risk-icn svg{width:13px;height:13px;}
 .stat-pill.alert{background:#FBE3DC;color:#C23F12;}
+.stat-pill.alert.pend{background:#C23F12;color:#fff;font-weight:800;}
+.stat-pill.alert.pend svg{width:13px;height:13px;vertical-align:-2px;}
 .list-actions{display:flex;align-items:center;gap:4px;padding:10px 10px 0 0;flex-shrink:0;}
 .icon-btn{background:none;border:none;color:var(--ink-faint);width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 .icon-btn:active{background:var(--bg-soft);}
@@ -3434,7 +3436,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "08/10/2026 15:17";
+const APP_BUILD = "08/10/2026 15:33";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -14591,6 +14593,7 @@ function screenChkProjetos(){
     const nSetores = p.setores.length;
     const nLinhas = p.setores.reduce((n,s)=>n+s.linhas.length,0);
     const nFinalizadas = p.setores.reduce((n,s)=>n+s.linhas.filter(l=>l.status==="finalizado").length,0);
+    const nPend = chkPendenciasLinhas(p.setores.flatMap(s=> s.linhas));
     return `
     <div class="card list-card">
       <div class="list-body" onclick="App.chkAbrirProjeto('${p.id}')" style="padding:14px">
@@ -14601,6 +14604,7 @@ function screenChkProjetos(){
           <span class="stat-pill">${nLinhas} ${nLinhas===1?'linha':'linhas'}</span>
           ${nLinhas>0? `<span class="stat-pill">${nFinalizadas}/${nLinhas} finalizadas</span>`:''}
           ${nLinhas-nFinalizadas>0? `<span class="stat-pill alert">${nLinhas-nFinalizadas} em aberto</span>`:''}
+          ${nPend>0? `<span class="stat-pill alert pend">${ic('warn')} ${nPend} ${nPend===1?'pendência':'pendências'} para responder</span>`:''}
         </div>
       </div>
       <div class="list-actions">${chkAcoesCartao('projeto', p.id)}</div>
@@ -14691,6 +14695,7 @@ function screenChkSetores(){
   const cards = setoresFiltrados.map(s=>{
     const nLinhas = s.linhas.length;
     const nFinalizadas = s.linhas.filter(l=>l.status==="finalizado").length;
+    const nPend = chkPendenciasLinhas(s.linhas);
     return `
     <div class="card list-card">
       <div class="list-body" onclick="App.chkAbrirSetor('${s.id}')" style="padding:14px">
@@ -14700,6 +14705,7 @@ function screenChkSetores(){
           <span class="stat-pill">${nLinhas} ${nLinhas===1?'linha de vida':'linhas de vida'}</span>
           ${nLinhas>0? `<span class="stat-pill">${nFinalizadas}/${nLinhas} finalizadas</span>`:''}
           ${nLinhas-nFinalizadas>0? `<span class="stat-pill alert">${nLinhas-nFinalizadas} em aberto</span>`:''}
+          ${nPend>0? `<span class="stat-pill alert pend">${ic('warn')} ${nPend} ${nPend===1?'pendência':'pendências'} para responder</span>`:''}
         </div>
       </div>
       <div class="list-actions">${chkAcoesCartao('setor', s.id)}</div>
@@ -14732,6 +14738,10 @@ function chkStatusLinha(linha){
 /* Resumo da linha para o cartão da lista: quantos itens atendem, não atendem, não se aplicam e ficaram sem resposta, e quantas
    fotos o laudo leva — separadas em fotos de itens que atendem (conformidade) e de itens que não atendem (não conformidade).
    Conta as mesmas fotos que o laudo mostra: seções "não aplica" ficam de fora. */
+/* Itens ainda sem resposta nas linhas que já foram começadas (ou finalizadas): o que a pessoa precisa voltar para responder. */
+function chkPendenciasLinhas(linhas){
+  return (linhas || []).reduce((n, l)=> n + (l.status === "finalizado" || chkProgresso(l) > 0 ? chkContarStatus(l).pendente : 0), 0);
+}
 function chkResumoCardLinha(l){
   const c = chkContarStatus(l);
   let fotosOk = 0, fotosNc = 0;
@@ -14779,7 +14789,7 @@ function screenChkLinhas(){
         <div class="list-meta">
           <span class="stat-pill chk-status-pill st-${st}">${statusLabel}</span>
           ${st==="andamento" ? `<span class="stat-pill">${pct}% preenchido</span>` : ""}
-          ${c.pendente>0 ? `<span class="stat-pill alert">${c.pendente} pendente${c.pendente===1?'':'s'}</span>` : ""}
+          ${c.pendente>0 ? `<span class="stat-pill alert pend">${ic('warn')} ${c.pendente} ${c.pendente===1?'pendência':'pendências'} para responder</span>` : ""}
         </div>
         <div class="list-meta chk-card-resumo">
           <span class="stat-pill" style="color:${CHK_STATUS_META.atende.cor}" title="Itens que atendem">${r.atende} atendem</span>
@@ -19200,7 +19210,7 @@ function chkMigAcharModeloNovo(modelos, planoTipo){
 /* Reconstrói UMA linha sobre o modelo novo. Não altera a linha recebida. Devolve { linha, rel }. */
 function chkMigrarLinha(linha, modeloNovo, planoTipo, tipoKey){
   const rel = { itensAntes:(linha.itens || []).length, respondidosAntes:0, fotosAntes:0, fotosNoItem:0, fotosNaSecao:0, fotosSoHistorico:0,
-    motivosAntes:0, motivosMigrados:0, motivosComoObservacao:0, motivosSoHistorico:0, perguntasSoHistorico:0, semDestino:[], revisar:[], fundidasAtende:[] };
+    motivosAntes:0, motivosMigrados:0, motivosComoObservacao:0, motivosSoHistorico:0, perguntasSoHistorico:0, semDestino:[], revisar:[], fundidasAtende:[], zeradas:[] };
   const novaSnap = clonarCompartilhandoFotos(modeloNovo.secoes);
   const idxNovo = {};
   novaSnap.forEach(s=> (s.itens || []).forEach(it=>{ idxNovo[chkMigN(it.descricao)] = { s, it }; }));
@@ -19267,6 +19277,11 @@ function chkMigrarLinha(linha, modeloNovo, planoTipo, tipoKey){
     else ex.conforme = ss.indexOf("atende") >= 0 ? "atende" : "na";
     if(ex.conforme === "atende" && g.n > 1) (linha.status === "finalizado" ? rel.fundidasAtende : rel.revisar).push(id);
   });
+  // "Não atende" sem nenhum motivo marcado (e o item tem motivos para escolher) volta a ficar sem resposta: vira pendência a corrigir
+  novaSnap.forEach(s=> (s.itens || []).forEach(it=>{
+    const ex = execNovo[it.id];
+    if(ex.conforme === "naoAtende" && !(ex.motivosSelecionados || []).length && (it.motivosPadrao || []).length){ ex.conforme = null; rel.zeradas.push(it.id); }
+  }));
   const secNA = novaSnap.filter(s=> (s.itens || []).length && s.itens.every(it=> execNovo[it.id].conforme === "na")).map(s=> s.id);
   const nova = Object.assign({}, linha);
   nova.modeloId = modeloNovo.id; nova.modeloNome = modeloNovo.nome; nova.tipoLinha = modeloNovo.tipoLinha || linha.tipoLinha || tipoKey;
@@ -19276,7 +19291,8 @@ function chkMigrarLinha(linha, modeloNovo, planoTipo, tipoKey){
   nova.fotosSecao = fotosSecao;
   nova.versaoAnterior = { migradoEm: hoje(), modeloId: linha.modeloId, modeloNome: linha.modeloNome, tipoLinha: linha.tipoLinha || tipoKey, modeloSnapshot: linha.modeloSnapshot, itens: linha.itens,
     secoesNA: linha.secoesNA || [], fotosSecao: linha.fotosSecao || {}, status: linha.status, dataFinalizacao: linha.dataFinalizacao || null };
-  nova.migracao = { em: hoje(), estado: linha.status === "finalizado" ? "migrada-finalizada" : "migrada-revisar", de: linha.modeloNome || "", revisar: rel.revisar, fundidasAtende: rel.fundidasAtende };
+  nova.migracao = { em: hoje(), estado: linha.status === "finalizado" ? "migrada-finalizada" : "migrada-revisar", de: linha.modeloNome || "", revisar: rel.revisar, fundidasAtende: rel.fundidasAtende, pendencias: { em: hoje(), itens: rel.zeradas.length } };
+  if(rel.zeradas.length && linha.status === "finalizado"){ nova.migracao.finalizadaEm = linha.dataFinalizacao || null; nova.migracao.estado = "migrada-revisar"; nova.status = "em_andamento"; nova.dataFinalizacao = null; }
   nova.atualizadoEm = agoraSync();
   return { linha: nova, rel };
 }
@@ -19332,12 +19348,31 @@ function chkMigModelosEmbutidos(){
   });
   return out;
 }
+/* Linhas já migradas antes da regra "Não atende sem motivo = pendência": os itens "Não atende" sem motivo marcado voltam a ficar sem
+   resposta (fotos e observação ficam) e a linha finalizada que ganhar pendência é reaberta. Uma vez por linha (migracao.pendencias). */
+function chkMigPendenciasAplicar(estado){
+  const out = { linhas:0, itens:0 };
+  ((estado.checklists && estado.checklists.projetos) || []).forEach(p=> (p.setores || []).forEach(s=> (s.linhas || []).forEach(l=>{
+    if(!l.migracao || l.migracao.pendencias) return;
+    let n = 0;
+    const motivosDe = {};
+    (l.modeloSnapshot || []).forEach(sec=> (sec.itens || []).forEach(it=>{ motivosDe[it.id] = (it.motivosPadrao || []).length; }));
+    (l.itens || []).forEach(i=>{
+      if(i.conforme === "naoAtende" && !(i.motivosSelecionados || []).length && motivosDe[i.itemId]){ i.conforme = null; n++; }
+    });
+    l.migracao.pendencias = { em: hoje(), itens: n };
+    if(n && l.status === "finalizado"){ l.migracao.finalizadaEm = l.dataFinalizacao || null; l.migracao.estado = "migrada-revisar"; l.status = "em_andamento"; l.dataFinalizacao = null; }
+    if(n) l.atualizadoEm = agoraSync();
+    out.linhas++; out.itens += n;
+  })));
+  return out;
+}
 /* Há o que fazer? Falta a marca de que os modelos novos já foram inseridos, ou existe linha rígida ainda não migrada. */
 function chkMigAutoPendente(estado){
   const c = estado && estado.checklists;
   if(!c || !Array.isArray(c.projetos)) return false;
   if(!c.migracao2026) return true;
-  return c.projetos.some(p=> (p.setores || []).some(s=> (s.linhas || []).some(l=> !l.migracao && l.tipoLinha === "horizontal_rigida")));
+  return c.projetos.some(p=> (p.setores || []).some(s=> (s.linhas || []).some(l=> (!l.migracao && l.tipoLinha === "horizontal_rigida") || (l.migracao && !l.migracao.pendencias))));
 }
 function chkMigAutoAplicar(estado){
   const c = estado.checklists;
@@ -19350,9 +19385,12 @@ function chkMigAutoAplicar(estado){
     if(!m && !c.migracao2026){ m = emb[tk]; c.modelos.push(m); criados++; }
     if(m) porTipo[tk] = m;
   });
+  const somaZeradas = ()=> c.projetos.reduce((n, p)=> n + (p.setores || []).reduce((m, s)=> m + (s.linhas || []).reduce((k, l)=> k + (l.migracao && l.migracao.pendencias ? l.migracao.pendencias.itens : 0), 0), 0), 0);
+  const antes = somaZeradas();
   const linhas = chkMigracaoAplicar(estado, chkMigPlanoEmbutido(), porTipo);
+  chkMigPendenciasAplicar(estado);
   if(!c.migracao2026) c.migracao2026 = hoje();
-  return { criados, linhas };
+  return { criados, linhas, zeradas: somaZeradas() - antes };
 }
 /* ---- Mescla de linha de vida em conflito (duas versões do mesmo checklist) ----
    Antes, a versão com o carimbo mais novo ganhava e a outra virava uma cópia "(versão de ...)" — mesmo quando
@@ -19858,7 +19896,7 @@ async function onedriveSincronizarChecklist(forcar){
         const rm = chkMigAutoAplicar(STATE);
         marcarAlterado();
         r.mudouLocal = true;
-        try{ toast("Checklists novos: " + rm.criados + " modelo(s) criado(s), " + rm.linhas + " linha(s) migrada(s)"); render(); }catch(_){}
+        try{ toast(rm.criados || rm.linhas ? "Checklists novos: " + rm.criados + " modelo(s) criado(s), " + rm.linhas + " linha(s) migrada(s)" : rm.zeradas + " item(ns) sem motivo voltaram a ficar sem resposta, para você corrigir"); render(); }catch(_){}
       }
     }
     return Object.assign({ mudou: r.mudouLocal }, r);

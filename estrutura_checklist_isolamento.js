@@ -171,7 +171,7 @@ const FUNCOES = [
   "chkSyncHash", "chkSyncSig", "chkSyncModeloNorm", "chkSyncGarantir", "chkSyncSemCampo", "chkSyncVista", "chkSyncLocais", "chkSyncLocalDe", "chkSyncSementeIntocada",
   "chkSyncParseNomes", "chkSyncRegistrarRemocao", "chkSyncMesclarRemovidos", "chkSyncMesclarInspetores", "chkSyncLerRemoto", "chkSyncSingleton",
   "chkSyncApagarRemoto", "chkSyncEnviar", "chkSyncRotuloCopia", "chkSyncInserir", "chkSyncAplicar", "chkSyncBaixar", "chkSyncCopiarLocal", "chkSyncConflito",
-  "chkResumoCardLinha", "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "chkIncoerencias", "lclNumeroSecao", "getMecseteConfig", "chkAcoesCartao", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "lclPrioridadeNc", "chkMigPlanoEmbutido", "chkMigModelosEmbutidos", "chkMigAutoPendente", "chkMigAutoAplicar", "chkMigN", "chkMigTabela", "chkMigPlano", "chkMigAcharModeloNovo", "chkMigrarLinha", "chkMigracaoSimular", "chkMigracaoAplicar", "chkSyncFotoValorId", "chkSyncFotoId", "chkSyncRespondidos", "chkSyncDivergencias", "chkSyncMesclarLinha", "chkConsolidarCopiasLinhas", "chkSyncVisto", "chkSyncMudou", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
+  "chkResumoCardLinha", "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "chkIncoerencias", "lclNumeroSecao", "getMecseteConfig", "chkAcoesCartao", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "lclPrioridadeNc", "chkMigPlanoEmbutido", "chkMigModelosEmbutidos", "chkMigAutoPendente", "chkMigAutoAplicar", "chkMigPendenciasAplicar", "chkPendenciasLinhas", "chkMigN", "chkMigTabela", "chkMigPlano", "chkMigAcharModeloNovo", "chkMigrarLinha", "chkMigracaoSimular", "chkMigracaoAplicar", "chkSyncFotoValorId", "chkSyncFotoId", "chkSyncRespondidos", "chkSyncDivergencias", "chkSyncMesclarLinha", "chkConsolidarCopiasLinhas", "chkSyncVisto", "chkSyncMudou", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
 ];
 let fonte = "let __ultimoCarimboVisto = 0;\n";
 fonte += "let __buscaAtual = '';\n"; // usado por chkAbrirSetor (lista de linhas) -- nao testado aqui, so pra nao faltar
@@ -2915,6 +2915,43 @@ async function testarUsabilidade(){
   const hfr = roda("chkFotosSecaoResumoHtml(" + J(lfr) + ")");
   T(hfr.includes("Fotos da seção") && hfr.includes("2 fotos da seção") && (hfr.match(/data-imgref/g) || []).length === 2, "tela de Finalizar lista as fotos da secao: " + hfr.slice(0, 160));
   T(roda("chkFotosSecaoResumoHtml(" + J(Object.assign({}, lfr, { fotosSecao:{} })) + ")") === "", "sem fotos da secao, nada aparece na tela de Finalizar");
+  // ---- "Nao atende" sem motivo vira pendencia (sem resposta); pendencias evidentes nos cartoes
+  { const modeloP = { id:"MP", nome:"P", tipoLinha:"horizontal_rigida", secoes:[ { id:"sp", titulo:"Viga / Trilho", contexto:"", itens:[
+      { id:"p1", descricao:"N2 viga?", motivosPadrao:[{ motivo:"n viga deformada", texto:"t", acao:"a" }] },
+      { id:"p2", descricao:"N3 sem motivos?", motivosPadrao:[] } ] } ] };
+    const planoP = { perguntas:{ "Q3 viga integra?":{ relacao:"Igual", nova:"N2 viga?", secaoAntiga:"Viga / Trilho", secaoNova:"Viga / Trilho" }, "Q9 livre?":{ relacao:"Igual", nova:"N3 sem motivos?", secaoAntiga:"Viga / Trilho", secaoNova:"Viga / Trilho" } }, motivos:{}, novas:[] };
+    const mkP = (status)=> ({ id:"LP", nome:"LP", status, dataFinalizacao: status === "finalizado" ? "2026-10-07" : null, tipoLinha:"horizontal_rigida", modeloId:"MV", modeloNome:"v1", secoesNA:[], laudo:{}, descricao:"", conclusaoTexto:"", fotoAmpla:"", criadoEm:1,
+      modeloSnapshot:[ { id:"o2", titulo:"Viga / Trilho", itens:[{ id:"q3", descricao:"Q3 viga integra?" }, { id:"q9", descricao:"Q9 livre?" }] } ],
+      itens:[ { itemId:"q3", conforme:"naoAtende", motivosSelecionados:[], observacao:"obs viga", fotos:[ { foto:"data:image/jpeg;base64,PD1", tags:[], motivo:"" } ] },
+              { itemId:"q9", conforme:"naoAtende", motivosSelecionados:[], observacao:"", fotos:[] } ] });
+    const a = (l)=> J(l) + ", " + J(modeloP) + ", " + J(planoP) + ", 'horizontal_rigida'";
+    const pf = roda("chkMigrarLinha(" + a(mkP("finalizado")) + ")"), pe = roda("chkMigrarLinha(" + a(mkP("em_andamento")) + ")");
+    const x1 = pf.linha.itens.find(i => i.itemId === "p1"), x2 = pf.linha.itens.find(i => i.itemId === "p2");
+    T(x1.conforme === null && x1.observacao === "obs viga" && x1.fotos.length === 1 && pf.rel.zeradas.length === 1, "Nao atende sem motivo marcado vira pendencia, mantendo observacao e foto: " + J(x1));
+    T(x2.conforme === "naoAtende", "Nao atende em item que nao tem motivos para escolher continua Nao atende");
+    T(pf.linha.status === "em_andamento" && pf.linha.dataFinalizacao === null && pf.linha.migracao.finalizadaEm === "2026-10-07" && pe.linha.status === "em_andamento", "linha finalizada que ganha pendencia e reaberta (a data de finalizacao antiga fica em migracao)");
+    // linhas ja migradas antes da regra
+    const jaMig = JSON.parse(J(pe.linha)); delete jaMig.migracao.pendencias; jaMig.itens[0].conforme = "naoAtende"; jaMig.itens[0].motivosSelecionados = []; jaMig.status = "finalizado"; jaMig.dataFinalizacao = "2026-10-07";
+    roda("STATE.checklists.migracao2026 = 'x'; STATE.checklists.projetos = [{ id:'PP', empresa:'E', setores:[{ id:'SP', nome:'S', linhas:[ " + J(jaMig) + " ] }] }];");
+    T(roda("chkMigAutoPendente(STATE)") === true, "linha migrada sem a marca de pendencias conta como pendente");
+    const rp = roda("chkMigPendenciasAplicar(STATE)");
+    const lp = roda("STATE.checklists.projetos[0].setores[0].linhas[0]");
+    T(rp.itens === 1 && lp.itens[0].conforme === null && lp.status === "em_andamento" && lp.migracao.finalizadaEm === "2026-10-07" && lp.migracao.pendencias.itens === 1, "passagem das ja migradas: zera o item e reabre a linha: " + J(rp));
+    T(roda("chkMigPendenciasAplicar(STATE).itens") === 0 && roda("chkMigAutoPendente(STATE)") === false, "so uma vez por linha");
+    T(roda("chkPendenciasLinhas(STATE.checklists.projetos[0].setores[0].linhas)") === 1, "pendencias do setor: soma dos itens sem resposta das linhas comecadas");
+    T(roda("chkPendenciasLinhas([{ status:'em_andamento', itens:[{ conforme:null }, { conforme:null }] }])") === 0, "linha sem nenhuma resposta (nao iniciada) nao entra na soma de pendencias");
+    roda("STATE.checklists.projetos = " + J(estadoAntes.lista) + ";");
+  }
+  // dados reais: nenhum "Nao atende" sem motivo sobra (nos itens que tem motivos para escolher)
+  { roda("STATE.checklists.modelos = []; delete STATE.checklists.migracao2026; STATE.checklists.projetos = [{ id:'PRZ', empresa:'Real', setores:[{ id:'SRZ', nome:'S', linhas:" + J(linhasReal) + " }] }];");
+    const rz = roda("chkMigAutoAplicar(STATE)");
+    const lz = roda("STATE.checklists.projetos[0].setores[0].linhas");
+    const comPend = lz.filter(l => l.migracao.pendencias.itens > 0).length, reabertas = lz.filter(l => l.migracao.finalizadaEm !== undefined).length;
+    const sobra = lz.reduce((a, l) => a + l.itens.filter(it => { const d = []; l.modeloSnapshot.forEach(s => s.itens.forEach(x => { if(x.id === it.itemId) d.push(x); })); return it.conforme === "naoAtende" && !(it.motivosSelecionados || []).length && d[0] && d[0].motivosPadrao.length; }).length, 0);
+    T(rz.linhas === 15 && sobra === 0 && rz.zeradas === lz.reduce((a, l) => a + l.migracao.pendencias.itens, 0) && lz.filter(l => l.status === "finalizado").every(l => l.migracao.pendencias.itens === 0), "dados reais: 15 migradas, nenhum Nao atende sem motivo sobrou, linha finalizada so se mantem se nao ganhou pendencia");
+    console.log("PENDENCIAS REAIS: itens=" + rz.zeradas + " linhas com pendencia=" + comPend + " finalizadas reabertas=" + reabertas + " sem resposta por linha=" + lz.map(l => l.nome.slice(0, 14) + ":" + l.itens.filter(i => i.conforme === null).length).join(", "));
+    roda("STATE.checklists.modelos = " + modelosOrig + "; delete STATE.checklists.migracao2026; STATE.checklists.projetos = " + J(estadoAntes.lista) + ";");
+  }
 }
 async function testarSincronizacaoChecklist(){
   const T = (cond, msg)=>{ if(!cond) throw new Error("sincronizacao do checklist: " + msg); };

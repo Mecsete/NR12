@@ -64,6 +64,16 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 08/10/2026 15:33
+
+**Migração: "Não atende" sem motivo marcado volta a ficar sem resposta (pendência); pendências evidentes nos cartões.**
+
+- Itens "Não atende" sem nenhum motivo marcado (e que têm motivos para escolher) ficam sem resposta, mantendo fotos e observação, para serem corrigidos em campo. Vale para as linhas já migradas (uma vez por linha) e para a regra da migração.
+- Linha finalizada que ganhar pendência é reaberta (a data de finalização antiga fica guardada na linha).
+- Cartões da linha, do setor e do projeto mostram "N pendências para responder" em destaque.
+
+---
+
 ## 08/10/2026 15:17
 
 **Fotos da seção também aparecem na tela de Finalizar.**

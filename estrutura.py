@@ -5956,7 +5956,7 @@ chk("pagina 2 do laudo: coluna da direita mais a direita e data/validade em DD/M
 
 print("\n=== 205. CARTAO DA LINHA: RESUMO E FOTOS DO LAUDO (07/10/2026) ===")
 chk("o cartao da linha mostra atendem/nao atendem/N-A e as fotos do laudo em conformidade e nao conformidade, mantendo os pendentes",
-    "function chkResumoCardLinha(l){" in novo and "${r.atende} atendem" in novo and "${r.naoAtende} não atendem" in novo and "de conformidade</span>" in novo and "de não conformidade</span>" in novo and "${c.pendente>0 ? `<span class=\"stat-pill alert\">" in novo)
+    "function chkResumoCardLinha(l){" in novo and "${r.atende} atendem" in novo and "${r.naoAtende} não atendem" in novo and "de conformidade</span>" in novo and "de não conformidade</span>" in novo and "${c.pendente>0 ? `<span class=\"stat-pill alert pend\">" in novo and "para responder</span>" in novo)
 
 print("\n=== 206. LAUDO: SEM A PERGUNTA DO CHECKLIST NO CORPO; SECAO SO COM NAO SE APLICA (07/10/2026) ===")
 chk("nao atende sem texto de motivo vira uma frase pelo numero do item e norma, sem repetir a pergunta do checklist",
