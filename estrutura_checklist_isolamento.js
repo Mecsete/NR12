@@ -171,7 +171,7 @@ const FUNCOES = [
   "chkSyncHash", "chkSyncSig", "chkSyncModeloNorm", "chkSyncGarantir", "chkSyncSemCampo", "chkSyncVista", "chkSyncLocais", "chkSyncLocalDe", "chkSyncSementeIntocada",
   "chkSyncParseNomes", "chkSyncRegistrarRemocao", "chkSyncMesclarRemovidos", "chkSyncMesclarInspetores", "chkSyncLerRemoto", "chkSyncSingleton",
   "chkSyncApagarRemoto", "chkSyncEnviar", "chkSyncRotuloCopia", "chkSyncInserir", "chkSyncAplicar", "chkSyncBaixar", "chkSyncCopiarLocal", "chkSyncConflito",
-  "chkResumoCardLinha", "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "chkIncoerencias", "lclNumeroSecao", "getMecseteConfig", "chkAcoesCartao", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "lclPrioridadeNc", "chkMigPlanoEmbutido", "chkMigModelosEmbutidos", "chkMoverLinha", "configAparenciaHtml", "bottomNavChk", "screenChkConfig", "topBarChk", "chkTabsRolagem", "chkLinhasPendentesEnvio", "chkDevePuxarAntesDeAbrir", "chkAltConteudo", "chkAltSig", "chkAltEntrada", "chkAltUnir", "chkAltAdicionar", "chkAltResumo", "chkAltTrocar", "chkAltExcluir", "chkNomeCopia", "chkAltCopiarVisivel", "chkEsconderCopiasLinhas", "chkAltModalHtml", "chkAltDaLinha", "chkAcharLinhaPorId", "chkCopiarLinha", "chkMigAutoPendente", "chkMigAutoAplicar", "chkMigPendenciasAplicar", "chkPendenciasLinhas", "chkMigN", "chkMigTabela", "chkMigPlano", "chkMigAcharModeloNovo", "chkMigrarLinha", "chkMigracaoSimular", "chkMigracaoAplicar", "chkSyncFotoValorId", "chkSyncFotoId", "chkSyncRespondidos", "chkSyncDivergencias", "chkSyncMesclarLinha", "chkConsolidarCopiasLinhas", "chkSyncVisto", "chkSyncMudou", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
+  "chkResumoCardLinha", "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "chkIncoerencias", "lclNumeroSecao", "getMecseteConfig", "chkAcoesCartao", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "lclPrioridadeNc", "chkMigPlanoEmbutido", "chkMigModelosEmbutidos", "chkMoverLinha", "screenChkSetores", "screenChkLinhas", "chkAcoesCartao", "chkVistosAtuais", "ehComputadorDeMesa", "chkModoVisualPref", "chkModoVisual", "chkEhCampo", "chkPendentesTotal", "chkFaixaHtml", "chkAvisoDeProjeto", "chkProntoParaLaudo", "screenChkPronto", "chkBuscarTudo", "chkBuscaResultadosHtml", "screenChkBusca", "chkLinhaEmBranco", "chkLinhaCopiaCompleta", "chkSetorCopia", "chkDuplicarSetor", "chkDuplicarProjeto", "configAparenciaHtml", "bottomNavChk", "screenChkConfig", "topBarChk", "chkTabsRolagem", "chkLinhasPendentesEnvio", "chkDevePuxarAntesDeAbrir", "chkAltConteudo", "chkAltSig", "chkAltEntrada", "chkAltUnir", "chkAltAdicionar", "chkAltResumo", "chkAltTrocar", "chkAltExcluir", "chkNomeCopia", "chkAltCopiarVisivel", "chkEsconderCopiasLinhas", "chkAltModalHtml", "chkAltDaLinha", "chkAcharLinhaPorId", "chkCopiarLinha", "chkMigAutoPendente", "chkMigAutoAplicar", "chkMigPendenciasAplicar", "chkPendenciasLinhas", "chkMigN", "chkMigTabela", "chkMigPlano", "chkMigAcharModeloNovo", "chkMigrarLinha", "chkMigracaoSimular", "chkMigracaoAplicar", "chkSyncFotoValorId", "chkSyncFotoId", "chkSyncRespondidos", "chkSyncDivergencias", "chkSyncMesclarLinha", "chkConsolidarCopiasLinhas", "chkSyncVisto", "chkSyncMudou", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
 ];
 let fonte = "let __ultimoCarimboVisto = 0;\n";
 fonte += "let __buscaAtual = '';\n"; // usado por chkAbrirSetor (lista de linhas) -- nao testado aqui, so pra nao faltar
@@ -235,6 +235,8 @@ fonte += letEscalar("__chkProjFormOrigem");
 fonte += letEscalar("__chkModeloBusca");
 fonte += letObjeto("__chkModeloSecAbertas") + "\n";
 fonte += letObjeto("__chkModeloPainel") + "\n";
+fonte += letObjeto("__chkPendCache") + "\n";
+fonte += letObjeto("__chkBusca") + "\n";
 const metodosApp = trecho(
   "/* ---------- Checklist — só lê/escreve STATE.checklists ---------- */",
   "\n};\nwindow.App = App;"
@@ -3048,6 +3050,87 @@ async function testarUsabilidade(){
     T(topo("checklist-projetos").includes("App.go('checklist-config')") && topo("checklist-projetos").includes("App.trocarModulo()") && topo("checklist-projetos").includes("Linhas de vida") && !topo("checklist-projetos").includes(">Checklist<"), "barra de cima dos projetos: atalho de configuracoes e de modulos, com o nome Linhas de vida");
     T(topo("checklist-config").includes("App.go('checklist-projetos')") && topo("checklist-config-backup").includes("App.go('checklist-config')") && topo("checklist-config-empresa").includes("App.go('checklist-config')"), "voltar: configuracoes -> projetos; backup e empresa -> configuracoes");
     roda("STATE.ui.screen = " + J(tela0) + ";");
+  }
+  // ---- modo campo/escritorio, faixa offline, conferir antes do laudo, busca global e duplicar
+  { const conf = (n, d)=> ({ itemId:"i" + n, conforme:d.c === undefined ? "atende" : d.c, motivosSelecionados: d.m || [], observacao: d.o || "", fotos: d.f || [] });
+    const mkL = (id, nome, status, confs, extra)=> Object.assign({ id, nome, status, dataFinalizacao: status === "finalizado" ? "2026-10-07" : null, tipoLinha:"vertical", modeloId:"MN", modeloNome:"Mod", secoesNA:[], laudo:{}, descricao:"d", conclusaoTexto:"", fotoAmpla:"data:image/jpeg;base64,AMPLA" + id, criadoEm: 10, atualizadoEm: 10,
+      modeloSnapshot:[ { id:"sec1", titulo:"Viga e trilho", itens: confs.map((c, k) => ({ id:"i" + k, descricao:"Pergunta " + k + (k === 0 ? " da viga" : ""), normativo:"", motivosPadrao:[{ motivo:"M1", texto:"texto M1", acao:"acao M1" }] })) } ],
+      itens: confs.map((c, k) => conf(k, c)) }, extra || {});
+    const estP = (linhasA, linhasB)=> "STATE.checklists.projetos = [{ id:'PN', empresa:'Vylor', responsavel:'Resp', art:'', numeroDocumento:'', dataInspecao:'2026-10-01', validadeInspecao:'2027-10-01', data:'2026-10-01', conclusaoGeral:'', setores:[ { id:'SN1', nome:'Armazem 1', descricao:'', criadoEm:1, atualizadoEm:1, linhas:" + J(linhasA) + " }, { id:'SN2', nome:'Secador', descricao:'', criadoEm:2, atualizadoEm:2, linhas:" + J(linhasB) + " } ] }, { id:'PN2', empresa:'Outra empresa', responsavel:'', setores:[ { id:'SN3', nome:'Setor X', linhas:[] } ] } ];";
+    const lOk = mkL("LK1", "Linha completa", "finalizado", [{}, {}]);
+    const lPend = mkL("LK2", "Linha com pendencia", "em_andamento", [{}, { c:null }]);
+    const lNc = mkL("LK3", "Linha com NC", "em_andamento", [{}, { c:"naoAtende", o:"cabo desfiado na viga" }]);
+    roda(estP([lOk, lPend], [lNc]));
+    // ---- modo visual
+    T(roda("chkModoVisual()") === "escritorio" && roda("chkEhCampo()") === false, "sem preferencia gravada e fora de celular: modo escritorio");
+    const navE = roda("STATE.ui.screen = 'checklist-projetos'; bottomNavChk()");
+    T(navE.includes("Modelos"), "modo escritorio: barra de baixo com Modelos");
+    roda("globalThis.localStorage = { getItem: (k)=> 'campo', setItem(){} }");
+    const navC = roda("bottomNavChk()");
+    T(roda("chkModoVisual()") === "campo" && !navC.includes("Modelos") && navC.includes("Projetos") && navC.includes("Configurações") && navC.includes("Módulos"), "modo campo: sem Modelos na barra de baixo");
+    roda("STATE.ui.chkProjetoId = 'PN'; STATE.ui.chkSetorId = 'SN1'");
+    const linhasC = roda("screenChkLinhas()");
+    T(!linhasC.includes("chk-linha-laudo") && !roda("chkAcoesCartao('projeto', 'PN')").includes("chkLaudosProjeto") && !roda("chkAcoesCartao('setor', 'SN1')").includes("chkLaudosSetor") && roda("chkAcoesCartao('setor', 'SN1')").includes("chkDuplicarAbrir('setor','SN1')"), "modo campo: sem botoes de laudo nos cartoes; duplicar setor continua");
+    T(!roda("screenChkSetores()").includes("Conferir antes do laudo"), "modo campo: sem o painel de conferir antes do laudo");
+    roda("globalThis.localStorage = { getItem: (k)=> 'escritorio', setItem(){} }");
+    T(roda("screenChkLinhas()").includes("chk-linha-laudo") && roda("screenChkSetores()").includes("Conferir antes do laudo") && roda("chkAcoesCartao('projeto', 'PN')").includes("chkLaudosProjeto"), "modo escritorio: laudo e conferencia a mostra");
+    roda("globalThis.localStorage = { getItem: (k)=> 'auto', setItem(){} }");
+    T(roda("chkModoVisual()") === "escritorio", "automatico no computador = escritorio");
+    roda("delete globalThis.localStorage");
+    // ---- faixa de situacao
+    roda("globalThis.navigator = { onLine:false, userAgent:'x' }");
+    T(roda("chkFaixaHtml()").includes("Sem internet") && roda("chkFaixaHtml()").includes("chk-faixa off"), "offline: faixa avisa que esta sem internet (mesmo sem conta)");
+    roda("globalThis.navigator = { onLine:true, userAgent:'x' }");
+    T(roda("chkFaixaHtml()") === '<div id="chkFaixa"></div>', "online sem conta do OneDrive: faixa vazia");
+    roda("getOneDriveConta = function(){ return { email:'a@b.c' }; }; __chkPendCache.em = 0;");
+    T(roda("chkFaixaHtml()").includes("chk-faixa pend") && roda("chkFaixaHtml()").includes("aguardando envio"), "online com conta e linhas por enviar: faixa mostra quantas aguardam");
+    roda("globalThis.navigator = { onLine:false, userAgent:'x' }; __chkPendCache.em = 0;");
+    T(/\d+ linhas? aguardando envio; sobe sozinho/.test(roda("chkFaixaHtml()")), "offline com pendencias: diz quantas linhas aguardam e que sobem sozinhas");
+    roda("getOneDriveConta = function(){ return null; }; delete globalThis.navigator;");
+    // ---- conferir antes do laudo
+    const pr = roda("chkProntoParaLaudo(STATE.checklists.projetos[0])");
+    T(pr.prontas === 1 && pr.comAjustes === 2 && pr.projeto.length >= 1 && pr.projeto.some(t => t.includes("ART")), "painel: 1 pronta, 2 com ajustes; dados do projeto em branco aparecem uma vez: " + J([pr.prontas, pr.comAjustes, pr.projeto]));
+    const lp = pr.linhas.find(x => x.id === "LK2"), ln = pr.linhas.find(x => x.id === "LK3");
+    T(lp.avisos.some(t => t.includes("sem resposta")) && ln.avisos.some(t => t.includes("sem motivo")) && pr.linhas.find(x => x.id === "LK1").pronta === true, "painel: pendencia e 'nao atende sem motivo' aparecem na linha certa; a completa fica pronta");
+    T(!pr.linhas.some(x => x.avisos.some(t => t.startsWith("Dados do projeto em branco"))), "o aviso de dados do projeto nao se repete em cada linha");
+    roda("STATE.ui.chkProjetoId = 'PN'");
+    const ph = roda("screenChkPronto()");
+    T(ph.includes("1 prontas") && ph.includes("2 com ajustes") && ph.includes("Corrigir na linha") && ph.includes("Linha com pendencia") && ph.includes("Gerar laudos em um PDF"), "tela do painel: contagens, corrigir na linha e gerar laudos");
+    // ---- busca global
+    const b = (t, f)=> roda("chkBuscarTudo(STATE, " + J(t) + ", " + J(f || "todos") + ")");
+    T(b("").linhas.length === 0 && b("", "todos").itens.length === 0, "busca vazia nao lista nada");
+    T(b("vylor").projetos.length === 1 && b("armazem").setores.length === 1 && b("completa").linhas.length === 1 && b("outra").projetos.length === 1, "busca acha projeto, setor e linha (sem acento e sem diferenciar maiuscula)");
+    const bv = b("viga");
+    T(bv.itens.length >= 3 && bv.itens.every(i => i.ref && i.linhaId && i.setorId && i.projetoId) && bv.itens.some(i => i.nome.includes("da viga")), "busca acha itens pela descricao: " + bv.itens.length);
+    T(b("cabo desfiado").itens.length === 1 && b("cabo desfiado").itens[0].linhaId === "LK3", "busca acha o texto de observacao do item");
+    T(b("viga", "nc").itens.length === 1 && b("viga", "nc").itens[0].status === "naoAtende", "filtro nao conformidade: so itens que nao atendem");
+    T(b("", "pendencia").linhas.length === 1 && b("", "pendencia").linhas[0].id === "LK2", "filtro pendencia sem termo: lista as linhas com itens sem resposta");
+    T(b("", "nc").linhas.length === 1 && b("", "nc").linhas[0].id === "LK3", "filtro nao conformidade sem termo: lista as linhas com nao atende");
+    T(b("", "naoenviadas").linhas.length === 3, "filtro nao enviadas: todas, ja que nada foi enviado nos ensaios");
+    const bh = roda("chkBuscaResultadosHtml(" + J(bv) + ", 'viga', 'todos')");
+    T(bh.includes("Itens (") && bh.includes("App.chkBuscaIr('item'") && roda("chkBuscaResultadosHtml(" + J(b("zzzz")) + ", 'zzzz', 'todos')").includes("Nada encontrado"), "resultados: grupos clicaveis; 'Nada encontrado' quando nao ha");
+    // ---- duplicar setor e projeto
+    const orig = J(roda("STATE.checklists.projetos"));
+    roda("STATE.checklists.projetos[0].setores[0].linhas[0].itens[0].fotos = [{ foto:'data:image/jpeg;base64,DUPF', tags:[], motivo:'' }]; STATE.checklists.projetos[0].setores[0].linhas[0].fotosSecao = { sec1:[{ foto:'data:image/jpeg;base64,DUPS' }] };");
+    const antesDup = J(roda("STATE.checklists.projetos"));
+    const d1 = roda("chkDuplicarSetor(STATE, 'SN1', false)");
+    const ps = roda("STATE.checklists.projetos[0].setores");
+    const nova = ps.find(s => s.id === d1.id), velha = ps.find(s => s.id === "SN1");
+    T(d1.nome === "Armazem 1 (cópia)" && d1.linhas === 2 && ps.length === 3 && nova.linhas.every(l => l.status === "em_andamento" && l.itens.every(i => i.conforme === null && !i.fotos.length && !(i.observacao)) && !l.fotoAmpla && !l.fotosSecao && !l.migracao) && nova.linhas.every(l => !velha.linhas.some(o => o.id === l.id)), "duplicar setor so com a estrutura: linhas em branco, ids novos: " + J(d1));
+    T(J(velha.linhas) === J(JSON.parse(antesDup)[0].setores[0].linhas) && nova.linhas[0].modeloSnapshot.length === 1 && nova.linhas[0].nome === "Linha completa", "o setor original nao muda e a copia mantem nome e modelo das linhas");
+    const d2 = roda("chkDuplicarSetor(STATE, 'SN1', true)");
+    const nova2 = roda("STATE.checklists.projetos[0].setores").find(s => s.id === d2.id);
+    T(d2.nome === "Armazem 1 (cópia 2)" && nova2.linhas[0].itens[0].fotos.length === 1 && nova2.linhas[0].fotosSecao.sec1.length === 1 && nova2.linhas[0].fotoAmpla && nova2.linhas[0].status === "finalizado" && nova2.linhas[0].id !== "LK1", "duplicar setor com respostas: leva fotos, foto da secao, foto ampla e status; nome (copia 2)");
+    const dp = roda("chkDuplicarProjeto(STATE, 'PN', false)");
+    const projs = roda("STATE.checklists.projetos");
+    const pc = projs.find(p => p.id === dp.id);
+    T(dp.nome === "Vylor (cópia)" && dp.setores === 4 && pc.art === "" && pc.setores.length === 4 && pc.setores.every(s => !["SN1", "SN2"].includes(s.id)) && new Set(pc.setores.flatMap(s => s.linhas.map(l => l.id))).size === pc.setores.reduce((n, s) => n + s.linhas.length, 0) && pc.setores.flatMap(s => s.linhas).every(l => l.itens.every(i => i.conforme === null)), "duplicar projeto so com a estrutura: setores e linhas novos, em branco, sem repetir ids: " + J(dp));
+    roda("STATE.checklists.projetos[0].art = 'ART-1'; STATE.checklists.projetos[0].numeroDocumento = 'DOC-9';");
+    const dp2 = roda("chkDuplicarProjeto(STATE, 'PN', true)");
+    const pc2 = roda("STATE.checklists.projetos").find(p => p.id === dp2.id);
+    T(dp2.nome === "Vylor (cópia 2)" && pc2.art === "ART-1" && pc2.numeroDocumento === "DOC-9", "duplicar projeto com respostas leva ART e numero do documento");
+    T(roda("chkDuplicarSetor(STATE, 'NAO', true)") === null && roda("chkDuplicarProjeto(STATE, 'NAO', true)") === null, "id inexistente: nada acontece");
+    roda("STATE.checklists.projetos = " + J(estadoAntes.lista) + ";");
   }
 }
 async function testarSincronizacaoChecklist(){

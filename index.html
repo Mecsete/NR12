@@ -774,6 +774,14 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-alt-pill{border:0;cursor:pointer;font:inherit;color:var(--ink);background:#E4E7F2}
 .chk-nao-enviada{background:#FFF1CC;color:#8A5A00}
 .chk-nao-enviada svg{width:13px;height:13px;vertical-align:-2px}
+.chk-faixa{display:flex;align-items:center;gap:8px;padding:8px 14px;font-size:12.5px;font-weight:600}
+.chk-faixa svg{width:16px;height:16px;flex:none}
+.chk-faixa.off{background:#FFE9E3;color:#8A2B0E}
+.chk-faixa.pend{background:#FFF1CC;color:#8A5A00}
+.chk-modo-seg{display:flex;gap:8px}
+.chk-modo-btn{flex:1;height:44px;border-radius:10px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink-dim);display:flex;align-items:center;justify-content:center;cursor:pointer}
+.chk-modo-btn svg{width:22px;height:22px}
+.chk-modo-btn.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
 .chk-secao-fotos{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 12px}
 .chk-secao-fotos-t{font-weight:800;font-size:13px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
 .chk-secao-fotos-t svg{width:16px;height:16px}
@@ -1217,6 +1225,11 @@ var st,ct,ut,lt,dt,ht,pt,gt,ft,mt=function(){function t(e,t,r){this.networkInter
    ÍCONES
    ========================================================================= */
 const ICON = {
+  search:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>',
+  phone:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M11 18.5h2"/></svg>',
+  monitor:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>',
+  cloudoff:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4 4 0 0 1-.6-7.95A6 6 0 0 1 17.6 8.5 4.5 4.5 0 0 1 17.5 18H7z"/><path d="M3 3l18 18"/></svg>',
+  auto:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14-4M4 13a8 8 0 0 0 14 4M20 4v5h-5M4 20v-5h5"/></svg>',
   back:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
   share:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M5 14v5a2 2 0 002 2h10a2 2 0 002-2v-5"/></svg>',
   plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
@@ -3441,7 +3454,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "08/10/2026 17:01";
+const APP_BUILD = "08/10/2026 20:08";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -14108,6 +14121,8 @@ function renderChecklistModulo(){
     else if(s==="checklist-laudo") body = screenChkLaudo();
     else if(s==="checklist-laudo-linha") body = screenChkLaudoLinha();
     else if(s==="checklist-config") body = screenChkConfig();
+    else if(s==="checklist-busca") body = screenChkBusca();
+    else if(s==="checklist-pronto") body = screenChkPronto();
     else if(s==="checklist-config-backup") body = screenSimplesConfigBackup();
     else if(s==="checklist-config-empresa") body = screenSimplesConfigEmpresa();
     else body = screenChkModelos();
@@ -14121,6 +14136,7 @@ function renderChecklistModulo(){
     <div class="hazard-stripe"></div>
     ${topBarChk()}
     ${crumbBarChk()}
+    ${(s==='checklist-laudo' || s==='checklist-laudo-linha') ? '' : chkFaixaHtml()}
     <div class="screen ${s==='checklist-laudo'?'screen-laudo chk-laudo-print':s==='checklist-modelo-form'?'screen-chk-modelo':s==='checklist-projeto-form'?'screen-chk-projeto':s==='checklist-laudo-linha'?'screen-lcl':''}">${body}</div>
     ${(s==='checklist-laudo' || s==='checklist-laudo-linha') ? '' : bottomNavChk()}
   `;
@@ -14145,6 +14161,8 @@ function topBarChk(){
     "checklist-modelo-form": ["Modelo", "Seções e itens"],
     "checklist-projetos": ["Linhas de vida", "Projetos"],
     "checklist-config": ["Configurações", "Linhas de vida"],
+    "checklist-busca": ["Buscar", "Projetos, linhas e itens"],
+    "checklist-pronto": ["Conferir antes do laudo", "Projeto"],
     "checklist-config-backup": ["Backup", "Configurações"],
     "checklist-config-empresa": ["Empresa e Responsáveis", "Configurações"],
     "checklist-projeto-form": ["Projeto", "Dados do serviço"],
@@ -14158,7 +14176,7 @@ function topBarChk(){
     "checklist-laudo-linha": ["Laudo da linha", "Relatório em capítulos"],
   };
   let [title, sub] = TITULOS_CHK[s] || ["Linhas de vida",""];
-  if(["checklist-setores","checklist-setor-form","checklist-laudo"].includes(s)){ const p=getCurrentChkProjeto(); if(p) title = p.empresa || title; }
+  if(["checklist-setores","checklist-setor-form","checklist-laudo","checklist-pronto"].includes(s)){ const p=getCurrentChkProjeto(); if(p && s !== "checklist-pronto") title = p.empresa || title; else if(p) sub = p.empresa || sub; }
   if(["checklist-linhas","checklist-nova-linha"].includes(s)){ const st=getCurrentChkSetor(); if(st) title = st.nome || title; }
   const linhaAtual = ["checklist-preencher","checklist-finalizar","checklist-laudo-linha"].includes(s) ? getCurrentChkLinha() : null;
   if(linhaAtual) title = linhaAtual.nome || linhaAtual.modeloNome || title;
@@ -14174,15 +14192,18 @@ function topBarChk(){
   if(s==="checklist-finalizar") backTarget = "checklist-preencher";
   if(s==="checklist-laudo-linha") backTarget = __lclOrigem || "checklist-finalizar";
   if(s==="checklist-laudo") backTarget = "checklist-setores";
-  if(s==="checklist-config") backTarget = "checklist-projetos";
+  if(s==="checklist-config" || s==="checklist-busca") backTarget = "checklist-projetos";
+  if(s==="checklist-pronto") backTarget = "checklist-setores";
   if(s==="checklist-config-backup" || s==="checklist-config-empresa") backTarget = "checklist-config";
   let action = "";
+  const btnBusca = `<button class="icon-btn" style="color:var(--on-bar)" onclick="App.go('checklist-busca')" title="Buscar" aria-label="Buscar">${ic('search')}</button>`;
   if(s==="checklist-modelos") action = `<button class="icon-btn" style="color:var(--on-bar)" onclick="App.go('checklist-config')" title="Configurações">${ic('cog')}</button><button class="icon-btn" style="color:var(--on-bar)" onclick="App.trocarModulo()" title="Trocar módulo">${ic('layers')}</button><button class="topbar-action" onclick="App.chkNovoModelo()">${ic('plus')} Novo</button>`;
   if(s==="checklist-projetos") action = `<button class="icon-btn" style="color:var(--on-bar)" onclick="App.go('checklist-config')" title="Configurações">${ic('cog')}</button><button class="icon-btn" style="color:var(--on-bar)" onclick="App.trocarModulo()" title="Trocar módulo">${ic('layers')}</button><button class="topbar-action" onclick="App.chkNovoProjeto()">${ic('plus')} Novo</button>`;
-  if(s==="checklist-setores") action = `<button class="topbar-action" onclick="App.chkAbrirDadosProjeto()">${ic('edit')} Dados</button><button class="topbar-action" onclick="App.lclLote('projeto')" title="Laudos das linhas deste projeto em um PDF só (você escolhe quais entram)">${ic('print')} Laudos</button><button class="topbar-action" onclick="App.chkNovoSetor()">${ic('plus')} Setor</button>`;
+  if(s==="checklist-setores") action = `<button class="topbar-action" onclick="App.chkAbrirDadosProjeto()">${ic('edit')} Dados</button>${chkEhCampo() ? "" : `<button class="topbar-action" onclick="App.lclLote('projeto')" title="Laudos das linhas deste projeto em um PDF só (você escolhe quais entram)">${ic('print')} Laudos</button>`}<button class="topbar-action" onclick="App.chkNovoSetor()">${ic('plus')} Setor</button>`;
   if(s==="checklist-linhas") action = `<button class="topbar-action" onclick="App.go('checklist-nova-linha')">${ic('plus')} Linha</button>`;
   if(s==="checklist-laudo") action = `<button class="topbar-action" onclick="window.print()">${ic('print')} Imprimir</button>`;
   if(s==="checklist-laudo-linha") action = `<button class="topbar-action" onclick="App.lclImprimir()">${ic('print')} Imprimir</button>`;
+  if(["checklist-projetos", "checklist-setores", "checklist-linhas"].includes(s)) action = btnBusca + action;
   return `
   <div class="topbar">
     <div class="topbar-row">
@@ -14197,7 +14218,7 @@ function topBarChk(){
 }
 function crumbBarChk(){
   const s = STATE.ui.screen;
-  if(!["checklist-setores","checklist-setor-form","checklist-linhas","checklist-nova-linha","checklist-preencher","checklist-finalizar","checklist-laudo","checklist-laudo-linha"].includes(s)) return "";
+  if(!["checklist-setores","checklist-setor-form","checklist-linhas","checklist-nova-linha","checklist-preencher","checklist-finalizar","checklist-laudo","checklist-laudo-linha","checklist-pronto"].includes(s)) return "";
   const proj = getCurrentChkProjeto(); if(!proj) return "";
   const setor = s!=="checklist-laudo" ? getCurrentChkSetor() : null;
   const linha = ["checklist-preencher","checklist-finalizar","checklist-laudo-linha"].includes(s) ? getCurrentChkLinha() : null;
@@ -14222,7 +14243,7 @@ function bottomNavChk(){
     {k:"checklist-modelos", label:"Modelos", icon:"folder"},
     {k:"checklist-config", label:"Configurações", icon:"cog"},
     {k:"modulos", label:"Módulos", icon:"layers", acao:"App.trocarModulo()"},
-  ];
+  ].filter(it=> !(chkEhCampo() && it.k === "checklist-modelos"));
   return `<div class="bottomnav">${items.map(it=>{
     const active = s===it.k || (it.k==="checklist-modelos" && s==="checklist-modelo-form")
                  || (it.k==="checklist-config" && s.indexOf("checklist-config") === 0)
@@ -14244,6 +14265,11 @@ function screenChkConfig(){
   ${linha('onedrive', 'Backup', sub, "App.go('checklist-config-backup')")}
   ${linha('briefcase', 'Empresa e Responsáveis', 'Dados fixos do laudo e lista de inspetores', "App.go('checklist-config-empresa')")}
   ${linha('layers', 'Trocar de módulo', 'Voltar à escolha de módulos', "App.trocarModulo()")}
+  <div class="section-title">Visual do módulo</div>
+  <div class="card card-pad">
+    <div class="chk-modo-seg">${[["auto", "auto", "Automático: celular usa o modo campo, computador usa o modo escritório"], ["campo", "phone", "Sempre modo campo: só o que se usa na obra"], ["escritorio", "monitor", "Sempre modo escritório: tudo à mostra, com modelos e laudos"]].map(m=> `<button class="chk-modo-btn ${chkModoVisualPref() === m[0] ? 'on' : ''}" title="${m[2]}" aria-label="${m[2]}" onclick="App.chkSetModoVisual('${m[0]}')">${ic(m[1])}</button>`).join("")}</div>
+    <p style="font-size:12.5px;color:var(--ink-dim);margin:8px 0 0">Agora: modo ${chkEhCampo() ? "campo" : "escritório"}${chkModoVisualPref() === "auto" ? " (automático)" : ""}. Vale só para este aparelho.</p>
+  </div>
   ${configAparenciaHtml()}
   <p style="text-align:center;font-size:11px;color:var(--ink-faint);margin-top:22px">Versão ${APP_BUILD}</p>`;
 }
@@ -14253,8 +14279,8 @@ function chkAcoesCartao(tipo, id){
   const btn = (ico, rot, fn)=> `<button class="icon-btn" aria-label="${rot}" title="${rot}" onclick="event.stopPropagation();${fn}">${ic(ico)}</button>`;
   const extra = {
     modelo:  btn('edit', 'Editar modelo', `App.chkAbrirModelo('${id}')`),
-    projeto: btn('edit', 'Editar dados do projeto', `App.chkEditarProjeto('${id}')`) + btn('print', 'Laudos do projeto em um PDF', `App.chkLaudosProjeto('${id}')`),
-    setor:   btn('edit', 'Editar setor', `App.chkEditarSetor('${id}')`) + btn('print', 'Laudos do setor em um PDF', `App.chkLaudosSetor('${id}')`),
+    projeto: btn('edit', 'Editar dados do projeto', `App.chkEditarProjeto('${id}')`) + (chkEhCampo() ? "" : btn('print', 'Laudos do projeto em um PDF', `App.chkLaudosProjeto('${id}')`)),
+    setor:   btn('edit', 'Editar setor', `App.chkEditarSetor('${id}')`) + btn('copy', 'Duplicar setor', `App.chkDuplicarAbrir('setor','${id}')`) + (chkEhCampo() ? "" : btn('print', 'Laudos do setor em um PDF', `App.chkLaudosSetor('${id}')`)),
     linha:   btn('edit', 'Abrir o checklist da linha', `App.chkAbrirLinha('${id}')`),
   }[tipo] || "";
   // cartão de setor: só os ícones (a exclusão fica dentro da edição do setor)
@@ -14770,8 +14796,9 @@ function screenChkSetores(){
   }).join("");
   const controlesSet = chkBuscaChipsHtml("Buscar setor…", __chkSetFiltro, chkContagensFiltro(proj.setores.map(resSet)), "App.chkSetSetFiltro", proj.setores.length >= 4);
   const nLoteProj = proj.setores.reduce((n, s)=> n + s.linhas.filter(l=> chkProgresso(l) > 0).length, 0);
-  const botaoLoteProj = nLoteProj >= 2 ? `<button class="btn btn-secondary btn-block" style="margin-bottom:10px" onclick="App.lclLote('projeto')">${ic('print')} Laudos do projeto em um PDF (${nLoteProj} linhas)</button>` : "";
-  return `${botaoLoteProj}${controlesSet}<div class="section-title">${setoresFiltrados.length} de ${proj.setores.length} setor${proj.setores.length===1?'':'es'}</div>${cards || `<div class="empty"><p>Nenhum setor encontrado.</p></div>`}
+  const botaoLoteProj = nLoteProj >= 2 && !chkEhCampo() ? `<button class="btn btn-secondary btn-block" style="margin-bottom:10px" onclick="App.lclLote('projeto')">${ic('print')} Laudos do projeto em um PDF (${nLoteProj} linhas)</button>` : "";
+  const botaoPronto = !chkEhCampo() && proj.setores.some(s=> s.linhas.length) ? `<button class="btn btn-secondary btn-block" style="margin-bottom:10px" onclick="App.go('checklist-pronto')">${ic('shield')} Conferir antes do laudo</button>` : "";
+  return `${botaoPronto}${botaoLoteProj}${controlesSet}<div class="section-title">${setoresFiltrados.length} de ${proj.setores.length} setor${proj.setores.length===1?'':'es'}</div>${cards || `<div class="empty"><p>Nenhum setor encontrado.</p></div>`}
     <div class="fab-wrap"><button class="fab" onclick="App.chkNovoSetor()">${ic('plus')}</button></div>`;
 }
 function screenChkSetorForm(){
@@ -14872,6 +14899,175 @@ function chkAltModalHtml(linha){
     <div class="modal-actions"><button class="btn btn-secondary" onclick="App.fecharModal()">Fechar</button></div>
   </div></div>`;
 }
+/* ---- Visual do módulo: campo (celular) x escritório (computador) ----
+   Só esconde o que não se usa na obra (Modelos, laudos, painel de conferência); nenhuma função muda de lugar.
+   Automático = celular vira campo, computador vira escritório; a chave manual fica em Configurações (guardada só neste aparelho). */
+function chkModoVisualPref(){ try{ const v = localStorage.getItem("chkModoVisual"); return v === "campo" || v === "escritorio" ? v : "auto"; }catch(e){ return "auto"; } }
+function chkModoVisual(){ const p = chkModoVisualPref(); if(p !== "auto") return p; return ehComputadorDeMesa() ? "escritorio" : "campo"; }
+function chkEhCampo(){ return chkModoVisual() === "campo"; }
+
+/* ---- Faixa fixa de situação (sem internet / aguardando envio) ---- */
+let __chkPendCache = { em:0, n:0 };
+function chkPendentesTotal(){
+  if(Date.now() - __chkPendCache.em < 8000) return __chkPendCache.n;
+  const linhas = ((STATE.checklists && STATE.checklists.projetos) || []).flatMap(p=> (p.setores || []).flatMap(s=> s.linhas || []));
+  __chkPendCache = { em: Date.now(), n: chkLinhasPendentesEnvio(linhas, chkVistosAtuais()).size };
+  return __chkPendCache.n;
+}
+function chkFaixaHtml(){
+  let conta = null; try{ conta = getOneDriveConta(); }catch(e){}
+  const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+  if(!conta && !offline) return `<div id="chkFaixa"></div>`;
+  const n = conta ? chkPendentesTotal() : 0;
+  const lin = (k)=> k + " " + (k === 1 ? "linha" : "linhas");
+  if(offline) return `<div id="chkFaixa" class="chk-faixa off">${ic('cloudoff')}<span>Sem internet. ${n ? lin(n) + " aguardando envio; sobe sozinho quando a rede voltar." : "Nada aguardando envio."} Pode continuar preenchendo.</span></div>`;
+  if(n) return `<div id="chkFaixa" class="chk-faixa pend">${ic('upload')}<span>Enviando: ${lin(n)} aguardando envio à nuvem. Mantenha o app aberto.</span></div>`;
+  return `<div id="chkFaixa"></div>`;
+}
+function chkFaixaAtualizar(){
+  const el = document.getElementById("chkFaixa");
+  if(el){ __chkPendCache.em = 0; el.outerHTML = chkFaixaHtml(); }
+}
+window.addEventListener("online", chkFaixaAtualizar);
+window.addEventListener("offline", chkFaixaAtualizar);
+setInterval(()=>{ if(document.visibilityState === "visible") chkFaixaAtualizar(); }, 15000);
+
+/* ---- Painel "Conferir antes do laudo" (por projeto) ---- */
+function chkAvisoDeProjeto(a){ return /lclAbrirDadosProjeto/.test(a.acao || "") || /^Dados da empresa/.test(a.txt || ""); }
+function chkProntoParaLaudo(proj){
+  const todas = (proj.setores || []).flatMap(s=> (s.linhas || []).map(l=> ({ s, l })));
+  const iniciadas = todas.filter(x=> chkProgresso(x.l) > 0 || x.l.status === "finalizado");
+  const out = { projeto: [], linhas: [], prontas: 0, comAjustes: 0, naoIniciadas: todas.length - iniciadas.length };
+  if(iniciadas.length) out.projeto = lclAvisos(iniciadas[0].l, proj).filter(chkAvisoDeProjeto).map(a=> a.txt);
+  iniciadas.forEach(({ s, l })=>{
+    const av = lclAvisos(l, proj).filter(a=> !chkAvisoDeProjeto(a)).map(a=> a.txt);
+    const inc = chkIncoerencias(l).filter(i=> i.tipo !== "sem-resposta" && i.tipo !== "memorial").map(i=> (i.ref ? "Item " + i.ref + ": " : "") + i.txt);
+    const avisos = av.concat(inc);
+    const pronta = avisos.length === 0;
+    out.linhas.push({ setorId: s.id, setor: s.nome || "", id: l.id, nome: l.nome || "", status: l.status, pendentes: chkContarStatus(l).pendente, avisos, pronta });
+    if(pronta) out.prontas++; else out.comAjustes++;
+  });
+  return out;
+}
+function screenChkPronto(){
+  const proj = getCurrentChkProjeto();
+  if(!proj){ go("checklist-projetos"); return ""; }
+  const r = chkProntoParaLaudo(proj);
+  const nomeSt = (l)=> l.status === "finalizado" ? "Finalizada" : "Em andamento";
+  const projHtml = r.projeto.length ? `<div class="card card-pad" style="border-left:4px solid #C23F12;border-radius:0 12px 12px 0"><div style="font-weight:800;font-size:14px;margin-bottom:6px">Dados do projeto e da empresa</div>${r.projeto.map(t=> `<div style="font-size:13px;margin-bottom:4px">${escapeHtml(t)}</div>`).join("")}<button class="btn btn-secondary" style="margin-top:8px" onclick="App.chkAbrirDadosProjeto()">${ic('edit')} Abrir dados do projeto</button></div>` : "";
+  const ajustes = r.linhas.filter(x=> !x.pronta).map(x=> `<div class="card card-pad" style="margin-top:10px">
+      <div style="font-weight:800;font-size:14px">${escapeHtml(x.nome || "Linha")} <span class="stat-pill">${escapeHtml(x.setor)}</span> <span class="stat-pill">${nomeSt(x)}</span></div>
+      ${x.avisos.map(t=> `<div style="font-size:12.5px;margin-top:4px">${escapeHtml(t)}</div>`).join("")}
+      <div class="modal-actions" style="margin-top:8px;justify-content:flex-start;gap:8px"><button class="btn btn-primary" onclick="App.chkIrParaLinha('${x.setorId}','${x.id}')">Corrigir na linha</button>${chkEhCampo() ? "" : `<button class="btn btn-secondary" onclick="App.chkLaudoDaLinha('${x.setorId}','${x.id}')">${ic('print')} Ver laudo</button>`}</div></div>`).join("");
+  const prontas = r.linhas.filter(x=> x.pronta).map(x=> `<div class="card card-pad" style="margin-top:8px;display:flex;align-items:center;gap:10px"><span style="flex:1"><b>${escapeHtml(x.nome || "Linha")}</b> <span class="stat-pill">${escapeHtml(x.setor)}</span></span><button class="btn btn-secondary" onclick="App.chkLaudoDaLinha('${x.setorId}','${x.id}')">${ic('print')} Laudo</button></div>`).join("");
+  return `
+  <div class="card card-pad"><div class="list-meta"><span class="stat-pill" style="color:${CHK_STATUS_META.atende.cor}">${r.prontas} prontas</span><span class="stat-pill ${r.comAjustes ? 'alert pend' : ''}">${r.comAjustes} com ajustes</span><span class="stat-pill">${r.naoIniciadas} não iniciadas</span></div>
+    <p style="font-size:12.5px;color:var(--ink-dim);margin:8px 0 0">Confere o que o laudo vai mostrar: itens sem resposta, não atende sem motivo, memorial incompleto, foto ampla e dados em branco. Linhas não iniciadas ficam de fora.</p>
+    ${r.prontas ? `<button class="btn btn-primary btn-block" style="margin-top:10px" onclick="App.lclLote('projeto')">${ic('print')} Gerar laudos em um PDF</button>` : ""}</div>
+  ${projHtml}
+  ${ajustes ? `<div class="section-title">Linhas com ajustes (${r.comAjustes})</div>${ajustes}` : ""}
+  ${prontas ? `<div class="section-title">Prontas para o laudo (${r.prontas})</div>${prontas}` : ""}
+  ${!r.linhas.length ? `<div class="empty"><p>Nenhuma linha começada neste projeto ainda.</p></div>` : ""}`;
+}
+
+/* ---- Busca global: projetos, setores, linhas e itens ---- */
+let __chkBusca = { q:"", f:"todos" };
+function chkBuscarTudo(estado, termo, filtro){
+  const q = chkBuscaNorm(termo).trim();
+  filtro = filtro || "todos";
+  const res = { projetos:[], setores:[], linhas:[], itens:[] };
+  if(!q && filtro === "todos") return res;
+  const vistos = (estado.checklists.sync && estado.checklists.sync.vistos) || {};
+  (estado.checklists.projetos || []).forEach(p=>{
+    if(q && filtro === "todos" && chkBuscaNorm([p.empresa, p.responsavel].join(" ")).includes(q)) res.projetos.push({ id:p.id, nome:p.empresa || "Projeto", sub:p.responsavel || "" });
+    (p.setores || []).forEach(s=>{
+      if(q && filtro === "todos" && chkBuscaNorm([s.nome, s.descricao].join(" ")).includes(q)) res.setores.push({ id:s.id, projetoId:p.id, nome:s.nome || "Setor", sub:p.empresa || "" });
+      const naoEnv = chkLinhasPendentesEnvio(s.linhas || [], vistos);
+      (s.linhas || []).forEach(l=>{
+        const c = chkContarStatus(l);
+        const passa = filtro === "todos" || (filtro === "pendencia" && c.pendente > 0) || (filtro === "nc" && c.naoAtende > 0) || (filtro === "naoenviadas" && naoEnv.has(l.id));
+        if(!passa) return;
+        if(!q || chkBuscaNorm([l.nome, l.modeloNome, l.descricao].join(" ")).includes(q)) res.linhas.push({ id:l.id, setorId:s.id, projetoId:p.id, nome:l.nome || "Linha", sub:(p.empresa || "") + " / " + (s.nome || ""), pend:c.pendente, nc:c.naoAtende });
+        if(!q) return;
+        (l.modeloSnapshot || []).forEach((sec, si)=> (sec.itens || []).forEach((it, ii)=>{
+          const ex = chkItemExec(l, it.id) || {};
+          if(filtro === "pendencia" && ex.conforme !== null && ex.conforme !== undefined) return;
+          if(filtro === "nc" && ex.conforme !== "naoAtende") return;
+          const txt = [it.descricao, it.normativo, ex.observacao, (ex.motivosSelecionados || []).join(" ")].join(" ");
+          if(chkBuscaNorm(txt).includes(q)) res.itens.push({ linhaId:l.id, setorId:s.id, projetoId:p.id, si, itemId:it.id, ref:(si + 1) + "." + (ii + 1), nome:it.descricao || "", sub:(l.nome || "") + " · " + (s.nome || ""), status: ex.conforme === undefined ? null : ex.conforme });
+        }));
+      });
+    });
+  });
+  ["projetos", "setores", "linhas", "itens"].forEach(k=>{ res[k + "Total"] = res[k].length; res[k] = res[k].slice(0, 40); });
+  return res;
+}
+function chkBuscaResultadosHtml(res, termo, filtro){
+  const q = String(termo || "").trim();
+  if(!q && filtro === "todos") return `<div class="empty"><p>Digite para buscar em projetos, setores, linhas de vida e itens do checklist (descrição, observação e motivo), ou use um filtro.</p></div>`;
+  const total = res.projetos.length + res.setores.length + res.linhas.length + res.itens.length;
+  if(!total) return `<div class="empty"><p>Nada encontrado.</p></div>`;
+  const grupo = (tit, arr, linha)=> arr.length ? `<div class="section-title">${tit} (${arr.length})</div>${arr.map(linha).join("")}` : "";
+  const cartao = (clk, nome, sub, pills)=> `<div class="card card-pad" style="margin-top:8px;cursor:pointer" onclick="${clk}"><div style="font-weight:800;font-size:14px">${nome}</div><div style="font-size:12px;color:var(--ink-dim)">${sub}</div>${pills ? `<div class="list-meta">${pills}</div>` : ""}</div>`;
+  const rot = { atende:"Atende", naoAtende:"Não atende", na:"N/A" };
+  return grupo("Projetos", res.projetos, r=> cartao(`App.chkBuscaIr('projeto','${r.id}')`, escapeHtml(r.nome), escapeHtml(r.sub), ""))
+    + grupo("Setores", res.setores, r=> cartao(`App.chkBuscaIr('setor','${r.projetoId}','${r.id}')`, escapeHtml(r.nome), escapeHtml(r.sub), ""))
+    + grupo("Linhas de vida", res.linhas, r=> cartao(`App.chkBuscaIr('linha','${r.projetoId}','${r.setorId}','${r.id}')`, escapeHtml(r.nome), escapeHtml(r.sub), (r.pend ? `<span class="stat-pill alert">${r.pend} sem resposta</span>` : "") + (r.nc ? `<span class="stat-pill" style="color:${CHK_STATUS_META.naoAtende.cor}">${r.nc} não atendem</span>` : "")))
+    + grupo("Itens", res.itens, r=> cartao(`App.chkBuscaIr('item','${r.projetoId}','${r.setorId}','${r.linhaId}','${r.itemId}',${r.si})`, escapeHtml("Item " + r.ref + " - " + r.nome), escapeHtml(r.sub), `<span class="stat-pill">${rot[r.status] || "Sem resposta"}</span>`));
+}
+function screenChkBusca(){
+  const chip = (k, rotulo)=> `<button class="chk-filtro-chip ${__chkBusca.f === k ? 'on' : ''}" onclick="App.chkBuscaFiltro('${k}')">${rotulo}</button>`;
+  const res = chkBuscarTudo(STATE, __chkBusca.q, __chkBusca.f);
+  return `<div class="search-wrap"><input type="text" id="chkBuscaInput" class="search-input" placeholder="Buscar projeto, setor, linha ou item…" value="${escapeHtml(__chkBusca.q)}" oninput="App.chkBuscaDigitar(this.value)" autocomplete="off"></div>
+    <div class="chk-filtros-row">${chip("todos", "Tudo")}${chip("pendencia", "Com pendência")}${chip("nc", "Com não conformidade")}${chip("naoenviadas", "Não enviadas")}</div>
+    <div id="chkBuscaRes">${chkBuscaResultadosHtml(res, __chkBusca.q, __chkBusca.f)}</div>`;
+}
+
+/* ---- Duplicar projeto e setor ---- */
+function chkLinhaEmBranco(l){
+  const c = clonarCompartilhandoFotos(l);
+  c.id = uid(); c.criadoEm = Date.now(); c.atualizadoEm = agoraSync();
+  c.status = "em_andamento"; c.dataInicio = hoje(); c.dataFinalizacao = null;
+  c.secoesNA = []; c.fotoAmpla = ""; c.conclusaoTexto = ""; c.laudo = {}; c.memorial = {};
+  c.itens = (c.modeloSnapshot || []).flatMap(s=> (s.itens || []).map(it=> ({ itemId: it.id, conforme: null, motivosSelecionados: [], observacao: "", fotos: [] })));
+  ["fotosSecao", "versaoAnterior", "versoesAlternativas", "migracao", "setorId", "projetoId"].forEach(k=>{ delete c[k]; });
+  return c;
+}
+function chkLinhaCopiaCompleta(l){
+  const c = clonarCompartilhandoFotos(l);
+  c.id = uid(); c.criadoEm = Date.now(); c.atualizadoEm = agoraSync();
+  ["setorId", "projetoId"].forEach(k=>{ delete c[k]; });
+  return c;
+}
+function chkSetorCopia(setor, comRespostas, nome){
+  const c = clonarCompartilhandoFotos(chkSyncSemCampo(setor, "linhas"));
+  c.id = uid(); c.nome = nome; c.criadoEm = Date.now(); c.atualizadoEm = agoraSync();
+  c.linhas = (setor.linhas || []).map(l=> comRespostas ? chkLinhaCopiaCompleta(l) : chkLinhaEmBranco(l));
+  return c;
+}
+function chkDuplicarSetor(estado, setorId, comRespostas){
+  let proj = null, setor = null;
+  (estado.checklists.projetos || []).forEach(p=> (p.setores || []).forEach(s=>{ if(s.id === setorId){ proj = p; setor = s; } }));
+  if(!setor) return null;
+  const copia = chkSetorCopia(setor, comRespostas, chkNomeCopia(proj.setores, setor.nome));
+  proj.setores.push(copia);
+  proj.atualizadoEm = agoraSync();
+  return { id: copia.id, nome: copia.nome, linhas: copia.linhas.length };
+}
+function chkDuplicarProjeto(estado, projetoId, comRespostas){
+  const proj = (estado.checklists.projetos || []).find(p=> p.id === projetoId);
+  if(!proj) return null;
+  const c = clonarCompartilhandoFotos(chkSyncSemCampo(proj, "setores"));
+  c.id = uid(); c.criadoEm = Date.now(); c.atualizadoEm = agoraSync();
+  c.empresa = chkNomeCopia((estado.checklists.projetos || []).map(p=> ({ nome: p.empresa })), proj.empresa);
+  if(!comRespostas){
+    c.numeroDocumento = ""; c.art = ""; c.conclusaoGeral = "";
+    c.data = hoje(); c.dataInspecao = hoje(); c.validadeInspecao = chkMaisMesesISO(hoje(), 12);
+  }
+  c.setores = (proj.setores || []).map(s=> chkSetorCopia(s, comRespostas, s.nome));
+  estado.checklists.projetos.push(c);
+  return { id: c.id, nome: c.empresa, setores: c.setores.length, linhas: c.setores.reduce((n, s)=> n + s.linhas.length, 0) };
+}
 /* Itens ainda sem resposta nas linhas que já foram começadas (ou finalizadas): o que a pessoa precisa voltar para responder. */
 function chkPendenciasLinhas(linhas){
   return (linhas || []).reduce((n, l)=> n + (l.status === "finalizado" || chkProgresso(l) > 0 ? chkContarStatus(l).pendente : 0), 0);
@@ -14940,13 +15136,13 @@ function screenChkLinhas(){
           <span class="stat-pill" title="Fotos do laudo em itens que atendem">${ic('camera')} ${r.fotosOk} ${r.fotosOk === 1 ? "foto" : "fotos"} de conformidade</span>
           <span class="stat-pill" title="Fotos do laudo em itens que não atendem">${ic('camera')} ${r.fotosNc} ${r.fotosNc === 1 ? "foto" : "fotos"} de não conformidade</span>
         </div>
-        <button class="chk-linha-laudo" onclick="event.stopPropagation();App.chkAbrirLaudoLinha('${l.id}')" title="Abrir o laudo desta linha de vida (não precisa finalizar)">${ic('print')} Laudo</button>
+        ${chkEhCampo() ? "" : `<button class="chk-linha-laudo" onclick="event.stopPropagation();App.chkAbrirLaudoLinha('${l.id}')" title="Abrir o laudo desta linha de vida (não precisa finalizar)">${ic('print')} Laudo</button>`}
       </div>
       <div class="list-actions">${chkAcoesCartao('linha', l.id)}</div>
     </div>`;
   }).join("") : `<div class="empty"><p>Nenhuma linha de vida encontrada.</p></div>`;
   const nLoteSetor = setor.linhas.filter(l=> chkProgresso(l) > 0).length;
-  const botaoLote = nLoteSetor >= 2 ? `<button class="btn btn-secondary btn-block" style="margin-bottom:10px" onclick="App.lclLote('setor')">${ic('print')} Laudos do setor em um PDF (${nLoteSetor} linhas)</button>` : "";
+  const botaoLote = nLoteSetor >= 2 && !chkEhCampo() ? `<button class="btn btn-secondary btn-block" style="margin-bottom:10px" onclick="App.lclLote('setor')">${ic('print')} Laudos do setor em um PDF (${nLoteSetor} linhas)</button>` : "";
   return `
   ${botaoLote}
   <div class="search-wrap">
@@ -31318,9 +31514,9 @@ Devolver agora?`)) return;
   chkMenuCartao(tipo, id){
     const acoes = {
       modelo:  [["edit", "Editar modelo", `App.chkAbrirModelo('${id}')`], ["trash", "Excluir modelo", `App.chkExcluirModelo('${id}')`, true]],
-      projeto: [["edit", "Editar dados do projeto", `App.chkEditarProjeto('${id}')`], ["trash", "Excluir projeto", `App.chkExcluirProjeto('${id}')`, true]],
+      projeto: [["edit", "Editar dados do projeto", `App.chkEditarProjeto('${id}')`], ["copy", "Duplicar projeto", `App.chkDuplicarAbrir('projeto','${id}')`], ["trash", "Excluir projeto", `App.chkExcluirProjeto('${id}')`, true]],
       setor:   [["edit", "Editar setor", `App.chkEditarSetor('${id}')`], ["trash", "Excluir setor", `App.chkExcluirSetor('${id}')`, true]],
-      linha:   [["print", "Abrir o laudo desta linha", `App.chkAbrirLaudoLinha('${id}')`], ...(chkAltDaLinha(id).length ? [["folder", "Versões guardadas (" + chkAltDaLinha(id).length + ")", `App.chkAltAbrir('${id}')`]] : []), ["folder", "Mover para outro setor", `App.chkMoverLinhaEscolher('${id}')`], ["plus", "Gerar cópia", `App.chkMoverLinhaEscolher('${id}',true)`], ["trash", "Excluir linha de vida", `App.chkExcluirLinha('${id}')`, true]],
+      linha:   [...(chkEhCampo() ? [] : [["print", "Abrir o laudo desta linha", `App.chkAbrirLaudoLinha('${id}')`]]), ...(chkAltDaLinha(id).length ? [["folder", "Versões guardadas (" + chkAltDaLinha(id).length + ")", `App.chkAltAbrir('${id}')`]] : []), ["folder", "Mover para outro setor", `App.chkMoverLinhaEscolher('${id}')`], ["plus", "Gerar cópia", `App.chkMoverLinhaEscolher('${id}',true)`], ["trash", "Excluir linha de vida", `App.chkExcluirLinha('${id}')`, true]],
     }[tipo];
     if(!acoes) return;
     abrirOverlay(`<div class="sheet-overlay" onclick="if(event.target===this)App.fecharModal()"><div class="sheet">
@@ -31349,6 +31545,47 @@ Devolver agora?`)) return;
     chkAbrirConfirmacao("Excluir esta versão guardada?", "Ela sai da linha e da nuvem, e não dá para desfazer. A linha que está na lista não muda.", "Excluir versão", ()=>{
       if(chkAltExcluir(l, altId)){ marcarAlterado(); toast("Versão guardada excluída"); render(); }
     });
+  },
+  chkSetModoVisual(v){
+    try{ localStorage.setItem("chkModoVisual", v === "campo" || v === "escritorio" ? v : "auto"); }catch(e){}
+    render();
+  },
+  chkIrParaLinha(setorId, id){ STATE.ui.chkSetorId = setorId; App.chkAbrirLinha(id); },
+  chkLaudoDaLinha(setorId, id){ STATE.ui.chkSetorId = setorId; App.chkAbrirLaudoLinha(id); },
+  chkBuscaDigitar(v){
+    __chkBusca.q = v;
+    const el = document.getElementById("chkBuscaRes");
+    if(el) el.innerHTML = chkBuscaResultadosHtml(chkBuscarTudo(STATE, __chkBusca.q, __chkBusca.f), __chkBusca.q, __chkBusca.f);
+  },
+  chkBuscaFiltro(f){ __chkBusca.f = f; render(); },
+  chkBuscaIr(tipo, projetoId, setorId, linhaId, itemId, si){
+    STATE.ui.chkProjetoId = projetoId;
+    if(tipo === "projeto"){ STATE.ui.chkSetorId = null; STATE.ui.chkLinhaId = null; go("checklist-setores"); return; }
+    STATE.ui.chkSetorId = setorId;
+    if(tipo === "setor"){ STATE.ui.chkLinhaId = null; go("checklist-linhas"); return; }
+    if(tipo === "linha"){ App.chkAbrirLinha(linhaId); return; }
+    STATE.ui.chkLinhaId = linhaId;
+    const l = getCurrentChkLinha();
+    if(l && l.status === "finalizado"){ App.chkIrDaRevisao(si, itemId); return; }
+    STATE.ui.chkSecaoAtual = si; STATE.ui.chkItemAberto = itemId;
+    go("checklist-preencher");
+  },
+  chkDuplicarAbrir(tipo, id){
+    const tit = tipo === "projeto" ? "Duplicar projeto" : "Duplicar setor";
+    abrirOverlay(`<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card">
+      <h3>${ic('copy')} ${tit}</h3>
+      <p style="font-size:13px;color:var(--ink-dim);margin:6px 0 12px">Escolha o que levar para a cópia. O original não muda.</p>
+      <button class="btn btn-primary btn-block" onclick="App.fecharModal();App.chkDuplicarExecutar('${tipo}','${id}',false)">Só a estrutura (linhas em branco, para uma nova inspeção)</button>
+      <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.fecharModal();App.chkDuplicarExecutar('${tipo}','${id}',true)">Com respostas, fotos e textos</button>
+      <button class="btn btn-block" style="margin-top:8px" onclick="App.fecharModal()">Cancelar</button>
+    </div></div>`);
+  },
+  chkDuplicarExecutar(tipo, id, comRespostas){
+    const r = tipo === "projeto" ? chkDuplicarProjeto(STATE, id, comRespostas) : chkDuplicarSetor(STATE, id, comRespostas);
+    if(!r){ toast("Não foi possível duplicar", false); return; }
+    marcarAlterado();
+    toast((tipo === "projeto" ? "Projeto duplicado: " : "Setor duplicado: ") + r.nome);
+    render();
   },
   chkMoverLinhaEscolher(id, copiar){
     const projs = (STATE.checklists.projetos || []);
