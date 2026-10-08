@@ -194,6 +194,7 @@ fonte += constObjeto("CHK_MEMORIAL_CAMPOS") + "\n";
 fonte += constObjeto("CHK_MEMORIAL_LIMITES") + "\n";
 fonte += constObjeto("CHK_CABOS") + "\n";
 fonte += constObjeto("CHK_PRIORIDADE_PESO") + "\n";
+fonte += "const CHK_STATUS_ORDEM_BOTOES = ['na', 'naoAtende', 'atende'];\n";
 fonte += constObjeto("CHK_MIG_TIPOS") + "\n";
 fonte += constObjeto("CHK_MIG_FOTOS_REMOVIDAS") + "\n";
 fonte += constObjeto("CHK_MIG_NOMES") + "\n";
@@ -2616,6 +2617,7 @@ async function testarUsabilidade(){
   roda("STATE.ui.chkItemAberto = null");
   const cardF = roda("chkRenderItem(getCurrentChkLinha(), getCurrentChkLinha().modeloSnapshot[0].itens[0], 0, 0)");
   T(cardF.includes("chk-quick") && cardF.includes("App.chkRespostaRapida('i1','atende')") && cardF.includes("App.chkRespostaRapida('i1','naoAtende')") && cardF.includes("App.chkRespostaRapida('i1','na')") && cardF.includes('data-item="i1"'), "cartao fechado tem os tres botoes de resposta: " + cardF.slice(0, 200));
+  T(cardF.indexOf("App.chkRespostaRapida('i1','na')") < cardF.indexOf("App.chkRespostaRapida('i1','naoAtende')") && cardF.indexOf("App.chkRespostaRapida('i1','naoAtende')") < cardF.indexOf("App.chkRespostaRapida('i1','atende')"), "botoes de resposta na ordem Nao aplicavel, Nao atende, Atende (so a posicao mudou)");
   roda("STATE.ui.chkItemAberto = 'i1'");
   const cardA = roda("chkRenderItem(getCurrentChkLinha(), getCurrentChkLinha().modeloSnapshot[0].itens[0], 0, 0)");
   T(!cardA.includes("chk-quick") && cardA.includes("Tirar foto") && cardA.includes("App.chkTirarFoto('i1',false)"), "cartao aberto de Nao atende: sem a fileira rapida, com Tirar foto/Galeria dentro do cartao");
