@@ -3441,7 +3441,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "08/10/2026 16:37";
+const APP_BUILD = "08/10/2026 17:00";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -3726,6 +3726,7 @@ async function reconectarPastaBase(){
    de Backup do módulo atual. */
 function irParaConfigBackup(){
   if(STATE.modulo==="simplificado") go("simples-config-backup");
+  else if(STATE.modulo==="checklist") go("checklist-config-backup");
   else go("backup");
 }
 /* Salva um Blob direto numa das duas subpastas. Retorna true em caso de sucesso. */
@@ -13660,8 +13661,8 @@ function screenModuloSelect(){
       <div style="font-size:12.5px;color:var(--ink-dim)">Levantamento rápido de campo — poucos campos, fotos em checklist e cadastro de risco em qualquer tela do projeto.</div>${selo(cont.simplificado)}
     </button>
     <button class="module-pick card card-pad" style="margin-top:14px" onclick="App.selecionarModulo('checklist')">
-      <div style="font-weight:800;font-size:16px;margin-bottom:4px">Checklist</div>
-      <div style="font-size:12.5px;color:var(--ink-dim)">Vistoria de campo por modelo próprio — marque conformidade item a item, registre fotos e observações, e gere o laudo ao final.</div>${selo(cont.checklist)}
+      <div style="font-weight:800;font-size:16px;margin-bottom:4px">Linhas de vida</div>
+      <div style="font-size:12.5px;color:var(--ink-dim)">Inspeção de linhas de vida em campo — marque a conformidade item a item, registre fotos e observações, e gere o laudo ao final. Funciona sem internet em campo.</div>${selo(cont.checklist)}
     </button>
   </div>`;
 }
@@ -14106,6 +14107,9 @@ function renderChecklistModulo(){
     else if(s==="checklist-finalizar") body = screenChkFinalizar();
     else if(s==="checklist-laudo") body = screenChkLaudo();
     else if(s==="checklist-laudo-linha") body = screenChkLaudoLinha();
+    else if(s==="checklist-config") body = screenChkConfig();
+    else if(s==="checklist-config-backup") body = screenSimplesConfigBackup();
+    else if(s==="checklist-config-empresa") body = screenSimplesConfigEmpresa();
     else body = screenChkModelos();
   }catch(e){
     console.error("Erro ao renderizar tela (checklist)", s, e);
@@ -14137,9 +14141,12 @@ function renderChecklistModulo(){
 function topBarChk(){
   const s = STATE.ui.screen;
   const TITULOS_CHK = {
-    "checklist-modelos": ["Checklist", "Modelos cadastrados"],
+    "checklist-modelos": ["Linhas de vida", "Modelos cadastrados"],
     "checklist-modelo-form": ["Modelo", "Seções e itens"],
-    "checklist-projetos": ["Checklist", "Projetos"],
+    "checklist-projetos": ["Linhas de vida", "Projetos"],
+    "checklist-config": ["Configurações", "Linhas de vida"],
+    "checklist-config-backup": ["Backup", "Configurações"],
+    "checklist-config-empresa": ["Empresa e Responsáveis", "Configurações"],
     "checklist-projeto-form": ["Projeto", "Dados do serviço"],
     "checklist-setores": ["Setores", "Setores do projeto"],
     "checklist-setor-form": ["Setor", "Dados do setor"],
@@ -14150,7 +14157,7 @@ function topBarChk(){
     "checklist-laudo": ["Laudo", "Relatório da inspeção"],
     "checklist-laudo-linha": ["Laudo da linha", "Relatório em capítulos"],
   };
-  let [title, sub] = TITULOS_CHK[s] || ["Checklist",""];
+  let [title, sub] = TITULOS_CHK[s] || ["Linhas de vida",""];
   if(["checklist-setores","checklist-setor-form","checklist-laudo"].includes(s)){ const p=getCurrentChkProjeto(); if(p) title = p.empresa || title; }
   if(["checklist-linhas","checklist-nova-linha"].includes(s)){ const st=getCurrentChkSetor(); if(st) title = st.nome || title; }
   const linhaAtual = ["checklist-preencher","checklist-finalizar","checklist-laudo-linha"].includes(s) ? getCurrentChkLinha() : null;
@@ -14167,9 +14174,11 @@ function topBarChk(){
   if(s==="checklist-finalizar") backTarget = "checklist-preencher";
   if(s==="checklist-laudo-linha") backTarget = __lclOrigem || "checklist-finalizar";
   if(s==="checklist-laudo") backTarget = "checklist-setores";
+  if(s==="checklist-config") backTarget = "checklist-projetos";
+  if(s==="checklist-config-backup" || s==="checklist-config-empresa") backTarget = "checklist-config";
   let action = "";
-  if(s==="checklist-modelos") action = `<button class="icon-btn" style="color:var(--on-bar)" onclick="App.trocarModulo()" title="Trocar módulo">${ic('layers')}</button><button class="topbar-action" onclick="App.chkNovoModelo()">${ic('plus')} Novo</button>`;
-  if(s==="checklist-projetos") action = `<button class="icon-btn" style="color:var(--on-bar)" onclick="App.trocarModulo()" title="Trocar módulo">${ic('layers')}</button><button class="topbar-action" onclick="App.chkNovoProjeto()">${ic('plus')} Novo</button>`;
+  if(s==="checklist-modelos") action = `<button class="icon-btn" style="color:var(--on-bar)" onclick="App.go('checklist-config')" title="Configurações">${ic('cog')}</button><button class="icon-btn" style="color:var(--on-bar)" onclick="App.trocarModulo()" title="Trocar módulo">${ic('layers')}</button><button class="topbar-action" onclick="App.chkNovoModelo()">${ic('plus')} Novo</button>`;
+  if(s==="checklist-projetos") action = `<button class="icon-btn" style="color:var(--on-bar)" onclick="App.go('checklist-config')" title="Configurações">${ic('cog')}</button><button class="icon-btn" style="color:var(--on-bar)" onclick="App.trocarModulo()" title="Trocar módulo">${ic('layers')}</button><button class="topbar-action" onclick="App.chkNovoProjeto()">${ic('plus')} Novo</button>`;
   if(s==="checklist-setores") action = `<button class="topbar-action" onclick="App.chkAbrirDadosProjeto()">${ic('edit')} Dados</button><button class="topbar-action" onclick="App.lclLote('projeto')" title="Laudos das linhas deste projeto em um PDF só (você escolhe quais entram)">${ic('print')} Laudos</button><button class="topbar-action" onclick="App.chkNovoSetor()">${ic('plus')} Setor</button>`;
   if(s==="checklist-linhas") action = `<button class="topbar-action" onclick="App.go('checklist-nova-linha')">${ic('plus')} Linha</button>`;
   if(s==="checklist-laudo") action = `<button class="topbar-action" onclick="window.print()">${ic('print')} Imprimir</button>`;
@@ -14209,14 +14218,41 @@ function crumbBarChk(){
 function bottomNavChk(){
   const s = STATE.ui.screen;
   const items = [
-    {k:"checklist-modelos", label:"Modelos", icon:"folder"},
     {k:"checklist-projetos", label:"Projetos", icon:"table"},
+    {k:"checklist-modelos", label:"Modelos", icon:"folder"},
+    {k:"checklist-config", label:"Configurações", icon:"cog"},
+    {k:"modulos", label:"Módulos", icon:"layers", acao:"App.trocarModulo()"},
   ];
   return `<div class="bottomnav">${items.map(it=>{
     const active = s===it.k || (it.k==="checklist-modelos" && s==="checklist-modelo-form")
+                 || (it.k==="checklist-config" && s.indexOf("checklist-config") === 0)
                  || (it.k==="checklist-projetos" && ["checklist-projeto-form","checklist-setores","checklist-setor-form","checklist-linhas","checklist-nova-linha","checklist-preencher","checklist-finalizar"].includes(s));
-    return `<button class="bottomnav-item ${active?'active':''}" onclick="App.go('${it.k}')">${ic(it.icon)}<span>${it.label}</span></button>`;
+    return `<button class="bottomnav-item ${active?'active':''}" onclick="${it.acao || `App.go('${it.k}')`}">${ic(it.icon)}<span>${it.label}</span></button>`;
   }).join("")}</div>`;
+}
+/* Configurações dentro do módulo Linhas de vida: Backup (OneDrive) e Empresa e Responsáveis são as mesmas telas dos outros módulos. */
+function screenChkConfig(){
+  const conta = getOneDriveConta();
+  const expirou = typeof __onedriveSessaoExpirada !== "undefined" && __onedriveSessaoExpirada;
+  const sub = conta && expirou ? "Sessão do OneDrive expirou" : conta ? "OneDrive conectado — " + conta.email : "OneDrive não conectado neste aparelho";
+  const linha = (ico, tit, desc, acao, extra)=> `<button class="btn btn-secondary btn-block" style="display:flex;align-items:center;gap:10px;justify-content:flex-start;padding:14px 16px;margin-top:10px" onclick="${acao}">${ic(ico)}<span style="flex:1;text-align:left"><b>${tit}</b><br><span style="font-size:12px;color:var(--ink-dim);font-weight:400">${escapeHtml(desc)}</span></span>${ic('chevR')}</button>`;
+  return `
+  <div class="card card-pad">
+    <div style="font-weight:800;font-size:14.5px;margin-bottom:4px">Configurações</div>
+    <p style="font-size:13px;color:var(--ink-dim)">Backup e sincronização, dados da empresa e dos inspetores, e aparência.</p>
+  </div>
+  ${linha('onedrive', 'Backup', sub, "App.go('checklist-config-backup')")}
+  ${linha('briefcase', 'Empresa e Responsáveis', 'Dados fixos do laudo e lista de inspetores', "App.go('checklist-config-empresa')")}
+  ${linha('layers', 'Trocar de módulo', 'Voltar à escolha de módulos', "App.trocarModulo()")}
+  <div class="section-title">Aparência</div>
+  <div class="card card-pad" style="display:flex;align-items:center;gap:12px">
+    <div style="flex:1">
+      <div style="font-weight:800;font-size:14px">Alto contraste</div>
+      <div style="font-size:12px;color:var(--ink-dim)">Facilita a leitura sob luz forte / sol direto.</div>
+    </div>
+    <label class="switch"><input type="checkbox" ${STATE.contrasteAlto?'checked':''} onchange="App.toggleContraste()"><span class="switch-track"></span></label>
+  </div>
+  <p style="text-align:center;font-size:11px;color:var(--ink-faint);margin-top:22px">Versão ${APP_BUILD}</p>`;
 }
 /* Menu "⋮" dos cartões: as ações aparecem com o nome escrito (no celular não existe dica ao passar o mouse). */
 /* Ícones discretos de uso frequente ao lado do menu "⋮" (a exclusão fica só dentro do menu, longe do toque sem querer). */
@@ -28463,7 +28499,7 @@ Devolver agora?`)) return;
   selecionarModulo(m){
     STATE.modulo = m; marcarAlterado();
     if(m==="completo") go("projetos");
-    else if(m==="checklist") go("checklist-modelos");
+    else if(m==="checklist") go("checklist-projetos", { chkSetorId:null, chkLinhaId:null });
     else go("simples-projetos");
   },
   trocarModulo(){ STATE.modulo = null; marcarAlterado(); render(); },
