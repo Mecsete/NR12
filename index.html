@@ -876,6 +876,9 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-mod-norma{width:190px;max-width:100%;border:none;border-bottom:1.5px dashed var(--line-strong);border-radius:0;background:transparent;font-size:13.5px;color:var(--accent-ink);padding:3px 2px;}
 .chk-mod-norma:focus{outline:none;border-bottom-color:var(--accent);}
 .chk-mod-norma::placeholder{color:var(--accent-ink);opacity:.8;}
+.chk-mod-prior-mot{margin-top:4px;border:1px solid var(--line-strong);background:var(--surface);border-radius:8px;font-size:11.5px;font-weight:700;padding:3px 6px;color:var(--ink-dim);max-width:100%}
+.chk-mod-prior-mot.p-critica,.chk-mod-prior.p-critica{color:#B3261E}
+.chk-mod-prior-mot.p-boa,.chk-mod-prior.p-boa{color:#3C78B4}
 .chk-mod-prior{border:none;background:transparent;font-size:13.5px;font-weight:800;color:var(--ink);padding:3px 2px;cursor:pointer;}
 .chk-mod-prior.p-critica{color:#B3261E;}
 .chk-mod-remover{margin-left:auto;background:none;border:none;color:#B3261E;font-size:13px;font-weight:600;padding:4px 0;}
@@ -9993,15 +9996,16 @@ function chkPendenciasItem(itemModelo, itemExec){
   return faltas;
 }
 /* Prioridade do item e tipo da linha (decididos com o engenheiro). */
-const CHK_PRIORIDADES = [["critica","Crítica"],["alta","Alta"],["media","Média"]];
+const CHK_PRIORIDADES = [["critica","Crítica"],["alta","Alta"],["media","Média"],["boa","Boa prática"]];
 const CHK_PRIORIDADE_SECAO_PADRAO = { "Documentação":"alta", "Ancoragem Estrutural":"critica", "Esticador":"alta", "Olhal":"critica", "Sapatilha":"alta", "Cabo de Aço":"critica", "Grampos":"critica", "Viga":"critica", "Trólei":"alta" };
 const CHK_TIPOS_LINHA = [["horizontal_flexivel","Horizontal flexível (cabo de aço)"],["horizontal_rigida","Horizontal rígida (trilho ou viga)"],["vertical","Vertical"],["ancoragem","Ponto de ancoragem"]];
-function chkPrioridadeValida(v){ return v === "critica" || v === "alta" || v === "media"; }
+function chkPrioridadeValida(v){ return v === "critica" || v === "alta" || v === "media" || v === "boa"; }
 function chkPrioridadeItem(itemModelo){ return itemModelo && chkPrioridadeValida(itemModelo.prioridade) ? itemModelo.prioridade : "media"; }
 function chkPrioridadeRotulo(v){ const x = CHK_PRIORIDADES.find(p=>p[0] === v); return x ? x[1] : "Média"; }
 /* "Crítica", "critica", " ALTA " → "critica"/"alta"; texto que não reconhece → "". */
 function chkPrioridadeDeTexto(txt){
   const t = String(txt || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+  if(t === "boa pratica" || t === "boa") return "boa";
   return t === "critica" || t === "alta" || t === "media" ? t : "";
 }
 /* Tipo da linha: o que foi congelado nela; senão o do modelo; senão (modelo
@@ -10703,7 +10707,7 @@ function chkModeloXLSXLinhasParaSecoes(linhas){
       secaoAtual.itens.push(itemAtual);
       contagem.itens++;
       if(motivoTxt){
-        itemAtual.motivosPadrao.push({ motivo:motivoTxt, texto:get(l,"textoMotivo"), acao:get(l,"acao") });
+        itemAtual.motivosPadrao.push({ motivo:motivoTxt, texto:get(l,"textoMotivo"), acao:get(l,"acao"), prioridade: chkPrioridadeDeTexto(get(l,"prioridade")) });
         contagem.motivos++;
       }
       return;
@@ -10712,7 +10716,7 @@ function chkModeloXLSXLinhasParaSecoes(linhas){
     if(!secaoTxt && secaoAtual && !secaoAtual.contexto) secaoAtual.contexto = get(l,"contexto");
     if(motivoTxt){
       if(!itemAtual){ contagem.linhasInvalidas++; return; }
-      itemAtual.motivosPadrao.push({ motivo:motivoTxt, texto:get(l,"textoMotivo"), acao:get(l,"acao") });
+      itemAtual.motivosPadrao.push({ motivo:motivoTxt, texto:get(l,"textoMotivo"), acao:get(l,"acao"), prioridade: chkPrioridadeDeTexto(get(l,"prioridade")) });
       contagem.motivos++;
     }
   });
@@ -10744,10 +10748,10 @@ function chkModeloXLSXLinhasDoModelo(modelo){
       }
       motivos.forEach((mp,mi)=>{
         if(mi===0){
-          linhas.push([primeiraLinhaDaSecao ? s.titulo : "", it.descricao, it.normativo||"", mp.motivo, mp.texto, it.textoAtende||"", infoTxt, prioTxt, mp.acao||"", primeiraLinhaDaSecao ? (s.contexto || "") : ""]);
+          linhas.push([primeiraLinhaDaSecao ? s.titulo : "", it.descricao, it.normativo||"", mp.motivo, mp.texto, it.textoAtende||"", infoTxt, mp.prioridade ? chkPrioridadeRotulo(mp.prioridade) : prioTxt, mp.acao||"", primeiraLinhaDaSecao ? (s.contexto || "") : ""]);
           primeiraLinhaDaSecao = false;
         }else{
-          linhas.push(["", "", "", mp.motivo, mp.texto, "", "", "", mp.acao||"", ""]);
+          linhas.push(["", "", "", mp.motivo, mp.texto, "", "", mp.prioridade ? chkPrioridadeRotulo(mp.prioridade) : "", mp.acao||"", ""]);
         }
       });
     });
@@ -14481,6 +14485,7 @@ function screenChkModeloForm(){
         <div class="chk-fl-c chk-fl-c-acao">
           <span class="chk-fl-rot">${chkModeloSvg('acao', 15)} Ação</span>
           <textarea class="chk-fl-txt chk-fl-txt-acao chk-auto" rows="2" aria-label="Ação recomendada do motivo ${mi+1}" placeholder="Ex.: Substituir o cabo de aço." oninput="chkAutoAltura(this);App.chkSetMotivoPadrao('${sid}','${iid}',${mi},'acao',this.value)">${escapeHtml(mp.acao || "")}</textarea>
+          <select class="chk-mod-prior-mot${mp.prioridade ? " p-" + mp.prioridade : ""}" aria-label="Prioridade do motivo ${mi+1}" title="Prioridade deste motivo (se em branco, vale a prioridade do item)" onchange="App.chkSetMotivoPadrao('${sid}','${iid}',${mi},'prioridade',this.value);render()"><option value="">Prioridade do item</option>${CHK_PRIORIDADES.map(pr=>`<option value="${pr[0]}" ${mp.prioridade===pr[0]?'selected':''}>${pr[1]}</option>`).join("")}</select>
         </div>
         <button class="chk-fl-del" title="Excluir este motivo" onclick="App.chkRemoverMotivoPadrao('${sid}','${iid}',${mi})">${ic('trash')}<span class="txt">Excluir motivo</span></button>
       </div>`).join("");
@@ -15686,7 +15691,7 @@ const LCL_PARECERES = {
   inconclusivo: { rot:"NÃO CONCLUSIVO", cls:"av", frase:"Não foi possível concluir o parecer: há itens sem resposta. Complete a avaliação para emitir o parecer final." },
   inapta:    { rot:"INAPTA", cls:"no", frase:"A linha de vida não deve ser utilizada até a regularização das não conformidades críticas descritas neste relatório." },
 };
-const LCL_PRI_COR = { critica:"#D9534F", alta:"#E9812B", media:"#E7A93B" };
+const LCL_PRI_COR = { critica:"#D9534F", alta:"#E9812B", media:"#E7A93B", boa:"#5B9BD5" };
 /* Texto-base da Metodologia: um só para os 3 tipos de linha. {{variáveis}} são
    trocadas na montagem. Marcação: "## " subtítulo, "- " item de lista, "a | b" linha
    de tabela (a 1ª é o cabeçalho), "[figura N]" no lugar da figura N, linha em branco separa parágrafos. */
@@ -15834,6 +15839,20 @@ function lclPrioridade(linha, item){
   const m = lclItemModeloAtual(linha, item && item.id);
   return m ? chkPrioridadeItem(m) : "media";
 }
+/* Prioridade de um item que não atende: a mais alta entre as prioridades dos motivos ESCOLHIDOS (cada motivo pode ter a sua);
+   motivo sem prioridade, ou nenhum motivo escolhido, vale a prioridade do item. */
+const CHK_PRIORIDADE_PESO = { critica:0, alta:1, media:2, boa:3 };
+function lclPrioridadeNc(linha, item, ie){
+  const base = lclPrioridade(linha, item);
+  const escolhidos = (ie && ie.motivosSelecionados) || [];
+  let melhor = null;
+  escolhidos.forEach(m=>{
+    const mp = ((item && item.motivosPadrao) || []).find(x=> x.motivo === m);
+    const p = mp && mp.prioridade;
+    if(chkPrioridadeValida(p) && (melhor === null || CHK_PRIORIDADE_PESO[p] < CHK_PRIORIDADE_PESO[melhor])) melhor = p;
+  });
+  return melhor || base;
+}
 function lclAcaoMotivo(linha, item, motivo){
   const de = (it)=>{ const mp = ((it && it.motivosPadrao) || []).find(x=> x.motivo === motivo); return mp && typeof mp.acao === "string" ? mp.acao.trim() : ""; };
   return de(item) || de(lclItemModeloAtual(linha, item && item.id)) || ("Regularizar: " + motivo);
@@ -15853,10 +15872,10 @@ function lclNaoConformidades(linha){
       if(!acoes.length) acoes.push("Regularizar o item.");
       const fotos = ie.fotos || [];
       const f = (motivos.length && fotos.find(x=> x.motivo === motivos[0])) || fotos[0];
-      out.push({ num:`${si+1}.${ii+1}`, secao:s.titulo || "Seção", secaoId:s.id, descricao:it.descricao || "", prioridade:lclPrioridade(linha, it), motivos, acoes, imagem: f ? f.foto : "" });
+      out.push({ num:`${si+1}.${ii+1}`, secao:s.titulo || "Seção", secaoId:s.id, descricao:it.descricao || "", prioridade:lclPrioridadeNc(linha, it, ie), motivos, acoes, imagem: f ? f.foto : "" });
     });
   });
-  const peso = { critica:0, alta:1, media:2 };
+  const peso = CHK_PRIORIDADE_PESO;
   return out.map((x, i)=>({ x, i })).sort((a, b)=> (peso[a.x.prioridade] - peso[b.x.prioridade]) || (a.i - b.i)).map(o=> o.x);
 }
 function lclParecerAuto(linha){
@@ -15864,7 +15883,7 @@ function lclParecerAuto(linha){
   if(nc.some(x=> x.prioridade === "critica")) return "inapta";
   const res = lclResultado(linha);
   if(res.pend > 0 && res.avaliados > 0) return "inconclusivo";
-  if(nc.length) return "ressalvas";
+  if(nc.some(x=> x.prioridade !== "boa")) return "ressalvas";
   return lclResultado(linha).avaliados ? "apta" : "";
 }
 /* Itens sem resposta nas seções que se aplicam, agrupados por seção: [{secao, n}]. */
@@ -16095,9 +16114,9 @@ function lclBlocosConclusao(d, cap, assinaturaSrc, redu){
   const texto = manual
     ? lclParagrafos(l.conclusaoTexto).join("")
     : `<p class="lcl-par">${lclEsc(lclConclusaoAuto(l))}</p>`;
-  const contagem = { critica:0, alta:0, media:0 };
+  const contagem = { critica:0, alta:0, media:0, boa:0 };
   ncs.forEach(x=>{ contagem[x.prioridade]++; });
-  const maior = Math.max(1, contagem.critica, contagem.alta, contagem.media);
+  const maior = Math.max(1, contagem.critica, contagem.alta, contagem.media, contagem.boa);
   const barras = ncs.length
     ? CHK_PRIORIDADES.map(([k, rot])=>`<div class="lcl-pb"><span>${lclEsc(rot)}</span><div class="tr"><i style="width:${contagem[k] / maior * 100}%;background:${LCL_PRI_COR[k]}"></i></div><b>${contagem[k]}</b></div>`).join("")
     : `<div class="lcl-pb-vazio">Nenhuma ação recomendada.</div>`;

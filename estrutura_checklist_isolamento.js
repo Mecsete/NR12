@@ -171,7 +171,7 @@ const FUNCOES = [
   "chkSyncHash", "chkSyncSig", "chkSyncModeloNorm", "chkSyncGarantir", "chkSyncSemCampo", "chkSyncVista", "chkSyncLocais", "chkSyncLocalDe", "chkSyncSementeIntocada",
   "chkSyncParseNomes", "chkSyncRegistrarRemocao", "chkSyncMesclarRemovidos", "chkSyncMesclarInspetores", "chkSyncLerRemoto", "chkSyncSingleton",
   "chkSyncApagarRemoto", "chkSyncEnviar", "chkSyncRotuloCopia", "chkSyncInserir", "chkSyncAplicar", "chkSyncBaixar", "chkSyncCopiarLocal", "chkSyncConflito",
-  "chkResumoCardLinha", "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "chkIncoerencias", "lclNumeroSecao", "getMecseteConfig", "chkAcoesCartao", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "chkSyncFotoValorId", "chkSyncFotoId", "chkSyncRespondidos", "chkSyncDivergencias", "chkSyncMesclarLinha", "chkConsolidarCopiasLinhas", "chkSyncVisto", "chkSyncMudou", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
+  "chkResumoCardLinha", "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "chkIncoerencias", "lclNumeroSecao", "getMecseteConfig", "chkAcoesCartao", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "lclPrioridadeNc", "chkSyncFotoValorId", "chkSyncFotoId", "chkSyncRespondidos", "chkSyncDivergencias", "chkSyncMesclarLinha", "chkConsolidarCopiasLinhas", "chkSyncVisto", "chkSyncMudou", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
 ];
 let fonte = "let __ultimoCarimboVisto = 0;\n";
 fonte += "let __buscaAtual = '';\n"; // usado por chkAbrirSetor (lista de linhas) -- nao testado aqui, so pra nao faltar
@@ -193,6 +193,7 @@ fonte += constObjeto("CHK_MEMORIAL_VIGA") + "\n";
 fonte += constObjeto("CHK_MEMORIAL_CAMPOS") + "\n";
 fonte += constObjeto("CHK_MEMORIAL_LIMITES") + "\n";
 fonte += constObjeto("CHK_CABOS") + "\n";
+fonte += constObjeto("CHK_PRIORIDADE_PESO") + "\n";
 fonte += constObjeto("CHK_SYNC_CAMPOS_TEXTO_LINHA") + "\n";
 fonte += constObjeto("LCL_PARECERES") + "\n";
 fonte += constObjeto("LCL_PRI_COR") + "\n";
@@ -2355,7 +2356,7 @@ async function testarEditorModelo(){
   T(h.includes(`App.chkSelecionarModeloItem('${M.A.id}','${M.a1.id}')`) && h.includes(`App.chkNovoItem('${M.A.id}')`) && h.includes(`App.chkRemoverSecao('${M.A.id}')`) && h.includes(`App.chkModeloToggleSecao('${M.B.id}')`) && h.includes("App.chkNovaSecao()") && h.includes(`App.chkSetSecaoTitulo('${M.A.id}',this.value)`), "lista: selecionar item, + Item, remover secao, abrir/recolher, nova secao, titulo da secao editavel");
   // item aberto: pergunta, norma, prioridade, remover
   T(h.includes("Ancoragem · Item 1.1") && h.includes("App.chkSetItemField('" + M.A.id + "','" + M.a1.id + "','descricao',this.value)") && h.includes('value="NBR 16325-2"') && h.includes("App.chkSetItemField('" + M.A.id + "','" + M.a1.id + "','normativo',this.value)") && h.includes("App.chkRemoverItem('" + M.A.id + "','" + M.a1.id + "')"), "item aberto: pergunta, norma e remover item ligados ao item certo");
-  T(h.includes("p-critica") && h.includes('<option value="critica" selected>Crítica</option>') && conta(h, "<option value=\"critica\"") === 1 && h.includes("'prioridade',this.value)"), "prioridade do item (critica marcada) com todas as opcoes");
+  T(h.includes("p-critica") && h.includes('<option value="critica" selected>Crítica</option>') && conta(h, "<option value=\"critica\"") >= 1 && h.includes("<option value=\"boa\"") && h.includes("'prioridade',this.value)"), "prioridade do item (critica marcada) com todas as opcoes");
   // linhas de fluxo: Atende + 2 motivos
   T(h.includes("chk-fl-atende") && h.includes("Atende bem.") && h.includes("'textoAtende',this.value)"), "linha Atende com o texto padrao do laudo");
   T(conta(h, 'class="chk-fl-pilula') === 2 && conta(h, 'class="chk-fl-linha"') === 2 && conta(h, 'class="chk-fl-del"') === 2, "um botao (pilula), uma linha e um excluir por motivo");
@@ -2744,6 +2745,25 @@ async function testarUsabilidade(){
     itens:[ { itemId:"a", conforme:"naoAtende", motivosSelecionados:[], observacao:"", fotos: fotoCard("a", 2) }, { itemId:"b", conforme:"atende", motivosSelecionados:[], observacao:"", fotos: fotoCard("b", 1) }, { itemId:"c", conforme:"na", motivosSelecionados:[], observacao:"", fotos:[] }, { itemId:"d", conforme:null, motivosSelecionados:[], observacao:"", fotos:[] }, { itemId:"e", conforme:"na", motivosSelecionados:[], observacao:"", fotos: fotoCard("e", 3) } ] });
   const rc = roda("chkResumoCardLinha(" + linhaCard + ")");
   T(rc.atende === 1 && rc.naoAtende === 1 && rc.na === 2 && rc.pendente === 1 && rc.fotosOk === 1 && rc.fotosNc === 2, "resumo do cartao: itens por situacao e fotos do laudo (conformidade x nao conformidade; secao que nao se aplica fica de fora): " + J(rc));
+  // ---- prioridade por motivo e nivel "Boa pratica"
+  T(roda("chkPrioridadeValida('boa')") === true && roda("chkPrioridadeDeTexto('Boa prática')") === "boa" && roda("chkPrioridadeDeTexto(' BOA PRATICA ')") === "boa" && roda("chkPrioridadeRotulo('boa')") === "Boa prática" && roda("CHK_PRIORIDADES.length") === 4, "nivel Boa pratica reconhecido (texto com e sem acento) e com rotulo");
+  const itPr = J({ id:"x", prioridade:"media", motivosPadrao:[{ motivo:"M1", prioridade:"critica" }, { motivo:"M2", prioridade:"boa" }, { motivo:"M3" }] });
+  const prNc = (sel)=> roda("lclPrioridadeNc({}, " + itPr + ", " + J({ motivosSelecionados: sel }) + ")");
+  T(prNc(["M2"]) === "boa" && prNc(["M1", "M2"]) === "critica" && prNc(["M3"]) === "media" && prNc([]) === "media" && prNc(["M3", "M2"]) === "boa", "prioridade da nao conformidade: a mais alta entre os motivos escolhidos que tem prioridade; sem prioridade no motivo vale a do item");
+  const xmlP = '<sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>Seção</t></is></c><c r="B1" t="inlineStr"><is><t>Item</t></is></c><c r="D1" t="inlineStr"><is><t>Motivo</t></is></c><c r="E1" t="inlineStr"><is><t>Texto do Motivo</t></is></c><c r="H1" t="inlineStr"><is><t>Prioridade</t></is></c></row>'
+    + '<row r="2"><c r="A2" t="inlineStr"><is><t>Sec</t></is></c><c r="B2" t="inlineStr"><is><t>Perg?</t></is></c><c r="D2" t="inlineStr"><is><t>M1</t></is></c><c r="E2" t="inlineStr"><is><t>t1</t></is></c><c r="H2" t="inlineStr"><is><t>Alta</t></is></c></row>'
+    + '<row r="3"><c r="D3" t="inlineStr"><is><t>M2</t></is></c><c r="E3" t="inlineStr"><is><t>t2</t></is></c><c r="H3" t="inlineStr"><is><t>Boa prática</t></is></c></row>'
+    + '<row r="4"><c r="D4" t="inlineStr"><is><t>M3</t></is></c><c r="E4" t="inlineStr"><is><t>t3</t></is></c><c r="H4" t="inlineStr"><is><t>Crítica</t></is></c></row></sheetData>';
+  const impP = roda("chkModeloXLSXLinhasParaSecoes(baseIALerCelulas(" + J(xmlP) + ", []))");
+  const itImp = impP.secoes[0].itens[0];
+  T(!impP.erro && itImp.prioridade === "alta" && itImp.motivosPadrao.map(m => m.prioridade).join(",") === "alta,boa,critica", "importar XLSX: a prioridade de CADA linha de motivo e lida (a do item e a da 1a linha): " + J(itImp.motivosPadrao));
+  const volta = roda("chkModeloXLSXLinhasDoModelo({ secoes:" + J(impP.secoes) + " })");
+  T(volta.map(l => l[7]).join(",") === "Alta,Boa prática,Crítica", "exportar XLSX: a prioridade de cada motivo volta nas linhas (ida e volta): " + J(volta.map(l => l[7])));
+  // parecer: so 'boa pratica' nao deixa a linha com ressalvas
+  const linPr = (prio, sel)=> J({ id:"LP", nome:"LV", secoesNA:[], laudo:{}, modeloSnapshot:[{ id:"s1", titulo:"A", itens:[{ id:"i1", descricao:"Q", prioridade:"media", motivosPadrao:[{ motivo:"M", texto:"T", acao:"A", prioridade:prio }] }, { id:"i2", descricao:"Q2", prioridade:"media", motivosPadrao:[] }] }], itens:[{ itemId:"i1", conforme:"naoAtende", motivosSelecionados:sel, observacao:"", fotos:[] }, { itemId:"i2", conforme:"atende", motivosSelecionados:[], observacao:"", fotos:[] }] });
+  T(roda("lclParecerAuto(" + linPr("boa", ["M"]) + ")") === "apta" && roda("lclParecerAuto(" + linPr("media", ["M"]) + ")") === "ressalvas" && roda("lclParecerAuto(" + linPr("critica", ["M"]) + ")") === "inapta", "parecer: Boa pratica nao tira a aptidao, Media da ressalvas, Critica deixa inapta");
+  const ncBoa = roda("lclNaoConformidades(" + linPr("boa", ["M"]) + ")");
+  T(ncBoa.length === 1 && ncBoa[0].prioridade === "boa", "quadro de nao conformidades usa a prioridade do motivo escolhido");
 }
 async function testarSincronizacaoChecklist(){
   const T = (cond, msg)=>{ if(!cond) throw new Error("sincronizacao do checklist: " + msg); };
