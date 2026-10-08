@@ -64,6 +64,17 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 08/10/2026 16:23
+
+**Fim das cópias "(versão de dd/mm hh:mm)" na lista: a versão que perde a disputa fica guardada dentro da linha.**
+
+- Quando duas versões da mesma linha de vida são alteradas ao mesmo tempo e discordam, a mais nova continua como a linha da lista e a outra fica guardada dentro dela (invisível na lista). Nada se perde.
+- O cartão da linha mostra "N versão guardada"; no menu da linha, "Versões guardadas": usar uma versão (o conteúdo atual fica guardado no lugar), gerar cópia visível ou excluir.
+- As cópias "(versão de ...)" que já existem e discordam do original são guardadas dentro do original (com ponto de restauração antes) e saem da lista e da nuvem.
+- Modelos de checklist continuam gerando cópia visível em conflito (não mudou).
+
+---
+
 ## 08/10/2026 16:15
 
 **Gerar cópia da linha de vida.**

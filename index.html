@@ -771,6 +771,7 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-card-resumo .stat-pill svg{width:12px;height:12px;vertical-align:-2px;margin-right:2px}
 .chk-tab-fotos{font-weight:600;font-size:11px;opacity:.85;margin-left:4px;white-space:nowrap}
 .chk-tab-fotos svg{width:12px;height:12px;vertical-align:-2px;margin-right:2px}
+.chk-alt-pill{border:0;cursor:pointer;font:inherit;color:var(--ink);background:#E4E7F2}
 .chk-secao-fotos{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 12px}
 .chk-secao-fotos-t{font-weight:800;font-size:13px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
 .chk-secao-fotos-t svg{width:16px;height:16px}
@@ -3438,7 +3439,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "08/10/2026 16:15";
+const APP_BUILD = "08/10/2026 16:23";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -9124,7 +9125,7 @@ async function onedriveSincronizarAgora(){
     const chkManual = await onedriveSincronizarChecklist(true);
     if(chkManual && chkManual.mudou){
       renderAdiavelSeDigitando();
-      toast("Checklist: " + (chkManual.baixou ? chkManual.baixou + " item(ns) recebido(s) de outro aparelho" : "alterações aplicadas") + (chkManual.conflitos ? " — " + chkManual.conflitos + " com alteração dos dois lados (a outra versão ficou como cópia)" : "") + ".");
+      toast("Checklist: " + (chkManual.baixou ? chkManual.baixou + " item(ns) recebido(s) de outro aparelho" : "alterações aplicadas") + (chkManual.conflitos ? " — " + chkManual.conflitos + " com alteração dos dois lados (a outra versão ficou como cópia)" : "") + (chkManual.guardadas ? " — " + chkManual.guardadas + " linha(s) com alteração dos dois lados (a outra versão ficou guardada na linha: menu da linha > Versões guardadas)" : "") + ".");
     }
     if(chkManual && (chkManual.erro || chkManual.falhas)) toast("Checklist: " + (chkManual.falhas ? chkManual.falhas + " item(ns) não puderam ser sincronizados agora (veja o histórico)" : "não foi possível sincronizar agora") + ".", false);
     /* Antes da autocura (onedriveReconciliarComArvore) logo abaixo: é ela que
@@ -14773,10 +14774,7 @@ function chkCopiarLinha(estado, linhaId, setorDestinoId){
   }));
   if(!linha || !destino) return null;
   const copia = clonarCompartilhandoFotos(linha);
-  const base = String(linha.nome || "Linha de vida").replace(/ \(cópia( \d+)?\)$/, "");
-  const nomes = new Set((destino.linhas || []).map(x=> x.nome));
-  let nome = base + " (cópia)", n = 2;
-  while(nomes.has(nome)){ nome = base + " (cópia " + n + ")"; n++; }
+  const nome = chkNomeCopia(destino.linhas, linha.nome);
   const agora = agoraSync();
   copia.id = uid();
   copia.nome = nome;
@@ -14788,6 +14786,39 @@ function chkCopiarLinha(estado, linhaId, setorDestinoId){
   chkSyncInserir(destino.linhas, copia);
   destino.atualizadoEm = agora;
   return { id: copia.id, nome, para: destino.nome || "" };
+}
+function chkAcharLinhaPorId(estado, id){
+  let r = null;
+  (estado.checklists.projetos || []).forEach(p=> (p.setores || []).forEach(s=> (s.linhas || []).forEach(l=>{ if(l.id === id) r = l; })));
+  return r;
+}
+function chkAltDaLinha(id){
+  let r = [];
+  (STATE.checklists.projetos || []).forEach(p=> (p.setores || []).forEach(s=> (s.linhas || []).forEach(l=>{ if(l.id === id) r = l[CHK_ALT_CAMPO] || []; })));
+  return r;
+}
+const CHK_ALT_ORIGEM = { aparelho:"Versão deste aparelho (a da nuvem era mais nova)", nuvem:"Versão de outro aparelho (a daqui era mais nova)", copia:"Cópia antiga da lista", troca:"Versão que estava em uso antes de você trocar" };
+function chkAltModalHtml(linha){
+  const dt = (ms)=> { try{ return new Date(ms).toLocaleString("pt-BR", { day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit" }); }catch(e){ return ""; } };
+  const alts = (linha[CHK_ALT_CAMPO] || []).slice().sort((a, b)=> (b.em || 0) - (a.em || 0));
+  const itens = alts.map(e=>{
+    const r = chkAltResumo(e);
+    return `<div class="card card-pad" style="margin-top:10px">
+      <div style="font-weight:800;font-size:13.5px">${escapeHtml(CHK_ALT_ORIGEM[e.de] || "Versão guardada")}</div>
+      <div style="font-size:12px;color:var(--ink-dim);margin:2px 0 6px">${escapeHtml(e.nome || "")} · guardada em ${dt(e.em)}</div>
+      <div class="list-meta"><span class="stat-pill">${r.respondidos}/${r.total} respondidos</span><span class="stat-pill">${r.naoAtendem} não atendem</span><span class="stat-pill">${r.fotos} fotos</span>${r.finalizada ? `<span class="stat-pill">finalizada</span>` : ""}</div>
+      <div class="modal-actions" style="margin-top:8px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="App.chkAltUsar('${linha.id}','${e.id}')">Usar esta versão</button>
+        <button class="btn btn-secondary" onclick="App.chkAltCopiar('${linha.id}','${e.id}')">Gerar cópia</button>
+        <button class="btn btn-secondary" style="color:#C23F12" onclick="App.chkAltExcluirPerguntar('${linha.id}','${e.id}')">Excluir</button>
+      </div></div>`;
+  }).join("");
+  return `<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card" style="max-width:640px;width:96vw;max-height:88vh;overflow:auto">
+    <h3>${ic('folder')} Versões guardadas — ${escapeHtml(linha.nome || "Linha de vida")}</h3>
+    <p style="font-size:13px;color:var(--ink-dim);margin:6px 0 0">Quando duas versões da mesma linha foram alteradas ao mesmo tempo, a mais nova ficou na lista e a outra foi guardada aqui. Nada foi perdido. "Usar esta versão" troca o conteúdo da linha (o que está em uso fica guardado no lugar).</p>
+    ${itens || `<p style="margin-top:12px">Nenhuma versão guardada.</p>`}
+    <div class="modal-actions"><button class="btn btn-secondary" onclick="App.fecharModal()">Fechar</button></div>
+  </div></div>`;
 }
 /* Itens ainda sem resposta nas linhas que já foram começadas (ou finalizadas): o que a pessoa precisa voltar para responder. */
 function chkPendenciasLinhas(linhas){
@@ -14843,6 +14874,7 @@ function screenChkLinhas(){
           <span class="stat-pill chk-status-pill st-${st}">${statusLabel}</span>
           ${st==="andamento" ? `<span class="stat-pill">${pct}% preenchido</span>` : ""}
           ${c.pendente>0 ? `<span class="stat-pill alert pend">${ic('warn')} ${c.pendente} ${c.pendente===1?'pendência':'pendências'} para responder</span>` : ""}
+          ${(l.versoesAlternativas || []).length ? `<button class="stat-pill chk-alt-pill" onclick="event.stopPropagation();App.chkAltAbrir('${l.id}')" title="Versões antigas desta linha, guardadas (nada foi perdido)">${ic('folder')} ${l.versoesAlternativas.length} ${l.versoesAlternativas.length===1?'versão guardada':'versões guardadas'}</button>` : ""}
         </div>
         <div class="list-meta chk-card-resumo">
           <span class="stat-pill" style="color:${CHK_STATUS_META.atende.cor}" title="Itens que atendem">${r.atende} atendem</span>
@@ -19532,7 +19564,112 @@ function chkSyncMesclarLinha(a, b){
     const x = m[c], y = outra[c];
     if(y && typeof y === "object" && Object.keys(y).length && (!x || typeof x !== "object" || !Object.keys(x).length)) m[c] = clonarCompartilhandoFotos(y);
   });
+  const guardadas = chkAltUnir(a[CHK_ALT_CAMPO], b[CHK_ALT_CAMPO]);
+  if(guardadas.length) m[CHK_ALT_CAMPO] = guardadas;
   return m;
+}
+/* ---- Versões guardadas dentro da linha de vida ----
+   Quando duas versões da mesma linha discordam (alteração dos dois lados), a mais nova continua sendo a linha e a outra fica
+   GUARDADA dentro dela (linha.versoesAlternativas), fora da lista: nenhuma cópia aparece, nada se perde. Cada entrada:
+   { id, em, de:"aparelho"|"nuvem"|"copia"|"troca", nome, sig, linha:<conteúdo da linha sem as versões guardadas> }.
+   A pessoa pode usar uma delas, gerar uma cópia visível ou excluí-la (menu da linha). */
+const CHK_ALT_CAMPO = "versoesAlternativas";
+function chkAltConteudo(l){ return chkSyncSemCampo(l, CHK_ALT_CAMPO); }
+function chkAltSig(l){ return chkSyncSig(chkAltConteudo(l), true); }
+function chkAltEntrada(origem, de){
+  const lin = clonarCompartilhandoFotos(chkAltConteudo(origem));
+  return { id: uid(), em: agoraSync(), de, nome: origem.nome || "", sig: chkSyncSig(lin, true), linha: lin };
+}
+/* União por conteúdo (assinatura): a mesma versão nunca entra duas vezes. */
+function chkAltUnir(a, b){
+  const out = [], vistos = new Set();
+  (Array.isArray(a) ? a : []).concat(Array.isArray(b) ? b : []).forEach(e=>{
+    if(e && e.sig && !vistos.has(e.sig)){ vistos.add(e.sig); out.push(e); }
+  });
+  return out;
+}
+/* Guarda a entrada na linha, a menos que ela seja igual ao que a linha já é ou a uma versão já guardada. */
+function chkAltAdicionar(linha, entrada){
+  if(!Array.isArray(linha[CHK_ALT_CAMPO])) linha[CHK_ALT_CAMPO] = [];
+  if(entrada.sig === chkAltSig(linha) || linha[CHK_ALT_CAMPO].some(a=> a.sig === entrada.sig)) return false;
+  linha[CHK_ALT_CAMPO].push(entrada);
+  return true;
+}
+function chkAltResumo(e){
+  const it = (e.linha && e.linha.itens) || [];
+  const fotos = it.reduce((n, i)=> n + ((i && i.fotos) || []).length, 0) + Object.keys((e.linha && e.linha.fotosSecao) || {}).reduce((n, k)=> n + e.linha.fotosSecao[k].length, 0);
+  return { respondidos: it.filter(i=> i && i.conforme !== null && i.conforme !== undefined).length, total: it.length, naoAtendem: it.filter(i=> i && i.conforme === "naoAtende").length, fotos, finalizada: !!(e.linha && e.linha.status === "finalizado") };
+}
+/* Usa uma versão guardada: ela vira o conteúdo da linha (id, nome e lugar continuam) e o conteúdo de agora fica guardado. */
+function chkAltTrocar(linha, altId){
+  const alt = (linha[CHK_ALT_CAMPO] || []).find(a=> a.id === altId);
+  if(!alt) return false;
+  const atual = chkAltEntrada(linha, "troca");
+  const novo = clonarCompartilhandoFotos(alt.linha);
+  const identidade = ["id", "nome", "criadoEm", "setorId", "projetoId", CHK_ALT_CAMPO];
+  Object.keys(linha).forEach(k=>{ if(identidade.indexOf(k) < 0 && !(k in novo)) delete linha[k]; });
+  Object.keys(novo).forEach(k=>{ if(identidade.indexOf(k) < 0) linha[k] = novo[k]; });
+  linha[CHK_ALT_CAMPO] = linha[CHK_ALT_CAMPO].filter(a=> a.id !== altId);
+  chkAltAdicionar(linha, atual);
+  linha.atualizadoEm = agoraSync();
+  return true;
+}
+function chkAltExcluir(linha, altId){
+  const n = (linha[CHK_ALT_CAMPO] || []).length;
+  linha[CHK_ALT_CAMPO] = (linha[CHK_ALT_CAMPO] || []).filter(a=> a.id !== altId);
+  if(linha[CHK_ALT_CAMPO].length === n) return false;
+  if(!linha[CHK_ALT_CAMPO].length) delete linha[CHK_ALT_CAMPO];
+  linha.atualizadoEm = agoraSync();
+  return true;
+}
+function chkNomeCopia(linhas, nome){
+  const base = String(nome || "Linha de vida").replace(/ \(cópia( \d+)?\)$/, "");
+  const nomes = new Set((linhas || []).map(x=> x.nome));
+  let r = base + " (cópia)", n = 2;
+  while(nomes.has(r)){ r = base + " (cópia " + n + ")"; n++; }
+  return r;
+}
+/* Gera uma linha visível, no mesmo setor, a partir de uma versão guardada (a guardada continua guardada). */
+function chkAltCopiarVisivel(estado, linhaId, altId){
+  let setor = null, linha = null;
+  (estado.checklists.projetos || []).forEach(p=> (p.setores || []).forEach(s=>{ const l = (s.linhas || []).find(x=> x.id === linhaId); if(l){ linha = l; setor = s; } }));
+  const alt = linha && (linha[CHK_ALT_CAMPO] || []).find(a=> a.id === altId);
+  if(!alt) return null;
+  const copia = clonarCompartilhandoFotos(alt.linha);
+  delete copia[CHK_ALT_CAMPO];
+  copia.id = uid();
+  copia.nome = chkNomeCopia(setor.linhas, linha.nome);
+  copia.criadoEm = Date.now();
+  copia.atualizadoEm = agoraSync();
+  chkSyncInserir(setor.linhas, copia);
+  setor.atualizadoEm = agoraSync();
+  return { id: copia.id, nome: copia.nome };
+}
+/* Cópias "(versão de ...)" que já existem e que discordam do original: saem da lista e ficam guardadas dentro do original
+   (que continua visível); a cópia é excluída da lista e da nuvem (lápide). Cópia sem original no setor fica onde está.
+   Devolve { escondidas, semOriginal }. soContar = só conta. */
+function chkEsconderCopiasLinhas(estado, soContar){
+  const res = { escondidas: 0, semOriginal: 0 };
+  const re = /^(.*?)((?: \(versão de [^)]*\))+)$/;
+  (estado.checklists.projetos || []).forEach(p=> (p.setores || []).forEach(s=>{
+    const copias = (s.linhas || []).filter(l=> re.test(String(l.nome || "")))
+      .sort((x, y)=> (String(x.nome).match(/\(versão/g) || []).length - (String(y.nome).match(/\(versão/g) || []).length);
+    copias.forEach(c=>{
+      const base = re.exec(String(c.nome))[1];
+      const orig = s.linhas.find(l=> l !== c && l.nome === base && l.criadoEm === c.criadoEm && l.modeloId === c.modeloId);
+      if(!orig){ res.semOriginal++; return; }
+      res.escondidas++;
+      if(soContar) return;
+      orig[CHK_ALT_CAMPO] = chkAltUnir(orig[CHK_ALT_CAMPO], c[CHK_ALT_CAMPO]);
+      const e = chkAltEntrada(c, "copia");
+      chkAltAdicionar(orig, e);
+      orig.atualizadoEm = agoraSync();
+      s.linhas = s.linhas.filter(l=> l !== c);
+      chkSyncRegistrarRemocao([c.id]);
+      s.atualizadoEm = agoraSync();
+    });
+  }));
+  return res;
 }
 /* Cópias "(versão de ...)" que já existem: quando a cópia não discorda em nada do original (é igual ou só tem menos
    respostas), junta tudo no original e tira a cópia (a exclusão viaja como lápide). Cópia que discorda fica, para a pessoa
@@ -19557,7 +19694,7 @@ function chkConsolidarCopiasLinhas(estado, soContar){
       if(copiaTemMais && chkSyncRespondidos(orig) * 2 >= chkSyncRespondidos(c)){ res.mantidas++; return; }
       if(soContar){ res.fundidas++; return; } // só conta quantas poderiam ser juntadas, sem mexer em nada
       const m = chkSyncMesclarLinha(orig, c);
-      ["itens", "status", "dataFinalizacao", "descricao", "conclusaoTexto", "fotoAmpla", "laudo", "memorial", "secoesNA", "fotosSecao"].forEach(k=>{ if(m[k] !== undefined) orig[k] = m[k]; });
+      ["itens", "status", "dataFinalizacao", "descricao", "conclusaoTexto", "fotoAmpla", "laudo", "memorial", "secoesNA", "fotosSecao", CHK_ALT_CAMPO].forEach(k=>{ if(m[k] !== undefined) orig[k] = m[k]; });
       orig.atualizadoEm = agoraSync();
       s.linhas = s.linhas.filter(l=> l !== c);
       chkSyncRegistrarRemocao([c.id]);
@@ -19697,6 +19834,14 @@ async function chkSyncBaixar(ctx, loc, rem, opc){
     const atual = chkSyncLocalDe(loc.chave);
     if(!atual || chkSyncSig(chkSyncVista(atual)) !== sigAntes) return false;
   }
+  if(opc.comoAlternativa){
+    const alvo = loc && chkSyncLocalDe(loc.chave);
+    if(!alvo) return false;
+    alvo.obj[CHK_ALT_CAMPO] = chkAltUnir(alvo.obj[CHK_ALT_CAMPO], payload.obj[CHK_ALT_CAMPO]);
+    chkAltAdicionar(alvo.obj, chkAltEntrada(payload.obj, "nuvem"));
+    res.mudouLocal = true;
+    return true;
+  }
   if(opc.comoCopia){
     payload.obj.id = uid();
     payload.obj.nome = chkSyncRotuloCopia(payload.obj.nome);
@@ -19792,13 +19937,31 @@ async function chkSyncConflito(ctx, loc, rem){
   if(remSemente){ await chkSyncEnviar(ctx, loc); return; }
   const remVence = rem.ts > (loc.obj.atualizadoEm || 0);
   if(remVence){
+    if(loc.tipo === "l"){
+      // a versão daqui perdeu a disputa: fica guardada DENTRO da linha da nuvem (que passa a valer), sem aparecer na lista
+      payload.obj[CHK_ALT_CAMPO] = chkAltUnir(payload.obj[CHK_ALT_CAMPO], loc.obj[CHK_ALT_CAMPO]);
+      chkAltAdicionar(payload.obj, chkAltEntrada(loc.obj, "aparelho"));
+      res.guardadas++;
+      const okL = await chkSyncBaixar(ctx, loc, rem, { payload });
+      if(!okL) return;
+      const nova = chkSyncLocalDe(loc.chave);
+      if(nova) await chkSyncEnviar(ctx, nova);   // a versão guardada também vai para a nuvem
+      return;
+    }
     if(!chkSyncCopiarLocal(loc)){ res.falhas++; return; }
     res.conflitos++;
     await chkSyncBaixar(ctx, loc, rem, { payload });
     return;
   }
-  // o daqui é mais novo: a versão da nuvem vira cópia antes de ser substituída pelo envio
-  if(loc.tipo === "m" || loc.tipo === "l"){
+  // o daqui é mais novo: a versão da nuvem fica guardada dentro da linha (ou vira cópia, no caso do modelo) antes de ser substituída pelo envio
+  if(loc.tipo === "l"){
+    const okA = await chkSyncBaixar(ctx, loc, rem, { payload, comoAlternativa: true });
+    if(!okA){ res.falhas++; return; }
+    res.guardadas++;
+    await chkSyncEnviar(ctx, loc);
+    return;
+  }
+  if(loc.tipo === "m"){
     const copiaPayload = clonarCompartilhandoFotos(payload);
     const okCopia = await chkSyncBaixar(ctx, null, rem, { payload: copiaPayload, comoCopia: true });
     if(!okCopia){ res.falhas++; return; }
@@ -19879,7 +20042,7 @@ async function chkSyncEntidade(ctx, chave){
 async function chkSyncRodar(T, opc){
   opc = opc || {};
   const sy = chkSyncGarantir(STATE);
-  const res = { baixou:0, enviou:0, conflitos:0, removeu:0, falhas:0, adiado:false, mudouLocal:false, erro:false };
+  const res = { baixou:0, enviou:0, conflitos:0, guardadas:0, removeu:0, falhas:0, adiado:false, mudouLocal:false, erro:false };
   const nomes = await T.listar(SUBPASTA_CHECKLIST);
   if(!Array.isArray(nomes)){ res.erro = true; return res; }
   const ctx = { T, sy, res, parse: chkSyncParseNomes(nomes), ops: 0, limite: opc.limite || Infinity, fotosLocais: null };
@@ -19941,6 +20104,14 @@ async function onedriveSincronizarChecklist(forcar){
         const rc = chkConsolidarCopiasLinhas(STATE);
         STATE.ui.chkCopiasConsolidadas = true;
         if(rc.fundidas){ marcarAlterado(); try{ toast(rc.fundidas + (rc.fundidas === 1 ? " cópia de linha de vida foi juntada ao original" : " cópias de linhas de vida foram juntadas aos originais") + (rc.mantidas ? "; " + rc.mantidas + " ficaram para você conferir" : "")); }catch(e){} }
+      }
+    }
+    // cópias "(versão de ...)" que sobraram (discordam do original): saem da lista e ficam guardadas dentro do original, com ponto de restauração antes
+    if(temCopia && chkEsconderCopiasLinhas(STATE, true).escondidas){
+      const salvou2 = await salvarPontoDeRestauracao("Antes de guardar as cópias de linhas de vida dentro do original");
+      if(salvou2){
+        const re2 = chkEsconderCopiasLinhas(STATE);
+        if(re2.escondidas){ marcarAlterado(); try{ toast(re2.escondidas + (re2.escondidas === 1 ? " cópia de linha de vida foi guardada dentro do original (menu da linha > Versões guardadas)" : " cópias de linhas de vida foram guardadas dentro dos originais (menu da linha > Versões guardadas)")); render(); }catch(_){} }
       }
     }
     const r = await chkSyncRodar(chkSyncTransporteOneDrive(), { limite: forcar ? Infinity : CHK_SYNC_LIMITE_OPS_AUTO });
@@ -31059,13 +31230,35 @@ Devolver agora?`)) return;
       modelo:  [["edit", "Editar modelo", `App.chkAbrirModelo('${id}')`], ["trash", "Excluir modelo", `App.chkExcluirModelo('${id}')`, true]],
       projeto: [["edit", "Editar dados do projeto", `App.chkEditarProjeto('${id}')`], ["trash", "Excluir projeto", `App.chkExcluirProjeto('${id}')`, true]],
       setor:   [["edit", "Editar setor", `App.chkEditarSetor('${id}')`], ["trash", "Excluir setor", `App.chkExcluirSetor('${id}')`, true]],
-      linha:   [["print", "Abrir o laudo desta linha", `App.chkAbrirLaudoLinha('${id}')`], ["folder", "Mover para outro setor", `App.chkMoverLinhaEscolher('${id}')`], ["plus", "Gerar cópia", `App.chkMoverLinhaEscolher('${id}',true)`], ["trash", "Excluir linha de vida", `App.chkExcluirLinha('${id}')`, true]],
+      linha:   [["print", "Abrir o laudo desta linha", `App.chkAbrirLaudoLinha('${id}')`], ...(chkAltDaLinha(id).length ? [["folder", "Versões guardadas (" + chkAltDaLinha(id).length + ")", `App.chkAltAbrir('${id}')`]] : []), ["folder", "Mover para outro setor", `App.chkMoverLinhaEscolher('${id}')`], ["plus", "Gerar cópia", `App.chkMoverLinhaEscolher('${id}',true)`], ["trash", "Excluir linha de vida", `App.chkExcluirLinha('${id}')`, true]],
     }[tipo];
     if(!acoes) return;
     abrirOverlay(`<div class="sheet-overlay" onclick="if(event.target===this)App.fecharModal()"><div class="sheet">
       ${acoes.map(([ico, rot, fn, perigo])=>`<button class="btn btn-secondary btn-block" style="justify-content:flex-start;margin-top:8px;${perigo ? 'color:#C23F12' : ''}" onclick="App.fecharModal();${fn}">${ic(ico)} ${rot}</button>`).join("")}
       <button class="btn btn-block" style="margin-top:8px" onclick="App.fecharModal()">Cancelar</button>
     </div></div>`);
+  },
+  chkAltAbrir(id){
+    const l = chkAcharLinhaPorId(STATE, id); if(!l) return;
+    abrirOverlay(chkAltModalHtml(l));
+  },
+  chkAltUsar(id, altId){
+    const l = chkAcharLinhaPorId(STATE, id); if(!l) return;
+    chkAbrirConfirmacao("Usar esta versão?", "O conteúdo atual da linha (respostas, motivos, fotos e textos) passa a ser o da versão escolhida. O que está em uso agora fica guardado no lugar, então dá para voltar.", "Usar esta versão", ()=>{
+      if(chkAltTrocar(l, altId)){ marcarAlterado(); toast("Versão trocada; a anterior ficou guardada"); render(); }
+    });
+  },
+  chkAltCopiar(id, altId){
+    const r = chkAltCopiarVisivel(STATE, id, altId);
+    App.fecharModal();
+    if(!r){ toast("Não foi possível gerar a cópia", false); return; }
+    marcarAlterado(); toast("Cópia criada: " + r.nome); render();
+  },
+  chkAltExcluirPerguntar(id, altId){
+    const l = chkAcharLinhaPorId(STATE, id); if(!l) return;
+    chkAbrirConfirmacao("Excluir esta versão guardada?", "Ela sai da linha e da nuvem, e não dá para desfazer. A linha que está na lista não muda.", "Excluir versão", ()=>{
+      if(chkAltExcluir(l, altId)){ marcarAlterado(); toast("Versão guardada excluída"); render(); }
+    });
   },
   chkMoverLinhaEscolher(id, copiar){
     const projs = (STATE.checklists.projetos || []);

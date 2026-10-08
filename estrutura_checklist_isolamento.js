@@ -171,7 +171,7 @@ const FUNCOES = [
   "chkSyncHash", "chkSyncSig", "chkSyncModeloNorm", "chkSyncGarantir", "chkSyncSemCampo", "chkSyncVista", "chkSyncLocais", "chkSyncLocalDe", "chkSyncSementeIntocada",
   "chkSyncParseNomes", "chkSyncRegistrarRemocao", "chkSyncMesclarRemovidos", "chkSyncMesclarInspetores", "chkSyncLerRemoto", "chkSyncSingleton",
   "chkSyncApagarRemoto", "chkSyncEnviar", "chkSyncRotuloCopia", "chkSyncInserir", "chkSyncAplicar", "chkSyncBaixar", "chkSyncCopiarLocal", "chkSyncConflito",
-  "chkResumoCardLinha", "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "chkIncoerencias", "lclNumeroSecao", "getMecseteConfig", "chkAcoesCartao", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "lclPrioridadeNc", "chkMigPlanoEmbutido", "chkMigModelosEmbutidos", "chkMoverLinha", "chkCopiarLinha", "chkMigAutoPendente", "chkMigAutoAplicar", "chkMigPendenciasAplicar", "chkPendenciasLinhas", "chkMigN", "chkMigTabela", "chkMigPlano", "chkMigAcharModeloNovo", "chkMigrarLinha", "chkMigracaoSimular", "chkMigracaoAplicar", "chkSyncFotoValorId", "chkSyncFotoId", "chkSyncRespondidos", "chkSyncDivergencias", "chkSyncMesclarLinha", "chkConsolidarCopiasLinhas", "chkSyncVisto", "chkSyncMudou", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
+  "chkResumoCardLinha", "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "chkIncoerencias", "lclNumeroSecao", "getMecseteConfig", "chkAcoesCartao", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "lclPrioridadeNc", "chkMigPlanoEmbutido", "chkMigModelosEmbutidos", "chkMoverLinha", "chkAltConteudo", "chkAltSig", "chkAltEntrada", "chkAltUnir", "chkAltAdicionar", "chkAltResumo", "chkAltTrocar", "chkAltExcluir", "chkNomeCopia", "chkAltCopiarVisivel", "chkEsconderCopiasLinhas", "chkAltModalHtml", "chkAltDaLinha", "chkAcharLinhaPorId", "chkCopiarLinha", "chkMigAutoPendente", "chkMigAutoAplicar", "chkMigPendenciasAplicar", "chkPendenciasLinhas", "chkMigN", "chkMigTabela", "chkMigPlano", "chkMigAcharModeloNovo", "chkMigrarLinha", "chkMigracaoSimular", "chkMigracaoAplicar", "chkSyncFotoValorId", "chkSyncFotoId", "chkSyncRespondidos", "chkSyncDivergencias", "chkSyncMesclarLinha", "chkConsolidarCopiasLinhas", "chkSyncVisto", "chkSyncMudou", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
 ];
 let fonte = "let __ultimoCarimboVisto = 0;\n";
 fonte += "let __buscaAtual = '';\n"; // usado por chkAbrirSetor (lista de linhas) -- nao testado aqui, so pra nao faltar
@@ -195,6 +195,8 @@ fonte += constObjeto("CHK_MEMORIAL_LIMITES") + "\n";
 fonte += constObjeto("CHK_CABOS") + "\n";
 fonte += constObjeto("CHK_PRIORIDADE_PESO") + "\n";
 fonte += "const CHK_STATUS_ORDEM_BOTOES = ['na', 'naoAtende', 'atende'];\n";
+fonte += 'const CHK_ALT_CAMPO = "versoesAlternativas";\n';
+fonte += constObjeto("CHK_ALT_ORIGEM") + "\n";
 fonte += constObjeto("CHK_MIG_TIPOS") + "\n";
 fonte += constObjeto("CHK_MIG_FOTOS_REMOVIDAS") + "\n";
 fonte += constObjeto("CHK_MIG_NOMES") + "\n";
@@ -2996,6 +2998,27 @@ async function testarUsabilidade(){
     T(roda("chkCopiarLinha(STATE, '" + c1.id + "', 'SC1')").nome === "Linha A (cópia 3)", "copiar uma copia nao empilha '(copia) (copia)'");
     roda("STATE.checklists.projetos = " + J(estadoAntes.lista) + ";");
   }
+  // ---- copias "(versao de ...)" que discordam do original saem da lista e ficam guardadas dentro dele
+  { const mkA = (id, nome, itens, extra)=> Object.assign({ id, nome, status:"em_andamento", criadoEm:100, modeloId:"MX", secoesNA:[], modeloSnapshot:[], itens: itens.map((c, k) => ({ itemId:"i" + k, conforme:c, motivosSelecionados:[], observacao:"", fotos:[] })) }, extra || {});
+    roda("STATE.checklists.projetos = [{ id:'PEC', empresa:'E', setores:[{ id:'SEC', nome:'S', linhas:[ " + J(mkA("LO1", "Armazem", ["atende", "naoAtende", null])) + ", " + J(mkA("LC1", "Armazem (versão de 07/10 14:56)", ["atende", "atende", "na"])) + ", " + J(mkA("LC2", "Sem original (versão de 07/10 15:09)", ["atende"], { criadoEm:200 })) + " ] }] }];");
+    T(roda("chkEsconderCopiasLinhas(STATE, true).escondidas") === 1 && roda("STATE.checklists.projetos[0].setores[0].linhas.length") === 3, "so contar: nao mexe em nada");
+    const re = roda("chkEsconderCopiasLinhas(STATE)");
+    const ls = roda("STATE.checklists.projetos[0].setores[0].linhas");
+    T(re.escondidas === 1 && re.semOriginal === 1 && ls.length === 2 && ls.map(l => l.id).sort().join() === "LC2,LO1", "a copia com original sai da lista; a sem original fica: " + J([re, ls.map(l => l.id)]));
+    const og = ls.find(l => l.id === "LO1");
+    T(og.versoesAlternativas.length === 1 && og.versoesAlternativas[0].de === "copia" && og.versoesAlternativas[0].linha.itens[1].conforme === "atende" && og.nome === "Armazem" && og.itens[1].conforme === "naoAtende", "o original continua como estava e leva a copia inteira guardada");
+    T(roda("chkEsconderCopiasLinhas(STATE).escondidas") === 0, "rodar de novo nao faz nada");
+    // helpers
+    const e1 = roda("chkAltEntrada(STATE.checklists.projetos[0].setores[0].linhas[0], 'nuvem')"), e2 = Object.assign({}, e1, { id:"outro" });
+    T(roda("chkAltUnir(" + J([e1]) + ", " + J([e2]) + ")").length === 1 && roda("chkAltUnir(null, undefined)").length === 0, "a mesma versao (mesmo conteudo) nunca entra duas vezes");
+    T(roda("chkAltAdicionar(STATE.checklists.projetos[0].setores[0].linhas[0], chkAltEntrada(STATE.checklists.projetos[0].setores[0].linhas[0], 'nuvem'))") === false, "versao igual ao conteudo atual da linha nao e guardada");
+    const lO = roda("STATE.checklists.projetos[0].setores[0].linhas.find(l => l.id === 'LO1')");
+    const hm = roda("chkAltModalHtml(" + J(lO) + ")");
+    T(hm.includes("Versões guardadas") && hm.includes("Usar esta versão") && hm.includes("Gerar cópia") && hm.includes("Cópia antiga da lista") && hm.includes("3/3 respondidos"), "janela das versoes guardadas: origem, resumo e as tres acoes");
+    const cv = roda("chkAltCopiarVisivel(STATE, 'LO1', " + J(lO.versoesAlternativas[0].id) + ")");
+    T(cv.nome === "Armazem (cópia)" && roda("STATE.checklists.projetos[0].setores[0].linhas.length") === 3 && !roda("STATE.checklists.projetos[0].setores[0].linhas.find(l => l.id === " + J(cv.id) + ").versoesAlternativas") && roda("STATE.checklists.projetos[0].setores[0].linhas.find(l => l.id === 'LO1').versoesAlternativas.length") === 1, "gerar copia visivel a partir da guardada: linha nova sem guardadas, a guardada continua guardada");
+    roda("STATE.checklists.projetos = " + J(estadoAntes.lista) + ";");
+  }
 }
 async function testarSincronizacaoChecklist(){
   const T = (cond, msg)=>{ if(!cond) throw new Error("sincronizacao do checklist: " + msg); };
@@ -3116,30 +3139,55 @@ async function testarSincronizacaoChecklist(){
   await sync(A);
   r = await sync(B);
   const linhasB = B.checklists.projetos[0].setores[0].linhas;
-  T(r.conflitos === 1 && linhasB.length === 2, "alteracao dos dois lados: o aparelho que chega depois guarda as duas versoes (uma vira copia): " + J([r.conflitos, linhasB.length]));
-  const obs = linhasB.map(l => l.itens[1].observacao).sort();
-  T(J(obs) === J(["A: sapatilha trincada", "B: cabo desfiado"]) && linhasB.some(l => l.nome.includes("(versão de ")), "as duas versoes existem e a copia tem o rotulo: " + J(obs));
-  T(await emDia(A, B) && A.checklists.projetos[0].setores[0].linhas.length === 2 && difere(A.checklists.projetos, B.checklists.projetos) === "", "as duas versoes se espalham para os dois aparelhos e tudo estabiliza");
-  // a mesma alteracao feita nos dois lados (so o carimbo difere) nao gera copia
+  T(r.conflitos === 0 && r.guardadas === 1 && linhasB.length === 1 && !linhasB[0].nome.includes("(versão de ") && (linhasB[0].versoesAlternativas || []).length === 1, "alteracao dos dois lados: continua UMA linha na lista e a outra versao fica guardada dentro dela (sem copia visivel): " + J([r.conflitos, r.guardadas, linhasB.length]));
+  const obs = [linhasB[0].itens[1].observacao, linhasB[0].versoesAlternativas[0].linha.itens[1].observacao].sort();
+  T(J(obs) === J(["A: sapatilha trincada", "B: cabo desfiado"]) && linhasB[0].itens[1].observacao === "A: sapatilha trincada", "a mais nova (a da nuvem) vale; a outra esta inteira na versao guardada: " + J(obs));
+  T(await emDia(A, B) && A.checklists.projetos[0].setores[0].linhas.length === 1 && (A.checklists.projetos[0].setores[0].linhas[0].versoesAlternativas || []).length === 1 && difere(A.checklists.projetos, B.checklists.projetos) === "", "a versao guardada vai para os dois aparelhos e tudo estabiliza");
+  // a mesma alteracao feita nos dois lados (so o carimbo difere) nao gera versao guardada
   sandbox.STATE = A;
   roda(`(function(){ const l = STATE.checklists.projetos[0].setores[0].linhas[0]; l.conclusaoTexto = "igual"; l.atualizadoEm = agoraSync(); })()`);
   sandbox.STATE = B;
   roda(`(function(){ const l = STATE.checklists.projetos[0].setores[0].linhas.find(x => x.id === ${J(ids.l)}); l.conclusaoTexto = "igual"; l.atualizadoEm = agoraSync(); })()`);
   await sync(A);
   r = await sync(B);
-  T(r.conflitos === 0 && B.checklists.projetos[0].setores[0].linhas.length === 2, "mesmo conteudo nos dois lados: sem copia: " + J(r));
+  T(r.conflitos === 0 && r.guardadas === 0 && B.checklists.projetos[0].setores[0].linhas.length === 1 && B.checklists.projetos[0].setores[0].linhas[0].versoesAlternativas.length === 1, "mesmo conteudo nos dois lados: nada novo guardado: " + J(r));
   await emDia(A, B);
 
-  // ---------------------------------------------------------------- 7) exclusao: viaja, e a nuvem acompanha
+  // ---------------------------------------------------------------- 7) excluir a versao guardada: viaja para o outro aparelho
   sandbox.STATE = A;
-  const idCopia = A.checklists.projetos[0].setores[0].linhas.find(l => l.id !== ids.l).id;
-  A.ui.chkProjetoId = ids.p; A.ui.chkSetorId = ids.s;
-  roda(`App.chkExcluirLinha(${J(idCopia)})`);
+  const lA7 = A.checklists.projetos[0].setores[0].linhas[0];
+  T(roda(`chkAltExcluir(STATE.checklists.projetos[0].setores[0].linhas[0], ${J(lA7.versoesAlternativas[0].id)})`) === true && !A.checklists.projetos[0].setores[0].linhas[0].versoesAlternativas, "excluir a versao guardada tira da linha");
   r = await sync(A);
-  T(!nomesNuvem().some(n => n.startsWith("l_" + idCopia + "_")) && nomesNuvem().some(n => /^x_\d+\.json$/.test(n)), "a linha excluida some da nuvem e a lapide sobe: " + J(nomesNuvem()));
   r = await sync(B);
-  T(r.removeu === 1 && B.checklists.projetos[0].setores[0].linhas.length === 1 && B.checklists.projetos[0].setores[0].linhas[0].id === ids.l, "a exclusao chega no outro aparelho");
-  T(await emDia(A, B), "em dia depois da exclusao (a linha nao ressuscita)");
+  T(!B.checklists.projetos[0].setores[0].linhas[0].versoesAlternativas && B.checklists.projetos[0].setores[0].linhas.length === 1, "a exclusao da versao guardada chega no outro aparelho");
+  T(await emDia(A, B), "em dia depois da exclusao da versao guardada");
+
+  // ---------------------------------------------------------------- 7b) conflito no sentido contrario: o aparelho daqui e o mais novo, a versao da nuvem fica guardada
+  sandbox.STATE = B;
+  roda(`(function(){ const l = STATE.checklists.projetos[0].setores[0].linhas[0]; l.itens[3].conforme = "naoAtende"; l.itens[3].observacao = "B7: nuvem"; l.atualizadoEm = agoraSync(); })()`);
+  await sync(B);
+  await new Promise(res => setTimeout(res, 15));
+  sandbox.STATE = A;
+  roda(`(function(){ const l = STATE.checklists.projetos[0].setores[0].linhas[0]; l.itens[3].conforme = "atende"; l.itens[3].observacao = "A7: daqui"; l.atualizadoEm = agoraSync(); })()`);
+  r = await sync(A);
+  const lA7b = A.checklists.projetos[0].setores[0].linhas[0];
+  T(r.guardadas === 1 && A.checklists.projetos[0].setores[0].linhas.length === 1 && lA7b.itens[3].observacao === "A7: daqui" && (lA7b.versoesAlternativas || []).length === 1 && lA7b.versoesAlternativas[0].linha.itens[3].observacao === "B7: nuvem" && lA7b.versoesAlternativas[0].de === "nuvem", "o daqui e mais novo: vale o daqui, a versao da nuvem fica guardada: " + J([r.guardadas, lA7b.itens[3].observacao, (lA7b.versoesAlternativas || []).length]));
+  r = await sync(B);
+  T(B.checklists.projetos[0].setores[0].linhas[0].itens[3].observacao === "A7: daqui" && (B.checklists.projetos[0].setores[0].linhas[0].versoesAlternativas || []).length === 1 && await emDia(A, B), "o outro aparelho recebe a linha e a versao guardada, sem copia");
+  // usar a versao guardada e voltar atras: nada se perde
+  sandbox.STATE = A;
+  A.ui.chkProjetoId = ids.p; A.ui.chkSetorId = ids.s;
+  const altId7 = lA7b.versoesAlternativas[0].id;
+  roda(`App.chkAltUsar(${J(ids.l)}, ${J(altId7)})`);
+  T(A.checklists.projetos[0].setores[0].linhas[0].itens[3].observacao === "A7: daqui", "usar a versao guardada pede confirmacao antes");
+  roda("App.chkConfirmarAcao()");
+  const lA7c = A.checklists.projetos[0].setores[0].linhas[0];
+  T(lA7c.itens[3].observacao === "B7: nuvem" && lA7c.versoesAlternativas.length === 1 && lA7c.versoesAlternativas[0].linha.itens[3].observacao === "A7: daqui" && lA7c.id === ids.l && lA7c.nome === lA7b.nome, "trocou: a da nuvem passa a valer e a que estava em uso fica guardada (id e nome da linha iguais)");
+  await sync(A); await sync(B);
+  T(await emDia(A, B) && B.checklists.projetos[0].setores[0].linhas[0].itens[3].observacao === "B7: nuvem", "a troca vai para o outro aparelho");
+  roda(`(function(){ const l = STATE.checklists.projetos[0].setores[0].linhas[0]; delete l.versoesAlternativas; l.atualizadoEm = agoraSync(); })()`);
+  await sync(A); await sync(B);
+  await emDia(A, B);
 
   // ---------------------------------------------------------------- 8) exclusao do projeto inteiro; e a protecao de quem tem alteracao ainda nao enviada
   sandbox.STATE = B;
