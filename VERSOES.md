@@ -64,6 +64,15 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 08/10/2026 16:15
+
+**Gerar cópia da linha de vida.**
+
+- No menu (três pontos) do cartão da linha: "Gerar cópia". Escolha o setor de destino (pode ser o mesmo, de outro setor ou de outro projeto).
+- A cópia leva respostas, motivos, observações e fotos; a original não muda. Nome "X (cópia)", "X (cópia 2)"...
+
+---
+
 ## 08/10/2026 16:10
 
 **Mover linha de vida para outro setor.**
