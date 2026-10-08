@@ -171,7 +171,7 @@ const FUNCOES = [
   "chkSyncHash", "chkSyncSig", "chkSyncModeloNorm", "chkSyncGarantir", "chkSyncSemCampo", "chkSyncVista", "chkSyncLocais", "chkSyncLocalDe", "chkSyncSementeIntocada",
   "chkSyncParseNomes", "chkSyncRegistrarRemocao", "chkSyncMesclarRemovidos", "chkSyncMesclarInspetores", "chkSyncLerRemoto", "chkSyncSingleton",
   "chkSyncApagarRemoto", "chkSyncEnviar", "chkSyncRotuloCopia", "chkSyncInserir", "chkSyncAplicar", "chkSyncBaixar", "chkSyncCopiarLocal", "chkSyncConflito",
-  "chkResumoCardLinha", "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "chkIncoerencias", "lclNumeroSecao", "getMecseteConfig", "chkAcoesCartao", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "lclPrioridadeNc", "chkMigN", "chkMigTabela", "chkMigPlano", "chkMigAcharModeloNovo", "chkMigrarLinha", "chkMigracaoSimular", "chkMigracaoAplicar", "chkSyncFotoValorId", "chkSyncFotoId", "chkSyncRespondidos", "chkSyncDivergencias", "chkSyncMesclarLinha", "chkConsolidarCopiasLinhas", "chkSyncVisto", "chkSyncMudou", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
+  "chkResumoCardLinha", "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "chkIncoerencias", "lclNumeroSecao", "getMecseteConfig", "chkAcoesCartao", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "lclPrioridadeNc", "chkMigRelatorioHtml", "chkMigModelosDoAparelho", "chkMigN", "chkMigTabela", "chkMigPlano", "chkMigAcharModeloNovo", "chkMigrarLinha", "chkMigracaoSimular", "chkMigracaoAplicar", "chkSyncFotoValorId", "chkSyncFotoId", "chkSyncRespondidos", "chkSyncDivergencias", "chkSyncMesclarLinha", "chkConsolidarCopiasLinhas", "chkSyncVisto", "chkSyncMudou", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
 ];
 let fonte = "let __ultimoCarimboVisto = 0;\n";
 fonte += "let __buscaAtual = '';\n"; // usado por chkAbrirSetor (lista de linhas) -- nao testado aqui, so pra nao faltar
@@ -2887,6 +2887,14 @@ async function testarUsabilidade(){
   T(roda("chkMigracaoAplicar(STATE, " + J(planoReal) + ", " + J(modelosReal) + ")") === 0, "segunda aplicacao nao faz nada");
   console.log("MIGRACAO REAL (15 linhas): " + J(tot) + " revisar=" + simuReal.reduce((a, s)=> a + s.rel.revisar.length, 0) + " fundidasAtende=" + simuReal.reduce((a, s)=> a + s.rel.fundidasAtende.length, 0));
   roda("STATE.checklists.projetos = " + J(estadoAntes.lista) + ";");
+  // ---- tela da migracao: relatorio com os modelos novos presentes no aparelho
+  const modelosOrig = J(roda("STATE.checklists.modelos"));
+  roda("STATE.checklists.modelos = " + J(Object.keys(modelosReal).map(tk => modelosReal[tk])) + ".concat(STATE.checklists.modelos); STATE.checklists.projetos = [{ id:'PR2', empresa:'Real', setores:[{ id:'SR2', nome:'S', linhas:" + J(linhasReal) + " }] }];");
+  const relHtml = roda("chkMigRelatorioHtml(" + J(planoReal) + ")");
+  T(relHtml.includes("15 linha(s) serão migradas") && relHtml.includes("Migrar 15 linha(s)") && !relHtml.includes("Falta o checklist novo"), "relatorio da migracao lista as 15 linhas e oferece o botao: " + relHtml.slice(0, 300));
+  const relSem = roda("STATE.checklists.modelos = STATE.checklists.modelos.filter(m => m.tipoLinha !== 'vertical'); chkMigRelatorioHtml(" + J(planoReal) + ")");
+  T(relSem.includes("Falta o checklist novo no aparelho:</b> Vertical"), "sem o modelo novo de um tipo, o relatorio avisa qual falta");
+  roda("STATE.checklists.modelos = " + modelosOrig + "; STATE.checklists.projetos = " + J(estadoAntes.lista) + ";");
 }
 async function testarSincronizacaoChecklist(){
   const T = (cond, msg)=>{ if(!cond) throw new Error("sincronizacao do checklist: " + msg); };
