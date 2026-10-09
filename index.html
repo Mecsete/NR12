@@ -3455,7 +3455,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "09/10/2026 09:29";
+const APP_BUILD = "09/10/2026 10:15";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -10169,7 +10169,17 @@ function chkNarrativaSecao(secaoModelo, linha, pref){
   const semTexto = ncTrechos.filter(x=> typeof x !== "string").map(x=> x.agg);
   if(semTexto.length) comTexto.push(`<mark class="nc">Não ${semTexto.length === 1 ? "atende o requisito do item" : "atendem os requisitos dos itens"} ${lclListaPt(semTexto)}, conforme o Checklist deste relatório.</mark>`);
   const pend = comTexto.join(" ");
-  return { html: [conforme, pend].filter(Boolean).join(" "), conforme, pend, fotos, nOk };
+  // ações recomendadas dos motivos escolhidos (texto da coluna "Ação Recomendada" do modelo), sem repetir a mesma ação
+  const acoes = [], jaTem = new Set();
+  itens.filter(ehNc).forEach(it=>{
+    const ie = chkItemExec(linha, it.id) || {};
+    (ie.motivosSelecionados || []).forEach(m=>{
+      const mp = (it.motivosPadrao || []).find(x=> x.motivo === m);
+      const t = mp && String(mp.acao || "").trim();
+      if(t && !jaTem.has(t)){ jaTem.add(t); acoes.push({ txt: t, prio: (mp.prioridade && chkPrioridadeValida(mp.prioridade)) ? mp.prioridade : chkPrioridadeItem(it) }); }
+    });
+  });
+  return { html: [conforme, pend].filter(Boolean).join(" "), conforme, pend, fotos, nOk, acoes };
 }
 /* Linhas da tabela-resumo "Checklist" do laudo (4 colunas: número, norma,
    pergunta, status) — pula seção marcada "não aplica" na linha inteira e
@@ -15813,7 +15823,7 @@ function chkMemorialLegenda(c, m){
   const f = chkMemFmt;
   return [
     "Ancoragem (poste ou estrutura de suporte)",
-    rig ? `Trilho rígido: viga ${CHK_MEMORIAL_VIGA.perfil}, deflexão δ = ${f(c.d * 1000, 2)} mm` : `Cabo em repouso: flecha inicial f<sub>1</sub> = ${f(c.f1)} m`,
+    rig ? `Trilho rígido: viga, deflexão δ = ${f(c.d * 1000, 2)} mm` : `Cabo em repouso: flecha inicial f<sub>1</sub> = ${f(c.f1)} m`,
     rig ? "Carrinho (trólei)" : `Cabo deformado na queda: flecha f<sub>3</sub> = ${f(c.f3)} m`,
     `${m.epi === "tab" ? "Talabarte com absorvedor" : "Trava-quedas retrátil"}: ${f(lan, 1)} m`,
     "Usuário na posição de trabalho",
@@ -15846,7 +15856,7 @@ function chkMemorialPremissas(c, m){
   const K = m.params, f = chkMemFmt, V = CHK_MEMORIAL_VIGA;
   const engate = `Engate do cinto ao pé (C<sub>1</sub>) de ${f(K.C1, 1)} m e distância de segurança (D<sub>1</sub>) de ${f(K.D1, 1)} m.`;
   if(c.tipo === "rig") return [
-    `Viga ${V.perfil} em aço ${V.aco} (E de ${f(V.E / 1e9, 0)} GPa e Ix de ${f(V.I * 1e8, 0)} cm⁴), vão de ${f(m.vao)} m, carga central; só a deflexão entra no cálculo.`,
+    `Viga de aço (E de ${f(V.E / 1e9, 0)} GPa e Ix de ${f(V.I * 1e8, 0)} cm⁴), vão de ${f(m.vao)} m, carga central; só a deflexão entra no cálculo.`,
     `Usuário de ${f(K.peso, 0)} kg, com carga dinâmica adotada de ${f(c.P, 0)} kgf.`,
     engate,
   ];
@@ -15920,7 +15930,7 @@ function chkMemorialFormulas(c, m){
 function chkMemorialTabelas(c, m){
   const rig = c.tipo === "rig", K = m.params, f = chkMemFmt, V = CHK_MEMORIAL_VIGA;
   const e = rig
-    ? [["Peso do usuário", f(K.peso, 0), "kg"], ["Vão entre apoios (L)", f(m.vao), "m"], ["Altura da ancoragem", f(m.hanc), "m"], ["Altura da posição de trabalho", f(m.hpos), "m"], ["Perfil da viga", V.perfil, "-"], ["Módulo E", f(V.E / 1e9, 0), "GPa"], ["Inércia Ix", f(V.I * 1e8, 0), "cm⁴"], ["Talabarte (a)", f(K.a, 1), "m"], ["Absorvedor (b)", f(K.b, 1), "m"], ["Trava-quedas em trabalho (b1)", f(K.b1, 1), "m"], ["Trava-quedas frenagem", f(K.fren, 1), "m"]]
+    ? [["Peso do usuário", f(K.peso, 0), "kg"], ["Vão entre apoios (L)", f(m.vao), "m"], ["Altura da ancoragem", f(m.hanc), "m"], ["Altura da posição de trabalho", f(m.hpos), "m"], ["Módulo E", f(V.E / 1e9, 0), "GPa"], ["Inércia Ix", f(V.I * 1e8, 0), "cm⁴"], ["Talabarte (a)", f(K.a, 1), "m"], ["Absorvedor (b)", f(K.b, 1), "m"], ["Trava-quedas em trabalho (b1)", f(K.b1, 1), "m"], ["Trava-quedas frenagem", f(K.fren, 1), "m"]]
     : [["Tipo de linha", m.uso === "restricao" ? "Restrição" : "Vida", "-"], ["Peso do corpo", f(K.peso, 0), "kg"], ["Número de usuários", f(m.usuarios, 0), "n"], ["Vão entre apoios (L)", f(m.vao), "m"]].concat(c.nv > 1.0000001 ? [["Comprimento da linha (C)", f(c.Lt), "m"], ["Número de vãos", f(c.nv, 1), "-"]] : []).concat([["Flecha", f(c.fl, 1), "%"], ["Altura da ancoragem", f(m.hanc), "m"], ["Altura da posição de trabalho", f(m.hpos), "m"], ["Diâmetro do cabo", chkMemDiam(m.diametro), "mm"], ["Força de ruptura", f(K.Frup, 0), "kgf"], ["Fator de segurança", f(K.FS, 0), "-"], ["Módulo E do cabo", f(K.Ecabo, 0), "kgf/mm²"], ["Fator de área (k)", f(K.kA, 3), "-"], ["Talabarte (a)", f(K.a, 1), "m"], ["Absorvedor (b)", f(K.b, 1), "m"], ["Trava-quedas em trabalho (b1)", f(K.b1, 1), "m"], ["Trava-quedas frenagem", f(K.fren, 1), "m"]]);
   const r = rig
     ? [["Carga dinâmica (P)", f(c.P, 0), "kgf"], ["Deflexão (δ)", f(c.d * 1000, 2), "mm"], ["ZLQ talabarte", f(c.ZLQ1), "m"], ["Hp talabarte", f(c.Hp1), "m"], ["ZLQ trava-quedas", f(c.ZLQ2), "m"], ["Hp trava-quedas", f(c.Hp2), "m"]]
@@ -16564,7 +16574,7 @@ function lclBlocosMemorial(d, cap){
   const l = d.linha, tipo = chkTipoLinha(l), m = chkMemorialDe(l), c = chkMemorialCalc(tipo, m);
   if(!c) return [];
   const v = chkMemorialVeredito(c, m), f = chkMemFmt, rig = c.tipo === "rig";
-  const sistema = rig ? `rígida (viga ${CHK_MEMORIAL_VIGA.perfil})` : `flexível (cabo de aço de ${chkMemDiam(m.diametro)} mm)`;
+  const sistema = rig ? `rígida (viga)` : `flexível (cabo de aço de ${chkMemDiam(m.diametro)} mm)`;
   const nome = !rig && m.uso === "restricao" ? "linha de restrição" : "linha de vida";
   const intro = `<p class="lcl-par">Verificação da zona livre de queda (ZLQ) da ${nome} horizontal <b>${sistema}</b> ${lclEsc(l.nome || "")}, com vão de ${f(m.vao)} m${!rig && c.nv > 1.0000001 ? " (linha de " + f(c.Lt) + " m, " + f(c.nv, 0) + " vãos)" : ""} e ancoragem a ${f(m.hanc)} m do piso, para ${f(m.usuarios, 0)} ${m.usuarios === 1 ? "usuário" : "usuários"}. A ZLQ é a altura livre mínima abaixo da ancoragem para o usuário ser retido antes de atingir o piso ou um obstáculo.</p>`;
   const card = (nome, zlq, ok)=>`<div class="lcl-mcard ${ok ? "ok" : "no"}"><b>${nome}</b><strong>${ok ? "ZLQ ATENDE" : "ZLQ NÃO ATENDE"}</strong><small>ZLQ necessária ${f(zlq)} m · disponível ${f(m.hanc)} m · ${ok ? "folga" : "falta"} ${f(Math.abs(m.hanc - zlq))} m</small></div>`;
@@ -16797,7 +16807,7 @@ function lclBlocosCorpo(d, cap, redu){
   cap.subs.forEach((sub, i)=>{
     const s = (l.modeloSnapshot || []).find(x=> x.id === sub.id);
     if(!s) return;
-    const { conforme, pend, fotos, nOk } = chkNarrativaSecao(s, l, sub.num);
+    const { conforme, pend, fotos, nOk, acoes } = chkNarrativaSecao(s, l, sub.num);
     const todas = fotos.map((f, k)=>({ n: sub.num + "." + (k + 1), src: redu(f), ok: k < nOk })).filter(x=> x.src);
     const okImgs = todas.filter(x=> x.ok), ncImgs = todas.filter(x=> !x.ok);
     // Faixa do topo: fotos dos itens que atendem, no máximo 6 e no máximo 3 por linha (2 ou 3 em uma linha; 4 a 6 em duas);
@@ -16813,7 +16823,9 @@ function lclBlocosCorpo(d, cap, redu){
       + (s.contexto ? `<div class="lcl-ctx"><b>Como deve estar:</b> ${lclEsc(s.contexto)}</div>` : "");
     // texto editado à mão substitui os dois parágrafos automáticos
     const textoConforme = editado === null && conforme ? `<div class="lcl-narr lcl-larga">${conforme}</div>` : "";
-    const textoPend = editado !== null ? lclTextoParaHtml(editado) : pend;
+    const acoesHtml = (acoes || []).length ? `<div class="lcl-acoes"><b>Ação recomendada</b><ul>${acoes.map(a=> `<li>${lclEsc(a.txt)}</li>`).join("")}</ul></div>` : "";
+    const textoPend0 = editado !== null ? lclTextoParaHtml(editado) : pend;
+    const textoPend = textoPend0 ? textoPend0 + acoesHtml : textoPend0;
     const todosNa = (s.itens || []).length > 0 && (s.itens || []).every(it=>{ const e = chkItemExec(l, it.id); return !!e && e.conforme === "na"; });
     const vazio = editado === null && !conforme && !pend
       ? (todosNa ? `<p class="lcl-vazio">Todos os itens desta seção foram marcados como não se aplicam a esta linha de vida.</p>` : `<p class="lcl-vazio">Nenhum item desta seção foi respondido ainda.</p>`)
@@ -17008,8 +17020,8 @@ const LCL_CSS = `
 .lcl-ic{flex:0 0 auto;width:15px;height:15px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:700;color:#fff;margin-top:1px}
 .lcl-ic.ok{background:#2E9E6B}.lcl-ic.nok{background:#D9534F}.lcl-ic.na{background:#B8BDD0}.lcl-ic.pend{background:#E7A93B}
 .lcl-rn{color:#8a8fa8;font-variant-numeric:tabular-nums;min-width:24px}
-.lcl-rt{flex:1;min-width:0}
-.lcl-rnorma{font:600 9px ui-monospace,Consolas,monospace;color:#6b719a;background:#eef0f6;border-radius:4px;padding:2px 6px;white-space:nowrap;align-self:flex-start}
+.lcl-rt{flex:1 1 56%;min-width:0}
+.lcl-rnorma{font:600 9px ui-monospace,Consolas,monospace;color:#6b719a;background:#eef0f6;border-radius:4px;padding:2px 6px;white-space:normal;overflow-wrap:anywhere;flex:0 1 30%;max-width:30%;align-self:flex-start}
 .lcl-rver{font-size:9.5px;color:#E94E1B;font-weight:700;white-space:nowrap;align-self:flex-start;text-decoration:none;cursor:pointer}
 .lcl-rver:hover{text-decoration:underline}
 a.lcl-sl{text-decoration:none;cursor:pointer}
@@ -17022,7 +17034,7 @@ a.lcl-sl:hover i{border-bottom-color:#E94E1B}
 .lcl-sec-grid{display:flex;gap:18px;align-items:flex-start}
 .lcl-narr{flex:1.6;min-width:0;font-size:13px;line-height:1.55;text-align:justify}
 .lcl-narr.lcl-larga{flex:none;width:100%}
-.lcl-narr mark.nc{background:none;color:#1E2148;font-weight:700}
+.lcl-narr mark.nc{background:none;color:#1E2148;font-weight:400}
 .lcl-vazio{color:#8a8fa8;font-style:italic}
 .lcl-fotos-col{width:190px;flex:none;display:grid;gap:10px}
 .lcl-fcol img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:2px;background:#e6e8f0}
@@ -17096,6 +17108,10 @@ a.lcl-sl:hover i{border-bottom-color:#E94E1B}
 .lcl-anexo{text-align:center}
 .lcl-anexo img{max-width:100%;max-height:${LCL_MAX_A - 90}px;object-fit:contain}
 .lcl-narr p{margin:0 0 8px}
+.lcl-acoes{margin-top:8px;padding:7px 10px;border-left:3px solid #E94E1B;background:#fbf3ef;border-radius:0 6px 6px 0;font-size:12px;line-height:1.45;text-align:left}
+.lcl-acoes b{display:block;color:#1E2148;margin-bottom:2px}
+.lcl-acoes ul{margin:0;padding-left:16px}
+.lcl-acoes li{margin:1px 0}
 .lcl-edit-bar{position:absolute;right:10px;top:8px;z-index:3;display:flex;gap:6px}
 .lcl-edit-btn{font:700 10.5px Arial,Helvetica,sans-serif;color:#1E2148;background:#fff;border:1px solid #c9ccdc;border-radius:99px;padding:4px 11px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.15)}
 .lcl-edit-btn:hover{border-color:#E94E1B;color:#E94E1B}

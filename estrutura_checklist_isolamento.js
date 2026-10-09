@@ -1588,7 +1588,7 @@ async function testarMemorial(){
   T(txt.t.includes("Força no cabo (T1)") && txt.t.includes("<b>1550</b>") && txt.t.includes("Diâmetro do cabo") && txt.t.includes("<td class=\"v\">8</td>") && txt.t.includes("Alongamento (ΔL)") && txt.t.includes("Fator de queda") && txt.t.includes("Módulo E do cabo"), "tabelas de entrada e resultado, com o diametro, o alongamento e o fator de queda");
   T(txt.pr[0].includes("Cabo de aço de 8 mm") && txt.pr[0].includes("catálogo SIVA") && txt.pr[1].includes("600 kgf") && txt.pr[2].includes("9500") && txt.pr[2].includes("voltas") && txt.co.some(x=> x.includes("Fator de queda do sistema: <b>0,2</b>")) && txt.co.some(x=> x.includes("Cabo de aço de 8 mm") && x.includes("atende")) && txt.le.length === 11 && txt.le[9].includes("5,00 m") && txt.le[10].includes("3,00 m") && txt.le[6].includes("4,66 m"), "premissa com o diametro; legenda com 11 itens e os valores 7, 10 e 11");
   const txtR = roda(`(function(){ const m = chkMemorialDe({ memorial:{ hanc:5, hpos:3, vao:3 } }); const c = chkMemorialCalc("horizontal_rigida", m); return { f: chkMemorialFormulas(c, m), pr: chkMemorialPremissas(c, m), le: chkMemorialLegenda(c, m) }; })()`);
-  T(txtR.f.includes("δ") && txtR.f.includes("<mn>2611</mn>") && txtR.pr[0].includes("W200x26,6") && txtR.le[1].includes("viga W200x26,6") && !/NaN|undefined/.test(txtR.f) && !txtR.f.includes("Momento fletor") && !txtR.f.includes("Tensão de flexão") && !txtR.pr.join("").includes("Tensão") && !txtR.pr.join("").includes("fy"), "viga: formulas de deflexao, premissa e legenda, sem a verificacao de resistencia");
+  T(txtR.f.includes("δ") && txtR.f.includes("<mn>2611</mn>") && !txtR.pr[0].includes("W200") && txtR.pr[0].includes("Viga de aço") && txtR.le[1].includes("viga, deflexão") && !txtR.le[1].includes("W200") && !/NaN|undefined/.test(txtR.f) && !txtR.f.includes("Momento fletor") && !txtR.f.includes("Tensão de flexão") && !txtR.pr.join("").includes("Tensão") && !txtR.pr.join("").includes("fy"), "viga: formulas de deflexao, premissa e legenda, sem a verificacao de resistencia");
 
   // ilustracao: 11 numeros; so mostra valores com dados completos
   const fig = (obj, tipo)=> roda(`chkMemorialFigura(${JSON.stringify(tipo || "horizontal_flexivel")}, chkMemorialDe(${JSON.stringify({ memorial: obj })}))`);
@@ -1860,7 +1860,7 @@ async function testarCapitulosNovos(){
   T(roda(`lclMontarBlocos(${d}, lclTextos(), lclPlano(__f3.proj, __f3.l), new Map(), null).filter(x=> x.ancora === "cap-memoria").length`) === 0 && roda("lclPlano(__f3.proj, __f3.l).find(c=>c.id === 'memorial').subs.length") === 0, "sem a pagina da memoria de calculo: sem bloco e sem subitem");
   roda("__f3.l.memorial.memoria = true");
   roda("__f3.l.tipoLinha = 'horizontal_rigida'; delete __f3.l.memorial.flechaCm");
-  T(roda("lclPlano(__f3.proj, __f3.l).some(c=>c.id === 'memorial')") === true && roda(`lclBlocosMemorial(${d}, { num:4, rot:"Memorial", ancora:"cap-memorial" })[0].html`).includes("viga W200x26,6"), "viga rigida nao precisa de flecha");
+  T(roda("lclPlano(__f3.proj, __f3.l).some(c=>c.id === 'memorial')") === true && roda(`lclBlocosMemorial(${d}, { num:4, rot:"Memorial", ancora:"cap-memorial" })[0].html`).includes("rígida (viga)") && !roda(`lclBlocosMemorial(${d}, { num:4, rot:"Memorial", ancora:"cap-memorial" })[0].html`).includes("W200"), "viga rigida nao precisa de flecha; a dimensao da viga nao aparece no laudo");
   roda("__f3.l.tipoLinha = 'horizontal_flexivel'");
   T(roda("lclPlano(__f3.proj, __f3.l).some(c=>c.id === 'memorial')") === false && roda(`lclBlocosMemorial(${d}, { num:4, rot:"M", ancora:"a" }).length`) === 0, "cabo sem flecha: o memorial nao entra");
   roda("__f3.l.memorial.flechaCm = 46.9");
@@ -3176,6 +3176,20 @@ async function testarUsabilidade(){
     const card = roda("STATE.ui.screen = 'checklist-linhas'; screenChkLinhas()");
     T(card.includes("Responsável: Luiz") && card.includes("Responsável: Daniel"), "cartao mostra o responsavel de cada linha");
     roda("delete globalThis.localStorage; STATE.checklists.inspetores = []; STATE.checklists.modelos = " + modelosOrig + "; STATE.checklists.projetos = " + J(estadoAntes.lista) + ";");
+  }
+  // ---- laudo: acao recomendada na avaliacao por componente; checklist com coluna da pergunta larga; texto sem negrito
+  { const itA = itn("a", "Item A", { motivosPadrao:[{ motivo:"M1", texto:"Pend A1.", acao:"Fazer A1", prioridade:"critica" }, { motivo:"M2", texto:"Pend A2.", acao:"Fazer A2" }] });
+    const itB = itn("b", "Item B", { motivosPadrao:[{ motivo:"M1", texto:"Pend B1.", acao:"Fazer A1" }] });
+    const linAc = linhaCorpo([itA, itB], [exe("a", "naoAtende", 0, { motivosSelecionados:["M1", "M2"] }), exe("b", "naoAtende", 0, { motivosSelecionados:["M1"] })]);
+    const nAc = roda("chkNarrativaSecao(" + linAc + ".modeloSnapshot[0], " + linAc + ", '3.1')");
+    T(nAc.acoes.length === 2 && nAc.acoes[0].txt === "Fazer A1" && nAc.acoes[0].prio === "critica" && nAc.acoes[1].txt === "Fazer A2" && nAc.acoes[1].prio === "media", "acoes recomendadas dos motivos escolhidos, sem repetir a mesma acao, com a prioridade de cada uma: " + J(nAc.acoes));
+    const bAc = corpoDe(linAc);
+    const htmlAc = bAc.map(b => b.html).join("");
+    T(htmlAc.includes('class="lcl-acoes"') && htmlAc.includes("Ação recomendada") && htmlAc.includes("<li>Fazer A1</li>") && htmlAc.includes("<li>Fazer A2</li>") && (htmlAc.match(/Fazer A1/g) || []).length === 1, "a avaliacao por componente mostra a Acao recomendada logo depois do texto das nao conformidades");
+    const linSemNc = linhaCorpo([itA], [exe("a", "atende", 0)]);
+    T(!corpoDe(linSemNc).map(b => b.html).join("").includes("lcl-acoes"), "sem nao conformidade, sem bloco de acao");
+    const srcH = require("fs").readFileSync(process.argv[2], "utf8");
+    T(srcH.includes(".lcl-rt{flex:1 1 56%;min-width:0}") && srcH.includes("flex:0 1 30%;max-width:30%") && srcH.includes("white-space:normal;overflow-wrap:anywhere") && srcH.includes(".lcl-narr mark.nc{background:none;color:#1E2148;font-weight:400}"), "checklist do laudo: pergunta larga e normas estreitas com quebra; texto das nao conformidades sem negrito");
   }
 }
 async function testarSincronizacaoChecklist(){
