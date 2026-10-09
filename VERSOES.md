@@ -64,6 +64,19 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 09/10/2026 16:21
+
+**Projetos arquivados deixam de aparecer na aba Áreas do Laudo e de entrar no escopo do laudo.**
+
+- Na Central do Laudo, aba Áreas, só aparecem os projetos ativos neste
+  aparelho; os totais ("Todos os projetos") e o "Selecionar todas" também só
+  contam os ativos.
+- Para não ficar uma área de projeto arquivado marcada escondida (entrando na
+  Revisão e nos arquivos sem ninguém ver), o escopo do laudo também ignora as
+  áreas de projetos arquivados. Nada é apagado: é só a seleção de áreas; ao
+  desarquivar o projeto, as áreas voltam a aparecer na aba Áreas, desmarcadas,
+  e basta tocar em "Todas deste projeto".
+
 ## 09/10/2026 12:32
 
 **Linhas de vida: textos do laudo personalizados pelas características da linha, revisão dos textos com o Claude e edição à mão, com ou sem IA.**

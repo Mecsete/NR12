@@ -5966,6 +5966,15 @@ chk("nao atende sem texto de motivo vira uma frase pelo numero do item e norma, 
 chk("secao com todos os itens 'nao se aplica' tem mensagem propria",
     "Todos os itens desta seção foram marcados como não se aplicam a esta linha de vida." in novo and "const todosNa = " in novo)
 
+print("\n=== 187. PROJETO ARQUIVADO FORA DA ABA AREAS E DO ESCOPO DO LAUDO (09/10/2026) ===")
+chk("a aba Areas lista so projetos ativos e o escopo do laudo (getAreasSelecionadasExport) ignora areas de projeto arquivado",
+    "const projetos = projetosAtivosDoAparelho().slice().sort(" in _corpoDe(novo, "laudoAbaAreas")
+    and "projetosAtivosDoAparelho().forEach(p=>p.areas.forEach(a=>todasAreaIds.push(a.id)));" in _corpoDe(novo, "getAreasSelecionadasExport"))
+chk("arquivar continua sendo so um filtro de tela/escopo: projetoArquivado e projetosAtivosDoAparelho nao mudaram e nada e apagado",
+    _corpoDe(novo, "projetoArquivado") == _corpoDe(orig, "projetoArquivado")
+    and _corpoDe(novo, "projetosAtivosDoAparelho") == _corpoDe(orig, "projetosAtivosDoAparelho")
+    and "splice(" not in _corpoDe(novo, "getAreasSelecionadasExport"))
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
 

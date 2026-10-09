@@ -250,7 +250,7 @@ vm.runInContext("let __laudoRascunho = null; let __laudoInfoHrn = { po:false, fe
    importarDadosPlaqueta, dentro do BLOCO_A, consultam o arquivamento antes de
    escrever. Sem a lista e as funcoes aqui, o codigo real nao roda. */
 vm.runInContext("var __projArquivados = new Set();", ctx);
-[ "projetoArquivado", "projetoArquivadoDaMaquina" ].forEach(n=> vm.runInContext(funcao(n), ctx));
+[ "projetoArquivado", "projetosAtivosDoAparelho", "projetoArquivadoDaMaquina" ].forEach(n=> vm.runInContext(funcao(n), ctx));
 vm.runInContext(BLOCO_A, ctx);
 vm.runInContext(BLOCO_B, ctx);
 /* laudoBlocoPlaqueta (dentro de BLOCO_B) passou a usar selectOptions/opt
@@ -14312,6 +14312,36 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
     t("a IA recebe a situacao de CADA medida quando ela existe", ()=>{
       ok(HTML.indexOf("Situação de CADA medida em relação à norma") > 0 && HTML.indexOf("Situação de cada medida que já existe: ") > 0);
+    });
+  }
+
+  /* t190 — PROJETO ARQUIVADO FORA DA ABA ÁREAS E DO ESCOPO DO LAUDO (09/10/2026). */
+  {
+    console.log("\n[t190] projeto arquivado nao aparece na aba Areas nem entra no escopo do laudo");
+    t("a aba Areas e a lista de exportacoes partem dos projetos ATIVOS", ()=>{
+      ok(funcao("laudoAbaAreas").indexOf("const projetos = projetosAtivosDoAparelho().slice().sort(") > 0, "a aba Areas ainda lista tudo");
+      ok(funcao("getAreasSelecionadasExport").indexOf("projetosAtivosDoAparelho().forEach(p=>p.areas.forEach(a=>todasAreaIds.push(a.id)));") > 0, "o escopo ainda inclui arquivados");
+      const i = HTML.indexOf("  selecionarTodasAreasExport(){");
+      ok(HTML.slice(i, i + 300).indexOf("projetosAtivosDoAparelho().forEach") > 0, "Selecionar todas ainda marca arquivados");
+    });
+    t("EXECUTADO: area de projeto arquivado sai da selecao e do escopo; ao desarquivar volta a aparecer; nada e apagado", ()=>{
+      const cx = vm.createContext({ Set, Array, String });
+      cx.__projArquivados = new Set();
+      cx.STATE = { ui:{}, projetosSimples:[
+        { id:"p1", areas:[{ id:"a1" }, { id:"a2" }] },
+        { id:"p2", areas:[{ id:"a3" }] } ] };
+      vm.runInContext(["projetoArquivado","projetosAtivosDoAparelho","getAreasSelecionadasExport"].map(funcao).join("\n"), cx);
+      eq(vm.runInContext("getAreasSelecionadasExport().join()", cx), "a1,a2,a3", "sem arquivados: tudo marcado, como sempre");
+      cx.__projArquivados.add("p2");
+      eq(vm.runInContext("getAreasSelecionadasExport().join()", cx), "a1,a2", "projeto arquivado sai do escopo");
+      eq(cx.STATE.projetosSimples[1].areas.length, 1, "o projeto e suas areas continuam intactos");
+      cx.__projArquivados.delete("p2");
+      eq(vm.runInContext("getAreasSelecionadasExport().join()", cx), "a1,a2", "desarquivado: a area volta a aparecer na aba Areas, desmarcada");
+      cx.STATE.ui.areasSelecionadasExport.push("a3");
+      eq(vm.runInContext("getAreasSelecionadasExport().join()", cx), "a1,a2,a3", "marcada de novo, vale");
+      // desmarcar de proposito continua valendo
+      cx.STATE.ui.areasSelecionadasExport = ["a1"];
+      eq(vm.runInContext("getAreasSelecionadasExport().join()", cx), "a1", "a escolha explicita e preservada");
     });
   }
 
