@@ -159,7 +159,7 @@ const FUNCOES = [
   "lclItemModeloAtual", "lclPrioridade", "lclAcaoMotivo", "lclNaoConformidades", "lclParecerAuto", "lclParecer",
   "lclListaPt", "lclVariaveis", "lclAplicarVariaveis", "lclMarkup", "lclBlocosMemorial", "lclBlocosAnexos", "lclListaImagensHtml",
   "screenChkSetorForm", "chkFotosSecaoHtml", "chkFotosSecaoResumoHtml", "chkRenderItem", "screenChkPreencher", "screenChkFinalizar", "chkResumoHtml",
-  "lclTextoEditado", "lclHtmlParaTexto", "lclTextoParaHtml", "lclConclusaoAuto", "lclFotosSecaoHtml", "lclNumItem",
+  "lclTextoEditado", "lclHtmlParaTexto", "lclTextoParaHtml", "lclConclusaoAuto", "lclFotosSecaoHtml", "lclNumItem", "lclFotosDestinos", "lclInserirFotos", "lclArquivosDoEvento", "lclPrioLegenda", "lclPrioChip",
   // Cadastro do projeto: mascaras, validade automatica e cadastro de inspetores.
   "chkSoDigitos", "chkMascaraDocumento", "chkMascaraTelefone", "chkExibirDocumento", "chkExibirTelefone", "chkValidarCpf", "chkValidarCnpj",
   "chkAvisoDocumento", "chkMaisMesesISO", "chkOpcoesInspetor", "novoChkInspetor", "chkInspetoresHtml", "screenChkProjetoForm",
@@ -1329,6 +1329,7 @@ async function testarLaudoCapitulos(){
   T(blocos.filter(b=>b.sumario).length === 1 && blocos.find(b=>b.sumario).html.includes("3.2  Ancoragem"), "sumario com os subitens do corpo");
   const ck = blocos.filter(b=>b.html.includes("lcl-cd")).map(b=>b.html).join("");
   T(ck.includes("NR-35 8.2") && ck.includes("ver 3.1") && ck.includes("Seção marcada como") && ck.includes("1 OK · 1 NÃO OK"), "checklist em cartoes: norma do item, 'ver 3.1' no que nao atende, secao NA e contagem por secao");
+  T(/<span class="lcl-rn">\d+\.\d+<a class="lcl-rver"[^>]*>ver 3\.1<\/a><\/span>/.test(ck) && !/<\/span><a class="lcl-rver"/.test(ck), "checklist do laudo: o 'ver 3.1' fica embaixo do numero do item, nao numa coluna propria");
   const corpoBl = blocos.filter(b=>b.ancora && b.ancora.startsWith("cap-sec-"));
   T(corpoBl.length === 2 && corpoBl[0].ancoraExtra === "cap-corpo", "um bloco de corpo por secao que se aplica, o 1o carregando a ancora do capitulo");
   const corpo0 = blocos.slice(blocos.indexOf(corpoBl[0]), blocos.indexOf(corpoBl[1])).map(b=>b.html).join("");
@@ -2094,11 +2095,33 @@ async function testarFotosLeituraLaudo(){
 
   // --- HTML da janela
   let h = roda(`lclFotosSecaoHtml(__f3.l, ${J(sec1)})`);
-  T(h.includes("1.1 · Cabo integro") && !h.includes("1.2 · Grampos") && h.includes('<div class="chk-mfoto-t">Corrosao</div>') && h.includes('<div class="chk-mfoto-t">Fios rompidos</div>') && !h.includes("Sem motivo</div>"), "so itens com foto, uma caixa por motivo marcado, sem caixa 'Sem motivo' quando todas tem motivo");
+  T(h.includes("1.1 · Cabo integro") && h.includes('<div class="chk-mfoto-t">Corrosao</div>') && h.includes('<div class="chk-mfoto-t">Fios rompidos</div>') && !h.includes("Sem motivo</div>"), "itens com foto, uma caixa por motivo marcado, sem caixa 'Sem motivo' quando todas tem motivo");
+  roda(`(function(){ const ex = chkItemExec(__f3.l, __f3.b.id); ex.conforme = "atende"; ex.fotos = []; })()`);
+  T(!roda(`lclFotosSecaoHtml(__f3.l, ${J(sec1)})`).includes("1.2 · Grampos"), "item que atende e nao tem foto nao aparece na janela");
+  roda(`(function(){ const ex = chkItemExec(__f3.l, __f3.b.id); ex.conforme = "naoAtende"; })()`);
+  T(roda(`lclFotosSecaoHtml(__f3.l, ${J(sec1)})`).includes("1.2 · Grampos"), "item que nao atende aparece mesmo sem foto, para receber uma foto");
   const f1 = h.indexOf("Foto 3.1.1"), f2 = h.indexOf("Foto 3.1.2");
   T(f1 > -1 && f1 < f2 && h.indexOf('chk-mfoto-t">Corrosao') < f1 && f1 < h.indexOf('chk-mfoto-t">Fios rompidos'), "o numero e o da foto no laudo, com o numero da secao (3.1.1 do 1o motivo, 3.1.2 do 2o)");
   T((h.match(/draggable="true"/g) || []).length === 2 && h.includes(`App.lclFotoDrop(event,'${itA}',0)`) && h.includes(`App.lclFotoDrop(event,'${itA}',1)`) && h.includes("App.lclFotoExcluir(") && h.includes('<option value="-1"'), "fotos arrastaveis, caixas que recebem, lixeira e 'Mover para'");
   T(roda(`lclFotosSecaoHtml(__f3.l, ${J(sec2)})`).includes("Nenhuma foto nesta seção.") && roda(`lclFotosSecaoHtml(__f3.l, "nao-existe")`) === "", "secao sem foto avisa; secao inexistente nao devolve nada");
+  // --- inserir fotos: caixa das fotos gerais sempre presente, destinos, gravacao e soltar arquivos do computador
+  { const hS = roda(`lclFotosSecaoHtml(__f3.l, ${J(sec2)})`);
+    T(hS.includes("Fotos da seção (gerais)") && hS.includes(`App.lclSecaoFotoDrop(event,'${sec2}')`) && hS.includes("Solte fotos aqui."), "secao sem foto: a caixa das fotos gerais aparece e recebe fotos arrastadas");
+    T(h.includes('lcl-dz') && h.includes(`App.lclSecaoFotoDrop(event,'${sec1}')`), "fotos gerais da secao: caixa que recebe arquivos");
+    const dst = roda(`lclFotosDestinos(__f3.l, ${J(sec1)})`);
+    T(dst[0].valor === "s" && dst.filter(x => x.valor.startsWith(`i|${itA}|`)).length === 2 && dst.some(x => x.valor === `i|${itA}|1` && x.rotulo.includes("Fios rompidos")) && roda(`lclFotosDestinos(__f3.l, "nao-existe")`).length === 0, "destinos: fotos gerais, e um por motivo marcado de cada item que nao atende");
+    roda(`chkItemExec(__f3.l, ${J(itB)}).conforme = "na"`);
+    T(!roda(`lclFotosDestinos(__f3.l, ${J(sec1)})`).some(x => x.valor.startsWith(`i|${itB}|`)) && roda(`lclInserirFotos(__f3.l, ${J(sec1)}, "i|${itB}|-1", ["data:image/jpeg;base64,X"])`) === 0, "item 'nao se aplica' nao recebe foto");
+    roda(`chkItemExec(__f3.l, ${J(itB)}).conforme = "naoAtende"`);
+    const jaSec = roda(`((__f3.l.fotosSecao || {})[${J(sec1)}] || []).length`);
+    const nS = roda(`lclInserirFotos(__f3.l, ${J(sec1)}, "s", ["data:image/jpeg;base64,N1", "", "data:image/jpeg;base64,N2"])`);
+    T(nS === 2 && roda(`__f3.l.fotosSecao[${J(sec1)}].length`) === jaSec + 2 && roda(`__f3.l.fotosSecao[${J(sec1)}][${jaSec}].motivo`) === "", "foto geral da secao entra (a vazia e ignorada)");
+    const nI = roda(`lclInserirFotos(__f3.l, ${J(sec1)}, "i|${itA}|1", ["data:image/jpeg;base64,N3"])`);
+    const fA = roda(`chkItemExec(__f3.l, ${J(itA)}).fotos`);
+    T(nI === 1 && fA[fA.length - 1].foto === "data:image/jpeg;base64,N3" && fA[fA.length - 1].motivo === "Fios rompidos", "foto inserida num motivo fica ligada a esse motivo");
+    T(roda(`lclInserirFotos(__f3.l, ${J(sec1)}, "i|nao-existe|0", ["x"])`) === 0 && roda(`lclInserirFotos(__f3.l, ${J(sec1)}, "i|${itA}|9", ["x"])`) === 0 && roda(`lclInserirFotos(__f3.l, "nao-existe", "s", ["x"])`) === 0, "destino inexistente: nao insere nada");
+    roda(`(function(){ const ex = chkItemExec(__f3.l, __f3.a.id); ex.fotos = ex.fotos.filter(f => !/(N3|D1|D3)$/.test(f.foto)); if(__f3.l.fotosSecao){ delete __f3.l.fotosSecao[${J(sec1)}]; if(!Object.keys(__f3.l.fotosSecao).length) delete __f3.l.fotosSecao; } })()`);
+  }
   // item que atende com foto: so lixeira, sem arrastar nem 'Mover para'
   roda(`(function(){ const ex = chkItemExec(__f3.l, __f3.b.id); ex.conforme = "atende"; ex.motivosSelecionados = ["Folgados"]; ex.fotos = [{ foto:"data:image/jpeg;base64,PB" }]; })()`);
   h = roda(`lclFotosSecaoHtml(__f3.l, ${J(sec1)})`);
@@ -2122,6 +2145,30 @@ async function testarFotosLeituraLaudo(){
 
   // --- acoes do App
   roda("setor.linhas.push(__f3.l); STATE.ui.chkLinhaId = __f3.l.id; STATE.ui.chkSetorId = setor.id; STATE.ui.chkProjetoId = proj.id;");
+  { // inserir fotos arrastando arquivos do computador (com a linha ja na tela)
+  const itA = roda("__f3.a.id");
+  const sec1 = roda("__f3.l.modeloSnapshot[0].id");
+    // soltar arquivos do computador numa caixa (App.lclFotoDrop / lclSecaoFotoDrop) e na janela toda
+  const arq = (nome, tipo)=> ({ nome, type: tipo });
+  const ev = (arqs)=> ({ preventDefault(){}, stopPropagation(){ this.parou = true; }, dataTransfer:{ files: arqs, getData: ()=> "" } });
+  roda("__lclFotosSec = " + J(sec1));
+  const e1 = ev([arq("D1", "image/jpeg"), arq("D2", "text/plain"), arq("D3", "image/png")]);
+  await roda("App.lclFotoDrop")(e1, itA, 0);
+  await new Promise(r => setTimeout(r, 20));
+  const fA2 = roda(`chkItemExec(__f3.l, ${J(itA)}).fotos`);
+  const novas = fA2.filter(f => /D[13]$/.test(f.foto));
+  T(e1.parou === true && novas.length === 2 && novas.every(f => f.motivo === "Corrosao") && !fA2.some(f => /D2$/.test(f.foto)), "arquivo de imagem solto na caixa do 1o motivo entra nesse motivo (so imagens)");
+  const e2 = ev([arq("S1", "image/jpeg")]);
+  await roda("App.lclSecaoFotoDrop")(e2, sec1);
+  await new Promise(r => setTimeout(r, 20));
+  T(roda(`__f3.l.fotosSecao[${J(sec1)}]`).some(f => /S1$/.test(f.foto)), "arquivo solto na caixa das fotos gerais da secao");
+  const antesL = roda(`__f3.l.fotosSecao[${J(sec1)}].length`);
+  await roda("App.lclFotoSoltar")(ev([arq("Z1", "text/plain")]));
+  await new Promise(r => setTimeout(r, 20));
+  T(roda(`__f3.l.fotosSecao[${J(sec1)}].length`) === antesL, "soltar um arquivo que nao e imagem nao insere nada");
+  roda(`(function(){ const ex = chkItemExec(__f3.l, __f3.a.id); ex.fotos = ex.fotos.filter(f => !/(N3|D1|D3)$/.test(f.foto)); if(__f3.l.fotosSecao){ delete __f3.l.fotosSecao[${J(sec1)}]; if(!Object.keys(__f3.l.fotosSecao).length) delete __f3.l.fotosSecao; } })()`);
+  roda("__lclFotosSec = ''");
+  }
   const outraAntes = J(roda("setor.linhas[0]"));
   sandbox.__ultimoOverlayHtml = null;
   roda(`App.lclAbrirFotos(${J(sec1)})`);
@@ -2686,6 +2733,11 @@ async function testarUsabilidade(){
   T(qSem.includes("lcl-ncr sem-im h") && !qSem.includes("<span>Imagem</span>") && !qSem.includes('class="im') && !qSem.includes("sem foto") && !qSem.includes("Sem registro fotográfico"), "nenhuma nao conformidade com foto: a coluna Imagem some do quadro");
   const qCom = roda("lclBlocosConclusao(" + dF3 + ", " + capC + ", '', (x)=> x ? 'data:image/jpeg;base64,RR' : '').filter(b=> b.html.includes('lcl-ncr')).map(b=> b.html).join('')");
   T(qCom.includes("<span>Imagem</span>") && qCom.includes('class="im"') && !qCom.includes("sem-im"), "com foto em alguma nao conformidade: a coluna Imagem fica");
+  T(qCom.indexOf('class="im"') > -1 && qCom.indexOf('class="im"') < qCom.indexOf('class="pr"') && qCom.includes('<div class="pr"><span class="lcl-pchip') && !qCom.includes("<span>Prioridade</span>") && !qCom.includes('<i style="background'), "quadro de nao conformidades: a prioridade fica embaixo da imagem (3 colunas: imagem e prioridade, item, acao)");
+  T(qSem.includes("<span>Prioridade</span>") && qSem.includes('<div class="pic"><div class="pr"><span class="lcl-pchip') && !qSem.includes('class="im'), "sem nenhuma foto: a primeira coluna so tem a prioridade");
+  { const blQ = roda("lclBlocosConclusao(" + dF3 + ", " + capC + ", '', (x)=> '')");
+    let ult = -1; blQ.forEach((b, i)=> { if(b.html.includes("lcl-ncr") && !b.html.includes("lcl-ncr h")) ult = i; });
+    T(ult > -1 && blQ[ult].grudaNoProximo === true && blQ[ult + 1].html.includes("lcl-pri-leg") && !blQ[ult + 1].html.includes("lcl-pchip"), "quadro de nao conformidades termina com a legenda discreta, colada a ultima linha"); }
   // normas de referencia agrupadas por tipo de linha (texto padrao unico) e cabecalho de grupo na Metodologia
   T(roda("LCL_NORMATIVO_PADRAO.normas.filter(x => /^###\\s/.test(x)).length") === 4 && roda("LCL_NORMATIVO_PADRAO.normas[0]").startsWith("### Normas gerais") && roda("LCL_NORMATIVO_PADRAO.normas.some(x => x.includes('rígidas'))") && roda("LCL_NORMATIVO_PADRAO.normas.some(x => x.includes('flexíveis'))") && roda("LCL_NORMATIVO_PADRAO.normas.some(x => x.includes('verticais'))"), "normas padrao: gerais, rigidas, flexiveis e verticais");
   T(roda("LCL_NORMATIVO_PADRAO.normas.join('|')").includes("NBR 16325-1:2014") && roda("LCL_NORMATIVO_PADRAO.normas.join('|')").includes("NBR 16489") && roda("LCL_NORMATIVO_PADRAO.normas.join('|')").includes("NBR 15837") && roda("LCL_NORMATIVO_PADRAO.normas.join('|')").includes("NR-35"), "as normas citadas nos itens do checklist estao na lista");
@@ -3197,6 +3249,7 @@ async function testarUsabilidade(){
     T(htmlAc.includes('class="lcl-acoes"') && htmlAc.includes("Ação recomendada") && htmlAc.includes(" Fazer A1</li>") && htmlAc.includes(" Fazer A2</li>") && htmlAc.includes("lcl-pchip critica") && htmlAc.includes("lcl-pchip media") && htmlAc.includes("lcl-pri-leg") && !/Crítica \d|Alta \d/.test(htmlAc) && (htmlAc.match(/Fazer A1/g) || []).length === 1, "a avaliacao por componente mostra a Acao recomendada logo depois do texto das nao conformidades");
     const linSemNc = linhaCorpo([itA], [exe("a", "atende", 0)]);
     T(!corpoDe(linSemNc).map(b => b.html).join("").includes("lcl-acoes"), "sem nao conformidade, sem bloco de acao");
+    T(!bAc[0].html.includes("lcl-pri-leg") && bAc[bAc.length - 1].html.includes("lcl-pri-leg") && bAc[bAc.length - 2].grudaNoProximo === true && (htmlAc.match(/lcl-pri-leg"/g) || []).length === 1 && bAc[bAc.length - 1].html.includes('<i style="background') && !bAc[bAc.length - 1].html.includes("lcl-pchip") && !corpoDe(linSemNc).map(b => b.html).join("").includes("lcl-pri-leg"), "legenda das prioridades: uma so, discreta (pontos coloridos), depois da relacao de acoes e colada ao ultimo bloco; sem acoes, sem legenda");
     const srcH = require("fs").readFileSync(process.argv[2], "utf8");
     T(srcH.includes(".lcl-rt{flex:1 1 56%;min-width:0}") && srcH.includes("flex:0 1 30%;max-width:30%") && srcH.includes("white-space:normal;overflow-wrap:anywhere") && srcH.includes(".lcl-narr mark.nc{background:none;color:#1E2148;font-weight:400}"), "checklist do laudo: pergunta larga e normas estreitas com quebra; texto das nao conformidades sem negrito");
   }

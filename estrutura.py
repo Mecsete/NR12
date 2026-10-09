@@ -105,7 +105,13 @@ print("=== 3. ARQUITETURA DE FOTOS (CAMADA_FOTOS) ===")
 # referencia no lugar da foto. So comentario: nenhuma ocorrencia nova em
 # codigo. A referencia (original.html) JA vem do commit 5127d07 agora, entao
 # contar de novo somaria duas vezes. Zerado.
-_extra_fotos = {"foto:": 0, "idbfoto:": 0}
+# INSERIR FOTOS NA JANELA DE FOTOS DO LAUDO (09/10/2026): +2 em "foto:" (somar
+# enquanto a referencia for anterior a esse commit; zerar quando ela o incluir).
+# Sao os dois objetos novos de lclInserirFotos ({ foto:data, tags:[], motivo }: um
+# para o item/motivo, outro para as fotos gerais da secao), no mesmo formato dos
+# que o preenchimento ja grava (chkTirarFoto e chkSecaoFoto). Nada mudou na
+# gravacao, compressao ou sincronizacao de foto.
+_extra_fotos = {"foto:": 2, "idbfoto:": 0}
 for marca in ["idbfoto:", "foto:", "CAMADA_FOTOS"]:
     a, b = orig.count(marca) + _extra_fotos.get(marca, 0), novo.count(marca)
     chk("ocorrencias de '%s' inalteradas (%d)" % (marca, a), a == b, "orig+extra=%d novo=%d" % (a, b))

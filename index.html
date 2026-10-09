@@ -3471,7 +3471,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "09/10/2026 12:32";
+const APP_BUILD = "09/10/2026 16:17";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -16505,7 +16505,7 @@ function lclFotosSecaoHtml(linha, secaoId){
   (s.itens || []).forEach((it, ii)=>{
     const ie = chkItemExec(linha, it.id);
     const fotos = (ie && ie.fotos) || [];
-    if(!fotos.length) return;
+    if(!fotos.length && !(ie && ie.conforme === "naoAtende")) return;
     const sel = ie.conforme === "naoAtende" ? (ie.motivosSelecionados || []) : [];
     const cartao = (f, fi)=>{
       const atual = sel.indexOf(f.motivo);
@@ -16518,21 +16518,68 @@ function lclFotosSecaoHtml(linha, secaoId){
     if(sel.length){
       const caixas = sel.map((m, mi)=>{
         const fs = fotos.map((f, fi)=>[f, fi]).filter(([f])=> f.motivo === m);
-        return `<div class="chk-mfoto" ${alvo(it.id, mi)}><div class="chk-mfoto-t">${escapeHtml(m)}</div><div class="lcl-fgrid">${fs.map(([f, fi])=> cartao(f, fi)).join("") || `<span class="lcl-dica">Solte uma foto aqui.</span>`}</div></div>`;
+        return `<div class="chk-mfoto" ${alvo(it.id, mi)}><div class="chk-mfoto-t">${escapeHtml(m)}</div><div class="lcl-fgrid">${fs.map(([f, fi])=> cartao(f, fi)).join("") || `<span class="lcl-dica">Solte fotos aqui.</span>`}</div></div>`;
       }).join("");
       const soltas = fotos.map((f, fi)=>[f, fi]).filter(([f])=> !(f.motivo && sel.includes(f.motivo)));
       const caixaSolta = soltas.length ? `<div class="chk-mfoto solta" ${alvo(it.id, -1)}><div class="chk-mfoto-t">Sem motivo</div><div class="lcl-fgrid">${soltas.map(([f, fi])=> cartao(f, fi)).join("")}</div></div>` : "";
       corpo = `<div class="chk-mfotos">${caixas}${caixaSolta}</div>`;
     }else{
-      corpo = `<div class="lcl-fgrid">${fotos.map((f, fi)=> cartao(f, fi)).join("")}</div>`;
+      corpo = `<div class="lcl-fgrid lcl-dz" ${alvo(it.id, -1)}>${fotos.map((f, fi)=> cartao(f, fi)).join("") || `<span class="lcl-dica">Solte fotos aqui.</span>`}</div>`;
     }
     itensHtml.push(`<div class="lcl-fitem"><div class="lcl-fitem-t">${lclNumItem(linha, s, ii)} · ${escapeHtml(it.descricao || "Item")}</div>${corpo}</div>`);
   });
   const fsec = (linha.fotosSecao || {})[secaoId] || [];
-  if(fsec.length){
-    itensHtml.unshift(`<div class="lcl-fitem"><div class="lcl-fitem-t">Fotos da seção (gerais)</div><div class="lcl-fgrid">${fsec.map((f, fi)=>`<div class="lcl-fcard"><img data-imgref="${imgReg(f.foto)}" alt=""><button class="icon-btn chk-photo-remove" title="Excluir foto" onclick="App.lclSecaoFotoExcluir('${secaoId}',${fi})">${ic("trash")}</button><div class="lcl-fnum2">Foto ${num.get(f)}</div></div>`).join("")}</div></div>`);
-  }
-  return itensHtml.length ? itensHtml.join("") : `<div class="lcl-dica">Nenhuma foto nesta seção.</div>`;
+  const alvoSec = `ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="this.classList.remove('over');App.lclSecaoFotoDrop(event,'${secaoId}')"`;
+  itensHtml.unshift(`<div class="lcl-fitem"><div class="lcl-fitem-t">Fotos da seção (gerais)</div><div class="lcl-fgrid lcl-dz" ${alvoSec}>${fsec.map((f, fi)=>`<div class="lcl-fcard"><img data-imgref="${imgReg(f.foto)}" alt=""><button class="icon-btn chk-photo-remove" title="Excluir foto" onclick="App.lclSecaoFotoExcluir('${secaoId}',${fi})">${ic("trash")}</button><div class="lcl-fnum2">Foto ${num.get(f)}</div></div>`).join("") || `<span class="lcl-dica">Solte fotos aqui.</span>`}</div></div>`);
+  const semFoto = chkFotosDaSecao(s, linha).objetos.length === 0;
+  return (semFoto ? `<div class="lcl-dica" style="margin-bottom:8px">Nenhuma foto nesta seção.</div>` : "") + itensHtml.join("");
+}
+/* Destinos para inserir foto na janela de fotos da seção: as fotos gerais da seção, cada item (menos os "não se aplica")
+   e, nos itens que não atendem, cada motivo marcado. Valor: "s" ou "i|idDoItem|posiçãoDoMotivo" (-1 = sem motivo). */
+function lclFotosDestinos(linha, secaoId){
+  const s = (linha.modeloSnapshot || []).find(x=> x.id === secaoId); if(!s) return [];
+  const cur = (t, n)=> { t = String(t || ""); return t.length > n ? t.slice(0, n - 1).trim() + "…" : t; };
+  const out = [{ valor:"s", rotulo:"Fotos da seção (gerais)" }];
+  (s.itens || []).forEach((it, ii)=>{
+    const ie = chkItemExec(linha, it.id); if(!ie || ie.conforme === "na") return;
+    const num = lclNumItem(linha, s, ii);
+    const sel = ie.conforme === "naoAtende" ? (ie.motivosSelecionados || []) : [];
+    if(sel.length) sel.forEach((m, mi)=> out.push({ valor:"i|" + it.id + "|" + mi, rotulo:num + " · " + cur(it.descricao, 48) + " — " + cur(m, 40) }));
+    else out.push({ valor:"i|" + it.id + "|-1", rotulo:num + " · " + cur(it.descricao, 70) });
+  });
+  return out;
+}
+/* Insere fotos (data URL) num destino da seção. Devolve quantas entraram; destino inválido não insere nada. */
+function lclInserirFotos(linha, secaoId, destino, datas){
+  const s = (linha.modeloSnapshot || []).find(x=> x.id === secaoId); if(!s) return 0;
+  const partes = String(destino || "s").split("|");
+  let n = 0;
+  (datas || []).forEach(data=>{
+    if(!data) return;
+    if(partes[0] === "i"){
+      if(!(s.itens || []).some(it=> it.id === partes[1])) return;
+      const ie = chkItemExec(linha, partes[1]); if(!ie || ie.conforme === "na") return;
+      const mi = parseInt(partes[2], 10);
+      const m = ie.conforme === "naoAtende" && mi >= 0 ? (ie.motivosSelecionados || [])[mi] : "";
+      if(ie.conforme === "naoAtende" && mi >= 0 && typeof m !== "string") return;
+      if(!Array.isArray(ie.fotos)) ie.fotos = [];
+      ie.fotos.push({ foto:data, tags:[], motivo: m || "" });
+      ie.semFoto = false;
+      n++;
+    }else{
+      if(!linha.fotosSecao || typeof linha.fotosSecao !== "object") linha.fotosSecao = {};
+      if(!Array.isArray(linha.fotosSecao[secaoId])) linha.fotosSecao[secaoId] = [];
+      linha.fotosSecao[secaoId].push({ foto:data, tags:[], motivo:"" });
+      n++;
+    }
+  });
+  if(n) linha.atualizadoEm = agoraSync();
+  return n;
+}
+/* Arquivos de imagem de um evento de soltar (arrastar do computador). */
+function lclArquivosDoEvento(ev){
+  const fl = ev && ev.dataTransfer && ev.dataTransfer.files;
+  return Array.from(fl || []).filter(f=> f && /^image\//i.test(f.type || ""));
 }
 /* "6.2": número da seção no checklist . número do item (o mesmo do quadro de não conformidades). */
 function lclNumItem(linha, secao, itemIdx){
@@ -16996,11 +17043,13 @@ function lclBlocosConclusao(d, cap, assinaturaSrc, redu){
     // sem nenhuma foto nas não conformidades, a coluna Imagem some; com algumas, as sem foto ficam só com um texto discreto (sem quadro cinza)
     const comColunaFoto = ncs.some(x=> redu(x.imagem));
     const cls = comColunaFoto ? "lcl-ncr" : "lcl-ncr sem-im";
-    blocos.push({ grudaNoProximo:true, html:`<div class="lcl-h3">Quadro de não conformidades</div><div class="${cls} h">${comColunaFoto ? "<span>Imagem</span>" : ""}<span>Item</span><span>Prioridade</span><span>Ação recomendada</span></div>` });
+    blocos.push({ grudaNoProximo:true, html:`<div class="lcl-h3">Quadro de não conformidades</div><div class="${cls} h"><span>${comColunaFoto ? "Imagem" : "Prioridade"}</span><span>Item</span><span>Ação recomendada</span></div>` });
     ncs.forEach(x=>{
       const foto = redu(x.imagem);
-      blocos.push({ html:`<div class="${cls}">${comColunaFoto ? `<div class="im${foto ? "" : " vazio"}">${foto ? `<img src="${foto}" alt="">` : `<span>Sem registro fotográfico</span>`}</div>` : ""}<div class="it"><b>${lclEsc(x.num)} · ${lclEsc(x.secao)}</b><span>${lclEsc(x.descricao)}</span>${x.motivos.length ? `<small>${x.motivos.map(m=> lclEsc(m)).join("; ")}</small>` : ""}</div><div class="pr"><i style="background:${LCL_PRI_COR[x.prioridade]}">${lclEsc(chkPrioridadeRotulo(x.prioridade))}</i></div><div class="ac">${x.acoes.map(a=> lclEsc(a)).join("<br>")}</div></div>` });
+      blocos.push({ html:`<div class="${cls}"><div class="pic">${comColunaFoto ? `<div class="im${foto ? "" : " vazio"}">${foto ? `<img src="${foto}" alt="">` : `<span>Sem registro fotográfico</span>`}</div>` : ""}<div class="pr">${lclPrioChip(x.prioridade)}</div></div><div class="it"><b>${lclEsc(x.num)} · ${lclEsc(x.secao)}</b><span>${lclEsc(x.descricao)}</span>${x.motivos.length ? `<small>${x.motivos.map(m=> lclEsc(m)).join("; ")}</small>` : ""}</div><div class="ac">${x.acoes.map(a=> lclEsc(a)).join("<br>")}</div></div>` });
     });
+    blocos[blocos.length - 1].grudaNoProximo = true;
+    blocos.push({ html: lclPrioLegenda() });
   }
   blocos.push({ html:`${prox ? `<p class="lcl-par"><b>Próxima inspeção até: ${lclEsc(prox)}</b> (intervalo máximo de 12 meses).</p>` : ""}
     ${proj.art ? `<p class="lcl-par" style="margin-top:14px">Relatório documentado perante o CREA na ART nº <b>${lclEsc(proj.art)}</b></p>` : ""}
@@ -17235,7 +17284,7 @@ function lclBlocosChecklist(d, cap, capCorpo){
       if(cls === "ok") ok++; else if(cls === "nok") nok++; else if(cls === "na") na++;
       const icone = cls === "ok" ? "✓" : cls === "nok" ? "✗" : cls === "na" ? "–" : "?";
       const ver = (cls === "nok" && refCorpo[s.id]) ? `<a class="lcl-rver" href="#lcl-a-${refCorpo[s.id].ancora}" onclick="return App.lclIrPara(event)">ver ${refCorpo[s.id].num}</a>` : "";
-      return `<div class="lcl-rw${cls === "na" ? " na" : ""}"><span class="lcl-ic ${cls}">${icone}</span><span class="lcl-rn">${si+1}.${ii+1}</span><span class="lcl-rt">${lclEsc(it.descricao)}</span>${ver}${it.normativo ? `<span class="lcl-rnorma">${lclEsc(it.normativo)}</span>` : ""}</div>`;
+      return `<div class="lcl-rw${cls === "na" ? " na" : ""}"><span class="lcl-ic ${cls}">${icone}</span><span class="lcl-rn">${si+1}.${ii+1}${ver}</span><span class="lcl-rt">${lclEsc(it.descricao)}</span>${it.normativo ? `<span class="lcl-rnorma">${lclEsc(it.normativo)}</span>` : ""}</div>`;
     }).join("");
     const resumo = `${ok} OK · ${nok} NÃO OK${na ? " · " + na + " N/A" : ""}`;
     blocos.push({ html:`<div class="lcl-cd"><div class="lcl-hd"><b>${si+1}  ${lclEsc(s.titulo || "Seção")}</b><small>${resumo}</small>${lclSbar(ok, nok, na)}</div>${secNA ? `<div class="lcl-rw na"><span class="lcl-rt">Seção marcada como “não se aplica”.</span></div>` : linhas}</div>` });
@@ -17397,14 +17446,16 @@ function lclPrioChip(prio){
   const k = LCL_PRI_COR[prio] ? prio : "media";
   return `<span class="lcl-pchip ${k}" style="background:${LCL_PRI_COR[k]}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${LCL_PRI_ICONE[k]}</svg>${lclEsc(chkPrioridadeRotulo(k))}</span>`;
 }
+/* Legenda das prioridades: uma linha pequena e cinza, depois da relação de ações recomendadas (no fim do capítulo e do quadro). */
 function lclPrioLegenda(){
   const d = { critica:"torna a linha inapta até a correção", alta:"corrigir com urgência", media:"corrigir no prazo programado", boa:"recomendação, não impede o uso" };
-  return `<div class="lcl-pri-leg">${["critica", "alta", "media", "boa"].map(k=> `<span>${lclPrioChip(k)} ${d[k]}</span>`).join("")}</div>`;
+  return `<div class="lcl-pri-leg"><b>Prioridade</b>${["critica", "alta", "media", "boa"].map(k=> `<span><i style="background:${LCL_PRI_COR[k]}"></i>${lclEsc(chkPrioridadeRotulo(k))}: ${d[k]}</span>`).join("")}</div>`;
 }
 /* ---------- corpo do laudo: uma seção por página, com as fotos ---------- */
 function lclBlocosCorpo(d, cap, redu){
   const l = d.linha;
   const blocos = [];
+  let temAcoes = false;
   cap.subs.forEach((sub, i)=>{
     const s = (l.modeloSnapshot || []).find(x=> x.id === sub.id);
     if(!s) return;
@@ -17418,7 +17469,7 @@ function lclBlocosCorpo(d, cap, redu){
     const nTopo = topoFotos.length, colsTopo = nTopo === 1 ? 1 : (nTopo === 4 ? 2 : Math.min(3, nTopo));
     const faixaTopo = nTopo ? `<div class="lcl-ftopo c${colsTopo}">${topoFotos.map(figura).join("")}</div>` : "";
     const editado = lclTextoEditado(l, sub.id);
-    const cabeca = (i === 0 ? lclFaixa(`${cap.num}  ${cap.rot}`, true) + lclPrioLegenda() : "")
+    const cabeca = (i === 0 ? lclFaixa(`${cap.num}  ${cap.rot}`, true) : "")
       + `<div class="lcl-h3">${sub.num}  ${lclEsc(sub.titulo)}</div>`
       + faixaTopo
       + (s.contexto ? `<div class="lcl-ctx"><b>Como deve estar:</b> ${lclEsc(chkCondTexto(s.contexto, l))}</div>` : "");
@@ -17427,6 +17478,7 @@ function lclBlocosCorpo(d, cap, redu){
     const acoesHtml = (acoes || []).length ? `<div class="lcl-acoes"><b>Ação recomendada</b><ul>${acoes.map(a=> `<li>${lclPrioChip(a.prio)} ${lclEsc(a.txt)}</li>`).join("")}</ul></div>` : "";
     const textoPend0 = editado !== null ? lclTextoParaHtml(editado) : pend;
     const textoPend = textoPend0 ? textoPend0 + acoesHtml : textoPend0;
+    if(textoPend0 && acoesHtml) temAcoes = true;
     const todosNa = (s.itens || []).length > 0 && (s.itens || []).every(it=>{ const e = chkItemExec(l, it.id); return !!e && e.conforme === "na"; });
     const vazio = editado === null && !conforme && !pend
       ? (todosNa ? `<p class="lcl-vazio">Todos os itens desta seção foram marcados como não se aplicam a esta linha de vida.</p>` : `<p class="lcl-vazio">Nenhum item desta seção foi respondido ainda.</p>`)
@@ -17451,6 +17503,13 @@ function lclBlocosCorpo(d, cap, redu){
     }
     for(let k = 0; k < sobraFotos.length; k += 3) blocos.push({ html: `<div class="lcl-fgrade">${sobraFotos.slice(k, k + 3).map(figura).join("")}</div>` });
   });
+  if(temAcoes && blocos.length){
+    // a legenda fica colada ao último bloco, para nunca cair sozinha numa página
+    const ult = blocos[blocos.length - 1];
+    ult.grudaNoProximo = true;
+    if(typeof ult.alternativa === "function"){ const alt = ult.alternativa; ult.alternativa = ()=>{ const o = alt(); if(o.length) o[o.length - 1].grudaNoProximo = true; return o; }; }
+    blocos.push({ html: lclPrioLegenda() });
+  }
   return blocos;
 }
 
@@ -17530,6 +17589,11 @@ const LCL_CSS = `
 .lcl-fitem{margin:0 0 14px}
 .lcl-fitem-t{font-size:12.5px;font-weight:800;color:var(--ink);margin-bottom:6px}
 .lcl-fgrid{display:flex;gap:12px;flex-wrap:wrap}
+.lcl-dz{min-height:44px;border-radius:10px;padding:2px;transition:background .12s,outline-color .12s}
+.lcl-dz.over{outline:2px dashed var(--accent);outline-offset:2px;background:rgba(233,78,27,.07)}
+.lcl-fadd{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:2px 0 6px}
+.lcl-fadd label{font-size:12.5px;font-weight:800;color:var(--ink)}
+.lcl-fadd .lcl-sel{flex:1 1 220px;min-width:0}
 .lcl-fcard{position:relative;width:104px}
 .lcl-fcard[draggable="true"]{cursor:grab}
 .lcl-fcard img{display:block;width:104px;height:78px;object-fit:cover;border-radius:8px;background:var(--bg-soft)}
@@ -17620,10 +17684,10 @@ const LCL_CSS = `
 .lcl-rw.na{color:#9a9fb3}
 .lcl-ic{flex:0 0 auto;width:15px;height:15px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:700;color:#fff;margin-top:1px}
 .lcl-ic.ok{background:#2E9E6B}.lcl-ic.nok{background:#D9534F}.lcl-ic.na{background:#B8BDD0}.lcl-ic.pend{background:#E7A93B}
-.lcl-rn{color:#8a8fa8;font-variant-numeric:tabular-nums;min-width:24px}
+.lcl-rn{color:#8a8fa8;font-variant-numeric:tabular-nums;min-width:30px}
 .lcl-rt{flex:1 1 56%;min-width:0}
 .lcl-rnorma{font:600 9px ui-monospace,Consolas,monospace;color:#6b719a;background:#eef0f6;border-radius:4px;padding:2px 6px;white-space:normal;overflow-wrap:anywhere;flex:0 1 30%;max-width:30%;align-self:flex-start}
-.lcl-rver{font-size:9.5px;color:#E94E1B;font-weight:700;white-space:nowrap;align-self:flex-start;text-decoration:none;cursor:pointer}
+.lcl-rver{display:block;font-size:9px;color:#E94E1B;font-weight:700;white-space:nowrap;text-decoration:none;cursor:pointer;margin-top:1px}
 .lcl-rver:hover{text-decoration:underline}
 a.lcl-sl{text-decoration:none;cursor:pointer}
 a.lcl-sl:hover i{border-bottom-color:#E94E1B}
@@ -17665,8 +17729,8 @@ a.lcl-sl:hover i{border-bottom-color:#E94E1B}
 .lcl-pb .tr i{display:block;height:100%;border-radius:99px}
 .lcl-pb b{text-align:right;color:#1E2148}
 .lcl-pb-vazio{font-size:11px;color:#8a8fa8}
-.lcl-ncr{display:grid;grid-template-columns:78px 1.4fr 70px 1.3fr;gap:10px;align-items:start;padding:7px 4px;border-bottom:1px solid #dfe2ec;font-size:11px}
-.lcl-ncr.sem-im{grid-template-columns:1.4fr 70px 1.3fr}
+.lcl-ncr{display:grid;grid-template-columns:80px 1.4fr 1.5fr;gap:10px;align-items:start;padding:7px 4px;border-bottom:1px solid #dfe2ec;font-size:11px}
+.lcl-ncr.sem-im{grid-template-columns:80px 1.4fr 1.5fr}
 .lcl-ncr .im.vazio{background:none;height:auto;justify-content:flex-start;text-align:left;line-height:1.3}
 .lcl-ncr.h{background:#eef0f6;font-weight:800;color:#1E2148;font-size:10.5px;padding:5px 4px;border-bottom:none}
 .lcl-ncr .im{width:78px;height:58px;background:#eef0f6;display:flex;align-items:center;justify-content:center;color:#9a9fb3;font-size:9px;overflow:hidden;border-radius:2px}
@@ -17674,7 +17738,7 @@ a.lcl-sl:hover i{border-bottom-color:#E94E1B}
 .lcl-ncr .it b{display:block;color:#1E2148;font-size:11.5px}
 .lcl-ncr .it span{display:block;color:#333}
 .lcl-ncr .it small{display:block;color:#777;margin-top:2px}
-.lcl-ncr .pr i{font-style:normal;color:#fff;font-weight:700;font-size:10px;border-radius:99px;padding:2px 8px;display:inline-block}
+.lcl-ncr .pic{display:flex;flex-direction:column;align-items:flex-start;gap:5px}
 .lcl-ncr .ac{color:#333}
 /* metodologia */
 .lcl-tbl{width:100%;border-collapse:collapse;font-size:12px;margin:0 0 10px}
@@ -17717,8 +17781,10 @@ a.lcl-sl:hover i{border-bottom-color:#E94E1B}
 .lcl-pchip{display:inline-flex;align-items:center;gap:3px;color:#fff;font-size:9.5px;font-weight:700;line-height:1;padding:3px 7px 3px 5px;border-radius:99px;white-space:nowrap;flex:none}
 .lcl-pchip svg{width:11px;height:11px}
 .lcl-pchip.media{color:#3d2e00}
-.lcl-pri-leg{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:10px;color:#555;margin:0 0 8px}
-.lcl-pri-leg>span{display:inline-flex;align-items:center;gap:4px}
+.lcl-pri-leg{display:flex;flex-wrap:wrap;align-items:center;gap:1px 11px;font-size:8px;line-height:1.5;color:#9a9fb3;margin:10px 0 14px}
+.lcl-pri-leg b{font-weight:700;color:#8a8fa8}
+.lcl-pri-leg>span{display:inline-flex;align-items:center;gap:3px}
+.lcl-pri-leg i{display:inline-block;flex:none;width:6px;height:6px;border-radius:50%}
 .lcl-edit-bar{position:absolute;right:10px;top:8px;z-index:3;display:flex;gap:6px}
 .lcl-edit-btn{font:700 10.5px Arial,Helvetica,sans-serif;color:#1E2148;background:#fff;border:1px solid #c9ccdc;border-radius:99px;padding:4px 11px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.15)}
 .lcl-edit-btn:hover{border-color:#E94E1B;color:#E94E1B}
@@ -33305,10 +33371,13 @@ Devolver agora?`)) return;
     const l = getCurrentChkLinha(); if(!l) return;
     const sec = (l.modeloSnapshot || []).find(x=> x.id === secaoId); if(!sec) return;
     __lclFotosSec = secaoId;
-    const aviso = lclTextoEditado(l, secaoId) !== null ? `<div class="lcl-dica" style="margin:0 0 10px;color:#8a5a00">O texto desta seção foi editado por você: ao mover ou excluir fotos, confira os números de foto citados nele.</div>` : "";
-    abrirOverlay(`<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.lclFecharFotos()"><div class="modal-card" style="max-width:780px;width:calc(100vw - 32px);max-height:92vh;overflow:auto">
+    const aviso = lclTextoEditado(l, secaoId) !== null ? `<div class="lcl-dica" style="margin:0 0 10px;color:#8a5a00">O texto desta seção foi editado por você: ao mover, excluir ou inserir fotos, confira os números de foto citados nele.</div>` : "";
+    const dest = lclFotosDestinos(l, secaoId);
+    abrirOverlay(`<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.lclFecharFotos()"><div class="modal-card" style="max-width:780px;width:calc(100vw - 32px);max-height:92vh;overflow:auto" ondragover="App.lclFotoSobre(event)" ondrop="App.lclFotoSoltar(event)">
       <h3>${ic('gallery')} Fotos da seção "${escapeHtml(sec.titulo || "Seção")}"</h3>
       <p class="sheet-sub">Arraste a foto para outro motivo ou use "Mover para". O número é o da foto no laudo. Excluir tira a foto do checklist e do laudo.</p>
+      <div class="lcl-fadd"><label for="lclFotoDest">Inserir fotos em</label><select id="lclFotoDest" class="lcl-sel">${dest.map(x=> `<option value="${escapeHtml(x.valor)}">${escapeHtml(x.rotulo)}</option>`).join("")}</select><button type="button" class="btn btn-secondary" onclick="App.lclFotoEscolher()">${ic('camera')} Inserir fotos</button><input type="file" id="lclFotoInput" accept="image/*" multiple hidden onchange="App.lclFotoEscolhidas(this)"></div>
+      <div class="lcl-dica" style="margin:0 0 10px">No computador, arraste as fotos direto para uma caixa abaixo (motivo, item ou fotos da seção). Soltas em qualquer outro ponto desta janela, vão para o destino escolhido acima.</div>
       ${aviso}
       <div id="lclFotosCorpo">${lclFotosSecaoHtml(l, secaoId)}</div>
       <div class="modal-actions"><button class="btn btn-primary" onclick="App.lclFecharFotos()">Concluir</button></div></div></div>`);
@@ -33333,12 +33402,52 @@ Devolver agora?`)) return;
     ie.fotos[idx].motivo = m || "";
     App.lclFotoMudou(l);
   },
+  // Inserir fotos novas (botão ou arrastar do computador): cada foto é comprimida e gravada como as do checklist.
+  lclFotoEscolher(){
+    const i = document.getElementById("lclFotoInput"); if(!i) return;
+    i.value = ""; i.click();
+  },
+  lclFotoDestinoAtual(){
+    const s = document.getElementById("lclFotoDest"); return s && s.value ? s.value : "s";
+  },
+  async lclFotoEscolhidas(input){
+    const arq = Array.from(input.files || []);
+    input.value = "";
+    await App.lclFotoAdicionarArquivos(arq, App.lclFotoDestinoAtual());
+  },
+  lclFotoSobre(ev){ try{ ev.preventDefault(); }catch(e){} },
+  async lclFotoSoltar(ev){
+    try{ ev.preventDefault(); }catch(e){}
+    const arq = lclArquivosDoEvento(ev);
+    if(arq.length) await App.lclFotoAdicionarArquivos(arq, App.lclFotoDestinoAtual());
+  },
+  async lclSecaoFotoDrop(ev, secaoId){
+    ev.preventDefault();
+    if(ev.stopPropagation) ev.stopPropagation();
+    const arq = lclArquivosDoEvento(ev);
+    if(arq.length) await App.lclFotoAdicionarArquivos(arq, "s");
+  },
+  async lclFotoAdicionarArquivos(arquivos, destino){
+    if(!arquivos || !arquivos.length || !__lclFotosSec) return;
+    const secId = __lclFotosSec, datas = [];
+    let falhas = 0;
+    for(const f of arquivos){
+      try{ const data = await comprimirImagem(f, 1920, 0.82); salvarFotoNaGaleria(data, "apr_checklist"); datas.push(data); }catch(e){ falhas++; }
+    }
+    const l = getCurrentChkLinha();
+    const n = l ? lclInserirFotos(l, secId, destino, datas) : 0;
+    if(n) App.lclFotoMudou(l);
+    toast(n ? n + (n === 1 ? " foto inserida" : " fotos inseridas") + (falhas ? "; " + falhas + " não puderam ser lidas" : "") : (falhas ? "Não consegui ler a foto (precisa ser uma imagem)" : "Nada foi inserido"), !!n);
+  },
   lclFotoDrag(ev, itemId, idx){
     try{ ev.dataTransfer.setData("text/plain", itemId + "|" + idx); ev.dataTransfer.effectAllowed = "move"; }catch(e){}
   },
   // Só aceita soltar a foto num motivo do MESMO item (a foto não muda de item).
   lclFotoDrop(ev, itemId, mi){
     ev.preventDefault();
+    if(ev.stopPropagation) ev.stopPropagation();
+    const arq = lclArquivosDoEvento(ev);
+    if(arq.length) return App.lclFotoAdicionarArquivos(arq, "i|" + itemId + "|" + mi);   // foto de fora (do computador): entra neste item/motivo
     let dado = "";
     try{ dado = String(ev.dataTransfer.getData("text/plain") || ""); }catch(e){}
     const [id, n] = dado.split("|");
