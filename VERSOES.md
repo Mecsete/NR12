@@ -64,6 +64,20 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 09/10/2026 07:02
+
+**Módulo "Linhas de vida": novo nome, navegação, modo campo/escritório, faixa offline, conferência antes do laudo, busca e duplicação.**
+
+- O módulo Checklist passou a se chamar "Linhas de vida" e, ao entrar, abre direto nos Projetos.
+- Barra de baixo: Projetos, Modelos, Configurações e Módulos; ícones de Configurações e de Trocar módulo no topo. Configurações do módulo: Backup (mesma tela dos outros módulos), Empresa e Responsáveis, Trocar de módulo e Alto contraste. O aviso de backup não configurado leva ao Backup deste módulo.
+- Modo campo/escritório: automático por aparelho (celular = campo, computador = escritório), com chave manual por ícones em Configurações. No modo campo somem Modelos, botões de laudo, laudos em lote e a conferência.
+- Faixa fixa "Sem internet / Enviando: N linhas aguardando envio".
+- Painel "Conferir antes do laudo" por projeto (itens sem resposta, não atende sem motivo, memorial, foto ampla e dados em branco).
+- Busca global (projetos, setores, linhas e itens) com filtros de pendência, não conformidade e não enviadas.
+- Duplicar projeto e setor (só a estrutura, em branco, ou com respostas e fotos).
+
+---
+
 ## 08/10/2026 16:37
 
 **Barra de abas mantém a posição; envio mais rápido; selo "não enviada à nuvem"; abrir a linha confere a nuvem antes.**
