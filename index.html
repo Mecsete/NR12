@@ -3455,7 +3455,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "09/10/2026 10:15";
+const APP_BUILD = "09/10/2026 10:56";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -15747,15 +15747,15 @@ function chkMemFmt(x, d){
    flecha dinâmica f3 e força no cabo T1 = P · (L1 + ΔL) / (4 · f3). T1 e ΔL dependem um do outro (o cabo estica com o
    esforço, a flecha cresce e o esforço cai), então o cálculo repete até estabilizar (c.voltas, c.conv).
    Carga P: linha de vida 600 kgf + peso de cada usuário além do primeiro; linha de restrição, peso de cada usuário.
-   Viga rígida: só a deflexão δ = P · L³ / (48 · E · I) no meio do vão (faz o papel de f3); sem verificação de resistência.
+   Viga rígida: sem flecha nem verificação de resistência da viga (f3 = 0); a ZLQ parte da ancoragem.
    Medidas em metros; T1 e P em kgf; PN em N; ΔL em mm. */
 function chkMemorialCalc(tipo, m){
   const K = m.params, L = m.vao;
   if(!L) return null;
   const B1 = K.b1 + K.fren;
   if(tipo === "horizontal_rigida"){
-    const R = CHK_MEMORIAL_VIGA, PN = K.peso * 6 * 9.80665;
-    const d = PN * Math.pow(L, 3) / (48 * R.E * R.I), f3 = d;
+    // a flecha (deflexão) da viga metálica não entra no cálculo: a zona livre de queda parte da ancoragem, sem acréscimo
+    const PN = K.peso * 6 * 9.80665, d = 0, f3 = 0;
     return { tipo:"rig", f1:0, f3, d, P: K.peso * 6, PN, B1,
       ZLQ1: f3 + K.a + K.b + K.C1 + K.D1, Hp1: f3 + K.b + K.D1, ZLQ2: f3 + B1 + K.C1 + K.D1, Hp2: f3 + B1 - K.b1 + K.D1 };
   }
@@ -15823,7 +15823,7 @@ function chkMemorialLegenda(c, m){
   const f = chkMemFmt;
   return [
     "Ancoragem (poste ou estrutura de suporte)",
-    rig ? `Trilho rígido: viga, deflexão δ = ${f(c.d * 1000, 2)} mm` : `Cabo em repouso: flecha inicial f<sub>1</sub> = ${f(c.f1)} m`,
+    rig ? `Trilho rígido: viga` : `Cabo em repouso: flecha inicial f<sub>1</sub> = ${f(c.f1)} m`,
     rig ? "Carrinho (trólei)" : `Cabo deformado na queda: flecha f<sub>3</sub> = ${f(c.f3)} m`,
     `${m.epi === "tab" ? "Talabarte com absorvedor" : "Trava-quedas retrátil"}: ${f(lan, 1)} m`,
     "Usuário na posição de trabalho",
@@ -15856,8 +15856,7 @@ function chkMemorialPremissas(c, m){
   const K = m.params, f = chkMemFmt, V = CHK_MEMORIAL_VIGA;
   const engate = `Engate do cinto ao pé (C<sub>1</sub>) de ${f(K.C1, 1)} m e distância de segurança (D<sub>1</sub>) de ${f(K.D1, 1)} m.`;
   if(c.tipo === "rig") return [
-    `Viga de aço (E de ${f(V.E / 1e9, 0)} GPa e Ix de ${f(V.I * 1e8, 0)} cm⁴), vão de ${f(m.vao)} m, carga central; só a deflexão entra no cálculo.`,
-    `Usuário de ${f(K.peso, 0)} kg, com carga dinâmica adotada de ${f(c.P, 0)} kgf.`,
+    `Linha rígida (viga de aço), vão de ${f(m.vao)} m. A flecha da viga não é considerada no cálculo da zona livre de queda.`,
     engate,
   ];
   const un = m.usuarios === 1 ? "usuário" : "usuários";
@@ -15893,10 +15892,10 @@ function chkMemorialFormulasLista(c, m){
   const PR = (...a)=> mr(O("("), ...a, O(")"));
   const MM = (...a)=>`<math>${mr(...a)}</math>`;
   const frow = (t, sim, sub)=>`<div class="lcl-fm"><div class="lcl-ft">${t}</div><div class="lcl-fl">${sim}${sub}</div></div>`;
-  const zlq2 = frow("Zona livre de queda — trava-quedas", MM(V("ZLQ", 2), O("="), c.tipo === "rig" ? V("δ") : V("f", 3), O("+"), V("B", 1), O("+"), V("C", 1), O("+"), V("D", 1)), MM(V("ZLQ", 2), O("="), N(c.f3, 3), O("+"), N(B), O("+"), N(K.C1), O("+"), N(K.D1), O("="), N(c.ZLQ2), O("m")));
-  const zlq1 = frow("Zona livre de queda — talabarte", MM(V("ZLQ", 1), O("="), c.tipo === "rig" ? V("δ") : V("f", 3), O("+"), PR(V("a"), O("+"), V("b")), O("+"), V("C", 1), O("+"), V("D", 1)), MM(V("ZLQ", 1), O("="), N(c.f3, 3), O("+"), PR(N(K.a), O("+"), N(K.b)), O("+"), N(K.C1), O("+"), N(K.D1), O("="), N(c.ZLQ1), O("m")));
-  if(c.tipo === "rig") return [
-    frow("Deflexão da viga", MM(V("δ"), O("="), FR(mr(V("P"), O("·"), SP(V("L"), 3)), mr(N(48, 0), O("·"), V("E"), O("·"), V("I")))), MM(V("δ"), O("="), FR(mr(N(c.PN, 0), O("·"), SP(N(L), 3)), mr(N(48, 0), O("·"), N(V0.E / 1e9, 0), O("·"), N(V0.I * 1e8, 0))), O("="), N(c.d * 1000, 2), O("mm"))),
+  const rigF = c.tipo === "rig";
+  const zlq2 = frow("Zona livre de queda — trava-quedas", MM(V("ZLQ", 2), O("="), ...(rigF ? [] : [V("f", 3), O("+")]), V("B", 1), O("+"), V("C", 1), O("+"), V("D", 1)), MM(V("ZLQ", 2), O("="), ...(rigF ? [] : [N(c.f3, 3), O("+")]), N(B), O("+"), N(K.C1), O("+"), N(K.D1), O("="), N(c.ZLQ2), O("m")));
+  const zlq1 = frow("Zona livre de queda — talabarte", MM(V("ZLQ", 1), O("="), ...(rigF ? [] : [V("f", 3), O("+")]), PR(V("a"), O("+"), V("b")), O("+"), V("C", 1), O("+"), V("D", 1)), MM(V("ZLQ", 1), O("="), ...(rigF ? [] : [N(c.f3, 3), O("+")]), PR(N(K.a), O("+"), N(K.b)), O("+"), N(K.C1), O("+"), N(K.D1), O("="), N(c.ZLQ1), O("m")));
+  if(rigF) return [
     zlq2, zlq1,
   ];
   const multi = c.nv > 1.0000001;
@@ -15930,10 +15929,10 @@ function chkMemorialFormulas(c, m){
 function chkMemorialTabelas(c, m){
   const rig = c.tipo === "rig", K = m.params, f = chkMemFmt, V = CHK_MEMORIAL_VIGA;
   const e = rig
-    ? [["Peso do usuário", f(K.peso, 0), "kg"], ["Vão entre apoios (L)", f(m.vao), "m"], ["Altura da ancoragem", f(m.hanc), "m"], ["Altura da posição de trabalho", f(m.hpos), "m"], ["Módulo E", f(V.E / 1e9, 0), "GPa"], ["Inércia Ix", f(V.I * 1e8, 0), "cm⁴"], ["Talabarte (a)", f(K.a, 1), "m"], ["Absorvedor (b)", f(K.b, 1), "m"], ["Trava-quedas em trabalho (b1)", f(K.b1, 1), "m"], ["Trava-quedas frenagem", f(K.fren, 1), "m"]]
+    ? [["Peso do usuário", f(K.peso, 0), "kg"], ["Vão entre apoios (L)", f(m.vao), "m"], ["Altura da ancoragem", f(m.hanc), "m"], ["Altura da posição de trabalho", f(m.hpos), "m"], ["Talabarte (a)", f(K.a, 1), "m"], ["Absorvedor (b)", f(K.b, 1), "m"], ["Trava-quedas em trabalho (b1)", f(K.b1, 1), "m"], ["Trava-quedas frenagem", f(K.fren, 1), "m"]]
     : [["Tipo de linha", m.uso === "restricao" ? "Restrição" : "Vida", "-"], ["Peso do corpo", f(K.peso, 0), "kg"], ["Número de usuários", f(m.usuarios, 0), "n"], ["Vão entre apoios (L)", f(m.vao), "m"]].concat(c.nv > 1.0000001 ? [["Comprimento da linha (C)", f(c.Lt), "m"], ["Número de vãos", f(c.nv, 1), "-"]] : []).concat([["Flecha", f(c.fl, 1), "%"], ["Altura da ancoragem", f(m.hanc), "m"], ["Altura da posição de trabalho", f(m.hpos), "m"], ["Diâmetro do cabo", chkMemDiam(m.diametro), "mm"], ["Força de ruptura", f(K.Frup, 0), "kgf"], ["Fator de segurança", f(K.FS, 0), "-"], ["Módulo E do cabo", f(K.Ecabo, 0), "kgf/mm²"], ["Fator de área (k)", f(K.kA, 3), "-"], ["Talabarte (a)", f(K.a, 1), "m"], ["Absorvedor (b)", f(K.b, 1), "m"], ["Trava-quedas em trabalho (b1)", f(K.b1, 1), "m"], ["Trava-quedas frenagem", f(K.fren, 1), "m"]]);
   const r = rig
-    ? [["Carga dinâmica (P)", f(c.P, 0), "kgf"], ["Deflexão (δ)", f(c.d * 1000, 2), "mm"], ["ZLQ talabarte", f(c.ZLQ1), "m"], ["Hp talabarte", f(c.Hp1), "m"], ["ZLQ trava-quedas", f(c.ZLQ2), "m"], ["Hp trava-quedas", f(c.Hp2), "m"]]
+    ? [["ZLQ talabarte", f(c.ZLQ1), "m"], ["Hp talabarte", f(c.Hp1), "m"], ["ZLQ trava-quedas", f(c.ZLQ2), "m"], ["Hp trava-quedas", f(c.Hp2), "m"]]
     : [["Comprimento do cabo (L1)", f(c.L1 * 1000, 1), "mm"]].concat(c.nv > 1.0000001 ? [["Cabo no vão carregado (J)", f(c.J * 1000, 1), "mm"]] : []).concat([ ["Alongamento (ΔL)", f(c.dL, 1), "mm"], ["Flecha f1", f(c.f1 * 1000, 1), "mm"], ["Flecha f2", f(c.f2 * 1000, 1), "mm"], ["Flecha f3", f(c.f3 * 1000, 1), "mm"], ["Ângulo do cabo", f(c.ang, 1), "º"], ["Distância de frenagem", f(c.fren3 * 1000, 1), "mm"], ["Carga (P)", f(c.P, 0), "kgf"], ["<b>Força no cabo (T1)</b>", "<b>" + f(c.T1, 0) + "</b>", "kgf"], ["Admissível (Fadm)", f(c.Fadm, 0), "kgf"], ["Utilização", f(c.uso * 100, 1), "%"], ["Fator de serviço", f(c.FSs), "-"]])
       .concat(c.fq !== null ? [["Fator de queda", f(c.fq, 2), "-"]] : [])
       .concat([["ZLQ talabarte", f(c.ZLQ1), "m"], ["Hp talabarte", f(c.Hp1), "m"], ["ZLQ trava-quedas", f(c.ZLQ2), "m"], ["Hp trava-quedas", f(c.Hp2), "m"]]);
@@ -16800,6 +16799,21 @@ function lclBlocosChecklist(d, cap, capCorpo){
   return blocos;
 }
 
+/* Selo de prioridade: ícone + nome na cor da prioridade (Crítica, Alta, Média, Boa prática). */
+const LCL_PRI_ICONE = {
+  critica:'<path d="M12 3.5l9.5 17h-19L12 3.5z"/><path d="M12 10v4.5M12 17.5v.01"/>',
+  alta:'<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5M12 16v.01"/>',
+  media:'<circle cx="12" cy="12" r="9"/><path d="M8 12h8"/>',
+  boa:'<circle cx="12" cy="12" r="9"/><path d="M12 8v.01M11.2 11.5h1v5"/>',
+};
+function lclPrioChip(prio){
+  const k = LCL_PRI_COR[prio] ? prio : "media";
+  return `<span class="lcl-pchip ${k}" style="background:${LCL_PRI_COR[k]}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${LCL_PRI_ICONE[k]}</svg>${lclEsc(chkPrioridadeRotulo(k))}</span>`;
+}
+function lclPrioLegenda(){
+  const d = { critica:"torna a linha inapta até a correção", alta:"corrigir com urgência", media:"corrigir no prazo programado", boa:"recomendação, não impede o uso" };
+  return `<div class="lcl-pri-leg">${["critica", "alta", "media", "boa"].map(k=> `<span>${lclPrioChip(k)} ${d[k]}</span>`).join("")}</div>`;
+}
 /* ---------- corpo do laudo: uma seção por página, com as fotos ---------- */
 function lclBlocosCorpo(d, cap, redu){
   const l = d.linha;
@@ -16817,13 +16831,13 @@ function lclBlocosCorpo(d, cap, redu){
     const nTopo = topoFotos.length, colsTopo = nTopo === 1 ? 1 : (nTopo === 4 ? 2 : Math.min(3, nTopo));
     const faixaTopo = nTopo ? `<div class="lcl-ftopo c${colsTopo}">${topoFotos.map(figura).join("")}</div>` : "";
     const editado = lclTextoEditado(l, sub.id);
-    const cabeca = (i === 0 ? lclFaixa(`${cap.num}  ${cap.rot}`, true) : "")
+    const cabeca = (i === 0 ? lclFaixa(`${cap.num}  ${cap.rot}`, true) + lclPrioLegenda() : "")
       + `<div class="lcl-h3">${sub.num}  ${lclEsc(sub.titulo)}</div>`
       + faixaTopo
       + (s.contexto ? `<div class="lcl-ctx"><b>Como deve estar:</b> ${lclEsc(s.contexto)}</div>` : "");
     // texto editado à mão substitui os dois parágrafos automáticos
     const textoConforme = editado === null && conforme ? `<div class="lcl-narr lcl-larga">${conforme}</div>` : "";
-    const acoesHtml = (acoes || []).length ? `<div class="lcl-acoes"><b>Ação recomendada</b><ul>${acoes.map(a=> `<li>${lclEsc(a.txt)}</li>`).join("")}</ul></div>` : "";
+    const acoesHtml = (acoes || []).length ? `<div class="lcl-acoes"><b>Ação recomendada</b><ul>${acoes.map(a=> `<li>${lclPrioChip(a.prio)} ${lclEsc(a.txt)}</li>`).join("")}</ul></div>` : "";
     const textoPend0 = editado !== null ? lclTextoParaHtml(editado) : pend;
     const textoPend = textoPend0 ? textoPend0 + acoesHtml : textoPend0;
     const todosNa = (s.itens || []).length > 0 && (s.itens || []).every(it=>{ const e = chkItemExec(l, it.id); return !!e && e.conforme === "na"; });
@@ -17111,7 +17125,13 @@ a.lcl-sl:hover i{border-bottom-color:#E94E1B}
 .lcl-acoes{margin-top:8px;padding:7px 10px;border-left:3px solid #E94E1B;background:#fbf3ef;border-radius:0 6px 6px 0;font-size:12px;line-height:1.45;text-align:left}
 .lcl-acoes b{display:block;color:#1E2148;margin-bottom:2px}
 .lcl-acoes ul{margin:0;padding-left:16px}
-.lcl-acoes li{margin:1px 0}
+.lcl-acoes ul{list-style:none;padding-left:0}
+.lcl-acoes li{margin:3px 0;display:flex;gap:6px;align-items:flex-start}
+.lcl-pchip{display:inline-flex;align-items:center;gap:3px;color:#fff;font-size:9.5px;font-weight:700;line-height:1;padding:3px 7px 3px 5px;border-radius:99px;white-space:nowrap;flex:none}
+.lcl-pchip svg{width:11px;height:11px}
+.lcl-pchip.media{color:#3d2e00}
+.lcl-pri-leg{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:10px;color:#555;margin:0 0 8px}
+.lcl-pri-leg>span{display:inline-flex;align-items:center;gap:4px}
 .lcl-edit-bar{position:absolute;right:10px;top:8px;z-index:3;display:flex;gap:6px}
 .lcl-edit-btn{font:700 10.5px Arial,Helvetica,sans-serif;color:#1E2148;background:#fff;border:1px solid #c9ccdc;border-radius:99px;padding:4px 11px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.15)}
 .lcl-edit-btn:hover{border-color:#E94E1B;color:#E94E1B}
