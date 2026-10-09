@@ -3208,10 +3208,15 @@ async function testarUsabilidade(){
   { const lnC = (carac, extra)=> Object.assign({ id:"LCA", caracDefs: CARAC_DEFS_T, carac: carac || {}, modeloSnapshot:[{ id:"s0", titulo:"Doc", itens:[{ id:"p0", descricao:"Projeto?", motivosPadrao:[{ motivo:"Projeto da estrutura não apresentado", texto:"x", acao:"y" }] }] }], itens:[{ itemId:"p0", conforme:"atende", motivosSelecionados:[], observacao:"", fotos:[] }] }, extra || {});
     const CARAC_DEFS_T = roda("CHK_CARAC_DEFS.horizontal_rigida");
     const R = (txt, l)=> roda("chkCondTexto(" + J(txt) + ", " + J(l) + ")");
-    T(R("A {{concreto|x}} B", { id:"L0" }) === "A x B" && R("{{!projeto_ausente|a||b}}", { id:"L0" }) === "a" && R("{{@uso|fb|ant|dep}}", { id:"L0" }) === "fb" && R("sem chaves", { id:"L0" }) === "sem chaves", "linha sem caracteristicas: tudo sai como o texto generico");
+    const EXTRA_T = [
+      { id:"ancor_elemento", rotulo:"Elemento", secao:"X", multi:true, opcoes:[{ id:"el_viga", rotulo:"Viga", lista:"viga" }, { id:"el_pilar", rotulo:"Pilar", lista:"pilar" }, { id:"el_laje", rotulo:"Laje", lista:"laje" }] },
+      { id:"riscos", rotulo:"Riscos", secao:"X", multi:true, opcoes:[{ id:"r_el", rotulo:"Elétrico", lista:"rede elétrica" }, { id:"r_in", rotulo:"Intempéries", lista:"intempéries" }, { id:"r_nen", rotulo:"Nenhum", naLista:false, exclusiva:true }] },
+      { id:"origem", rotulo:"Origem", secao:"X", multi:true, opcoes:[{ id:"orig_cert", rotulo:"Certificação", lista:"certificação" }, { id:"orig_proj", rotulo:"Projeto", lista:"projeto de profissional habilitado" }] }];
+    const lnE = (carac)=> Object.assign(lnC(carac), { caracDefs: CARAC_DEFS_T.concat(EXTRA_T) });
+    T(R("A {{concreto|x}} B", { id:"L0" }) === "A x B" && R("{{!projeto_ausente|a||b}}", { id:"L0" }) === "a" && R("{{@apoios|fb|ant|dep}}", { id:"L0" }) === "fb" && R("sem chaves", { id:"L0" }) === "sem chaves", "linha sem caracteristicas: tudo sai como o texto generico");
     T(R("{{concreto|C}}{{solda|S}}", lnC({ ancor_material:["aco"] })) === "S" && R("{{concreto|C}}{{solda|S}}", lnC({ ancor_material:["concreto"] })) === "CS" && R("{{concreto|C}}{{solda|S}}", lnC({ ancor_material:["concreto"], ancor_fixacao:["parafuso"] })) === "C" && R("{{concreto|C}}{{solda|S}}", lnC()) === "CS", "condicional: so entra o que foi marcado; grupo sem marcacao deixa o trecho entrar");
-    T(R("({{@ancor_elemento|viga, pilar, laje ou terça}})", lnC({ ancor_elemento:["el_viga", "el_pilar"] })) === "(viga e pilar)" && R("({{@ancor_elemento|viga, pilar, laje ou terça}})", lnC()) === "(viga, pilar, laje ou terça)" && R("{{@@ancor_fixacao|chumbadores e parafusos}}", lnC({ ancor_fixacao:["chumbador_q", "parafuso", "solda"] })) === "chumbadores químicos e parafusos", "lista das opcoes marcadas (singular e plural; 'solda' fica fora da lista)");
-    T(R("x{{@riscos| (a, b)| (|)}}", lnC({ riscos:["r_nen"] })) === "x" && R("x{{@riscos| (a, b)| (|)}}", lnC({ riscos:["r_el", "r_in"] })) === "x (rede elétrica e intempéries)" && R("{{@origem|fb|(|)|ou}}", lnC({ origem:["orig_cert", "orig_proj"] })) === "(certificação ou projeto de profissional habilitado)", "riscos: 'nenhum' some com os parenteses; lista com 'ou'");
+    T(R("({{@ancor_elemento|viga, pilar, laje ou terça}})", lnE({ ancor_elemento:["el_viga", "el_pilar"] })) === "(viga e pilar)" && R("({{@ancor_elemento|viga, pilar, laje ou terça}})", lnE()) === "(viga, pilar, laje ou terça)" && R("{{@@ancor_fixacao|chumbadores e parafusos}}", lnE({ ancor_fixacao:["chumbador_q", "parafuso", "solda"] })) === "chumbadores químicos e parafusos", "lista das opcoes marcadas (singular e plural; 'solda' fica fora da lista)");
+    T(R("x{{@riscos| (a, b)| (|)}}", lnE({ riscos:["r_nen"] })) === "x" && R("x{{@riscos| (a, b)| (|)}}", lnE({ riscos:["r_el", "r_in"] })) === "x (rede elétrica e intempéries)" && R("{{@origem|fb|(|)|ou}}", lnE({ origem:["orig_cert", "orig_proj"] })) === "(certificação ou projeto de profissional habilitado)", "riscos: 'nenhum' some com os parenteses; lista com 'ou'");
     const comNc = lnC({}, { itens:[{ itemId:"p0", conforme:"naoAtende", motivosSelecionados:["Projeto da estrutura não apresentado"], observacao:"", fotos:[] }] });
     T(R("{{!projeto_ausente|corresponde ao projeto||foi verificado em campo}}", comNc) === "foi verificado em campo" && R("{{!projeto_ausente|corresponde ao projeto||foi verificado em campo}}", lnC()) === "corresponde ao projeto" && R("{{apoios_sim&!projeto_ausente|A}}{{apoios_sim&projeto_ausente|B}}", comNc) === "B", "projeto nao apresentado (da resposta da pergunta 1.1) troca o texto; combinacao com &");
     // --- as trocas aplicadas aos modelos e as linhas reais (as 15), sem tocar nas respostas
@@ -3223,7 +3228,7 @@ async function testarUsabilidade(){
     T(v2.modelos === 3 && v2.linhas === 15 && roda("chkTextosV2Pendente(STATE)") === false && roda("chkTextosV2Aplicar(STATE).linhas") === 0, "atualizacao: 3 modelos e 15 linhas, uma vez so: " + J(v2));
     T(J(roda("STATE.checklists.projetos[0].setores[0].linhas.map(l => ({ i:l.itens, a:l.secoesNA, f:l.fotosSecao, n:l.nome }))")) === respAntes, "respostas, motivos, fotos e secoes N/A das 15 linhas nao mudaram");
     const lrig = roda("STATE.checklists.projetos[0].setores[0].linhas.find(l => l.modeloId === 'mg_horizontal_rigida')");
-    T(lrig.caracDefs.length > 8 && lrig.textosVersao === 2 && lrig.caracDefs.some(g => g.id === "ancor_fixacao" && g.multi) && lrig.caracDefs.some(g => g.id === "apoios" && !g.multi), "linha rigida ganhou as definicoes (com grupos de escolha unica e multipla)");
+    T(lrig.caracDefs.length === 5 && lrig.caracDefs.filter(g => !g.derivada).length === 4 && !lrig.caracDefs.some(g => ["alvenaria"].includes(g.id) || (g.opcoes || []).some(o => o.id === "alvenaria")) && lrig.textosVersao === 2 && lrig.caracDefs.some(g => g.id === "ancor_fixacao" && g.multi) && lrig.caracDefs.some(g => g.id === "apoios" && !g.multi), "linha rigida ganhou as definicoes (com grupos de escolha unica e multipla)");
     const todosTextos = J(lrig.modeloSnapshot);
     T(todosTextos.includes("{{@@ancor_fixacao|") && todosTextos.includes("{{concreto|") && todosTextos.includes("{{!projeto_ausente|") && (todosTextos.match(/\{\{/g) || []).length === (todosTextos.match(/\}\}/g) || []).length, "os textos do snapshot da linha receberam os trechos condicionais (todas as chaves fecham)");
     // --- efeito no laudo: secao Ancoragem Estrutural com tudo 'atende'
@@ -3231,19 +3236,19 @@ async function testarUsabilidade(){
     const comCarac = (carac, extra)=> Object.assign({}, lrig, { carac }, extra || {}, { itens: lrig.itens.map(i => secAnc.itens.some(x => x.id === i.itemId) ? Object.assign({}, i, { conforme:"atende", motivosSelecionados:[] }) : i) });
     const narr = (l)=> roda("chkNarrativaSecao(" + J(secAnc) + ", " + J(l) + ", '3.3').conforme");
     const nGen = narr(comCarac({}));
-    const nAco = narr(comCarac({ ancor_material:["aco"], ancor_fixacao:["solda"], ancor_elemento:["el_viga"] }));
-    const nCon = narr(comCarac({ ancor_material:["concreto"], ancor_fixacao:["chumbador_q", "parafuso"], ancor_elemento:["el_pilar", "el_laje"] }));
+    const nAco = narr(comCarac({ ancor_material:["aco"], ancor_fixacao:["solda"] }));
+    const nCon = narr(comCarac({ ancor_material:["concreto"], ancor_fixacao:["chumbador_q", "parafuso"] }));
     T(nGen.includes("fissuras ou desagregação no concreto") && nGen.includes("(viga, pilar, laje ou terça)") && nGen.includes("trincas ou falhas nos cordões de solda"), "sem marcar nada: texto generico completo (como antes)");
-    T(!nAco.includes("concreto") && !nAco.includes("chumbador") && nAco.includes("cordões de solda") && nAco.includes("(viga)") && !nAco.includes("embutimento") && !nAco.includes("de fixação têm tipo") && !/Os\s{2}|\(\)/.test(nAco), "estrutura de aco soldada: sem concreto, sem chumbador, sem embutimento: " + nAco.slice(0, 700));
-    T(nCon.includes("fissuras ou desagregação no concreto") && !nCon.includes("cordões de solda") && nCon.includes("(pilar e laje)") && nCon.includes("chumbadores químicos e parafusos de fixação têm tipo, diâmetro e embutimento"), "concreto com chumbador quimico e parafuso: so o que existe: " + nCon.slice(0, 700));
+    T(!nAco.includes("concreto") && !nAco.includes("chumbador") && nAco.includes("cordões de solda") && !nAco.includes("embutimento") && !nAco.includes("de fixação têm tipo") && !/Os\s{2}|\(\)/.test(nAco), "estrutura de aco soldada: sem concreto, sem chumbador, sem embutimento: " + nAco.slice(0, 700));
+    T(nCon.includes("fissuras ou desagregação no concreto") && !nCon.includes("cordões de solda") && nCon.includes("chumbadores químicos e parafusos de fixação têm tipo, diâmetro e embutimento"), "concreto com chumbador quimico e parafuso: so o que existe: " + nCon.slice(0, 700));
     // --- projeto nao apresentado: a viga nao 'corresponde ao projeto'
     const secViga = lrig.modeloSnapshot.find(s => s.titulo === "Viga / Trilho");
     const lViga = (nc)=> Object.assign({}, lrig, { itens: lrig.itens.map((i, k) => k === 0 ? Object.assign({}, i, nc ? { conforme:"naoAtende", motivosSelecionados:["Projeto da estrutura não apresentado"] } : { conforme:"atende", motivosSelecionados:[] }) : (secViga.itens.some(x => x.id === i.itemId) ? Object.assign({}, i, { conforme:"atende", motivosSelecionados:[] }) : i)) });
     const vCom = roda("chkNarrativaSecao(" + J(secViga) + ", " + J(lViga(false)) + ", '3.4').conforme"), vSem = roda("chkNarrativaSecao(" + J(secViga) + ", " + J(lViga(true)) + ", '3.4').conforme");
     T(vCom.includes("correspondem ao projeto") && !vSem.includes("correspondem ao projeto") && vSem.includes("não havendo projeto para conferir perfil e material"), "3.4 Viga/Trilho: com projeto diz que corresponde; sem projeto nao afirma isso: " + vSem.slice(0, 300));
-    const lA = Object.assign({}, lrig, { carac: { apoios:["apoios_nao"], emendas:["emendas_nao"], viga_fixacao:["viga_sold"] } });
+    const lA = Object.assign({}, lrig, { carac: { apoios:["apoios_nao"], emendas:["emendas_nao"] } });
     const vA = roda("chkNarrativaSecao(" + J(secViga) + ", " + J(Object.assign({}, lViga(false), lA.carac ? { carac: lA.carac } : {})) + ", '3.4').conforme");
-    T(!vA.includes("apoios intermediários") && !vA.includes("emendas") && vA.includes("bem soldada na estrutura"), "sem apoios e sem emendas: o texto nao fala deles; viga soldada: 'bem soldada': " + vA.slice(0, 400));
+    T(!vA.includes("apoios intermediários") && !vA.includes("emendas") && vA.includes("bem soldada ou parafusada na estrutura"), "sem apoios e sem emendas: o texto nao fala deles: " + vA.slice(0, 400));
     // --- tela: cartao e marcacao
     roda("STATE.ui.chkProjetoId = 'PV2'; STATE.ui.chkSetorId = 'SV2'; STATE.ui.chkLinhaId = " + J(lrig.id) + "; delete STATE.ui.chkCaracAberto;");
     const card0 = roda("chkCaracCardHtml(getCurrentChkLinha())");
@@ -3252,14 +3257,16 @@ async function testarUsabilidade(){
     T(J(roda("getCurrentChkLinha().carac.ancor_fixacao")) === J(["chumbador_q", "solda"]), "multipla escolha: marcar duas opcoes");
     roda("App.chkSetCarac('ancor_fixacao', 'chumbador_q')");
     T(J(roda("getCurrentChkLinha().carac.ancor_fixacao")) === J(["solda"]), "desmarcar uma opcao");
-    roda("App.chkSetCarac('uso', 'uso_ret'); App.chkSetCarac('uso', 'uso_res')");
-    T(J(roda("getCurrentChkLinha().carac.uso")) === J(["uso_res"]), "escolha unica: marcar outra troca a opcao");
-    roda("App.chkSetCarac('uso', 'uso_res')");
-    T(roda("getCurrentChkLinha().carac.uso") === undefined, "escolha unica: tocar de novo limpa");
+    roda("App.chkSetCarac('apoios', 'apoios_sim'); App.chkSetCarac('apoios', 'apoios_nao')");
+    T(J(roda("getCurrentChkLinha().carac.apoios")) === J(["apoios_nao"]), "escolha unica: marcar outra troca a opcao");
+    roda("App.chkSetCarac('apoios', 'apoios_nao')");
+    T(roda("getCurrentChkLinha().carac.apoios") === undefined, "escolha unica: tocar de novo limpa");
+    roda("getCurrentChkLinha().caracDefs.push(" + J(EXTRA_T[1]) + ")");
     roda("App.chkSetCarac('riscos', 'r_el'); App.chkSetCarac('riscos', 'r_in'); App.chkSetCarac('riscos', 'r_nen')");
     T(J(roda("getCurrentChkLinha().carac.riscos")) === J(["r_nen"]), "'Nenhum' limpa as outras opcoes do grupo");
     roda("App.chkSetCarac('riscos', 'r_el')");
     T(J(roda("getCurrentChkLinha().carac.riscos")) === J(["r_el"]), "marcar um risco tira o 'Nenhum'");
+    roda("getCurrentChkLinha().caracDefs = getCurrentChkLinha().caracDefs.filter(g => g.id !== 'riscos'); delete getCurrentChkLinha().carac.riscos");
     T(roda("chkCaracCardHtml(getCurrentChkLinha())").includes("Editar"), "com marcacoes e sem escolha de abrir, o cartao abre recolhido");
     roda("STATE.ui.chkCaracAberto = true");
     const card1 = roda("chkCaracCardHtml(getCurrentChkLinha())");
