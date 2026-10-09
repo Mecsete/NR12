@@ -64,6 +64,13 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 09/10/2026 16:41
+
+**Aba Áreas do Laudo: os botões "Todas deste projeto" e "Nenhuma" passam para o topo do card de cada projeto.**
+
+Ficavam no fim do card, depois da lista de áreas — que em projeto grande exige
+rolar muito. Agora ficam logo abaixo do nome do projeto. As ações são as mesmas.
+
 ## 09/10/2026 16:21
 
 **Projetos arquivados deixam de aparecer na aba Áreas do Laudo e de entrar no escopo do laudo.**

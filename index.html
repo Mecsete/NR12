@@ -3471,7 +3471,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "09/10/2026 16:21";
+const APP_BUILD = "09/10/2026 16:41";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -25556,6 +25556,10 @@ function laudoAbaAreas(){
           </div>
           <span class="stat-pill">${nSel}/${areas.length}</span>
         </div>
+        ${areas.length>0? `<div style="display:flex;gap:8px;margin-bottom:8px">
+          <button class="btn btn-ghost btn-sm" style="flex:1" onclick="App.selecionarAreasDoProjetoExport('${p.id}')">Todas deste projeto</button>
+          <button class="btn btn-ghost btn-sm" style="flex:1" onclick="App.desmarcarAreasDoProjetoExport('${p.id}')">Nenhuma</button>
+        </div>`:""}
         ${areas.length>0? (()=>{ const tp = laudoStatusSoma(areas.map(laudoStatusTextosArea)); return tp.total? `<div style="margin:-2px 0 8px">${laudoStatusBarraHtml(tp, 5)}<div style="font-size:11.5px;color:var(--ink-dim);margin-top:3px">${escapeHtml(laudoStatusTextoResumo(tp))}</div></div>` : ""; })() : ""}
         ${areas.length===0? `<p style="font-size:12px;color:var(--ink-dim);margin:0">Sem áreas cadastradas.</p>` :
           areas.map(a=>{
@@ -25574,10 +25578,6 @@ function laudoAbaAreas(){
               ${stA.total? `<div style="margin:5px 0 0 26px">${laudoStatusBarraHtml(stA, 6)}<div style="font-size:11px;color:var(--ink-dim);margin-top:3px">${escapeHtml(laudoStatusTextoResumo(stA))}</div></div>` : ""}
             </div>`;
           }).join("")}
-        ${areas.length>0? `<div style="display:flex;gap:8px;margin-top:10px">
-          <button class="btn btn-ghost btn-sm" style="flex:1" onclick="App.selecionarAreasDoProjetoExport('${p.id}')">Todas deste projeto</button>
-          <button class="btn btn-ghost btn-sm" style="flex:1" onclick="App.desmarcarAreasDoProjetoExport('${p.id}')">Nenhuma</button>
-        </div>`:""}
       </div>`;
     }).join("") + `</div>`}
   ${projetos.length>0? `<div style="display:flex;gap:8px">

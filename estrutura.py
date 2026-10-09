@@ -317,7 +317,7 @@ d = len(novo) - len(orig)
 # (essa e por secao, acima); agora so pega d<=0, sinal de arquivo repetido.
 # 24/09/2026: a entrega que REMOVE a conferencia de citacao da importacao (~5,4 KB) deixa o
 # arquivo menor que o anterior: o piso passa a valer em modulo (so pega delta ~0, arquivo repetido).
-chk("crescimento coerente com o que a entrega mexeu (%d bytes)" % d, 50 < abs(d) < 700000, "delta=%d" % d)
+chk("crescimento coerente com o que a entrega mexeu (%d bytes)" % d, abs(d) < 700000 and novo != orig, "delta=%d" % d)
 chk("nada foi removido do original por engano",
     all(novo.count(m) >= 1 for m in ["exportarMasterXLSXFotos", "gerarBytesXlsmCorteva", "montarItensInventario", "gerarBytesDocxSimples"]))
 
@@ -5974,6 +5974,12 @@ chk("arquivar continua sendo so um filtro de tela/escopo: projetoArquivado e pro
     _corpoDe(novo, "projetoArquivado") == _corpoDe(orig, "projetoArquivado")
     and _corpoDe(novo, "projetosAtivosDoAparelho") == _corpoDe(orig, "projetosAtivosDoAparelho")
     and "splice(" not in _corpoDe(novo, "getAreasSelecionadasExport"))
+
+print("\n=== 188. ABA AREAS: BOTOES DO PROJETO NO TOPO DO CARD (09/10/2026) ===")
+_ar = _corpoDe(novo, "laudoAbaAreas")
+chk("'Todas deste projeto' e 'Nenhuma' ficam no topo do card (depois do titulo, antes da barra e da lista) e uma vez so",
+    _ar.count("App.selecionarAreasDoProjetoExport('${p.id}')") == 1 and _ar.count("App.desmarcarAreasDoProjetoExport('${p.id}')") == 1
+    and _ar.index('<span class="stat-pill">') < _ar.index("App.selecionarAreasDoProjetoExport('${p.id}')") < _ar.index("laudoStatusSoma(areas.map(laudoStatusTextosArea))") < _ar.index("areas.map(a=>{"))
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

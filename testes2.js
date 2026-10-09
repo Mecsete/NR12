@@ -14345,6 +14345,26 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  /* t191 — BOTOES "TODAS DESTE PROJETO" E "NENHUMA" NO TOPO DO CARD, NA ABA ÁREAS (09/10/2026). */
+  {
+    console.log("\n[t191] botoes do projeto no topo do card (aba Areas)");
+    t("os dois botoes ficam logo abaixo do titulo do projeto, antes das barras e da lista de areas, e saíram do rodape", ()=>{
+      const f = funcao("laudoAbaAreas");
+      const iTodas = f.indexOf("App.selecionarAreasDoProjetoExport('${p.id}')");
+      const iNenhuma = f.indexOf("App.desmarcarAreasDoProjetoExport('${p.id}')");
+      const iPill = f.indexOf('<span class="stat-pill">');
+      const iBarra = f.indexOf("laudoStatusSoma(areas.map(laudoStatusTextosArea))");
+      const iLista = f.indexOf("areas.map(a=>{");
+      ok(iTodas > iPill && iNenhuma > iTodas, "os botoes precisam vir depois do titulo");
+      ok(iNenhuma < iBarra && iBarra < iLista, "e antes da barra de status e da lista de areas");
+      eq((f.match(/App\.selecionarAreasDoProjetoExport\(/g)||[]).length, 1, "so uma vez (nao duplicou no rodape)");
+      eq((f.match(/App\.desmarcarAreasDoProjetoExport\(/g)||[]).length, 1);
+    });
+    t("os botoes continuam chamando as mesmas acoes de sempre", ()=>{
+      ok(HTML.indexOf("  selecionarAreasDoProjetoExport(projetoId){") > 0 && HTML.indexOf("  desmarcarAreasDoProjetoExport(projetoId){") > 0);
+    });
+  }
+
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);
 })();
