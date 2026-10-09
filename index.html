@@ -3471,7 +3471,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "09/10/2026 11:47";
+const APP_BUILD = "09/10/2026 12:04";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -14312,9 +14312,10 @@ function screenChkConfig(){
   <div class="section-title">Revisão com o Claude</div>
   <div class="card card-pad">
     <div style="font-weight:800;font-size:14px;margin-bottom:4px">Prompt que vai para o Claude</div>
-    <textarea id="chkCfgPrompt" rows="12" style="width:100%;font-size:13px">${escapeHtml(lclPromptRevisao())}</textarea>
-    <p style="font-size:12.5px;color:var(--ink-dim);margin:8px 0 0">Este texto vai no começo de cada pacote, junto com os textos do laudo (de uma ou de várias linhas). O app acrescenta sozinho as instruções do formato da resposta, então você pode mudar o estilo à vontade sem quebrar a leitura. Vale neste aparelho.</p>
-    <div class="modal-actions" style="justify-content:flex-start;gap:8px;margin-top:8px"><button class="btn btn-primary" onclick="App.chkSalvarPrompt()">Salvar prompt</button><button class="btn btn-secondary" onclick="App.chkPromptPadrao()">Voltar ao padrão</button></div>
+    <textarea id="chkCfgPrompt" rows="16" style="width:100%;font-size:13px">${escapeHtml(lclPromptRevisao())}</textarea>
+    <p style="font-size:12.5px;color:var(--ink-dim);margin:8px 0 0">Este texto vai no começo de cada pacote, junto com os textos do laudo (de uma ou de várias linhas). O app acrescenta sozinho as instruções do formato da resposta, então você pode mudar o estilo à vontade sem quebrar a leitura. Vale para todos os aparelhos (vai junto com os textos-base do laudo).</p>
+    <div class="field" style="margin-top:8px"><label for="chkCfgMax">Máximo de caracteres por pacote</label><input type="number" id="chkCfgMax" min="10000" max="200000" step="5000" value="${lclRevisaoMaxPacote()}" style="width:140px"><div class="field-hint">Cada laudo tem cerca de 19 mil caracteres. Com 45 mil, saem 2 laudos por mensagem. Se o Claude não cortar a resposta, dá para subir para 60 mil (3 laudos).</div></div>
+    <div class="modal-actions" style="justify-content:flex-start;gap:8px;margin-top:8px"><button class="btn btn-primary" onclick="App.chkSalvarPrompt()">Salvar</button><button class="btn btn-secondary" onclick="App.chkPromptPadrao()">Voltar ao padrão</button></div>
   </div>
   ${configAparenciaHtml()}
   <p style="text-align:center;font-size:11px;color:var(--ink-faint);margin-top:22px">Versão ${APP_BUILD}</p>`;
@@ -16557,35 +16558,71 @@ function lclHtmlParaTexto(html){
    Nada se perde: respostas do checklist nunca são tocadas e cada texto trocado, aceito, descartado ou desfeito fica no histórico
    (linha.revisoes) com o texto de antes. O PDF continua sendo montado pelo app. */
 const LCL_PROMPT_REVISAO_PADRAO = [
-  "Você é um engenheiro revisor de laudos de inspeção de linhas de vida (NR-35, NBR 16325, NBR 16489), com experiência em redação técnica.",
-  "Abaixo estão os textos de laudos montados automaticamente a partir de um checklist. Revise a redação de cada seção e da conclusão.",
+  "Você é um engenheiro mecânico revisor de laudos de inspeção de linhas de vida (NR-35, NBR 16325, NBR 16489), com experiência em redação técnica de laudos para empresas.",
+  "Abaixo estão os textos de laudos montados automaticamente a partir de um checklist preenchido em campo pelo inspetor. O seu trabalho é só de REDAÇÃO: deixar cada texto com cara de laudo técnico, personalizado para a linha de vida inspecionada.",
   "",
-  "O que fazer:",
-  "- Elimine repetições e contradições (por exemplo: não dizer que o projeto não foi apresentado e, na frase seguinte, que o projeto não traz o cálculo).",
-  "- Junte ideias parecidas, dê fluidez, use parágrafos curtos e linguagem técnica formal em português do Brasil, na terceira pessoa.",
-  "- Mantenha TODAS as não conformidades e as referências normativas (itens da NR-35, NBR). Não invente fatos, medidas ou normas e não retire nenhuma não conformidade.",
-  "- Mantenha exatamente as citações de fotos, como (Foto 3.1.1) ou (Fotos 3.4.1 a 3.4.6), junto da frase a que se referem.",
-  "- Não use negrito, marcadores nem títulos dentro dos textos. Separe parágrafos com uma linha em branco.",
-  "- Se algo estiver inconsistente ou faltar informação, não resolva por conta própria: escreva em NOTAS.",
+  "REGRA PRINCIPAL: as decisões do inspetor são intocáveis. Você NÃO pode:",
+  "- mudar se um item atende, não atende ou não se aplica;",
+  "- acrescentar, retirar ou trocar não conformidades, motivos, prioridades ou ações recomendadas;",
+  "- inventar fatos, medidas, marcas, datas, normas ou itens de norma que não estejam no pacote;",
+  "- mudar números, itens de norma (ex.: item 5.1.1 do Anexo II da NR-35) nem as citações de fotos, como (Foto 3.1.1) ou (Fotos 3.4.1 a 3.4.6), que ficam junto da frase a que se referem.",
+  "Se algo parecer inconsistente, faltar informação ou contrariar as características da linha, NÃO resolva por conta própria: registre em NOTAS.",
+  "",
+  "COMO ESCREVER (cara de laudo):",
+  "- Português do Brasil formal, terceira pessoa, voz objetiva e impessoal (\"foi constatado\", \"não foi apresentado\", \"recomenda-se\"). Sem opinião, sem coloquialismo.",
+  "- Um parágrafo por assunto, com frases curtas. Primeiro o que está conforme, depois as não conformidades agrupadas por assunto. Não repita a mesma ideia: se a ausência do projeto já foi dita, não diga depois que o projeto não traz o cálculo.",
+  "- Una frases que dizem a mesma coisa com outras palavras e desfaça contradições, preservando todas as informações.",
+  "- Cite a norma junto da constatação a que ela se refere, no mesmo formato do texto original.",
+  "- Personalize com as CARACTERÍSTICAS DA LINHA informadas (material da estrutura, tipo de fixação, uso, origem, riscos do local etc.): cite só o que se aplica a esta linha e nunca mencione elementos que a linha não tem. Característica \"não informada\" não deve ser presumida.",
+  "- Use o nome e o tipo da linha de vida quando ajudar a identificar o sistema, sem repetir a toda hora.",
+  "- Sem negrito, itálico, marcadores, listas ou títulos dentro dos textos. Separe parágrafos com uma linha em branco.",
+  "",
+  "RASTREABILIDADE (obrigatória): para cada texto alterado, indique de onde veio cada parágrafo, para o engenheiro conferir rápido. Use o bloco [[FONTES]] do formato da resposta: para cada parágrafo diga em quais partes do pacote você se baseou (ex.: \"Item 1.1, motivo 'Projeto da estrutura não apresentado'\", \"TEXTO ATUAL da seção\", \"Característica: Origem da linha\", \"Ação recomendada\", \"Resultado do checklist\") e o que mudou na redação (ex.: \"juntei duas frases sobre o projeto\").",
 ].join("\n");
 /* Instruções técnicas do formato da resposta: o app acrescenta sozinho, para que editar o prompt nunca quebre a leitura da resposta. */
 const LCL_PROMPT_REVISAO_FORMATO = [
-  "FORMATO DA RESPOSTA (obrigatório): devolva tudo dentro de UM bloco de código, só com as seções que você alterou. Copie o identificador (linha=... id=...) exatamente como aparece em cada seção:",
+  "FORMATO DA RESPOSTA (obrigatório): devolva as seções alteradas dentro de blocos de código (se a resposta for longa, use mais de um bloco, mas nunca corte uma seção ao meio; se não couber tudo, termine numa seção completa e diga, fora do bloco, o que faltou). Copie o identificador (linha=... id=...) exatamente como aparece em cada seção:",
   "[[SECAO linha=ID_DA_LINHA id=ID_DA_SECAO]]",
-  "texto revisado da seção",
+  "texto revisado da seção (parágrafos separados por uma linha em branco)",
   "[[/SECAO]]",
+  "[[FONTES linha=ID_DA_LINHA id=ID_DA_SECAO]]",
+  "P1: de onde veio (parte do pacote) | o que mudou na redação",
+  "P2: ...",
+  "[[/FONTES]]",
   "[[CONCLUSAO linha=ID_DA_LINHA]]",
   "texto revisado da conclusão (só se alterar)",
   "[[/CONCLUSAO]]",
+  "[[FONTES linha=ID_DA_LINHA id=conclusao]]",
+  "P1: ...",
+  "[[/FONTES]]",
   "[[NOTAS linha=ID_DA_LINHA]]",
-  "observações para o engenheiro (opcional)",
+  "observações para o engenheiro: inconsistências, informações que faltam (opcional)",
   "[[/NOTAS]]",
 ].join("\n");
-function lclPromptRevisao(){
-  const c = STATE.ui && typeof STATE.ui.promptRevisao === "string" ? STATE.ui.promptRevisao.trim() : "";
-  return c || LCL_PROMPT_REVISAO_PADRAO;
+/* Configuração da revisão, guardada com os textos-base do laudo (STATE.checklists.textos.revisao): vale em todos os aparelhos. */
+function lclRevisaoConfig(){
+  return (STATE.checklists && STATE.checklists.textos && STATE.checklists.textos.revisao && typeof STATE.checklists.textos.revisao === "object") ? STATE.checklists.textos.revisao : {};
 }
-function lclTextoSemMarcas(t){ return String(t || "").replace(/\*\*/g, "").replace(/\r/g, "").trim(); }
+function lclRevisaoMaxPacote(){
+  const n = Number(lclRevisaoConfig().maxPacote);
+  return n >= 10000 && n <= 200000 ? Math.round(n) : 45000;
+}
+function lclRevisaoSalvarConfig(prompt, maxPacote){
+  if(!STATE.checklists.textos || typeof STATE.checklists.textos !== "object") STATE.checklists.textos = {};
+  const tx = STATE.checklists.textos;
+  if(!tx.id) tx.id = "textos";
+  const v = String(prompt || "").trim();
+  const n = Number(maxPacote);
+  tx.revisao = { prompt: (!v || v === LCL_PROMPT_REVISAO_PADRAO.trim()) ? "" : v, maxPacote: n >= 10000 && n <= 200000 ? Math.round(n) : 45000 };
+  tx.atualizadoEm = agoraSync();
+  if(STATE.ui) delete STATE.ui.promptRevisao;
+}
+function lclPromptRevisao(){
+  const c = String(lclRevisaoConfig().prompt || "").trim();
+  const antigo = STATE.ui && typeof STATE.ui.promptRevisao === "string" ? STATE.ui.promptRevisao.trim() : "";   // versão que só valia no aparelho
+  return c || antigo || LCL_PROMPT_REVISAO_PADRAO;
+}
+function lclTextoSemMarcas(t){ return String(t || "").replace(/\*\*|__/g, "").replace(/\r/g, "").trim(); }
 /* Texto de cada seção do corpo e da conclusão, como estão hoje no laudo (o editado à mão vale no lugar do automático). */
 function lclRevisaoItens(linha){
   const itens = [];
@@ -16610,14 +16647,29 @@ function lclBlocoRevisaoLinha(x, proj){
   const p = [`######## LINHA: ${linha.nome || ""} - ${x.setor ? "Setor " + x.setor + " - " : ""}${chkRotuloTipoLinha(chkTipoLinha(linha)) || ""} (linha=${linha.id})`,
     `Resultado do checklist: ${res.ok} atendem, ${res.nok} não atendem${res.na ? ", " + res.na + " não se aplicam" : ""}`];
   if(ctx.sel.has("projeto_ausente")) p.push("Projeto da estrutura: NÃO apresentado");
-  if(carac.total) p.push(`Características informadas: ${marcas.length ? marcas.join("; ") : "nenhuma"}`);
+  if(carac.total){
+    p.push(`CARACTERÍSTICAS DA LINHA (marcadas pelo inspetor): ${marcas.length ? marcas.join("; ") : "nenhuma"}`);
+    const faltam = (linha.caracDefs || []).filter(g=> !g.derivada && !((linha.carac || {})[g.id] || []).length).map(g=> g.rotulo);
+    if(faltam.length) p.push(`Características não informadas (não presumir): ${faltam.join("; ")}`);
+  }
+  const rotSt = { atende:"ATENDE", naoAtende:"NÃO ATENDE", na:"NÃO SE APLICA" };
+  const itensDe = (secId)=> {
+    const sec = (linha.modeloSnapshot || []).find(s=> s.id === secId); if(!sec) return [];
+    return (sec.itens || []).map((it, ii)=> {
+      const ex = chkItemExec(linha, it.id) || {};
+      const nota = String(ex.observacao || "").trim();
+      return `Item ${lclNumItem(linha, sec, ii)} [${rotSt[ex.conforme] || "SEM RESPOSTA"}] ${String(it.descricao || "").slice(0, 110)}${(ex.motivosSelecionados || []).length ? " | motivos: " + ex.motivosSelecionados.join("; ") : ""}${nota ? " | nota do inspetor: " + nota : ""}`;
+    });
+  };
   lclRevisaoItens(linha).forEach(it=>{
     if(it.tipo === "conclusao"){
       p.push("", `##### CONCLUSÃO (devolver com [[CONCLUSAO linha=${linha.id}]])`, "TEXTO ATUAL:", it.atual);
     }else{
       p.push("", `##### SEÇÃO ${it.num} - ${it.titulo} (devolver com [[SECAO linha=${linha.id} id=${it.id}]])`);
       if(it.contexto) p.push("Como deve estar (referência, não é para alterar):", it.contexto);
-      p.push("TEXTO ATUAL:", it.atual);
+      const itens = itensDe(it.id);
+      if(itens.length) p.push("Itens do Checklist desta seção (referência, não alterar; número = o do capítulo Checklist do laudo):", ...itens.map(x=> "- " + x));
+      p.push("TEXTO ATUAL (montado do checklist):", it.atual);
       if(it.acoes.length) p.push("Ações recomendadas (só contexto, não é para alterar):", ...it.acoes.map(a=> "- " + a));
     }
   });
@@ -16632,7 +16684,7 @@ function lclPacoteRevisao(linhas, proj){
 }
 /* Divide em pacotes de no máximo `max` caracteres (cada pacote leva ao menos uma linha inteira). Devolve [{ linhas, texto }]. */
 function lclPacotesRevisao(linhas, proj, max){
-  max = max || 60000;
+  max = max || lclRevisaoMaxPacote();
   const cab = lclCabecalhoRevisao(proj), pacotes = [];
   let atual = null;
   linhas.forEach(x=>{
@@ -16675,6 +16727,12 @@ function lclRevisaoInterpretar(resposta, linhas){
   let m;
   const reS = /\[\[SECAO([^\]]*)\]\]([\s\S]*?)\[\[\/SECAO\]\]/g;
   while((m = reS.exec(t))){ const a = attrs(m[1]); examina("secao", alvoDe(a), a.id, m[2]); }
+  const reF = /\[\[FONTES([^\]]*)\]\]([\s\S]*?)\[\[\/FONTES\]\]/g;
+  while((m = reF.exec(t))){
+    const a = attrs(m[1]), alvo = alvoDe(a), reg = alvo && out.porLinha[alvo];
+    const item = reg && reg.itens.find(x=> x.id === a.id);
+    if(item) item.fontes = m[2].trim();
+  }
   const reC = /\[\[CONCLUSAO([^\]]*)\]\]([\s\S]*?)\[\[\/CONCLUSAO\]\]/g;
   while((m = reC.exec(t))){ const a = attrs(m[1]); examina("conclusao", alvoDe(a), "conclusao", m[2]); }
   const reN = /\[\[NOTAS([^\]]*)\]\]([\s\S]*?)\[\[\/NOTAS\]\]/g;
@@ -16695,7 +16753,7 @@ function lclRevisaoRegistrar(linha, tipo, mudancas){
   return r.id;
 }
 function lclRevisaoGuardarPendente(linha, itens, notas){
-  const novos = itens.filter(x=> !x.igual).map(x=> ({ tipo: x.tipo, id: x.id, num: x.num, titulo: x.titulo, antes: x.antes, depois: x.depois, avisos: x.avisos || [] }));
+  const novos = itens.filter(x=> !x.igual).map(x=> ({ tipo: x.tipo, id: x.id, num: x.num, titulo: x.titulo, antes: x.antes, depois: x.depois, avisos: x.avisos || [], fontes: x.fontes || "" }));
   const ant = linha.revisaoPendente;
   const mantidos = ant ? ant.itens.filter(x=> !novos.some(n=> n.id === x.id)) : [];
   const trocados = ant ? ant.itens.filter(x=> novos.some(n=> n.id === x.id)) : [];
@@ -16812,6 +16870,7 @@ function lclRevisaoResultadoHtml(r, opc){
       <label style="display:flex;gap:8px;align-items:center;font-weight:800;font-size:13.5px"><input type="checkbox" data-rev="${k}" ${x.igual ? "disabled" : "checked"}> ${escapeHtml(x.tipo === "conclusao" ? "Conclusão" : x.num + " " + x.titulo)} ${x.igual ? '<span class="stat-pill">sem mudança</span>' : ""}</label>
       ${(x.avisos || []).map(a=> `<div style="font-size:12px;color:#8a2b0e;margin-top:4px">${ic('warn')} ${escapeHtml(a)}</div>`).join("")}
       ${x.mudouDesde ? `<div style="font-size:12px;color:#8a2b0e;margin-top:4px">${ic('warn')} O texto atual da seção mudou depois que o Claude respondeu; o "Antes" abaixo é o de agora.</div>` : ""}
+      ${x.igual || !x.fontes ? "" : `<details style="margin-top:6px"><summary style="cursor:pointer;font-size:12.5px;font-weight:700">De onde o Claude tirou cada parágrafo</summary><div style="font-size:12.5px;line-height:1.5;white-space:pre-wrap;background:#fff8e6;padding:6px 8px;border-radius:8px;margin-top:4px">${escapeHtml(x.fontes)}</div></details>`}
       ${x.igual ? "" : `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:8px;margin-top:6px"><div><div class="lcl-dica" style="margin:0 0 2px">Antes</div><div style="font-size:12.5px;line-height:1.5;white-space:pre-wrap;max-height:240px;overflow:auto;background:var(--surface-1,#f4f5f9);padding:6px 8px;border-radius:8px">${escapeHtml(x.antes)}</div></div><div><div class="lcl-dica" style="margin:0 0 2px">Depois (Claude)</div><div style="font-size:12.5px;line-height:1.5;white-space:pre-wrap;max-height:240px;overflow:auto;background:#eef7f0;padding:6px 8px;border-radius:8px">${escapeHtml(x.depois)}</div></div></div>`}
     </div>`;
   const botoes = !mudaram.length ? "" : (opc.botoes === "validar"
@@ -17167,7 +17226,7 @@ function lclBlocosChecklist(d, cap, capCorpo){
    calculada da resposta da primeira pergunta (projeto não apresentado). */
 const CHK_TEXTOS_V2_ATIVO = false;
 const CHK_CARAC_DEFS = {"horizontal_rigida":[{"id":"uso","rotulo":"Uso do sistema","secao":"Geral","multi":false,"opcoes":[{"id":"uso_ret","rotulo":"Retenção de queda","lista":"retenção de queda"},{"id":"uso_res","rotulo":"Restrição de movimento","lista":"restrição de movimento"}],"ajuda":""},{"id":"permanencia","rotulo":"Instalação","secao":"Geral","multi":false,"opcoes":[{"id":"perm","rotulo":"Permanente","lista":"permanente"},{"id":"temp","rotulo":"Temporária","lista":"temporário"}],"ajuda":""},{"id":"origem","rotulo":"Origem da linha","secao":"Identificação e Marcação","multi":true,"opcoes":[{"id":"orig_cert","rotulo":"Certificação do produto","lista":"certificação"},{"id":"orig_norma","rotulo":"Fabricação conforme norma técnica","lista":"fabricação conforme norma técnica"},{"id":"orig_proj","rotulo":"Projeto de profissional habilitado","lista":"projeto de profissional habilitado"},{"id":"orig_propria","rotulo":"Fabricação própria, sem projeto","naLista":false}],"ajuda":""},{"id":"ancor_material","rotulo":"Material da estrutura de apoio","secao":"Ancoragem Estrutural","multi":true,"opcoes":[{"id":"concreto","rotulo":"Concreto"},{"id":"aco","rotulo":"Aço"},{"id":"alvenaria","rotulo":"Alvenaria"}],"ajuda":""},{"id":"ancor_elemento","rotulo":"Elemento onde a ancoragem está fixada","secao":"Ancoragem Estrutural","multi":true,"opcoes":[{"id":"el_viga","rotulo":"Viga","lista":"viga"},{"id":"el_pilar","rotulo":"Pilar","lista":"pilar"},{"id":"el_laje","rotulo":"Laje","lista":"laje"},{"id":"el_terca","rotulo":"Terça","lista":"terça"}],"ajuda":""},{"id":"ancor_fixacao","rotulo":"Tipo de fixação da ancoragem","secao":"Ancoragem Estrutural","multi":true,"opcoes":[{"id":"chumbador_q","rotulo":"Chumbador químico","lista":"chumbador químico","listaPl":"chumbadores químicos"},{"id":"chumbador_m","rotulo":"Chumbador mecânico","lista":"chumbador mecânico","listaPl":"chumbadores mecânicos"},{"id":"parafuso","rotulo":"Parafuso","lista":"parafuso","listaPl":"parafusos"},{"id":"solda","rotulo":"Solda","naLista":false}],"ajuda":""},{"id":"riscos","rotulo":"Riscos adicionais do local","secao":"Zona Livre de Queda e Local","multi":true,"opcoes":[{"id":"r_el","rotulo":"Elétrico","lista":"rede elétrica"},{"id":"r_qu","rotulo":"Químico","lista":"agentes químicos"},{"id":"r_te","rotulo":"Térmico (calor)","lista":"calor"},{"id":"r_tr","rotulo":"Tráfego de máquinas","lista":"tráfego de máquinas"},{"id":"r_in","rotulo":"Intempéries","lista":"intempéries"},{"id":"r_nen","rotulo":"Nenhum","naLista":false,"exclusiva":true}],"ajuda":""},{"id":"viga_fixacao","rotulo":"Fixação da viga à estrutura","secao":"Viga / Trilho","multi":true,"opcoes":[{"id":"viga_sold","rotulo":"Soldada","lista":"soldada"},{"id":"viga_paraf","rotulo":"Parafusada","lista":"parafusada"}],"ajuda":""},{"id":"apoios","rotulo":"Apoios intermediários","secao":"Viga / Trilho","multi":false,"opcoes":[{"id":"apoios_sim","rotulo":"Com apoios intermediários"},{"id":"apoios_nao","rotulo":"Sem apoios (vão único)"}],"ajuda":""},{"id":"emendas","rotulo":"Emendas na viga","secao":"Viga / Trilho","multi":false,"opcoes":[{"id":"emendas_sim","rotulo":"Com emendas"},{"id":"emendas_nao","rotulo":"Peça única"}],"ajuda":""},{"id":"projeto","rotulo":"Projeto","secao":"Geral","derivada":true,"multi":false,"opcoes":[{"id":"projeto_ausente","rotulo":"Projeto não apresentado"}],"ausenteSe":{"item":"@primeiro","motivos":["Projeto da estrutura não apresentado"]}}],"horizontal_flexivel":[{"id":"uso","rotulo":"Uso do sistema","secao":"Geral","multi":false,"opcoes":[{"id":"uso_ret","rotulo":"Retenção de queda","lista":"retenção de queda"},{"id":"uso_res","rotulo":"Restrição de movimento","lista":"restrição de movimento"}],"ajuda":""},{"id":"permanencia","rotulo":"Instalação","secao":"Geral","multi":false,"opcoes":[{"id":"perm","rotulo":"Permanente","lista":"permanente"},{"id":"temp","rotulo":"Temporária","lista":"temporário"}],"ajuda":""},{"id":"origem","rotulo":"Origem da linha","secao":"Identificação e Marcação","multi":true,"opcoes":[{"id":"orig_cert","rotulo":"Certificação do produto","lista":"certificação"},{"id":"orig_norma","rotulo":"Fabricação conforme norma técnica","lista":"fabricação conforme norma técnica"},{"id":"orig_proj","rotulo":"Projeto de profissional habilitado","lista":"projeto de profissional habilitado"},{"id":"orig_propria","rotulo":"Fabricação própria, sem projeto","naLista":false}],"ajuda":""},{"id":"ancor_material","rotulo":"Material da estrutura de apoio","secao":"Ancoragem Estrutural","multi":true,"opcoes":[{"id":"concreto","rotulo":"Concreto"},{"id":"aco","rotulo":"Aço"},{"id":"alvenaria","rotulo":"Alvenaria"}],"ajuda":""},{"id":"ancor_elemento","rotulo":"Elemento onde a ancoragem está fixada","secao":"Ancoragem Estrutural","multi":true,"opcoes":[{"id":"el_viga","rotulo":"Viga","lista":"viga"},{"id":"el_pilar","rotulo":"Pilar","lista":"pilar"},{"id":"el_laje","rotulo":"Laje","lista":"laje"},{"id":"el_terca","rotulo":"Terça","lista":"terça"}],"ajuda":""},{"id":"ancor_fixacao","rotulo":"Tipo de fixação da ancoragem","secao":"Ancoragem Estrutural","multi":true,"opcoes":[{"id":"chumbador_q","rotulo":"Chumbador químico","lista":"chumbador químico","listaPl":"chumbadores químicos"},{"id":"chumbador_m","rotulo":"Chumbador mecânico","lista":"chumbador mecânico","listaPl":"chumbadores mecânicos"},{"id":"parafuso","rotulo":"Parafuso","lista":"parafuso","listaPl":"parafusos"},{"id":"solda","rotulo":"Solda","naLista":false}],"ajuda":""},{"id":"riscos","rotulo":"Riscos adicionais do local","secao":"Zona Livre de Queda e Local","multi":true,"opcoes":[{"id":"r_el","rotulo":"Elétrico","lista":"rede elétrica"},{"id":"r_qu","rotulo":"Químico","lista":"agentes químicos"},{"id":"r_te","rotulo":"Térmico (calor)","lista":"calor"},{"id":"r_tr","rotulo":"Tráfego de máquinas","lista":"tráfego de máquinas"},{"id":"r_in","rotulo":"Intempéries","lista":"intempéries"},{"id":"r_nen","rotulo":"Nenhum","naLista":false,"exclusiva":true}],"ajuda":""},{"id":"apoios","rotulo":"Apoios intermediários","secao":"Linha","multi":false,"opcoes":[{"id":"apoios_sim","rotulo":"Com apoios intermediários"},{"id":"apoios_nao","rotulo":"Sem apoios (vão único)"}],"ajuda":""},{"id":"absorvedor","rotulo":"Absorvedor de energia","secao":"Linha","multi":false,"opcoes":[{"id":"absorvedor_sim","rotulo":"Com absorvedor"},{"id":"absorvedor_nao","rotulo":"Sem absorvedor"}],"ajuda":""},{"id":"cabo_material","rotulo":"Material do cabo","secao":"Cabo de Aço","multi":false,"opcoes":[{"id":"cabo_gal","rotulo":"Galvanizado","lista":"galvanizado"},{"id":"cabo_inox","rotulo":"Aço inox","lista":"de aço inox"}],"ajuda":""},{"id":"esticador_tipo","rotulo":"Material do esticador","secao":"Esticador e Olhal","multi":true,"opcoes":[{"id":"esticador_forjado","rotulo":"Aço forjado","lista":"aço forjado"},{"id":"esticador_fofo","rotulo":"Ferro fundido nodular","lista":"ferro fundido nodular"}],"ajuda":""},{"id":"ferragens","rotulo":"Acabamento do olhal e dos grampos","secao":"Esticador e Olhal","multi":true,"opcoes":[{"id":"ferr_gal","rotulo":"Galvanizado","lista":"galvanizado","listaPl":"galvanizados"},{"id":"ferr_inox","rotulo":"Aço inox","lista":"de aço inox","listaPl":"de aço inox"}],"ajuda":""},{"id":"terminal","rotulo":"Terminais prensados","secao":"Sapatilha, Terminais e Acessórios","multi":false,"opcoes":[{"id":"terminal_sim","rotulo":"Possui terminais prensados"},{"id":"terminal_nao","rotulo":"Não possui"}],"ajuda":""},{"id":"projeto","rotulo":"Projeto","secao":"Geral","derivada":true,"multi":false,"opcoes":[{"id":"projeto_ausente","rotulo":"Projeto não apresentado"}],"ausenteSe":{"item":"@primeiro","motivos":["Projeto da estrutura não apresentado"]}}],"vertical":[{"id":"uso","rotulo":"Uso do sistema","secao":"Geral","multi":false,"opcoes":[{"id":"uso_ret","rotulo":"Retenção de queda","lista":"retenção de queda"},{"id":"uso_res","rotulo":"Restrição de movimento","lista":"restrição de movimento"}],"ajuda":""},{"id":"permanencia","rotulo":"Instalação","secao":"Geral","multi":false,"opcoes":[{"id":"perm","rotulo":"Permanente","lista":"permanente"},{"id":"temp","rotulo":"Temporária","lista":"temporário"}],"ajuda":""},{"id":"origem","rotulo":"Origem da linha","secao":"Identificação e Marcação","multi":true,"opcoes":[{"id":"orig_cert","rotulo":"Certificação do produto","lista":"certificação"},{"id":"orig_norma","rotulo":"Fabricação conforme norma técnica","lista":"fabricação conforme norma técnica"},{"id":"orig_proj","rotulo":"Projeto de profissional habilitado","lista":"projeto de profissional habilitado"},{"id":"orig_propria","rotulo":"Fabricação própria, sem projeto","naLista":false}],"ajuda":""},{"id":"ancor_material","rotulo":"Material da estrutura de apoio","secao":"Ancoragem Estrutural","multi":true,"opcoes":[{"id":"concreto","rotulo":"Concreto"},{"id":"aco","rotulo":"Aço"},{"id":"alvenaria","rotulo":"Alvenaria"}],"ajuda":""},{"id":"ancor_elemento","rotulo":"Elemento onde a ancoragem está fixada","secao":"Ancoragem Estrutural","multi":true,"opcoes":[{"id":"el_viga","rotulo":"Viga","lista":"viga"},{"id":"el_pilar","rotulo":"Pilar","lista":"pilar"},{"id":"el_laje","rotulo":"Laje","lista":"laje"},{"id":"el_terca","rotulo":"Terça","lista":"terça"}],"ajuda":""},{"id":"ancor_fixacao","rotulo":"Tipo de fixação da ancoragem","secao":"Ancoragem Estrutural","multi":true,"opcoes":[{"id":"chumbador_q","rotulo":"Chumbador químico","lista":"chumbador químico","listaPl":"chumbadores químicos"},{"id":"chumbador_m","rotulo":"Chumbador mecânico","lista":"chumbador mecânico","listaPl":"chumbadores mecânicos"},{"id":"parafuso","rotulo":"Parafuso","lista":"parafuso","listaPl":"parafusos"},{"id":"solda","rotulo":"Solda","naLista":false}],"ajuda":""},{"id":"riscos","rotulo":"Riscos adicionais do local","secao":"Zona Livre de Queda e Local","multi":true,"opcoes":[{"id":"r_el","rotulo":"Elétrico","lista":"rede elétrica"},{"id":"r_qu","rotulo":"Químico","lista":"agentes químicos"},{"id":"r_te","rotulo":"Térmico (calor)","lista":"calor"},{"id":"r_tr","rotulo":"Tráfego de máquinas","lista":"tráfego de máquinas"},{"id":"r_in","rotulo":"Intempéries","lista":"intempéries"},{"id":"r_nen","rotulo":"Nenhum","naLista":false,"exclusiva":true}],"ajuda":""},{"id":"absorvedor","rotulo":"Absorvedor de energia","secao":"Linha","multi":false,"opcoes":[{"id":"absorvedor_sim","rotulo":"Com absorvedor"},{"id":"absorvedor_nao","rotulo":"Sem absorvedor"}],"ajuda":""},{"id":"cabo_material","rotulo":"Material do cabo","secao":"Cabo de Aço","multi":false,"opcoes":[{"id":"cabo_gal","rotulo":"Galvanizado","lista":"galvanizado"},{"id":"cabo_inox","rotulo":"Aço inox","lista":"de aço inox"}],"ajuda":""},{"id":"esticador_tipo","rotulo":"Material do esticador","secao":"Esticador e Olhal","multi":true,"opcoes":[{"id":"esticador_forjado","rotulo":"Aço forjado","lista":"aço forjado"},{"id":"esticador_fofo","rotulo":"Ferro fundido nodular","lista":"ferro fundido nodular"}],"ajuda":""},{"id":"ferragens","rotulo":"Acabamento do olhal e dos grampos","secao":"Esticador e Olhal","multi":true,"opcoes":[{"id":"ferr_gal","rotulo":"Galvanizado","lista":"galvanizado","listaPl":"galvanizados"},{"id":"ferr_inox","rotulo":"Aço inox","lista":"de aço inox","listaPl":"de aço inox"}],"ajuda":""},{"id":"terminal","rotulo":"Terminais prensados","secao":"Sapatilha, Terminais e Acessórios","multi":false,"opcoes":[{"id":"terminal_sim","rotulo":"Possui terminais prensados"},{"id":"terminal_nao","rotulo":"Não possui"}],"ajuda":""},{"id":"projeto","rotulo":"Projeto","secao":"Geral","derivada":true,"multi":false,"opcoes":[{"id":"projeto_ausente","rotulo":"Projeto não apresentado"}],"ausenteSe":{"item":"@primeiro","motivos":["Projeto da estrutura não apresentado"]}}]};
-const CHK_TEXTOS_V2_TROCAS = [["O sistema de ancoragem permanente deve ter","O sistema de ancoragem {{@permanencia|permanente}} deve ter"],["e o sistema está corretamente classificado (retenção ou restrição de queda) e dimensionado","e o sistema está corretamente classificado{{@uso| (retenção ou restrição de queda)| como |}} e dimensionado"],["possui comprovação de conformidade (certificação, fabricação conforme norma técnica ou projeto de profissional habilitado)","possui comprovação de conformidade{{@origem| (certificação, fabricação conforme norma técnica ou projeto de profissional habilitado)| (|)|ou}}"],["(viga, pilar, laje ou terça)","({{@ancor_elemento|viga, pilar, laje ou terça}})"],["sem oxidação com perda de seção, sem fissuras ou desagregação no concreto, sem trincas ou falhas nos cordões de solda e sem deformação ou desalinhamento","sem oxidação com perda de seção{{concreto|, sem fissuras ou desagregação no concreto}}{{solda|, sem trincas ou falhas nos cordões de solda}} e sem deformação ou desalinhamento"],["A estrutura deve estar íntegra, sem deformação, oxidação com perda de seção, fissuras no concreto ou trincas de solda.","A estrutura deve estar íntegra, sem deformação nem oxidação com perda de seção{{concreto|, sem fissuras no concreto}}{{solda|, sem trincas de solda}}."],["Os chumbadores e parafusos de fixação têm tipo, diâmetro e embutimento conforme o projeto, estão firmes e sem folga, com torque de aperto conferido e marcado com testemunho, e a distância às bordas e o espaçamento entre chumbadores atendem ao projeto e ao fabricante.","Os {{@@ancor_fixacao|chumbadores e parafusos}} de fixação têm tipo{{chumbador_q,chumbador_m|, diâmetro e embutimento|| e diâmetro}} {{!projeto_ausente|conforme o projeto||compatíveis com a carga prevista}}, estão firmes e sem folga, com torque de aperto conferido e marcado com testemunho, e a distância às bordas e o espaçamento entre as fixações atendem {{!projeto_ausente|ao projeto e ao fabricante||ao fabricante}}."],["Chumbadores e parafusos devem corresponder ao projeto em tipo, diâmetro e embutimento, estar firmes, com torque conferido e marcado, e respeitar as distâncias de borda e entre fixações.","As fixações ({{@@ancor_fixacao|chumbadores e parafusos}}) devem corresponder {{!projeto_ausente|ao projeto||à carga prevista}} em tipo e diâmetro{{chumbador_q,chumbador_m| e embutimento||}}, estar firmes, com torque conferido e marcado, e respeitar as distâncias de borda e entre fixações."],["O perfil e o material da viga ou trilho correspondem ao projeto, a viga está na posição prevista, os apoios intermediários estão no espaçamento do projeto, sem folga ou deslocamento, e a viga não se desvia","{{!projeto_ausente|O perfil e o material da viga ou trilho correspondem ao projeto, a viga está na posição prevista||A viga ou trilho está na posição esperada, não havendo projeto para conferir perfil e material}}{{apoios_sim&!projeto_ausente|, os apoios intermediários estão no espaçamento do projeto, sem folga ou deslocamento}}{{apoios_sim&projeto_ausente|, os apoios intermediários estão sem folga ou deslocamento}}, e a viga não se desvia"],["está bem soldada ou parafusada na estrutura, as emendas e juntas estão alinhadas, sem degrau que trave o trolley, e há batentes","está bem {{@viga_fixacao|soldada ou parafusada}} na estrutura{{emendas_sim|, as emendas e juntas estão alinhadas, sem degrau que trave o trolley}}, e há batentes"],["A viga ou trilho deve corresponder ao perfil, material, posição e inclinação (até 15º) do projeto, estar reta, sem oxidação ou deformação e bem fixada à estrutura, com apoios no espaçamento do projeto, emendas alinhadas e sem degrau, e batentes","A viga ou trilho deve {{!projeto_ausente|corresponder ao perfil, material, posição e inclinação (até 15º) do projeto, estar reta||estar na posição prevista, com inclinação de até 15º, e reta}}, sem oxidação ou deformação e bem fixada à estrutura{{apoios_sim&!projeto_ausente|, com apoios no espaçamento do projeto}}{{apoios_sim&projeto_ausente|, com apoios firmes}}{{emendas_sim|, emendas alinhadas e sem degrau}}, e batentes"],["força máxima aplicável do projeto","força máxima aplicável{{!projeto_ausente| do projeto}}"],["é maior ou igual à exigida em projeto, não há","é {{!projeto_ausente|maior ou igual à exigida em projeto||suficiente para o EPI utilizado}}, não há"],["deve ser igual ou maior que a exigida em projeto","deve ser {{!projeto_ausente|igual ou maior que a exigida em projeto||suficiente para o EPI utilizado}}"],[" (rede elétrica, agentes químicos, calor, tráfego de máquinas, intempéries)","{{@riscos| (rede elétrica, agentes químicos, calor, tráfego de máquinas, intempéries)| (|)}}"],[" (elétrico, químico, térmico, tráfego de máquinas, intempéries)","{{@riscos| (rede elétrica, agentes químicos, calor, tráfego de máquinas, intempéries)| (|)}}"],["As ancoragens de extremidade estão conforme o projeto, íntegras e sem folga; os apoios intermediários estão íntegros e permitem a passagem do conector sem desconexão; e o absorvedor de energia previsto em projeto ou pelo fabricante está presente, íntegro e sem sinal de acionamento.","As ancoragens de extremidade estão {{!projeto_ausente|conforme o projeto, ||}}íntegras e sem folga{{apoios_sim|; os apoios intermediários estão íntegros e permitem a passagem do conector sem desconexão}}{{absorvedor_sim|; e o absorvedor de energia previsto em projeto ou pelo fabricante está presente, íntegro e sem sinal de acionamento}}."],["material adequado (galvanizado ou aço inox)","material adequado{{@cabo_material| (galvanizado ou aço inox)| (|)|ou}}"],["O cabo deve ser galvanizado ou de aço inox,","O cabo deve ser {{@cabo_material|galvanizado ou de aço inox|||ou}},"],["O esticador é de aço forjado ou ferro fundido nodular, com acabamento galvanizado, e o olhal é galvanizado ou de aço inox;","O esticador é de {{@esticador_tipo|aço forjado ou ferro fundido nodular|||ou}}, com acabamento galvanizado, e o olhal é {{@ferragens|galvanizado ou de aço inox|||ou}};"],["O esticador deve ser de aço forjado ou ferro fundido nodular, galvanizado, e o olhal galvanizado ou de aço inox;","O esticador deve ser de {{@esticador_tipo|aço forjado ou ferro fundido nodular|||ou}}, galvanizado, e o olhal {{@ferragens|galvanizado ou de aço inox|||ou}};"],["de material adequado (galvanizados ou de aço inox)","de material adequado{{@@ferragens| (galvanizados ou de aço inox)| (|)|ou}}"],["galvanizados ou de aço inox, sem oxidação","{{@@ferragens|galvanizados ou de aço inox|||ou}}, sem oxidação"],["; os terminais prensados (quando existirem) estão íntegros e com prensagem conforme o fabricante; e as manilhas","{{terminal_sim|; os terminais prensados estão íntegros e com prensagem conforme o fabricante}}; e as manilhas"]];
+const CHK_TEXTOS_V2_TROCAS = [["O sistema de ancoragem permanente deve ter","O sistema de ancoragem {{@permanencia|permanente}} deve ter"],["e o sistema está corretamente classificado (retenção ou restrição de queda) e dimensionado","e o sistema está corretamente classificado{{@uso| (retenção ou restrição de queda)| como |}} e dimensionado"],["possui comprovação de conformidade (certificação, fabricação conforme norma técnica ou projeto de profissional habilitado)","possui comprovação de conformidade{{@origem| (certificação, fabricação conforme norma técnica ou projeto de profissional habilitado)| (|)|ou}}"],["(viga, pilar, laje ou terça)","({{@ancor_elemento|viga, pilar, laje ou terça}})"],["sem oxidação com perda de seção, sem fissuras ou desagregação no concreto, sem trincas ou falhas nos cordões de solda e sem deformação ou desalinhamento","sem oxidação com perda de seção{{concreto|, sem fissuras ou desagregação no concreto}}{{solda|, sem trincas ou falhas nos cordões de solda}} e sem deformação ou desalinhamento"],["A estrutura deve estar íntegra, sem deformação, oxidação com perda de seção, fissuras no concreto ou trincas de solda.","A estrutura deve estar íntegra, sem deformação nem oxidação com perda de seção{{concreto|, sem fissuras no concreto}}{{solda|, sem trincas de solda}}."],["Os chumbadores e parafusos de fixação têm tipo, diâmetro e embutimento conforme o projeto, estão firmes e sem folga, com torque de aperto conferido e marcado com testemunho, e a distância às bordas e o espaçamento entre chumbadores atendem ao projeto e ao fabricante.","{{chumbador_q,chumbador_m,parafuso|Os {{@@ancor_fixacao|chumbadores e parafusos}} de fixação têm tipo{{chumbador_q,chumbador_m|, diâmetro e embutimento|| e diâmetro}} {{!projeto_ausente|conforme o projeto||compatíveis com a carga prevista}}, estão firmes e sem folga, com torque de aperto conferido e marcado com testemunho, e a distância às bordas e o espaçamento entre as fixações atendem {{!projeto_ausente|ao projeto e ao fabricante||ao fabricante}}.}}"],["Chumbadores e parafusos devem corresponder ao projeto em tipo, diâmetro e embutimento, estar firmes, com torque conferido e marcado, e respeitar as distâncias de borda e entre fixações.","{{chumbador_q,chumbador_m,parafuso|As fixações ({{@@ancor_fixacao|chumbadores e parafusos}}) devem corresponder {{!projeto_ausente|ao projeto||à carga prevista}} em tipo e diâmetro{{chumbador_q,chumbador_m| e embutimento||}}, estar firmes, com torque conferido e marcado, e respeitar as distâncias de borda e entre fixações.}}"],["O perfil e o material da viga ou trilho correspondem ao projeto, a viga está na posição prevista, os apoios intermediários estão no espaçamento do projeto, sem folga ou deslocamento, e a viga não se desvia","{{!projeto_ausente|O perfil e o material da viga ou trilho correspondem ao projeto, a viga está na posição prevista||A viga ou trilho está na posição esperada, não havendo projeto para conferir perfil e material}}{{apoios_sim&!projeto_ausente|, os apoios intermediários estão no espaçamento do projeto, sem folga ou deslocamento}}{{apoios_sim&projeto_ausente|, os apoios intermediários estão sem folga ou deslocamento}}, e a viga não se desvia"],["está bem soldada ou parafusada na estrutura, as emendas e juntas estão alinhadas, sem degrau que trave o trolley, e há batentes","está bem {{@viga_fixacao|soldada ou parafusada}} na estrutura{{emendas_sim|, as emendas e juntas estão alinhadas, sem degrau que trave o trolley}}, e há batentes"],["A viga ou trilho deve corresponder ao perfil, material, posição e inclinação (até 15º) do projeto, estar reta, sem oxidação ou deformação e bem fixada à estrutura, com apoios no espaçamento do projeto, emendas alinhadas e sem degrau, e batentes","A viga ou trilho deve {{!projeto_ausente|corresponder ao perfil, material, posição e inclinação (até 15º) do projeto, estar reta||estar na posição prevista, com inclinação de até 15º, e reta}}, sem oxidação ou deformação e bem fixada à estrutura{{apoios_sim&!projeto_ausente|, com apoios no espaçamento do projeto}}{{apoios_sim&projeto_ausente|, com apoios firmes}}{{emendas_sim|, emendas alinhadas e sem degrau}}, e batentes"],["força máxima aplicável do projeto","força máxima aplicável{{!projeto_ausente| do projeto}}"],["é maior ou igual à exigida em projeto, não há","é {{!projeto_ausente|maior ou igual à exigida em projeto||suficiente para o EPI utilizado}}, não há"],["deve ser igual ou maior que a exigida em projeto","deve ser {{!projeto_ausente|igual ou maior que a exigida em projeto||suficiente para o EPI utilizado}}"],[" (rede elétrica, agentes químicos, calor, tráfego de máquinas, intempéries)","{{@riscos| (rede elétrica, agentes químicos, calor, tráfego de máquinas, intempéries)| (|)}}"],[" (elétrico, químico, térmico, tráfego de máquinas, intempéries)","{{@riscos| (rede elétrica, agentes químicos, calor, tráfego de máquinas, intempéries)| (|)}}"],["As ancoragens de extremidade estão conforme o projeto, íntegras e sem folga; os apoios intermediários estão íntegros e permitem a passagem do conector sem desconexão; e o absorvedor de energia previsto em projeto ou pelo fabricante está presente, íntegro e sem sinal de acionamento.","As ancoragens de extremidade estão {{!projeto_ausente|conforme o projeto, ||}}íntegras e sem folga{{apoios_sim|; os apoios intermediários estão íntegros e permitem a passagem do conector sem desconexão}}{{absorvedor_sim|; e o absorvedor de energia previsto em projeto ou pelo fabricante está presente, íntegro e sem sinal de acionamento}}."],["material adequado (galvanizado ou aço inox)","material adequado{{@cabo_material| (galvanizado ou aço inox)| (|)|ou}}"],["O cabo deve ser galvanizado ou de aço inox,","O cabo deve ser {{@cabo_material|galvanizado ou de aço inox|||ou}},"],["O esticador é de aço forjado ou ferro fundido nodular, com acabamento galvanizado, e o olhal é galvanizado ou de aço inox;","O esticador é de {{@esticador_tipo|aço forjado ou ferro fundido nodular|||ou}}, com acabamento galvanizado, e o olhal é {{@ferragens|galvanizado ou de aço inox|||ou}};"],["O esticador deve ser de aço forjado ou ferro fundido nodular, galvanizado, e o olhal galvanizado ou de aço inox;","O esticador deve ser de {{@esticador_tipo|aço forjado ou ferro fundido nodular|||ou}}, galvanizado, e o olhal {{@ferragens|galvanizado ou de aço inox|||ou}};"],["de material adequado (galvanizados ou de aço inox)","de material adequado{{@@ferragens| (galvanizados ou de aço inox)| (|)|ou}}"],["galvanizados ou de aço inox, sem oxidação","{{@@ferragens|galvanizados ou de aço inox|||ou}}, sem oxidação"],["; os terminais prensados (quando existirem) estão íntegros e com prensagem conforme o fabricante; e as manilhas","{{terminal_sim|; os terminais prensados estão íntegros e com prensagem conforme o fabricante}}; e as manilhas"]];
 function chkCaracContexto(l){
   const defs = (l && l.caracDefs) || [], carac = (l && l.carac) || {};
   const ctx = { sel: new Set(), grupoSel: new Set(), optGrupo: {}, porGrupo: {} };
@@ -17220,7 +17279,9 @@ function chkCondResolver(corpo, ctx){
 function chkCondTexto(txt, l){
   if(typeof txt !== "string" || txt.indexOf("{{") < 0) return txt;
   const ctx = chkCaracContexto(l);
-  return txt.replace(/\{\{([^{}]*)\}\}/g, (m, corpo)=> chkCondResolver(corpo, ctx));
+  let r = txt;
+  for(let k = 0; k < 6 && r.indexOf("{{") >= 0; k++){ const nova = r.replace(/\{\{([^{}]*)\}\}/g, (m, corpo)=> chkCondResolver(corpo, ctx)); if(nova === r) break; r = nova; }   // trechos dentro de trechos: do mais interno para fora
+  return r;
 }
 function chkTextosV2TipoDe(idModelo){
   const m = /^mg_(.+)$/.exec(String(idModelo || ""));
@@ -19909,7 +19970,7 @@ function chkSyncLocais(){
   (ns.modelos || []).forEach(m=>{ if(m && m.id) lista.push({ chave:"m:" + m.id, tipo:"m", id:m.id, obj:m }); });
   // textos-base do laudo (Metodologia com figuras e Normas de referência): um arquivo só, vale a edição mais nova
   const tx = ns.textos;
-  if(tx && typeof tx === "object" && !Array.isArray(tx) && (tx.metodologia || tx.normativo)){
+  if(tx && typeof tx === "object" && !Array.isArray(tx) && (tx.metodologia || tx.normativo || tx.revisao)){
     if(!tx.id) tx.id = "textos";
     lista.push({ chave:"t:textos", tipo:"t", id:"textos", obj:tx });
   }
@@ -33189,13 +33250,13 @@ Devolver agora?`)) return;
     render();
   },
   chkSalvarPrompt(){
-    const ta = document.getElementById("chkCfgPrompt"); if(!ta) return;
-    const v = String(ta.value || "").trim();
-    if(!v || v === LCL_PROMPT_REVISAO_PADRAO.trim()) delete STATE.ui.promptRevisao; else STATE.ui.promptRevisao = v;
-    marcarAlterado(); toast("Prompt salvo");
+    const ta = document.getElementById("chkCfgPrompt"), mx = document.getElementById("chkCfgMax"); if(!ta) return;
+    lclRevisaoSalvarConfig(ta.value, mx ? mx.value : lclRevisaoMaxPacote());
+    marcarAlterado(); toast("Salvo para todos os aparelhos");
   },
   chkPromptPadrao(){
-    delete STATE.ui.promptRevisao;
+    const mx = document.getElementById("chkCfgMax");
+    lclRevisaoSalvarConfig("", mx ? mx.value : lclRevisaoMaxPacote());
     const ta = document.getElementById("chkCfgPrompt"); if(ta) ta.value = LCL_PROMPT_REVISAO_PADRAO;
     marcarAlterado(); toast("Voltou ao prompt padrão");
   },
