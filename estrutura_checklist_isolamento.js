@@ -171,7 +171,7 @@ const FUNCOES = [
   "chkSyncHash", "chkSyncSig", "chkSyncModeloNorm", "chkSyncGarantir", "chkSyncSemCampo", "chkSyncVista", "chkSyncLocais", "chkSyncLocalDe", "chkSyncSementeIntocada",
   "chkSyncParseNomes", "chkSyncRegistrarRemocao", "chkSyncMesclarRemovidos", "chkSyncMesclarInspetores", "chkSyncLerRemoto", "chkSyncSingleton",
   "chkSyncApagarRemoto", "chkSyncEnviar", "chkSyncRotuloCopia", "chkSyncInserir", "chkSyncAplicar", "chkSyncBaixar", "chkSyncCopiarLocal", "chkSyncConflito",
-  "chkResumoCardLinha", "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "chkIncoerencias", "lclNumeroSecao", "getMecseteConfig", "chkAcoesCartao", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "lclPrioridadeNc", "chkMigPlanoEmbutido", "chkMigModelosEmbutidos", "chkMoverLinha", "screenChkSetores", "screenChkLinhas", "chkAcoesCartao", "chkVistosAtuais", "ehComputadorDeMesa", "chkModoVisualPref", "chkModoVisual", "chkEhCampo", "chkPendentesTotal", "chkFaixaHtml", "chkAvisoDeProjeto", "chkProntoParaLaudo", "screenChkPronto", "chkBuscarTudo", "chkBuscaResultadosHtml", "screenChkBusca", "chkLinhaEmBranco", "chkLinhaCopiaCompleta", "chkSetorCopia", "chkDuplicarSetor", "chkDuplicarProjeto", "configAparenciaHtml", "bottomNavChk", "screenChkConfig", "topBarChk", "chkTabsRolagem", "chkLinhasPendentesEnvio", "chkDevePuxarAntesDeAbrir", "chkAltConteudo", "chkAltSig", "chkAltEntrada", "chkAltUnir", "chkAltAdicionar", "chkAltResumo", "chkAltTrocar", "chkAltExcluir", "chkNomeCopia", "chkAltCopiarVisivel", "chkEsconderCopiasLinhas", "chkAltModalHtml", "chkAltDaLinha", "chkAcharLinhaPorId", "chkCopiarLinha", "chkMigAutoPendente", "chkMigAutoAplicar", "chkMigPendenciasAplicar", "chkPendenciasLinhas", "chkMigN", "chkMigTabela", "chkMigPlano", "chkMigAcharModeloNovo", "chkMigrarLinha", "chkMigracaoSimular", "chkMigracaoAplicar", "chkSyncFotoValorId", "chkSyncFotoId", "chkSyncRespondidos", "chkSyncDivergencias", "chkSyncMesclarLinha", "chkConsolidarCopiasLinhas", "chkSyncVisto", "chkSyncMudou", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
+  "chkResumoCardLinha", "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "chkIncoerencias", "lclNumeroSecao", "getMecseteConfig", "chkAcoesCartao", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "lclPrioridadeNc", "chkMigPlanoEmbutido", "chkMigModelosEmbutidos", "chkMoverLinha", "chkEuInspetorId", "chkNomeInspetor", "chkDonoDaLinhaOutro", "chkFotoPendId", "chkFotosRefsObrigatorias", "chkFotosParaPendentes", "chkFotosPendentesIds", "chkFotosPendentesTrocar", "chkSyncBaixarFotosPendentes", "chkFotosNuvemTotal", "screenChkSetores", "screenChkLinhas", "chkAcoesCartao", "chkVistosAtuais", "ehComputadorDeMesa", "chkModoVisual", "chkEhCampo", "chkPendentesTotal", "chkFaixaHtml", "chkAvisoDeProjeto", "chkProntoParaLaudo", "screenChkPronto", "chkBuscarTudo", "chkBuscaResultadosHtml", "screenChkBusca", "chkLinhaEmBranco", "chkLinhaCopiaCompleta", "chkSetorCopia", "chkDuplicarSetor", "chkDuplicarProjeto", "configAparenciaHtml", "bottomNavChk", "screenChkConfig", "topBarChk", "chkTabsRolagem", "chkLinhasPendentesEnvio", "chkDevePuxarAntesDeAbrir", "chkAltConteudo", "chkAltSig", "chkAltEntrada", "chkAltUnir", "chkAltAdicionar", "chkAltResumo", "chkAltTrocar", "chkAltExcluir", "chkNomeCopia", "chkAltCopiarVisivel", "chkEsconderCopiasLinhas", "chkAltModalHtml", "chkAltDaLinha", "chkAcharLinhaPorId", "chkCopiarLinha", "chkMigAutoPendente", "chkMigAutoAplicar", "chkMigPendenciasAplicar", "chkPendenciasLinhas", "chkMigN", "chkMigTabela", "chkMigPlano", "chkMigAcharModeloNovo", "chkMigrarLinha", "chkMigracaoSimular", "chkMigracaoAplicar", "chkSyncFotoValorId", "chkSyncFotoId", "chkSyncRespondidos", "chkSyncDivergencias", "chkSyncMesclarLinha", "chkConsolidarCopiasLinhas", "chkSyncVisto", "chkSyncMudou", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
 ];
 let fonte = "let __ultimoCarimboVisto = 0;\n";
 fonte += "let __buscaAtual = '';\n"; // usado por chkAbrirSetor (lista de linhas) -- nao testado aqui, so pra nao faltar
@@ -197,6 +197,7 @@ fonte += constObjeto("CHK_MEMORIAL_LIMITES") + "\n";
 fonte += constObjeto("CHK_CABOS") + "\n";
 fonte += constObjeto("CHK_PRIORIDADE_PESO") + "\n";
 fonte += "const CHK_STATUS_ORDEM_BOTOES = ['na', 'naoAtende', 'atende'];\n";
+fonte += "const CHK_FOTO_PEND = 'pendente:';\n";
 fonte += 'const CHK_ALT_CAMPO = "versoesAlternativas";\n';
 fonte += constObjeto("CHK_ALT_ORIGEM") + "\n";
 fonte += constObjeto("CHK_MIG_TIPOS") + "\n";
@@ -3062,21 +3063,20 @@ async function testarUsabilidade(){
     const lNc = mkL("LK3", "Linha com NC", "em_andamento", [{}, { c:"naoAtende", o:"cabo desfiado na viga" }]);
     roda(estP([lOk, lPend], [lNc]));
     // ---- modo visual
-    T(roda("chkModoVisual()") === "escritorio" && roda("chkEhCampo()") === false, "sem preferencia gravada e fora de celular: modo escritorio");
+    T(roda("chkModoVisual()") === "escritorio" && roda("chkEhCampo()") === false, "fora de celular: modo escritorio (sempre automatico)");
     const navE = roda("STATE.ui.screen = 'checklist-projetos'; bottomNavChk()");
     T(navE.includes("Modelos"), "modo escritorio: barra de baixo com Modelos");
-    roda("globalThis.localStorage = { getItem: (k)=> 'campo', setItem(){} }");
+    roda("globalThis.navigator = { userAgent:'Mozilla/5.0 (iPhone)', onLine:true }");
     const navC = roda("bottomNavChk()");
     T(roda("chkModoVisual()") === "campo" && !navC.includes("Modelos") && navC.includes("Projetos") && navC.includes("Configurações") && navC.includes("Módulos"), "modo campo: sem Modelos na barra de baixo");
     roda("STATE.ui.chkProjetoId = 'PN'; STATE.ui.chkSetorId = 'SN1'");
     const linhasC = roda("screenChkLinhas()");
     T(!linhasC.includes("chk-linha-laudo") && !roda("chkAcoesCartao('projeto', 'PN')").includes("chkLaudosProjeto") && !roda("chkAcoesCartao('setor', 'SN1')").includes("chkLaudosSetor") && roda("chkAcoesCartao('setor', 'SN1')").includes("chkDuplicarAbrir('setor','SN1')"), "modo campo: sem botoes de laudo nos cartoes; duplicar setor continua");
     T(!roda("screenChkSetores()").includes("Conferir antes do laudo"), "modo campo: sem o painel de conferir antes do laudo");
-    roda("globalThis.localStorage = { getItem: (k)=> 'escritorio', setItem(){} }");
+    roda("globalThis.navigator = { userAgent:'Mozilla/5.0 (Windows NT 10.0)', onLine:true }");
     T(roda("screenChkLinhas()").includes("chk-linha-laudo") && roda("screenChkSetores()").includes("Conferir antes do laudo") && roda("chkAcoesCartao('projeto', 'PN')").includes("chkLaudosProjeto"), "modo escritorio: laudo e conferencia a mostra");
-    roda("globalThis.localStorage = { getItem: (k)=> 'auto', setItem(){} }");
-    T(roda("chkModoVisual()") === "escritorio", "automatico no computador = escritorio");
-    roda("delete globalThis.localStorage");
+    T(roda("chkModoVisual()") === "escritorio", "computador = escritorio");
+    roda("delete globalThis.navigator");
     // ---- faixa de situacao
     roda("globalThis.navigator = { onLine:false, userAgent:'x' }");
     T(roda("chkFaixaHtml()").includes("Sem internet") && roda("chkFaixaHtml()").includes("chk-faixa off"), "offline: faixa avisa que esta sem internet (mesmo sem conta)");
@@ -3132,6 +3132,51 @@ async function testarUsabilidade(){
     T(roda("chkDuplicarSetor(STATE, 'NAO', true)") === null && roda("chkDuplicarProjeto(STATE, 'NAO', true)") === null, "id inexistente: nada acontece");
     roda("STATE.checklists.projetos = " + J(estadoAntes.lista) + ";");
   }
+  // ---- fotos pendentes: ajudantes, faixa e aviso do laudo
+  { const obj = { a:[{ foto:"idbfoto:abc-1", tags:[] }, { foto:"idbfoto:zzz", tags:[] }], fotoAmpla:"idbfoto:abc-1", t:"pendente: texto livre" };
+    const n = roda("chkFotosParaPendentes(" + J(obj) + ", new Set(['abc-1']))");
+    const o2 = roda("(function(){ const o = " + J(obj) + "; chkFotosParaPendentes(o, new Set(['abc-1'])); return o; })()");
+    T(n === 1 && o2.a[0].foto === "pendente:abc-1" && o2.a[1].foto === "idbfoto:zzz" && o2.fotoAmpla === "idbfoto:abc-1" && o2.t === "pendente: texto livre", "so o campo 'foto' das entradas vira pendente; foto ampla e texto livre ficam como estao");
+    T(J(Array.from(roda("chkFotosPendentesIds(" + J(o2) + ")"))) === J(["abc-1"]) && Array.from(roda("chkFotosRefsObrigatorias(" + J(obj) + ")")).join() === "abc-1", "ids pendentes e referencias obrigatorias (foto ampla)");
+    const o3 = roda("(function(){ const o = " + J(o2) + "; chkFotosPendentesTrocar(o, new Map([['abc-1', 'data:image/jpeg;base64,XYZ']])); return o; })()");
+    const o4 = roda("(function(){ const o = " + J(o2) + "; chkFotosPendentesTrocar(o, null); return o; })()");
+    T(o3.a[0].foto === "data:image/jpeg;base64,XYZ" && o4.a[0].foto === "idbfoto:abc-1" && o4.t === "pendente: texto livre", "trocar pendente pela foto ou voltar para a referencia (para subir); texto livre intocado");
+    roda("STATE.checklists.projetos = [{ id:'PFN', empresa:'E', setores:[{ id:'SFN', nome:'S', linhas:[ { id:'LFN', nome:'LFN', status:'em_andamento', secoesNA:[], laudo:{}, modeloSnapshot:[], fotoAmpla:'x', itens:[ { itemId:'a', conforme:'atende', motivosSelecionados:[], observacao:'', fotos:[ { foto:'pendente:abc-1', tags:[] }, { foto:'pendente:def-2', tags:[] } ] } ] } ] }] }];");
+    roda("getOneDriveConta = function(){ return { email:'a@b.c' }; }; globalThis.navigator = { onLine:true, userAgent:'x' }; __chkPendCache.em = 0;");
+    const fx = roda("chkFaixaHtml()");
+    T(roda("chkFotosNuvemTotal()") === 2 && fx.includes("2 fotos ainda estão na nuvem") && fx.includes("App.chkBaixarFotosPendentes()"), "faixa mostra quantas fotos ainda estao na nuvem e o botao Baixar fotos: " + fx.slice(0, 200));
+    const av = roda("lclAvisos(STATE.checklists.projetos[0].setores[0].linhas[0], STATE.checklists.projetos[0])");
+    T(av.some(a => a.txt.includes("2 fotos ainda não foram baixadas") && a.acao === "App.chkBaixarFotosPendentes()"), "o laudo avisa antes de imprimir que ha fotos nao baixadas");
+    const cartao = roda("STATE.ui.chkProjetoId = 'PFN'; STATE.ui.chkSetorId = 'SFN'; screenChkLinhas()");
+    T(cartao.includes("2 fotos na nuvem: baixar"), "cartao da linha mostra 'N fotos na nuvem: baixar'");
+    roda("getOneDriveConta = function(){ return null; }; delete globalThis.navigator; STATE.checklists.projetos = " + J(estadoAntes.lista) + ";");
+  }
+  // ---- dono da linha (sem login): aviso ao abrir a linha de outro inspetor
+  { const lD = (id, resp)=> ({ id, nome:id, status:"em_andamento", secoesNA:[], laudo:{}, modeloSnapshot:[], itens:[], responsavelId: resp, fotoAmpla:"x" });
+    roda("STATE.checklists.inspetores = [{ id:'I1', nome:'Daniel', ativo:true }, { id:'I2', nome:'Luiz', ativo:true }]; STATE.checklists.projetos = [{ id:'PDN', empresa:'E', setores:[{ id:'SDN', nome:'S', linhas:[ " + J(lD("LD1", "I2")) + ", " + J(lD("LD2", "I1")) + ", " + J(lD("LD3", undefined)) + ", " + J(Object.assign(lD("LD4", "I2"), { status:"finalizado" })) + " ] }] }]; STATE.ui.chkProjetoId = 'PDN'; STATE.ui.chkSetorId = 'SDN'; STATE.ui.chkLinhaId = null;");
+    T(roda("chkDonoDaLinhaOutro(STATE.checklists.projetos[0].setores[0].linhas[0])") === "", "sem 'quem sou eu' escolhido: nenhum aviso");
+    roda("globalThis.localStorage = { _d:{ chkEuInspetor:'I1' }, getItem(k){ return this._d[k] || null; }, setItem(k, v){ this._d[k] = v; }, removeItem(k){ delete this._d[k]; } }");
+    const dn = (n)=> roda("chkDonoDaLinhaOutro(STATE.checklists.projetos[0].setores[0].linhas[" + n + "])");
+    T(dn(0) === "Luiz" && dn(1) === "" && dn(2) === "", "linha de outro inspetor avisa com o nome; a minha e a sem dono nao avisam");
+    roda("App.chkAbrirLinha('LD2')");
+    T(roda("STATE.ui.chkLinhaId") === "LD2", "minha linha abre direto");
+    roda("STATE.ui.chkLinhaId = null; App.chkAbrirLinha('LD1')");
+    T(roda("STATE.ui.chkLinhaId") === null, "linha de outro inspetor: pergunta antes de abrir");
+    roda("App.chkConfirmarAcao()");
+    T(roda("STATE.ui.chkLinhaId") === "LD1", "confirmado: abre mesmo assim");
+    roda("STATE.ui.chkLinhaId = null; App.chkAbrirLinha('LD4')");
+    T(roda("STATE.ui.chkLinhaId") === "LD4", "linha finalizada de outro inspetor abre sem aviso (so leitura)");
+    roda("App.chkAssumirLinha('LD1')");
+    T(roda("STATE.checklists.projetos[0].setores[0].linhas[0].responsavelId") === "I1" && dn(0) === "", "assumir a linha passa o dono para quem sou eu");
+    // nova linha fica com quem criou
+    roda("STATE.checklists.modelos = [{ id:'MD', nome:'Mod', tipoLinha:'vertical', secoes:[{ id:'sx', titulo:'T', contexto:'', itens:[{ id:'ix', descricao:'D', motivosPadrao:[] }] }], criadoEm:1, atualizadoEm:1 }]; __chkNovaLinhaDraft = { modeloId:'MD', nome:'Nova do Daniel', fotoAmpla:'' }; App.chkCriarLinha()");
+    T(roda("STATE.checklists.projetos[0].setores[0].linhas.find(l => l.nome === 'Nova do Daniel').responsavelId") === "I1", "linha criada fica com o inspetor deste aparelho");
+    const cfg = roda("screenChkConfig()");
+    T(cfg.includes("Quem sou eu neste aparelho") && cfg.includes('value="I1" selected') && cfg.includes("Luiz"), "configuracoes: seletor de quem sou eu com os inspetores ativos");
+    const card = roda("STATE.ui.screen = 'checklist-linhas'; screenChkLinhas()");
+    T(card.includes("Responsável: Luiz") && card.includes("Responsável: Daniel"), "cartao mostra o responsavel de cada linha");
+    roda("delete globalThis.localStorage; STATE.checklists.inspetores = []; STATE.checklists.modelos = " + modelosOrig + "; STATE.checklists.projetos = " + J(estadoAntes.lista) + ";");
+  }
 }
 async function testarSincronizacaoChecklist(){
   const T = (cond, msg)=>{ if(!cond) throw new Error("sincronizacao do checklist: " + msg); };
@@ -3159,7 +3204,7 @@ async function testarSincronizacaoChecklist(){
     const t = mkT(opc);
     t.log = (...a)=>{ t.eventos = t.eventos || []; t.eventos.push(a); };
     sandbox.__T = t;
-    sandbox.__OPC = { limite: (opc && opc.limite) || Infinity };
+    sandbox.__OPC = { limite: (opc && opc.limite) || Infinity, baixarFotos: opc ? opc.baixarFotos : undefined, limiteFotos: opc ? opc.limiteFotos : undefined };
     const r = await roda("chkSyncRodar(__T, __OPC)");
     r.eventos = t.eventos || [];
     return r;
@@ -3580,6 +3625,58 @@ async function testarSincronizacaoChecklist(){
   const pr = roda(`(function(){ const r = chkSyncParseNomes(["l_abc_100.json", "l_abc_200.json", "m_chk-modelo-padrao-linhas-de-vida_50.json", "i_7.json", "x_9.json", "lixo.txt"]); return { l: r.entidades.get("l:abc"), m: r.entidades.get("m:chk-modelo-padrao-linhas-de-vida"), i: r.singles.i, x: r.singles.x }; })()`);
   T(pr.l.ts === 200 && pr.l.nome === "l_abc_200.json" && pr.l.antigos.length === 1 && pr.m.id === "chk-modelo-padrao-linhas-de-vida" && pr.m.ts === 50 && pr.i[0].ts === 7 && pr.x[0].ts === 9, "leitura dos nomes de arquivo da nuvem (id com hifen, versoes antigas, i e x)");
   T(roda(`chkSyncSig({ a:1, b:[1,2] })`) === roda(`chkSyncSig({ b:[1,2], a:1 })`) && roda(`chkSyncSig({ f:"data:image/jpeg;base64,ZZZ" })`) === roda(`chkSyncSig({ f:"idbfoto:" + fotoCalcularId("data:image/jpeg;base64,ZZZ") })`) && roda(`chkSyncSig({ a:1, atualizadoEm:5 }, true)`) === roda(`chkSyncSig({ a:1, atualizadoEm:9 }, true)`) && roda(`chkSyncSig({ a:1 })`) !== roda(`chkSyncSig({ a:2 })`), "assinatura: ignora a ordem das chaves, trata foto embutida e em referencia como a mesma e, se pedido, ignora o carimbo");
+  // ---------------------------------------------------------------- 14) fotos que ficam na nuvem (como no Modulo Completo): o texto chega primeiro, a foto depois
+  sandbox.STATE = A;
+  const idf = (b)=> roda(`fotoCalcularId("data:image/jpeg;base64,${b}")`);
+  const ids14 = roda(`(function(){ const m = STATE.checklists.modelos.find(x => x.id === CHK_MODELO_PADRAO_ID); const p = novoChkProjeto(); p.empresa = "Empresa Lazy"; const s = novoChkSetor(); s.nome = "Setor L"; const l = novoChkLinha(m); l.nome = "LV-LAZY"; l.itens[0].fotos = [{ foto:"data:image/jpeg;base64,LAZY1", tags:[] }]; l.itens[1].fotos = [{ foto:"data:image/jpeg;base64,LAZY2", tags:[] }]; s.linhas.push(l); p.setores.push(s); STATE.checklists.projetos.push(p); return { p:p.id, s:s.id, l:l.id }; })()`);
+  const semFalha14 = (rr)=> !rr.eventos.some(e => e[4] === false && String(e[1]).includes(ids14.l));
+  r = await sync(A);
+  T(r.enviou >= 3 && pasta("Backup/Checklist/Fotos").has("f_" + idf("LAZY1") + ".txt"), "a linha com fotos sobe (texto e fotos)");
+  sandbox.STATE = B;
+  r = await sync(B, { baixarFotos: false });
+  const lB14 = ()=> { sandbox.STATE = B; return roda(`STATE.checklists.projetos.find(p => p.id === ${J(ids14.p)}).setores[0].linhas[0]`); };
+  T(semFalha14(r) && r.baixou >= 3 && lB14().itens[0].fotos[0].foto === "pendente:" + idf("LAZY1") && lB14().itens[1].fotos[0].foto === "pendente:" + idf("LAZY2"), "celular fora do Wi-Fi: a linha chega so com o texto e as fotos ficam 'pendente:': " + J([r.falhas, r.baixou, lB14().itens[0].fotos[0].foto]));
+  const lA14 = ()=> { sandbox.STATE = A; return roda(`STATE.checklists.projetos.find(p => p.id === ${J(ids14.p)}).setores[0].linhas[0]`); };
+  T(roda(`chkSyncSig(${J(lA14())}, true)`) === roda(`chkSyncSig(${J(lB14())}, true)`), "foto pendente conta como a mesma foto na assinatura (nao parece alteracao)");
+  r = await sync(B, { baixarFotos: false });
+  T(r.enviou === 0 && r.baixou === 0 && semFalha14(r), "nova rodada sem fotos: nada sobe nem desce: " + J(r));
+  T(roda(`chkFotosPendentesIds({ x: ${J(lB14())} }).size`) === 2 && roda(`chkFotosPendentesIds({ x: ${J(lA14())} }).size`) === 0, "so o aparelho sem as fotos tem pendentes");
+  // editar a linha no aparelho que ainda nao tem as fotos: sobe o texto novo e as fotos continuam sendo as mesmas (nenhuma se perde)
+  sandbox.STATE = B;
+  roda(`(function(){ const l = STATE.checklists.projetos.find(p => p.id === ${J(ids14.p)}).setores[0].linhas[0]; l.itens[2].observacao = "anotei no celular"; })()`);
+  r = await sync(B, { baixarFotos: false });
+  const nomeL14 = nomesNuvem().filter(n => n.startsWith("l_" + ids14.l + "_"))[0];
+  const textoL14 = pasta("Backup/Checklist").get(nomeL14);
+  T(r.enviou === 1 && semFalha14(r) && textoL14.includes("idbfoto:" + idf("LAZY1")) && textoL14.includes("idbfoto:" + idf("LAZY2")) && !textoL14.includes("pendente:") && !textoL14.includes("LAZY1"), "editar sem as fotos: sobe o texto com as referencias de sempre, sem 'pendente:' e sem bytes: " + J([r.enviou, r.falhas]));
+  sandbox.STATE = A;
+  r = await sync(A);
+  T(lA14().itens[2].observacao === "anotei no celular" && lA14().itens[0].fotos[0].foto === "data:image/jpeg;base64,LAZY1" && lA14().itens[1].fotos[0].foto === "data:image/jpeg;base64,LAZY2", "a edicao chega no outro aparelho e as fotos dele ficam intactas");
+  // agora baixa as fotos (forcado): os 'pendente:' viram foto de verdade e nada sobe
+  r = await sync(B, { baixarFotos: true });
+  T(r.fotosBaixadas === 2 && lB14().itens[0].fotos[0].foto === "data:image/jpeg;base64,LAZY1" && lB14().itens[1].fotos[0].foto === "data:image/jpeg;base64,LAZY2" && roda(`chkFotosPendentesIds({ x: ${J(lB14())} }).size`) === 0, "baixando as fotos: os pendentes viram foto de verdade: " + J(r.fotosBaixadas));
+  r = await sync(B, { baixarFotos: true });
+  T(r.enviou === 0 && r.baixou === 0 && await emDia(A, B), "depois de baixar, tudo em dia e nada sobe de novo");
+  // foto que ainda nao esta na nuvem: a linha chega e a foto fica pendente (nao derruba a linha); quando chegar, entra
+  sandbox.STATE = A;
+  roda(`(function(){ const l = STATE.checklists.projetos.find(p => p.id === ${J(ids14.p)}).setores[0].linhas[0]; l.itens[3].fotos = [{ foto:"data:image/jpeg;base64,LAZY3", tags:[] }]; l.atualizadoEm = agoraSync(); })()`);
+  await sync(A);
+  const textoF3 = pasta("Backup/Checklist/Fotos").get("f_" + idf("LAZY3") + ".txt");
+  pasta("Backup/Checklist/Fotos").delete("f_" + idf("LAZY3") + ".txt");
+  sandbox.STATE = B;
+  roda(`STATE.checklists.projetos.find(p => p.id === ${J(ids14.p)}).setores[0].linhas[0].itens[3].fotos = []`); // B ainda nao tem a foto 3
+  r = await sync(B, { baixarFotos: true });
+  T(semFalha14(r) && r.baixou >= 1 && lB14().itens[3].fotos[0].foto === "pendente:" + idf("LAZY3"), "foto ainda nao enviada pela outra ponta: a linha chega e a foto fica pendente, sem falha: " + J([r.falhas, r.baixou, lB14().itens[3].fotos[0] && lB14().itens[3].fotos[0].foto]));
+  pasta("Backup/Checklist/Fotos").set("f_" + idf("LAZY3") + ".txt", textoF3);
+  r = await sync(B, { baixarFotos: true });
+  T(r.fotosBaixadas === 1 && lB14().itens[3].fotos[0].foto === "data:image/jpeg;base64,LAZY3", "quando a foto chega na nuvem, a proxima rodada baixa e troca o pendente");
+  // limite de fotos por rodada
+  sandbox.STATE = B;
+  roda(`(function(){ const l = STATE.checklists.projetos.find(p => p.id === ${J(ids14.p)}).setores[0].linhas[0]; l.itens[0].fotos[0].foto = CHK_FOTO_PEND + ${J(idf("LAZY1"))}; l.itens[1].fotos[0].foto = CHK_FOTO_PEND + ${J(idf("LAZY2"))}; })()`);
+  r = await sync(B, { baixarFotos: true, limiteFotos: 1 });
+  T(r.fotosBaixadas === 1 && r.fotosAdiadas >= 1, "limite por rodada: baixa uma e adia a outra: " + J([r.fotosBaixadas, r.fotosAdiadas]));
+  r = await sync(B, { baixarFotos: true, limiteFotos: 1 });
+  T(r.fotosBaixadas === 1 && roda(`chkFotosPendentesIds({ x: ${J(lB14())} }).size`) === 0, "a rodada seguinte baixa a que faltava");
+  await emDia(A, B);
   sandbox.STATE = estadoOriginal;
 }
 testarFotoAmpla().then(() => testarTravas()).then(() => testarDadosLaudo()).then(() => testarLaudoCapitulos()).then(() => testarMemorial()).then(() => testarCapitulosNovos()).then(() => testarEdicaoTexto()).then(() => testarFotosLeituraLaudo()).then(() => testarCadastroProjeto()).then(() => testarEditorModelo()).then(() => testarAtalhoLaudo()).then(() => testarCapaLaudo()).then(() => testarUsabilidade()).then(() => testarSincronizacaoChecklist()).then(() => {

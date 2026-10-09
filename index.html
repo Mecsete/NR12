@@ -778,10 +778,10 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-faixa svg{width:16px;height:16px;flex:none}
 .chk-faixa.off{background:#FFE9E3;color:#8A2B0E}
 .chk-faixa.pend{background:#FFF1CC;color:#8A5A00}
-.chk-modo-seg{display:flex;gap:8px}
-.chk-modo-btn{flex:1;height:44px;border-radius:10px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink-dim);display:flex;align-items:center;justify-content:center;cursor:pointer}
-.chk-modo-btn svg{width:22px;height:22px}
-.chk-modo-btn.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.chk-faixa.nuvem{background:#E4E9F7;color:#2B3A78}
+.chk-faixa-btn{margin-left:auto;border:1.5px solid currentColor;background:transparent;color:inherit;border-radius:8px;padding:4px 10px;font:inherit;font-weight:700;cursor:pointer;white-space:nowrap}
+.chk-nuvem-pill{border:0;cursor:pointer;font:inherit;color:#2B3A78;background:#E4E9F7}
+.chk-nuvem-pill svg{width:13px;height:13px;vertical-align:-2px}
 .chk-secao-fotos{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 12px}
 .chk-secao-fotos-t{font-weight:800;font-size:13px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
 .chk-secao-fotos-t svg{width:16px;height:16px}
@@ -3454,7 +3454,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "09/10/2026 07:02";
+const APP_BUILD = "09/10/2026 09:26";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -13413,6 +13413,14 @@ function imgRegLimparSePossivel(){
 }
 /* Marca o quadro como "foto não encontrada" — vermelho listrado, para não se
    confundir com "ainda não fotografei aqui". */
+/* Foto da linha que ainda está só na nuvem (não baixada): quadro azul tracejado; tocar baixa as fotos. */
+function __marcarQuadroNuvem(el){
+  el.alt   = "Foto ainda na nuvem";
+  el.title = "Foto ainda na nuvem — toque para baixar as fotos";
+  el.setAttribute("data-foto-nuvem", "1");
+  el.style.background = "repeating-linear-gradient(45deg,#e4e9f7,#e4e9f7 7px,#d4dcf2 7px,#d4dcf2 14px)";
+  el.style.border = "2px dashed #5b6fb5";
+}
 function __marcarQuadroPerdido(el){
   el.alt   = "Foto não encontrada neste aparelho";
   el.title = "Foto não encontrada neste aparelho — refotografe";
@@ -13522,6 +13530,7 @@ function hidratarImagens(){
       pendentes.get(fid).push(el);
       return;
     }
+    if(typeof f === "string" && f.indexOf("pendente:") === 0){ __marcarQuadroNuvem(el); return; }   // foto ainda só na nuvem (Linhas de vida)
     if(f){ el.src = f; return; }
     /* FOTO QUE NÃO ABRE NÃO PODE PASSAR DESPERCEBIDA. Antes, quando a foto
        não era encontrada, o quadro ficava simplesmente cinza e vazio — em
@@ -14265,10 +14274,10 @@ function screenChkConfig(){
   ${linha('onedrive', 'Backup', sub, "App.go('checklist-config-backup')")}
   ${linha('briefcase', 'Empresa e Responsáveis', 'Dados fixos do laudo e lista de inspetores', "App.go('checklist-config-empresa')")}
   ${linha('layers', 'Trocar de módulo', 'Voltar à escolha de módulos', "App.trocarModulo()")}
-  <div class="section-title">Visual do módulo</div>
+  <div class="section-title">Quem sou eu neste aparelho</div>
   <div class="card card-pad">
-    <div class="chk-modo-seg">${[["auto", "auto", "Automático: celular usa o modo campo, computador usa o modo escritório"], ["campo", "phone", "Sempre modo campo: só o que se usa na obra"], ["escritorio", "monitor", "Sempre modo escritório: tudo à mostra, com modelos e laudos"]].map(m=> `<button class="chk-modo-btn ${chkModoVisualPref() === m[0] ? 'on' : ''}" title="${m[2]}" aria-label="${m[2]}" onclick="App.chkSetModoVisual('${m[0]}')">${ic(m[1])}</button>`).join("")}</div>
-    <p style="font-size:12.5px;color:var(--ink-dim);margin:8px 0 0">Agora: modo ${chkEhCampo() ? "campo" : "escritório"}${chkModoVisualPref() === "auto" ? " (automático)" : ""}. Vale só para este aparelho.</p>
+    <select id="chkEuSel" style="width:100%" onchange="App.chkSetEu(this.value)"><option value="">Não escolhido</option>${((STATE.checklists && STATE.checklists.inspetores) || []).filter(i=> i && i.ativo !== false).map(i=> `<option value="${i.id}" ${chkEuInspetorId() === i.id ? 'selected' : ''}>${escapeHtml(i.nome || "Sem nome")}</option>`).join("")}</select>
+    <p style="font-size:12.5px;color:var(--ink-dim);margin:8px 0 0">As linhas criadas aqui ficam com este inspetor. Ao abrir a linha de outro inspetor, o app avisa antes (sem bloquear). Não usa senha. A lista de inspetores é editada em Empresa e Responsáveis.</p>
   </div>
   ${configAparenciaHtml()}
   <p style="text-align:center;font-size:11px;color:var(--ink-faint);margin-top:22px">Versão ${APP_BUILD}</p>`;
@@ -14902,8 +14911,21 @@ function chkAltModalHtml(linha){
 /* ---- Visual do módulo: campo (celular) x escritório (computador) ----
    Só esconde o que não se usa na obra (Modelos, laudos, painel de conferência); nenhuma função muda de lugar.
    Automático = celular vira campo, computador vira escritório; a chave manual fica em Configurações (guardada só neste aparelho). */
-function chkModoVisualPref(){ try{ const v = localStorage.getItem("chkModoVisual"); return v === "campo" || v === "escritorio" ? v : "auto"; }catch(e){ return "auto"; } }
-function chkModoVisual(){ const p = chkModoVisualPref(); if(p !== "auto") return p; return ehComputadorDeMesa() ? "escritorio" : "campo"; }
+/* ---- Dono da linha: sem login, só aviso ----
+   Cada aparelho escolhe uma vez "quem sou eu" na lista de inspetores (guardado só neste aparelho). A linha criada aqui fica com
+   esse inspetor (linha.responsavelId); ao abrir a linha de outro inspetor o app pergunta antes. Não bloqueia nada. */
+function chkEuInspetorId(){ try{ return localStorage.getItem("chkEuInspetor") || ""; }catch(e){ return ""; } }
+function chkNomeInspetor(id){
+  const i = ((STATE.checklists && STATE.checklists.inspetores) || []).find(x=> x && x.id === id);
+  return i ? String(i.nome || "").trim() : "";
+}
+/* Nome do dono quando a linha é de OUTRO inspetor (e este aparelho já escolheu quem é); "" nos demais casos. */
+function chkDonoDaLinhaOutro(l){
+  const eu = chkEuInspetorId();
+  if(!eu || !l || !l.responsavelId || l.responsavelId === eu) return "";
+  return chkNomeInspetor(l.responsavelId) || "outro inspetor";
+}
+function chkModoVisual(){ return ehComputadorDeMesa() ? "escritorio" : "campo"; }
 function chkEhCampo(){ return chkModoVisual() === "campo"; }
 
 /* ---- Faixa fixa de situação (sem internet / aguardando envio) ---- */
@@ -14911,17 +14933,22 @@ let __chkPendCache = { em:0, n:0 };
 function chkPendentesTotal(){
   if(Date.now() - __chkPendCache.em < 8000) return __chkPendCache.n;
   const linhas = ((STATE.checklists && STATE.checklists.projetos) || []).flatMap(p=> (p.setores || []).flatMap(s=> s.linhas || []));
-  __chkPendCache = { em: Date.now(), n: chkLinhasPendentesEnvio(linhas, chkVistosAtuais()).size };
+  __chkPendCache = { em: Date.now(), n: chkLinhasPendentesEnvio(linhas, chkVistosAtuais()).size, fotos: chkFotosPendentesIds({ m: (STATE.checklists && STATE.checklists.modelos) || [], p: (STATE.checklists && STATE.checklists.projetos) || [] }).size };
   return __chkPendCache.n;
 }
+function chkFotosNuvemTotal(){ chkPendentesTotal(); return __chkPendCache.fotos || 0; }
 function chkFaixaHtml(){
   let conta = null; try{ conta = getOneDriveConta(); }catch(e){}
   const offline = typeof navigator !== "undefined" && navigator.onLine === false;
   if(!conta && !offline) return `<div id="chkFaixa"></div>`;
   const n = conta ? chkPendentesTotal() : 0;
+  const nf = conta ? chkFotosNuvemTotal() : 0;
   const lin = (k)=> k + " " + (k === 1 ? "linha" : "linhas");
-  if(offline) return `<div id="chkFaixa" class="chk-faixa off">${ic('cloudoff')}<span>Sem internet. ${n ? lin(n) + " aguardando envio; sobe sozinho quando a rede voltar." : "Nada aguardando envio."} Pode continuar preenchendo.</span></div>`;
-  if(n) return `<div id="chkFaixa" class="chk-faixa pend">${ic('upload')}<span>Enviando: ${lin(n)} aguardando envio à nuvem. Mantenha o app aberto.</span></div>`;
+  const fot = (k)=> k + " " + (k === 1 ? "foto ainda está" : "fotos ainda estão") + " na nuvem";
+  if(offline) return `<div id="chkFaixa" class="chk-faixa off">${ic('cloudoff')}<span>Sem internet. ${n ? lin(n) + " aguardando envio; sobe sozinho quando a rede voltar." : "Nada aguardando envio."}${nf ? " " + fot(nf) + " e aparecem quando baixar." : ""} Pode continuar preenchendo.</span></div>`;
+  const botaoFotos = nf ? `<button class="chk-faixa-btn" onclick="App.chkBaixarFotosPendentes()">Baixar fotos</button>` : "";
+  if(n) return `<div id="chkFaixa" class="chk-faixa pend">${ic('upload')}<span>Enviando: ${lin(n)} aguardando envio à nuvem. Mantenha o app aberto.${nf ? " " + fot(nf) + "." : ""}</span>${botaoFotos}</div>`;
+  if(nf) return `<div id="chkFaixa" class="chk-faixa nuvem">${ic('download')}<span>${fot(nf)}; o texto das linhas já está aqui.</span>${botaoFotos}</div>`;
   return `<div id="chkFaixa"></div>`;
 }
 function chkFaixaAtualizar(){
@@ -15123,6 +15150,8 @@ function screenChkLinhas(){
           <span class="stat-pill chk-status-pill st-${st}">${statusLabel}</span>
           ${st==="andamento" ? `<span class="stat-pill">${pct}% preenchido</span>` : ""}
           ${c.pendente>0 ? `<span class="stat-pill alert pend">${ic('warn')} ${c.pendente} ${c.pendente===1?'pendência':'pendências'} para responder</span>` : ""}
+          ${l.responsavelId && chkNomeInspetor(l.responsavelId) ? `<span class="stat-pill ${chkDonoDaLinhaOutro(l) ? 'chk-nao-enviada' : ''}" title="Inspetor responsável por esta linha">Responsável: ${escapeHtml(chkNomeInspetor(l.responsavelId))}</span>` : ""}
+          ${chkFotosPendentesIds(l).size ? `<button class="stat-pill chk-nuvem-pill" onclick="event.stopPropagation();App.chkBaixarFotosPendentes()" title="Estas fotos ainda estão só na nuvem; toque para baixar">${ic('download')} ${chkFotosPendentesIds(l).size} ${chkFotosPendentesIds(l).size === 1 ? 'foto na nuvem' : 'fotos na nuvem'}: baixar</button>` : ""}
           ${naoEnviadas.has(l.id) ? `<span class="stat-pill chk-nao-enviada" title="Esta linha tem alteração que ainda não subiu para a nuvem; os outros aparelhos só enxergam depois que subir. Mantenha o app aberto.">${ic('upload')} não enviada à nuvem</span>` : ""}
           ${(l.versoesAlternativas || []).length ? `<button class="stat-pill chk-alt-pill" onclick="event.stopPropagation();App.chkAltAbrir('${l.id}')" title="Versões antigas desta linha, guardadas (nada foi perdido)">${ic('folder')} ${l.versoesAlternativas.length} ${l.versoesAlternativas.length===1?'versão guardada':'versões guardadas'}</button>` : ""}
         </div>
@@ -16276,6 +16305,8 @@ function lclSemResposta(linha){
 /* Avisos antes de imprimir: o que falta ou está estranho no laudo desta linha. */
 function lclAvisos(l, projOpc){
   const proj = projOpc || getCurrentChkProjeto(), cfg = lclCfg(l), av = [];
+  const nPend = chkFotosPendentesIds(l).size;
+  if(nPend) av.push({ txt: `${nPend} ${nPend === 1 ? "foto ainda não foi baixada" : "fotos ainda não foram baixadas"} neste aparelho: o laudo sairia com quadros vazios no lugar ${nPend === 1 ? "dela" : "delas"}.`, acao:"App.chkBaixarFotosPendentes()", rot:"Baixar fotos" });
   const sr = lclSemResposta(l);
   if(sr.length){
     const n = sr.reduce((a, x)=> a + x.n, 0);
@@ -19308,6 +19339,7 @@ function chkSyncHash(s){
 function chkSyncSig(valor, semTs){
   const s = JSON.stringify(valor, (k, v)=>{
     if(semTs && k === "atualizadoEm") return undefined;
+    const pid = chkFotoPendId(v); if(pid) return "#" + pid;
     if(ehFotoDataUrlPersist(v)) return "#" + fotoCalcularId(v);
     if(ehFotoRefPersist(v)) return "#" + v.slice(FOTO_REF_PREFIXO.length);
     if(v && typeof v === "object" && !Array.isArray(v)){
@@ -19738,7 +19770,61 @@ function chkMigAutoAplicar(estado){
    NÃO discordam em nada (cada item respondido dos dois lados tem a mesma resposta), elas viram uma só, com a
    união das respostas, das notas, dos motivos e das fotos — nada se perde e não sobra cópia. Quando discordam
    de verdade (o mesmo item respondido de formas diferentes), vale o caminho de antes: a outra versão vira cópia. */
+/* ---- Fotos que ainda estão só na nuvem ----
+   Como no Módulo Completo, a linha chega primeiro (texto) e as fotos depois. Uma foto ainda não baixada fica como o texto
+   "pendente:<id>" no lugar da foto; ela nunca é lida como foto perdida nem enviada como foto, ao subir a linha volta a ser a
+   referência de sempre (a foto já está na nuvem, vinda de lá) e, ao baixar, o texto é trocado pela foto. */
+const CHK_FOTO_PEND = "pendente:";
+function chkFotoPendId(v){ return typeof v === "string" && /^pendente:[A-Za-z0-9_-]+$/.test(v) ? v.slice(CHK_FOTO_PEND.length) : ""; }
+/* Troca por "pendente:<id>" as referências de foto (campo `foto`) cujo id está em `faltam`. Devolve quantas trocou. */
+function chkFotosParaPendentes(alvo, faltam){
+  let n = 0;
+  const visita = (o)=>{
+    if(Array.isArray(o)){ o.forEach(visita); return; }
+    if(!o || typeof o !== "object") return;
+    for(const k in o){
+      const v = o[k];
+      if(k === "foto" && ehFotoRefPersist(v) && faltam.has(v.slice(FOTO_REF_PREFIXO.length))){ o[k] = CHK_FOTO_PEND + v.slice(FOTO_REF_PREFIXO.length); n++; }
+      else visita(v);
+    }
+  };
+  visita(alvo);
+  return n;
+}
+/* Referências de foto que NÃO estão num campo `foto` (foto ampla, figuras...): essas sempre vêm junto com o texto. */
+function chkFotosRefsObrigatorias(valor, out, chave){
+  out = out || new Set();
+  if(typeof valor === "string"){ if(chave !== "foto" && ehFotoRefPersist(valor)) out.add(valor.slice(FOTO_REF_PREFIXO.length)); return out; }
+  if(Array.isArray(valor)){ valor.forEach(v=> chkFotosRefsObrigatorias(v, out, chave)); return out; }
+  if(valor && typeof valor === "object"){ for(const k in valor) chkFotosRefsObrigatorias(valor[k], out, k); }
+  return out;
+}
+function chkFotosPendentesIds(valor, out){
+  out = out || new Set();
+  if(typeof valor === "string"){ const id = chkFotoPendId(valor); if(id) out.add(id); return out; }
+  if(Array.isArray(valor)){ valor.forEach(v=> chkFotosPendentesIds(v, out)); return out; }
+  if(valor && typeof valor === "object"){ for(const k in valor) chkFotosPendentesIds(valor[k], out); }
+  return out;
+}
+/* Troca "pendente:<id>" pelo valor do mapa (foto ou referência). Com `mapa` nulo, devolve todas à forma de referência. */
+function chkFotosPendentesTrocar(alvo, mapa){
+  let n = 0;
+  const novo = (id)=> mapa ? mapa.get(id) : FOTO_REF_PREFIXO + id;
+  const visita = (o)=>{
+    if(!o || typeof o !== "object") return;
+    const chaves = Array.isArray(o) ? o.map((_, i)=> i) : Object.keys(o);
+    chaves.forEach(k=>{
+      const id = chkFotoPendId(o[k]);
+      const v = id ? novo(id) : undefined;
+      if(id && v !== undefined){ o[k] = v; n++; }
+      else visita(o[k]);
+    });
+  };
+  visita(alvo);
+  return n;
+}
 function chkSyncFotoValorId(v){
+  const pid = chkFotoPendId(v); if(pid) return pid;
   if(ehFotoDataUrlPersist(v)) return fotoCalcularId(v);
   if(ehFotoRefPersist(v)) return v.slice(FOTO_REF_PREFIXO.length);
   return String(v || "");
@@ -19985,6 +20071,7 @@ async function chkSyncEnviar(ctx, loc){
   }
   const fotos = new Map();
   const limpo = fotosExtrairParaRefs(copia, fotos);
+  chkFotosPendentesTrocar(limpo, null);
   for(const [fid, dados] of fotos){
     if(sy.fotos[fid]) continue;
     const okFoto = await T.enviar(SUBPASTA_CHECKLIST_FOTOS, "f_" + fid + ".txt", dados);
@@ -20071,17 +20158,27 @@ async function chkSyncBaixar(ctx, loc, rem, opc){
   const refs = new Set();
   fotosColetarRefs(payload.obj, refs);
   const baixadas = new Map();
+  const faltam = new Set();
+  const obrigatorias = ctx.baixarFotos === false ? chkFotosRefsObrigatorias(payload.obj) : null;
   for(const fid of refs){
     if(ctx.fotosLocais.has(fid)) continue;
+    if(ctx.baixarFotos === false && !obrigatorias.has(fid)){ faltam.add(fid); continue; }   // este aparelho só quer o texto agora (celular fora do Wi-Fi)
     const dados = await T.baixar(SUBPASTA_CHECKLIST_FOTOS, "f_" + fid + ".txt");
-    if(!dados || !ehFotoDataUrlPersist(dados)){
+    if(!dados || !ehFotoDataUrlPersist(dados)){ faltam.add(fid); continue; }   // ainda não chegou na nuvem: fica pendente
+    baixadas.set(fid, dados);
+  }
+  __fotosTrocarNoLugar(payload.obj, baixadas, { n: 0 });
+  if(faltam.size){
+    chkFotosParaPendentes(payload.obj, faltam);
+    // referência que não é de uma foto de item/seção (ex.: foto ampla) continua precisando da foto de verdade
+    const sobra = new Set();
+    fotosColetarRefs(payload.obj, sobra);
+    if(Array.from(sobra).some(fid=> !ctx.fotosLocais.has(fid))){
       res.falhas++;
       T.log("down", rem.nome, "checklist", 0, false, "foto ainda não chegou na nuvem", "Checklist");
       return false;
     }
-    baixadas.set(fid, dados);
   }
-  __fotosTrocarNoLugar(payload.obj, baixadas, { n: 0 });
   if(loc && !opc.comoCopia){
     const atual = chkSyncLocalDe(loc.chave);
     if(!atual || chkSyncSig(chkSyncVista(atual)) !== sigAntes) return false;
@@ -20314,7 +20411,7 @@ async function chkSyncRodar(T, opc){
   const res = { baixou:0, enviou:0, conflitos:0, guardadas:0, removeu:0, falhas:0, adiado:false, mudouLocal:false, erro:false };
   const nomes = await T.listar(SUBPASTA_CHECKLIST);
   if(!Array.isArray(nomes)){ res.erro = true; return res; }
-  const ctx = { T, sy, res, parse: chkSyncParseNomes(nomes), ops: 0, limite: opc.limite || Infinity, fotosLocais: null };
+  const ctx = { T, sy, res, parse: chkSyncParseNomes(nomes), ops: 0, limite: opc.limite || Infinity, fotosLocais: null, baixarFotos: opc.baixarFotos !== false };
   nomes.forEach(n=>{ const m = /_(\d+)\.json$/.exec(n); if(m) registrarCarimboVisto(Number(m[1])); });
   await chkSyncSingleton(ctx, "x");
   await chkSyncSingleton(ctx, "i");
@@ -20331,7 +20428,35 @@ async function chkSyncRodar(T, opc){
     try{ await chkSyncEntidade(ctx, chave); }
     catch(e){ res.falhas++; T.log("up", chave, "checklist", 0, false, (e && e.message) ? String(e.message) : "erro inesperado", "Checklist"); }
   }
+  if(ctx.baixarFotos){
+    try{ await chkSyncBaixarFotosPendentes(ctx, opc.limiteFotos); }
+    catch(e){ res.falhas++; T.log("down", "fotos pendentes", "checklist", 0, false, (e && e.message) ? String(e.message) : "erro inesperado", "Checklist/Fotos"); }
+  }
   return res;
+}
+/* Baixa as fotos que ficaram "pendente:" (linhas que chegaram só com o texto) e as coloca no lugar. Foto que ainda não está na
+   nuvem fica pendente para a próxima rodada. */
+async function chkSyncBaixarFotosPendentes(ctx, limiteFotos){
+  const { T, res } = ctx;
+  const ns = STATE.checklists;
+  const raiz = { m: ns.modelos, p: ns.projetos };
+  const ids = chkFotosPendentesIds(raiz);
+  if(!ids.size) return;
+  if(!ctx.fotosLocais) ctx.fotosLocais = await T.fotosLocais();
+  const mapa = new Map();
+  const lim = limiteFotos || Infinity;
+  let certas = 0, tentativas = 0;   // foto que ainda não está na nuvem gasta tentativa mas não ocupa a vaga das que chegam
+  for(const fid of ids){
+    if(ctx.fotosLocais.has(fid)){ mapa.set(fid, FOTO_REF_PREFIXO + fid); continue; }
+    if(certas >= lim || tentativas >= lim * 3){ res.fotosAdiadas = (res.fotosAdiadas || 0) + 1; continue; }
+    tentativas++;
+    const dados = await T.baixar(SUBPASTA_CHECKLIST_FOTOS, "f_" + fid + ".txt");
+    if(dados && ehFotoDataUrlPersist(dados)){ mapa.set(fid, dados); certas++; }
+  }
+  if(mapa.size && chkFotosPendentesTrocar(raiz, mapa)){
+    res.fotosBaixadas = (res.fotosBaixadas || 0) + mapa.size;
+    res.mudouLocal = true;
+  }
 }
 function chkSyncTransporteOneDrive(){
   const base = ONEDRIVE_PASTA_APP;
@@ -20395,7 +20520,9 @@ async function onedriveSincronizarChecklist(forcar){
         if(re2.escondidas){ marcarAlterado(); try{ toast(re2.escondidas + (re2.escondidas === 1 ? " cópia de linha de vida foi guardada dentro do original (menu da linha > Versões guardadas)" : " cópias de linhas de vida foram guardadas dentro dos originais (menu da linha > Versões guardadas)")); render(); }catch(_){} }
       }
     }
-    const r = await chkSyncRodar(chkSyncTransporteOneDrive(), { limite: forcar ? Infinity : CHK_SYNC_LIMITE_OPS_AUTO });
+    // fotos: no computador sempre; no celular só no Wi-Fi (se a opção estiver ligada) ou quando a pessoa pede (sincronização manual / "Baixar fotos")
+    const baixarFotos = !!forcar || ehComputadorDeMesa() || (!!STATE.baixarFotosAutoWifi && onedriveEstaEmWifi());
+    const r = await chkSyncRodar(chkSyncTransporteOneDrive(), { limite: forcar ? Infinity : CHK_SYNC_LIMITE_OPS_AUTO, baixarFotos, limiteFotos: forcar ? Infinity : 20 });
     __chkSyncUltima = Date.now();
     if(r.mudouLocal){
       marcarAlterado();
@@ -30706,7 +30833,18 @@ Devolver agora?`)) return;
     document.getElementById("hazard-photo-grid").innerHTML = renderHazardPhotos(p);
     hidratarImagens();
   },
+  async chkBaixarFotosPendentes(){
+    let conta = null; try{ conta = getOneDriveConta(); }catch(e){}
+    if(!conta || (typeof navigator !== "undefined" && navigator.onLine === false)){ toast("Sem conexão com a nuvem agora", false); return; }
+    toast("Baixando as fotos…");
+    try{ await onedriveSincronizarChecklist(true); }catch(e){}
+    const n = chkFotosPendentesIds({ m: STATE.checklists.modelos, p: STATE.checklists.projetos }).size;
+    __chkPendCache.em = 0;
+    toast(n ? n + (n === 1 ? " foto ainda não chegou" : " fotos ainda não chegaram") + " (confira a internet e tente de novo)" : "Fotos baixadas", !n ? undefined : false);
+    render();
+  },
   verFotoReg(el){
+    if(el && el.getAttribute && el.getAttribute("data-foto-nuvem")){ App.chkBaixarFotosPendentes(); return; }
     /* Miniatura (data-mini) guarda a referencia da foto real: abrir mostra a
        foto em tamanho real, nunca a copia reduzida. */
     if(el && el.dataset && el.dataset.fotoref){ App.verFoto(el.dataset.fotoref); return; }
@@ -31516,7 +31654,7 @@ Devolver agora?`)) return;
       modelo:  [["edit", "Editar modelo", `App.chkAbrirModelo('${id}')`], ["trash", "Excluir modelo", `App.chkExcluirModelo('${id}')`, true]],
       projeto: [["edit", "Editar dados do projeto", `App.chkEditarProjeto('${id}')`], ["copy", "Duplicar projeto", `App.chkDuplicarAbrir('projeto','${id}')`], ["trash", "Excluir projeto", `App.chkExcluirProjeto('${id}')`, true]],
       setor:   [["edit", "Editar setor", `App.chkEditarSetor('${id}')`], ["trash", "Excluir setor", `App.chkExcluirSetor('${id}')`, true]],
-      linha:   [...(chkEhCampo() ? [] : [["print", "Abrir o laudo desta linha", `App.chkAbrirLaudoLinha('${id}')`]]), ...(chkAltDaLinha(id).length ? [["folder", "Versões guardadas (" + chkAltDaLinha(id).length + ")", `App.chkAltAbrir('${id}')`]] : []), ["folder", "Mover para outro setor", `App.chkMoverLinhaEscolher('${id}')`], ["plus", "Gerar cópia", `App.chkMoverLinhaEscolher('${id}',true)`], ["trash", "Excluir linha de vida", `App.chkExcluirLinha('${id}')`, true]],
+      linha:   [...(chkEhCampo() ? [] : [["print", "Abrir o laudo desta linha", `App.chkAbrirLaudoLinha('${id}')`]]), ...(chkAltDaLinha(id).length ? [["folder", "Versões guardadas (" + chkAltDaLinha(id).length + ")", `App.chkAltAbrir('${id}')`]] : []), ...(chkEuInspetorId() && (chkAcharLinhaPorId(STATE, id) || {}).responsavelId !== chkEuInspetorId() ? [["check", "Assumir esta linha (sou eu)", `App.chkAssumirLinha('${id}')`]] : []), ["folder", "Mover para outro setor", `App.chkMoverLinhaEscolher('${id}')`], ["plus", "Gerar cópia", `App.chkMoverLinhaEscolher('${id}',true)`], ["trash", "Excluir linha de vida", `App.chkExcluirLinha('${id}')`, true]],
     }[tipo];
     if(!acoes) return;
     abrirOverlay(`<div class="sheet-overlay" onclick="if(event.target===this)App.fecharModal()"><div class="sheet">
@@ -31546,10 +31684,6 @@ Devolver agora?`)) return;
       if(chkAltExcluir(l, altId)){ marcarAlterado(); toast("Versão guardada excluída"); render(); }
     });
   },
-  chkSetModoVisual(v){
-    try{ localStorage.setItem("chkModoVisual", v === "campo" || v === "escritorio" ? v : "auto"); }catch(e){}
-    render();
-  },
   chkIrParaLinha(setorId, id){ STATE.ui.chkSetorId = setorId; App.chkAbrirLinha(id); },
   chkLaudoDaLinha(setorId, id){ STATE.ui.chkSetorId = setorId; App.chkAbrirLaudoLinha(id); },
   chkBuscaDigitar(v){
@@ -31564,6 +31698,7 @@ Devolver agora?`)) return;
     STATE.ui.chkSetorId = setorId;
     if(tipo === "setor"){ STATE.ui.chkLinhaId = null; go("checklist-linhas"); return; }
     if(tipo === "linha"){ App.chkAbrirLinha(linhaId); return; }
+    if(chkDonoDaLinhaOutro(chkAcharLinhaPorId(STATE, linhaId))){ App.chkAbrirLinha(linhaId); return; }   // linha de outro inspetor: avisa antes
     STATE.ui.chkLinhaId = linhaId;
     const l = getCurrentChkLinha();
     if(l && l.status === "finalizado"){ App.chkIrDaRevisao(si, itemId); return; }
@@ -31781,6 +31916,7 @@ Devolver agora?`)) return;
     const linha = novoChkLinha(modelo);
     linha.nome = __chkNovaLinhaDraft.nome.trim();
     linha.fotoAmpla = __chkNovaLinhaDraft.fotoAmpla || "";
+    const euId = chkEuInspetorId(); if(euId) linha.responsavelId = euId;
     setor.linhas.push(linha);
     setor.atualizadoEm = agoraSync();
     STATE.ui.chkLinhaId = linha.id;
@@ -31790,6 +31926,28 @@ Devolver agora?`)) return;
     go("checklist-preencher");
   },
   chkAbrirLinha(id){
+    const setor = getCurrentChkSetor(); if(!setor) return;
+    const l0 = setor.linhas.find(x=>x.id===id); if(!l0) return;
+    const dono = l0.status === "finalizado" ? "" : chkDonoDaLinhaOutro(l0);
+    if(dono){
+      chkAbrirConfirmacao("Esta linha é de " + dono, "Outro inspetor é o responsável por ela. Se ele também estiver editando, podem surgir versões em conflito. Abrir mesmo assim?", "Abrir mesmo assim", ()=> App.chkAbrirLinhaLiberada(id));
+      return;
+    }
+    App.chkAbrirLinhaLiberada(id);
+  },
+  chkAssumirLinha(id){
+    const l = chkAcharLinhaPorId(STATE, id), eu = chkEuInspetorId();
+    if(!l || !eu){ toast("Escolha quem é você em Configurações > Quem sou eu", false); return; }
+    l.responsavelId = eu; l.atualizadoEm = agoraSync();
+    marcarAlterado();
+    toast("Linha agora é de " + (chkNomeInspetor(eu) || "você"));
+    render();
+  },
+  chkSetEu(v){
+    try{ if(v) localStorage.setItem("chkEuInspetor", v); else localStorage.removeItem("chkEuInspetor"); }catch(e){}
+    render();
+  },
+  chkAbrirLinhaLiberada(id){
     const setor = getCurrentChkSetor(); if(!setor) return;
     const l0 = setor.linhas.find(x=>x.id===id); if(!l0) return;
     const abrir = ()=>{
@@ -31802,7 +31960,7 @@ Devolver agora?`)) return;
       go(l.status==="finalizado" ? "checklist-finalizar" : "checklist-preencher");
     };
     let conta = null; try{ conta = getOneDriveConta(); }catch(e){}
-    if(!chkDevePuxarAntesDeAbrir(conta, podeSincronizarAutomaticoAgora(), __chkSyncEmAndamento, Date.now() - __chkSyncUltima) || __chkAbrindoLinha){ abrir(); return; }
+    if(!conta || !chkDevePuxarAntesDeAbrir(conta, podeSincronizarAutomaticoAgora(), __chkSyncEmAndamento, Date.now() - __chkSyncUltima) || __chkAbrindoLinha){ abrir(); return; }
     // faz tempo que não confere a nuvem: puxa a versão mais nova da linha antes de entrar (no máximo ~3 s de espera)
     __chkAbrindoLinha = true;
     const antes = chkSyncSig(l0, true);

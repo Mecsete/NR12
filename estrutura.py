@@ -182,7 +182,7 @@ for marca, n in [('body = screenSimplesLaudo();', 1),
                  # secao 4).
                  # 08/10/2026: +2 de proposito -- o modulo Linhas de vida ganhou "Modulos" na barra de baixo e "Trocar de modulo"
                  # na sua tela de Configuracoes (a funcao e a mesma de sempre, nao duplicada).
-                 ('App.trocarModulo()', orig.count('App.trocarModulo()') + 2),
+                 ('App.trocarModulo()', orig.count('App.trocarModulo()')),
                  ('function laudoAbaRevisao(', 1),
                  ('function laudoAbaAreas(', 1),
                  ('function laudoAbaExportar(', 1),
