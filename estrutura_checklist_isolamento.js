@@ -171,7 +171,7 @@ const FUNCOES = [
   "chkSyncHash", "chkSyncSig", "chkSyncModeloNorm", "chkSyncGarantir", "chkSyncSemCampo", "chkSyncVista", "chkSyncLocais", "chkSyncLocalDe", "chkSyncSementeIntocada",
   "chkSyncParseNomes", "chkSyncRegistrarRemocao", "chkSyncMesclarRemovidos", "chkSyncMesclarInspetores", "chkSyncLerRemoto", "chkSyncSingleton",
   "chkSyncApagarRemoto", "chkSyncEnviar", "chkSyncRotuloCopia", "chkSyncInserir", "chkSyncAplicar", "chkSyncBaixar", "chkSyncCopiarLocal", "chkSyncConflito",
-  "chkResumoCardLinha", "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "chkIncoerencias", "lclNumeroSecao", "getMecseteConfig", "chkAcoesCartao", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "lclPrioridadeNc", "chkMigPlanoEmbutido", "chkMigModelosEmbutidos", "chkMoverLinha", "lclPrioChip", "lclPrioLegenda", "chkEuInspetorId", "chkNomeInspetor", "chkDonoDaLinhaOutro", "chkFotoPendId", "chkFotosRefsObrigatorias", "chkFotosParaPendentes", "chkFotosPendentesIds", "chkFotosPendentesTrocar", "chkSyncBaixarFotosPendentes", "chkFotosNuvemTotal", "screenChkSetores", "screenChkLinhas", "chkAcoesCartao", "chkVistosAtuais", "ehComputadorDeMesa", "chkModoVisual", "chkEhCampo", "chkPendentesTotal", "chkFaixaHtml", "chkAvisoDeProjeto", "chkProntoParaLaudo", "screenChkPronto", "chkBuscarTudo", "chkBuscaResultadosHtml", "screenChkBusca", "chkLinhaEmBranco", "chkLinhaCopiaCompleta", "chkSetorCopia", "chkDuplicarSetor", "chkDuplicarProjeto", "configAparenciaHtml", "bottomNavChk", "screenChkConfig", "topBarChk", "chkTabsRolagem", "chkLinhasPendentesEnvio", "chkDevePuxarAntesDeAbrir", "chkAltConteudo", "chkAltSig", "chkAltEntrada", "chkAltUnir", "chkAltAdicionar", "chkAltResumo", "chkAltTrocar", "chkAltExcluir", "chkNomeCopia", "chkAltCopiarVisivel", "chkEsconderCopiasLinhas", "chkAltModalHtml", "chkAltDaLinha", "chkAcharLinhaPorId", "chkCopiarLinha", "chkMigAutoPendente", "chkMigAutoAplicar", "chkMigPendenciasAplicar", "chkPendenciasLinhas", "chkMigN", "chkMigTabela", "chkMigPlano", "chkMigAcharModeloNovo", "chkMigrarLinha", "chkMigracaoSimular", "chkMigracaoAplicar", "chkSyncFotoValorId", "chkSyncFotoId", "chkSyncRespondidos", "chkSyncDivergencias", "chkSyncMesclarLinha", "chkConsolidarCopiasLinhas", "chkSyncVisto", "chkSyncMudou", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
+  "chkResumoCardLinha", "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "chkIncoerencias", "lclNumeroSecao", "getMecseteConfig", "chkAcoesCartao", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "lclPrioridadeNc", "chkMigPlanoEmbutido", "chkMigModelosEmbutidos", "chkMoverLinha", "chkCaracContexto", "chkListaPt", "chkCondResolver", "chkCondTexto", "chkTextosV2TipoDe", "chkTextosV2AplicarSecoes", "chkTextosV2Aplicar", "chkTextosV2Pendente", "chkCaracResumo", "chkCaracCardHtml", "novoChkLinha", "lclPrioChip", "lclPrioLegenda", "chkEuInspetorId", "chkNomeInspetor", "chkDonoDaLinhaOutro", "chkFotoPendId", "chkFotosRefsObrigatorias", "chkFotosParaPendentes", "chkFotosPendentesIds", "chkFotosPendentesTrocar", "chkSyncBaixarFotosPendentes", "chkFotosNuvemTotal", "screenChkSetores", "screenChkLinhas", "chkAcoesCartao", "chkVistosAtuais", "ehComputadorDeMesa", "chkModoVisual", "chkEhCampo", "chkPendentesTotal", "chkFaixaHtml", "chkAvisoDeProjeto", "chkProntoParaLaudo", "screenChkPronto", "chkBuscarTudo", "chkBuscaResultadosHtml", "screenChkBusca", "chkLinhaEmBranco", "chkLinhaCopiaCompleta", "chkSetorCopia", "chkDuplicarSetor", "chkDuplicarProjeto", "configAparenciaHtml", "bottomNavChk", "screenChkConfig", "topBarChk", "chkTabsRolagem", "chkLinhasPendentesEnvio", "chkDevePuxarAntesDeAbrir", "chkAltConteudo", "chkAltSig", "chkAltEntrada", "chkAltUnir", "chkAltAdicionar", "chkAltResumo", "chkAltTrocar", "chkAltExcluir", "chkNomeCopia", "chkAltCopiarVisivel", "chkEsconderCopiasLinhas", "chkAltModalHtml", "chkAltDaLinha", "chkAcharLinhaPorId", "chkCopiarLinha", "chkMigAutoPendente", "chkMigAutoAplicar", "chkMigPendenciasAplicar", "chkPendenciasLinhas", "chkMigN", "chkMigTabela", "chkMigPlano", "chkMigAcharModeloNovo", "chkMigrarLinha", "chkMigracaoSimular", "chkMigracaoAplicar", "chkSyncFotoValorId", "chkSyncFotoId", "chkSyncRespondidos", "chkSyncDivergencias", "chkSyncMesclarLinha", "chkConsolidarCopiasLinhas", "chkSyncVisto", "chkSyncMudou", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
 ];
 let fonte = "let __ultimoCarimboVisto = 0;\n";
 fonte += "let __buscaAtual = '';\n"; // usado por chkAbrirSetor (lista de linhas) -- nao testado aqui, so pra nao faltar
@@ -201,6 +201,9 @@ fonte += "const CHK_FOTO_PEND = 'pendente:';\n";
 fonte += 'const CHK_ALT_CAMPO = "versoesAlternativas";\n';
 fonte += constObjeto("CHK_ALT_ORIGEM") + "\n";
 fonte += constObjeto("LCL_PRI_ICONE") + "\n";
+fonte += constObjeto("CHK_CARAC_DEFS") + "\n";
+fonte += constObjeto("CHK_TEXTOS_V2_TROCAS") + "\n";
+fonte += "const CHK_TEXTOS_V2_ATIVO = false;\n";
 fonte += constObjeto("CHK_MIG_TIPOS") + "\n";
 fonte += constObjeto("CHK_MIG_FOTOS_REMOVIDAS") + "\n";
 fonte += constObjeto("CHK_MIG_NOMES") + "\n";
@@ -3195,6 +3198,78 @@ async function testarUsabilidade(){
   // ---- memorial da linha rigida: sem flecha, sem E/Ix, sem carga dinamica nas tabelas
   { const tR = roda(`(function(){ const m = chkMemorialDe({ memorial:{ hanc:6.5, hpos:2, vao:1 } }); const c = chkMemorialCalc("horizontal_rigida", m); return { t: chkMemorialTabelas(c, m), v: chkMemorialVeredito(c, m), zlq1: c.ZLQ1, zlq2: c.ZLQ2 }; })()`);
     T(!/Módulo E|Inércia|Deflexão|Carga dinâmica|Perfil da viga/.test(tR.t) && tR.t.includes("ZLQ talabarte") && tR.t.includes("ZLQ trava-quedas") && Math.abs(tR.zlq1 - 4.9) < 1e-9 && Math.abs(tR.zlq2 - 4) < 1e-9 && tR.v.okC === true, "tabelas da linha rigida: sem flecha/E/Ix/carga dinamica; ZLQ = a + b + C1 + D1 (4,90 m) e B1 + C1 + D1 (4,00 m)");
+  }
+  // ---- caracteristicas da linha: trechos condicionais nos textos do laudo
+  { const lnC = (carac, extra)=> Object.assign({ id:"LCA", caracDefs: CARAC_DEFS_T, carac: carac || {}, modeloSnapshot:[{ id:"s0", titulo:"Doc", itens:[{ id:"p0", descricao:"Projeto?", motivosPadrao:[{ motivo:"Projeto da estrutura não apresentado", texto:"x", acao:"y" }] }] }], itens:[{ itemId:"p0", conforme:"atende", motivosSelecionados:[], observacao:"", fotos:[] }] }, extra || {});
+    const CARAC_DEFS_T = roda("CHK_CARAC_DEFS.horizontal_rigida");
+    const R = (txt, l)=> roda("chkCondTexto(" + J(txt) + ", " + J(l) + ")");
+    T(R("A {{concreto|x}} B", { id:"L0" }) === "A x B" && R("{{!projeto_ausente|a||b}}", { id:"L0" }) === "a" && R("{{@uso|fb|ant|dep}}", { id:"L0" }) === "fb" && R("sem chaves", { id:"L0" }) === "sem chaves", "linha sem caracteristicas: tudo sai como o texto generico");
+    T(R("{{concreto|C}}{{solda|S}}", lnC({ ancor_material:["aco"] })) === "S" && R("{{concreto|C}}{{solda|S}}", lnC({ ancor_material:["concreto"] })) === "CS" && R("{{concreto|C}}{{solda|S}}", lnC({ ancor_material:["concreto"], ancor_fixacao:["parafuso"] })) === "C" && R("{{concreto|C}}{{solda|S}}", lnC()) === "CS", "condicional: so entra o que foi marcado; grupo sem marcacao deixa o trecho entrar");
+    T(R("({{@ancor_elemento|viga, pilar, laje ou terça}})", lnC({ ancor_elemento:["el_viga", "el_pilar"] })) === "(viga e pilar)" && R("({{@ancor_elemento|viga, pilar, laje ou terça}})", lnC()) === "(viga, pilar, laje ou terça)" && R("{{@@ancor_fixacao|chumbadores e parafusos}}", lnC({ ancor_fixacao:["chumbador_q", "parafuso", "solda"] })) === "chumbadores químicos e parafusos", "lista das opcoes marcadas (singular e plural; 'solda' fica fora da lista)");
+    T(R("x{{@riscos| (a, b)| (|)}}", lnC({ riscos:["r_nen"] })) === "x" && R("x{{@riscos| (a, b)| (|)}}", lnC({ riscos:["r_el", "r_in"] })) === "x (rede elétrica e intempéries)" && R("{{@origem|fb|(|)|ou}}", lnC({ origem:["orig_cert", "orig_proj"] })) === "(certificação ou projeto de profissional habilitado)", "riscos: 'nenhum' some com os parenteses; lista com 'ou'");
+    const comNc = lnC({}, { itens:[{ itemId:"p0", conforme:"naoAtende", motivosSelecionados:["Projeto da estrutura não apresentado"], observacao:"", fotos:[] }] });
+    T(R("{{!projeto_ausente|corresponde ao projeto||foi verificado em campo}}", comNc) === "foi verificado em campo" && R("{{!projeto_ausente|corresponde ao projeto||foi verificado em campo}}", lnC()) === "corresponde ao projeto" && R("{{apoios_sim&!projeto_ausente|A}}{{apoios_sim&projeto_ausente|B}}", comNc) === "B", "projeto nao apresentado (da resposta da pergunta 1.1) troca o texto; combinacao com &");
+    // --- as trocas aplicadas aos modelos e as linhas reais (as 15), sem tocar nas respostas
+    roda("STATE.checklists.modelos = []; delete STATE.checklists.migracao2026; STATE.checklists.projetos = [{ id:'PV2', empresa:'Real', setores:[{ id:'SV2', nome:'S', linhas:" + J(linhasReal) + " }] }];");
+    roda("chkMigAutoAplicar(STATE)");
+    const respAntes = J(roda("STATE.checklists.projetos[0].setores[0].linhas.map(l => ({ i:l.itens, a:l.secoesNA, f:l.fotosSecao, n:l.nome }))"));
+    T(roda("chkTextosV2Pendente(STATE)") === true, "modelos e linhas migradas ainda estao com os textos da versao 1");
+    const v2 = roda("chkTextosV2Aplicar(STATE)");
+    T(v2.modelos === 3 && v2.linhas === 15 && roda("chkTextosV2Pendente(STATE)") === false && roda("chkTextosV2Aplicar(STATE).linhas") === 0, "atualizacao: 3 modelos e 15 linhas, uma vez so: " + J(v2));
+    T(J(roda("STATE.checklists.projetos[0].setores[0].linhas.map(l => ({ i:l.itens, a:l.secoesNA, f:l.fotosSecao, n:l.nome }))")) === respAntes, "respostas, motivos, fotos e secoes N/A das 15 linhas nao mudaram");
+    const lrig = roda("STATE.checklists.projetos[0].setores[0].linhas.find(l => l.modeloId === 'mg_horizontal_rigida')");
+    T(lrig.caracDefs.length > 8 && lrig.textosVersao === 2 && lrig.caracDefs.some(g => g.id === "ancor_fixacao" && g.multi) && lrig.caracDefs.some(g => g.id === "apoios" && !g.multi), "linha rigida ganhou as definicoes (com grupos de escolha unica e multipla)");
+    const todosTextos = J(lrig.modeloSnapshot);
+    T(todosTextos.includes("{{@@ancor_fixacao|") && todosTextos.includes("{{concreto|") && todosTextos.includes("{{!projeto_ausente|") && !/\{\{[^}]*\{\{/.test(todosTextos), "os textos do snapshot da linha receberam os trechos condicionais (sem chaves aninhadas)");
+    // --- efeito no laudo: secao Ancoragem Estrutural com tudo 'atende'
+    const secAnc = lrig.modeloSnapshot.find(s => s.titulo === "Ancoragem Estrutural");
+    const comCarac = (carac, extra)=> Object.assign({}, lrig, { carac }, extra || {}, { itens: lrig.itens.map(i => secAnc.itens.some(x => x.id === i.itemId) ? Object.assign({}, i, { conforme:"atende", motivosSelecionados:[] }) : i) });
+    const narr = (l)=> roda("chkNarrativaSecao(" + J(secAnc) + ", " + J(l) + ", '3.3').conforme");
+    const nGen = narr(comCarac({}));
+    const nAco = narr(comCarac({ ancor_material:["aco"], ancor_fixacao:["solda"], ancor_elemento:["el_viga"] }));
+    const nCon = narr(comCarac({ ancor_material:["concreto"], ancor_fixacao:["chumbador_q", "parafuso"], ancor_elemento:["el_pilar", "el_laje"] }));
+    T(nGen.includes("fissuras ou desagregação no concreto") && nGen.includes("(viga, pilar, laje ou terça)") && nGen.includes("trincas ou falhas nos cordões de solda"), "sem marcar nada: texto generico completo (como antes)");
+    T(!nAco.includes("concreto") && !nAco.includes("chumbador") && nAco.includes("cordões de solda") && nAco.includes("(viga)") && !nAco.includes("embutimento"), "estrutura de aco soldada: sem concreto, sem chumbador, sem embutimento: " + nAco.slice(0, 700));
+    T(nCon.includes("fissuras ou desagregação no concreto") && !nCon.includes("cordões de solda") && nCon.includes("(pilar e laje)") && nCon.includes("chumbadores químicos e parafusos de fixação têm tipo, diâmetro e embutimento"), "concreto com chumbador quimico e parafuso: so o que existe: " + nCon.slice(0, 700));
+    // --- projeto nao apresentado: a viga nao 'corresponde ao projeto'
+    const secViga = lrig.modeloSnapshot.find(s => s.titulo === "Viga / Trilho");
+    const lViga = (nc)=> Object.assign({}, lrig, { itens: lrig.itens.map((i, k) => k === 0 ? Object.assign({}, i, nc ? { conforme:"naoAtende", motivosSelecionados:["Projeto da estrutura não apresentado"] } : { conforme:"atende", motivosSelecionados:[] }) : (secViga.itens.some(x => x.id === i.itemId) ? Object.assign({}, i, { conforme:"atende", motivosSelecionados:[] }) : i)) });
+    const vCom = roda("chkNarrativaSecao(" + J(secViga) + ", " + J(lViga(false)) + ", '3.4').conforme"), vSem = roda("chkNarrativaSecao(" + J(secViga) + ", " + J(lViga(true)) + ", '3.4').conforme");
+    T(vCom.includes("correspondem ao projeto") && !vSem.includes("correspondem ao projeto") && vSem.includes("não havendo projeto para conferir perfil e material"), "3.4 Viga/Trilho: com projeto diz que corresponde; sem projeto nao afirma isso: " + vSem.slice(0, 300));
+    const lA = Object.assign({}, lrig, { carac: { apoios:["apoios_nao"], emendas:["emendas_nao"], viga_fixacao:["viga_sold"] } });
+    const vA = roda("chkNarrativaSecao(" + J(secViga) + ", " + J(Object.assign({}, lViga(false), lA.carac ? { carac: lA.carac } : {})) + ", '3.4').conforme");
+    T(!vA.includes("apoios intermediários") && !vA.includes("emendas") && vA.includes("bem soldada na estrutura"), "sem apoios e sem emendas: o texto nao fala deles; viga soldada: 'bem soldada': " + vA.slice(0, 400));
+    // --- tela: cartao e marcacao
+    roda("STATE.ui.chkProjetoId = 'PV2'; STATE.ui.chkSetorId = 'SV2'; STATE.ui.chkLinhaId = " + J(lrig.id) + "; delete STATE.ui.chkCaracAberto;");
+    const card0 = roda("chkCaracCardHtml(getCurrentChkLinha())");
+    T(card0.includes("Características da linha") && card0.includes("0 de ") && card0.includes("pode marcar mais de uma") && card0.includes("Ancoragem Estrutural") && card0.includes("App.chkSetCarac('ancor_fixacao','chumbador_q')") && !card0.includes("projeto_ausente"), "cartao aberto: grupos por secao, multipla escolha indicada, sem a opcao calculada do projeto");
+    roda("App.chkSetCarac('ancor_fixacao', 'chumbador_q'); App.chkSetCarac('ancor_fixacao', 'solda')");
+    T(J(roda("getCurrentChkLinha().carac.ancor_fixacao")) === J(["chumbador_q", "solda"]), "multipla escolha: marcar duas opcoes");
+    roda("App.chkSetCarac('ancor_fixacao', 'chumbador_q')");
+    T(J(roda("getCurrentChkLinha().carac.ancor_fixacao")) === J(["solda"]), "desmarcar uma opcao");
+    roda("App.chkSetCarac('uso', 'uso_ret'); App.chkSetCarac('uso', 'uso_res')");
+    T(J(roda("getCurrentChkLinha().carac.uso")) === J(["uso_res"]), "escolha unica: marcar outra troca a opcao");
+    roda("App.chkSetCarac('uso', 'uso_res')");
+    T(roda("getCurrentChkLinha().carac.uso") === undefined, "escolha unica: tocar de novo limpa");
+    roda("App.chkSetCarac('riscos', 'r_el'); App.chkSetCarac('riscos', 'r_in'); App.chkSetCarac('riscos', 'r_nen')");
+    T(J(roda("getCurrentChkLinha().carac.riscos")) === J(["r_nen"]), "'Nenhum' limpa as outras opcoes do grupo");
+    roda("App.chkSetCarac('riscos', 'r_el')");
+    T(J(roda("getCurrentChkLinha().carac.riscos")) === J(["r_el"]), "marcar um risco tira o 'Nenhum'");
+    T(roda("chkCaracCardHtml(getCurrentChkLinha())").includes("Editar"), "com marcacoes e sem escolha de abrir, o cartao abre recolhido");
+    roda("STATE.ui.chkCaracAberto = true");
+    const card1 = roda("chkCaracCardHtml(getCurrentChkLinha())");
+    T(card1.includes("Recolher") && card1.includes("chk-chip on"), "cartao aberto com marcacoes: chips marcados");
+    roda("STATE.ui.chkCaracAberto = false");
+    T(roda("chkCaracCardHtml(getCurrentChkLinha())").includes("Editar") && roda("chkCaracCardHtml(getCurrentChkLinha())").includes("chk-carac-res"), "cartao recolhido: resumo do que foi marcado e botao Editar");
+    T(roda("lclAvisos(getCurrentChkLinha(), STATE.checklists.projetos[0])").every(a => !a.txt.startsWith("Características da linha não preenchidas")), "com alguma marcacao nao ha aviso de caracteristicas");
+    roda("getCurrentChkLinha().carac = {}");
+    T(roda("lclAvisos(getCurrentChkLinha(), STATE.checklists.projetos[0])").some(a => a.txt.startsWith("Características da linha não preenchidas") && a.acao === "App.chkIrCaracteristicas()"), "sem nenhuma marcacao o laudo avisa antes de imprimir");
+    // --- linha nova leva as definicoes do modelo
+    const modeloC = roda("STATE.checklists.modelos.find(m => m.id === 'mg_horizontal_flexivel')");
+    const lnova = roda("novoChkLinha(" + J(modeloC) + ")");
+    T(lnova.caracDefs.length === modeloC.caracteristicas.length && J(lnova.carac) === "{}" && lnova.textosVersao === 2, "linha nova copia as caracteristicas do modelo");
+    T(roda("novoChkLinha({ id:'M', nome:'N', secoes:[] })").caracDefs === undefined, "modelo sem caracteristicas: linha igual a de antes");
+    roda("STATE.checklists.modelos = " + modelosOrig + "; delete STATE.checklists.migracao2026; STATE.checklists.projetos = " + J(estadoAntes.lista) + "; delete STATE.ui.chkCaracAberto;");
   }
 }
 async function testarSincronizacaoChecklist(){

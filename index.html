@@ -782,6 +782,20 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-faixa-btn{margin-left:auto;border:1.5px solid currentColor;background:transparent;color:inherit;border-radius:8px;padding:4px 10px;font:inherit;font-weight:700;cursor:pointer;white-space:nowrap}
 .chk-nuvem-pill{border:0;cursor:pointer;font:inherit;color:#2B3A78;background:#E4E9F7}
 .chk-nuvem-pill svg{width:13px;height:13px;vertical-align:-2px}
+.chk-carac{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 12px}
+.chk-carac-t{font-weight:800;font-size:13.5px;display:flex;align-items:center;gap:8px}
+.chk-carac-t small{font-weight:500;color:var(--ink-dim)}
+.chk-carac-btn{margin-left:auto;border:1.5px solid var(--line);background:transparent;border-radius:8px;padding:4px 10px;font:inherit;font-weight:700;cursor:pointer;color:var(--ink)}
+.chk-carac-res{font-size:12px;color:var(--ink-dim);margin-top:4px}
+.chk-carac-dica{font-size:12px;color:var(--ink-dim);margin:6px 0 4px}
+.chk-carac-sec{margin-top:8px}
+.chk-carac-sec>b{font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-dim)}
+.chk-carac-g{margin-top:6px}
+.chk-carac-g>span{font-size:13px;font-weight:700}
+.chk-carac-g small{font-weight:500;color:var(--ink-dim)}
+.chk-carac-ops{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.chk-chip{border:1.5px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 12px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--ink)}
+.chk-chip.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
 .chk-secao-fotos{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 12px}
 .chk-secao-fotos-t{font-weight:800;font-size:13px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
 .chk-secao-fotos-t svg{width:16px;height:16px}
@@ -3455,7 +3469,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "09/10/2026 10:56";
+const APP_BUILD = "09/10/2026 11:15";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -9959,6 +9973,7 @@ function novoChkLinha(modelo){
     conclusaoTexto: "",
     criadoEm: Date.now(),
     atualizadoEm: Date.now(),
+    ...(Array.isArray(modelo.caracteristicas) && modelo.caracteristicas.length ? { caracDefs: clonarCompartilhandoFotos(modelo.caracteristicas), carac: {}, textosVersao: modelo.textosVersao || 0 } : {}),
   };
 }
 function getCurrentChkModelo(){ return STATE.checklists.modelos.find(m=>m.id===STATE.ui.chkModeloId); }
@@ -10052,15 +10067,15 @@ function chkRotuloTipoLinha(tipo){ const x = CHK_TIPOS_LINHA.find(t=>t[0] === ti
    rótulo — o rótulo é a chave, guardada em motivosSelecionados) — motivo de
    múltipla escolha vira um parágrafo por motivo no laudo. Sempre devolve um
    array (vazio quando não há texto), nunca string solta. */
-function chkTextoLaudoItem(itemModelo, itemExec){
+function chkTextoLaudoItem(itemModelo, itemExec, linha){
   if(!itemModelo || !itemExec) return [];
-  if(itemExec.conforme === "atende") return itemModelo.textoAtende ? [itemModelo.textoAtende] : [];
+  if(itemExec.conforme === "atende") return itemModelo.textoAtende ? [chkCondTexto(itemModelo.textoAtende, linha)] : [];
   if(itemExec.conforme === "naoAtende"){
     const motivos = itemExec.motivosSelecionados || [];
     return motivos
       .map(m => (itemModelo.motivosPadrao||[]).find(mp => mp.motivo === m))
       .filter(Boolean)
-      .map(mp => mp.texto || "")
+      .map(mp => chkCondTexto(mp.texto || "", linha))
       .filter(Boolean);
   }
   return [];
@@ -10140,7 +10155,7 @@ function chkNarrativaSecao(secaoModelo, linha, pref){
         const mp = (it.motivosPadrao||[]).find(x=> x.motivo === m);
         if(!mp || !mp.texto) return "";
         const cit = chkCitarFotos(pm[m] || [], pref);
-        return escapeHtml(mp.texto) + (cit ? ` (${cit})` : "");
+        return escapeHtml(chkCondTexto(mp.texto, linha)) + (cit ? ` (${cit})` : "");
       }).filter(Boolean);
       const solta = chkCitarFotos(pm[""] || [], pref);
       // não atende sem texto de motivo (nenhum motivo escolhido, ou motivo sem texto no modelo): nunca some do laudo, mas
@@ -10154,7 +10169,7 @@ function chkNarrativaSecao(secaoModelo, linha, pref){
       }
       return `<mark class="nc">${segs.join(" ")}${solta ? ` (${solta})` : ""}${notaHtml}</mark>`;
     }
-    const textos = chkTextoLaudoItem(it, ie);
+    const textos = chkTextoLaudoItem(it, ie, linha);
     if(!textos.length) return "";
     return escapeHtml(textos.join(" ")) + notaHtml;
   };
@@ -10175,7 +10190,7 @@ function chkNarrativaSecao(secaoModelo, linha, pref){
     const ie = chkItemExec(linha, it.id) || {};
     (ie.motivosSelecionados || []).forEach(m=>{
       const mp = (it.motivosPadrao || []).find(x=> x.motivo === m);
-      const t = mp && String(mp.acao || "").trim();
+      const t = mp && String(chkCondTexto(mp.acao || "", linha)).trim();
       if(t && !jaTem.has(t)){ jaTem.add(t); acoes.push({ txt: t, prio: (mp.prioridade && chkPrioridadeValida(mp.prioridade)) ? mp.prioridade : chkPrioridadeItem(it) }); }
     });
   });
@@ -15422,6 +15437,7 @@ function screenChkPreencher(){
   return `
   <div class="chk-progress-bar"><div class="chk-progress-fill" style="width:${pct}%"></div></div>
   <div class="chk-tabs">${tabsHtml}${tabMemorial}</div>
+  ${idx === 0 ? chkCaracCardHtml(l) : ""}
   <div class="chk-secao-head">
     <h2 style="margin:2px 0">${escapeHtml(secao.titulo||'Sem título')}</h2>
     <button class="chk-switch ${isNA?'off':'on'}" onclick="App.chkToggleSecaoNA('${secao.id}')">${isNA? ic('check')+' Aplicar seção' : 'Esta seção não aplica'}</button>
@@ -16271,7 +16287,7 @@ function lclPrioridadeNc(linha, item, ie){
 }
 function lclAcaoMotivo(linha, item, motivo){
   const de = (it)=>{ const mp = ((it && it.motivosPadrao) || []).find(x=> x.motivo === motivo); return mp && typeof mp.acao === "string" ? mp.acao.trim() : ""; };
-  return de(item) || de(lclItemModeloAtual(linha, item && item.id)) || ("Regularizar: " + motivo);
+  return chkCondTexto(de(item) || de(lclItemModeloAtual(linha, item && item.id)) || ("Regularizar: " + motivo), linha);
 }
 /* Um registro por item que não atende (seção que não se aplica fica de fora), na
    ordem crítica → alta → média e, dentro da prioridade, na ordem do checklist. */
@@ -16315,6 +16331,8 @@ function lclSemResposta(linha){
 /* Avisos antes de imprimir: o que falta ou está estranho no laudo desta linha. */
 function lclAvisos(l, projOpc){
   const proj = projOpc || getCurrentChkProjeto(), cfg = lclCfg(l), av = [];
+  const rc = chkCaracResumo(l);
+  if(rc.total && !rc.preenchidas) av.push({ txt: `Características da linha não preenchidas (0 de ${rc.total}): alguns textos saem genéricos (concreto, solda, riscos do local...).`, acao:"App.chkIrCaracteristicas()", rot:"Preencher" });
   const nPend = chkFotosPendentesIds(l).size;
   if(nPend) av.push({ txt: `${nPend} ${nPend === 1 ? "foto ainda não foi baixada" : "fotos ainda não foram baixadas"} neste aparelho: o laudo sairia com quadros vazios no lugar ${nPend === 1 ? "dela" : "delas"}.`, acao:"App.chkBaixarFotosPendentes()", rot:"Baixar fotos" });
   const sr = lclSemResposta(l);
@@ -16799,6 +16817,147 @@ function lclBlocosChecklist(d, cap, capCorpo){
   return blocos;
 }
 
+/* ---- Características da linha de vida ----
+   Cada linha guarda, junto com a cópia congelada do modelo (caracDefs), o que a pessoa marcou (carac: { grupo: [opções] }).
+   Os textos do modelo que vão para o laudo aceitam trechos que dependem dessas escolhas:
+     {{opção}}texto{{/}} não existe; a forma é {{opção1,opção2|texto}}  = só entra se alguma dessas opções estiver marcada
+     {{a&b|texto}} = as duas condições; {{!opção|texto}} = só se NÃO estiver marcada; {{cond|sim||não}} = com texto alternativo
+     {{@grupo|padrão|antes|depois|ou}} = as opções marcadas do grupo em lista ("a, b e c"); sem marcação vale o texto padrão
+     {{@@grupo|...}} = o mesmo, na forma plural
+   Grupo sem nenhuma marcação = "não informado": o texto sai genérico, como era antes. A opção especial "projeto_ausente" é
+   calculada da resposta da primeira pergunta (projeto não apresentado). */
+const CHK_TEXTOS_V2_ATIVO = false;
+const CHK_CARAC_DEFS = {"horizontal_rigida":[{"id":"uso","rotulo":"Uso do sistema","secao":"Geral","multi":false,"opcoes":[{"id":"uso_ret","rotulo":"Retenção de queda","lista":"retenção de queda"},{"id":"uso_res","rotulo":"Restrição de movimento","lista":"restrição de movimento"}],"ajuda":""},{"id":"permanencia","rotulo":"Instalação","secao":"Geral","multi":false,"opcoes":[{"id":"perm","rotulo":"Permanente","lista":"permanente"},{"id":"temp","rotulo":"Temporária","lista":"temporário"}],"ajuda":""},{"id":"origem","rotulo":"Origem da linha","secao":"Identificação e Marcação","multi":true,"opcoes":[{"id":"orig_cert","rotulo":"Certificação do produto","lista":"certificação"},{"id":"orig_norma","rotulo":"Fabricação conforme norma técnica","lista":"fabricação conforme norma técnica"},{"id":"orig_proj","rotulo":"Projeto de profissional habilitado","lista":"projeto de profissional habilitado"},{"id":"orig_propria","rotulo":"Fabricação própria, sem projeto","naLista":false}],"ajuda":""},{"id":"ancor_material","rotulo":"Material da estrutura de apoio","secao":"Ancoragem Estrutural","multi":true,"opcoes":[{"id":"concreto","rotulo":"Concreto"},{"id":"aco","rotulo":"Aço"},{"id":"alvenaria","rotulo":"Alvenaria"}],"ajuda":""},{"id":"ancor_elemento","rotulo":"Elemento onde a ancoragem está fixada","secao":"Ancoragem Estrutural","multi":true,"opcoes":[{"id":"el_viga","rotulo":"Viga","lista":"viga"},{"id":"el_pilar","rotulo":"Pilar","lista":"pilar"},{"id":"el_laje","rotulo":"Laje","lista":"laje"},{"id":"el_terca","rotulo":"Terça","lista":"terça"}],"ajuda":""},{"id":"ancor_fixacao","rotulo":"Tipo de fixação da ancoragem","secao":"Ancoragem Estrutural","multi":true,"opcoes":[{"id":"chumbador_q","rotulo":"Chumbador químico","lista":"chumbador químico","listaPl":"chumbadores químicos"},{"id":"chumbador_m","rotulo":"Chumbador mecânico","lista":"chumbador mecânico","listaPl":"chumbadores mecânicos"},{"id":"parafuso","rotulo":"Parafuso","lista":"parafuso","listaPl":"parafusos"},{"id":"solda","rotulo":"Solda","naLista":false}],"ajuda":""},{"id":"riscos","rotulo":"Riscos adicionais do local","secao":"Zona Livre de Queda e Local","multi":true,"opcoes":[{"id":"r_el","rotulo":"Elétrico","lista":"rede elétrica"},{"id":"r_qu","rotulo":"Químico","lista":"agentes químicos"},{"id":"r_te","rotulo":"Térmico (calor)","lista":"calor"},{"id":"r_tr","rotulo":"Tráfego de máquinas","lista":"tráfego de máquinas"},{"id":"r_in","rotulo":"Intempéries","lista":"intempéries"},{"id":"r_nen","rotulo":"Nenhum","naLista":false,"exclusiva":true}],"ajuda":""},{"id":"viga_fixacao","rotulo":"Fixação da viga à estrutura","secao":"Viga / Trilho","multi":true,"opcoes":[{"id":"viga_sold","rotulo":"Soldada","lista":"soldada"},{"id":"viga_paraf","rotulo":"Parafusada","lista":"parafusada"}],"ajuda":""},{"id":"apoios","rotulo":"Apoios intermediários","secao":"Viga / Trilho","multi":false,"opcoes":[{"id":"apoios_sim","rotulo":"Com apoios intermediários"},{"id":"apoios_nao","rotulo":"Sem apoios (vão único)"}],"ajuda":""},{"id":"emendas","rotulo":"Emendas na viga","secao":"Viga / Trilho","multi":false,"opcoes":[{"id":"emendas_sim","rotulo":"Com emendas"},{"id":"emendas_nao","rotulo":"Peça única"}],"ajuda":""},{"id":"projeto","rotulo":"Projeto","secao":"Geral","derivada":true,"multi":false,"opcoes":[{"id":"projeto_ausente","rotulo":"Projeto não apresentado"}],"ausenteSe":{"item":"@primeiro","motivos":["Projeto da estrutura não apresentado"]}}],"horizontal_flexivel":[{"id":"uso","rotulo":"Uso do sistema","secao":"Geral","multi":false,"opcoes":[{"id":"uso_ret","rotulo":"Retenção de queda","lista":"retenção de queda"},{"id":"uso_res","rotulo":"Restrição de movimento","lista":"restrição de movimento"}],"ajuda":""},{"id":"permanencia","rotulo":"Instalação","secao":"Geral","multi":false,"opcoes":[{"id":"perm","rotulo":"Permanente","lista":"permanente"},{"id":"temp","rotulo":"Temporária","lista":"temporário"}],"ajuda":""},{"id":"origem","rotulo":"Origem da linha","secao":"Identificação e Marcação","multi":true,"opcoes":[{"id":"orig_cert","rotulo":"Certificação do produto","lista":"certificação"},{"id":"orig_norma","rotulo":"Fabricação conforme norma técnica","lista":"fabricação conforme norma técnica"},{"id":"orig_proj","rotulo":"Projeto de profissional habilitado","lista":"projeto de profissional habilitado"},{"id":"orig_propria","rotulo":"Fabricação própria, sem projeto","naLista":false}],"ajuda":""},{"id":"ancor_material","rotulo":"Material da estrutura de apoio","secao":"Ancoragem Estrutural","multi":true,"opcoes":[{"id":"concreto","rotulo":"Concreto"},{"id":"aco","rotulo":"Aço"},{"id":"alvenaria","rotulo":"Alvenaria"}],"ajuda":""},{"id":"ancor_elemento","rotulo":"Elemento onde a ancoragem está fixada","secao":"Ancoragem Estrutural","multi":true,"opcoes":[{"id":"el_viga","rotulo":"Viga","lista":"viga"},{"id":"el_pilar","rotulo":"Pilar","lista":"pilar"},{"id":"el_laje","rotulo":"Laje","lista":"laje"},{"id":"el_terca","rotulo":"Terça","lista":"terça"}],"ajuda":""},{"id":"ancor_fixacao","rotulo":"Tipo de fixação da ancoragem","secao":"Ancoragem Estrutural","multi":true,"opcoes":[{"id":"chumbador_q","rotulo":"Chumbador químico","lista":"chumbador químico","listaPl":"chumbadores químicos"},{"id":"chumbador_m","rotulo":"Chumbador mecânico","lista":"chumbador mecânico","listaPl":"chumbadores mecânicos"},{"id":"parafuso","rotulo":"Parafuso","lista":"parafuso","listaPl":"parafusos"},{"id":"solda","rotulo":"Solda","naLista":false}],"ajuda":""},{"id":"riscos","rotulo":"Riscos adicionais do local","secao":"Zona Livre de Queda e Local","multi":true,"opcoes":[{"id":"r_el","rotulo":"Elétrico","lista":"rede elétrica"},{"id":"r_qu","rotulo":"Químico","lista":"agentes químicos"},{"id":"r_te","rotulo":"Térmico (calor)","lista":"calor"},{"id":"r_tr","rotulo":"Tráfego de máquinas","lista":"tráfego de máquinas"},{"id":"r_in","rotulo":"Intempéries","lista":"intempéries"},{"id":"r_nen","rotulo":"Nenhum","naLista":false,"exclusiva":true}],"ajuda":""},{"id":"apoios","rotulo":"Apoios intermediários","secao":"Linha","multi":false,"opcoes":[{"id":"apoios_sim","rotulo":"Com apoios intermediários"},{"id":"apoios_nao","rotulo":"Sem apoios (vão único)"}],"ajuda":""},{"id":"absorvedor","rotulo":"Absorvedor de energia","secao":"Linha","multi":false,"opcoes":[{"id":"absorvedor_sim","rotulo":"Com absorvedor"},{"id":"absorvedor_nao","rotulo":"Sem absorvedor"}],"ajuda":""},{"id":"cabo_material","rotulo":"Material do cabo","secao":"Cabo de Aço","multi":false,"opcoes":[{"id":"cabo_gal","rotulo":"Galvanizado","lista":"galvanizado"},{"id":"cabo_inox","rotulo":"Aço inox","lista":"de aço inox"}],"ajuda":""},{"id":"esticador_tipo","rotulo":"Material do esticador","secao":"Esticador e Olhal","multi":true,"opcoes":[{"id":"esticador_forjado","rotulo":"Aço forjado","lista":"aço forjado"},{"id":"esticador_fofo","rotulo":"Ferro fundido nodular","lista":"ferro fundido nodular"}],"ajuda":""},{"id":"ferragens","rotulo":"Acabamento do olhal e dos grampos","secao":"Esticador e Olhal","multi":true,"opcoes":[{"id":"ferr_gal","rotulo":"Galvanizado","lista":"galvanizado","listaPl":"galvanizados"},{"id":"ferr_inox","rotulo":"Aço inox","lista":"de aço inox","listaPl":"de aço inox"}],"ajuda":""},{"id":"terminal","rotulo":"Terminais prensados","secao":"Sapatilha, Terminais e Acessórios","multi":false,"opcoes":[{"id":"terminal_sim","rotulo":"Possui terminais prensados"},{"id":"terminal_nao","rotulo":"Não possui"}],"ajuda":""},{"id":"projeto","rotulo":"Projeto","secao":"Geral","derivada":true,"multi":false,"opcoes":[{"id":"projeto_ausente","rotulo":"Projeto não apresentado"}],"ausenteSe":{"item":"@primeiro","motivos":["Projeto da estrutura não apresentado"]}}],"vertical":[{"id":"uso","rotulo":"Uso do sistema","secao":"Geral","multi":false,"opcoes":[{"id":"uso_ret","rotulo":"Retenção de queda","lista":"retenção de queda"},{"id":"uso_res","rotulo":"Restrição de movimento","lista":"restrição de movimento"}],"ajuda":""},{"id":"permanencia","rotulo":"Instalação","secao":"Geral","multi":false,"opcoes":[{"id":"perm","rotulo":"Permanente","lista":"permanente"},{"id":"temp","rotulo":"Temporária","lista":"temporário"}],"ajuda":""},{"id":"origem","rotulo":"Origem da linha","secao":"Identificação e Marcação","multi":true,"opcoes":[{"id":"orig_cert","rotulo":"Certificação do produto","lista":"certificação"},{"id":"orig_norma","rotulo":"Fabricação conforme norma técnica","lista":"fabricação conforme norma técnica"},{"id":"orig_proj","rotulo":"Projeto de profissional habilitado","lista":"projeto de profissional habilitado"},{"id":"orig_propria","rotulo":"Fabricação própria, sem projeto","naLista":false}],"ajuda":""},{"id":"ancor_material","rotulo":"Material da estrutura de apoio","secao":"Ancoragem Estrutural","multi":true,"opcoes":[{"id":"concreto","rotulo":"Concreto"},{"id":"aco","rotulo":"Aço"},{"id":"alvenaria","rotulo":"Alvenaria"}],"ajuda":""},{"id":"ancor_elemento","rotulo":"Elemento onde a ancoragem está fixada","secao":"Ancoragem Estrutural","multi":true,"opcoes":[{"id":"el_viga","rotulo":"Viga","lista":"viga"},{"id":"el_pilar","rotulo":"Pilar","lista":"pilar"},{"id":"el_laje","rotulo":"Laje","lista":"laje"},{"id":"el_terca","rotulo":"Terça","lista":"terça"}],"ajuda":""},{"id":"ancor_fixacao","rotulo":"Tipo de fixação da ancoragem","secao":"Ancoragem Estrutural","multi":true,"opcoes":[{"id":"chumbador_q","rotulo":"Chumbador químico","lista":"chumbador químico","listaPl":"chumbadores químicos"},{"id":"chumbador_m","rotulo":"Chumbador mecânico","lista":"chumbador mecânico","listaPl":"chumbadores mecânicos"},{"id":"parafuso","rotulo":"Parafuso","lista":"parafuso","listaPl":"parafusos"},{"id":"solda","rotulo":"Solda","naLista":false}],"ajuda":""},{"id":"riscos","rotulo":"Riscos adicionais do local","secao":"Zona Livre de Queda e Local","multi":true,"opcoes":[{"id":"r_el","rotulo":"Elétrico","lista":"rede elétrica"},{"id":"r_qu","rotulo":"Químico","lista":"agentes químicos"},{"id":"r_te","rotulo":"Térmico (calor)","lista":"calor"},{"id":"r_tr","rotulo":"Tráfego de máquinas","lista":"tráfego de máquinas"},{"id":"r_in","rotulo":"Intempéries","lista":"intempéries"},{"id":"r_nen","rotulo":"Nenhum","naLista":false,"exclusiva":true}],"ajuda":""},{"id":"absorvedor","rotulo":"Absorvedor de energia","secao":"Linha","multi":false,"opcoes":[{"id":"absorvedor_sim","rotulo":"Com absorvedor"},{"id":"absorvedor_nao","rotulo":"Sem absorvedor"}],"ajuda":""},{"id":"cabo_material","rotulo":"Material do cabo","secao":"Cabo de Aço","multi":false,"opcoes":[{"id":"cabo_gal","rotulo":"Galvanizado","lista":"galvanizado"},{"id":"cabo_inox","rotulo":"Aço inox","lista":"de aço inox"}],"ajuda":""},{"id":"esticador_tipo","rotulo":"Material do esticador","secao":"Esticador e Olhal","multi":true,"opcoes":[{"id":"esticador_forjado","rotulo":"Aço forjado","lista":"aço forjado"},{"id":"esticador_fofo","rotulo":"Ferro fundido nodular","lista":"ferro fundido nodular"}],"ajuda":""},{"id":"ferragens","rotulo":"Acabamento do olhal e dos grampos","secao":"Esticador e Olhal","multi":true,"opcoes":[{"id":"ferr_gal","rotulo":"Galvanizado","lista":"galvanizado","listaPl":"galvanizados"},{"id":"ferr_inox","rotulo":"Aço inox","lista":"de aço inox","listaPl":"de aço inox"}],"ajuda":""},{"id":"terminal","rotulo":"Terminais prensados","secao":"Sapatilha, Terminais e Acessórios","multi":false,"opcoes":[{"id":"terminal_sim","rotulo":"Possui terminais prensados"},{"id":"terminal_nao","rotulo":"Não possui"}],"ajuda":""},{"id":"projeto","rotulo":"Projeto","secao":"Geral","derivada":true,"multi":false,"opcoes":[{"id":"projeto_ausente","rotulo":"Projeto não apresentado"}],"ausenteSe":{"item":"@primeiro","motivos":["Projeto da estrutura não apresentado"]}}]};
+const CHK_TEXTOS_V2_TROCAS = [["O sistema de ancoragem permanente deve ter","O sistema de ancoragem {{@permanencia|permanente}} deve ter"],["e o sistema está corretamente classificado (retenção ou restrição de queda) e dimensionado","e o sistema está corretamente classificado{{@uso| (retenção ou restrição de queda)| como |}} e dimensionado"],["possui comprovação de conformidade (certificação, fabricação conforme norma técnica ou projeto de profissional habilitado)","possui comprovação de conformidade{{@origem| (certificação, fabricação conforme norma técnica ou projeto de profissional habilitado)| (|)|ou}}"],["(viga, pilar, laje ou terça)","({{@ancor_elemento|viga, pilar, laje ou terça}})"],["sem oxidação com perda de seção, sem fissuras ou desagregação no concreto, sem trincas ou falhas nos cordões de solda e sem deformação ou desalinhamento","sem oxidação com perda de seção{{concreto|, sem fissuras ou desagregação no concreto}}{{solda|, sem trincas ou falhas nos cordões de solda}} e sem deformação ou desalinhamento"],["A estrutura deve estar íntegra, sem deformação, oxidação com perda de seção, fissuras no concreto ou trincas de solda.","A estrutura deve estar íntegra, sem deformação nem oxidação com perda de seção{{concreto|, sem fissuras no concreto}}{{solda|, sem trincas de solda}}."],["Os chumbadores e parafusos de fixação têm tipo, diâmetro e embutimento conforme o projeto, estão firmes e sem folga, com torque de aperto conferido e marcado com testemunho, e a distância às bordas e o espaçamento entre chumbadores atendem ao projeto e ao fabricante.","Os {{@@ancor_fixacao|chumbadores e parafusos}} de fixação têm tipo{{chumbador_q,chumbador_m|, diâmetro e embutimento|| e diâmetro}} {{!projeto_ausente|conforme o projeto||compatíveis com a carga prevista}}, estão firmes e sem folga, com torque de aperto conferido e marcado com testemunho, e a distância às bordas e o espaçamento entre as fixações atendem {{!projeto_ausente|ao projeto e ao fabricante||ao fabricante}}."],["Chumbadores e parafusos devem corresponder ao projeto em tipo, diâmetro e embutimento, estar firmes, com torque conferido e marcado, e respeitar as distâncias de borda e entre fixações.","As fixações ({{@@ancor_fixacao|chumbadores e parafusos}}) devem corresponder {{!projeto_ausente|ao projeto||à carga prevista}} em tipo e diâmetro{{chumbador_q,chumbador_m| e embutimento||}}, estar firmes, com torque conferido e marcado, e respeitar as distâncias de borda e entre fixações."],["O perfil e o material da viga ou trilho correspondem ao projeto, a viga está na posição prevista, os apoios intermediários estão no espaçamento do projeto, sem folga ou deslocamento, e a viga não se desvia","{{!projeto_ausente|O perfil e o material da viga ou trilho correspondem ao projeto, a viga está na posição prevista||A viga ou trilho está na posição esperada, não havendo projeto para conferir perfil e material}}{{apoios_sim&!projeto_ausente|, os apoios intermediários estão no espaçamento do projeto, sem folga ou deslocamento}}{{apoios_sim&projeto_ausente|, os apoios intermediários estão sem folga ou deslocamento}}, e a viga não se desvia"],["está bem soldada ou parafusada na estrutura, as emendas e juntas estão alinhadas, sem degrau que trave o trolley, e há batentes","está bem {{@viga_fixacao|soldada ou parafusada}} na estrutura{{emendas_sim|, as emendas e juntas estão alinhadas, sem degrau que trave o trolley}}, e há batentes"],["A viga ou trilho deve corresponder ao perfil, material, posição e inclinação (até 15º) do projeto, estar reta, sem oxidação ou deformação e bem fixada à estrutura, com apoios no espaçamento do projeto, emendas alinhadas e sem degrau, e batentes","A viga ou trilho deve {{!projeto_ausente|corresponder ao perfil, material, posição e inclinação (até 15º) do projeto, estar reta||estar na posição prevista, com inclinação de até 15º, e reta}}, sem oxidação ou deformação e bem fixada à estrutura{{apoios_sim&!projeto_ausente|, com apoios no espaçamento do projeto}}{{apoios_sim&projeto_ausente|, com apoios firmes}}{{emendas_sim|, emendas alinhadas e sem degrau}}, e batentes"],["força máxima aplicável do projeto","força máxima aplicável{{!projeto_ausente| do projeto}}"],["é maior ou igual à exigida em projeto, não há","é {{!projeto_ausente|maior ou igual à exigida em projeto||suficiente para o EPI utilizado}}, não há"],["deve ser igual ou maior que a exigida em projeto","deve ser {{!projeto_ausente|igual ou maior que a exigida em projeto||suficiente para o EPI utilizado}}"],[" (rede elétrica, agentes químicos, calor, tráfego de máquinas, intempéries)","{{@riscos| (rede elétrica, agentes químicos, calor, tráfego de máquinas, intempéries)| (|)}}"],[" (elétrico, químico, térmico, tráfego de máquinas, intempéries)","{{@riscos| (rede elétrica, agentes químicos, calor, tráfego de máquinas, intempéries)| (|)}}"],["As ancoragens de extremidade estão conforme o projeto, íntegras e sem folga; os apoios intermediários estão íntegros e permitem a passagem do conector sem desconexão; e o absorvedor de energia previsto em projeto ou pelo fabricante está presente, íntegro e sem sinal de acionamento.","As ancoragens de extremidade estão {{!projeto_ausente|conforme o projeto, ||}}íntegras e sem folga{{apoios_sim|; os apoios intermediários estão íntegros e permitem a passagem do conector sem desconexão}}{{absorvedor_sim|; e o absorvedor de energia previsto em projeto ou pelo fabricante está presente, íntegro e sem sinal de acionamento}}."],["material adequado (galvanizado ou aço inox)","material adequado{{@cabo_material| (galvanizado ou aço inox)| (|)|ou}}"],["O cabo deve ser galvanizado ou de aço inox,","O cabo deve ser {{@cabo_material|galvanizado ou de aço inox|||ou}},"],["O esticador é de aço forjado ou ferro fundido nodular, com acabamento galvanizado, e o olhal é galvanizado ou de aço inox;","O esticador é de {{@esticador_tipo|aço forjado ou ferro fundido nodular|||ou}}, com acabamento galvanizado, e o olhal é {{@ferragens|galvanizado ou de aço inox|||ou}};"],["O esticador deve ser de aço forjado ou ferro fundido nodular, galvanizado, e o olhal galvanizado ou de aço inox;","O esticador deve ser de {{@esticador_tipo|aço forjado ou ferro fundido nodular|||ou}}, galvanizado, e o olhal {{@ferragens|galvanizado ou de aço inox|||ou}};"],["de material adequado (galvanizados ou de aço inox)","de material adequado{{@@ferragens| (galvanizados ou de aço inox)| (|)|ou}}"],["galvanizados ou de aço inox, sem oxidação","{{@@ferragens|galvanizados ou de aço inox|||ou}}, sem oxidação"],["; os terminais prensados (quando existirem) estão íntegros e com prensagem conforme o fabricante; e as manilhas","{{terminal_sim|; os terminais prensados estão íntegros e com prensagem conforme o fabricante}}; e as manilhas"]];
+function chkCaracContexto(l){
+  const defs = (l && l.caracDefs) || [], carac = (l && l.carac) || {};
+  const ctx = { sel: new Set(), grupoSel: new Set(), optGrupo: {}, porGrupo: {} };
+  defs.forEach(g=>{
+    (g.opcoes || []).forEach(o=>{ ctx.optGrupo[o.id] = g.id; });
+    if(g.derivada){
+      const aus = g.ausenteSe || {}, snap = l.modeloSnapshot || [];
+      const primeiro = snap.length && snap[0].itens && snap[0].itens[0];
+      const itemId = aus.item === "@primeiro" ? (primeiro && primeiro.id) : aus.item;
+      const ex = itemId ? (l.itens || []).find(i=> i && i.itemId === itemId) : null;
+      ctx.grupoSel.add(g.id); ctx.porGrupo[g.id] = [];
+      if(ex && ex.conforme === "naoAtende" && (ex.motivosSelecionados || []).some(m=> (aus.motivos || []).includes(m))){
+        (g.opcoes || []).forEach(o=>{ ctx.sel.add(o.id); ctx.porGrupo[g.id].push(o); });
+      }
+      return;
+    }
+    const ids = Array.isArray(carac[g.id]) ? carac[g.id] : [];
+    const objs = (g.opcoes || []).filter(o=> ids.includes(o.id));
+    if(objs.length){ ctx.grupoSel.add(g.id); ctx.porGrupo[g.id] = objs; objs.forEach(o=> ctx.sel.add(o.id)); }
+  });
+  return ctx;
+}
+function chkListaPt(arr, conj){
+  conj = conj || "e";
+  if(arr.length < 2) return arr.join("");
+  return arr.slice(0, -1).join(", ") + " " + conj + " " + arr[arr.length - 1];
+}
+function chkCondResolver(corpo, ctx){
+  if(corpo.charAt(0) === "@"){
+    const p = corpo.split("|"), pl = p[0].indexOf("@@") === 0, g = p[0].replace(/^@+/, "").trim();
+    const fb = p[1] || "", antes = p[2] || "", depois = p[3] || "", conj = (p[4] || "e").trim();
+    if(!ctx.grupoSel.has(g)) return fb;
+    const itens = (ctx.porGrupo[g] || []).filter(o=> o.naLista !== false).map(o=> (pl && o.listaPl) || o.lista || String(o.rotulo || "").toLowerCase());
+    return itens.length ? antes + chkListaPt(itens, conj) + depois : "";
+  }
+  const partes = corpo.split("||"), esq = partes[0], senao = partes[1] || "";
+  const i = esq.indexOf("|");
+  if(i < 0) return corpo;
+  const cond = esq.slice(0, i), entao = esq.slice(i + 1);
+  const ok = cond.split("&").every(term=> term.split(",").some(alt=>{
+    alt = alt.trim();
+    const neg = alt.charAt(0) === "!", id = neg ? alt.slice(1) : alt, ativa = ctx.sel.has(id);
+    if(neg) return !ativa;
+    const g = ctx.optGrupo[id];
+    return (g && ctx.grupoSel.has(g)) ? ativa : true;   // grupo sem marcação (ou linha sem características): o trecho entra
+  }));
+  return ok ? entao : senao;
+}
+/* Texto do modelo com os trechos condicionais resolvidos para ESTA linha. Sem {{ }} devolve o texto como está. */
+function chkCondTexto(txt, l){
+  if(typeof txt !== "string" || txt.indexOf("{{") < 0) return txt;
+  const ctx = chkCaracContexto(l);
+  return txt.replace(/\{\{([^{}]*)\}\}/g, (m, corpo)=> chkCondResolver(corpo, ctx));
+}
+function chkTextosV2TipoDe(idModelo){
+  const m = /^mg_(.+)$/.exec(String(idModelo || ""));
+  return m && CHK_CARAC_DEFS[m[1]] ? m[1] : "";
+}
+function chkTextosV2AplicarSecoes(secoes){
+  let n = 0;
+  const aplica = (t)=>{
+    if(t.indexOf("{{") >= 0) return t;
+    let r = t;
+    CHK_TEXTOS_V2_TROCAS.forEach(par=>{ if(r.indexOf(par[0]) >= 0) r = r.split(par[0]).join(par[1]); });
+    if(r !== t) n++;
+    return r;
+  };
+  (secoes || []).forEach(s=>{
+    if(typeof s.contexto === "string") s.contexto = aplica(s.contexto);
+    (s.itens || []).forEach(it=>{
+      if(typeof it.textoAtende === "string") it.textoAtende = aplica(it.textoAtende);
+      (it.motivosPadrao || []).forEach(mp=>{
+        if(!mp || typeof mp !== "object") return;
+        if(typeof mp.texto === "string") mp.texto = aplica(mp.texto);
+        if(typeof mp.acao === "string") mp.acao = aplica(mp.acao);
+      });
+    });
+  });
+  return n;
+}
+/* Atualiza os modelos mg_* e as linhas feitas com eles (só os textos e as definições; respostas, motivos e fotos ficam). Uma vez por modelo/linha. */
+function chkTextosV2Aplicar(estado){
+  const c = estado.checklists, out = { modelos: 0, linhas: 0 };
+  (c.modelos || []).forEach(m=>{
+    const tp = chkTextosV2TipoDe(m.id);
+    if(!tp || m.textosVersao >= 2) return;
+    chkTextosV2AplicarSecoes(m.secoes);
+    m.caracteristicas = clonarCompartilhandoFotos(CHK_CARAC_DEFS[tp]);
+    m.textosVersao = 2; m.atualizadoEm = agoraSync();
+    out.modelos++;
+  });
+  (c.projetos || []).forEach(p=> (p.setores || []).forEach(s=> (s.linhas || []).forEach(l=>{
+    const tp = chkTextosV2TipoDe(l.modeloId);
+    if(!tp || l.textosVersao >= 2) return;
+    chkTextosV2AplicarSecoes(l.modeloSnapshot);
+    l.caracDefs = clonarCompartilhandoFotos(CHK_CARAC_DEFS[tp]);
+    if(!l.carac || typeof l.carac !== "object" || Array.isArray(l.carac)) l.carac = {};
+    l.textosVersao = 2; l.atualizadoEm = agoraSync();
+    out.linhas++;
+  })));
+  return out;
+}
+function chkTextosV2Pendente(estado){
+  const c = estado && estado.checklists;
+  if(!c) return false;
+  if((c.modelos || []).some(m=> chkTextosV2TipoDe(m.id) && !(m.textosVersao >= 2))) return true;
+  return (c.projetos || []).some(p=> (p.setores || []).some(s=> (s.linhas || []).some(l=> chkTextosV2TipoDe(l.modeloId) && !(l.textosVersao >= 2))));
+}
+function chkCaracResumo(l){
+  const defs = ((l && l.caracDefs) || []).filter(g=> !g.derivada), carac = (l && l.carac) || {};
+  return { total: defs.length, preenchidas: defs.filter(g=> (carac[g.id] || []).length).length };
+}
+function chkCaracCardHtml(l){
+  const defs = (l.caracDefs || []).filter(g=> !g.derivada);
+  if(!defs.length) return "";
+  const carac = l.carac || {};
+  const r = chkCaracResumo(l);
+  const aberto = STATE.ui.chkCaracAberto === undefined ? r.preenchidas === 0 : !!STATE.ui.chkCaracAberto;
+  const marcadas = (g)=> (g.opcoes || []).filter(o=> (carac[g.id] || []).includes(o.id)).map(o=> o.rotulo);
+  if(!aberto){
+    const res = defs.map(marcadas).filter(a=> a.length).map(a=> a.join(" + ")).join(" · ");
+    return `<div class="chk-carac"><div class="chk-carac-t">Características da linha <small>${r.preenchidas} de ${r.total}</small><button class="chk-carac-btn" onclick="App.chkCaracToggle()">Editar</button></div>${res ? `<div class="chk-carac-res">${escapeHtml(res)}</div>` : ""}</div>`;
+  }
+  const secoes = [];
+  defs.forEach(g=>{ let s = secoes.find(x=> x.t === g.secao); if(!s){ s = { t: g.secao, g: [] }; secoes.push(s); } s.g.push(g); });
+  return `<div class="chk-carac"><div class="chk-carac-t">Características da linha <small>${r.preenchidas} de ${r.total}</small><button class="chk-carac-btn" onclick="App.chkCaracToggle()">Recolher</button></div>
+    <div class="chk-carac-dica">Marque o que vale para esta linha: o laudo só cita o que existe (concreto, solda, riscos do local...). O que ficar sem marcação sai com o texto genérico.</div>
+    ${secoes.map(s=> `<div class="chk-carac-sec"><b>${escapeHtml(s.t)}</b>${s.g.map(g=> `<div class="chk-carac-g"><span>${escapeHtml(g.rotulo)}${g.multi ? ' <small>(pode marcar mais de uma)</small>' : ''}</span><div class="chk-carac-ops">${(g.opcoes || []).map(o=> `<button type="button" class="chk-chip ${(carac[g.id] || []).includes(o.id) ? 'on' : ''}" aria-pressed="${(carac[g.id] || []).includes(o.id)}" onclick="App.chkSetCarac('${g.id}','${o.id}')">${escapeHtml(o.rotulo)}</button>`).join("")}</div></div>`).join("")}</div>`).join("")}</div>`;
+}
 /* Selo de prioridade: ícone + nome na cor da prioridade (Crítica, Alta, Média, Boa prática). */
 const LCL_PRI_ICONE = {
   critica:'<path d="M12 3.5l9.5 17h-19L12 3.5z"/><path d="M12 10v4.5M12 17.5v.01"/>',
@@ -16834,7 +16993,7 @@ function lclBlocosCorpo(d, cap, redu){
     const cabeca = (i === 0 ? lclFaixa(`${cap.num}  ${cap.rot}`, true) + lclPrioLegenda() : "")
       + `<div class="lcl-h3">${sub.num}  ${lclEsc(sub.titulo)}</div>`
       + faixaTopo
-      + (s.contexto ? `<div class="lcl-ctx"><b>Como deve estar:</b> ${lclEsc(s.contexto)}</div>` : "");
+      + (s.contexto ? `<div class="lcl-ctx"><b>Como deve estar:</b> ${lclEsc(chkCondTexto(s.contexto, l))}</div>` : "");
     // texto editado à mão substitui os dois parágrafos automáticos
     const textoConforme = editado === null && conforme ? `<div class="lcl-narr lcl-larga">${conforme}</div>` : "";
     const acoesHtml = (acoes || []).length ? `<div class="lcl-acoes"><b>Ação recomendada</b><ul>${acoes.map(a=> `<li>${lclPrioChip(a.prio)} ${lclEsc(a.txt)}</li>`).join("")}</ul></div>` : "";
@@ -19941,6 +20100,11 @@ function chkSyncMesclarLinha(a, b){
   });
   const guardadas = chkAltUnir(a[CHK_ALT_CAMPO], b[CHK_ALT_CAMPO]);
   if(guardadas.length) m[CHK_ALT_CAMPO] = guardadas;
+  if(outra.carac && typeof outra.carac === "object"){
+    if(!m.carac || typeof m.carac !== "object") m.carac = {};
+    Object.keys(outra.carac).forEach(g=>{ if(!(m.carac[g] || []).length && (outra.carac[g] || []).length) m.carac[g] = outra.carac[g].slice(); });
+  }
+  if(!m.caracDefs && outra.caracDefs) m.caracDefs = clonarCompartilhandoFotos(outra.caracDefs);
   return m;
 }
 /* ---- Versões guardadas dentro da linha de vida ----
@@ -20574,6 +20738,15 @@ async function onedriveSincronizarChecklist(forcar){
         marcarAlterado();
         r.mudouLocal = true;
         try{ toast(rm.criados || rm.linhas ? "Checklists novos: " + rm.criados + " modelo(s) criado(s), " + rm.linhas + " linha(s) migrada(s)" : rm.zeradas + " item(ns) sem motivo voltaram a ficar sem resposta, para você corrigir"); render(); }catch(_){}
+      }
+    }
+    if(CHK_TEXTOS_V2_ATIVO && r && !r.erro && !r.adiado && !r.falhas && !r.conflitos && chkTextosV2Pendente(STATE)){
+      const salvouT = await salvarPontoDeRestauracao("Antes de atualizar os textos dos checklists");
+      if(salvouT){
+        const rt = chkTextosV2Aplicar(STATE);
+        marcarAlterado();
+        r.mudouLocal = true;
+        try{ toast("Textos dos checklists atualizados (" + rt.modelos + " modelo(s), " + rt.linhas + " linha(s)). Preencha as Características da linha na primeira tela."); render(); }catch(_){}
       }
     }
     return Object.assign({ mudou: r.mudouLocal }, r);
@@ -31698,6 +31871,34 @@ Devolver agora?`)) return;
       ${acoes.map(([ico, rot, fn, perigo])=>`<button class="btn btn-secondary btn-block" style="justify-content:flex-start;margin-top:8px;${perigo ? 'color:#C23F12' : ''}" onclick="App.fecharModal();${fn}">${ic(ico)} ${rot}</button>`).join("")}
       <button class="btn btn-block" style="margin-top:8px" onclick="App.fecharModal()">Cancelar</button>
     </div></div>`);
+  },
+  chkCaracToggle(){
+    const l = getCurrentChkLinha(); if(!l) return;
+    const r = chkCaracResumo(l);
+    const aberto = STATE.ui.chkCaracAberto === undefined ? r.preenchidas === 0 : !!STATE.ui.chkCaracAberto;
+    STATE.ui.chkCaracAberto = !aberto;
+    render();
+  },
+  chkSetCarac(grupoId, opcaoId){
+    const l = getCurrentChkLinha(); if(!l) return;
+    const g = (l.caracDefs || []).find(x=> x.id === grupoId); if(!g) return;
+    const o = (g.opcoes || []).find(x=> x.id === opcaoId); if(!o) return;
+    const atual = Array.isArray((l.carac || {})[grupoId]) ? l.carac[grupoId].slice() : [];
+    let novo;
+    if(g.multi){
+      if(atual.includes(opcaoId)) novo = atual.filter(x=> x !== opcaoId);
+      else if(o.exclusiva) novo = [opcaoId];
+      else novo = atual.filter(x=> !((g.opcoes || []).find(y=> y.id === x) || {}).exclusiva).concat(opcaoId);
+    }else novo = atual.includes(opcaoId) ? [] : [opcaoId];
+    if(!l.carac || typeof l.carac !== "object" || Array.isArray(l.carac)) l.carac = {};
+    if(novo.length) l.carac[grupoId] = novo; else delete l.carac[grupoId];
+    l.atualizadoEm = agoraSync();
+    marcarAlterado();
+    render();
+  },
+  chkIrCaracteristicas(){
+    STATE.ui.chkSecaoAtual = 0; STATE.ui.chkItemAberto = null; STATE.ui.chkCaracAberto = true;
+    go("checklist-preencher");
   },
   chkAltAbrir(id){
     const l = chkAcharLinhaPorId(STATE, id); if(!l) return;
