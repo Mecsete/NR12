@@ -171,7 +171,7 @@ const FUNCOES = [
   "chkSyncHash", "chkSyncSig", "chkSyncModeloNorm", "chkSyncGarantir", "chkSyncSemCampo", "chkSyncVista", "chkSyncLocais", "chkSyncLocalDe", "chkSyncSementeIntocada",
   "chkSyncParseNomes", "chkSyncRegistrarRemocao", "chkSyncMesclarRemovidos", "chkSyncMesclarInspetores", "chkSyncLerRemoto", "chkSyncSingleton",
   "chkSyncApagarRemoto", "chkSyncEnviar", "chkSyncRotuloCopia", "chkSyncInserir", "chkSyncAplicar", "chkSyncBaixar", "chkSyncCopiarLocal", "chkSyncConflito",
-  "chkResumoCardLinha", "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "chkIncoerencias", "lclNumeroSecao", "getMecseteConfig", "chkAcoesCartao", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "lclPrioridadeNc", "chkMigPlanoEmbutido", "chkMigModelosEmbutidos", "chkMoverLinha", "chkCaracContexto", "chkListaPt", "chkCondResolver", "chkCondTexto", "chkTextosV2TipoDe", "chkTextosV2AplicarSecoes", "chkTextosV2Aplicar", "chkTextosV2Pendente", "chkCaracResumo", "chkCaracCardHtml", "novoChkLinha", "lclPrioChip", "lclPrioLegenda", "chkEuInspetorId", "chkNomeInspetor", "chkDonoDaLinhaOutro", "chkFotoPendId", "chkFotosRefsObrigatorias", "chkFotosParaPendentes", "chkFotosPendentesIds", "chkFotosPendentesTrocar", "chkSyncBaixarFotosPendentes", "chkFotosNuvemTotal", "screenChkSetores", "screenChkLinhas", "chkAcoesCartao", "chkVistosAtuais", "ehComputadorDeMesa", "chkModoVisual", "chkEhCampo", "chkPendentesTotal", "chkFaixaHtml", "chkAvisoDeProjeto", "chkProntoParaLaudo", "screenChkPronto", "chkBuscarTudo", "chkBuscaResultadosHtml", "screenChkBusca", "chkLinhaEmBranco", "chkLinhaCopiaCompleta", "chkSetorCopia", "chkDuplicarSetor", "chkDuplicarProjeto", "configAparenciaHtml", "bottomNavChk", "screenChkConfig", "topBarChk", "chkTabsRolagem", "chkLinhasPendentesEnvio", "chkDevePuxarAntesDeAbrir", "chkAltConteudo", "chkAltSig", "chkAltEntrada", "chkAltUnir", "chkAltAdicionar", "chkAltResumo", "chkAltTrocar", "chkAltExcluir", "chkNomeCopia", "chkAltCopiarVisivel", "chkEsconderCopiasLinhas", "chkAltModalHtml", "chkAltDaLinha", "chkAcharLinhaPorId", "chkCopiarLinha", "chkMigAutoPendente", "chkMigAutoAplicar", "chkMigPendenciasAplicar", "chkPendenciasLinhas", "chkMigN", "chkMigTabela", "chkMigPlano", "chkMigAcharModeloNovo", "chkMigrarLinha", "chkMigracaoSimular", "chkMigracaoAplicar", "chkSyncFotoValorId", "chkSyncFotoId", "chkSyncRespondidos", "chkSyncDivergencias", "chkSyncMesclarLinha", "chkConsolidarCopiasLinhas", "chkSyncVisto", "chkSyncMudou", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
+  "chkResumoCardLinha", "chkRolarParaProximoItem", "chkProximaSecaoPendente", "chkRodapeSecaoHtml", "chkIncoerencias", "lclNumeroSecao", "getMecseteConfig", "chkAcoesCartao", "chkBotaoMenu", "chkBuscaChipsHtml", "chkSyncInfoHtml", "chkPrimeiraSecaoPendente", "lclSemResposta", "lclAvisos", "chkResumoLinhas", "chkPassaFiltroStatus", "chkContagensFiltro", "chkNaoConformesHtml", "chkUltimaLinhaEmAndamento", "chkContinuarHtml", "lclPrioridadeNc", "chkMigPlanoEmbutido", "chkMigModelosEmbutidos", "chkMoverLinha", "lclPromptRevisao", "lclTextoSemMarcas", "lclRevisaoItens", "lclPacoteRevisao", "lclRevisaoInterpretar", "lclRevisaoAplicar", "lclRevisaoDesfazer", "lclRevisaoModalHtml", "lclRevisaoResultadoHtml", "chkCaracContexto", "chkListaPt", "chkCondResolver", "chkCondTexto", "chkTextosV2TipoDe", "chkTextosV2AplicarSecoes", "chkTextosV2Aplicar", "chkTextosV2Pendente", "chkCaracResumo", "chkCaracCardHtml", "novoChkLinha", "lclPrioChip", "lclPrioLegenda", "chkEuInspetorId", "chkNomeInspetor", "chkDonoDaLinhaOutro", "chkFotoPendId", "chkFotosRefsObrigatorias", "chkFotosParaPendentes", "chkFotosPendentesIds", "chkFotosPendentesTrocar", "chkSyncBaixarFotosPendentes", "chkFotosNuvemTotal", "screenChkSetores", "screenChkLinhas", "chkAcoesCartao", "chkVistosAtuais", "ehComputadorDeMesa", "chkModoVisual", "chkEhCampo", "chkPendentesTotal", "chkFaixaHtml", "chkAvisoDeProjeto", "chkProntoParaLaudo", "screenChkPronto", "chkBuscarTudo", "chkBuscaResultadosHtml", "screenChkBusca", "chkLinhaEmBranco", "chkLinhaCopiaCompleta", "chkSetorCopia", "chkDuplicarSetor", "chkDuplicarProjeto", "configAparenciaHtml", "bottomNavChk", "screenChkConfig", "topBarChk", "chkTabsRolagem", "chkLinhasPendentesEnvio", "chkDevePuxarAntesDeAbrir", "chkAltConteudo", "chkAltSig", "chkAltEntrada", "chkAltUnir", "chkAltAdicionar", "chkAltResumo", "chkAltTrocar", "chkAltExcluir", "chkNomeCopia", "chkAltCopiarVisivel", "chkEsconderCopiasLinhas", "chkAltModalHtml", "chkAltDaLinha", "chkAcharLinhaPorId", "chkCopiarLinha", "chkMigAutoPendente", "chkMigAutoAplicar", "chkMigPendenciasAplicar", "chkPendenciasLinhas", "chkMigN", "chkMigTabela", "chkMigPlano", "chkMigAcharModeloNovo", "chkMigrarLinha", "chkMigracaoSimular", "chkMigracaoAplicar", "chkSyncFotoValorId", "chkSyncFotoId", "chkSyncRespondidos", "chkSyncDivergencias", "chkSyncMesclarLinha", "chkConsolidarCopiasLinhas", "chkSyncVisto", "chkSyncMudou", "chkSyncRemoverLocal", "chkSyncEntidade", "chkSyncRodar", "chkModeloResetTela", "chkModeloArvoreHtml", "getChkModeloSelecao", "screenChkModeloForm",
 ];
 let fonte = "let __ultimoCarimboVisto = 0;\n";
 fonte += "let __buscaAtual = '';\n"; // usado por chkAbrirSetor (lista de linhas) -- nao testado aqui, so pra nao faltar
@@ -242,6 +242,8 @@ fonte += letObjeto("__chkModeloSecAbertas") + "\n";
 fonte += letObjeto("__chkModeloPainel") + "\n";
 fonte += letObjeto("__chkPendCache") + "\n";
 fonte += letObjeto("__chkBusca") + "\n";
+fonte += letObjeto("__lclRevisao") + "\n";
+fonte += "const LCL_PROMPT_REVISAO_PADRAO = 'PROMPT PADRAO DE ENSAIO';\n";
 const metodosApp = trecho(
   "/* ---------- Checklist — só lê/escreve STATE.checklists ---------- */",
   "\n};\nwindow.App = App;"
@@ -3270,6 +3272,53 @@ async function testarUsabilidade(){
     T(lnova.caracDefs.length === modeloC.caracteristicas.length && J(lnova.carac) === "{}" && lnova.textosVersao === 2, "linha nova copia as caracteristicas do modelo");
     T(roda("novoChkLinha({ id:'M', nome:'N', secoes:[] })").caracDefs === undefined, "modelo sem caracteristicas: linha igual a de antes");
     roda("STATE.checklists.modelos = " + modelosOrig + "; delete STATE.checklists.migracao2026; STATE.checklists.projetos = " + J(estadoAntes.lista) + "; delete STATE.ui.chkCaracAberto;");
+  }
+  // ---- revisao do laudo com o Claude: pacote, resposta, conferencia, aplicar e desfazer
+  { const secR = (id, titulo, itens)=> ({ id, titulo, contexto:"Como deve estar X.", itens });
+    const itR = (id, desc, mps)=> ({ id, descricao:desc, prioridade:"media", textoAtende:"Texto " + id + " ok.", motivosPadrao: mps || [{ motivo:"M1", texto:"Pendencia " + id + " item 5.1.1 da NR-35.", acao:"Agir " + id }] });
+    const linR = { id:"LREV", nome:"LV revisao", tipoLinha:"vertical", status:"em_andamento", secoesNA:[], laudo:{}, conclusaoTexto:"", caracDefs:[], carac:{},
+      modeloSnapshot:[ secR("sA", "Documentação", [itR("a", "A?"), itR("b", "B?")]), secR("sB", "Viga", [itR("c", "C?")]) ],
+      itens:[ { itemId:"a", conforme:"naoAtende", motivosSelecionados:["M1"], observacao:"", fotos:[{ foto:"data:image/jpeg;base64,RV1", tags:[], motivo:"M1" }] }, { itemId:"b", conforme:"atende", motivosSelecionados:[], observacao:"", fotos:[] }, { itemId:"c", conforme:"atende", motivosSelecionados:[], observacao:"", fotos:[] } ] };
+    roda("STATE.checklists.projetos = [{ id:'PRV', empresa:'Empresa R', setores:[{ id:'SRV', nome:'S', linhas:[ " + J(linR) + " ] }] }]; STATE.ui.chkProjetoId = 'PRV'; STATE.ui.chkSetorId = 'SRV'; STATE.ui.chkLinhaId = 'LREV';");
+    const L = ()=> roda("getCurrentChkLinha()");
+    const its = roda("lclRevisaoItens(getCurrentChkLinha())");
+    T(its.length === 3 && its[0].tipo === "secao" && its[0].id === "sA" && its[0].atual.includes("Pendencia a item 5.1.1") && its[2].tipo === "conclusao" && !its[0].atual.includes("**"), "itens para revisar: cada secao com texto e a conclusao, sem marcas **: " + J(its.map(x => x.id)));
+    const pac = roda("lclPacoteRevisao(getCurrentChkLinha(), getCurrentChkProjeto())");
+    T(pac.startsWith("PROMPT PADRAO DE ENSAIO") && pac.includes("Cliente: Empresa R") && pac.includes("[[SECAO id=sA]]") && pac.includes("##### SEÇÃO") && pac.includes("TEXTO ATUAL:") && pac.includes("Agir a") && pac.includes("CONCLUSÃO"), "pacote: prompt, dados da linha, cada secao com o id para devolver, acoes como contexto e a conclusao");
+    roda("STATE.ui.promptRevisao = 'MEU PROMPT'");
+    T(roda("lclPacoteRevisao(getCurrentChkLinha(), getCurrentChkProjeto())").startsWith("MEU PROMPT"), "prompt editado vale no lugar do padrao");
+    roda("delete STATE.ui.promptRevisao");
+    const antesA = its[0].atual;
+    const resposta = "```\n[[SECAO id=sA]]\nA empresa nao apresentou o item 5.1.1 da NR-35 de forma clara. (Foto 3.1.1)\n\nSegundo paragrafo.\n[[/SECAO]]\n[[SECAO id=sB]]\n" + its[1].atual + "\n[[/SECAO]]\n[[SECAO id=zzz]]\nlixo\n[[/SECAO]]\n[[CONCLUSAO]]\nConclusao revisada.\n[[/CONCLUSAO]]\n[[NOTAS]]\nConfira o projeto.\n[[/NOTAS]]\n```";
+    const rev = roda("lclRevisaoInterpretar(" + J(resposta) + ", getCurrentChkLinha())");
+    T(rev.itens.length === 3 && rev.invalidos === 1 && rev.notas === "Confira o projeto." && rev.itens[0].id === "sA" && !rev.itens[0].igual && rev.itens[1].igual === true, "resposta lida: 3 trechos validos, 1 ignorado (id que nao existe), notas separadas, 'sem mudanca' reconhecido: " + J([rev.itens.length, rev.invalidos, rev.itens.map(x => x.igual)]));
+    const respRuim = "[[SECAO id=sA]]\nTexto curto.\n[[/SECAO]]";
+    const revR = roda("lclRevisaoInterpretar(" + J(respRuim) + ", getCurrentChkLinha())");
+    T(revR.itens[0].avisos.some(a => a.includes("Itens ou números que sumiram") && a.includes("5.1.1")) && revR.itens[0].avisos.some(a => a.includes("bem mais curto")), "avisos: sumiu o item 5.1.1 e o texto ficou muito mais curto");
+    // com foto citada
+    roda("getCurrentChkLinha().itens[0].fotos[0].motivo = 'M1'");
+    const itsF = roda("lclRevisaoItens(getCurrentChkLinha())");
+    const comCit = itsF[0].atual.includes("(Foto");
+    const respSemCit = "[[SECAO id=sA]]\n" + itsF[0].atual.replace(/\(Fotos?[^)]*\)/g, "") + "\n[[/SECAO]]";
+    const revC = roda("lclRevisaoInterpretar(" + J(respSemCit) + ", getCurrentChkLinha())");
+    T(!comCit || revC.itens[0].avisos.some(a => a.includes("Perdeu a citação das fotos")), "se o Claude tira a citacao '(Foto ...)', o app avisa");
+    // aplicar
+    const aceitos = rev.itens.filter(x => !x.igual).map(x => ({ tipo: x.tipo, id: x.id, depois: x.depois }));
+    const desf = roda("lclRevisaoAplicar(getCurrentChkLinha(), " + J(aceitos) + ")");
+    T(L().laudo.textos.sA.startsWith("A empresa nao apresentou") && L().conclusaoTexto === "Conclusao revisada." && L().laudo.textos.sB === undefined, "aplicar grava so o aceito: secao A e conclusao (a B, igual, nao vira edicao)");
+    const itsDepois = roda("lclRevisaoItens(getCurrentChkLinha())");
+    T(itsDepois[0].editado === true && itsDepois[0].atual.startsWith("A empresa nao apresentou") && itsDepois[2].atual === "Conclusao revisada.", "o texto aplicado passa a ser o texto atual do laudo (mesmo campo do 'Editar texto')");
+    const htmlLaudo = roda("lclBlocosCorpo({ linha:getCurrentChkLinha() }, { num:3, rot:'Avaliação por Componente', ancora:'cap-corpo', subs:[{ id:'sA', num:'3.1', titulo:'Documentação', ancora:'a1' }] }, (x)=> x).map(b => b.html).join('')");
+    T(htmlLaudo.includes("A empresa nao apresentou") && htmlLaudo.includes("Segundo paragrafo"), "o laudo montado usa o texto do Claude");
+    roda("lclRevisaoDesfazer(getCurrentChkLinha(), " + J(desf) + ")");
+    T(L().laudo.textos.sA === undefined && L().conclusaoTexto === "", "desfazer devolve os textos automaticos");
+    // telas
+    roda("__lclRevisao = { resultado: null, desfazer: null }");
+    const modal = roda("lclRevisaoModalHtml(getCurrentChkLinha())");
+    T(modal.includes("Copiar e abrir o Claude") && modal.includes("Colar da área de transferência") && modal.includes("Conferir") && modal.includes("Prompt padrão (editar)") && !modal.includes("Desfazer a última"), "janela de revisao: passos 1 a 3 e o prompt editavel");
+    const resHtml = roda("lclRevisaoResultadoHtml(" + J(rev) + ")");
+    T(resHtml.includes("2 de 3 com mudança") && resHtml.includes("Notas do Claude") && resHtml.includes("Aplicar as marcadas") && resHtml.includes('data-rev="0"') && resHtml.includes("sem mudança"), "resultado: antes e depois, notas e botao de aplicar");
+    roda("STATE.checklists.projetos = " + J(estadoAntes.lista) + ";");
   }
 }
 async function testarSincronizacaoChecklist(){

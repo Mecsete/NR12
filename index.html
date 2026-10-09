@@ -3469,7 +3469,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "09/10/2026 11:15";
+const APP_BUILD = "09/10/2026 11:29";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -14237,7 +14237,7 @@ function topBarChk(){
   if(s==="checklist-setores") action = `<button class="topbar-action" onclick="App.chkAbrirDadosProjeto()">${ic('edit')} Dados</button>${chkEhCampo() ? "" : `<button class="topbar-action" onclick="App.lclLote('projeto')" title="Laudos das linhas deste projeto em um PDF só (você escolhe quais entram)">${ic('print')} Laudos</button>`}<button class="topbar-action" onclick="App.chkNovoSetor()">${ic('plus')} Setor</button>`;
   if(s==="checklist-linhas") action = `<button class="topbar-action" onclick="App.go('checklist-nova-linha')">${ic('plus')} Linha</button>`;
   if(s==="checklist-laudo") action = `<button class="topbar-action" onclick="window.print()">${ic('print')} Imprimir</button>`;
-  if(s==="checklist-laudo-linha") action = `<button class="topbar-action" onclick="App.lclImprimir()">${ic('print')} Imprimir</button>`;
+  if(s==="checklist-laudo-linha") action = `<button class="topbar-action" onclick="App.lclRevisarAbrir()" title="Pedir ao Claude para revisar os textos do laudo">${ic('edit')} Revisar</button><button class="topbar-action" onclick="App.lclImprimir()">${ic('print')} Imprimir</button>`;
   if(["checklist-projetos", "checklist-setores", "checklist-linhas"].includes(s)) action = btnBusca + action;
   return `
   <div class="topbar">
@@ -16532,6 +16532,174 @@ function lclTextoEditado(linha, id){
 function lclHtmlParaTexto(html){
   return String(html || "").replace(/<mark class="nc">([\s\S]*?)<\/mark>/g, "**$1**").replace(/<[^>]+>/g, "")
     .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
+}
+/* ---------- revisão do laudo com o Claude (sem API: copiar, colar, conferir, aplicar) ----------
+   O app monta o "pacote" (prompt padrão + dados da linha + o texto de cada seção e da conclusão), a pessoa cola no Claude, copia a resposta
+   e cola de volta; o app mostra antes e depois de cada seção, avisa se alguma citação de foto ou item de norma sumiu, e só grava o que for
+   aceito, no mesmo campo do "Editar texto" (linha.laudo.textos / conclusaoTexto). O PDF continua sendo montado pelo app. */
+const LCL_PROMPT_REVISAO_PADRAO = [
+  "Você é um engenheiro revisor de laudos de inspeção de linhas de vida (NR-35, NBR 16325, NBR 16489), com experiência em redação técnica.",
+  "Abaixo estão os textos de um laudo montado automaticamente a partir de um checklist. Revise a redação de cada seção e da conclusão.",
+  "",
+  "O que fazer:",
+  "- Elimine repetições e contradições (por exemplo: não dizer que o projeto não foi apresentado e, na frase seguinte, que o projeto não traz o cálculo).",
+  "- Junte ideias parecidas, dê fluidez, use parágrafos curtos e linguagem técnica formal em português do Brasil, na terceira pessoa.",
+  "- Mantenha TODAS as não conformidades e as referências normativas (itens da NR-35, NBR). Não invente fatos, medidas ou normas e não retire nenhuma não conformidade.",
+  "- Mantenha exatamente as citações de fotos, como (Foto 3.1.1) ou (Fotos 3.4.1 a 3.4.6), junto da frase a que se referem.",
+  "- Não use negrito, marcadores nem títulos dentro dos textos. Separe parágrafos com uma linha em branco.",
+  "- Se algo estiver inconsistente ou faltar informação, não resolva por conta própria: escreva em NOTAS.",
+  "",
+  "Formato da resposta: devolva tudo dentro de UM bloco de código, só com as seções que você alterou, exatamente assim:",
+  "[[SECAO id=ID_DA_SECAO]]",
+  "texto revisado da seção",
+  "[[/SECAO]]",
+  "[[CONCLUSAO]]",
+  "texto revisado da conclusão (só se alterar)",
+  "[[/CONCLUSAO]]",
+  "[[NOTAS]]",
+  "observações para o engenheiro (opcional)",
+  "[[/NOTAS]]",
+].join("\n");
+function lclPromptRevisao(){
+  const c = STATE.ui && typeof STATE.ui.promptRevisao === "string" ? STATE.ui.promptRevisao.trim() : "";
+  return c || LCL_PROMPT_REVISAO_PADRAO;
+}
+function lclTextoSemMarcas(t){ return String(t || "").replace(/\*\*/g, "").replace(/\r/g, "").trim(); }
+/* Texto de cada seção do corpo e da conclusão, como estão hoje no laudo (o editado à mão vale no lugar do automático). */
+function lclRevisaoItens(linha){
+  const itens = [];
+  (linha.modeloSnapshot || []).forEach(sec=>{
+    if((linha.secoesNA || []).includes(sec.id)) return;
+    const num = lclNumeroSecao(linha, sec.id);
+    const n = chkNarrativaSecao(sec, linha, num);
+    const ed = lclTextoEditado(linha, sec.id);
+    const atual = lclTextoSemMarcas(ed !== null ? ed : lclHtmlParaTexto(n.html));
+    if(!atual) return;
+    itens.push({ tipo:"secao", id: sec.id, num, titulo: sec.titulo || "Seção", atual, contexto: sec.contexto ? chkCondTexto(sec.contexto, linha) : "", acoes: (n.acoes || []).map(a=> a.txt), editado: ed !== null });
+  });
+  const man = String(linha.conclusaoTexto || "").trim() !== "";
+  itens.push({ tipo:"conclusao", id:"conclusao", num:"", titulo:"Conclusão", atual: lclTextoSemMarcas(man ? linha.conclusaoTexto : lclConclusaoAuto(linha)), contexto:"", acoes:[], editado: man });
+  return itens;
+}
+function lclPacoteRevisao(linha, proj){
+  const res = lclResultado(linha);
+  const carac = chkCaracResumo(linha);
+  const marcas = (linha.caracDefs || []).filter(g=> !g.derivada).map(g=> ({ g, o: (g.opcoes || []).filter(x=> ((linha.carac || {})[g.id] || []).includes(x.id)).map(x=> x.rotulo) })).filter(x=> x.o.length).map(x=> `${x.g.rotulo}: ${x.o.join(" + ")}`);
+  const ctx = chkCaracContexto(linha);
+  const partes = [lclPromptRevisao(), "", "==== DADOS DA LINHA ====",
+    `Cliente: ${(proj && proj.empresa) || ""}`,
+    `Linha de vida: ${linha.nome || ""}`,
+    `Tipo: ${chkRotuloTipoLinha(chkTipoLinha(linha)) || ""}`,
+    `Resultado do checklist: ${res.ok} atendem, ${res.nok} não atendem${res.na ? ", " + res.na + " não se aplicam" : ""}`,
+    ctx.sel.has("projeto_ausente") ? "Projeto da estrutura: NÃO apresentado" : "",
+    carac.total ? `Características informadas: ${marcas.length ? marcas.join("; ") : "nenhuma"}` : "",
+    "", "==== TEXTOS PARA REVISAR ===="];
+  lclRevisaoItens(linha).forEach(it=>{
+    if(it.tipo === "conclusao"){
+      partes.push("", "##### CONCLUSÃO (devolver dentro de [[CONCLUSAO]])", "TEXTO ATUAL:", it.atual);
+    }else{
+      partes.push("", `##### SEÇÃO ${it.num} - ${it.titulo} (devolver com [[SECAO id=${it.id}]])`);
+      if(it.contexto) partes.push("Como deve estar (referência, não é para alterar):", it.contexto);
+      partes.push("TEXTO ATUAL:", it.atual);
+      if(it.acoes.length) partes.push("Ações recomendadas (só contexto, não é para alterar):", ...it.acoes.map(a=> "- " + a));
+    }
+  });
+  return partes.filter((x, i, a)=> !(x === "" && a[i - 1] === "")).join("\n");
+}
+/* Lê a resposta do Claude. Devolve { itens:[{tipo,id,num,titulo,antes,depois,igual,avisos}], notas, invalidos }. */
+function lclRevisaoInterpretar(resposta, linha){
+  let t = String(resposta || "").replace(/\r/g, "").replace(/```[a-zA-Z]*\n?/g, "").replace(/```/g, "");
+  const atuais = lclRevisaoItens(linha), porId = {};
+  atuais.forEach(it=>{ porId[it.id] = it; });
+  const out = { itens: [], notas: "", invalidos: 0 };
+  const juntaNums = (s)=> new Set((String(s).match(/\d+(?:\.\d+)+/g) || []));
+  const citacoes = (s)=> { const r = new Set(); (String(s).match(/\(Fotos?[^)]*\)/g) || []).forEach(c=> (c.match(/\d+(?:\.\d+)+/g) || []).forEach(x=> r.add(x))); return r; };
+  const examina = (tipoIt, id, corpo)=>{
+    const it = porId[id];
+    if(!it){ out.invalidos++; return; }
+    const depois = lclTextoSemMarcas(corpo);
+    if(!depois){ out.invalidos++; return; }
+    const norm = (x)=> String(x).replace(/\s+/g, " ").trim();
+    const avisos = [];
+    const fotoAntes = citacoes(it.atual), fotoDepois = citacoes(depois);
+    const fotoPerdida = Array.from(fotoAntes).filter(x=> !fotoDepois.has(x));
+    if(fotoPerdida.length) avisos.push("Perdeu a citação das fotos: " + fotoPerdida.join(", "));
+    const numAntes = juntaNums(it.atual), numDepois = juntaNums(depois);
+    const numPerdido = Array.from(numAntes).filter(x=> !numDepois.has(x) && !fotoAntes.has(x));
+    if(numPerdido.length) avisos.push("Itens ou números que sumiram: " + numPerdido.slice(0, 12).join(", "));
+    if(depois.length < it.atual.length * 0.6) avisos.push("O texto ficou bem mais curto: confira se nenhuma não conformidade foi retirada.");
+    out.itens.push({ tipo: tipoIt, id, num: it.num, titulo: it.titulo, antes: it.atual, depois, igual: norm(depois) === norm(it.atual), avisos });
+  };
+  let m;
+  const reS = /\[\[SECAO\s+id=([^\]\s]+)\s*\]\]([\s\S]*?)\[\[\/SECAO\]\]/g;
+  while((m = reS.exec(t))) examina("secao", m[1].trim(), m[2]);
+  const reC = /\[\[CONCLUSAO\]\]([\s\S]*?)\[\[\/CONCLUSAO\]\]/;
+  if((m = reC.exec(t))) examina("conclusao", "conclusao", m[1]);
+  const reN = /\[\[NOTAS\]\]([\s\S]*?)\[\[\/NOTAS\]\]/;
+  if((m = reN.exec(t))) out.notas = m[1].trim();
+  return out;
+}
+/* Grava os textos aceitos (lista de {tipo,id,depois}) e devolve o que havia antes, para desfazer. */
+function lclRevisaoAplicar(linha, aceitos){
+  const antes = { textos: {}, conclusao: undefined };
+  if(!linha.laudo) linha.laudo = {};
+  if(!linha.laudo.textos || typeof linha.laudo.textos !== "object") linha.laudo.textos = {};
+  aceitos.forEach(a=>{
+    if(a.tipo === "secao"){
+      antes.textos[a.id] = typeof linha.laudo.textos[a.id] === "string" ? linha.laudo.textos[a.id] : null;
+      linha.laudo.textos[a.id] = a.depois;
+    }else if(a.tipo === "conclusao"){
+      antes.conclusao = String(linha.conclusaoTexto || "");
+      linha.conclusaoTexto = a.depois;
+    }
+  });
+  linha.atualizadoEm = agoraSync();
+  return antes;
+}
+function lclRevisaoDesfazer(linha, antes){
+  if(!linha.laudo) linha.laudo = {};
+  if(!linha.laudo.textos) linha.laudo.textos = {};
+  Object.keys(antes.textos || {}).forEach(id=>{ if(antes.textos[id] === null) delete linha.laudo.textos[id]; else linha.laudo.textos[id] = antes.textos[id]; });
+  if(antes.conclusao !== undefined) linha.conclusaoTexto = antes.conclusao;
+  linha.atualizadoEm = agoraSync();
+}
+let __lclRevisao = { resultado: null, desfazer: null };
+function lclRevisaoModalHtml(l){
+  const itens = lclRevisaoItens(l);
+  const pacote = lclPacoteRevisao(l, getCurrentChkProjeto());
+  const podeCompartilhar = typeof navigator !== "undefined" && typeof navigator.share === "function";
+  const passo = (n, t)=> `<div style="font-weight:800;font-size:13.5px;margin:12px 0 4px"><span style="display:inline-flex;width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;align-items:center;justify-content:center;font-size:12px;margin-right:8px;vertical-align:middle">${n}</span>${t}</div>`;
+  return `<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card" style="max-width:760px;width:calc(100vw - 32px);max-height:92vh;overflow:auto">
+    <h3>${ic('edit')} Revisar o laudo com o Claude</h3>
+    <p class="sheet-sub" style="margin:4px 0 0">O Claude só melhora os textos. O PDF continua sendo montado pelo app, depois que você aceitar o que quiser.</p>
+    ${passo(1, "Copiar o pacote e abrir o Claude")}
+    <div class="lcl-dica" style="margin:0 0 6px">${itens.length - 1} ${itens.length - 1 === 1 ? "seção" : "seções"} e a conclusão, com o prompt padrão (${Math.round(pacote.length / 1000)} mil caracteres).</div>
+    <div class="modal-actions" style="justify-content:flex-start;gap:8px;flex-wrap:wrap"><button class="btn btn-primary" onclick="App.lclRevisarCopiar(true)">Copiar e abrir o Claude</button><button class="btn btn-secondary" onclick="App.lclRevisarCopiar(false)">Só copiar</button>${podeCompartilhar ? `<button class="btn btn-secondary" onclick="App.lclRevisarCompartilhar()">Compartilhar</button>` : ""}</div>
+    ${passo(2, "No Claude: colar, enviar e copiar a resposta")}
+    <div class="lcl-dica" style="margin:0 0 6px">Cole no Claude e envie. Quando ele responder, toque em copiar no bloco de código da resposta.</div>
+    ${passo(3, "Colar a resposta aqui e conferir")}
+    <div class="field"><textarea id="lclRevColar" rows="5" style="font-size:13px" placeholder="Cole aqui a resposta do Claude"></textarea></div>
+    <div class="modal-actions" style="justify-content:flex-start;gap:8px;flex-wrap:wrap"><button class="btn btn-secondary" onclick="App.lclRevisarColar()">Colar da área de transferência</button><button class="btn btn-primary" onclick="App.lclRevisarConferir()">Conferir</button></div>
+    <div id="lclRevRes"></div>
+    <details style="margin-top:12px"><summary style="cursor:pointer;font-weight:700;font-size:13px">Prompt padrão (editar)</summary>
+      <div class="field" style="margin-top:6px"><textarea id="lclRevPrompt" rows="10" style="font-size:12.5px">${escapeHtml(lclPromptRevisao())}</textarea></div>
+      <div class="modal-actions" style="justify-content:flex-start;gap:8px"><button class="btn btn-secondary" onclick="App.lclRevisarSalvarPrompt()">Salvar prompt</button><button class="btn btn-secondary" onclick="App.lclRevisarPromptPadrao()">Voltar ao padrão</button></div>
+    </details>
+    <div class="modal-actions">${__lclRevisao.desfazer ? `<button class="btn btn-secondary" onclick="App.lclRevisarDesfazer()">Desfazer a última revisão aplicada</button>` : ""}<button class="btn btn-secondary" onclick="App.fecharModal()">Fechar</button></div>
+  </div></div>`;
+}
+function lclRevisaoResultadoHtml(r){
+  if(!r.itens.length) return `<div class="lcl-dica" style="color:#8a5a00;margin-top:10px">Não encontrei nenhuma seção na resposta. Confira se você colou o bloco inteiro, com as marcas [[SECAO id=...]].${r.invalidos ? " (" + r.invalidos + " trecho(s) ignorado(s) por não corresponderem ao laudo)" : ""}</div>`;
+  const mudaram = r.itens.filter(x=> !x.igual);
+  const cartao = (x, k)=> `<div class="card card-pad" style="margin-top:10px">
+      <label style="display:flex;gap:8px;align-items:center;font-weight:800;font-size:13.5px"><input type="checkbox" data-rev="${k}" ${x.igual ? "disabled" : "checked"}> ${escapeHtml(x.tipo === "conclusao" ? "Conclusão" : x.num + " " + x.titulo)} ${x.igual ? '<span class="stat-pill">sem mudança</span>' : ""}</label>
+      ${x.avisos.map(a=> `<div style="font-size:12px;color:#8a2b0e;margin-top:4px">${ic('warn')} ${escapeHtml(a)}</div>`).join("")}
+      ${x.igual ? "" : `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:8px;margin-top:6px"><div><div class="lcl-dica" style="margin:0 0 2px">Antes</div><div style="font-size:12.5px;line-height:1.5;white-space:pre-wrap;max-height:240px;overflow:auto;background:var(--surface-1,#f4f5f9);padding:6px 8px;border-radius:8px">${escapeHtml(x.antes)}</div></div><div><div class="lcl-dica" style="margin:0 0 2px">Depois (Claude)</div><div style="font-size:12.5px;line-height:1.5;white-space:pre-wrap;max-height:240px;overflow:auto;background:#eef7f0;padding:6px 8px;border-radius:8px">${escapeHtml(x.depois)}</div></div></div>`}
+    </div>`;
+  return `<div style="margin-top:10px;font-weight:800;font-size:13.5px">${mudaram.length} de ${r.itens.length} com mudança${r.invalidos ? " · " + r.invalidos + " trecho(s) ignorado(s)" : ""}</div>
+    ${r.notas ? `<div class="card card-pad" style="margin-top:8px;border-left:4px solid #E94E1B;border-radius:0 12px 12px 0"><b>Notas do Claude</b><div style="font-size:12.5px;line-height:1.5;white-space:pre-wrap;margin-top:4px">${escapeHtml(r.notas)}</div></div>` : ""}
+    ${r.itens.map(cartao).join("")}
+    ${mudaram.length ? `<div class="modal-actions" style="margin-top:10px"><button class="btn btn-primary" onclick="App.lclRevisarAplicar()">Aplicar as marcadas</button></div>` : ""}`;
 }
 /* Texto editado → HTML do laudo: parágrafos separados por linha em branco, **trecho** destacado, tudo escapado. */
 function lclTextoParaHtml(texto){
@@ -32704,6 +32872,74 @@ Devolver agora?`)) return;
   lclRestaurarTextoEditado(){
     if(!confirm("Voltar ao texto automático? O texto que você editou será descartado.")) return;
     App.lclGravarTextoEditado(null);
+  },
+  /* ---------- revisar o laudo com o Claude ---------- */
+  lclRevisarAbrir(){
+    const l = getCurrentChkLinha(); if(!l) return;
+    __lclRevisao.resultado = null;
+    abrirOverlay(lclRevisaoModalHtml(l));
+  },
+  async lclRevisarCopiar(abrirClaude){
+    const l = getCurrentChkLinha(); if(!l) return;
+    const pacote = lclPacoteRevisao(l, getCurrentChkProjeto());
+    if(abrirClaude){ try{ window.open("https://claude.ai/new", "_blank"); }catch(e){} }
+    let ok = false;
+    try{ await navigator.clipboard.writeText(pacote); ok = true; }catch(e){}
+    if(!ok){
+      const ta = document.createElement("textarea"); ta.value = pacote; ta.style.position = "fixed"; ta.style.opacity = "0"; document.body.appendChild(ta); ta.select();
+      try{ ok = document.execCommand("copy"); }catch(e){}
+      ta.remove();
+    }
+    toast(ok ? "Pacote copiado. No Claude, cole e envie." : "Não consegui copiar automaticamente", ok);
+  },
+  async lclRevisarCompartilhar(){
+    const l = getCurrentChkLinha(); if(!l) return;
+    try{ await navigator.share({ title: "Laudo para revisão", text: lclPacoteRevisao(l, getCurrentChkProjeto()) }); }catch(e){}
+  },
+  async lclRevisarColar(){
+    try{
+      const t = await navigator.clipboard.readText();
+      const ta = document.getElementById("lclRevColar");
+      if(ta) ta.value = t || "";
+      if(t) App.lclRevisarConferir();
+    }catch(e){ toast("O navegador não deixou ler a área de transferência: cole no campo (Ctrl+V)", false); }
+  },
+  lclRevisarConferir(){
+    const l = getCurrentChkLinha(); const ta = document.getElementById("lclRevColar"); if(!l || !ta) return;
+    __lclRevisao.resultado = lclRevisaoInterpretar(ta.value, l);
+    const el = document.getElementById("lclRevRes");
+    if(el) el.innerHTML = lclRevisaoResultadoHtml(__lclRevisao.resultado);
+  },
+  lclRevisarAplicar(){
+    const l = getCurrentChkLinha(), r = __lclRevisao.resultado; if(!l || !r) return;
+    const marcadas = [].slice.call(document.querySelectorAll("#overlayRoot input[data-rev]:checked")).map(c=> r.itens[+c.getAttribute("data-rev")]).filter(x=> x && !x.igual);
+    if(!marcadas.length){ toast("Marque ao menos um texto", false); return; }
+    __lclRevisao.desfazer = lclRevisaoAplicar(l, marcadas);
+    marcarAlterado();
+    __lclPaginas = []; __lclHtml = ""; __lclParaLinha = null;
+    App.fecharModal();
+    toast(marcadas.length + (marcadas.length === 1 ? " texto aplicado" : " textos aplicados") + ". Confira no laudo e gere o PDF.");
+    render();
+  },
+  lclRevisarDesfazer(){
+    const l = getCurrentChkLinha(); if(!l || !__lclRevisao.desfazer) return;
+    lclRevisaoDesfazer(l, __lclRevisao.desfazer);
+    __lclRevisao.desfazer = null;
+    marcarAlterado();
+    __lclPaginas = []; __lclHtml = ""; __lclParaLinha = null;
+    App.fecharModal();
+    toast("Revisão desfeita");
+    render();
+  },
+  lclRevisarSalvarPrompt(){
+    const ta = document.getElementById("lclRevPrompt"); if(!ta) return;
+    STATE.ui.promptRevisao = String(ta.value || "");
+    marcarAlterado(); toast("Prompt salvo");
+  },
+  lclRevisarPromptPadrao(){
+    delete STATE.ui.promptRevisao;
+    const ta = document.getElementById("lclRevPrompt"); if(ta) ta.value = LCL_PROMPT_REVISAO_PADRAO;
+    marcarAlterado(); toast("Voltou ao prompt padrão");
   },
   /* ---------- fotos da seção, na leitura do laudo ---------- */
   // Mover a foto para outro motivo muda a citação "(Foto N)" do texto automático; excluir tira a foto do checklist e do laudo.
