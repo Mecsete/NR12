@@ -64,6 +64,20 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 09/10/2026 12:32
+
+**Linhas de vida: textos do laudo personalizados pelas características da linha, revisão dos textos com o Claude e edição à mão, com ou sem IA.**
+
+- Primeira tela da linha: "Características da linha", só com o que muda o texto do laudo: material da estrutura (Concreto ou Aço), tipo de fixação da ancoragem, apoios intermediários, emendas da viga, absorvedor de energia e terminais prensados (conforme o tipo de linha). Tudo é opcional; sem marcação o texto sai genérico, como antes.
+- Os textos do laudo deixam de falar do que a linha não tem (concreto, chumbadores, apoios, emendas, absorvedor, terminais). Projeto apresentado ou não é automático, pela resposta da pergunta 1.1: sem projeto, o laudo não diz "conforme o projeto".
+- Os modelos e as linhas já existentes recebem os textos novos sozinhos, na próxima sincronização, com ponto de restauração antes. Respostas, motivos, fotos e seções "não se aplica" não mudam.
+- Revisar com o Claude (sem API, copiando e colando): uma ou várias linhas e setores de uma vez; o prompt é editado em Configurações e vale em todos os aparelhos; a resposta traz de onde veio cada parágrafo; fica guardada como pendência para validar (antes e depois), com histórico e opção de voltar ao texto de antes. O PDF continua sendo montado só pelo app.
+- Editar os textos do laudo com ou sem IA: "Editar texto" em cada página do laudo (à mão) e, na conferência da revisão, o texto do Claude pode ser editado antes de aplicar (os avisos são refeitos e o histórico registra "editado por você").
+- Laudo: ícones de prioridade em cada ação recomendada, coluna da pergunta mais larga no checklist, não conformidades sem negrito, "Ação recomendada" nos componentes e memorial da viga rígida sem flecha.
+- Fotos como no módulo Completo: a linha chega primeiro com o texto e as fotos baixam depois (no celular, só no Wi-Fi ou pelo botão "Baixar fotos"). Dono da linha por aparelho. Modo campo/escritório sempre automático.
+
+---
+
 ## 09/10/2026 07:02
 
 **Módulo "Linhas de vida": novo nome, navegação, modo campo/escritório, faixa offline, conferência antes do laudo, busca e duplicação.**

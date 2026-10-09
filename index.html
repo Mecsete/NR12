@@ -3471,7 +3471,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "09/10/2026 12:19";
+const APP_BUILD = "09/10/2026 12:32";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -16698,6 +16698,43 @@ function lclPacotesRevisao(linhas, proj, max){
 }
 /* Lê a resposta do Claude para uma ou mais linhas (array de linhas, ou uma linha só).
    Devolve { porLinha: { idDaLinha: { itens:[{tipo,id,num,titulo,antes,depois,igual,avisos}], notas } }, notasGerais, invalidos }. */
+/* Avisos de um texto novo em relação ao de antes: citação de foto que sumiu, número de item que sumiu, texto bem mais curto. */
+function lclRevisaoAvisosDoTexto(antes, depois){
+  const juntaNums = (s)=> new Set((String(s).match(/\d+(?:\.\d+)+/g) || []));
+  const citacoes = (s)=> { const r = new Set(); (String(s).match(/\(Fotos?[^)]*\)/g) || []).forEach(c=> (c.match(/\d+(?:\.\d+)+/g) || []).forEach(x=> r.add(x))); return r; };
+  const avisos = [];
+  const fotoAntes = citacoes(antes), fotoDepois = citacoes(depois);
+  const fotoPerdida = Array.from(fotoAntes).filter(x=> !fotoDepois.has(x));
+  if(fotoPerdida.length) avisos.push("Perdeu a citação das fotos: " + fotoPerdida.join(", "));
+  const numDepois = juntaNums(depois);
+  const numPerdido = Array.from(juntaNums(antes)).filter(x=> !numDepois.has(x) && !fotoAntes.has(x));
+  if(numPerdido.length) avisos.push("Itens ou números que sumiram: " + numPerdido.slice(0, 12).join(", "));
+  if(String(depois).length < String(antes).length * 0.6) avisos.push("O texto ficou bem mais curto: confira se nenhuma não conformidade foi retirada.");
+  return avisos;
+}
+/* Edição à mão do texto do Claude antes de aplicar: o que a pessoa escrever é o que vai para o laudo. Os avisos são refeitos. */
+function lclRevisaoEditarDepois(item, valor){
+  if(!item) return null;
+  const norm = (x)=> String(x).replace(/\s+/g, " ").trim();
+  item.depois = String(valor == null ? "" : valor);
+  item.editadoPorVoce = true;
+  item.avisos = lclRevisaoAvisosDoTexto(item.antes, item.depois);
+  item.igual = norm(item.depois) === norm(item.antes);
+  return item;
+}
+/* A edição de um texto que já está guardado como pendência também fica guardada (vale em todos os aparelhos). */
+function lclRevisaoPersistirEdicao(linha, itemId, valor){
+  const p = linha && linha.revisaoPendente; if(!p) return false;
+  const x = (p.itens || []).find(y=> y.id === itemId); if(!x) return false;
+  x.depois = String(valor == null ? "" : valor);
+  x.editadoPorVoce = true;
+  x.avisos = lclRevisaoAvisosDoTexto(x.antes, x.depois);
+  linha.atualizadoEm = agoraSync();
+  return true;
+}
+function lclRevisaoAvisosHtml(avisos){
+  return (avisos || []).map(a=> `<div style="font-size:12px;color:#8a2b0e;margin-top:4px">${ic('warn')} ${escapeHtml(a)}</div>`).join("");
+}
 function lclRevisaoInterpretar(resposta, linhas){
   const arr = Array.isArray(linhas) ? linhas : [linhas];
   const t = String(resposta || "").replace(/\r/g, "").replace(/```[a-zA-Z]*\n?/g, "").replace(/```/g, "");
@@ -16707,21 +16744,12 @@ function lclRevisaoInterpretar(resposta, linhas){
   const attrs = (s)=> { const a = {}; String(s || "").replace(/(\w+)=([^\s\]]+)/g, (m, k, v)=> { a[k] = v; return m; }); return a; };
   const alvoDe = (a)=> a.linha ? a.linha : (arr.length === 1 ? arr[0].id : null);
   const noLinha = (id)=> out.porLinha[id] || (out.porLinha[id] = { itens: [], notas: "" });
-  const juntaNums = (s)=> new Set((String(s).match(/\d+(?:\.\d+)+/g) || []));
-  const citacoes = (s)=> { const r = new Set(); (String(s).match(/\(Fotos?[^)]*\)/g) || []).forEach(c=> (c.match(/\d+(?:\.\d+)+/g) || []).forEach(x=> r.add(x))); return r; };
   const examina = (tipoIt, linhaId, id, corpo)=>{
     const d = linhaId && dados[linhaId], it = d && d.porId[id];
     const depois = lclTextoSemMarcas(corpo);
     if(!it || !depois){ out.invalidos++; return; }
     const norm = (x)=> String(x).replace(/\s+/g, " ").trim();
-    const avisos = [];
-    const fotoAntes = citacoes(it.atual), fotoDepois = citacoes(depois);
-    const fotoPerdida = Array.from(fotoAntes).filter(x=> !fotoDepois.has(x));
-    if(fotoPerdida.length) avisos.push("Perdeu a citação das fotos: " + fotoPerdida.join(", "));
-    const numDepois = juntaNums(depois);
-    const numPerdido = Array.from(juntaNums(it.atual)).filter(x=> !numDepois.has(x) && !fotoAntes.has(x));
-    if(numPerdido.length) avisos.push("Itens ou números que sumiram: " + numPerdido.slice(0, 12).join(", "));
-    if(depois.length < it.atual.length * 0.6) avisos.push("O texto ficou bem mais curto: confira se nenhuma não conformidade foi retirada.");
+    const avisos = lclRevisaoAvisosDoTexto(it.atual, depois);
     noLinha(linhaId).itens.push({ tipo: tipoIt, id, num: it.num, titulo: it.titulo, antes: it.atual, depois, igual: norm(depois) === norm(it.atual), avisos });
   };
   let m;
@@ -16753,7 +16781,7 @@ function lclRevisaoRegistrar(linha, tipo, mudancas){
   return r.id;
 }
 function lclRevisaoGuardarPendente(linha, itens, notas){
-  const novos = itens.filter(x=> !x.igual).map(x=> ({ tipo: x.tipo, id: x.id, num: x.num, titulo: x.titulo, antes: x.antes, depois: x.depois, avisos: x.avisos || [], fontes: x.fontes || "" }));
+  const novos = itens.filter(x=> !x.igual).map(x=> ({ tipo: x.tipo, id: x.id, num: x.num, titulo: x.titulo, antes: x.antes, depois: x.depois, avisos: x.avisos || [], fontes: x.fontes || "", editadoPorVoce: !!x.editadoPorVoce }));
   const ant = linha.revisaoPendente;
   const mantidos = ant ? ant.itens.filter(x=> !novos.some(n=> n.id === x.id)) : [];
   const trocados = ant ? ant.itens.filter(x=> novos.some(n=> n.id === x.id)) : [];
@@ -16777,10 +16805,10 @@ function lclRevisaoAplicarItens(linha, aceitos){
   aceitos.forEach(a=>{
     if(a.tipo === "secao"){
       const antesRaw = typeof linha.laudo.textos[a.id] === "string" ? linha.laudo.textos[a.id] : null;
-      mud.push({ tipo:"secao", id: a.id, titulo: a.titulo || "", antesRaw, depoisRaw: a.depois });
+      mud.push({ tipo:"secao", id: a.id, titulo: a.titulo || "", antesRaw, depoisRaw: a.depois, editado: !!a.editado });
       linha.laudo.textos[a.id] = a.depois;
     }else if(a.tipo === "conclusao"){
-      mud.push({ tipo:"conclusao", id:"conclusao", titulo:"Conclusão", antesRaw: String(linha.conclusaoTexto || ""), depoisRaw: a.depois });
+      mud.push({ tipo:"conclusao", id:"conclusao", titulo:"Conclusão", antesRaw: String(linha.conclusaoTexto || ""), depoisRaw: a.depois, editado: !!a.editado });
       linha.conclusaoTexto = a.depois;
     }
   });
@@ -16834,7 +16862,7 @@ function lclRevisaoHistoricoHtml(l){
   if(!lista.length) return "";
   return `<details style="margin-top:12px"><summary style="cursor:pointer;font-weight:700;font-size:13px">Histórico de revisões (${lista.length}) — nada se perde: cada texto de antes fica guardado</summary>
     ${lista.map(r=> `<div class="card card-pad" style="margin-top:8px"><div style="font-weight:800;font-size:13px">${LCL_REV_TIPO_ROTULO[r.tipo] || r.tipo} · ${dt(r.em)} ${r.desfeita ? '<span class="stat-pill">desfeita</span>' : ""}</div>
-      <div style="font-size:12px;color:var(--ink-dim);margin:2px 0 4px">${r.itens.map(i=> escapeHtml(i.titulo || i.id)).join(", ")}</div>
+      <div style="font-size:12px;color:var(--ink-dim);margin:2px 0 4px">${r.itens.map(i=> escapeHtml(i.titulo || i.id) + (i.editado ? " (editado por você)" : "")).join(", ")}</div>
       ${r.tipo === "aplicada" && !r.desfeita ? `<button class="btn btn-secondary" onclick="App.lclRevisarDesfazer('${r.id}')">Voltar ao texto de antes</button>` : ""}</div>`).join("")}</details>`;
 }
 function lclRevisaoModalHtml(l){
@@ -16845,7 +16873,7 @@ function lclRevisaoModalHtml(l){
   const pend = l.revisaoPendente && (l.revisaoPendente.itens || []).length ? `<div class="card card-pad" style="margin-top:10px;border-left:4px solid #E94E1B;border-radius:0 12px 12px 0"><b>Há uma revisão do Claude aguardando validação (${l.revisaoPendente.itens.length} ${l.revisaoPendente.itens.length === 1 ? "texto" : "textos"}).</b><div class="modal-actions" style="justify-content:flex-start;margin-top:6px"><button class="btn btn-primary" onclick="App.chkRevValidarLinha('${l.id}')">Validar agora</button></div></div>` : "";
   return `<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card" style="max-width:760px;width:calc(100vw - 32px);max-height:92vh;overflow:auto">
     <h3>${ic('edit')} Revisar o laudo com o Claude</h3>
-    <p class="sheet-sub" style="margin:4px 0 0">O Claude só melhora os textos. As respostas do checklist não são tocadas, o PDF é montado pelo app e cada texto de antes fica guardado no histórico. Para revisar várias linhas de uma vez, use "Revisar textos com o Claude" na tela de setores.</p>
+    <p class="sheet-sub" style="margin:4px 0 0">O Claude só melhora os textos. As respostas do checklist não são tocadas, o PDF é montado pelo app e cada texto de antes fica guardado no histórico. Para revisar várias linhas de uma vez, use "Revisar textos com o Claude" na tela de setores. Sem IA, é só tocar em "Editar texto" no canto de cada página do laudo; o texto aplicado aqui também pode ser editado por lá, e você pode ajustar o texto do Claude na conferência antes de aplicar.</p>
     ${pend}
     ${passo(1, "Copiar o pacote e abrir o Claude")}
     <div class="lcl-dica" style="margin:0 0 6px">${itens.length - 1} ${itens.length - 1 === 1 ? "seção" : "seções"} e a conclusão, com o prompt (${Math.round(pacote.length / 1000)} mil caracteres). O prompt é editado em Configurações > Revisão com o Claude.</div>
@@ -16868,10 +16896,10 @@ function lclRevisaoResultadoHtml(r, opc){
   const mudaram = itens.filter(x=> !x.igual);
   const cartao = (x, k)=> `<div class="card card-pad" style="margin-top:10px">
       <label style="display:flex;gap:8px;align-items:center;font-weight:800;font-size:13.5px"><input type="checkbox" data-rev="${k}" ${x.igual ? "disabled" : "checked"}> ${escapeHtml(x.tipo === "conclusao" ? "Conclusão" : x.num + " " + x.titulo)} ${x.igual ? '<span class="stat-pill">sem mudança</span>' : ""}</label>
-      ${(x.avisos || []).map(a=> `<div style="font-size:12px;color:#8a2b0e;margin-top:4px">${ic('warn')} ${escapeHtml(a)}</div>`).join("")}
+      <div id="lclRevAv${k}">${lclRevisaoAvisosHtml(x.avisos)}</div>
       ${x.mudouDesde ? `<div style="font-size:12px;color:#8a2b0e;margin-top:4px">${ic('warn')} O texto atual da seção mudou depois que o Claude respondeu; o "Antes" abaixo é o de agora.</div>` : ""}
       ${x.igual || !x.fontes ? "" : `<details style="margin-top:6px"><summary style="cursor:pointer;font-size:12.5px;font-weight:700">De onde o Claude tirou cada parágrafo</summary><div style="font-size:12.5px;line-height:1.5;white-space:pre-wrap;background:#fff8e6;padding:6px 8px;border-radius:8px;margin-top:4px">${escapeHtml(x.fontes)}</div></details>`}
-      ${x.igual ? "" : `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:8px;margin-top:6px"><div><div class="lcl-dica" style="margin:0 0 2px">Antes</div><div style="font-size:12.5px;line-height:1.5;white-space:pre-wrap;max-height:240px;overflow:auto;background:var(--surface-1,#f4f5f9);padding:6px 8px;border-radius:8px">${escapeHtml(x.antes)}</div></div><div><div class="lcl-dica" style="margin:0 0 2px">Depois (Claude)</div><div style="font-size:12.5px;line-height:1.5;white-space:pre-wrap;max-height:240px;overflow:auto;background:#eef7f0;padding:6px 8px;border-radius:8px">${escapeHtml(x.depois)}</div></div></div>`}
+      ${x.igual ? "" : `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:8px;margin-top:6px"><div><div class="lcl-dica" style="margin:0 0 2px">Antes</div><div style="font-size:12.5px;line-height:1.5;white-space:pre-wrap;max-height:240px;overflow:auto;background:var(--surface-1,#f4f5f9);padding:6px 8px;border-radius:8px">${escapeHtml(x.antes)}</div></div><div><div class="lcl-dica" style="margin:0 0 2px">Depois (Claude) · você pode editar aqui${x.editadoPorVoce ? " · <b>editado por você</b>" : ""}</div><textarea id="lclRevDep${k}" data-rev-dep="${k}" rows="9" style="width:100%;box-sizing:border-box;font-size:12.5px;line-height:1.5;background:#eef7f0;padding:6px 8px;border-radius:8px;border:1px solid var(--line);color:inherit;font-family:inherit" oninput="App.lclRevisarEditou(${k}, this.value, false)" onchange="App.lclRevisarEditou(${k}, this.value, true)">${escapeHtml(x.depois)}</textarea></div></div>`}
     </div>`;
   const botoes = !mudaram.length ? "" : (opc.botoes === "validar"
     ? `<div class="modal-actions" style="margin-top:10px"><button class="btn btn-secondary" onclick="App.lclRevisarDescartar()">Descartar a revisão</button><button class="btn btn-primary" onclick="App.lclRevisarAplicar()">Aplicar as marcadas</button></div>`
@@ -17224,7 +17252,7 @@ function lclBlocosChecklist(d, cap, capCorpo){
      {{@@grupo|...}} = o mesmo, na forma plural
    Grupo sem nenhuma marcação = "não informado": o texto sai genérico, como era antes. A opção especial "projeto_ausente" é
    calculada da resposta da primeira pergunta (projeto não apresentado). */
-const CHK_TEXTOS_V2_ATIVO = false;
+const CHK_TEXTOS_V2_ATIVO = true;
 const CHK_CARAC_DEFS = {"horizontal_rigida":[{"id":"ancor_material","rotulo":"Material da estrutura de apoio","secao":"Ancoragem Estrutural","multi":true,"opcoes":[{"id":"concreto","rotulo":"Concreto"},{"id":"aco","rotulo":"Aço"}],"ajuda":""},{"id":"ancor_fixacao","rotulo":"Tipo de fixação da ancoragem","secao":"Ancoragem Estrutural","multi":true,"opcoes":[{"id":"chumbador_q","rotulo":"Chumbador químico","lista":"chumbador químico","listaPl":"chumbadores químicos"},{"id":"chumbador_m","rotulo":"Chumbador mecânico","lista":"chumbador mecânico","listaPl":"chumbadores mecânicos"},{"id":"parafuso","rotulo":"Parafuso","lista":"parafuso","listaPl":"parafusos"},{"id":"solda","rotulo":"Solda","naLista":false}],"ajuda":""},{"id":"apoios","rotulo":"Apoios intermediários","secao":"Viga / Trilho","multi":false,"opcoes":[{"id":"apoios_sim","rotulo":"Com apoios intermediários"},{"id":"apoios_nao","rotulo":"Sem apoios (vão único)"}],"ajuda":""},{"id":"emendas","rotulo":"Emendas na viga","secao":"Viga / Trilho","multi":false,"opcoes":[{"id":"emendas_sim","rotulo":"Com emendas"},{"id":"emendas_nao","rotulo":"Peça única"}],"ajuda":""},{"id":"projeto","rotulo":"Projeto","secao":"Geral","derivada":true,"multi":false,"opcoes":[{"id":"projeto_ausente","rotulo":"Projeto não apresentado"}],"ausenteSe":{"item":"@primeiro","motivos":["Projeto da estrutura não apresentado"]}}],"horizontal_flexivel":[{"id":"ancor_material","rotulo":"Material da estrutura de apoio","secao":"Ancoragem Estrutural","multi":true,"opcoes":[{"id":"concreto","rotulo":"Concreto"},{"id":"aco","rotulo":"Aço"}],"ajuda":""},{"id":"ancor_fixacao","rotulo":"Tipo de fixação da ancoragem","secao":"Ancoragem Estrutural","multi":true,"opcoes":[{"id":"chumbador_q","rotulo":"Chumbador químico","lista":"chumbador químico","listaPl":"chumbadores químicos"},{"id":"chumbador_m","rotulo":"Chumbador mecânico","lista":"chumbador mecânico","listaPl":"chumbadores mecânicos"},{"id":"parafuso","rotulo":"Parafuso","lista":"parafuso","listaPl":"parafusos"},{"id":"solda","rotulo":"Solda","naLista":false}],"ajuda":""},{"id":"apoios","rotulo":"Apoios intermediários","secao":"Linha","multi":false,"opcoes":[{"id":"apoios_sim","rotulo":"Com apoios intermediários"},{"id":"apoios_nao","rotulo":"Sem apoios (vão único)"}],"ajuda":""},{"id":"absorvedor","rotulo":"Absorvedor de energia","secao":"Linha","multi":false,"opcoes":[{"id":"absorvedor_sim","rotulo":"Com absorvedor"},{"id":"absorvedor_nao","rotulo":"Sem absorvedor"}],"ajuda":""},{"id":"terminal","rotulo":"Terminais prensados","secao":"Sapatilha, Terminais e Acessórios","multi":false,"opcoes":[{"id":"terminal_sim","rotulo":"Possui terminais prensados"},{"id":"terminal_nao","rotulo":"Não possui"}],"ajuda":""},{"id":"projeto","rotulo":"Projeto","secao":"Geral","derivada":true,"multi":false,"opcoes":[{"id":"projeto_ausente","rotulo":"Projeto não apresentado"}],"ausenteSe":{"item":"@primeiro","motivos":["Projeto da estrutura não apresentado"]}}],"vertical":[{"id":"ancor_material","rotulo":"Material da estrutura de apoio","secao":"Ancoragem Estrutural","multi":true,"opcoes":[{"id":"concreto","rotulo":"Concreto"},{"id":"aco","rotulo":"Aço"}],"ajuda":""},{"id":"ancor_fixacao","rotulo":"Tipo de fixação da ancoragem","secao":"Ancoragem Estrutural","multi":true,"opcoes":[{"id":"chumbador_q","rotulo":"Chumbador químico","lista":"chumbador químico","listaPl":"chumbadores químicos"},{"id":"chumbador_m","rotulo":"Chumbador mecânico","lista":"chumbador mecânico","listaPl":"chumbadores mecânicos"},{"id":"parafuso","rotulo":"Parafuso","lista":"parafuso","listaPl":"parafusos"},{"id":"solda","rotulo":"Solda","naLista":false}],"ajuda":""},{"id":"terminal","rotulo":"Terminais prensados","secao":"Sapatilha, Terminais e Acessórios","multi":false,"opcoes":[{"id":"terminal_sim","rotulo":"Possui terminais prensados"},{"id":"terminal_nao","rotulo":"Não possui"}],"ajuda":""},{"id":"projeto","rotulo":"Projeto","secao":"Geral","derivada":true,"multi":false,"opcoes":[{"id":"projeto_ausente","rotulo":"Projeto não apresentado"}],"ausenteSe":{"item":"@primeiro","motivos":["Projeto da estrutura não apresentado"]}}]};
 const CHK_TEXTOS_V2_TROCAS = [["sem oxidação com perda de seção, sem fissuras ou desagregação no concreto, sem trincas ou falhas nos cordões de solda e sem deformação ou desalinhamento","sem oxidação com perda de seção{{concreto|, sem fissuras ou desagregação no concreto}}{{solda|, sem trincas ou falhas nos cordões de solda}} e sem deformação ou desalinhamento"],["A estrutura deve estar íntegra, sem deformação, oxidação com perda de seção, fissuras no concreto ou trincas de solda.","A estrutura deve estar íntegra, sem deformação nem oxidação com perda de seção{{concreto|, sem fissuras no concreto}}{{solda|, sem trincas de solda}}."],["Os chumbadores e parafusos de fixação têm tipo, diâmetro e embutimento conforme o projeto, estão firmes e sem folga, com torque de aperto conferido e marcado com testemunho, e a distância às bordas e o espaçamento entre chumbadores atendem ao projeto e ao fabricante.","{{chumbador_q,chumbador_m,parafuso|Os {{@@ancor_fixacao|chumbadores e parafusos}} de fixação têm tipo{{chumbador_q,chumbador_m|, diâmetro e embutimento|| e diâmetro}} {{!projeto_ausente|conforme o projeto||compatíveis com a carga prevista}}, estão firmes e sem folga, com torque de aperto conferido e marcado com testemunho, e a distância às bordas e o espaçamento entre as fixações atendem {{!projeto_ausente|ao projeto e ao fabricante||ao fabricante}}.}}"],["Chumbadores e parafusos devem corresponder ao projeto em tipo, diâmetro e embutimento, estar firmes, com torque conferido e marcado, e respeitar as distâncias de borda e entre fixações.","{{chumbador_q,chumbador_m,parafuso|As fixações ({{@@ancor_fixacao|chumbadores e parafusos}}) devem corresponder {{!projeto_ausente|ao projeto||à carga prevista}} em tipo e diâmetro{{chumbador_q,chumbador_m| e embutimento||}}, estar firmes, com torque conferido e marcado, e respeitar as distâncias de borda e entre fixações.}}"],["O perfil e o material da viga ou trilho correspondem ao projeto, a viga está na posição prevista, os apoios intermediários estão no espaçamento do projeto, sem folga ou deslocamento, e a viga não se desvia","{{!projeto_ausente|O perfil e o material da viga ou trilho correspondem ao projeto, a viga está na posição prevista||A viga ou trilho está na posição esperada, não havendo projeto para conferir perfil e material}}{{apoios_sim&!projeto_ausente|, os apoios intermediários estão no espaçamento do projeto, sem folga ou deslocamento}}{{apoios_sim&projeto_ausente|, os apoios intermediários estão sem folga ou deslocamento}}, e a viga não se desvia"],["está bem soldada ou parafusada na estrutura, as emendas e juntas estão alinhadas, sem degrau que trave o trolley, e há batentes","está bem soldada ou parafusada na estrutura{{emendas_sim|, as emendas e juntas estão alinhadas, sem degrau que trave o trolley}}, e há batentes"],["A viga ou trilho deve corresponder ao perfil, material, posição e inclinação (até 15º) do projeto, estar reta, sem oxidação ou deformação e bem fixada à estrutura, com apoios no espaçamento do projeto, emendas alinhadas e sem degrau, e batentes","A viga ou trilho deve {{!projeto_ausente|corresponder ao perfil, material, posição e inclinação (até 15º) do projeto, estar reta||estar na posição prevista, com inclinação de até 15º, e reta}}, sem oxidação ou deformação e bem fixada à estrutura{{apoios_sim&!projeto_ausente|, com apoios no espaçamento do projeto}}{{apoios_sim&projeto_ausente|, com apoios firmes}}{{emendas_sim|, emendas alinhadas e sem degrau}}, e batentes"],["força máxima aplicável do projeto","força máxima aplicável{{!projeto_ausente| do projeto}}"],["é maior ou igual à exigida em projeto, não há","é {{!projeto_ausente|maior ou igual à exigida em projeto||suficiente para o EPI utilizado}}, não há"],["deve ser igual ou maior que a exigida em projeto","deve ser {{!projeto_ausente|igual ou maior que a exigida em projeto||suficiente para o EPI utilizado}}"],["As ancoragens de extremidade estão conforme o projeto, íntegras e sem folga; os apoios intermediários estão íntegros e permitem a passagem do conector sem desconexão; e o absorvedor de energia previsto em projeto ou pelo fabricante está presente, íntegro e sem sinal de acionamento.","As ancoragens de extremidade estão {{!projeto_ausente|conforme o projeto, ||}}íntegras e sem folga{{apoios_sim|; os apoios intermediários estão íntegros e permitem a passagem do conector sem desconexão}}{{absorvedor_sim|; e o absorvedor de energia previsto em projeto ou pelo fabricante está presente, íntegro e sem sinal de acionamento}}."],["; os terminais prensados (quando existirem) estão íntegros e com prensagem conforme o fabricante; e as manilhas","{{terminal_sim|; os terminais prensados estão íntegros e com prensagem conforme o fabricante}}; e as manilhas"]];
 function chkCaracContexto(l){
@@ -33149,6 +33177,16 @@ Devolver agora?`)) return;
     const el = document.getElementById("lclRevRes");
     if(el) el.innerHTML = lclRevisaoResultadoHtml(__lclRevisao.resultado, { botoes: "conferir" });
   },
+  // Editar o texto do Claude antes de aplicar (com ou sem IA o texto final é sempre decisão da pessoa)
+  lclRevisarEditou(k, valor, persistir){
+    const r = __lclRevisao.resultado; if(!r || !r.itens[k]) return;
+    const it = lclRevisaoEditarDepois(r.itens[k], valor);
+    const av = document.getElementById("lclRevAv" + k); if(av) av.innerHTML = lclRevisaoAvisosHtml(it.avisos);
+    if(persistir && __lclRevisao.pendente){
+      const l = lclRevisaoAlvo();
+      if(l && lclRevisaoPersistirEdicao(l, it.id, valor)) marcarAlterado();
+    }
+  },
   lclRevisarMarcadas(){
     const r = __lclRevisao.resultado; if(!r) return [];
     return [].slice.call(document.querySelectorAll("#overlayRoot input[data-rev]:checked")).map(c=> r.itens[+c.getAttribute("data-rev")]).filter(x=> x && !x.igual);
@@ -33164,7 +33202,8 @@ Devolver agora?`)) return;
     const l = lclRevisaoAlvo(); if(!l) return;
     const marcadas = App.lclRevisarMarcadas();
     if(!marcadas.length){ toast("Marque ao menos um texto", false); return; }
-    lclRevisaoAplicarItens(l, marcadas.map(x=> ({ tipo: x.tipo, id: x.id, titulo: x.tipo === "conclusao" ? "Conclusão" : x.num + " " + x.titulo, depois: x.depois })));
+    if(marcadas.some(x=> !String(x.depois || "").trim())){ toast("Há um texto vazio: escreva algo ou desmarque", false); return; }
+    lclRevisaoAplicarItens(l, marcadas.map(x=> ({ tipo: x.tipo, id: x.id, titulo: x.tipo === "conclusao" ? "Conclusão" : x.num + " " + x.titulo, depois: x.depois, editado: !!x.editadoPorVoce })));
     App.lclRevisarDepois(marcadas.length + (marcadas.length === 1 ? " texto aplicado" : " textos aplicados") + ". Confira no laudo e gere o PDF.");
   },
   lclRevisarGuardar(){
@@ -33187,10 +33226,10 @@ Devolver agora?`)) return;
   /* Validar a revisão guardada de uma linha (da lista de linhas, da tela de revisão ou do laudo) */
   chkRevValidarLinha(id){
     const l = chkAcharLinhaPorId(STATE, id); if(!l || !l.revisaoPendente) return;
-    __lclRevisao = { alvo: id, resultado: lclRevisaoPendenteParaConferir(l) };
+    __lclRevisao = { alvo: id, resultado: lclRevisaoPendenteParaConferir(l), pendente: true };
     abrirOverlay(`<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card" style="max-width:760px;width:calc(100vw - 32px);max-height:92vh;overflow:auto">
       <h3>${ic('edit')} Validar a revisão do Claude — ${escapeHtml(l.nome || "Linha")}</h3>
-      <p class="sheet-sub" style="margin:4px 0 0">Nada mudou no laudo ainda. Marque o que vale e aplique; o que não marcar continua pendente. O texto de antes fica guardado no histórico.</p>
+      <p class="sheet-sub" style="margin:4px 0 0">Nada mudou no laudo ainda. Marque o que vale e aplique; o que não marcar continua pendente. Você pode editar o texto do Claude antes de aplicar. O texto de antes fica guardado no histórico.</p>
       ${lclRevisaoResultadoHtml(__lclRevisao.resultado, { botoes: "validar" })}
       ${lclRevisaoHistoricoHtml(l)}
       <div class="modal-actions"><button class="btn btn-secondary" onclick="App.fecharModal()">Fechar (continua pendente)</button></div></div></div>`);
