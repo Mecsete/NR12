@@ -969,6 +969,7 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 }
 /* ---------- Foto ampla da linha de vida (identifica o item e o local) ---------- */
 .chk-linha-card .list-thumb{width:104px;}
+@media (max-width:520px){.chk-linha-card .list-thumb{width:68px;}}
 .chk-linha-laudo{display:inline-flex;align-items:center;gap:6px;margin-top:10px;background:var(--surface);border:1.5px solid var(--line-strong);border-radius:999px;color:var(--accent-ink);font-size:13px;font-weight:700;padding:6px 14px;cursor:pointer;}
 .chk-linha-laudo svg{width:15px;height:15px;}
 .chk-linha-laudo:hover{border-color:var(--accent);background:var(--accent-soft);}
@@ -3454,7 +3455,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "09/10/2026 09:26";
+const APP_BUILD = "09/10/2026 09:29";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -15160,11 +15161,11 @@ function screenChkLinhas(){
           <span class="stat-pill" style="color:${CHK_STATUS_META.naoAtende.cor}" title="Itens que não atendem">${r.naoAtende} não atendem</span>
           <span class="stat-pill" title="Itens que não se aplicam">${r.na} N/A</span>
         </div>
-        <div class="list-meta chk-card-resumo">
+        ${chkEhCampo() ? "" : `<div class="list-meta chk-card-resumo">
           <span class="stat-pill" title="Fotos gerais das seções (abrem cada seção no laudo)">${ic('camera')} ${r.fotosSecao} ${r.fotosSecao === 1 ? "foto" : "fotos"} da seção</span>
           <span class="stat-pill" title="Fotos do laudo em itens que atendem">${ic('camera')} ${r.fotosOk} ${r.fotosOk === 1 ? "foto" : "fotos"} de conformidade</span>
           <span class="stat-pill" title="Fotos do laudo em itens que não atendem">${ic('camera')} ${r.fotosNc} ${r.fotosNc === 1 ? "foto" : "fotos"} de não conformidade</span>
-        </div>
+        </div>`}
         ${chkEhCampo() ? "" : `<button class="chk-linha-laudo" onclick="event.stopPropagation();App.chkAbrirLaudoLinha('${l.id}')" title="Abrir o laudo desta linha de vida (não precisa finalizar)">${ic('print')} Laudo</button>`}
       </div>
       <div class="list-actions">${chkAcoesCartao('linha', l.id)}</div>
