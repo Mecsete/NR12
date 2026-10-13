@@ -64,6 +64,18 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 13/10/2026 17:23
+
+**Laudo: as fotos das seções agora saem no PDF; inserir fotos na janela de fotos; quadro de não conformidades e legenda mais enxutos.**
+
+- Corrigido: as fotos gerais de cada seção (as da migração e as tiradas na seção) não apareciam no PDF, embora o texto as citasse. Agora entram, com a numeração correta. Gere o laudo de novo para ver.
+- Janela "Fotos da seção" do laudo: dá para inserir fotos (botão "Inserir fotos" com o destino escolhido: fotos gerais, item ou motivo) e arrastar arquivos do computador para cada caixa.
+- Quadro de não conformidades: a prioridade fica embaixo da imagem, dando mais largura ao item e à ação recomendada.
+- Legenda das prioridades: uma linha pequena e cinza no fim do capítulo 3 e do quadro de não conformidades.
+- Checklist do laudo: o "ver 3.1" fica embaixo do número do item.
+
+---
+
 ## 09/10/2026 12:32
 
 **Linhas de vida: textos do laudo personalizados pelas características da linha, revisão dos textos com o Claude e edição à mão, com ou sem IA.**

@@ -111,7 +111,7 @@ print("=== 3. ARQUITETURA DE FOTOS (CAMADA_FOTOS) ===")
 # para o item/motivo, outro para as fotos gerais da secao), no mesmo formato dos
 # que o preenchimento ja grava (chkTirarFoto e chkSecaoFoto). Nada mudou na
 # gravacao, compressao ou sincronizacao de foto.
-_extra_fotos = {"foto:": 2, "idbfoto:": 0}
+_extra_fotos = {"foto:": 0, "idbfoto:": 0}
 for marca in ["idbfoto:", "foto:", "CAMADA_FOTOS"]:
     a, b = orig.count(marca) + _extra_fotos.get(marca, 0), novo.count(marca)
     chk("ocorrencias de '%s' inalteradas (%d)" % (marca, a), a == b, "orig+extra=%d novo=%d" % (a, b))
