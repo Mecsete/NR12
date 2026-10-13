@@ -3471,7 +3471,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "13/10/2026 17:24";
+const APP_BUILD = "13/10/2026 17:32";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -17446,7 +17446,7 @@ function lclPrioChip(prio){
   const k = LCL_PRI_COR[prio] ? prio : "media";
   return `<span class="lcl-pchip ${k}" style="background:${LCL_PRI_COR[k]}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${LCL_PRI_ICONE[k]}</svg>${lclEsc(chkPrioridadeRotulo(k))}</span>`;
 }
-/* Legenda das prioridades: uma linha pequena e cinza, depois da relação de ações recomendadas (no fim do capítulo e do quadro). */
+/* Legenda das prioridades: uma linha pequena e cinza, logo abaixo de cada quadro de ação recomendada e do quadro de não conformidades. */
 function lclPrioLegenda(){
   const d = { critica:"torna a linha inapta até a correção", alta:"corrigir com urgência", media:"corrigir no prazo programado", boa:"recomendação, não impede o uso" };
   return `<div class="lcl-pri-leg"><b>Prioridade</b>${["critica", "alta", "media", "boa"].map(k=> `<span><i style="background:${LCL_PRI_COR[k]}"></i>${lclEsc(chkPrioridadeRotulo(k))}: ${d[k]}</span>`).join("")}</div>`;
@@ -17455,7 +17455,6 @@ function lclPrioLegenda(){
 function lclBlocosCorpo(d, cap, redu){
   const l = d.linha;
   const blocos = [];
-  let temAcoes = false;
   cap.subs.forEach((sub, i)=>{
     const s = (l.modeloSnapshot || []).find(x=> x.id === sub.id);
     if(!s) return;
@@ -17475,10 +17474,9 @@ function lclBlocosCorpo(d, cap, redu){
       + (s.contexto ? `<div class="lcl-ctx"><b>Como deve estar:</b> ${lclEsc(chkCondTexto(s.contexto, l))}</div>` : "");
     // texto editado à mão substitui os dois parágrafos automáticos
     const textoConforme = editado === null && conforme ? `<div class="lcl-narr lcl-larga">${conforme}</div>` : "";
-    const acoesHtml = (acoes || []).length ? `<div class="lcl-acoes"><b>Ação recomendada</b><ul>${acoes.map(a=> `<li>${lclPrioChip(a.prio)} ${lclEsc(a.txt)}</li>`).join("")}</ul></div>` : "";
+    const acoesHtml = (acoes || []).length ? `<div class="lcl-acoes"><b>Ação recomendada</b><ul>${acoes.map(a=> `<li>${lclPrioChip(a.prio)} ${lclEsc(a.txt)}</li>`).join("")}</ul></div>${lclPrioLegenda()}` : "";
     const textoPend0 = editado !== null ? lclTextoParaHtml(editado) : pend;
     const textoPend = textoPend0 ? textoPend0 + acoesHtml : textoPend0;
-    if(textoPend0 && acoesHtml) temAcoes = true;
     const todosNa = (s.itens || []).length > 0 && (s.itens || []).every(it=>{ const e = chkItemExec(l, it.id); return !!e && e.conforme === "na"; });
     const vazio = editado === null && !conforme && !pend
       ? (todosNa ? `<p class="lcl-vazio">Todos os itens desta seção foram marcados como não se aplicam a esta linha de vida.</p>` : `<p class="lcl-vazio">Nenhum item desta seção foi respondido ainda.</p>`)
@@ -17503,13 +17501,6 @@ function lclBlocosCorpo(d, cap, redu){
     }
     for(let k = 0; k < sobraFotos.length; k += 3) blocos.push({ html: `<div class="lcl-fgrade">${sobraFotos.slice(k, k + 3).map(figura).join("")}</div>` });
   });
-  if(temAcoes && blocos.length){
-    // a legenda fica colada ao último bloco, para nunca cair sozinha numa página
-    const ult = blocos[blocos.length - 1];
-    ult.grudaNoProximo = true;
-    if(typeof ult.alternativa === "function"){ const alt = ult.alternativa; ult.alternativa = ()=>{ const o = alt(); if(o.length) o[o.length - 1].grudaNoProximo = true; return o; }; }
-    blocos.push({ html: lclPrioLegenda() });
-  }
   return blocos;
 }
 
