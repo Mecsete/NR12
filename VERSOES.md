@@ -64,7 +64,7 @@ antigo, feche e abra o app novamente.
 
 ---
 
-## 13/10/2026 17:23
+## 13/10/2026 17:24
 
 **Laudo: as fotos das seções agora saem no PDF; inserir fotos na janela de fotos; quadro de não conformidades e legenda mais enxutos.**
 
@@ -75,6 +75,25 @@ antigo, feche e abra o app novamente.
 - Checklist do laudo: o "ver 3.1" fica embaixo do número do item.
 
 ---
+## 09/10/2026 16:41
+
+**Aba Áreas do Laudo: os botões "Todas deste projeto" e "Nenhuma" passam para o topo do card de cada projeto.**
+
+Ficavam no fim do card, depois da lista de áreas — que em projeto grande exige
+rolar muito. Agora ficam logo abaixo do nome do projeto. As ações são as mesmas.
+
+## 09/10/2026 16:21
+
+**Projetos arquivados deixam de aparecer na aba Áreas do Laudo e de entrar no escopo do laudo.**
+
+- Na Central do Laudo, aba Áreas, só aparecem os projetos ativos neste
+  aparelho; os totais ("Todos os projetos") e o "Selecionar todas" também só
+  contam os ativos.
+- Para não ficar uma área de projeto arquivado marcada escondida (entrando na
+  Revisão e nos arquivos sem ninguém ver), o escopo do laudo também ignora as
+  áreas de projetos arquivados. Nada é apagado: é só a seleção de áreas; ao
+  desarquivar o projeto, as áreas voltam a aparecer na aba Áreas, desmarcadas,
+  e basta tocar em "Todas deste projeto".
 
 ## 09/10/2026 12:32
 
