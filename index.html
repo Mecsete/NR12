@@ -3471,7 +3471,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "09/10/2026 16:17";
+const APP_BUILD = "13/10/2026 16:28";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -17855,14 +17855,21 @@ function nomeArquivoLaudoLinha(proj, linha){
   const limpo = (s)=> String(s || "").replace(/[\\/:*?<>|\x22]/g, "").replace(/\s+/g, " ").trim();
   return ["Laudo NR-35", limpo(proj && proj.empresa), limpo(linha && linha.nome)].filter(Boolean).join(" - ");
 }
-async function lclPrepararFotos(linha, textos){
-  const mapa = new Map();
+/* Todas as fotos que o laudo pode mostrar, com a largura em que cada uma entra: foto ampla (capa), fotos dos itens,
+   fotos gerais das seções (linha.fotosSecao), anexos e figuras da Metodologia. Foto que não está no mapa não sai no PDF. */
+function lclFotosDoLaudo(linha, textos){
   const alvos = new Map();
   const add = (src, largura)=>{ if(lclTemFoto(src)) alvos.set(src, Math.max(alvos.get(src) || 0, largura)); };
   add(linha.fotoAmpla, 1000);
-  (linha.itens || []).forEach(ie=> (ie.fotos || []).forEach(f=> add(f.foto, 600)));
+  (linha.itens || []).forEach(ie=> (ie.fotos || []).forEach(f=> add(f && f.foto, 600)));
+  Object.keys(linha.fotosSecao || {}).forEach(sid=> ((linha.fotosSecao || {})[sid] || []).forEach(f=> add(f && f.foto, 600)));
   lclCfg(linha).anexos.forEach(a=> add(a.src, 1500));
   ((textos && textos.metodologia && textos.metodologia.figuras) || []).forEach(f=> add(f.src, 800));
+  return alvos;
+}
+async function lclPrepararFotos(linha, textos){
+  const mapa = new Map();
+  const alvos = lclFotosDoLaudo(linha, textos);
   for(const [s, largura] of alvos) mapa.set(s, await lclReduzirFoto(s, largura));
   if(typeof __assinaturaLaudo === "string" && lclTemFoto(__assinaturaLaudo)) mapa.set("assinatura", await lclReduzirFoto(__assinaturaLaudo, 500, true));
   return mapa;

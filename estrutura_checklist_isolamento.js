@@ -159,7 +159,7 @@ const FUNCOES = [
   "lclItemModeloAtual", "lclPrioridade", "lclAcaoMotivo", "lclNaoConformidades", "lclParecerAuto", "lclParecer",
   "lclListaPt", "lclVariaveis", "lclAplicarVariaveis", "lclMarkup", "lclBlocosMemorial", "lclBlocosAnexos", "lclListaImagensHtml",
   "screenChkSetorForm", "chkFotosSecaoHtml", "chkFotosSecaoResumoHtml", "chkRenderItem", "screenChkPreencher", "screenChkFinalizar", "chkResumoHtml",
-  "lclTextoEditado", "lclHtmlParaTexto", "lclTextoParaHtml", "lclConclusaoAuto", "lclFotosSecaoHtml", "lclNumItem", "lclFotosDestinos", "lclInserirFotos", "lclArquivosDoEvento", "lclPrioLegenda", "lclPrioChip",
+  "lclTextoEditado", "lclHtmlParaTexto", "lclTextoParaHtml", "lclConclusaoAuto", "lclFotosSecaoHtml", "lclNumItem", "lclFotosDoLaudo", "lclFotosDestinos", "lclInserirFotos", "lclArquivosDoEvento", "lclPrioLegenda", "lclPrioChip",
   // Cadastro do projeto: mascaras, validade automatica e cadastro de inspetores.
   "chkSoDigitos", "chkMascaraDocumento", "chkMascaraTelefone", "chkExibirDocumento", "chkExibirTelefone", "chkValidarCpf", "chkValidarCnpj",
   "chkAvisoDocumento", "chkMaisMesesISO", "chkOpcoesInspetor", "novoChkInspetor", "chkInspetoresHtml", "screenChkProjetoForm",
@@ -3249,6 +3249,15 @@ async function testarUsabilidade(){
     T(htmlAc.includes('class="lcl-acoes"') && htmlAc.includes("Ação recomendada") && htmlAc.includes(" Fazer A1</li>") && htmlAc.includes(" Fazer A2</li>") && htmlAc.includes("lcl-pchip critica") && htmlAc.includes("lcl-pchip media") && htmlAc.includes("lcl-pri-leg") && !/Crítica \d|Alta \d/.test(htmlAc) && (htmlAc.match(/Fazer A1/g) || []).length === 1, "a avaliacao por componente mostra a Acao recomendada logo depois do texto das nao conformidades");
     const linSemNc = linhaCorpo([itA], [exe("a", "atende", 0)]);
     T(!corpoDe(linSemNc).map(b => b.html).join("").includes("lcl-acoes"), "sem nao conformidade, sem bloco de acao");
+    // --- fotos gerais da secao (linha.fotosSecao) chegam ao PDF: entram na lista de fotos que o laudo reduz e aparecem no corpo
+    const linFS = JSON.parse(linhaCorpo([itn("a", "Item A")], [exe("a", "atende", 1)]));
+    linFS.fotosSecao = { s1: [{ foto:"data:image/jpeg;base64,SEC1", tags:[], motivo:"" }, { foto:"pendente:abc123", tags:[], motivo:"" }] };
+    linFS.fotoAmpla = "data:image/jpeg;base64,AMPLA";
+    const alvosFS = roda("Array.from(lclFotosDoLaudo(" + J(linFS) + ", null).entries())");
+    T(alvosFS.some(e => e[0].endsWith("SEC1") && e[1] === 600) && alvosFS.some(e => e[0].endsWith("AMPLA") && e[1] === 1000) && alvosFS.some(e => e[0].endsWith("Fa0") && e[1] === 600) && !alvosFS.some(e => e[0].startsWith("pendente:")) && alvosFS.length === 3, "lista de fotos do laudo: foto ampla, fotos dos itens e fotos gerais da secao (foto ainda so na nuvem nao entra)");
+    linFS.fotosSecao.s1 = linFS.fotosSecao.s1.slice(0, 1);   // sem a foto que ainda esta so na nuvem
+    const htmlFS = junta(roda("lclBlocosCorpo({ linha:" + J(linFS) + " }, " + capC1 + ", ((m)=> (x)=> m.has(x) ? x : '')(new Set(lclFotosDoLaudo(" + J(linFS) + ", null).keys())))"));
+    T(htmlFS.includes("base64,SEC1") && htmlFS.includes("Foto 3.1.1") && htmlFS.includes("base64,Fa0") && htmlFS.includes("Foto 3.1.2"), "o corpo do laudo mostra a foto geral da secao (numero primeiro) e a foto do item");
     T(!bAc[0].html.includes("lcl-pri-leg") && bAc[bAc.length - 1].html.includes("lcl-pri-leg") && bAc[bAc.length - 2].grudaNoProximo === true && (htmlAc.match(/lcl-pri-leg"/g) || []).length === 1 && bAc[bAc.length - 1].html.includes('<i style="background') && !bAc[bAc.length - 1].html.includes("lcl-pchip") && !corpoDe(linSemNc).map(b => b.html).join("").includes("lcl-pri-leg"), "legenda das prioridades: uma so, discreta (pontos coloridos), depois da relacao de acoes e colada ao ultimo bloco; sem acoes, sem legenda");
     const srcH = require("fs").readFileSync(process.argv[2], "utf8");
     T(srcH.includes(".lcl-rt{flex:1 1 56%;min-width:0}") && srcH.includes("flex:0 1 30%;max-width:30%") && srcH.includes("white-space:normal;overflow-wrap:anywhere") && srcH.includes(".lcl-narr mark.nc{background:none;color:#1E2148;font-weight:400}"), "checklist do laudo: pergunta larga e normas estreitas com quebra; texto das nao conformidades sem negrito");
