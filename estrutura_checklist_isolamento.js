@@ -159,7 +159,7 @@ const FUNCOES = [
   "lclItemModeloAtual", "lclPrioridade", "lclAcaoMotivo", "lclNaoConformidades", "lclParecerAuto", "lclParecer",
   "lclListaPt", "lclVariaveis", "lclAplicarVariaveis", "lclMarkup", "lclBlocosMemorial", "lclBlocosAnexos", "lclListaImagensHtml",
   "screenChkSetorForm", "chkFotosSecaoHtml", "chkFotosSecaoResumoHtml", "chkRenderItem", "screenChkPreencher", "screenChkFinalizar", "chkResumoHtml",
-  "lclTextoEditado", "lclHtmlParaTexto", "lclTextoParaHtml", "lclConclusaoAuto", "lclFotosSecaoHtml", "lclNumItem", "lclFotosDoLaudo", "lclFotosDestinos", "lclInserirFotos", "lclArquivosDoEvento", "lclPrioLegenda", "lclPrioChip",
+  "lclTextoEditado", "lclHtmlParaTexto", "lclTextoParaHtml", "lclConclusaoAuto", "lclFotosSecaoHtml", "lclNumItem", "chkAtuNorm", "chkAtuPior", "chkAtuNovoRel", "chkAtuIdLivre", "chkAtuDist", "chkAtuMontarSecoes", "chkAtuLinha", "chkAtuExecutar", "chkAtuAfinidade", "chkAtuDistTexto", "chkAtuTrocasTexto", "chkAtuRelHtml", "chkTextosV2AplicarSecoes", "chkTextosV2TipoDe", "lclFotosDoLaudo", "lclFotosDestinos", "lclInserirFotos", "lclArquivosDoEvento", "lclPrioLegenda", "lclPrioChip",
   // Cadastro do projeto: mascaras, validade automatica e cadastro de inspetores.
   "chkSoDigitos", "chkMascaraDocumento", "chkMascaraTelefone", "chkExibirDocumento", "chkExibirTelefone", "chkValidarCpf", "chkValidarCnpj",
   "chkAvisoDocumento", "chkMaisMesesISO", "chkOpcoesInspetor", "novoChkInspetor", "chkInspetoresHtml", "screenChkProjetoForm",
@@ -203,6 +203,7 @@ fonte += constObjeto("CHK_ALT_ORIGEM") + "\n";
 fonte += constObjeto("LCL_PRI_ICONE") + "\n";
 fonte += constObjeto("CHK_CARAC_DEFS") + "\n";
 fonte += constObjeto("CHK_TEXTOS_V2_TROCAS") + "\n";
+fonte += constObjeto("CHK_ATU_ALIAS_PERGUNTA") + "\n" + constObjeto("CHK_ATU_ALIAS_MOTIVO") + "\n" + constObjeto("CHK_ATU_ROT_PRIO") + "\n";
 fonte += "const CHK_TEXTOS_V2_ATIVO = false;\n";
 fonte += constObjeto("CHK_MIG_TIPOS") + "\n";
 fonte += constObjeto("CHK_MIG_FOTOS_REMOVIDAS") + "\n";
@@ -4005,7 +4006,114 @@ async function testarSincronizacaoChecklist(){
   T(roda(`lclPromptRevisao()`) === "PROMPT QUE VALE PARA TODOS" && roda(`lclRevisaoMaxPacote()`) === 48000, "o prompt e o tamanho do pacote editados num aparelho chegam no outro");
   sandbox.STATE = estadoOriginal;
 }
-testarFotoAmpla().then(() => testarTravas()).then(() => testarDadosLaudo()).then(() => testarLaudoCapitulos()).then(() => testarMemorial()).then(() => testarCapitulosNovos()).then(() => testarEdicaoTexto()).then(() => testarFotosLeituraLaudo()).then(() => testarCadastroProjeto()).then(() => testarEditorModelo()).then(() => testarAtalhoLaudo()).then(() => testarCapaLaudo()).then(() => testarUsabilidade()).then(() => testarSincronizacaoChecklist()).then(() => {
+// ---------- atualizar modelos (e as linhas feitas com eles) pela planilha: regras, repetibilidade e dados reais ----------
+async function testarAtualizacaoModelos(){
+  const T = (cond, msg)=>{ if(!cond) throw new Error("atualizar modelos pela planilha: " + msg); };
+  const J = (v)=> JSON.stringify(v);
+  const antes = { m: roda("STATE.checklists.modelos"), p: roda("STATE.checklists.projetos") };
+  const RENOME_V = "Projeto sem ART/RRT de profissional habilitado", RENOME_N = "Projeto sem ART de profissional habilitado";
+  const modeloX = ()=> ({ id:"MX", nome:"Modelo X", tipoLinha:"vertical", secoes:[
+    { id:"MX_s0", titulo:"Doc", contexto:"ctx velho", itens:[
+      { id:"MX_s0_i0", descricao:"Projeto (com ART/RRT)?", normativo:"N velha", textoAtende:"ok velho", info:{ texto:"info velha", fotos:[{ foto:"data:image/jpeg;base64,IF" }] }, prioridade:"alta", motivosPadrao:[
+        { motivo:RENOME_V, texto:"t1 velho", acao:"a1 velha", prioridade:"alta" },
+        { motivo:"Manual so no app", texto:"t2", acao:"a2", prioridade:"boa" },
+        { motivo:"Outro", texto:"t3", acao:"a3", prioridade:"media" } ] } ] } ] });
+  const linhaX = (id, status, extra)=> Object.assign({ id, nome:"Linha " + id, modeloId:"MX", status, tipoLinha:"vertical", secoesNA:[], laudo:{}, modeloSnapshot: modeloX().secoes,
+    itens:[{ itemId:"MX_s0_i0", conforme:"naoAtende", motivosSelecionados:[RENOME_V, "Outro"], observacao:"nota " + id, fotos:[{ foto:"data:image/jpeg;base64,F" + id, motivo:RENOME_V }, { foto:"data:image/jpeg;base64,G" + id, motivo:"Outro" }] }], fotosSecao:{ MX_s0:[{ foto:"data:image/jpeg;base64,S" + id, tags:[], motivo:"" }] } }, extra || {});
+  const linhas = [
+    [1, "A", "Projeto (com ART)?", "N nova", RENOME_N, "t1 novo", "ok novo", "info nova", "Média", "a1 nova", "ctx novo"],
+    [2, "", "", "", "Outro", "t3 novo", "", "", "Crítica", "a3 nova", ""],
+    [3, "", "Item novo?", "N2", "Motivo n1", "tn", "ok2", "", "Alta", "an", ""],
+  ];
+  const rows = [{ n:1, cells:{ A:"Seção", B:"Item", C:"Norma/Referência", D:"Motivo", E:"Texto do Motivo", F:"Texto Quando Atende", G:"Informação", H:"Prioridade", I:"Ação Recomendada", J:"Contexto da Seção" } }];
+  rows.push({ n:2, cells:{ A:"Doc", B:"Projeto (com ART)?", C:"N nova", D:RENOME_N, E:"t1 novo", F:"ok novo", G:"info nova", H:"Média", I:"a1 nova", J:"ctx novo" } });
+  rows.push({ n:3, cells:{ D:"Outro", E:"t3 novo", H:"Crítica", I:"a3 nova" } });
+  rows.push({ n:4, cells:{ B:"Item novo?", C:"N2", D:"Motivo n1", E:"tn", F:"ok2", H:"Alta", I:"an" } });
+  const pl = roda("chkModeloXLSXLinhasParaSecoes(" + J(rows) + ")");
+  T(pl.secoes.length === 1 && pl.secoes[0].itens.length === 2 && pl.contagem.motivos === 3, "a planilha de ensaio foi lida");
+  const outroM = { id:"MY", nome:"Outro modelo", tipoLinha:"vertical", secoes:[{ id:"MY_s0", titulo:"Doc", contexto:"c", itens:[{ id:"MY_s0_i0", descricao:"Projeto (com ART/RRT)?", normativo:"", textoAtende:"x", info:{ texto:"", fotos:[] }, prioridade:"alta", motivosPadrao:[{ motivo:RENOME_V, texto:"y", acao:"z", prioridade:"alta" }] }] }] };
+  const montar = ()=> roda("STATE.checklists.modelos = " + J([modeloX(), outroM]) + "; STATE.checklists.projetos = [{ id:'PX', setores:[{ id:'SX', linhas:" + J([linhaX("L1", "finalizado"), linhaX("L2", "em_andamento", { modeloSnapshot: (()=>{ const s = modeloX().secoes; s[0].itens[0].textoAtende = "ok EDITADO A MAO"; return s; })() }), Object.assign(linhaX("L3", "finalizado"), { modeloId:"MY" })]) + " }] }];");
+  const tudo = ()=> J(roda("STATE.checklists"));
+  const exe = (opc)=> roda("chkAtuExecutar(STATE, 'MX', " + J(pl.secoes) + ", " + J(opc) + ")");
+
+  montar();
+  const s0 = tudo();
+  // --- prévia (dry-run): calcula tudo e não grava nada
+  const d = exe({ dry:true });
+  T(tudo() === s0, "a previa nao grava nada");
+  T(d.linhas.total === 2 && d.linhas.finalizadas === 1 && d.itensNovos.length === 1 && d.motivosRenomeados.length === 1 && d.motivosSoNoApp.length === 1 && d.motivosSoNoApp[0].motivo === "Manual so no app", "previa: 2 linhas do modelo (1 finalizada), 1 pergunta nova, 1 motivo renomeado, o motivo so no app fica: " + J([d.linhas, d.itensNovos.length, d.motivosSoNoApp]));
+  T(d.divergentes.length === 1 && d.divergentes[0].campo === "Texto quando atende" && d.divergentes[0].linha === "Linha L2", "previa: a linha com texto editado a mao e listada: " + J(d.divergentes));
+  T(J(d.prio.pergunta) === J({ "alta>critica": 1 }) && J(d.prio.motivo) === J({ "alta>media": 1, "media>critica": 1 }), "previa: prioridades que mudam por nivel: " + J(d.prio));
+  // --- aplicar (sem sobrescrever o que a pessoa editou na linha)
+  const r1 = exe({ dry:false, sobrescrever:false });
+  const m = roda("STATE.checklists.modelos.find(x => x.id === 'MX')");
+  const i0 = m.secoes[0].itens[0], i1 = m.secoes[0].itens[1];
+  T(m.secoes[0].itens.length === 2 && i0.id === "MX_s0_i0" && i1.id === "MX_s0_i1" && i0.descricao === "Projeto (com ART)?" && i0.normativo === "N nova" && i0.textoAtende === "ok novo" && i0.info.texto === "info nova" && i0.info.fotos.length === 1 && m.secoes[0].contexto === "ctx novo", "modelo: pergunta mantem o ID e ganha o texto novo; a foto da informacao fica; pergunta nova com ID novo");
+  T(i0.motivosPadrao.map(x => x.motivo).join("|") === RENOME_N + "|Outro|Manual so no app" && i0.motivosPadrao[0].texto === "t1 novo" && i0.motivosPadrao[0].prioridade === "media" && i0.motivosPadrao[1].prioridade === "critica" && i0.motivosPadrao[2].prioridade === "boa" && i0.prioridade === "critica" && i1.prioridade === "alta", "modelo: motivo renomeado, ordem da planilha, motivo so no app fica no fim, pergunta = pior motivo");
+  const L1 = roda("STATE.checklists.projetos[0].setores[0].linhas[0]"), L2 = roda("STATE.checklists.projetos[0].setores[0].linhas[1]"), L3 = roda("STATE.checklists.projetos[0].setores[0].linhas[2]");
+  const s1 = L1.modeloSnapshot[0].itens[0];
+  T(L1.modeloSnapshot[0].itens.length === 1 && s1.textoAtende === "ok novo" && s1.prioridade === "critica" && s1.motivosPadrao[0].motivo === RENOME_N && s1.motivosPadrao[0].texto === "t1 novo" && s1.motivosPadrao.find(x => x.motivo === "Outro").acao === "a3 nova" && s1.motivosPadrao.some(x => x.motivo === "Manual so no app") && s1.motivosPadrao.length === 3 && L1.modeloSnapshot[0].contexto === "ctx novo", "linha finalizada: textos e prioridades novos; NAO ganha a pergunta nova; motivo so no app fica");
+  T(L1.status === "finalizado" && L1.itens.length === 1 && L1.itens[0].observacao === "nota L1" && L1.itens[0].fotos.length === 2 && L1.fotosSecao.MX_s0.length === 1 && J(L1.itens[0].motivosSelecionados) === J([RENOME_N, "Outro"]) && L1.itens[0].fotos[0].motivo === RENOME_N && L1.itens[0].fotos[1].motivo === "Outro", "linha: respostas, nota, fotos e status ficam; o motivo renomeado continua marcado e a foto continua ligada a ele");
+  T(L2.modeloSnapshot[0].itens[0].textoAtende === "ok EDITADO A MAO" && L2.modeloSnapshot[0].itens[0].motivosPadrao[0].texto === "t1 novo", "sem 'sobrescrever': o campo editado a mao na linha fica; o resto atualiza");
+  T(J(L3.modeloSnapshot) === J(modeloX().secoes) && roda("STATE.checklists.modelos.find(x => x.id === 'MY')").secoes[0].itens[0].descricao === "Projeto (com ART/RRT)?" && J(roda("STATE.checklists.modelos.find(x => x.id === 'MY')")) === J(outroM), "outro modelo e linha de outro modelo: intactos");
+  T(r1.marcacoesRenomeadas === 2 && r1.fotosRenomeadas === 2, "marcacoes e fotos do motivo renomeado trocadas: " + r1.marcacoesRenomeadas + "/" + r1.fotosRenomeadas);
+  // --- repetir: nada muda, nada duplica
+  const s2 = tudo();
+  const r2 = exe({ dry:false, sobrescrever:false });
+  T(tudo() === s2 && Object.keys(r2.campos).length === 0 && r2.itensNovos.length === 0 && r2.linhas.alteradas === 0 && r2.divergentes.length === 1 && roda("STATE.checklists.modelos.find(x => x.id === 'MX')").secoes[0].itens.length === 2, "repetir a atualizacao nao muda nem duplica nada (o campo editado a mao continua listado como divergente): " + J({ c: r2.campos, a: r2.linhas }));
+  // --- agora sobrescrevendo o que estava diferente
+  const r3 = exe({ dry:false, sobrescrever:true });
+  T(roda("STATE.checklists.projetos[0].setores[0].linhas[1].modeloSnapshot[0].itens[0].textoAtende") === "ok novo", "com 'sobrescrever' o campo editado a mao tambem recebe o texto novo");
+  T(exe({ dry:false, sobrescrever:true }).linhas.alteradas === 0, "e depois disso, rodar de novo nao altera linha nenhuma");
+
+  // --- dados reais: as 3 planilhas novas, os modelos e as 20 linhas da nuvem
+  const fs = require("fs"), arq = "C:/Users/luiza/AppData/Local/Temp/claude/C--Users-luiza-OneDrive-Claude-Cowork-Linhas-de-Vida/00ba249f-feb7-426a-9d32-43e5edc9a144/scratchpad/atu_real.json";
+  if(fs.existsSync(arq)){
+    const R = JSON.parse(fs.readFileSync(arq, "utf8"));
+    const lin = R.linhas.map(l => { const o = Object.assign({}, l); delete o.__setor; delete o.__proj; return o; });
+    const modelosReal = Object.keys(R.modelos).map(k => R.modelos[k]);
+    roda("STATE.checklists.modelos = " + J(modelosReal) + "; STATE.checklists.projetos = [{ id:'PR', setores:[{ id:'SR', linhas:" + J(lin) + " }] }];");
+    const contar = (l)=> ({ resp: l.itens.filter(e => e.conforme !== null && e.conforme !== undefined).length, marc: l.itens.reduce((n, e) => n + (e.motivosSelecionados || []).length, 0), fi: l.itens.reduce((n, e) => n + (e.fotos || []).length, 0), fs: Object.keys(l.fotosSecao || {}).reduce((n, k) => n + l.fotosSecao[k].length, 0), st: l.status, nome: l.nome, itens: l.itens.length, snapItens: (l.modeloSnapshot || []).reduce((n, s) => n + s.itens.length, 0) });
+    const antesL = roda("STATE.checklists.projetos[0].setores[0].linhas").map(contar);
+    const outros = {}; modelosReal.filter(m => !R.planilhas[m.id]).forEach(m => { outros[m.id] = J(m); });
+    const linhasOutros = J(roda("STATE.checklists.projetos[0].setores[0].linhas").filter(l => !R.planilhas[l.modeloId]));
+    const rowsDe = (id)=> roda("chkModeloXLSXLinhasParaSecoes(" + J(R.planilhas[id]) + ")");
+    const tot = {};
+    Object.keys(R.planilhas).forEach(id => { const pr = rowsDe(id); const s0r = J(roda("STATE.checklists")); const dr = roda("chkAtuExecutar(STATE, " + J(id) + ", " + J(pr.secoes) + ", { dry:true })"); T(J(roda("STATE.checklists")) === s0r, "dados reais: a previa de " + id + " nao grava nada"); tot[id] = dr; });
+    Object.keys(R.planilhas).forEach(id => { tot[id] = roda("chkAtuExecutar(STATE, " + J(id) + ", " + J(rowsDe(id).secoes) + ", { dry:false, sobrescrever:true })"); });
+    const esperado = {
+      mg_vertical: { sec:12, it:22, mo:216, pm:{ critica:97, alta:92, media:13, boa:14 }, pp:{ critica:17, alta:2, boa:3 } },
+      mg_horizontal_flexivel: { sec:10, it:21, mo:198, pm:{ critica:85, alta:87, media:12, boa:14 }, pp:{ critica:16, alta:2, boa:3 } },
+      mg_horizontal_rigida: { sec:6, it:16, mo:134, pm:{ critica:47, alta:71, media:8, boa:8 }, pp:{ critica:11, alta:3, boa:2 } },   // 133 da planilha + o motivo que o Luiz mandou manter (prioridade Alta, a que ele ja tinha no app)
+    };
+    Object.keys(esperado).forEach(id => {
+      const m = roda("STATE.checklists.modelos.find(x => x.id === " + J(id) + ")"), e = esperado[id];
+      const its = m.secoes.reduce((a, s) => a.concat(s.itens), []);
+      const pm = {}, pp = {}; its.forEach(it => { pp[it.prioridade] = (pp[it.prioridade] || 0) + 1; it.motivosPadrao.forEach(x => { pm[x.prioridade] = (pm[x.prioridade] || 0) + 1; }); });
+      T(m.secoes.length === e.sec && its.length === e.it && its.reduce((n, i) => n + i.motivosPadrao.length, 0) === e.mo, "dados reais " + id + ": contagens " + J([m.secoes.length, its.length, its.reduce((n, i) => n + i.motivosPadrao.length, 0)]));
+      const ord = (o)=> J(Object.keys(o).sort().map(k => [k, o[k]]));
+      T(ord(pm) === ord(e.pm) && ord(pp) === ord(e.pp), "dados reais " + id + ": distribuicao de prioridade " + J(pm) + " " + J(pp) + " esperado " + J(e.pm) + " " + J(e.pp));
+      const pior = (ps)=> ps.reduce((a, p) => (a === null || { critica:0, alta:1, media:2, boa:3 }[p] < { critica:0, alta:1, media:2, boa:3 }[a]) ? p : a, null);
+      T(its.every(it => it.prioridade === pior(it.motivosPadrao.map(x => x.prioridade))), "dados reais " + id + ": a prioridade de cada pergunta e a do pior motivo (nao a da 1a linha)");
+    });
+    const rig = roda("STATE.checklists.modelos.find(x => x.id === 'mg_horizontal_rigida')");
+    T(rig.secoes[3].itens.length === 3 && rig.secoes[3].itens[2].id === "mg_horizontal_rigida_s3_i2" && rig.secoes[3].itens[2].descricao.startsWith("Quando o fabricante define prazo") && J(rig.secoes.map(s => s.itens.map(i => i.id))) === J(roda("STATE.checklists.modelos.find(x => x.id === 'mg_horizontal_rigida')").secoes.map(s => s.itens.map(i => i.id))), "dados reais: a pergunta que faltava na Rigida entrou com ID novo, no fim de Viga / Trilho");
+    T(rig.secoes[2].itens[0].motivosPadrao.some(x => x.motivo === "Estrutura Parece resistente mas sem comprovação"), "dados reais: o motivo que so existe no app ficou no modelo");
+    const depoisL = roda("STATE.checklists.projetos[0].setores[0].linhas").map(contar);
+    T(depoisL.length === 20 && depoisL.every((c, i) => c.resp === antesL[i].resp && c.marc === antesL[i].marc && c.fi === antesL[i].fi && c.fs === antesL[i].fs && c.st === antesL[i].st && c.nome === antesL[i].nome && c.itens === antesL[i].itens && c.snapItens === antesL[i].snapItens), "dados reais: as 20 linhas mantem respostas, motivos marcados, fotos (item e secao), status e perguntas");
+    T(J(roda("STATE.checklists.projetos[0].setores[0].linhas").filter(l => !R.planilhas[l.modeloId])) === linhasOutros && Object.keys(outros).every(id => J(roda("STATE.checklists.modelos.find(x => x.id === " + J(id) + ")")) === outros[id]), "dados reais: os outros modelos e as linhas de outros modelos nao foram tocados");
+    const fornalha = roda("STATE.checklists.projetos[0].setores[0].linhas").find(l => l.nome === "Secador - Fornalha 203");
+    T(!J(fornalha.itens).includes(RENOME_V) && J(fornalha.itens).includes(RENOME_N), "dados reais: a Fornalha 203 continua com o motivo marcado, agora com o rotulo novo (marcacao e foto ligada)");
+    const lrig = roda("STATE.checklists.projetos[0].setores[0].linhas").filter(l => l.modeloId === "mg_horizontal_rigida");
+    T(lrig.length === 18 && lrig.every(l => l.modeloSnapshot.reduce((n, s) => n + s.itens.length, 0) === 15) && lrig.every(l => l.modeloSnapshot.every(s => s.itens.every(it => { const mi = rig.secoes.find(x => x.id === s.id).itens.find(x => x.id === it.id); return mi && it.textoAtende === mi.textoAtende && it.prioridade === mi.prioridade && it.motivosPadrao.every(mo => { const mm = mi.motivosPadrao.find(x => x.motivo === mo.motivo); return mm && mm.texto === mo.texto && mm.acao === mo.acao && mm.prioridade === mo.prioridade; }); }))), "dados reais: as 18 linhas rigidas ficaram com os mesmos textos e prioridades do modelo, sem a pergunta nova");
+    const seg = {}; Object.keys(R.planilhas).forEach(id => { seg[id] = roda("chkAtuExecutar(STATE, " + J(id) + ", " + J(rowsDe(id).secoes) + ", { dry:false, sobrescrever:true })"); });
+    T(Object.keys(seg).every(id => Object.keys(seg[id].campos).length === 0 && Object.keys(seg[id].camposLinhas).length === 0 && seg[id].linhas.alteradas === 0 && seg[id].itensNovos.length === 0 && seg[id].motivosRenomeados.length === 0), "dados reais: repetir o procedimento nao muda nada nem duplica nada");
+    console.log("ATUALIZACAO REAL: " + J(Object.keys(tot).reduce((o, id) => { const r = tot[id]; o[id] = { campos: r.campos, linhas: r.linhas, camposLinhas: r.camposLinhas, prioPerg: r.prio.pergunta, prioMot: r.prio.motivo, renomeadas: [r.marcacoesRenomeadas, r.fotosRenomeadas], divergentes: r.divergentes.length }; return o; }, {})));
+  }
+  roda("STATE.checklists.modelos = " + J(antes.m) + "; STATE.checklists.projetos = " + J(antes.p) + ";");
+}
+
+testarFotoAmpla().then(() => testarTravas()).then(() => testarDadosLaudo()).then(() => testarLaudoCapitulos()).then(() => testarMemorial()).then(() => testarCapitulosNovos()).then(() => testarEdicaoTexto()).then(() => testarFotosLeituraLaudo()).then(() => testarCadastroProjeto()).then(() => testarEditorModelo()).then(() => testarAtalhoLaudo()).then(() => testarCapaLaudo()).then(() => testarUsabilidade()).then(() => testarAtualizacaoModelos()).then(() => testarSincronizacaoChecklist()).then(() => {
   // as arvores do Completo/Simplificado continuam byte a byte identicas apos a foto ampla tambem
   if(JSON.stringify(sandbox.STATE.projetos) !== antesCompleto || JSON.stringify(sandbox.STATE.projetosSimples) !== antesSimples){
     console.error("FALHOU: a foto ampla da linha mexeu em STATE.projetos/projetosSimples");

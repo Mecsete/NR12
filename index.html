@@ -3471,7 +3471,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "13/10/2026 17:32";
+const APP_BUILD = "13/10/2026 20:23";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -14303,6 +14303,7 @@ function screenChkConfig(){
   </div>
   ${linha('onedrive', 'Backup', sub, "App.go('checklist-config-backup')")}
   ${linha('briefcase', 'Empresa e Responsáveis', 'Dados fixos do laudo e lista de inspetores', "App.go('checklist-config-empresa')")}
+  ${chkEhCampo() ? "" : linha('upload', 'Atualizar modelos pelas planilhas', 'Textos e criticidades dos modelos e das linhas já feitas, com prévia antes de aplicar', "App.chkAtuAbrir()")}
   ${linha('layers', 'Trocar de módulo', 'Voltar à escolha de módulos', "App.trocarModulo()")}
   <div class="section-title">Quem sou eu neste aparelho</div>
   <div class="card card-pad">
@@ -17413,6 +17414,255 @@ function chkTextosV2Pendente(estado){
   if(!c) return false;
   if((c.modelos || []).some(m=> chkTextosV2TipoDe(m.id) && !(m.textosVersao >= 2))) return true;
   return (c.projetos || []).some(p=> (p.setores || []).some(s=> (s.linhas || []).some(l=> chkTextosV2TipoDe(l.modeloId) && !(l.textosVersao >= 2))));
+}
+/* =========================================================================
+   ATUALIZAR MODELOS (E AS LINHAS FEITAS COM ELES) PELA PLANILHA
+   A planilha é a fonte da verdade dos textos e da criticidade. Correspondência: texto EXATO da pergunta (dentro da seção)
+   e texto EXATO do motivo (dentro da pergunta), nunca por posição; os dois únicos apelidos são "(com ART/RRT)" -> "(com ART)"
+   na pergunta e "Projeto sem ART/RRT de profissional habilitado" -> "Projeto sem ART de profissional habilitado" no motivo.
+   - Modelo: textos, norma, informação (as fotos da informação ficam), contexto, rótulo/texto/ação/prioridade de cada motivo;
+     prioridade da pergunta = a do PIOR motivo (crítica > alta > média > boa prática). Pergunta ou motivo que só existe no app
+     FICA; pergunta nova entra com ID novo (o ID das existentes nunca muda).
+   - Linhas feitas com o modelo (finalizadas e em andamento): a cópia congelada recebe os mesmos textos e prioridades das
+     perguntas/motivos que ela já tem. NÃO ganha pergunta nova. Respostas, motivos marcados, notas, fotos e datas ficam; só o
+     rótulo de motivo renomeado é trocado nas marcações e nas fotos ligadas a ele.
+   - Se a cópia da linha estava diferente do modelo anterior (edição manual), o campo é listado; só é sobrescrito se a pessoa deixar
+     marcado "sobrescrever".
+   Repetível: rodar de novo com a mesma planilha não muda nada nem duplica nada. `dry` calcula tudo sem gravar.
+   ========================================================================= */
+const CHK_ATU_ALIAS_PERGUNTA = [["(com ART/RRT)", "(com ART)"]];
+const CHK_ATU_ALIAS_MOTIVO = [["Projeto sem ART/RRT de profissional habilitado", "Projeto sem ART de profissional habilitado"]];
+function chkAtuNorm(txt, alias){
+  let r = String(txt == null ? "" : txt).trim();
+  alias.forEach(par=>{ r = r.split(par[0]).join(par[1]); });
+  return r;
+}
+/* Pior prioridade de uma lista de motivos (null se nenhum tem). */
+function chkAtuPior(motivos){
+  let m = null;
+  (motivos || []).forEach(x=>{ const p = x && x.prioridade; if(chkPrioridadeValida(p) && (m === null || CHK_PRIORIDADE_PESO[p] < CHK_PRIORIDADE_PESO[m])) m = p; });
+  return m;
+}
+function chkAtuNovoRel(){
+  return { campos:{}, camposLinhas:{}, prio:{ motivo:{}, pergunta:{} }, secoesNovas:0, itensNovos:[], itensSoNoApp:[], motivosNovos:[], motivosSoNoApp:[], motivosRenomeados:[],
+    linhas:{ total:0, finalizadas:0, alteradas:0 }, marcacoesRenomeadas:0, fotosRenomeadas:0, divergentes:[], antes:null, depois:null };
+}
+function chkAtuIdLivre(prefixo, usados){ let n = 0; while(usados.indexOf(prefixo + n) >= 0) n++; return prefixo + n; }
+function chkAtuDist(secoes){
+  const m = {}, p = {};
+  (secoes || []).forEach(s=> (s.itens || []).forEach(it=>{
+    const kp = it.prioridade || "(vazio)"; p[kp] = (p[kp] || 0) + 1;
+    (it.motivosPadrao || []).forEach(mo=>{ const km = mo.prioridade || "(vazio)"; m[km] = (m[km] || 0) + 1; });
+  }));
+  return { motivo:m, pergunta:p };
+}
+/* Monta as seções que o modelo passa a ter (não grava nada): parte de uma cópia do modelo e aplica a planilha por cima. */
+function chkAtuMontarSecoes(modelo, secoesPl, rel, v2){
+  const pl = clonarCompartilhandoFotos(secoesPl || []);
+  if(v2) chkTextosV2AplicarSecoes(pl);   // modelos com personalização por característica mantêm os trechos {{...}}
+  const base = clonarCompartilhandoFotos(modelo.secoes || []);
+  const usadasSec = new Set(), out = [];
+  const ch = (obj, k, v, campo, contar)=>{ if(obj[k] !== v){ if(contar) rel.campos[campo] = (rel.campos[campo] || 0) + 1; obj[k] = v; } };
+  const trocaPrio = (nivel, de, para)=>{ if(de !== para){ const k = (de || "(vazio)") + ">" + para; rel.prio[nivel][k] = (rel.prio[nivel][k] || 0) + 1; } };
+  pl.forEach(ps=>{
+    const sa = base.find(x=> String(x.titulo || "").trim() === String(ps.titulo || "").trim() && !usadasSec.has(x.id));
+    let sec;
+    if(sa){ usadasSec.add(sa.id); sec = sa; }
+    else{
+      sec = { id: chkAtuIdLivre((modelo.id || "m") + "_s", base.concat(out).map(x=> x.id)), titulo: ps.titulo, itens:[], contexto:"" };
+      rel.secoesNovas++;
+    }
+    if(ps.contexto) ch(sec, "contexto", ps.contexto, "Contexto da seção", !!sa);
+    const usadosIt = new Set(), itens = [];
+    (ps.itens || []).forEach(pi=>{
+      const chave = chkAtuNorm(pi.descricao, CHK_ATU_ALIAS_PERGUNTA);
+      const ai = (sec.itens || []).find(x=> !usadosIt.has(x.id) && chkAtuNorm(x.descricao, CHK_ATU_ALIAS_PERGUNTA) === chave);
+      let it, existe = !!ai;
+      if(ai){ usadosIt.add(ai.id); it = ai; }
+      else{
+        it = novoChkItem();
+        it.id = chkAtuIdLivre(sec.id + "_i", (sec.itens || []).concat(itens).map(x=> x.id));
+        rel.itensNovos.push({ secao: sec.titulo, pergunta: pi.descricao, motivos: (pi.motivosPadrao || []).length });
+      }
+      const prioAntes = existe ? it.prioridade : null;
+      ch(it, "descricao", pi.descricao, "Pergunta", existe);
+      ch(it, "normativo", pi.normativo || "", "Norma/Referência", existe);
+      ch(it, "textoAtende", pi.textoAtende || "", "Texto quando atende", existe);
+      if(!it.info || typeof it.info !== "object") it.info = { texto:"", fotos:[] };
+      ch(it.info, "texto", (pi.info && pi.info.texto) || "", "Informação", existe);
+      const novos = [], usadosM = new Set();
+      (pi.motivosPadrao || []).forEach(pm=>{
+        const chaveM = chkAtuNorm(pm.motivo, CHK_ATU_ALIAS_MOTIVO);
+        const am = (it.motivosPadrao || []).find(x=> !usadosM.has(x) && chkAtuNorm(x.motivo, CHK_ATU_ALIAS_MOTIVO) === chaveM);
+        let mo;
+        if(am){
+          usadosM.add(am); mo = am;
+          if(am.motivo !== pm.motivo){ rel.motivosRenomeados.push({ itemId: it.id, pergunta: pi.descricao, de: am.motivo, para: pm.motivo }); ch(am, "motivo", pm.motivo, "Rótulo do motivo", true); }
+        }else{
+          mo = { motivo: pm.motivo, texto:"", acao:"", prioridade: null };
+          if(existe) rel.motivosNovos.push({ pergunta: pi.descricao, motivo: pm.motivo });
+        }
+        ch(mo, "texto", pm.texto || "", "Texto do motivo", !!am);
+        ch(mo, "acao", pm.acao || "", "Ação recomendada", !!am);
+        const np = chkPrioridadeValida(pm.prioridade) ? pm.prioridade : (mo.prioridade || null);
+        if(am) trocaPrio("motivo", mo.prioridade, np);
+        mo.prioridade = np;
+        novos.push(mo);
+      });
+      (it.motivosPadrao || []).forEach(x=>{ if(!usadosM.has(x)){ novos.push(x); rel.motivosSoNoApp.push({ pergunta: it.descricao, motivo: x.motivo, prioridade: x.prioridade || null }); } });
+      it.motivosPadrao = novos;
+      const pior = chkAtuPior(novos) || (chkPrioridadeValida(pi.prioridade) ? pi.prioridade : null);
+      if(pior){ if(existe) trocaPrio("pergunta", prioAntes, pior); it.prioridade = pior; }
+      itens.push(it);
+    });
+    (sec.itens || []).forEach(x=>{ if(!usadosIt.has(x.id)){ itens.push(x); rel.itensSoNoApp.push({ secao: sec.titulo, pergunta: x.descricao }); } });
+    sec.itens = itens;
+    out.push(sec);
+  });
+  base.forEach(x=>{ if(!usadasSec.has(x.id)) out.push(x); });
+  return out;
+}
+/* Aplica à cópia congelada de uma linha (dry = só conta). `novo`/`ant` = modelo depois/antes. */
+function chkAtuLinha(linha, novo, ant, rel, opc, dry){
+  let mudou = 0;
+  const renomes = {};
+  const set = (obj, k, v, campo, ctx, valorAnt)=>{
+    if(obj[k] === v) return;
+    if(valorAnt !== undefined && obj[k] !== valorAnt){
+      rel.divergentes.push(Object.assign({ linha: linha.nome || linha.id, campo, atual: obj[k], novo: v }, ctx));
+      if(!opc.sobrescrever) return;
+    }
+    mudou++; rel.camposLinhas[campo] = (rel.camposLinhas[campo] || 0) + 1;
+    if(!dry) obj[k] = v;
+  };
+  (linha.modeloSnapshot || []).forEach(ss=>{
+    const ns = (novo.secoes || []).find(x=> x.id === ss.id); if(!ns) return;
+    const as = (ant.secoes || []).find(x=> x.id === ss.id) || null;
+    set(ss, "contexto", ns.contexto || "", "Contexto da seção", { secao: ss.titulo }, as ? (as.contexto || "") : undefined);
+    (ss.itens || []).forEach(si=>{
+      const ni = (ns.itens || []).find(x=> x.id === si.id); if(!ni) return;
+      const ai = as ? ((as.itens || []).find(x=> x.id === si.id) || null) : null;
+      const ctx = { secao: ss.titulo, pergunta: String(ni.descricao || "").slice(0, 90) };
+      set(si, "descricao", ni.descricao, "Pergunta", ctx, ai ? ai.descricao : undefined);
+      set(si, "normativo", ni.normativo || "", "Norma/Referência", ctx, ai ? (ai.normativo || "") : undefined);
+      set(si, "textoAtende", ni.textoAtende || "", "Texto quando atende", ctx, ai ? (ai.textoAtende || "") : undefined);
+      set(si, "prioridade", ni.prioridade, "Prioridade da pergunta", ctx, ai ? ai.prioridade : undefined);
+      const infoObj = (si.info && typeof si.info === "object") ? si.info : { texto:"", fotos:[] };
+      set(infoObj, "texto", (ni.info && ni.info.texto) || "", "Informação", ctx, ai ? ((ai.info && ai.info.texto) || "") : undefined);
+      if(!dry && infoObj !== si.info) si.info = infoObj;
+      const am = (ai && ai.motivosPadrao) || [];
+      (ni.motivosPadrao || []).forEach(nm=>{
+        const chave = chkAtuNorm(nm.motivo, CHK_ATU_ALIAS_MOTIVO);
+        const sm = (si.motivosPadrao || []).find(x=> chkAtuNorm(x.motivo, CHK_ATU_ALIAS_MOTIVO) === chave);
+        if(!sm){ mudou++; rel.camposLinhas["Motivo acrescentado"] = (rel.camposLinhas["Motivo acrescentado"] || 0) + 1; if(!dry){ if(!Array.isArray(si.motivosPadrao)) si.motivosPadrao = []; si.motivosPadrao.push(Object.assign({}, nm)); } return; }
+        const a1 = am.find(x=> chkAtuNorm(x.motivo, CHK_ATU_ALIAS_MOTIVO) === chave);
+        const c2 = Object.assign({}, ctx, { motivo: String(nm.motivo).slice(0, 70) });
+        if(sm.motivo !== nm.motivo){ (renomes[si.id] = renomes[si.id] || []).push([sm.motivo, nm.motivo]); set(sm, "motivo", nm.motivo, "Rótulo do motivo", c2, undefined); }
+        set(sm, "texto", nm.texto || "", "Texto do motivo", c2, a1 ? (a1.texto || "") : undefined);
+        set(sm, "acao", nm.acao || "", "Ação recomendada", c2, a1 ? (a1.acao || "") : undefined);
+        set(sm, "prioridade", nm.prioridade, "Prioridade do motivo", c2, a1 ? a1.prioridade : undefined);
+      });
+    });
+  });
+  // o rótulo novo vale também nas marcações (motivosSelecionados) e nas fotos ligadas ao motivo
+  (linha.itens || []).forEach(e=>{
+    (renomes[e.itemId] || []).forEach(par=>{
+      (e.motivosSelecionados || []).forEach((m, k)=>{ if(m === par[0]){ rel.marcacoesRenomeadas++; mudou++; if(!dry) e.motivosSelecionados[k] = par[1]; } });
+      (e.fotos || []).forEach(f=>{ if(f && f.motivo === par[0]){ rel.fotosRenomeadas++; mudou++; if(!dry) f.motivo = par[1]; } });
+    });
+  });
+  if(mudou){ rel.linhas.alteradas++; if(!dry) linha.atualizadoEm = agoraSync(); }
+  return mudou;
+}
+/* Roda a atualização de UM modelo. opc: { dry (padrão true), sobrescrever (padrão true) }. Devolve o relatório. */
+function chkAtuExecutar(estado, modeloId, secoesPl, opc){
+  opc = Object.assign({ dry:true, sobrescrever:true }, opc || {});
+  const c = estado.checklists, modelo = (c.modelos || []).find(m=> m.id === modeloId);
+  if(!modelo) return null;
+  const rel = chkAtuNovoRel();
+  rel.antes = chkAtuDist(modelo.secoes);
+  const v2 = !!chkTextosV2TipoDe(modelo.id) && modelo.textosVersao >= 2;
+  const novas = chkAtuMontarSecoes(modelo, secoesPl, rel, v2);
+  rel.depois = chkAtuDist(novas);
+  rel.modelo = { id: modelo.id, nome: modelo.nome };
+  const novo = { id: modelo.id, secoes: novas };
+  (c.projetos || []).forEach(p=> (p.setores || []).forEach(s=> (s.linhas || []).forEach(l=>{
+    if(l.modeloId !== modelo.id) return;
+    rel.linhas.total++;
+    if(l.status === "finalizado") rel.linhas.finalizadas++;
+    chkAtuLinha(l, novo, modelo, rel, opc, opc.dry);
+  })));
+  rel.modeloMudou = JSON.stringify(novas) !== JSON.stringify(modelo.secoes);
+  if(!opc.dry && rel.modeloMudou){ modelo.secoes = novas; modelo.atualizadoEm = agoraSync(); }   // sem mudança, nada é regravado (nem a data), para não gerar envio à toa
+  return rel;
+}
+/* Quanto da planilha casa com um modelo (para sugerir o modelo certo): fração das perguntas com texto igual. */
+function chkAtuAfinidade(modelo, secoesPl){
+  let total = 0, casam = 0;
+  (secoesPl || []).forEach(ps=> (ps.itens || []).forEach(pi=>{
+    total++;
+    const chave = chkAtuNorm(pi.descricao, CHK_ATU_ALIAS_PERGUNTA);
+    if((modelo.secoes || []).some(s=> (s.itens || []).some(it=> chkAtuNorm(it.descricao, CHK_ATU_ALIAS_PERGUNTA) === chave))) casam++;
+  }));
+  return total ? casam / total : 0;
+}
+const CHK_ATU_ROT_PRIO = { critica:"Crítica", alta:"Alta", media:"Média", boa:"Boa prática", "(vazio)":"(vazio)" };
+function chkAtuDistTexto(d){
+  return ["critica", "alta", "media", "boa", "(vazio)"].filter(k=> d && d[k]).map(k=> CHK_ATU_ROT_PRIO[k] + " " + d[k]).join(", ") || "-";
+}
+function chkAtuTrocasTexto(o){
+  const k = Object.keys(o || {});
+  return k.length ? k.map(x=> { const p = x.split(">"); return (CHK_ATU_ROT_PRIO[p[0]] || p[0]) + " → " + (CHK_ATU_ROT_PRIO[p[1]] || p[1]) + ": " + o[x]; }).join("; ") : "nenhuma";
+}
+/* Relatório de um modelo, em HTML (dry-run e resultado). */
+function chkAtuRelHtml(rel){
+  const li = (t)=> `<li>${t}</li>`;
+  const camp = Object.keys(rel.campos).map(k=> `${escapeHtml(k)}: ${rel.campos[k]}`).join("; ") || "nenhum";
+  const campL = Object.keys(rel.camposLinhas).map(k=> `${escapeHtml(k)}: ${rel.camposLinhas[k]}`).join("; ") || "nenhum";
+  const lista = (arr, f)=> arr.length ? `<ul style="margin:2px 0 0 18px">${arr.map(f).join("")}</ul>` : "";
+  return `<div style="font-size:12.5px;line-height:1.5">
+    <ul style="margin:0 0 0 18px">
+      ${li(`<b>Modelo:</b> motivos ${chkAtuDistTexto(rel.antes.motivo)} → ${chkAtuDistTexto(rel.depois.motivo)}`)}
+      ${li(`<b>Perguntas:</b> ${chkAtuDistTexto(rel.antes.pergunta)} → ${chkAtuDistTexto(rel.depois.pergunta)}`)}
+      ${li(`Prioridade de motivos que mudam: ${escapeHtml(chkAtuTrocasTexto(rel.prio.motivo))}`)}
+      ${li(`Prioridade de perguntas que mudam: ${escapeHtml(chkAtuTrocasTexto(rel.prio.pergunta))}`)}
+      ${li(`Textos que mudam no modelo (campos): ${camp}`)}
+      ${li(`Motivos renomeados: ${rel.motivosRenomeados.length}; motivos novos: ${rel.motivosNovos.length}; perguntas novas: ${rel.itensNovos.length}; seções novas: ${rel.secoesNovas}`)}
+      ${li(`<b>Linhas feitas com este modelo:</b> ${rel.linhas.total} (${rel.linhas.finalizadas} finalizadas); com alteração: ${rel.linhas.alteradas}. Campos que mudam nas linhas: ${campL}`)}
+      ${li(`Marcações de motivo renomeado trocadas: ${rel.marcacoesRenomeadas}; fotos ligadas a esse motivo: ${rel.fotosRenomeadas}`)}
+    </ul>
+    ${rel.itensNovos.length ? `<div style="margin-top:6px"><b>Perguntas novas</b> (entram só no modelo; as linhas existentes não recebem)</div>${lista(rel.itensNovos, x=> li(escapeHtml(x.secao + " · " + x.pergunta.slice(0, 110)) + ` (${x.motivos} motivos)`))}` : ""}
+    ${rel.motivosSoNoApp.length ? `<div style="margin-top:6px"><b>Motivos só no app</b> (ficam como estão)</div>${lista(rel.motivosSoNoApp, x=> li(escapeHtml(x.motivo + " — " + x.pergunta.slice(0, 70))))}` : ""}
+    ${rel.itensSoNoApp.length ? `<div style="margin-top:6px"><b>Perguntas só no app</b> (ficam como estão)</div>${lista(rel.itensSoNoApp, x=> li(escapeHtml(x.pergunta.slice(0, 110))))}` : ""}
+    ${rel.divergentes.length ? `<div style="margin-top:6px;color:#8a2b0e"><b>${rel.divergentes.length} campo(s) de linha estavam diferentes do modelo anterior</b> (edição manual ou modelo mudado depois da linha criada):</div>${lista(rel.divergentes.slice(0, 12), x=> li(escapeHtml(x.linha + " · " + x.campo + " · " + (x.pergunta || x.secao || "") + (x.motivo ? " · " + x.motivo : ""))))}${rel.divergentes.length > 12 ? `<div class="lcl-dica">… e mais ${rel.divergentes.length - 12}.</div>` : ""}` : ""}
+  </div>`;
+}
+let __chkAtu = { arquivos: [], sobrescrever: true, rodando: false, resultado: null };
+function chkAtuModalHtml(){
+  return `<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card" style="max-width:820px;width:calc(100vw - 32px);max-height:92vh;overflow:auto">
+    <h3>${ic('upload')} Atualizar modelos pelas planilhas</h3>
+    <p class="sheet-sub">Escolha a planilha de cada modelo (as colunas são as de "Importar via XLSX"). O app mostra o que vai mudar antes de aplicar. Atualiza o modelo e as linhas já feitas com ele (finalizadas e em andamento): textos e criticidade. Respostas, motivos marcados, notas e fotos não mudam. Pode rodar de novo com planilhas novas sem duplicar nada.</p>
+    <div class="modal-actions" style="justify-content:flex-start;margin:6px 0 10px"><button type="button" class="btn btn-primary" onclick="App.chkAtuEscolher()">${ic('upload')} Escolher planilhas</button><input type="file" id="chkAtuInput" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple hidden onchange="App.chkAtuLer(this)"></div>
+    <div id="chkAtuCorpo">${chkAtuCorpoHtml()}</div>
+    <div class="modal-actions"><button class="btn btn-secondary" onclick="App.fecharModal()">Fechar</button></div>
+  </div></div>`;
+}
+function chkAtuCorpoHtml(){
+  const modelos = (STATE.checklists && STATE.checklists.modelos) || [];
+  const cartoes = __chkAtu.arquivos.map((a, k)=>{
+    const rel = a.modeloId ? chkAtuExecutar(STATE, a.modeloId, a.secoes, { dry:true, sobrescrever: __chkAtu.sobrescrever }) : null;
+    return `<div class="card card-pad" style="margin-top:10px">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="font-size:13.5px;flex:1 1 220px;min-width:0;overflow-wrap:anywhere">${escapeHtml(a.nome)}</b><span class="stat-pill">${a.contagem.secoes} seções · ${a.contagem.itens} perguntas · ${a.contagem.motivos} motivos</span><button class="icon-btn" aria-label="Tirar da lista" title="Tirar da lista" onclick="App.chkAtuRemover(${k})">${ic('close')}</button></div>
+      <div class="field" style="margin-top:8px"><label for="chkAtuMod${k}">Atualizar o modelo</label><select id="chkAtuMod${k}" onchange="App.chkAtuEscolheModelo(${k}, this.value)"><option value="">(não atualizar)</option>${modelos.map(m=> `<option value="${escapeHtml(m.id)}" ${m.id === a.modeloId ? "selected" : ""}>${escapeHtml(m.nome || "Modelo")}</option>`).join("")}</select></div>
+      ${rel ? `<div style="margin-top:6px"><b style="font-size:12.5px">O que vai mudar (prévia, nada foi gravado)</b>${chkAtuRelHtml(rel)}</div>` : `<div class="lcl-dica">Escolha o modelo para ver a prévia.</div>`}
+    </div>`;
+  }).join("");
+  const res = (__chkAtu.resultado || []).map(rel=> `<div class="card card-pad" style="margin-top:10px;border-left:4px solid #2e7d32;border-radius:0 12px 12px 0"><b style="font-size:13.5px">Aplicado: ${escapeHtml(rel.modelo.nome)}</b>${chkAtuRelHtml(rel)}</div>`).join("");
+  const algum = __chkAtu.arquivos.some(a=> a.modeloId);
+  return `${cartoes}
+    ${__chkAtu.arquivos.length ? `<label style="display:flex;gap:8px;align-items:flex-start;margin-top:10px;font-size:12.5px"><input type="checkbox" ${__chkAtu.sobrescrever ? "checked" : ""} onchange="App.chkAtuSobrescrever(this.checked)" style="margin-top:2px"> Sobrescrever também os campos da linha que estavam diferentes do modelo anterior (se desmarcar, esses campos ficam como estão e aparecem listados)</label>
+    <div class="modal-actions" style="margin-top:10px"><button class="btn btn-primary" ${algum && !__chkAtu.rodando ? "" : "disabled"} onclick="App.chkAtuAplicar()">${__chkAtu.rodando ? "Aplicando..." : "Aplicar"}</button></div>` : ""}
+    ${res}`;
 }
 function chkCaracResumo(l){
   const defs = ((l && l.caracDefs) || []).filter(g=> !g.derivada), carac = (l && l.carac) || {};
@@ -34064,6 +34314,68 @@ Devolver agora?`)) return;
     m.atualizadoEm = agoraSync();
     marcarAlterado();
     render();
+  },
+  /* ---------- atualizar modelos pelas planilhas (janela em Configurações) ---------- */
+  chkAtuAbrir(){
+    __chkAtu = { arquivos: [], sobrescrever: true, rodando: false, resultado: null };
+    abrirOverlay(chkAtuModalHtml());
+  },
+  chkAtuEscolher(){
+    const i = document.getElementById("chkAtuInput"); if(!i) return;
+    i.value = ""; i.click();
+  },
+  async chkAtuLer(input){
+    const arqs = Array.from(input.files || []);
+    input.value = "";
+    for(const file of arqs){
+      try{
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const zip = new window.PizZip(bytes);
+        const arqSst = zip.file("xl/sharedStrings.xml");
+        const sst = arqSst ? baseIALerSst(arqSst.asText()) : [];
+        let r = null;
+        for(const f of (zip.file(/^xl\/worksheets\/sheet\d+\.xml$/) || [])){
+          const x = chkModeloXLSXLinhasParaSecoes(baseIALerCelulas(f.asText(), sst));
+          if(!x.erro && x.contagem.itens){ r = x; break; }
+        }
+        if(!r){ toast("Não reconheci a planilha " + file.name, false); continue; }
+        let melhor = null, nota = 0;
+        ((STATE.checklists && STATE.checklists.modelos) || []).forEach(m=>{ const a = chkAtuAfinidade(m, r.secoes); if(a > nota){ nota = a; melhor = m; } });
+        __chkAtu.arquivos.push({ nome: file.name, secoes: r.secoes, contagem: r.contagem, modeloId: (nota >= 0.5 && melhor) ? melhor.id : "" });
+      }catch(e){
+        toast("Não foi possível ler " + file.name + ": " + (e && e.message ? e.message : "erro desconhecido"), false);
+      }
+    }
+    __chkAtu.resultado = null;
+    App.chkAtuRedesenhar();
+  },
+  chkAtuRedesenhar(){
+    const el = document.getElementById("chkAtuCorpo"); if(el) el.innerHTML = chkAtuCorpoHtml();
+  },
+  chkAtuEscolheModelo(k, id){ if(__chkAtu.arquivos[k]){ __chkAtu.arquivos[k].modeloId = id; App.chkAtuRedesenhar(); } },
+  chkAtuSobrescrever(v){ __chkAtu.sobrescrever = !!v; App.chkAtuRedesenhar(); },
+  chkAtuRemover(k){ __chkAtu.arquivos.splice(k, 1); App.chkAtuRedesenhar(); },
+  async chkAtuAplicar(){
+    if(__chkAtu.rodando) return;
+    const alvos = __chkAtu.arquivos.filter(a=> a.modeloId);
+    if(!alvos.length){ toast("Escolha o modelo de ao menos uma planilha", false); return; }
+    if(new Set(alvos.map(a=> a.modeloId)).size !== alvos.length){ toast("Duas planilhas estão apontando para o mesmo modelo", false); return; }
+    if(!confirm("Atualizar " + alvos.length + (alvos.length === 1 ? " modelo" : " modelos") + " e as linhas feitas com " + (alvos.length === 1 ? "ele" : "eles") + "? O app guarda um ponto de restauração antes. Respostas, motivos marcados, notas e fotos não são alterados.")) return;
+    __chkAtu.rodando = true;
+    try{
+      const ok = await salvarPontoDeRestauracao("Antes de atualizar os modelos pelas planilhas");
+      if(!ok){ toast("Não consegui criar o ponto de restauração: nada foi alterado", false); return; }
+      const rels = alvos.map(a=> chkAtuExecutar(STATE, a.modeloId, a.secoes, { dry:false, sobrescrever: __chkAtu.sobrescrever }));
+      marcarAlterado();
+      __chkAtu.resultado = rels.filter(Boolean);
+      __chkAtu.arquivos = [];
+      toast("Modelos e linhas atualizados. Ponto de restauração criado.");
+    }catch(e){
+      toast("A atualização parou: " + (e && e.message ? e.message : "erro desconhecido") + ". Se algo ficou estranho, volte pelo ponto de restauração em Backup.", false);
+    }finally{
+      __chkAtu.rodando = false;
+    }
+    App.chkAtuRedesenhar();
   },
   chkImportarModeloXLSX(){
     if(!getCurrentChkModelo()) return;

@@ -64,6 +64,17 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 13/10/2026 20:23
+
+**Linhas de vida: atualizar os modelos pelas planilhas (com as linhas já feitas) e legenda das prioridades abaixo de cada quadro de ação.**
+
+- Configurações > "Atualizar modelos pelas planilhas": escolha a planilha de cada modelo, veja a prévia do que muda (textos, criticidade, perguntas e motivos novos, linhas afetadas) e aplique. O app guarda um ponto de restauração antes.
+- Atualiza o modelo e as linhas já feitas com ele (finalizadas e em andamento): textos, normas, informações, ações e criticidade. A criticidade de cada pergunta passa a ser a do pior motivo. Respostas, motivos marcados, notas, fotos e status não mudam; um motivo renomeado continua marcado e com as fotos ligadas.
+- Perguntas novas entram só no modelo (as linhas existentes não recebem). Pergunta ou motivo que só existe no app fica como está. Rodar de novo com as mesmas planilhas não muda nem duplica nada.
+- Laudo: a legenda das prioridades fica logo abaixo de cada quadro de "Ação recomendada".
+
+---
+
 ## 13/10/2026 17:24
 
 **Laudo: as fotos das seções agora saem no PDF; inserir fotos na janela de fotos; quadro de não conformidades e legenda mais enxutos.**
