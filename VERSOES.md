@@ -64,6 +64,17 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 13/10/2026 21:43
+
+**Linhas de vida: número de documento automático e fixo por laudo; arrastar fotos para o motivo; conferência sem falsa pendência.**
+
+- Nº do documento: digite uma vez, no projeto, o número do **primeiro** laudo (ex.: MEC7.2026.0820.001-01). Cada laudo recebe o seguinte sozinho (002-01, 003-01...), na capa e na página "Informações Iniciais", no laudo individual e no "Laudos em um PDF".
+- O número de cada laudo fica gravado nele e nunca muda nem se repete: reordenar, inserir, apagar ou preencher outra linha antes não troca número nenhum. Cópia de linha, duplicar projeto e mover para outro projeto ganham número novo. Aviso "Novo número" se dois aparelhos numerarem ao mesmo tempo.
+- Preenchimento: dá para arrastar fotos do computador para a caixa de um motivo (ou para o item). Imagem solta fora de uma área de foto não abre mais o arquivo no navegador.
+- Conferência: item "Não atende" com "Sem foto" confirmado não é pendência. O cartão mostra "tudo conferido" e o botão fica "Abrir"; só o que tem pendência de verdade pede "Corrigir".
+
+---
+
 ## 13/10/2026 20:23
 
 **Linhas de vida: atualizar os modelos pelas planilhas (com as linhas já feitas) e legenda das prioridades abaixo de cada quadro de ação.**
