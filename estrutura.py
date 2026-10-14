@@ -5822,7 +5822,7 @@ chk("laudos em lote: um PDF com varias linhas, cada laudo com os proprios destin
 
 print("\n=== 187. LAUDOS EM LOTE COM ESCOLHA + TEXTOS-BASE DO LAUDO SINCRONIZAM (07/10/2026) ===")
 chk("laudos em lote: lista com caixa por linha (marcar/desmarcar todos, contagem no botao) e geracao so das escolhidas",
-    "lclLoteTodos(on){" in novo and "lclLoteContar(){" in novo and "lclLoteGerar(escopo){" in novo and "lclLoteExecutar(escopo, ids){" in novo and 'data-lote="${l.id}" checked' in novo)
+    "lclLoteTodos(on){" in novo and "lclLoteContar(){" in novo and "lclLoteGerar(escopo){" in novo and "lclLoteExecutar(escopo, ids){" in novo and 'data-lote="${l.id}" data-setor="${s.id}" checked' in novo)
 chk("os textos-base do laudo viajam como arquivo proprio (t_), com carimbo na edicao e na lista de entidades da rodada",
     'tipo:"t", id:"textos"' in novo and "[mpslt]" in novo and 'if(tipo === "t"){ ns.textos = obj; return "ok"; }' in novo and '["m", "t", "p", "s", "l"]' in novo and novo.count("STATE.checklists.textos.atualizadoEm = agoraSync();") == 2)
 chk("antes de montar/imprimir/escolher laudos o app busca novidades da nuvem (com limite de tempo) e a previa se refaz",

@@ -751,6 +751,9 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-foto-btns{display:flex;gap:8px;margin-top:8px}
 .chk-foto-btns .btn{flex:1}
 .lote-acoes{display:flex;gap:8px;margin:10px 0 6px}
+.lote-formato{display:flex;flex-direction:column;gap:6px;margin:0 0 12px;font-size:13px}
+.lote-formato b{font-size:12px;letter-spacing:.03em;text-transform:uppercase;color:var(--ink-dim)}
+.lote-formato label{display:flex;gap:8px;align-items:center;cursor:pointer}
 .lote-lista{max-height:50vh;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:4px 10px;margin-bottom:12px}
 .lote-setor{font-size:11.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-dim);margin:10px 0 2px}
 .lote-item{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-top:1px solid var(--line);cursor:pointer}
@@ -3477,7 +3480,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "14/10/2026 07:39";
+const APP_BUILD = "14/10/2026 08:05";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -11412,6 +11415,7 @@ let __selMode = null; // { tipo:'areaS'|'maquinaS'|'tarefaS'|'riscoS', ids:Set<s
 let __ultimoMovimento = null; // { tipo, idsMovidos:Set<string>, origemScreen, origemParams, origemLabel, expiraEm }
 let __buscaAtual = "";
 let __lclLoteEmAndamento = false; // montando vários laudos em um PDF só
+let __lclFila = null; // fila "um arquivo por linha/setor": { fmt, itens:[{rotulo, sub, arquivo, alvos, estado}], ocupado }
 let __chkProjEditado = false; // digitou nos dados do projeto: ao sair da tela avisa que ficou salvo
 let __chkDaRevisao = false;   // veio da tela Revisar e finalizar: mostra "Voltar à revisão" no preenchimento
 let __chkProjFiltro = "todos"; // filtro de status da lista de projetos
@@ -14259,7 +14263,7 @@ function topBarChk(){
   const btnBusca = `<button class="icon-btn" style="color:var(--on-bar)" onclick="App.go('checklist-busca')" title="Buscar" aria-label="Buscar">${ic('search')}</button>`;
   if(s==="checklist-modelos") action = `<button class="icon-btn" style="color:var(--on-bar)" onclick="App.go('checklist-config')" title="Configurações">${ic('cog')}</button><button class="icon-btn" style="color:var(--on-bar)" onclick="App.trocarModulo()" title="Trocar módulo">${ic('layers')}</button><button class="topbar-action" onclick="App.chkNovoModelo()">${ic('plus')} Novo</button>`;
   if(s==="checklist-projetos") action = `<button class="icon-btn" style="color:var(--on-bar)" onclick="App.go('checklist-config')" title="Configurações">${ic('cog')}</button><button class="icon-btn" style="color:var(--on-bar)" onclick="App.trocarModulo()" title="Trocar módulo">${ic('layers')}</button><button class="topbar-action" onclick="App.chkNovoProjeto()">${ic('plus')} Novo</button>`;
-  if(s==="checklist-setores") action = `<button class="topbar-action" onclick="App.chkAbrirDadosProjeto()">${ic('edit')} Dados</button>${chkEhCampo() ? "" : `<button class="topbar-action" onclick="App.lclLote('projeto')" title="Laudos das linhas deste projeto em um PDF só (você escolhe quais entram)">${ic('print')} Laudos</button>`}<button class="topbar-action" onclick="App.chkNovoSetor()">${ic('plus')} Setor</button>`;
+  if(s==="checklist-setores") action = `<button class="topbar-action" onclick="App.chkAbrirDadosProjeto()">${ic('edit')} Dados</button>${chkEhCampo() ? "" : `<button class="topbar-action" onclick="App.lclLote('projeto')" title="Laudos em PDF: um arquivo só, ou um por setor ou por linha (você escolhe quais entram)">${ic('print')} Laudos</button>`}<button class="topbar-action" onclick="App.chkNovoSetor()">${ic('plus')} Setor</button>`;
   if(s==="checklist-linhas") action = `<button class="topbar-action" onclick="App.go('checklist-nova-linha')">${ic('plus')} Linha</button>`;
   if(s==="checklist-laudo") action = `<button class="topbar-action" onclick="window.print()">${ic('print')} Imprimir</button>`;
   if(s==="checklist-laudo-linha") action = `<button class="topbar-action" onclick="App.lclRevisarAbrir()" title="Pedir ao Claude para revisar os textos do laudo">${ic('edit')} Revisar</button><button class="topbar-action" onclick="App.lclImprimir()">${ic('print')} Imprimir</button>`;
@@ -14349,8 +14353,8 @@ function chkAcoesCartao(tipo, id){
   const btn = (ico, rot, fn)=> `<button class="icon-btn" aria-label="${rot}" title="${rot}" onclick="event.stopPropagation();${fn}">${ic(ico)}</button>`;
   const extra = {
     modelo:  btn('edit', 'Editar modelo', `App.chkAbrirModelo('${id}')`),
-    projeto: btn('edit', 'Editar dados do projeto', `App.chkEditarProjeto('${id}')`) + (chkEhCampo() ? "" : btn('print', 'Laudos do projeto em um PDF', `App.chkLaudosProjeto('${id}')`)),
-    setor:   btn('edit', 'Editar setor', `App.chkEditarSetor('${id}')`) + btn('copy', 'Duplicar setor', `App.chkDuplicarAbrir('setor','${id}')`) + (chkEhCampo() ? "" : btn('print', 'Laudos do setor em um PDF', `App.chkLaudosSetor('${id}')`)),
+    projeto: btn('edit', 'Editar dados do projeto', `App.chkEditarProjeto('${id}')`) + (chkEhCampo() ? "" : btn('print', 'Laudos em PDF', `App.chkLaudosProjeto('${id}')`)),
+    setor:   btn('edit', 'Editar setor', `App.chkEditarSetor('${id}')`) + btn('copy', 'Duplicar setor', `App.chkDuplicarAbrir('setor','${id}')`) + (chkEhCampo() ? "" : btn('print', 'Laudos em PDF', `App.chkLaudosSetor('${id}')`)),
     linha:   btn('edit', 'Abrir o checklist da linha', `App.chkAbrirLinha('${id}')`),
   }[tipo] || "";
   // cartão de setor: só os ícones (a exclusão fica dentro da edição do setor)
@@ -14883,7 +14887,7 @@ function screenChkSetores(){
   }).join("");
   const controlesSet = chkBuscaChipsHtml("Buscar setor…", __chkSetFiltro, chkContagensFiltro(proj.setores.map(resSet)), "App.chkSetSetFiltro", proj.setores.length >= 4);
   const nLoteProj = proj.setores.reduce((n, s)=> n + s.linhas.filter(l=> chkProgresso(l) > 0).length, 0);
-  const botaoLoteProj = nLoteProj >= 2 && !chkEhCampo() ? `<button class="btn btn-secondary btn-block" style="margin-bottom:10px" onclick="App.lclLote('projeto')">${ic('print')} Laudos do projeto em um PDF (${nLoteProj} linhas)</button>` : "";
+  const botaoLoteProj = nLoteProj >= 2 && !chkEhCampo() ? `<button class="btn btn-secondary btn-block" style="margin-bottom:10px" onclick="App.lclLote('projeto')">${ic('print')} Laudos em PDF (${nLoteProj} linhas)</button>` : "";
   const botaoPronto = !chkEhCampo() && proj.setores.some(s=> s.linhas.length) ? `<button class="btn btn-secondary btn-block" style="margin-bottom:10px" onclick="App.go('checklist-pronto')">${ic('shield')} Conferir antes do laudo</button><button class="btn btn-secondary btn-block" style="margin-bottom:10px" onclick="App.go('checklist-revisao')">${ic('edit')} Revisar textos com o Claude${lclRevisaoContagem(proj.setores.flatMap(s=> s.linhas)).linhas ? ` <span class="stat-pill alert pend">${lclRevisaoContagem(proj.setores.flatMap(s=> s.linhas)).linhas} para validar</span>` : ""}</button>` : "";
   return `${botaoPronto}${botaoLoteProj}${controlesSet}<div class="section-title">${setoresFiltrados.length} de ${proj.setores.length} setor${proj.setores.length===1?'':'es'}</div>${cards || `<div class="empty"><p>Nenhum setor encontrado.</p></div>`}
     <div class="fab-wrap"><button class="fab" onclick="App.chkNovoSetor()">${ic('plus')}</button></div>`;
@@ -15070,7 +15074,7 @@ function screenChkPronto(){
   return `
   <div class="card card-pad"><div class="list-meta"><span class="stat-pill" style="color:${CHK_STATUS_META.atende.cor}">${r.prontas} prontas</span><span class="stat-pill ${r.comAjustes ? 'alert pend' : ''}">${r.comAjustes} com ajustes</span><span class="stat-pill">${r.naoIniciadas} não iniciadas</span></div>
     <p style="font-size:12.5px;color:var(--ink-dim);margin:8px 0 0">Confere o que o laudo vai mostrar: itens sem resposta, não atende sem motivo, memorial incompleto, foto ampla e dados em branco. Linhas não iniciadas ficam de fora.</p>
-    ${r.prontas ? `<button class="btn btn-primary btn-block" style="margin-top:10px" onclick="App.lclLote('projeto')">${ic('print')} Gerar laudos em um PDF</button>` : ""}
+    ${r.prontas ? `<button class="btn btn-primary btn-block" style="margin-top:10px" onclick="App.lclLote('projeto')">${ic('print')} Gerar laudos em PDF</button>` : ""}
     <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.go('checklist-revisao')">${ic('edit')} Revisar os textos com o Claude</button></div>
   ${projHtml}
   ${ajustes ? `<div class="section-title">Linhas com ajustes (${r.comAjustes})</div>${ajustes}` : ""}
@@ -15254,7 +15258,7 @@ function screenChkLinhas(){
     </div>`;
   }).join("") : `<div class="empty"><p>Nenhuma linha de vida encontrada.</p></div>`;
   const nLoteSetor = setor.linhas.filter(l=> chkProgresso(l) > 0).length;
-  const botaoLote = nLoteSetor >= 2 && !chkEhCampo() ? `<button class="btn btn-secondary btn-block" style="margin-bottom:10px" onclick="App.lclLote('setor')">${ic('print')} Laudos do setor em um PDF (${nLoteSetor} linhas)</button>` : "";
+  const botaoLote = nLoteSetor >= 2 && !chkEhCampo() ? `<button class="btn btn-secondary btn-block" style="margin-bottom:10px" onclick="App.lclLote('setor')">${ic('print')} Laudos em PDF (${nLoteSetor} linhas)</button>` : "";
   return `
   ${botaoLote}
   <div class="search-wrap">
@@ -19018,6 +19022,20 @@ async function lclMedidor(){
     },
     fechar: ()=>{ try{ med.remove(); }catch(e){} },
   };
+}
+/* Itens da fila "um arquivo por linha/setor": o nome do arquivo sugerido leva o setor ou a linha. */
+function chkLaudoFilaItens(proj, alvos, fmt, limpo){
+  const emp = limpo(proj.empresa);
+  if(fmt === "setor"){
+    const porSetor = [];
+    alvos.forEach(a=>{ let g = porSetor.find(x=> x.s.id === a.s.id); if(!g){ g = { s:a.s, alvos:[] }; porSetor.push(g); } g.alvos.push(a); });
+    return porSetor.map(g=> ({ rotulo: g.s.nome || "Setor", sub: g.alvos.length + (g.alvos.length === 1 ? " linha" : " linhas"), arquivo: ["Laudos NR-35", emp, limpo(g.s.nome)].filter(Boolean).join(" - "), alvos: g.alvos }));
+  }
+  const itens = alvos.map(a=> ({ rotulo: a.l.nome || "Linha de vida", sub: [chkNumeroDocLinha(proj, a.l), a.s.nome].filter(Boolean).join(" · "), arquivo: nomeArquivoLaudoLinha(proj, a.l), alvos:[a], num: limpo(chkNumeroDocLinha(proj, a.l)) }));
+  // nomes iguais (duas linhas com o mesmo nome): o número do documento desempata, para um arquivo não trocar o outro na pasta
+  const vezes = {}; itens.forEach(x=>{ vezes[x.arquivo] = (vezes[x.arquivo] || 0) + 1; });
+  itens.forEach(x=>{ if(x.num && vezes[x.arquivo] > 1) x.arquivo += " - " + x.num; });
+  return itens;
 }
 function nomeArquivoLaudoLinha(proj, linha){
   const limpo = (s)=> String(s || "").replace(/[\\/:*?<>|\x22]/g, "").replace(/\s+/g, " ").trim();
@@ -34964,16 +34982,23 @@ Devolver agora?`)) return;
     let fixou = false;
     grupos.forEach(g=> g.linhas.forEach(l=>{ if(chkNumeroDocFixar(proj, l)) fixou = true; }));   // números definitivos, na ordem da tela, antes de mostrar a lista
     if(fixou) marcarAlterado();
-    const item = (l)=>{
+    const item = (l, s)=>{
       const av = lclAvisos(l, proj).length;
-      return `<label class="lote-item"><input type="checkbox" data-lote="${l.id}" checked onchange="App.lclLoteContar()"><span><b>${escapeHtml(l.nome || "Linha de vida")}</b><small>${escapeHtml(chkNumeroDocLinha(proj, l))}${proj.numeroDocumento ? " · " : ""}${escapeHtml(l.modeloNome || "")} · ${chkProgresso(l)}% preenchido · ${av ? `<em>${av} aviso${av === 1 ? "" : "s"}</em>` : "sem avisos"}</small></span></label>`;
+      return `<label class="lote-item"><input type="checkbox" data-lote="${l.id}" data-setor="${s.id}" checked onchange="App.lclLoteContar()"><span><b>${escapeHtml(l.nome || "Linha de vida")}</b><small>${escapeHtml(chkNumeroDocLinha(proj, l))}${proj.numeroDocumento ? " · " : ""}${escapeHtml(l.modeloNome || "")} · ${chkProgresso(l)}% preenchido · ${av ? `<em>${av} aviso${av === 1 ? "" : "s"}</em>` : "sem avisos"}</small></span></label>`;
     };
-    const lista = grupos.map(g=> (escopo === "setor" ? "" : `<div class="lote-setor">${escapeHtml(g.s.nome || "Setor")}</div>`) + g.linhas.map(item).join("")).join("");
+    const lista = grupos.map(g=> (escopo === "setor" ? "" : `<div class="lote-setor">${escapeHtml(g.s.nome || "Setor")}</div>`) + g.linhas.map(l=> item(l, g.s)).join("")).join("");
+    const nSetores = grupos.length;
+    const formato = total >= 2 ? `<div class="lote-formato"><b>Como salvar</b>
+        <label><input type="radio" name="loteFmt" value="um" checked onchange="App.lclLoteContar()"> Um PDF com todos os laudos</label>
+        ${escopo !== "setor" && nSetores >= 2 ? `<label><input type="radio" name="loteFmt" value="setor" onchange="App.lclLoteContar()"> Um arquivo por setor</label>` : ""}
+        <label><input type="radio" name="loteFmt" value="linha" onchange="App.lclLoteContar()"> Um arquivo por linha</label>
+      </div>` : "";
     abrirOverlay(`<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card" style="max-width:520px">
-      <h3>Laudos em um PDF</h3>
+      <h3>Laudos em PDF</h3>
       <div class="sheet-sub">Desmarque os laudos que não devem entrar.${ignoradas ? ` ${ignoradas} linha${ignoradas === 1 ? "" : "s"} sem nada preenchido não aparece${ignoradas === 1 ? "" : "m"} aqui.` : ""}</div>
       <div class="lote-acoes"><button type="button" class="btn btn-sm" onclick="App.lclLoteTodos(true)">Marcar todos</button><button type="button" class="btn btn-sm" onclick="App.lclLoteTodos(false)">Desmarcar todos</button></div>
       <div class="lote-lista">${lista}</div>
+      ${formato}
       <div class="modal-actions"><button class="btn btn-secondary" onclick="App.fecharModal()">Cancelar</button><button class="btn btn-primary" id="lclLoteGo" onclick="App.lclLoteGerar('${escopo}')">Gerar PDF (${total})</button></div>
     </div></div>`);
   },
@@ -34993,17 +35018,88 @@ Devolver agora?`)) return;
     document.querySelectorAll("#overlayRoot input[data-lote]").forEach(c=>{ c.checked = !!on; });
     App.lclLoteContar();
   },
+  lclLoteFormato(){
+    const r = document.querySelector("#overlayRoot input[name=loteFmt]:checked");
+    return r ? r.value : "um";
+  },
   lclLoteContar(){
-    const n = document.querySelectorAll("#overlayRoot input[data-lote]:checked").length;
+    const marc = [].slice.call(document.querySelectorAll("#overlayRoot input[data-lote]:checked"));
+    const n = marc.length, fmt = App.lclLoteFormato();
     const b = document.getElementById("lclLoteGo");
-    if(b){ b.textContent = "Gerar PDF (" + n + ")"; b.disabled = n === 0; }
+    if(!b) return;
+    const arq = fmt === "setor" ? new Set(marc.map(c=> c.getAttribute("data-setor"))).size : n;
+    b.textContent = fmt === "um" ? "Gerar PDF (" + n + ")" : "Preparar " + arq + (arq === 1 ? " arquivo" : " arquivos");
+    b.disabled = n === 0;
   },
   lclLoteGerar(escopo){
     const ids = [].slice.call(document.querySelectorAll("#overlayRoot input[data-lote]:checked")).map(c=> c.getAttribute("data-lote"));
+    const fmt = App.lclLoteFormato();
     App.fecharModal();
     if(!ids.length){ toast("Marque ao menos um laudo", false); return; }
+    if(fmt === "setor" || fmt === "linha") return App.lclFilaAbrir(escopo, ids, fmt);
     return App.lclLoteExecutar(escopo, ids);
   },
+  /* Um arquivo por linha (ou por setor): o navegador só salva um PDF por janela de impressão, então o app monta uma fila.
+     Cada item abre a impressão com o nome do arquivo já sugerido; a pessoa confirma o "Salvar" e passa ao próximo. */
+  async lclFilaAbrir(escopo, ids, fmt){
+    if(__lclLoteEmAndamento || __lclGerando) return;
+    const proj = getCurrentChkProjeto(); if(!proj) return;
+    const setorAtual = getCurrentChkSetor();
+    const setores = escopo === "setor" ? (setorAtual ? [setorAtual] : []) : proj.setores;
+    const alvos = [];
+    setores.forEach(s=> s.linhas.forEach(l=>{ if(ids.includes(l.id)) alvos.push({ s, l }); }));
+    if(!alvos.length){ toast("Nenhum dos laudos escolhidos foi encontrado", false); return; }
+    const comAviso = alvos.map(a=> ({ a, av: lclAvisos(a.l, proj) })).filter(x=> x.av.length);
+    if(comAviso.length){
+      const linhasMsg = comAviso.slice(0, 8).map(x=> `- ${x.a.l.nome || "Linha"}: ${x.av.length} aviso(s), por exemplo "${x.av[0].txt.slice(0, 70)}"`);
+      if(!confirm(`${comAviso.length} laudo(s) têm avisos:\n${linhasMsg.join("\n")}${comAviso.length > 8 ? "\n..." : ""}\n\nPreparar os arquivos mesmo assim?`)) return;
+    }
+    const limpo = (s)=> String(s || "").replace(/[\\/:*?<>|\x22]/g, "").replace(/\s+/g, " ").trim();
+    __lclFila = { fmt, itens: chkLaudoFilaItens(proj, alvos, fmt, limpo).map(x=> Object.assign(x, { estado:"espera" })), ocupado:false };
+    abrirOverlay(`<div class="sheet-overlay center" id="overlayInner"><div class="modal-card" style="max-width:520px">
+      <h3>${fmt === "setor" ? "Um arquivo por setor" : "Um arquivo por linha"}</h3>
+      <div class="sheet-sub" id="lclFilaSub"></div>
+      <div class="lote-lista" id="lclFilaCorpo"></div>
+      <div class="modal-actions"><button class="btn btn-secondary" onclick="App.lclFilaFechar()">Fechar</button><button class="btn btn-primary" id="lclFilaProx" onclick="App.lclFilaProximo()"></button></div>
+    </div></div>`);
+    App.lclFilaRedesenhar();
+  },
+  lclFilaRedesenhar(){
+    const f = __lclFila; if(!f) return;
+    const corpo = document.getElementById("lclFilaCorpo"), sub = document.getElementById("lclFilaSub"), prox = document.getElementById("lclFilaProx");
+    if(!corpo) return;
+    const rot = { espera:"", montando:"montando…", enviado:"enviado para salvar", erro:"não foi possível montar" };
+    const feitos = f.itens.filter(x=> x.estado === "enviado").length;
+    corpo.innerHTML = f.itens.map((x, i)=> `<div class="lote-item" style="cursor:default;align-items:center"><span style="flex:1"><b>${escapeHtml(x.rotulo)}</b><small>${escapeHtml(x.sub)}${rot[x.estado] ? " · " + rot[x.estado] : ""}</small></span><button type="button" class="btn btn-sm" ${f.ocupado ? "disabled" : ""} onclick="App.lclFilaSalvar(${i})">${x.estado === "enviado" ? "Salvar de novo" : "Salvar PDF"}</button></div>`).join("");
+    if(sub) sub.textContent = feitos + " de " + f.itens.length + " enviados para salvar. Em cada um, o navegador abre a janela de impressão: escolha Salvar como PDF e confirme. O nome do arquivo já vem sugerido. Se cancelar, use Salvar de novo.";
+    const prim = f.itens.findIndex(x=> x.estado !== "enviado");
+    if(prox){ prox.disabled = f.ocupado || prim < 0; prox.textContent = prim < 0 ? "Todos enviados" : "Salvar o próximo (" + (prim + 1) + " de " + f.itens.length + ")"; }
+  },
+  lclFilaProximo(){
+    const f = __lclFila; if(!f) return;
+    const i = f.itens.findIndex(x=> x.estado !== "enviado");
+    if(i >= 0) return App.lclFilaSalvar(i);
+  },
+  async lclFilaSalvar(i){
+    const f = __lclFila; if(!f || f.ocupado || __lclLoteEmAndamento || __lclGerando) return;
+    const x = f.itens[i]; if(!x) return;
+    const proj = getCurrentChkProjeto(); if(!proj) return;
+    f.ocupado = true; x.estado = "montando"; App.lclFilaRedesenhar();
+    __lclLoteEmAndamento = true;
+    try{
+      const partes = [];
+      for(const a of x.alvos) partes.push((await App.lclGerarDe(proj, a.s, a.l)).html);
+      x.estado = "enviado";
+      window.addEventListener("afterprint", ()=>{ f.ocupado = false; App.lclFilaRedesenhar(); }, { once:true });
+      await App.lclImprimirPartes(partes, x.arquivo);
+      setTimeout(()=>{ if(f.ocupado){ f.ocupado = false; App.lclFilaRedesenhar(); } }, 61000);
+    }catch(e){
+      x.estado = "erro"; f.ocupado = false;
+      toast("Não foi possível montar o laudo: " + (e && e.message ? e.message : e), false);
+    }finally{ __lclLoteEmAndamento = false; }
+    App.lclFilaRedesenhar();
+  },
+  lclFilaFechar(){ __lclFila = null; App.fecharModal(); },
   /* Monta e imprime, em um PDF só, o laudo das linhas escolhidas (na ordem do projeto). */
   async lclLoteExecutar(escopo, ids){
     if(__lclLoteEmAndamento || __lclGerando) return;
