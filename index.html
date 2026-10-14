@@ -3472,7 +3472,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "13/10/2026 21:02";
+const APP_BUILD = "13/10/2026 21:43";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -14407,18 +14407,24 @@ function chkNaoConformesHtml(l){
   });
   if(!itens.length) return "";
   const cor = CHK_STATUS_META.naoAtende.cor;
+  // Só quem tem pendência de verdade (sem motivo, sem foto não confirmada, sem nota) pede "Corrigir"; "Sem foto" confirmado conta como conferido.
+  const faltasDe = (it, ie)=> chkPendenciasItem(it, ie);
+  const nPend = itens.filter(({ it, ie })=> faltasDe(it, ie).length).length;
   const lis = itens.map(({ si, it, ii, ie })=>{
     const nota = [(ie.motivosSelecionados || []).join(", "), ie.observacao].filter(Boolean).join(" — ");
     const fotos = ie.fotos || [];
-    return `<div class="chk-resumo-linha" style="border-left-color:${cor}">
+    const temFalta = faltasDe(it, ie).length > 0;
+    return `<div class="chk-resumo-linha" style="border-left-color:${temFalta ? cor : "#9aa0b3"}">
       <div class="chk-resumo-desc"><b>${si + 1}.${ii + 1}</b> ${escapeHtml(it.descricao)}</div>
       ${nota ? `<div class="chk-resumo-motivo">${escapeHtml(nota)}</div>` : `<div class="chk-resumo-motivo" style="color:#C23F12">Sem motivo informado</div>`}
       ${fotos.length ? `<div class="chk-nc-fotos">${fotos.slice(0, 6).map(f=>`<img class="chk-nc-foto" data-imgref="${imgReg(f.foto)}" onclick="App.verFotoReg(this)">`).join("")}${fotos.length > 6 ? `<span class="chk-nc-mais">+${fotos.length - 6}</span>` : ""}</div>` : (ie.semFoto ? `<div class="chk-resumo-motivo" style="color:var(--ink-faint)">Sem foto (confirmado)</div>` : `<div class="chk-resumo-motivo" style="color:#C23F12">Sem foto</div>`)}
-      <button class="btn" style="margin-top:6px;padding:4px 10px;font-size:12px" onclick="App.chkIrDaRevisao(${si},'${it.id}')">Corrigir</button>
+      ${temFalta
+        ? `<button class="btn" style="margin-top:6px;padding:4px 10px;font-size:12px" onclick="App.chkIrDaRevisao(${si},'${it.id}')">Corrigir</button>`
+        : `<button class="btn btn-ghost" style="margin-top:6px;padding:4px 10px;font-size:12px;border:1px solid var(--line)" onclick="App.chkIrDaRevisao(${si},'${it.id}')">Abrir</button>`}
     </div>`;
   }).join("");
   return `<div class="card card-pad" style="margin-bottom:14px;border-left:4px solid ${cor}">
-    <div class="section-title" style="margin-top:0">Não conformidades (${itens.length})</div>${lis}
+    <div class="section-title" style="margin-top:0">Não conformidades (${itens.length}) <span class="stat-pill ${nPend ? "alert pend" : ""}" style="${nPend ? "" : "color:" + CHK_STATUS_META.atende.cor}">${nPend ? nPend + (nPend === 1 ? " com pendência" : " com pendências") : "tudo conferido"}</span></div>${lis}
   </div>`;
 }
 function screenChkModelos(){
@@ -14783,7 +14789,7 @@ function screenChkProjetoForm(){
     <div class="chk-pf-card pf-doc">
       <div class="chk-pf-titulo">Documento</div>
       <div class="chk-pf-grid2">
-        <div class="field"><label>Nº do documento</label><input type="text" value="${v(p.numeroDocumento)}" oninput="App.chkSetProjetoField('numeroDocumento',this.value)"></div>
+        <div class="field"><label>Nº do documento (do primeiro laudo)</label><input type="text" placeholder="Ex.: MEC7.2026.0820.001-01" value="${v(p.numeroDocumento)}" oninput="App.chkSetProjetoField('numeroDocumento',this.value)"><div class="field-hint">Cada laudo do projeto recebe o número seguinte sozinho: o 2º sai ${escapeHtml(chkNumeroDocSomar(p.numeroDocumento || "MEC7.2026.0820.001-01", 1))}, o 3º ${escapeHtml(chkNumeroDocSomar(p.numeroDocumento || "MEC7.2026.0820.001-01", 2))} e assim por diante, na ordem das linhas.</div></div>
         <div class="field"><label>ART</label><input type="text" inputmode="numeric" value="${v(p.art)}" oninput="App.chkSetProjetoField('art',this.value)"></div>
         <div class="field"><label>Data da inspeção</label><input type="date" value="${v(p.dataInspecao)}" oninput="App.chkSetProjetoField('dataInspecao',this.value)"></div>
         <div class="field"><label>Validade da inspeção</label><input type="date" id="chkPfValidade" value="${v(p.validadeInspecao)}" oninput="App.chkSetProjetoField('validadeInspecao',this.value)"><div class="chk-pf-dica">${validadeAuto ? "Já vem 12 meses depois da inspeção; pode mudar." : "Preenche sozinha (12 meses) quando houver a data da inspeção."}</div></div>
@@ -14880,10 +14886,10 @@ function chkStatusLinha(linha){
 /* Move uma linha de vida para outro setor (do mesmo projeto ou de outro). Grava na própria linha onde ela está (setorId/projetoId),
    para a sincronização enxergar a mudança e os outros aparelhos levarem a linha junto. Devolve null se não achar a linha ou o setor. */
 function chkMoverLinha(estado, linhaId, setorDestinoId){
-  let origem = null, linha = null, destino = null, projDestino = null;
+  let origem = null, linha = null, destino = null, projDestino = null, projOrigem = null;
   (estado.checklists.projetos || []).forEach(p=> (p.setores || []).forEach(s=>{
     const l = (s.linhas || []).find(x=> x.id === linhaId);
-    if(l){ origem = s; linha = l; }
+    if(l){ origem = s; linha = l; projOrigem = p; }
     if(s.id === setorDestinoId){ destino = s; projDestino = p; }
   }));
   if(!linha || !destino || origem === destino) return null;
@@ -14892,6 +14898,7 @@ function chkMoverLinha(estado, linhaId, setorDestinoId){
   chkSyncInserir(destino.linhas, linha);
   linha.setorId = destino.id;
   linha.projetoId = projDestino.id;
+  if(projOrigem !== projDestino) delete linha.docSeq;   // outro projeto = outra série de números de documento; a linha ganha o dela quando o laudo for preparado
   const agora = agoraSync();
   linha.atualizadoEm = agora; origem.atualizadoEm = agora; destino.atualizadoEm = agora;
   return { de: origem.nome || "", para: destino.nome || "", projeto: projDestino.empresa || "" };
@@ -14916,6 +14923,7 @@ function chkCopiarLinha(estado, linhaId, setorDestinoId){
   copia.atualizadoEm = agora;
   copia.setorId = destino.id;
   copia.projetoId = projDestino.id;
+  delete copia.docSeq;   // a cópia é outro laudo: ganha o próprio número de documento
   if(!Array.isArray(destino.linhas)) destino.linhas = [];
   chkSyncInserir(destino.linhas, copia);
   destino.atualizadoEm = agora;
@@ -15104,13 +15112,13 @@ function chkLinhaEmBranco(l){
   c.status = "em_andamento"; c.dataInicio = hoje(); c.dataFinalizacao = null;
   c.secoesNA = []; c.fotoAmpla = ""; c.conclusaoTexto = ""; c.laudo = {}; c.memorial = {};
   c.itens = (c.modeloSnapshot || []).flatMap(s=> (s.itens || []).map(it=> ({ itemId: it.id, conforme: null, motivosSelecionados: [], observacao: "", fotos: [] })));
-  ["fotosSecao", "versaoAnterior", "versoesAlternativas", "migracao", "setorId", "projetoId", "revisoes", "revisaoPendente"].forEach(k=>{ delete c[k]; });
+  ["fotosSecao", "versaoAnterior", "versoesAlternativas", "migracao", "setorId", "projetoId", "revisoes", "revisaoPendente", "docSeq"].forEach(k=>{ delete c[k]; });
   return c;
 }
 function chkLinhaCopiaCompleta(l){
   const c = clonarCompartilhandoFotos(l);
   c.id = uid(); c.criadoEm = Date.now(); c.atualizadoEm = agoraSync();
-  ["setorId", "projetoId"].forEach(k=>{ delete c[k]; });
+  ["setorId", "projetoId", "docSeq"].forEach(k=>{ delete c[k]; });
   return c;
 }
 function chkSetorCopia(setor, comRespostas, nome){
@@ -15133,6 +15141,7 @@ function chkDuplicarProjeto(estado, projetoId, comRespostas){
   if(!proj) return null;
   const c = clonarCompartilhandoFotos(chkSyncSemCampo(proj, "setores"));
   c.id = uid(); c.criadoEm = Date.now(); c.atualizadoEm = agoraSync();
+  delete c.docProximoSeq;   // projeto novo: a série de números de documento recomeça
   c.empresa = chkNomeCopia((estado.checklists.projetos || []).map(p=> ({ nome: p.empresa })), proj.empresa);
   if(!comRespostas){
     c.numeroDocumento = ""; c.art = ""; c.conclusaoGeral = "";
@@ -15411,7 +15420,7 @@ function chkRenderItem(linha, item, secaoIdx, itemIdx){
     return `<button type="button" class="${on ? 'on' : ''}" style="${on ? `background:${meta.cor};border-color:${meta.cor}` : ''}" onclick="event.stopPropagation();App.chkRespostaRapida('${item.id}','${k}')" aria-pressed="${on}">${ic(ICONE_RAPIDO[k])}<span>${escapeHtml(meta.label)}</span></button>`;
   }).join("")}</div>`;
   return `
-  <div class="card card-pad chk-item-card st-${ie.conforme||''} ${aberto?'aberto':''}" data-item="${item.id}">
+  <div class="card card-pad chk-item-card st-${ie.conforme||''} ${aberto?'aberto':''}" data-item="${item.id}" ondragover="App.chkSobreFoto(event)" ondrop="App.chkDropFotoItem(event,'${item.id}')">
     <div class="chk-item-top" onclick="App.chkToggleItemAberto('${item.id}')">
       <div class="chk-item-desc"><span class="chk-item-code">Item ${secaoIdx+1}.${itemIdx+1} -</span> ${escapeHtml(item.descricao)}</div>
       <div class="chk-item-icons">
@@ -16925,6 +16934,8 @@ function lclAvisos(l, projOpc){
     if(f.length) av.push({ txt: `Memorial incompleto: falta medir ${f.join(", ")}. Sem isso o memorial não entra no laudo.`, acao:"App.lclIrMemorial()", rot:"Medidas" });
   }
   if(!l.fotoAmpla) av.push({ txt:"Sem foto ampla: a capa do laudo sai sem foto.", acao:"App.go('checklist-finalizar')", rot:"Adicionar" });
+  const rep = chkNumeroDocRepetidas(proj, l);
+  if(rep.length) av.push({ txt:`O número do documento (${chkNumeroDocLinha(proj, l)}) é o mesmo do laudo de ${rep.map(x=> x.nome || "outra linha").join(", ")}. Dê um novo número a este laudo.`, acao:"App.chkNumeroDocNovo('" + l.id + "')", rot:"Novo número" });
   // campos que o laudo mostra (capa, informações iniciais e dados do solicitante) e estão em branco
   if(proj){
     const vazios = [
@@ -17762,6 +17773,52 @@ function lclProximaInspecao(proj){
   }
   return lclMaisMeses(proj && proj.dataInspecao, 12);
 }
+/* Número do documento de cada laudo. O do projeto vale para o PRIMEIRO laudo; os seguintes somam 1 no número de sequência, mantendo o resto:
+   MEC7.2026.0820.001-01 -> ...002-01, ...003-01. A sequência é o último grupo de dígitos antes da revisão final de 2 dígitos (-01 ou .01);
+   sem revisão, é o último grupo de dígitos. Mantém os zeros à esquerda. Sem dígito reconhecível, o número fica igual para todos. */
+function chkNumeroDocSomar(base, n){
+  const b = String(base == null ? "" : base).trim();
+  if(!b || !(n > 0)) return b;
+  const m = /^(.*?\D)(\d{1,5})([-.]\d{2})$/.exec(b) || /^(.*\D|)(\d+)()$/.exec(b);
+  if(!m) return b;
+  return m[1] + String(parseInt(m[2], 10) + n).padStart(m[2].length, "0") + m[3];
+}
+/* Número FIXO de cada laudo. A primeira vez que o laudo de uma linha é preparado (ou o "Laudos em um PDF" é aberto), a linha recebe o seu
+   número de sequência (linha.docSeq) e ele NUNCA mais muda: reordenar linhas, preencher outra linha antes ou apagar uma linha não troca o número
+   de nenhum laudo, e um número que já saiu nunca é entregue a outro laudo (o contador do projeto, proj.docProximoSeq, só cresce).
+   Linhas que já têm checklist preenchido e ainda não têm número entram primeiro, na ordem da tela; depois, as demais, quando o laudo for preparado.
+   O número impresso = número do projeto (do primeiro laudo) somado ao docSeq da linha. */
+function chkNumeroDocProximo(proj){
+  let m = -1;
+  ((proj && proj.setores) || []).forEach(s=> (s.linhas || []).forEach(l=>{ if(l && Number.isInteger(l.docSeq)) m = Math.max(m, l.docSeq); }));
+  return Math.max(proj && Number.isInteger(proj.docProximoSeq) ? proj.docProximoSeq : 0, m + 1);
+}
+/* Dá número à linha (e às já preenchidas que ainda não têm). Devolve true se gravou alguma coisa. */
+function chkNumeroDocFixar(proj, linha){
+  if(!proj || !linha || Number.isInteger(linha.docSeq)) return false;
+  let prox = chkNumeroDocProximo(proj);
+  const dar = (l)=>{ l.docSeq = prox++; l.atualizadoEm = agoraSync(); };
+  // na ordem da tela: a própria linha e as já preenchidas que ainda não têm número
+  (proj.setores || []).forEach(s=> (s.linhas || []).forEach(l=>{
+    if(l && !Number.isInteger(l.docSeq) && (l.id === linha.id || chkProgresso(l) > 0 || l.status === "finalizado")) dar(l);
+  }));
+  proj.docProximoSeq = prox;
+  proj.atualizadoEm = agoraSync();
+  return true;
+}
+/* Número impresso do laudo da linha. Linha ainda sem número fixo mostra o próximo livre (só visualização; não grava). */
+function chkNumeroDocLinha(proj, linha){
+  const base = String((proj && proj.numeroDocumento) || "").trim();
+  if(!base || !linha) return base;
+  return chkNumeroDocSomar(base, Number.isInteger(linha.docSeq) ? linha.docSeq : chkNumeroDocProximo(proj));
+}
+/* Outras linhas do mesmo projeto com o mesmo número (acontece se dois aparelhos derem número ao mesmo tempo). */
+function chkNumeroDocRepetidas(proj, linha){
+  if(!linha || !Number.isInteger(linha.docSeq)) return [];
+  const r = [];
+  ((proj && proj.setores) || []).forEach(s=> (s.linhas || []).forEach(l=>{ if(l && l.id !== linha.id && l.docSeq === linha.docSeq) r.push(l); }));
+  return r;
+}
 function lclDados(proj, setor, linha){
   return { proj, setor, linha, mc: getMecseteConfig() };
 }
@@ -17812,7 +17869,7 @@ function lclBlocoCapa(d, fotoSrc){
         <div class="lcl-capa-area">${lclEsc((setor.nome || "").toUpperCase())}</div>
         ${foto}
         <table class="lcl-capa-tab">
-          <tr><td>Documento</td><td>${lclEsc(proj.numeroDocumento)}</td></tr>
+          <tr><td>Documento</td><td>${lclEsc(chkNumeroDocLinha(proj, d.linha))}</td></tr>
           <tr><td>ART</td><td>${lclEsc(proj.art)}</td></tr>
           <tr><td>Responsável Técnico</td><td>${lclEsc((mc.respNome || "").toUpperCase())}</td></tr>
           <tr><td>Solicitante</td><td>${lclEsc((proj.responsavel || "").toUpperCase())}</td></tr>
@@ -17834,7 +17891,7 @@ function lclBlocosPagina2(d, textos){
     ["Email", mc.email], ["Cargo Inspetor", proj.inspetorCargo || mc.respFuncao],
   ].map(p=>cp(p[0], p[1])).join("");
   const ini = [
-    ["Data da Inspeção", proj.dataInspecao ? lclDataBR(proj.dataInspecao) : ""], ["Nº Documento", proj.numeroDocumento],
+    ["Data da Inspeção", proj.dataInspecao ? lclDataBR(proj.dataInspecao) : ""], ["Nº Documento", chkNumeroDocLinha(proj, d.linha)],
     ["Validade da Inspeção", proj.validadeInspecao ? lclDataBR(proj.validadeInspecao) : ""], ["Número da ART", proj.art],
   ].map(p=>cp(p[0], p[1])).join("");
   const n = textos.normativo;
@@ -21583,6 +21640,7 @@ function chkSyncMesclarLinha(a, b){
   let base = a, outra = b;
   if(rb > ra || (rb === ra && ((b.status === "finalizado" && a.status !== "finalizado") || (b.status === a.status && (b.atualizadoEm || 0) > (a.atualizadoEm || 0))))){ base = b; outra = a; }
   const m = clonarCompartilhandoFotos(base);
+  if(!Number.isInteger(m.docSeq) && Number.isInteger(outra.docSeq)) m.docSeq = outra.docSeq;
   if(!Array.isArray(m.itens)) m.itens = [];
   const porId = {};
   m.itens.forEach(i=>{ if(i) porId[i.itemId] = i; });
@@ -21838,6 +21896,8 @@ function chkSyncAplicar(payload, tipo, id, comoNovo){
   if(tipo === "p"){
     const i = ns.projetos.findIndex(p=> p.id === id);
     const novo = Object.assign({}, obj, { setores: i >= 0 ? (ns.projetos[i].setores || []) : [] });
+    // o contador de numeros de documento so cresce: nunca volta para tras por causa de uma versao mais antiga da nuvem
+    if(i >= 0 && Number.isInteger(ns.projetos[i].docProximoSeq) && !(novo.docProximoSeq >= ns.projetos[i].docProximoSeq)) novo.docProximoSeq = ns.projetos[i].docProximoSeq;
     if(i >= 0) ns.projetos[i] = novo; else chkSyncInserir(ns.projetos, novo);
     return "ok";
   }
@@ -21853,6 +21913,8 @@ function chkSyncAplicar(payload, tipo, id, comoNovo){
   const setor = proj.setores.find(s=> s.id === payload.setorId);
   if(!setor) return "adiado";
   if(!Array.isArray(setor.linhas)) setor.linhas = [];
+  let local = null;
+  ns.projetos.forEach(pj=> (pj.setores || []).forEach(st=>{ const x = (st.linhas || []).find(l=> l.id === id); if(x) local = x; }));
   if(!comoNovo){
     // a linha pode estar neste aparelho num setor diferente (foi movida em outro aparelho): sai de lá e entra no setor certo
     ns.projetos.forEach(pj=> (pj.setores || []).forEach(st=>{
@@ -21860,6 +21922,8 @@ function chkSyncAplicar(payload, tipo, id, comoNovo){
     }));
   }
   const i = setor.linhas.findIndex(l=> l.id === id);
+  // o numero de documento do laudo nao se perde se a versao da nuvem ainda nao tinha numero
+  if(local && !comoNovo && Number.isInteger(local.docSeq) && !Number.isInteger(obj.docSeq)) obj.docSeq = local.docSeq;
   if(i >= 0 && !comoNovo) setor.linhas[i] = obj; else chkSyncInserir(setor.linhas, obj);
   return "ok";
 }
@@ -34022,8 +34086,35 @@ Devolver agora?`)) return;
   chkDragFoto(ev, idx){
     try{ ev.dataTransfer.setData("text/plain", String(idx)); ev.dataTransfer.effectAllowed = "move"; }catch(e){}
   },
+  /* Foto do computador arrastada para uma caixa de motivo (vai para esse motivo), para o item (um só motivo marcado: vai para ele; senão fica sem motivo)
+     ou para a foto de outro motivo (mover, como antes). Cada foto é comprimida e gravada como as que vêm da câmera. */
+  chkSobreFoto(ev){ try{ if(ev.dataTransfer && Array.from(ev.dataTransfer.types || []).indexOf("Files") >= 0) ev.preventDefault(); }catch(e){} },
+  chkDropFotoItem(ev, itemId){
+    const arq = lclArquivosDoEvento(ev);
+    if(!arq.length) return;
+    ev.preventDefault();
+    return App.chkAdicionarArquivosItem(arq, itemId);
+  },
+  async chkAdicionarArquivosItem(arquivos, itemId, mi){
+    const l = getCurrentChkLinha(); if(!l || !arquivos.length) return;
+    const ie = chkItemExec(l, itemId); if(!ie) return;
+    const sec = (l.modeloSnapshot || []).find(s=> (s.itens || []).some(i=> i.id === itemId)); if(!sec) return;
+    if(ie.conforme === "na"){ toast("Este item está como \"não se aplica\": mude a resposta para receber fotos", false); return; }
+    const datas = []; let falhas = 0;
+    for(const f of arquivos){
+      try{ const data = await comprimirImagem(f, 1920, 0.82); salvarFotoNaGaleria(data, "apr_checklist"); datas.push(data); }catch(e){ falhas++; }
+    }
+    const unico = ie.conforme === "naoAtende" && (ie.motivosSelecionados || []).length === 1;
+    const destino = "i|" + itemId + "|" + (typeof mi === "number" ? mi : (unico ? 0 : -1));
+    const n = lclInserirFotos(l, sec.id, destino, datas);
+    if(n){ marcarAlterado(); render(); }
+    toast(n ? n + (n === 1 ? " foto adicionada" : " fotos adicionadas") + (falhas ? "; " + falhas + " não puderam ser lidas" : "") : (falhas ? "Não consegui ler a foto (precisa ser uma imagem)" : "Nada foi adicionado"), !!n);
+  },
   chkDropFoto(ev, itemId, mi){
     ev.preventDefault();
+    if(ev.stopPropagation) ev.stopPropagation();
+    const arq = lclArquivosDoEvento(ev);
+    if(arq.length) return App.chkAdicionarArquivosItem(arq, itemId, mi);
     let idx = -1;
     try{ idx = parseInt(ev.dataTransfer.getData("text/plain"), 10); }catch(e){}
     if(idx >= 0) App.chkMoverFoto(itemId, idx, mi);
@@ -34667,6 +34758,7 @@ Devolver agora?`)) return;
       await garantirFotosDe(l);
       if(STATE.checklists.textos) await garantirFotosDe(STATE.checklists.textos); // figuras da Metodologia
       soltar = ()=>{ try{ liberarFotosDe(l); if(STATE.checklists.textos) liberarFotosDe(STATE.checklists.textos); }catch(e){} };
+      if(chkNumeroDocFixar(proj, l)) marcarAlterado();   // o laudo guarda o número de documento dele para sempre
       const d = lclDados(proj, setor, l), textos = lclTextos(), caps = lclPlano(proj, l);
       const fotos = await lclPrepararFotos(l, textos);
       const med = await lclMedidor();
@@ -34711,6 +34803,7 @@ Devolver agora?`)) return;
   },
   /* Monta as páginas do laudo de UMA linha (a mesma montagem da prévia) sem mexer na tela: devolve o HTML pronto. */
   async lclGerarDe(proj, setor, l){
+    if(chkNumeroDocFixar(proj, l)) marcarAlterado();
     await garantirFotosDe(l);
     if(STATE.checklists.textos) await garantirFotosDe(STATE.checklists.textos);
     try{
@@ -34742,9 +34835,12 @@ Devolver agora?`)) return;
     if(!grupos.length){ toast("Nenhuma linha com checklist preenchido", false); return; }
     const ignoradas = setores.reduce((n, s)=> n + s.linhas.length, 0) - grupos.reduce((n, g)=> n + g.linhas.length, 0);
     const total = grupos.reduce((n, g)=> n + g.linhas.length, 0);
+    let fixou = false;
+    grupos.forEach(g=> g.linhas.forEach(l=>{ if(chkNumeroDocFixar(proj, l)) fixou = true; }));   // números definitivos, na ordem da tela, antes de mostrar a lista
+    if(fixou) marcarAlterado();
     const item = (l)=>{
       const av = lclAvisos(l, proj).length;
-      return `<label class="lote-item"><input type="checkbox" data-lote="${l.id}" checked onchange="App.lclLoteContar()"><span><b>${escapeHtml(l.nome || "Linha de vida")}</b><small>${escapeHtml(l.modeloNome || "")} · ${chkProgresso(l)}% preenchido · ${av ? `<em>${av} aviso${av === 1 ? "" : "s"}</em>` : "sem avisos"}</small></span></label>`;
+      return `<label class="lote-item"><input type="checkbox" data-lote="${l.id}" checked onchange="App.lclLoteContar()"><span><b>${escapeHtml(l.nome || "Linha de vida")}</b><small>${escapeHtml(chkNumeroDocLinha(proj, l))}${proj.numeroDocumento ? " · " : ""}${escapeHtml(l.modeloNome || "")} · ${chkProgresso(l)}% preenchido · ${av ? `<em>${av} aviso${av === 1 ? "" : "s"}</em>` : "sem avisos"}</small></span></label>`;
     };
     const lista = grupos.map(g=> (escopo === "setor" ? "" : `<div class="lote-setor">${escapeHtml(g.s.nome || "Setor")}</div>`) + g.linhas.map(item).join("")).join("");
     abrirOverlay(`<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card" style="max-width:520px">
@@ -34754,6 +34850,18 @@ Devolver agora?`)) return;
       <div class="lote-lista">${lista}</div>
       <div class="modal-actions"><button class="btn btn-secondary" onclick="App.fecharModal()">Cancelar</button><button class="btn btn-primary" id="lclLoteGo" onclick="App.lclLoteGerar('${escopo}')">Gerar PDF (${total})</button></div>
     </div></div>`);
+  },
+  /* Número novo para um laudo que ficou com o mesmo número de outro (ex.: dois aparelhos numeraram ao mesmo tempo). */
+  chkNumeroDocNovo(linhaId){
+    const proj = getCurrentChkProjeto(); const l = chkAcharLinhaPorId(STATE, linhaId);
+    if(!proj || !l) return;
+    const n = chkNumeroDocProximo(proj);
+    l.docSeq = n; l.atualizadoEm = agoraSync();
+    proj.docProximoSeq = n + 1; proj.atualizadoEm = agoraSync();
+    marcarAlterado();
+    toast("Novo número: " + chkNumeroDocLinha(proj, l));
+    __lclPaginas = []; __lclHtml = ""; __lclParaLinha = null;
+    render();
   },
   lclLoteTodos(on){
     document.querySelectorAll("#overlayRoot input[data-lote]").forEach(c=>{ c.checked = !!on; });
@@ -35347,6 +35455,9 @@ Devolver agora?`)) return;
   },
 };
 window.App = App;
+/* Imagem solta fora de uma área de foto não deve fazer o navegador abrir o arquivo (e tirar a pessoa do app). */
+document.addEventListener("dragover", (e)=>{ try{ if(e.dataTransfer && Array.from(e.dataTransfer.types || []).indexOf("Files") >= 0) e.preventDefault(); }catch(_){} });
+document.addEventListener("drop", (e)=>{ try{ if(e.dataTransfer && Array.from(e.dataTransfer.types || []).indexOf("Files") >= 0) e.preventDefault(); }catch(_){} });
 
 /* =========================================================================
    IMPORTAÇÃO DE BACKUP — PRÉVIA COM RELATÓRIO (Módulo Simplificado)

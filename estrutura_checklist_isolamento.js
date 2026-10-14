@@ -159,7 +159,7 @@ const FUNCOES = [
   "lclItemModeloAtual", "lclPrioridade", "lclAcaoMotivo", "lclNaoConformidades", "lclParecerAuto", "lclParecer",
   "lclListaPt", "lclVariaveis", "lclAplicarVariaveis", "lclMarkup", "lclBlocosMemorial", "lclBlocosAnexos", "lclListaImagensHtml",
   "screenChkSetorForm", "chkFotosSecaoHtml", "chkFotosSecaoResumoHtml", "chkRenderItem", "screenChkPreencher", "screenChkFinalizar", "chkResumoHtml",
-  "lclTextoEditado", "lclHtmlParaTexto", "lclTextoParaHtml", "lclConclusaoAuto", "lclFotosSecaoHtml", "lclNumItem", "chkCalcErro", "chkCalcTokens", "chkCalcParse", "chkCalcDeps", "chkCalcAval", "chkCalcNum", "chkCalcMostrar", "chkCalcLista", "chkCalcResolver", "chkCalcConstantesPadrao", "chkCalcConfig", "chkCalcSnapshotNovo", "chkCalcRodarCasos", "chkMemorialCalcLegado", "chkMemorialCalcNovo", "chkMemorialVereditoNovo", "chkMemorialComoLerHtml", "chkMemorialFaltaTexto", "chkMemorialEpiTexto", "chkMemorialFqTexto", "chkMemorialCondicoesNovo", "chkMemorialParecerNovo", "chkMemorialPremissasNovo", "chkMemorialAlertasNovo", "chkMemorialResumoCalc", "chkMemorialResNovoHtml", "lclBlocosMemorialNovo", "chkMemorialCalcInfoHtml", "chkCalcEmEdicao", "chkCalcDiffPendente", "chkCalcValidar", "chkCalcSalvarConfig", "chkCalcResolverTela", "chkCalcLinhasHtml", "chkCalcConstantesHtml", "chkCalcCasoPainelHtml", "chkCalcBannerHtml", "chkCalcTabelaHtml", "screenChkCalculo", "chkCalcBarraHtml", "chkAtuNorm", "chkAtuPior", "chkAtuNovoRel", "chkAtuIdLivre", "chkAtuDist", "chkAtuMontarSecoes", "chkAtuLinha", "chkAtuExecutar", "chkAtuAfinidade", "chkAtuDistTexto", "chkAtuTrocasTexto", "chkAtuRelHtml", "chkTextosV2AplicarSecoes", "chkTextosV2TipoDe", "lclFotosDoLaudo", "lclFotosDestinos", "lclInserirFotos", "lclArquivosDoEvento", "lclPrioLegenda", "lclPrioChip",
+  "lclTextoEditado", "lclHtmlParaTexto", "lclTextoParaHtml", "lclConclusaoAuto", "lclFotosSecaoHtml", "lclNumItem", "chkCalcErro", "chkCalcTokens", "chkCalcParse", "chkCalcDeps", "chkCalcAval", "chkCalcNum", "chkCalcMostrar", "chkCalcLista", "chkCalcResolver", "chkCalcConstantesPadrao", "chkCalcConfig", "chkCalcSnapshotNovo", "chkCalcRodarCasos", "chkMemorialCalcLegado", "chkMemorialCalcNovo", "chkMemorialVereditoNovo", "chkMemorialComoLerHtml", "chkMemorialFaltaTexto", "chkMemorialEpiTexto", "chkMemorialFqTexto", "chkMemorialCondicoesNovo", "chkMemorialParecerNovo", "chkMemorialPremissasNovo", "chkMemorialAlertasNovo", "chkMemorialResumoCalc", "chkMemorialResNovoHtml", "lclBlocosMemorialNovo", "chkMemorialCalcInfoHtml", "chkCalcEmEdicao", "chkCalcDiffPendente", "chkCalcValidar", "chkCalcSalvarConfig", "chkCalcResolverTela", "chkCalcLinhasHtml", "chkCalcConstantesHtml", "chkCalcCasoPainelHtml", "chkCalcBannerHtml", "chkCalcTabelaHtml", "screenChkCalculo", "chkCalcBarraHtml", "chkAtuNorm", "chkAtuPior", "chkAtuNovoRel", "chkAtuIdLivre", "chkAtuDist", "chkAtuMontarSecoes", "chkAtuLinha", "chkAtuExecutar", "chkAtuAfinidade", "chkAtuDistTexto", "chkAtuTrocasTexto", "chkAtuRelHtml", "chkTextosV2AplicarSecoes", "chkTextosV2TipoDe", "lclFotosDoLaudo", "lclFotosDestinos", "lclInserirFotos", "lclArquivosDoEvento", "lclPrioLegenda", "lclPrioChip", "chkNumeroDocSomar", "chkNumeroDocLinha", "chkNumeroDocProximo", "chkNumeroDocFixar", "chkNumeroDocRepetidas", "chkMoverLinha", "chkCopiarLinha", "chkDuplicarProjeto", "chkSyncAplicar", "chkSyncMesclarLinha",
   // Cadastro do projeto: mascaras, validade automatica e cadastro de inspetores.
   "chkSoDigitos", "chkMascaraDocumento", "chkMascaraTelefone", "chkExibirDocumento", "chkExibirTelefone", "chkValidarCpf", "chkValidarCnpj",
   "chkAvisoDocumento", "chkMaisMesesISO", "chkOpcoesInspetor", "novoChkInspetor", "chkInspetoresHtml", "screenChkProjetoForm",
@@ -2127,7 +2127,7 @@ async function testarFotosLeituraLaudo(){
     const fA = roda(`chkItemExec(__f3.l, ${J(itA)}).fotos`);
     T(nI === 1 && fA[fA.length - 1].foto === "data:image/jpeg;base64,N3" && fA[fA.length - 1].motivo === "Fios rompidos", "foto inserida num motivo fica ligada a esse motivo");
     T(roda(`lclInserirFotos(__f3.l, ${J(sec1)}, "i|nao-existe|0", ["x"])`) === 0 && roda(`lclInserirFotos(__f3.l, ${J(sec1)}, "i|${itA}|9", ["x"])`) === 0 && roda(`lclInserirFotos(__f3.l, "nao-existe", "s", ["x"])`) === 0, "destino inexistente: nao insere nada");
-    roda(`(function(){ const ex = chkItemExec(__f3.l, __f3.a.id); ex.fotos = ex.fotos.filter(f => !/(N3|D1|D3)$/.test(f.foto)); if(__f3.l.fotosSecao){ delete __f3.l.fotosSecao[${J(sec1)}]; if(!Object.keys(__f3.l.fotosSecao).length) delete __f3.l.fotosSecao; } })()`);
+    roda(`(function(){ const ex = chkItemExec(__f3.l, __f3.a.id); ex.fotos = ex.fotos.filter(f => !/(N3|D1|D3|Q1|Q2|Q3)$/.test(f.foto)); if(__f3.l.fotosSecao){ delete __f3.l.fotosSecao[${J(sec1)}]; if(!Object.keys(__f3.l.fotosSecao).length) delete __f3.l.fotosSecao; } })()`);
   }
   // item que atende com foto: so lixeira, sem arrastar nem 'Mover para'
   roda(`(function(){ const ex = chkItemExec(__f3.l, __f3.b.id); ex.conforme = "atende"; ex.motivosSelecionados = ["Folgados"]; ex.fotos = [{ foto:"data:image/jpeg;base64,PB" }]; })()`);
@@ -2173,7 +2173,28 @@ async function testarFotosLeituraLaudo(){
   await roda("App.lclFotoSoltar")(ev([arq("Z1", "text/plain")]));
   await new Promise(r => setTimeout(r, 20));
   T(roda(`__f3.l.fotosSecao[${J(sec1)}].length`) === antesL, "soltar um arquivo que nao e imagem nao insere nada");
-  roda(`(function(){ const ex = chkItemExec(__f3.l, __f3.a.id); ex.fotos = ex.fotos.filter(f => !/(N3|D1|D3)$/.test(f.foto)); if(__f3.l.fotosSecao){ delete __f3.l.fotosSecao[${J(sec1)}]; if(!Object.keys(__f3.l.fotosSecao).length) delete __f3.l.fotosSecao; } })()`);
+  // --- tela de preenchimento: foto arrastada do computador para a caixa do motivo e para o card do item
+  { const ev2 = (arqs)=> ({ preventDefault(){ this.pd = true; }, stopPropagation(){ this.sp = true; }, dataTransfer:{ files: arqs, types:["Files"], getData: ()=> "" } });
+    const fotosA = ()=> roda(`chkItemExec(__f3.l, ${J(itA)}).fotos`);
+    const n0 = fotosA().length;
+    const e1 = ev2([{ nome:"Q1", type:"image/jpeg" }, { nome:"Q2", type:"image/png" }, { nome:"X", type:"text/plain" }]);
+    await roda("App.chkDropFoto")(e1, itA, 1);
+    await new Promise(r => setTimeout(r, 20));
+    const f1 = fotosA().filter(f => /Q[12]$/.test(f.foto));
+    T(e1.pd === true && e1.sp === true && fotosA().length === n0 + 2 && f1.length === 2 && f1.every(f => f.motivo === "Fios rompidos"), "arquivo arrastado para a caixa do 2o motivo entra nesse motivo (so imagens): " + J(f1.map(f => f.motivo)));
+    const e2 = ev2([{ nome:"Q3", type:"image/jpeg" }]);
+    await roda("App.chkDropFotoItem")(e2, itA);
+    await new Promise(r => setTimeout(r, 20));
+    const f3 = fotosA().find(f => /Q3$/.test(f.foto));
+    T(e2.pd === true && f3 && f3.motivo === "", "arquivo arrastado para o card do item com 2 motivos marcados fica sem motivo (a pessoa move depois)");
+    const e3 = ev2([]);
+    await roda("App.chkDropFotoItem")(e3, itA);
+    T(e3.pd !== true && fotosA().length === n0 + 3, "arrastar algo que nao e arquivo para o card nao faz nada");
+    T(roda("App.chkSobreFoto") && typeof roda("App.chkSobreFoto") === "function", "o card aceita receber arquivos (dragover liberado)");
+    const cardHtml = roda("chkFotosItemHtml(__f3.a, chkItemExec(__f3.l, __f3.a.id), chkItemExec(__f3.l, __f3.a.id).motivosSelecionados)");
+    T(cardHtml.includes("App.chkDropFoto(event,") , "as caixas dos motivos continuam recebendo");
+  }
+  roda(`(function(){ const ex = chkItemExec(__f3.l, __f3.a.id); ex.fotos = ex.fotos.filter(f => !/(N3|D1|D3|Q1|Q2|Q3)$/.test(f.foto)); if(__f3.l.fotosSecao){ delete __f3.l.fotosSecao[${J(sec1)}]; if(!Object.keys(__f3.l.fotosSecao).length) delete __f3.l.fotosSecao; } })()`);
   roda("__lclFotosSec = ''");
   }
   const outraAntes = J(roda("setor.linhas[0]"));
@@ -2639,6 +2660,9 @@ async function testarUsabilidade(){
   T(roda("chkNaoConformesHtml(" + L(["atende", "atende", "naoAtende"], { secoesNA:["s2"] }) + ")") === "", "nao conformidade em secao que nao se aplica nao entra");
   const ncSF = roda("chkNaoConformesHtml(" + L(["atende", "naoAtende", "atende"], { itens:[{ itemId:"i1", conforme:"atende", motivosSelecionados:[], observacao:"", fotos:[] }, { itemId:"i2", conforme:"naoAtende", motivosSelecionados:[], observacao:"", fotos:[], semFoto:true }, { itemId:"i3", conforme:"atende", motivosSelecionados:[], observacao:"", fotos:[] }] }) + ")");
   T(ncSF.includes("Sem foto (confirmado)") && !ncSF.includes('color:#C23F12">Sem foto<'), "revisao: item com 'Sem foto' confirmado mostra a marca discreta, nao o vermelho de pendencia");
+  const ncOk = roda("chkNaoConformesHtml(" + L(["atende", "naoAtende", "atende"], { itens:[{ itemId:"i1", conforme:"atende", motivosSelecionados:[], observacao:"", fotos:[] }, { itemId:"i2", conforme:"naoAtende", motivosSelecionados:[], observacao:"Nota do inspetor.", fotos:[], semFoto:true }, { itemId:"i3", conforme:"atende", motivosSelecionados:[], observacao:"", fotos:[] }] }) + ")");
+  T(ncOk.includes("tudo conferido") && !ncOk.includes("com pendência") && ncOk.includes(">Abrir</button>") && !ncOk.includes(">Corrigir</button>") && ncOk.includes("Sem foto (confirmado)") && ncOk.includes("App.chkIrDaRevisao(0,'i2')"), "revisao: 'Sem foto' confirmado (e o resto em ordem) nao e pendencia: o cartao diz 'tudo conferido' e o botao e neutro (Abrir)");
+  T(ncSF.includes("1 com pendência") && ncSF.includes(">Corrigir</button>") && nc.includes("1 com pendência"), "revisao: o que tem pendencia de verdade continua pedindo Corrigir e aparece no contador");
   // cartoes: menu com nome das acoes, em vez da lixeira solta
   const bm = roda("chkBotaoMenu('projeto', 'P1')");
   T(bm.includes("App.chkMenuCartao('projeto','P1')") && bm.includes('aria-label="Mais opções"') && !bm.includes("chkExcluir"), "botao de menu do cartao");
@@ -4248,7 +4272,76 @@ async function testarCalculoMemorial(){
   roda("STATE.checklists.textos = " + J(salvo.t === null ? undefined : salvo.t) + "; STATE.checklists.projetos = " + J(salvo.p) + "; STATE.checklists.modelos = " + J(salvo.m) + ";");
 }
 
-testarFotoAmpla().then(() => testarTravas()).then(() => testarDadosLaudo()).then(() => testarLaudoCapitulos()).then(() => testarMemorial()).then(() => testarCapitulosNovos()).then(() => testarEdicaoTexto()).then(() => testarFotosLeituraLaudo()).then(() => testarCadastroProjeto()).then(() => testarEditorModelo()).then(() => testarAtalhoLaudo()).then(() => testarCapaLaudo()).then(() => testarUsabilidade()).then(() => testarAtualizacaoModelos()).then(() => testarCalculoMemorial()).then(() => testarSincronizacaoChecklist()).then(() => {
+// ---------- numero do documento: cada laudo recebe o seu numero e ele nunca muda ----------
+async function testarNumeroDocumento(){
+  const T = (cond, msg)=>{ if(!cond) throw new Error("numero do documento: " + msg); };
+  const J = (v)=> JSON.stringify(v);
+  const som = (b, n)=> roda("chkNumeroDocSomar(" + J(b) + ", " + n + ")");
+  T(som("MEC7.2026.0820.001-01", 0) === "MEC7.2026.0820.001-01" && som("MEC7.2026.0820.001-01", 1) === "MEC7.2026.0820.002-01" && som("MEC7.2026.0820.001-01", 2) === "MEC7.2026.0820.003-01", "o exemplo do pedido: 001-01, 002-01, 003-01");
+  T(som("MEC7.2026.0820.001-01", 9) === "MEC7.2026.0820.010-01" && som("MEC7.2026.0820.001-01", 99) === "MEC7.2026.0820.100-01" && som("MEC7.2026.0820.009-02", 1) === "MEC7.2026.0820.010-02", "mantem os zeros e a revisao");
+  T(som("MEC7.2026.0752.001.01", 1) === "MEC7.2026.0752.002.01" && som("MEC7.2026.0820.001", 1) === "MEC7.2026.0820.002" && som("LAUDO-7", 2) === "LAUDO-9", "revisao com ponto, sem revisao e numero simples");
+  T(som("SEM NUMERO", 3) === "SEM NUMERO" && som("", 2) === "" && som("  ", 1) === "", "sem digito ou vazio: nao inventa numero");
+  const L = (id, feito, st)=> ({ id, nome:"Linha " + id, status: st || "em_andamento", itens: [{ itemId:"x" + id, conforme: feito ? "atende" : null }] });
+  const montar = ()=> roda("globalThis.__pd = " + J({ id:"PD", numeroDocumento:"MEC7.2026.0820.001-01", setores:[{ id:"S1", linhas:[L("a", true), L("b", false), L("c", true, "finalizado")] }, { id:"S2", linhas:[L("d", true), L("e", true)] }] }) + ";");
+  const ln = (id)=> roda("__pd.setores.flatMap(s => s.linhas).find(l => l.id === " + J(id) + ")");
+  const seq = ()=> J(roda("__pd.setores.flatMap(s => s.linhas).map(l => [l.id, l.docSeq])"));
+  const num = (id)=> roda("chkNumeroDocLinha(__pd, __pd.setores.flatMap(s => s.linhas).find(l => l.id === " + J(id) + "))");
+  montar();
+  // ver o numero antes de fixar nao grava nada
+  const antes = J(roda("__pd"));
+  T(num("a") === "MEC7.2026.0820.001-01" && J(roda("__pd")) === antes, "linha sem numero fixo mostra o proximo livre e nao grava nada");
+  // fixar o numero de d: as linhas ja preenchidas sem numero entram na ordem da tela, d na sua posicao; b (vazia) fica de fora
+  T(roda("chkNumeroDocFixar(__pd, __pd.setores[1].linhas[0])") === true, "fixar devolve true quando gravou");
+  T(seq() === J([["a", 0], ["b", null], ["c", 1], ["d", 2], ["e", 3]]) && roda("__pd.docProximoSeq") === 4, "numeros dados na ordem da tela, so as preenchidas (e a pedida): " + seq());
+  T(roda("chkNumeroDocFixar(__pd, __pd.setores[1].linhas[0])") === false && num("c") === "MEC7.2026.0820.002-01" && num("e") === "MEC7.2026.0820.004-01", "pedir de novo nao muda nada; numero impresso = numero do projeto + sequencia da linha");
+  // ESTABILIDADE: reordenar, inserir linha no meio, preencher outra antes e apagar nao trocam nenhum numero
+  const fixos = seq();
+  roda("__pd.setores.reverse(); __pd.setores[0].linhas.reverse(); __pd.setores[1].linhas.reverse();");
+  const reord = J(roda("__pd.setores.flatMap(s => s.linhas).map(l => [l.id, l.docSeq])").sort((x, y) => x[0] < y[0] ? -1 : 1));
+  T(reord === J(JSON.parse(fixos).sort((x, y) => x[0] < y[0] ? -1 : 1)), "reordenar setores e linhas nao muda o numero de nenhum laudo");
+  roda("__pd.setores[0].linhas.splice(1, 0, { id:'f', nome:'Linha f', status:'em_andamento', itens:[{ itemId:'xf', conforme:'atende' }] });");
+  roda("__pd.setores.flatMap(s => s.linhas).find(l => l.id === 'b').itens[0].conforme = 'atende';");   // b so agora e preenchida, mas esta "antes" de varias
+  T(num("c") === "MEC7.2026.0820.002-01" && num("d") === "MEC7.2026.0820.003-01" && ln("d").docSeq === 2, "linha nova no meio e linha vazia que passa a ser preenchida nao mexem nos numeros ja dados");
+  roda("chkNumeroDocFixar(__pd, __pd.setores.flatMap(s => s.linhas).find(l => l.id === 'f'))");
+  T(ln("f").docSeq === 4 && ln("b").docSeq === 5, "o laudo novo recebe o proximo numero livre e a linha que passou a ser preenchida entra logo depois (na mesma passada, na ordem da tela)");
+  T(roda("chkNumeroDocFixar(__pd, __pd.setores.flatMap(s => s.linhas).find(l => l.id === 'b'))") === false && roda("__pd.docProximoSeq") === 6, "contador do projeto avancou para 6: " + seq());
+  // numero que ja saiu nunca vai para outro laudo: apagar o ultimo nao devolve o numero
+  roda("__pd.setores.forEach(s => { s.linhas = s.linhas.filter(l => l.id !== 'b'); });");
+  roda("__pd.setores[0].linhas.push({ id:'g', nome:'Linha g', status:'em_andamento', itens:[{ itemId:'xg', conforme:'atende' }] }); chkNumeroDocFixar(__pd, __pd.setores[0].linhas[__pd.setores[0].linhas.length - 1]);");
+  T(ln("g").docSeq === 6, "apagar o laudo de maior numero nao devolve o numero: o seguinte e o 007 (docSeq 6), nunca o 006 repetido");
+  // repetidos (dois aparelhos numerando ao mesmo tempo) sao detectados
+  roda("__pd.setores.flatMap(s => s.linhas).find(l => l.id === 'g').docSeq = 2;");
+  T(roda("chkNumeroDocRepetidas(__pd, __pd.setores.flatMap(s => s.linhas).find(l => l.id === 'g')).map(l => l.id)").includes("d") && roda("chkNumeroDocRepetidas(__pd, __pd.setores.flatMap(s => s.linhas).find(l => l.id === 'a')).length") === 0, "numero repetido entre dois laudos e detectado");
+  // capa e pagina 2 mostram o numero FIXO da linha
+  montar(); roda("chkNumeroDocFixar(__pd, __pd.setores[1].linhas[0])");
+  const d = (id)=> "{ proj:__pd, setor:{ nome:'S' }, linha:__pd.setores.flatMap(s => s.linhas).find(l => l.id === " + J(id) + "), mc:{} }";
+  const capa = roda("lclBlocoCapa(" + d("d") + ", '').html");
+  T(capa.includes("MEC7.2026.0820.003-01") && !capa.includes("MEC7.2026.0820.001-01"), "capa do laudo da linha d traz o numero 003-01");
+  const p2 = roda("lclBlocosPagina2(" + d("d") + ", lclTextos()).map(b => b.html).join('')");
+  T(p2.includes("MEC7.2026.0820.003-01") && !p2.includes("MEC7.2026.0820.001-01"), "pagina 2 (Informacoes Iniciais) traz o mesmo numero");
+  // copiar, mover e duplicar: o numero nao vai junto (cada laudo e unico)
+  const salvo = roda("STATE.checklists.projetos");
+  const proj2 = { id:"PD2", numeroDocumento:"OUTRO.001-01", setores:[{ id:"T1", linhas:[] }] };
+  roda("STATE.checklists.projetos = [__pd, " + J(proj2) + "];");
+  const cp = roda("chkCopiarLinha(STATE, 'd', 'S1')");
+  T(cp && roda("'docSeq' in STATE.checklists.projetos[0].setores[0].linhas.find(l => l.id === " + J(cp.id) + ")") === false && ln("d").docSeq === 2, "a copia da linha nao herda o numero e o original continua com o dele");
+  roda("chkMoverLinha(STATE, 'd', 'S1')");
+  T(ln("d").docSeq === 2, "mover para outro setor do mesmo projeto mantem o numero");
+  roda("chkMoverLinha(STATE, 'e', 'T1')");
+  T(roda("'docSeq' in STATE.checklists.projetos[1].setores[0].linhas[0]") === false && roda("STATE.checklists.projetos[1].setores[0].linhas[0].id") === "e", "mover para outro projeto tira o numero (outra serie)");
+  const dup = roda("(function(){ const r = chkDuplicarProjeto(STATE, 'PD', true); const p = STATE.checklists.projetos.find(x => x.id === r.id); return { cont: p.docProximoSeq, seqs: p.setores.flatMap(s => s.linhas).map(l => l.docSeq) }; })()");
+  T(dup.cont === undefined && dup.seqs.every(x => x === undefined), "projeto duplicado recomeca a serie de numeros");
+  // sincronizacao: a nuvem mais antiga (sem numero) nao apaga o numero local; o contador so cresce
+  roda("STATE.checklists.projetos = [__pd];");
+  roda("chkSyncAplicar({ obj: { id:'d', nome:'Linha d', status:'em_andamento', itens:[] }, projetoId:'PD', setorId:'S2' }, 'l', 'd', false)");
+  T(ln("d").docSeq === 2, "baixar da nuvem uma versao sem numero nao apaga o numero local");
+  roda("chkSyncAplicar({ obj: { id:'PD', numeroDocumento:'MEC7.2026.0820.001-01', docProximoSeq: 1 }, projetoId:'PD' }, 'p', 'PD', false)");
+  T(roda("STATE.checklists.projetos[0].docProximoSeq") >= 4, "baixar uma versao antiga do projeto nao faz o contador de numeros voltar");
+  const m = roda("chkSyncMesclarLinha({ id:'q', itens:[], docSeq:7 }, { id:'q', itens:[] })");
+  T(m.docSeq === 7, "juntar duas versoes da linha preserva o numero que existir");
+  roda("STATE.checklists.projetos = " + J(salvo) + ";");
+}
+testarFotoAmpla().then(() => testarTravas()).then(() => testarDadosLaudo()).then(() => testarLaudoCapitulos()).then(() => testarMemorial()).then(() => testarCapitulosNovos()).then(() => testarEdicaoTexto()).then(() => testarFotosLeituraLaudo()).then(() => testarCadastroProjeto()).then(() => testarEditorModelo()).then(() => testarAtalhoLaudo()).then(() => testarCapaLaudo()).then(() => testarUsabilidade()).then(() => testarNumeroDocumento()).then(() => testarAtualizacaoModelos()).then(() => testarCalculoMemorial()).then(() => testarSincronizacaoChecklist()).then(() => {
   // as arvores do Completo/Simplificado continuam byte a byte identicas apos a foto ampla tambem
   if(JSON.stringify(sandbox.STATE.projetos) !== antesCompleto || JSON.stringify(sandbox.STATE.projetosSimples) !== antesSimples){
     console.error("FALHOU: a foto ampla da linha mexeu em STATE.projetos/projetosSimples");
