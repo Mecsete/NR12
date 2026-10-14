@@ -64,6 +64,15 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 14/10/2026 09:34
+
+**Laudos em PDF: "Salvar todos em sequência".**
+
+- Na lista "Um arquivo por linha" (ou por setor), o botão "Salvar todos em sequência" abre a impressão de cada laudo, um depois do outro, com o nome do arquivo já sugerido. Entre um e outro há 3 segundos de pausa; "Parar" interrompe depois do arquivo atual e dá para retomar.
+- O navegador não informa se a janela foi salva ou cancelada: confira a pasta de Downloads no fim; "Salvar de novo" refaz um item.
+
+---
+
 ## 14/10/2026 09:16
 
 **Revisão com o Claude: acompanhamento dos pacotes (copiado, resposta colada).**
