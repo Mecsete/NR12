@@ -64,6 +64,18 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 14/10/2026 06:56
+
+**Linhas de vida: cálculo da ZLQ revisado, Planilha de cálculo editável, reprocessar laudos antigos; criticidade por motivo na revisão; arrastar fotos mais robusto.**
+
+- Cálculo do memorial (cabo flexível e rígida): regras revisadas (altura da ancoragem e altura livre abaixo dos pés no veredito, A1 na ZLQ do trava-quedas, fator de queda, vários vãos). Linhas antigas continuam com o cálculo de antes até serem reprocessadas.
+- Configurações > Planilha de cálculo: variáveis, constantes e fórmulas visíveis e editáveis, com passo a passo, casos de referência, histórico, exportar e importar.
+- Aba "Laudos existentes": lista as linhas horizontais com o ZLQ de antes e de depois e reprocessa todas (ou as marcadas) de uma vez, com ponto de restauração. Respostas, fotos e textos não mudam. O PDF já emitido não muda; gere o laudo de novo.
+- Revisão (Resumo e Não conformes): cada motivo marcado aparece com o selo de criticidade igual ao do laudo.
+- Arrastar fotos: aceita foto sem tipo (HEIC), avisa por que recusou, destaca o item ao arrastar e aceita soltar na faixa "Fotos da seção".
+
+---
+
 ## 13/10/2026 21:43
 
 **Linhas de vida: número de documento automático e fixo por laudo; arrastar fotos para o motivo; conferência sem falsa pendência.**
