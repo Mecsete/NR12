@@ -5918,7 +5918,9 @@ chk("a frase do CREA so sai com ART e as condicoes de uso da viga citam a altura
 
 print("\n=== 196. MEMORIAL: ZLQ ATENDE E CONCLUSAO DO DIMENSIONAMENTO (07/10/2026) ===")
 chk("o memorial diz ZLQ ATENDE / ZLQ NAO ATENDE e conclusao do dimensionamento, sem parecer de aptidao",
-    'ok ? "ZLQ ATENDE" : "ZLQ NÃO ATENDE"' in novo and "<b>Conclusão do dimensionamento.</b>" in novo and "não substitui o parecer da Conclusão" in novo and "PODE USAR" not in novo)
+    'ok ? "ZLQ ATENDE" : "ZLQ NÃO ATENDE"' in novo and "<b>Conclusão do dimensionamento.</b>" in novo and "não substitui o parecer da Conclusão" in novo)
+# 13/10/2026 (revisão do cálculo, item A4): o veredito de cada EQUIPAMENTO passa a dizer "PODE USAR / NÃO PODE USAR" em
+# linguagem simples; o parecer de aptidão da linha continua só na Conclusão ("não substitui o parecer da Conclusão").
 
 print("\n=== 197. SECAO DO LAUDO: FAIXA DE FOTOS NO TOPO, CONFORMES E PENDENCIAS EM BLOCOS (07/10/2026) ===")
 chk("secao do laudo: faixa de ate 6 fotos (max 3 por linha) dos itens que atendem, conformes num paragrafo, pendencias em bloco com fotos ao lado",

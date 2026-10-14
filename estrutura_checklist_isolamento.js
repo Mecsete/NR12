@@ -159,7 +159,7 @@ const FUNCOES = [
   "lclItemModeloAtual", "lclPrioridade", "lclAcaoMotivo", "lclNaoConformidades", "lclParecerAuto", "lclParecer",
   "lclListaPt", "lclVariaveis", "lclAplicarVariaveis", "lclMarkup", "lclBlocosMemorial", "lclBlocosAnexos", "lclListaImagensHtml",
   "screenChkSetorForm", "chkFotosSecaoHtml", "chkFotosSecaoResumoHtml", "chkRenderItem", "screenChkPreencher", "screenChkFinalizar", "chkResumoHtml",
-  "lclTextoEditado", "lclHtmlParaTexto", "lclTextoParaHtml", "lclConclusaoAuto", "lclFotosSecaoHtml", "lclNumItem", "chkAtuNorm", "chkAtuPior", "chkAtuNovoRel", "chkAtuIdLivre", "chkAtuDist", "chkAtuMontarSecoes", "chkAtuLinha", "chkAtuExecutar", "chkAtuAfinidade", "chkAtuDistTexto", "chkAtuTrocasTexto", "chkAtuRelHtml", "chkTextosV2AplicarSecoes", "chkTextosV2TipoDe", "lclFotosDoLaudo", "lclFotosDestinos", "lclInserirFotos", "lclArquivosDoEvento", "lclPrioLegenda", "lclPrioChip",
+  "lclTextoEditado", "lclHtmlParaTexto", "lclTextoParaHtml", "lclConclusaoAuto", "lclFotosSecaoHtml", "lclNumItem", "chkCalcErro", "chkCalcTokens", "chkCalcParse", "chkCalcDeps", "chkCalcAval", "chkCalcNum", "chkCalcMostrar", "chkCalcLista", "chkCalcResolver", "chkCalcConstantesPadrao", "chkCalcConfig", "chkCalcSnapshotNovo", "chkCalcRodarCasos", "chkMemorialCalcLegado", "chkMemorialCalcNovo", "chkMemorialVereditoNovo", "chkMemorialComoLerHtml", "chkMemorialFaltaTexto", "chkMemorialEpiTexto", "chkMemorialFqTexto", "chkMemorialCondicoesNovo", "chkMemorialParecerNovo", "chkMemorialPremissasNovo", "chkMemorialAlertasNovo", "chkMemorialResumoCalc", "chkMemorialResNovoHtml", "lclBlocosMemorialNovo", "chkMemorialCalcInfoHtml", "chkCalcEmEdicao", "chkCalcDiffPendente", "chkCalcValidar", "chkCalcSalvarConfig", "chkCalcResolverTela", "chkCalcLinhasHtml", "chkCalcConstantesHtml", "chkCalcCasoPainelHtml", "chkCalcBannerHtml", "chkCalcTabelaHtml", "screenChkCalculo", "chkCalcBarraHtml", "chkAtuNorm", "chkAtuPior", "chkAtuNovoRel", "chkAtuIdLivre", "chkAtuDist", "chkAtuMontarSecoes", "chkAtuLinha", "chkAtuExecutar", "chkAtuAfinidade", "chkAtuDistTexto", "chkAtuTrocasTexto", "chkAtuRelHtml", "chkTextosV2AplicarSecoes", "chkTextosV2TipoDe", "lclFotosDoLaudo", "lclFotosDestinos", "lclInserirFotos", "lclArquivosDoEvento", "lclPrioLegenda", "lclPrioChip",
   // Cadastro do projeto: mascaras, validade automatica e cadastro de inspetores.
   "chkSoDigitos", "chkMascaraDocumento", "chkMascaraTelefone", "chkExibirDocumento", "chkExibirTelefone", "chkValidarCpf", "chkValidarCnpj",
   "chkAvisoDocumento", "chkMaisMesesISO", "chkOpcoesInspetor", "novoChkInspetor", "chkInspetoresHtml", "screenChkProjetoForm",
@@ -203,6 +203,7 @@ fonte += constObjeto("CHK_ALT_ORIGEM") + "\n";
 fonte += constObjeto("LCL_PRI_ICONE") + "\n";
 fonte += constObjeto("CHK_CARAC_DEFS") + "\n";
 fonte += constObjeto("CHK_TEXTOS_V2_TROCAS") + "\n";
+fonte += constObjeto("CHK_CALC_REGISTRO") + "\n" + constObjeto("CHK_CALC_FUNCOES") + "\n" + constObjeto("CHK_CALC_CASOS") + "\n" + constObjeto("CHK_CALC_PENDENCIAS") + "\n" + constObjeto("CHK_CALC_FONTES") + "\n";
 fonte += constObjeto("CHK_ATU_ALIAS_PERGUNTA") + "\n" + constObjeto("CHK_ATU_ALIAS_MOTIVO") + "\n" + constObjeto("CHK_ATU_ROT_PRIO") + "\n";
 fonte += "const CHK_TEXTOS_V2_ATIVO = false;\n";
 fonte += constObjeto("CHK_MIG_TIPOS") + "\n";
@@ -1665,7 +1666,11 @@ async function testarMemorial(){
   roda("App.chkMemorialToggle()");
   T(lm.laudo.capitulos.memorial === true && !sandbox.__ultimoOverlayHtml, "ligar de novo e direto, sem confirmacao");
   const htmlOn = roda("chkMemorialCampoHtml(getCurrentChkLinha())");
-  T(htmlOn.includes("chkMemorialSet('flechaCm'") && htmlOn.includes("chkMemorialSet('comprimento'") && htmlOn.includes("chkMemorialSet('diametro'") && htmlOn.includes("chkMemorialSetUso(") && htmlOn.includes("5/16”") && htmlOn.includes("chkMemorialSetParam('Frup'") && htmlOn.includes("chkMemorialSetParam('Ecabo'") && htmlOn.includes('placeholder="3755"') && htmlOn.includes("Cálculo passo a passo") && htmlOn.includes('id="chkMemPasso"') && htmlOn.includes("Alongamento do cabo") && htmlOn.includes("Esta linha não terá memorial") && htmlOn.includes("Trava-quedas: pode"), "aba do cabo: campos, parametros com o padrao dentro e resultado preliminar");
+  T(htmlOn.includes("chkMemorialSet('flechaCm'") && htmlOn.includes("chkMemorialSet('comprimento'") && htmlOn.includes("chkMemorialSet('diametro'") && htmlOn.includes("chkMemorialSetUso(") && htmlOn.includes("5/16”") && htmlOn.includes("chkMemorialSetParam('Frup'") && htmlOn.includes("chkMemorialSetParam('Ecabo'") && htmlOn.includes('placeholder="3755"') && htmlOn.includes("Cálculo passo a passo") && htmlOn.includes('id="chkMemPasso"') && htmlOn.includes("Alongamento do cabo") && htmlOn.includes("Esta linha não terá memorial") && htmlOn.includes("Trava-quedas: não pode") && htmlOn.includes("Como ler:") && htmlOn.includes("Eficiência do terminal ainda não considerada") && htmlOn.includes("chkMemorialSetParam('A1'"), "aba do cabo (linha nova, cálculo novo): campos, parametros com o padrao dentro, A1 e resultado preliminar com o veredito em linguagem simples");
+  { const calcSalvo = lm.calc; delete lm.calc;   // linha criada antes da revisao do calculo (13/10/2026): continua no calculo antigo
+    const htmlAnt = roda("chkMemorialCampoHtml(getCurrentChkLinha())");
+    T(htmlAnt.includes("Trava-quedas: pode") && htmlAnt.includes("cálculo anterior") && htmlAnt.includes("App.chkMemReprocessarAbrir()") && !htmlAnt.includes("chkMemorialSetParam('A1'") && !htmlAnt.includes("Como ler:"), "linha sem `calc` continua no calculo antigo (mesmos numeros de antes), com o aviso e o botao Reprocessar");
+    lm.calc = calcSalvo; }
   lm.tipoLinha = "horizontal_rigida";
   const htmlRig = roda("chkMemorialCampoHtml(getCurrentChkLinha())");
   T(!htmlRig.includes("chkMemorialSet('flechaCm'") && !htmlRig.includes("chkMemorialSet('comprimento'") && !htmlRig.includes("chkMemorialSet('diametro'") && !htmlRig.includes("chkMemorialSetUso(") && !htmlRig.includes("chkMemorialSetParam('Ecabo'") && htmlRig.includes("chkMemorialSet('hanc'"), "viga nao pede flecha, diametro, tipo de linha nem os dados do cabo");
@@ -1764,6 +1769,7 @@ async function testarCapitulosNovos(){
     STATE.checklists.modelos.push(m);
     const l = novoChkLinha(m); l.nome = "LV-F3"; l.descricao = "Acesso ao telhado.";
     l.secoesNA = [s3.id];
+    delete l.calc;   // este ensaio fica no calculo ANTIGO do memorial (comportamento de antes de 13/10/2026); o calculo novo tem ensaios proprios (testarCalculoMemorial)
     const ex = (it)=> chkItemExec(l, it.id);
     ex(a).conforme = "naoAtende"; ex(a).motivosSelecionados = ["Corrosao", "Fios rompidos"]; ex(a).fotos = [{ foto:"data:image/jpeg;base64,P1", motivo:"Fios rompidos" }, { foto:"data:image/jpeg;base64,P2", motivo:"Corrosao" }];
     ex(b).conforme = "naoAtende"; ex(b).motivosSelecionados = ["Folgados"]; ex(b).fotos = [];
@@ -4113,7 +4119,136 @@ async function testarAtualizacaoModelos(){
   roda("STATE.checklists.modelos = " + J(antes.m) + "; STATE.checklists.projetos = " + J(antes.p) + ";");
 }
 
-testarFotoAmpla().then(() => testarTravas()).then(() => testarDadosLaudo()).then(() => testarLaudoCapitulos()).then(() => testarMemorial()).then(() => testarCapitulosNovos()).then(() => testarEdicaoTexto()).then(() => testarFotosLeituraLaudo()).then(() => testarCadastroProjeto()).then(() => testarEditorModelo()).then(() => testarAtalhoLaudo()).then(() => testarCapaLaudo()).then(() => testarUsabilidade()).then(() => testarAtualizacaoModelos()).then(() => testarSincronizacaoChecklist()).then(() => {
+// ---------- cálculo do memorial (revisão técnica 13/10/2026): motor seguro, casos de referência, linha antiga x nova, veredito, laudo, tela ----------
+async function testarCalculoMemorial(){
+  const T = (cond, msg)=>{ if(!cond) throw new Error("calculo do memorial: " + msg); };
+  const J = (v)=> JSON.stringify(v);
+  const perto = (a, b, tol)=> typeof a === "number" && Math.abs(a - b) <= (tol === undefined ? 0.01 : tol);
+  const salvo = { t: roda("STATE.checklists.textos"), p: roda("STATE.checklists.projetos"), m: roda("STATE.checklists.modelos") };
+  roda("STATE.checklists.textos = undefined");
+  roda("globalThis.__calcUI = { aba:'flex', caso:'c1', entradas:null, edit:{ formulas:{}, constantes:{} }, aberta:null, banner:null }; globalThis.__calcRepro = null;");
+
+  // --- 1) casos de referência (Parte D) no motor novo
+  const casos = roda("chkCalcRodarCasos()");
+  T(casos.length === 10 && casos.every(c => c.ok), "casos de referencia do motor: " + J(casos.filter(c => !c.ok)));
+  // --- 2) o cálculo ANTIGO continua exatamente igual ao de antes (linha sem `calc`): números salvos antes da revisão
+  const base = { a:1.4, b:1.1, b1:1.0, fren:1.15, C1:1.8, D1:1.0, kA:0.395, Ecabo:9500 };
+  const linhaDe = (tipo, mem, comCalc)=> { const l = { tipoLinha:tipo, modeloSnapshot:[], memorial:mem }; if(comCalc) l.calc = roda("chkCalcSnapshotNovo()"); return l; };
+  const resumo = (l)=> roda("(function(){ const l = " + J(l) + "; const m = chkMemorialDe(l); const c = chkMemorialCalc(chkTipoLinha(l), m); return c ? { novo:!!c.novo, f1:c.f1, f2:c.f2, f3:c.f3, dL:c.dL, T1:c.T1, Fadm:c.Fadm, uso:c.uso, L1:c.L1, J:c.J, ZLQ_tab:c.ZLQ1, ZLQ_trava:c.ZLQ2, Hp_tab:c.Hp1, Hp_trava:c.Hp2 } : null; })()");
+  const mem1 = { hanc:7, hpos:1, vao:10, comprimento:10, flechaCm:30, diametro:9.53, usuarios:1, uso:"vida", params:Object.assign({ Frup:5409, FS:2 }, base) };
+  const mem2 = { hanc:8, hpos:1, vao:11, comprimento:182, flechaCm:33, diametro:9.5, usuarios:3, uso:"vida", params:Object.assign({ Frup:6100, FS:2 }, base, { a:1.5 }) };
+  const mem3 = { hanc:7, hpos:1, vao:5, params:base };
+  const a1 = resumo(linhaDe("horizontal_flexivel", mem1, false)), a2 = resumo(linhaDe("horizontal_flexivel", mem2, false)), a3 = resumo(linhaDe("horizontal_rigida", mem3, false));
+  T(a1.novo === false && perto(a1.T1, 2249.2170377092366, 1e-9) && perto(a1.ZLQ_trava, 5.622911194788315, 1e-9) && perto(a1.ZLQ_tab, 5.972911194788314, 1e-9) && perto(a2.T1, 1009.5051767594114, 1e-9) && perto(a2.f3, 2.373562346760955, 1e-9) && perto(a3.ZLQ_trava, 4.95, 1e-9) && perto(a3.ZLQ_tab, 5.3, 1e-9), "linha sem calc: o calculo antigo ficou intacto (numeros de antes): " + J([a1, a3]));
+  // --- 3) o cálculo novo, nos casos 1 a 3 (diferenças antes -> depois)
+  const d1 = resumo(linhaDe("horizontal_flexivel", mem1, true)), d2 = resumo(linhaDe("horizontal_flexivel", mem2, true)), d3 = resumo(linhaDe("horizontal_rigida", mem3, true));
+  T(d1.novo === true && perto(d1.f1, 0.300) && perto(d1.f2, 0.3466) && perto(d1.f3, 0.6729) && perto(d1.dL, 66.2, 0.1) && perto(d1.T1, 2249.2, 0.1) && perto(d1.Fadm, 2704.5, 0.1) && perto(d1.uso, 0.832) && perto(d1.ZLQ_tab, 5.973) && perto(d1.ZLQ_trava, 6.023) && perto(d1.Hp_tab, 2.473) && perto(d1.Hp_trava, 2.523), "caso 1 (novo): " + J(d1));
+  T(perto(d2.L1, 182.437) && perto(d2.f2, 0.3813) && perto(d2.f3, 1.9503) && perto(d2.dL, 644.7, 0.1) && perto(d2.T1, 1196.8, 0.1) && perto(d2.ZLQ_tab, 7.350) && perto(d2.ZLQ_trava, 7.300) && perto(d2.Hp_tab, 3.720) && perto(d2.Hp_trava, 3.770), "caso 2 (novo, planilha corrigida): " + J(d2));
+  T(perto(d3.ZLQ_tab, 5.30) && perto(d3.ZLQ_trava, 5.35) && perto(d3.Hp_tab, 2.10) && perto(d3.Hp_trava, 2.15), "caso 3 rigida (novo): " + J(d3));
+  T(perto(d1.ZLQ_trava - a1.ZLQ_trava, 0.4, 1e-9) && perto(d1.ZLQ_tab, a1.ZLQ_tab, 1e-9), "a so diferenca do caso 1 e o A1 na ZLQ do trava-quedas (+0,40 m)");
+  const snap2 = roda("chkCalcSnapshotNovo()"); snap2.constantes.mv = 2;
+  const l2b = linhaDe("horizontal_flexivel", mem2, false); l2b.calc = snap2;
+  const d2b = resumo(l2b);
+  T(perto(d2b.f3, 2.3736) && perto(d2b.T1, 1009.5, 0.1) && perto(d2b.ZLQ_tab, 7.774) && perto(d2b.ZLQ_trava, 7.724), "multi-vao pelo deslizamento completo (modelo 2): " + J(d2b));
+
+  // --- 4) motor seguro: sem eval/new Function, formulas hostis recusadas, erro por celula, ciclo
+  const fonteMotor = roda("[chkCalcTokens, chkCalcParse, chkCalcAval, chkCalcResolver, chkCalcMostrar].map(f => f.toString()).join('\\n')");
+  T(!/\beval\s*\(/.test(fonteMotor) && !/new\s+Function/.test(fonteMotor) && !/\bFunction\s*\(/.test(fonteMotor) && !/\bwindow\b|\bdocument\b|\bglobalThis\b/.test(fonteMotor), "o motor nao usa eval, Function nem acessa window/document");
+  const recusa = (txt)=> { try{ roda("chkCalcParse(" + J(txt) + ")"); return false; }catch(e){ return true; } };
+  T(["eval(1)", "1,5 + 2", "a.b", "if(1;2)", "sqrt(1;2)", "x = = 2", "(1 + 2", "constructor.constructor('return 1')()", "a ; b", "@x", "`1`", "1 + ", "alert(1)", "[1]", "{}", "a && b", "a || b", "!a"].every(recusa), "formulas hostis ou invalidas sao recusadas");
+  const k = roda("chkCalcConstantesPadrao()");
+  const rx = roda("chkCalcResolver('rig', { hanc:7, hpos:1, L:5 }, " + J(k) + ", { 'rig:FQ':'1/0', 'rig:Lq':'xyz + 1', 'rig:dh':'hanc - (', 'rig:B1':'ZLQ_tab + 1', 'rig:ZLQ_tab':'B1 + a', 'rig:Hp_tab':'constructor + 1', 'rig:Hp_trava':'__proto__ + 1' })");
+  const er = (id)=> rx.vals[id] && rx.vals[id].erro;
+  T(/DIV\/0/.test(er("FQ")) && /inexistente/.test(er("Lq")) && /incompleta/.test(er("dh")) && /ciclo/.test(er("B1")) && /ciclo/.test(er("ZLQ_tab")) && /inexistente/.test(er("Hp_tab")) && /inexistente/.test(er("Hp_trava")), "erro por celula (#DIV/0, variavel inexistente, formula incompleta, ciclo, nomes do prototipo) sem travar: " + J([er("FQ"), er("Lq"), er("dh"), er("B1"), er("Hp_tab")]));
+  T(rx.vals.f3.v === 0 && rx.vals.Lq.erro !== undefined && rx.vals.ok_tab.erro !== undefined, "as celulas independentes continuam calculando e as que dependem do erro herdam o erro");
+  // iteracao: voltas e convergencia
+  const rit = roda("chkCalcResolver('flex', " + J(roda("CHK_CALC_CASOS[0].entradas")) + ", " + J(Object.assign({}, k, { Frup:5409 })) + ", {})");
+  T(rit.conv === true && rit.voltas > 5 && rit.voltas < 100 && perto(rit.vals.T1.v, 2249.2, 0.1), "bloco iterativo converge: " + rit.voltas + " voltas");
+  const rit2 = roda("chkCalcResolver('flex', " + J(roda("CHK_CALC_CASOS[0].entradas")) + ", " + J(Object.assign({}, k, { Frup:5409, maxit:2 })) + ", {})");
+  T(rit2.conv === false && rit2.voltas === 2, "maximo de voltas configuravel: sem convergir, avisa em vez de travar");
+
+  // --- 5) fator de queda, veredito (duas verificacoes), avisos
+  const fq = (dh)=> roda("chkCalcResolver('rig', { hanc:" + (1 + dh) + ", hpos:1, L:5 }, " + J(k) + ", {}).vals.FQ.v");
+  T([[0.5, 1.52], [1.0, 1.32], [1.8, 1.00], [2.2, 0.84], [3.0, 0.52], [4.3, 0.00], [6, 0]].every(([dh, e]) => perto(fq(dh), e)), "fator de queda nos 6 pontos do caso 4 (o ramo antigo estava invertido)");
+  const verd = (hanc, hpos, extra)=> roda("(function(){ const l = " + J(linhaDe("horizontal_rigida", Object.assign({ hanc, hpos, vao:5 }, extra || {}), true)) + "; const m = chkMemorialDe(l); const c = chkMemorialCalc('horizontal_rigida', m); return { v: chkMemorialVeredito(c, m), cond: chkMemorialCondicoes(c, m), parecer: chkMemorialParecer(c, m), al: chkMemorialAlertas(c, m), c: { ZLQ1:c.ZLQ1, ZLQ2:c.ZLQ2 } }; })()");
+  const vOk = verd(7, 3), vHpFalha = verd(7, 1.5), vAncFalha = verd(5.2, 3), vNada = verd(4, 1);
+  T(vOk.v.okTab === true && vOk.v.okTq === true && vOk.v.okC === "na" && vOk.cond.some(x => x.includes("Talabarte com absorvedor: <b>PODE USAR</b>") && x.includes("sobra")) && vOk.cond.some(x => x.includes("Cabo de aço: <b>não se aplica</b>")), "veredito: pode usar, com a folga, e cabo = nao se aplica na rigida: " + J(vOk.cond));
+  T(vHpFalha.v.okAncTab === true && vHpFalha.v.okHpTab === false && vHpFalha.v.okTab === false && vHpFalha.cond.some(x => x.includes("Talabarte com absorvedor: <b>NÃO PODE USAR</b>") && x.includes("altura livre abaixo dos pés")), "so a altura abaixo dos pes falha: o equipamento nao pode ser usado (as duas verificacoes valem): " + J(vHpFalha.cond));
+  T(vAncFalha.v.okAncTq === false && vAncFalha.v.okTq === false && vAncFalha.cond.some(x => /Faltam 0,\d\d m de altura da ancoragem ao piso/.test(x)), "so a altura da ancoragem falha: faltam X m: " + J(vAncFalha.cond));
+  T(vNada.parecer.includes("Nenhum dos equipamentos"), "parecer do dimensionamento quando nenhum equipamento pode ser usado");
+  T(vOk.parecer.includes("Zona Livre de Queda (ZLQ)") && vOk.parecer.includes("trava-quedas retrátil ou talabarte com absorvedor"), "parecer: nome por extenso + sigla na primeira aparicao");
+  const vFaixa = verd(7, 3, { params:{ b:2.0, A1:0.1, fren:1.5, a:1.0 } });
+  T(vFaixa.al.filter(x => x.includes("fora da faixa")).length === 4, "valores fora da faixa do equipamento geram aviso (a, b, A1 e frenagem): " + J(vFaixa.al));
+  const vFq = verd(1.2, 1, {});
+  T(vFq.cond.some(x => x.includes("Fator de Queda (FQ)")) && vFq.al.some(x => x.includes("acima de 1") && !x.includes("acima de 2")), "fator de queda aparece nas condicoes de uso e avisa quando passa de 1");
+  const vFq2 = verd(1, 2, { params:{ C1:0.1, a:0.3, b:0.2 } });
+  T(vFq2.al.some(x => x.includes("acima de 2")) && vFq2.cond.some(x => x.includes("não admitida")), "fator de queda acima de 2: aviso forte (configuracao nao admitida)");
+  // alertas de flecha em destaque na condicao de uso
+  const fl = roda("(function(){ const l = " + J(linhaDe("horizontal_flexivel", Object.assign({}, mem1, { flechaCm:10 }), true)) + "; const m = chkMemorialDe(l); const c = chkMemorialCalc('horizontal_flexivel', m); return chkMemorialCondicoes(c, m); })()");
+  T(fl.some(x => x.includes("ATENÇÃO") && x.includes("Flecha inicial")), "flecha fora do limite aparece em destaque no veredito: " + J(fl.slice(0, 2)));
+
+  // --- 6) linha nova x antiga, reprocessar, snapshot e laudo
+  const m0 = { id:"MCALC", nome:"Modelo calc", tipoLinha:"horizontal_rigida", secoes:[] };
+  const lnova = roda("novoChkLinha(" + J(m0) + ")");
+  T(lnova.calc && lnova.calc.v >= 1 && lnova.calc.constantes.A1 === 0.4 && lnova.calc.constantes.C1 === 1.8 && lnova.calc.constantes.kA === 0.395 && lnova.calc.constantes.fren === 1.15 && lnova.calc.personalizado === false, "linha nova nasce com a copia (snapshot) do calculo vigente");
+  // personalizar uma formula e uma constante: so linhas NOVAS levam; a antiga e a ja criada nao mudam
+  roda("chkCalcSalvarConfig({ versao:2, constantes:{ D1:1.2 }, formulas:{ 'rig:ZLQ_tab':'f3 + a + b + C1 + D1 + 0.1' }, historico:[] }, [{ ts:1, versao:2, chave:'rig:ZLQ_tab', antes:'x', depois:'y', motivo:'ensaio' }])");
+  const cfg = roda("chkCalcConfig()");
+  T(cfg.versao === 2 && cfg.constantes.D1 === 1.2 && cfg.historico.length === 1 && roda("STATE.checklists.textos.calculo.formulas['rig:ZLQ_tab']").includes("+ 0.1"), "a configuracao fica em STATE.checklists.textos.calculo (so o que mudou) com o historico");
+  T(roda("chkSyncLocais().some(e => e.chave === 't:textos')") === true, "a configuracao do calculo sobe para a nuvem (sincroniza com os textos-base)");
+  const lpers = roda("novoChkLinha(" + J(m0) + ")");
+  T(lpers.calc.personalizado === true && lpers.calc.v === 2 && lpers.calc.constantes.D1 === 1.2 && lpers.calc.formulas["rig:ZLQ_tab"].includes("+ 0.1"), "linha criada depois: leva a copia com a formula e o valor personalizados");
+  const memSemParam = { hanc:7, hpos:1, vao:5 };
+  const rp = resumo(Object.assign({}, linhaDe("horizontal_rigida", memSemParam, false), { calc: lpers.calc }));
+  T(perto(rp.ZLQ_tab, 1.4 + 1.1 + 1.8 + 1.2 + 0.1, 1e-9), "a formula personalizada vale na linha que a guardou: " + J(rp));
+  T(perto(resumo(Object.assign({}, linhaDe("horizontal_rigida", memSemParam, false), { calc: lnova.calc })).ZLQ_tab, 5.30, 1e-9) && resumo(linhaDe("horizontal_rigida", mem3, false)).ZLQ_tab === a3.ZLQ_tab, "linha ja criada (copia anterior) e linha antiga continuam iguais apos a mudanca da planilha");
+  // laudo: selo e anexo so com personalizacao; todas as variaveis so se ligar
+  const dadosLaudo = (l)=> "{ linha:" + J(l) + " }";
+  const blocos = (l)=> roda("lclBlocosMemorial(" + dadosLaudo(l) + ", { num:4, rot:'Memorial de Cálculo — Zona Livre de Queda', ancora:'cap-memorial' })");
+  const lAudP = Object.assign({}, linhaDe("horizontal_rigida", mem3, false), { calc: lpers.calc, nome:"LV-CALC" });
+  const bP = blocos(lAudP), htmlP = bP.map(b => b.html).join("");
+  T(htmlP.includes("Fórmulas personalizadas (v.2)") && htmlP.includes("Anexo — Fórmulas personalizadas") && htmlP.includes("PODE USAR") && htmlP.includes("Como ler estas verificações") && htmlP.includes("NÃO SE APLICA") && !htmlP.includes("Todas as variáveis do cálculo"), "laudo: selo e anexo de formulas personalizadas, veredito em linguagem simples, quadro Como ler, cabo nao se aplica");
+  const lAudN = Object.assign({}, linhaDe("horizontal_rigida", mem3, false), { calc: lnova.calc, nome:"LV-CALC", laudo:{ memorialTodasVars:true } });
+  const htmlN = blocos(lAudN).map(b => b.html).join("");
+  T(!htmlN.includes("Fórmulas personalizadas") && htmlN.includes("Todas as variáveis do cálculo") && htmlN.includes("Zona Livre de Queda (ZLQ) do talabarte"), "laudo sem personalizacao: sem selo; com a opcao ligada mostra todas as variaveis intermediarias");
+  T(htmlN.includes("f<sub>3</sub> + A<sub>1</sub> + B<sub>1</sub> + C<sub>1</sub> + D<sub>1</sub>") || htmlN.includes("<mi>A</mi><mn>1</mn>"), "laudo: a ZLQ do trava-quedas mostra A1 na legenda e na formula");
+  const lAudA = Object.assign({}, linhaDe("horizontal_rigida", mem3, false), { nome:"LV-CALC" });   // sem calc: laudo antigo, igual ao de antes
+  const htmlA = blocos(lAudA).map(b => b.html).join("");
+  T(htmlA.includes("ZLQ ATENDE") && !htmlA.includes("PODE USAR") && !htmlA.includes("Como ler estas verificações"), "laudo de linha antiga (sem calc) continua igual ao de antes");
+  const lFlex = Object.assign({}, linhaDe("horizontal_flexivel", mem2, false), { calc: lnova.calc, nome:"LV-FLEX" });
+  const htmlF = blocos(lFlex).map(b => b.html).join("");
+  T(htmlF.includes("Modelo multi-vão: planilha corrigida") && htmlF.includes("os apoios intermediários permitem o deslizamento do cabo") && htmlF.includes("Modelo multi-vão") && htmlF.includes("valores padrão; conferir com a etiqueta/manual do EPI usado"), "laudo flexivel multi-vao: imprime o modelo usado, a premissa do deslizamento e a observacao dos valores padrao");
+
+  // --- 7) tela da planilha de calculo, validacao e pendencias
+  const tela = roda("screenChkCalculo()");
+  T(tela.includes("Planilha de cálculo") && tela.includes("Rodar casos de referência") && tela.includes("Exportar JSON") && tela.includes("Importar JSON") && tela.includes("Restaurar tudo ao padrão") && tela.includes("Pendências (7)") && tela.includes("ZLQ trava-quedas"), "tela: acoes, abas e a tabela com simbolo, descricao, valor atual, formula, origem e fonte");
+  roda("__calcUI.aba = 'pend'");
+  const pend = roda("chkCalcTabelaHtml()");
+  T(["P1", "P2", "P3", "P4", "P5", "P6", "P7"].every(id => pend.includes(id)) && pend.includes("Aguardando decisão") && pend.includes("NBR 16325-2:2024 D.2.4"), "pendencias P1 a P7 listadas na tela com o status");
+  roda("__calcUI.aba = 'flex'; __calcUI.caso = 'c1'");
+  const tab = roda("chkCalcTabelaHtml()");
+  T(tab.includes("Caso de teste") && tab.includes("calcEntrada('hanc'") && tab.includes("calcEditFormula('flex','ZLQ_trava'") && tab.includes("Padrão") && tab.includes("Guia Prático (Sampaio)"), "tabela: caso de teste editavel, formula editavel por celula, origem e fonte");
+  roda("__calcUI.aberta = 'flex:ZLQ_trava'");
+  T(roda("chkCalcTabelaHtml()").includes("Passo a passo de ZLQ trava-quedas") && roda("chkCalcTabelaHtml()").includes("(((0,672911 + 0,4) + 2,15) + 1,8) + 1,2)"), "passo a passo: a formula com os numeros no lugar das variaveis");
+  roda("__calcUI.aberta = null");
+  roda("__calcUI.edit.formulas['flex:ZLQ_trava'] = 'f3 + A1 + B1 + C1 + D1 + 1'; __calcUI.edit.constantes.b = 1.2;");
+  const dif = roda("chkCalcDiffPendente()");
+  T(dif.length === 2 && roda("chkCalcValidar(chkCalcEmEdicao())").length === 0, "alteracoes em edicao listadas e validas");
+  const tabP = roda("chkCalcTabelaHtml()");
+  T(tabP.includes("Personalizada") && tabP.includes("padrão: 6,022911"), "celula personalizada marcada, com a comparacao 'padrao x minha formula'");
+  roda("__calcUI.edit.formulas['flex:ZLQ_trava'] = 'B1 + ZLQ_trava'");
+  T(roda("chkCalcValidar(chkCalcEmEdicao())").some(e => /ciclo/.test(e)), "salvar e impedido quando a formula faz um ciclo");
+  roda("__calcUI.edit.formulas['flex:ZLQ_trava'] = 'f3 + A1 + B1 + C1 + D1 +'");
+  T(roda("chkCalcValidar(chkCalcEmEdicao())").some(e => /incompleta|Sobrou|Não entendi/.test(e)), "salvar e impedido quando a formula esta incompleta");
+  roda("__calcUI.edit = { formulas:{}, constantes:{} }");
+  const casosFalha = roda("chkCalcRodarCasos({ versao:3, constantes:{}, formulas:{ 'flex:ZLQ_trava':'f3 + B1 + C1 + D1' }, historico:[] })");
+  T(casosFalha.some(c => !c.ok && c.falhas.some(f => f.id === "ZLQ_trava")) && casosFalha.filter(c => c.ok).length >= 5, "casos de referencia avisam quando uma formula personalizada se afasta do esperado");
+  const exp = roda("(function(){ const c = chkCalcConfig(); return { app:'linhas-de-vida-calculo', constantes:c.constantes, formulas:c.formulas }; })()");
+  T(exp.constantes.D1 === 1.2, "exportar: os dados personalizados saem no JSON");
+  roda("STATE.checklists.textos = " + J(salvo.t === null ? undefined : salvo.t) + "; STATE.checklists.projetos = " + J(salvo.p) + "; STATE.checklists.modelos = " + J(salvo.m) + ";");
+}
+
+testarFotoAmpla().then(() => testarTravas()).then(() => testarDadosLaudo()).then(() => testarLaudoCapitulos()).then(() => testarMemorial()).then(() => testarCapitulosNovos()).then(() => testarEdicaoTexto()).then(() => testarFotosLeituraLaudo()).then(() => testarCadastroProjeto()).then(() => testarEditorModelo()).then(() => testarAtalhoLaudo()).then(() => testarCapaLaudo()).then(() => testarUsabilidade()).then(() => testarAtualizacaoModelos()).then(() => testarCalculoMemorial()).then(() => testarSincronizacaoChecklist()).then(() => {
   // as arvores do Completo/Simplificado continuam byte a byte identicas apos a foto ampla tambem
   if(JSON.stringify(sandbox.STATE.projetos) !== antesCompleto || JSON.stringify(sandbox.STATE.projetosSimples) !== antesSimples){
     console.error("FALHOU: a foto ampla da linha mexeu em STATE.projetos/projetosSimples");

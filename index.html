@@ -697,6 +697,7 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-mem-res span{font-size:12px;font-weight:800;border-radius:99px;padding:5px 11px;border:1px solid}
 .chk-mem-res .ok{color:#1f7a4f;background:#e4f1e5;border-color:#9fd1b3}
 .chk-mem-res .no{color:#b3382d;background:#fbe7e4;border-color:#ecb3ac}
+.chk-mem-res .na{color:#6b719a;background:#eef0f6;border-color:#cfd3e6}
 .chk-mem-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin:8px 0}
 .chk-mem-campo{display:flex;flex-direction:column;justify-content:flex-end;gap:5px;font-size:12.5px;font-weight:700;color:var(--ink)}
 .chk-mem-rot{display:flex;align-items:center;gap:6px;min-height:34px}
@@ -3471,7 +3472,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "13/10/2026 20:23";
+const APP_BUILD = "13/10/2026 21:02";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -9959,6 +9960,7 @@ function novoChkLinha(modelo){
     fotoAmpla: "", // vista geral p/ identificar o item e o local (dataURL ou referência do banco de fotos); "" = sem foto — linhas antigas não têm o campo e toda leitura trata como vazio
     modeloId: modelo.id,
     modeloNome: modelo.nome,
+    calc: chkCalcSnapshotNovo(), // cópia das constantes e fórmulas do cálculo do memorial vigentes agora: o laudo da linha sempre se reproduz igual; sem este campo (linhas antigas) vale o cálculo anterior
     tipoLinha: modelo.tipoLinha || "", // congela o tipo (horizontal flexível/rígida, vertical...) como o resto do modelo; decide se o laudo tem Memorial
     modeloSnapshot: clonarCompartilhandoFotos(modelo.secoes), // congela seções/itens no início — editar o modelo depois não afeta linhas já criadas; usa o clone padrão do app por consistência (nunca JSON.stringify, ver estrutura.py)
     status: "em_andamento", // 'em_andamento' | 'finalizado'
@@ -14163,6 +14165,7 @@ function renderChecklistModulo(){
     else if(s==="checklist-revisao") body = screenChkRevisao();
     else if(s==="checklist-config-backup") body = screenSimplesConfigBackup();
     else if(s==="checklist-config-empresa") body = screenSimplesConfigEmpresa();
+    else if(s==="checklist-config-calculo") body = screenChkCalculo();
     else body = screenChkModelos();
   }catch(e){
     console.error("Erro ao renderizar tela (checklist)", s, e);
@@ -14204,6 +14207,7 @@ function topBarChk(){
     "checklist-revisao": ["Revisão com o Claude", "Projeto"],
     "checklist-config-backup": ["Backup", "Configurações"],
     "checklist-config-empresa": ["Empresa e Responsáveis", "Configurações"],
+    "checklist-config-calculo": ["Planilha de cálculo", "Zona livre de queda"],
     "checklist-projeto-form": ["Projeto", "Dados do serviço"],
     "checklist-setores": ["Setores", "Setores do projeto"],
     "checklist-setor-form": ["Setor", "Dados do setor"],
@@ -14233,7 +14237,7 @@ function topBarChk(){
   if(s==="checklist-laudo") backTarget = "checklist-setores";
   if(s==="checklist-config" || s==="checklist-busca") backTarget = "checklist-projetos";
   if(s==="checklist-pronto" || s==="checklist-revisao") backTarget = "checklist-setores";
-  if(s==="checklist-config-backup" || s==="checklist-config-empresa") backTarget = "checklist-config";
+  if(s==="checklist-config-backup" || s==="checklist-config-empresa" || s==="checklist-config-calculo") backTarget = "checklist-config";
   let action = "";
   const btnBusca = `<button class="icon-btn" style="color:var(--on-bar)" onclick="App.go('checklist-busca')" title="Buscar" aria-label="Buscar">${ic('search')}</button>`;
   if(s==="checklist-modelos") action = `<button class="icon-btn" style="color:var(--on-bar)" onclick="App.go('checklist-config')" title="Configurações">${ic('cog')}</button><button class="icon-btn" style="color:var(--on-bar)" onclick="App.trocarModulo()" title="Trocar módulo">${ic('layers')}</button><button class="topbar-action" onclick="App.chkNovoModelo()">${ic('plus')} Novo</button>`;
@@ -14303,6 +14307,7 @@ function screenChkConfig(){
   </div>
   ${linha('onedrive', 'Backup', sub, "App.go('checklist-config-backup')")}
   ${linha('briefcase', 'Empresa e Responsáveis', 'Dados fixos do laudo e lista de inspetores', "App.go('checklist-config-empresa')")}
+  ${chkEhCampo() ? "" : linha('layers', 'Planilha de cálculo', 'Variáveis, constantes e fórmulas do memorial (zona livre de queda), editáveis, com histórico', "App.go('checklist-config-calculo')")}
   ${chkEhCampo() ? "" : linha('upload', 'Atualizar modelos pelas planilhas', 'Textos e criticidades dos modelos e das linhas já feitas, com prévia antes de aplicar', "App.chkAtuAbrir()")}
   ${linha('layers', 'Trocar de módulo', 'Voltar à escolha de módulos', "App.trocarModulo()")}
   <div class="section-title">Quem sou eu neste aparelho</div>
@@ -15683,12 +15688,413 @@ const CHK_MEMORIAL_PARAMS_ROT = [
   ["D1", "Distância de segurança (D1)", "m"],
   ["Ecabo", "Módulo de elasticidade do cabo (E)", "kgf/mm²"],
   ["kA", "Área metálica do cabo (A = k · d²)", "k"],
+  ["A1", "Trava-quedas recolhido (A1)", "m"],   // só no cálculo novo (linha com linha.calc)
 ];
 /* Viga da linha rígida: só a deflexão entra no cálculo (ela faz parte da zona livre de queda); a resistência
    da viga não é verificada no memorial. */
 const CHK_MEMORIAL_VIGA = { perfil:"W200x26,6", aco:"ASTM A572 Gr 50", E:200e9, I:2611e-8 };
 /* Limites de flecha do cabo (planilha do memorial): linha de vida no mínimo 3%, linha de restrição no máximo 1%. */
 const CHK_MEMORIAL_LIMITES = { flechaMinVida:3, flechaMaxRestricao:1 };
+/* ══════════════════════════════════════════════════════════════════════════════
+   CÁLCULO DO MEMORIAL (ZLQ) — REGISTRO DE VARIÁVEIS + MOTOR DE FÓRMULAS (revisão técnica de 13/10/2026)
+   ──────────────────────────────────────────────────────────────────────────────
+   Tudo o que o cálculo "novo" faz sai do REGISTRO abaixo (CHK_CALC_REGISTRO): cada variável tem id, símbolo, nome em
+   português simples, unidade, tipo (entrada | constante | calculada | iterativa | veredito), fórmula padrão, fonte e nota
+   para quem não é da área. O motor lê o registro, ordena as variáveis pelas dependências (ordem topológica), avalia cada
+   fórmula num avaliador PRÓPRIO e SEGURO (sem eval e sem new Function: só números, + − * / ^, parênteses, comparações,
+   "e"/"ou"/"nao" e as funções sqrt, abs, min, max, round, if, atan, sen, cos, graus) e trata erro por célula
+   (#DIV/0!, variável inexistente, ciclo, dado faltando) sem travar nada. ΔL, f3 e T1 dependem um do outro e são
+   resolvidos por um bloco iterativo (tolerância e máximo de voltas configuráveis).
+   Linhas SEM `linha.calc` (criadas antes desta revisão) continuam no cálculo antigo, intacto (chkMemorialCalcLegado), até a
+   pessoa usar "Reprocessar". Linha nova nasce com `linha.calc` = cópia (snapshot) das constantes e fórmulas vigentes: a
+   reimpressão do laudo é sempre reproduzível, mesmo que a planilha de cálculo mude depois.
+   Fontes citadas: NBR 16325-1:2024 (linha rígida), NBR 16325-2:2024 (cabo de aço), NR-35 (texto 2025), Guia Prático
+   (Sampaio) e a planilha "Calculo Linha de Vida"; valores padrão definidos na revisão técnica de 13/10/2026.
+   ══════════════════════════════════════════════════════════════════════════════ */
+const CHK_CALC_FONTES = {
+  rev: "Revisão técnica 13/10/2026",
+  guia: "Guia Prático (Sampaio)",
+  plan: "Planilha \"Calculo Linha de Vida\"",
+  n162: "NBR 16325-2:2024",
+  n161: "NBR 16325-1:2024",
+  nr35: "NR-35 (texto 2025)",
+};
+/* Registro. `tipos`: onde a variável vale ("rig" = linha rígida, "flex" = linha flexível de cabo). Constantes valem para os dois
+   e podem ser trocadas por laudo (linha.memorial.params). `min`/`max` só geram aviso. Fórmulas: use ponto nos decimais e ponto e
+   vírgula entre os argumentos, como na planilha: if(cond; a; b). Comparações valem 1 (verdadeiro) ou 0 (falso). */
+const CHK_CALC_REGISTRO = [
+  // ---- entradas (medidas em campo)
+  { id:"hanc", simbolo:"Hanc", nome:"Altura da ancoragem ao piso", unidade:"m", tipo:"entrada", tipos:["rig","flex"], fonte:"Medida em campo", nota:"Quanto espaço existe do ponto onde o equipamento é preso até o chão." },
+  { id:"hpos", simbolo:"Hp", nome:"Altura da posição de trabalho ao piso", unidade:"m", tipo:"entrada", tipos:["rig","flex"], fonte:"Medida em campo", nota:"Altura em que o trabalhador fica em pé, em relação ao piso." },
+  { id:"L", simbolo:"L", nome:"Vão entre apoios", unidade:"m", tipo:"entrada", tipos:["rig","flex"], fonte:"Medida em campo", nota:"Distância entre dois apoios da linha." },
+  { id:"C", simbolo:"C", nome:"Comprimento total da linha", unidade:"m", tipo:"entrada", tipos:["flex"], fonte:"Medida em campo", nota:"Se a linha tem mais de um vão. Com um vão só, vale o próprio vão." },
+  { id:"flecha", simbolo:"flecha", nome:"Flecha medida no meio do vão", unidade:"cm", tipo:"entrada", tipos:["flex"], fonte:"Medida em campo", nota:"Quanto o cabo \"cai\" no meio do vão, em repouso." },
+  { id:"d", simbolo:"d", nome:"Diâmetro do cabo", unidade:"mm", tipo:"entrada", tipos:["flex"], fonte:"Medida em campo", nota:"Diâmetro nominal do cabo de aço." },
+  { id:"n", simbolo:"n", nome:"Número de usuários simultâneos", unidade:"", tipo:"entrada", tipos:["flex"], fonte:"Projeto / medida em campo", nota:"Quantas pessoas podem usar a linha ao mesmo tempo." },
+  { id:"restricao", simbolo:"restrição", nome:"Linha de restrição (1 = sim, 0 = linha de vida)", unidade:"", tipo:"entrada", tipos:["flex"], fonte:"Projeto", nota:"1 quando a linha só impede chegar à borda; 0 quando retém a queda." },
+  // ---- constantes (valores padrão; troque por laudo ou aqui, para todos os laudos novos)
+  { id:"peso", simbolo:"peso", nome:"Peso do usuário com equipamentos", unidade:"kg", tipo:"constante", tipos:["rig","flex"], padrao:100, min:80, max:150, fonte:"Guia Prático (Sampaio); NR-35", nota:"Usuário e ferramentas." },
+  { id:"P1", simbolo:"P1", nome:"Carga do primeiro usuário na linha de vida", unidade:"kgf", tipo:"constante", tipos:["flex"], padrao:600, fonte:"Guia Prático (Sampaio); NBR 16325-2:2024", nota:"Carga de projeto para o primeiro usuário (aprox. 6 kN). Pendência P5: 611,8 kgf exatos." },
+  { id:"Frup", simbolo:"Frup", nome:"Força de ruptura do cabo", unidade:"kgf", tipo:"constante", tipos:["flex"], padrao:3755, fonte:"Tabela I.P.S. do catálogo SIVA (NBR ISO 2408), pelo diâmetro", nota:"O app preenche pela tabela, conforme o diâmetro do cabo." },
+  { id:"FS_vida", simbolo:"FS vida", nome:"Fator de segurança do cabo (linha de vida)", unidade:"", tipo:"constante", tipos:["flex"], padrao:2, fonte:"Guia Prático (Sampaio); planilha", nota:"Quanto o cabo precisa aguentar a mais que a carga calculada." },
+  { id:"FS_restr", simbolo:"FS restrição", nome:"Fator de segurança do cabo (linha de restrição)", unidade:"", tipo:"constante", tipos:["flex"], padrao:3, fonte:"Guia Prático (Sampaio); planilha", nota:"Linha de restrição usa um fator maior." },
+  { id:"FS", simbolo:"FS", nome:"Fator de segurança usado", unidade:"", tipo:"constante", tipos:["flex"], padrao:2, fonte:"Definido pelo tipo de linha (2 vida, 3 restrição)", nota:"O app escolhe pelo tipo de linha; pode ser trocado por laudo." },
+  { id:"a", simbolo:"a", nome:"Comprimento do talabarte", unidade:"m", tipo:"constante", tipos:["rig","flex"], padrao:1.4, min:1.2, max:1.8, fonte:"Etiqueta/manual do EPI; faixa sugerida 1,20–1,80 m", nota:"A \"cordinha\" que liga o cinto à linha. Conferir a etiqueta do equipamento usado." },
+  { id:"b", simbolo:"b", nome:"Absorvedor de energia aberto", unidade:"m", tipo:"constante", tipos:["rig","flex"], padrao:1.1, min:1.0, max:1.75, fonte:"NR-35; manual do EPI (faixa permitida 1,00–1,75 m)", nota:"Quanto o absorvedor se estica ao frear a queda." },
+  { id:"A1", simbolo:"A1", nome:"Trava-quedas recolhido", unidade:"m", tipo:"constante", tipos:["rig","flex"], padrao:0.4, min:0.3, max:0.5, fonte:"Manual do EPI (faixa 0,30–0,50 m)", nota:"Tamanho do trava-quedas retrátil antes de abrir." },
+  { id:"b1", simbolo:"b1", nome:"Cabo do trava-quedas para fora, na posição de trabalho", unidade:"m", tipo:"constante", tipos:["rig","flex"], padrao:1.0, fonte:"Manual do EPI", nota:"Quanto de cabo já está puxado para fora quando a pessoa trabalha." },
+  { id:"fren", simbolo:"fren", nome:"Deslizamento (frenagem) do trava-quedas", unidade:"m", tipo:"constante", tipos:["rig","flex"], padrao:1.15, min:0.3, max:1.3, fonte:"Manual do EPI (cabo 6–20 m: 1,15 m; fita 2,5–3,5 m: 1,30 m)", nota:"Quanto o cabo desliza até o trava-quedas parar a queda. Para trava-quedas de fita use 1,30 m." },
+  { id:"C1", simbolo:"C1", nome:"Distância do engate do cinto até os pés", unidade:"m", tipo:"constante", tipos:["rig","flex"], padrao:1.8, fonte:"Guia Prático (Sampaio); planilha", nota:"Do ponto onde o cinto é preso (costas) até os pés." },
+  { id:"D1", simbolo:"D1", nome:"Distância de segurança", unidade:"m", tipo:"constante", tipos:["rig","flex"], padrao:1.0, fonte:"Guia Prático (Sampaio); NR-35", nota:"Folga que precisa sobrar entre os pés e o obstáculo ou o piso." },
+  { id:"Ecabo", simbolo:"E", nome:"Módulo de elasticidade do cabo", unidade:"kgf/mm²", tipo:"constante", tipos:["flex"], padrao:9500, fonte:"Planilha \"Calculo Linha de Vida\"", nota:"Mede o quanto o cabo estica quando puxado." },
+  { id:"kA", simbolo:"k", nome:"Fator de área metálica do cabo (A = k · d²)", unidade:"", tipo:"constante", tipos:["flex"], padrao:0.395, fonte:"Revisão técnica 13/10/2026; planilha", nota:"Converte o diâmetro do cabo em área de aço." },
+  { id:"mv", simbolo:"modelo", nome:"Modelo multi-vão (1 = planilha corrigida; 2 = deslizamento completo)", unidade:"", tipo:"constante", tipos:["flex"], padrao:1, fonte:"Revisão técnica 13/10/2026", nota:"Só faz diferença com mais de um vão. Premissa: os apoios intermediários permitem o deslizamento do cabo." },
+  { id:"tol", simbolo:"tol", nome:"Tolerância da iteração", unidade:"kgf", tipo:"constante", tipos:["flex"], padrao:1e-7, fonte:"Revisão técnica 13/10/2026", nota:"Quando a força no cabo muda menos que isso entre duas voltas, o cálculo para." },
+  { id:"maxit", simbolo:"voltas", nome:"Máximo de voltas da iteração", unidade:"", tipo:"constante", tipos:["flex"], padrao:2000, fonte:"Revisão técnica 13/10/2026", nota:"Trava de segurança do cálculo." },
+  // ---- linha rígida: a flecha da viga não entra (pendência P6)
+  { id:"B1", simbolo:"B1", nome:"Alcance do trava-quedas em trabalho", unidade:"m", tipo:"calculada", tipos:["rig","flex"], formula:"b1 + fren", fonte:"Guia Prático (Sampaio)", nota:"Cabo para fora na posição de trabalho mais o deslizamento." },
+  { id:"f1", simbolo:"f1", nome:"Flecha inicial do cabo", unidade:"m", tipo:"calculada", tipos:["rig"], formula:"0", fonte:"NBR 16325-1:2024 (flecha da viga não considerada; pendência P6)", nota:"Na linha rígida a viga não cede no cálculo." },
+  { id:"f3", simbolo:"f3", nome:"Flecha dinâmica", unidade:"m", tipo:"calculada", tipos:["rig"], formula:"0", fonte:"NBR 16325-1:2024 (pendência P6)", nota:"Na linha rígida a zona livre de queda parte da ancoragem." },
+  { id:"f1", simbolo:"f1", nome:"Flecha inicial do cabo", unidade:"m", tipo:"calculada", tipos:["flex"], formula:"flecha / 100", fonte:"Planilha \"Calculo Linha de Vida\"", nota:"A flecha medida, convertida de centímetros para metros." },
+  { id:"Ls", simbolo:"Ls", nome:"Comprimento do cabo em um vão", unidade:"m", tipo:"calculada", tipos:["flex"], formula:"L * (1 + 2/3 * (f1 / (L/2))^2)", fonte:"Planilha \"Calculo Linha de Vida\" (parábola, corrigida: usa o vão L)", nota:"O cabo é um pouco mais comprido que o vão porque \"cai\" no meio." },
+  { id:"nv", simbolo:"nv", nome:"Número de vãos", unidade:"", tipo:"calculada", tipos:["flex"], formula:"C / L", fonte:"Planilha \"Calculo Linha de Vida\"", nota:"Comprimento total dividido pelo vão." },
+  { id:"L1", simbolo:"L1", nome:"Comprimento do cabo na linha toda", unidade:"m", tipo:"calculada", tipos:["flex"], formula:"Ls * nv", fonte:"Planilha \"Calculo Linha de Vida\"", nota:"Soma do cabo de todos os vãos." },
+  { id:"J", simbolo:"J", nome:"Cabo disponível no vão carregado", unidade:"m", tipo:"calculada", tipos:["flex"], formula:"if(mv = 1; Ls; L1 - C + L)", fonte:"Revisão técnica 13/10/2026 (modelo 1: planilha corrigida; modelo 2: deslizamento completo)", nota:"Quanto de cabo pode \"entrar\" no vão onde a pessoa cai." },
+  { id:"f2", simbolo:"f2", nome:"Flecha antes do alongamento", unidade:"m", tipo:"calculada", tipos:["flex"], formula:"sqrt((J/2)^2 - (L/2)^2)", fonte:"Planilha \"Calculo Linha de Vida\"", nota:"Flecha do cabo carregado, antes de ele esticar." },
+  { id:"P", simbolo:"P", nome:"Carga de cálculo", unidade:"kgf", tipo:"calculada", tipos:["flex"], formula:"if(restricao = 1; peso * n; P1 + (n - 1) * peso)", fonte:"Guia Prático (Sampaio); NBR 16325-2:2024", nota:"Linha de vida: carga do 1º usuário mais o peso de cada usuário a mais. Restrição: peso de cada usuário." },
+  { id:"dL", simbolo:"ΔL", nome:"Alongamento do cabo", unidade:"mm", tipo:"iterativa", grupo:"cabo", tipos:["flex"], formula:"T1 * L1 * 1000 / (Ecabo * kA * d^2)", fonte:"Planilha \"Calculo Linha de Vida\" (lei de Hooke)", nota:"Quanto o cabo estica com a força T1." },
+  { id:"f3", simbolo:"f3", nome:"Flecha dinâmica", unidade:"m", tipo:"iterativa", grupo:"cabo", tipos:["flex"], formula:"sqrt(((J + dL/1000)/2)^2 - (L/2)^2)", fonte:"Planilha \"Calculo Linha de Vida\"", nota:"Quanto o cabo desce, com o alongamento, quando alguém cai." },
+  { id:"T1", simbolo:"T1", nome:"Força no cabo", unidade:"kgf", tipo:"iterativa", grupo:"cabo", controle:true, inicial:0, tipos:["flex"], formula:"P * (J + dL/1000) / (4 * f3)", fonte:"Planilha \"Calculo Linha de Vida\"; NBR 16325-2:2024", nota:"Esforço que o cabo recebe na queda." },
+  { id:"Fadm", simbolo:"Fadm", nome:"Força admissível do cabo", unidade:"kgf", tipo:"calculada", tipos:["flex"], formula:"Frup / FS", fonte:"Planilha; pendência P1 (eficiência do terminal ainda não considerada)", nota:"Ruptura do cabo dividida pelo fator de segurança." },
+  { id:"util", simbolo:"u", nome:"Utilização do cabo", unidade:"", tipo:"calculada", tipos:["flex"], formula:"T1 / Fadm", fonte:"Planilha \"Calculo Linha de Vida\"", nota:"1,00 = o cabo está no limite." },
+  { id:"FSs", simbolo:"FSserv", nome:"Fator de serviço do cabo", unidade:"", tipo:"calculada", tipos:["flex"], formula:"Frup / T1", fonte:"Planilha \"Calculo Linha de Vida\"", nota:"Quantas vezes a ruptura do cabo é maior que a força." },
+  { id:"theta", simbolo:"θ", nome:"Ângulo do cabo com a horizontal", unidade:"°", tipo:"calculada", tipos:["flex"], formula:"graus(atan(f3 / (L/2)))", fonte:"Geometria", nota:"Inclinação de cada lado do cabo na queda." },
+  { id:"ang", simbolo:"ângulo", nome:"Ângulo aberto do cabo no ponto de queda", unidade:"°", tipo:"calculada", tipos:["flex"], formula:"180 - 2 * theta", fonte:"Geometria", nota:"Quanto menor, maior a força no cabo." },
+  { id:"fren3", simbolo:"s", nome:"Distância de frenagem do cabo", unidade:"m", tipo:"calculada", tipos:["flex"], formula:"f3 - f2", fonte:"Planilha \"Calculo Linha de Vida\"", nota:"Quanto o cabo cede entre o início e o fim da frenagem." },
+  // ---- zona livre de queda, fator de queda e veredito (rígida e flexível)
+  { id:"Lq", simbolo:"a+b", nome:"Talabarte com absorvedor aberto", unidade:"m", tipo:"calculada", tipos:["rig","flex"], formula:"a + b", fonte:"Guia Prático (Sampaio)", nota:"Comprimento total do talabarte esticado." },
+  { id:"dh", simbolo:"dh", nome:"Altura da ancoragem acima da posição de trabalho", unidade:"m", tipo:"calculada", tipos:["rig","flex"], formula:"hanc - hpos", fonte:"Geometria", nota:"Quanto a ancoragem está acima de onde a pessoa trabalha." },
+  { id:"FQ", simbolo:"FQ", nome:"Fator de queda", unidade:"", tipo:"calculada", tipos:["rig","flex"], formula:"if(dh <= C1; (Lq + C1 - dh) / Lq; max(0; Lq - (dh - C1)) / Lq)", fonte:"Guia Prático (Sampaio): FQ nunca acima de 2; NR-35: recomenda-se FQ menor que 1", nota:"Razão entre a altura de queda livre e o comprimento do talabarte. Abaixo de 1 é o ideal." },
+  { id:"ZLQ_tab", simbolo:"ZLQ talabarte", nome:"Zona Livre de Queda (ZLQ) do talabarte com absorvedor", unidade:"m", tipo:"calculada", tipos:["rig","flex"], formula:"f3 + a + b + C1 + D1", fonte:"Guia Prático (Sampaio); NBR 16325", nota:"Altura livre necessária abaixo da ancoragem para o talabarte frear a queda." },
+  { id:"ZLQ_trava", simbolo:"ZLQ trava-quedas", nome:"Zona Livre de Queda (ZLQ) do trava-quedas retrátil", unidade:"m", tipo:"calculada", tipos:["rig","flex"], formula:"f3 + A1 + B1 + C1 + D1", fonte:"Guia Prático (Sampaio); revisão técnica 13/10/2026 (inclui o trava-quedas recolhido, A1)", nota:"Altura livre necessária abaixo da ancoragem para o trava-quedas frear a queda." },
+  { id:"Hp_tab", simbolo:"Hp talabarte", nome:"Altura mínima da posição de trabalho (talabarte)", unidade:"m", tipo:"calculada", tipos:["rig","flex"], formula:"f3 - f1 + b + D1", fonte:"Guia Prático (Sampaio)", nota:"Altura livre mínima sob os pés do trabalhador." },
+  { id:"Hp_trava", simbolo:"Hp trava-quedas", nome:"Altura mínima da posição de trabalho (trava-quedas)", unidade:"m", tipo:"calculada", tipos:["rig","flex"], formula:"f3 - f1 + B1 - b1 + D1", fonte:"Guia Prático (Sampaio)", nota:"Altura livre mínima sob os pés do trabalhador." },
+  { id:"folga_anc_tab", simbolo:"folga ancoragem (talabarte)", nome:"Sobra de altura da ancoragem para o talabarte", unidade:"m", tipo:"veredito", tipos:["rig","flex"], formula:"hanc - ZLQ_tab", fonte:"Verificação", nota:"Positivo: sobra espaço. Negativo: falta espaço." },
+  { id:"folga_hp_tab", simbolo:"folga posição (talabarte)", nome:"Sobra de altura livre sob os pés para o talabarte", unidade:"m", tipo:"veredito", tipos:["rig","flex"], formula:"hpos - Hp_tab", fonte:"Verificação", nota:"Positivo: sobra espaço. Negativo: falta espaço." },
+  { id:"folga_anc_tq", simbolo:"folga ancoragem (trava-quedas)", nome:"Sobra de altura da ancoragem para o trava-quedas", unidade:"m", tipo:"veredito", tipos:["rig","flex"], formula:"hanc - ZLQ_trava", fonte:"Verificação", nota:"Positivo: sobra espaço. Negativo: falta espaço." },
+  { id:"folga_hp_tq", simbolo:"folga posição (trava-quedas)", nome:"Sobra de altura livre sob os pés para o trava-quedas", unidade:"m", tipo:"veredito", tipos:["rig","flex"], formula:"hpos - Hp_trava", fonte:"Verificação", nota:"Positivo: sobra espaço. Negativo: falta espaço." },
+  { id:"ok_tab", simbolo:"talabarte", nome:"Talabarte com absorvedor pode ser usado (1 = sim)", unidade:"", tipo:"veredito", tipos:["rig","flex"], formula:"if(folga_anc_tab >= -0.000000001 e folga_hp_tab >= -0.000000001; 1; 0)", fonte:"Revisão técnica 13/10/2026", nota:"Precisa passar nas duas verificações: altura da ancoragem e altura livre sob os pés." },
+  { id:"ok_tq", simbolo:"trava-quedas", nome:"Trava-quedas retrátil pode ser usado (1 = sim)", unidade:"", tipo:"veredito", tipos:["rig","flex"], formula:"if(folga_anc_tq >= -0.000000001 e folga_hp_tq >= -0.000000001; 1; 0)", fonte:"Revisão técnica 13/10/2026", nota:"Precisa passar nas duas verificações: altura da ancoragem e altura livre sob os pés." },
+  { id:"ok_cabo", simbolo:"cabo", nome:"Cabo de aço suporta a força (1 = sim)", unidade:"", tipo:"veredito", tipos:["flex"], formula:"if(T1 <= Fadm; 1; 0)", fonte:"Planilha \"Calculo Linha de Vida\"", nota:"A força na queda tem de ficar abaixo da admissível do cabo." },
+];
+/* Pendências registradas e NÃO aplicadas (também em docs/PENDENCIAS_CALCULO.md). */
+const CHK_CALC_PENDENCIAS = [
+  { id:"P1", status:"Pendente", titulo:"Eficiência do terminal do cabo", descricao:"Fadm = η · Frup / FS, com η por tipo de terminal (grampos ≈ 0,8).", base:"NBR 16325-2:2024 D.2.4; Guia e planilha usam Frup/2 · 0,8.", efeito:"No exemplo (vão 10 m, flecha 3%, Ø 9,53 mm) a utilização vai de 0,83 para cerca de 1,04: reprova.", como:"Acrescentar a constante η (por terminal) e trocar a fórmula de Fadm para eta * Frup / FS.", teste:"Caso 1 com η = 0,8: utilização ≈ 1,04.", aviso:"Eficiência do terminal ainda não considerada." },
+  { id:"P2", status:"Pendente", titulo:"Flexibilidade das ancoragens e da estrutura", descricao:"Somar a deflexão do apoio à zona livre de queda.", base:"Branchtein; NBR 16325-2 pede o registro da deflexão.", efeito:"A zona livre de queda necessária aumenta pelo valor da deflexão.", como:"Nova entrada (deflexão do apoio, em m) somada em f3 ou diretamente nas ZLQ.", teste:"Caso 1 com deflexão 0,05 m: ZLQ +0,05 m." },
+  { id:"P3", status:"Aguardando decisão", titulo:"Acomodação do cinturão no Hp do trava-quedas", descricao:"Somar cerca de 0,30 m (acomodação do cinturão) ao Hp do trava-quedas.", base:"Manual Athenas; NBR 14628:2020.", efeito:"Hp do trava-quedas aumenta cerca de 0,30 m.", como:"Constante nova (acomodação) somada na fórmula de Hp_trava.", teste:"Caso 1: Hp trava = 2,823 m." },
+  { id:"P4", status:"Aguardando decisão", titulo:"Linha de restrição: vão máximo e ocultar ZLQ", descricao:"Validar vão máximo de 4 m entre intermediárias e ocultar ZLQ/talabarte/trava-quedas na restrição.", base:"Guia Prático 2.4.6.1.", efeito:"Linha de restrição deixa de mostrar zona livre de queda e alerta vão maior que 4 m.", como:"Validação do vão e ocultação de blocos quando restricao = 1.", teste:"Linha de restrição com vão 5 m: alerta." },
+  { id:"P5", status:"Aguardando decisão", titulo:"Carga do primeiro usuário: 6 kN exatos", descricao:"Usar 611,8 kgf (6 kN) em vez de 600 kgf.", base:"NBR 16325-2:2024.", efeito:"Força no cabo sobe cerca de 2% no primeiro usuário.", como:"Trocar a constante P1 de 600 para 611.8.", teste:"Caso 1: T1 sobe cerca de 2%." },
+  { id:"P6", status:"Aguardando decisão", titulo:"Linha rígida: verificar a viga e as fixações", descricao:"Verificar esforços, flecha (≈ P·L³/48EI), registrar a deflexão declarada (NBR 16325-1) e a origem do número de usuários.", base:"NBR 16325-1:2024.", efeito:"Linha rígida passa a ter verificação de resistência e deflexão.", como:"Novas entradas (perfil, E, I) e fórmulas de flecha e esforço.", teste:"Viga W200x26,6 com P = 600 kgf e vão 5 m." },
+  { id:"P7", status:"Pendente", titulo:"Multi-vão com apoio que trava o cabo", descricao:"Avaliar a força com vão independente quando o intermediário trava o cabo.", base:"NBR 16325-2, 4.3.14.", efeito:"Força maior que a do modelo de deslizamento.", como:"Terceiro modelo multi-vão (mv = 3) com vão independente.", teste:"Caso 2 com mv = 3." },
+];
+/* ---- erros e utilidades do motor ---- */
+function chkCalcErro(msg){ const e = new Error(msg); e.calc = true; return e; }
+const CHK_CALC_FUNCOES = { sqrt:[1, 1], abs:[1, 1], min:[1, 99], max:[1, 99], round:[1, 2], "if":[3, 3], atan:[1, 1], sen:[1, 1], cos:[1, 1], graus:[1, 1] };
+function chkCalcTokens(src){
+  const s = String(src == null ? "" : src), t = [];
+  let i = 0;
+  while(i < s.length){
+    const c = s[i];
+    if(/\s/.test(c)){ i++; continue; }
+    if(/[0-9.]/.test(c)){
+      const m = /^(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?/.exec(s.slice(i));
+      if(!m) throw chkCalcErro("Número inválido perto de \"" + s.slice(i, i + 6) + "\"");
+      t.push({ k:"n", v:parseFloat(m[0]) }); i += m[0].length; continue;
+    }
+    if(/[A-Za-zÀ-ÿ_]/.test(c)){
+      const m = /^[A-Za-zÀ-ÿ_][A-Za-z0-9À-ÿ_]*/.exec(s.slice(i));
+      t.push({ k:"id", v:m[0] }); i += m[0].length; continue;
+    }
+    const d2 = s.substr(i, 2);
+    if(d2 === "<=" || d2 === ">=" || d2 === "==" || d2 === "!=" || d2 === "<>"){ t.push({ k:"op", v: d2 === "==" ? "=" : (d2 === "<>" ? "!=" : d2) }); i += 2; continue; }
+    if("+-*/^()<>=;".indexOf(c) >= 0){ t.push({ k:"op", v:c }); i++; continue; }
+    if(c === ",") throw chkCalcErro("Use ponto nos decimais (1.5) e ponto e vírgula entre os argumentos: if(a; b; c)");
+    throw chkCalcErro("Caractere não permitido: \"" + c + "\"");
+  }
+  return t;
+}
+/* Fórmula (texto) -> árvore. Lança erro de cálculo se a fórmula não for válida. */
+function chkCalcParse(src){
+  const t = chkCalcTokens(src);
+  let p = 0;
+  const op = (v)=> !!t[p] && t[p].k === "op" && t[p].v === v;
+  const kw = (v)=> !!t[p] && t[p].k === "id" && t[p].v.toLowerCase() === v;
+  const ou = ()=>{ let x = e_(); while(kw("ou")){ p++; x = { t:"l", op:"ou", l:x, r:e_() }; } return x; };
+  const e_ = ()=>{ let x = nao(); while(kw("e")){ p++; x = { t:"l", op:"e", l:x, r:nao() }; } return x; };
+  const nao = ()=>{ if(kw("nao")){ p++; return { t:"nao", x:nao() }; } return cmp(); };
+  const cmp = ()=>{
+    let x = soma();
+    while(t[p] && t[p].k === "op" && ["<", "<=", ">", ">=", "=", "!="].indexOf(t[p].v) >= 0){ const o = t[p++].v; x = { t:"c", op:o, l:x, r:soma() }; }
+    return x;
+  };
+  const soma = ()=>{ let x = mult(); while(op("+") || op("-")){ const o = t[p++].v; x = { t:"b", op:o, l:x, r:mult() }; } return x; };
+  const mult = ()=>{ let x = un(); while(op("*") || op("/")){ const o = t[p++].v; x = { t:"b", op:o, l:x, r:un() }; } return x; };
+  const un = ()=>{ if(op("-")){ p++; return { t:"u", x:un() }; } if(op("+")){ p++; return un(); } return pot(); };
+  const pot = ()=>{ const b = prim(); if(op("^")){ p++; return { t:"b", op:"^", l:b, r:un() }; } return b; };
+  const prim = ()=>{
+    const k = t[p];
+    if(!k) throw chkCalcErro("A fórmula está incompleta");
+    if(k.k === "n"){ p++; return { t:"n", v:k.v }; }
+    if(k.k === "id"){
+      p++;
+      if(op("(")){
+        const nome = k.v.toLowerCase(), ar = CHK_CALC_FUNCOES[nome];
+        if(!ar) throw chkCalcErro("Função não permitida: " + k.v);
+        p++;
+        const args = [];
+        if(!op(")")){
+          args.push(ou());
+          while(op(";")){ p++; args.push(ou()); }
+        }
+        if(!op(")")) throw chkCalcErro("Falta fechar o parêntese de " + k.v);
+        p++;
+        if(args.length < ar[0] || args.length > ar[1]) throw chkCalcErro("A função " + nome + " espera " + (ar[0] === ar[1] ? ar[0] : ar[0] + " a " + ar[1]) + " argumento(s)");
+        return { t:"f", n:nome, a:args };
+      }
+      const low = k.v.toLowerCase();
+      if(low === "e" || low === "ou" || low === "nao") throw chkCalcErro("\"" + k.v + "\" é palavra reservada");
+      return { t:"id", n:k.v };
+    }
+    if(op("(")){ p++; const x = ou(); if(!op(")")) throw chkCalcErro("Falta fechar o parêntese"); p++; return x; }
+    throw chkCalcErro("Não entendi \"" + k.v + "\"");
+  };
+  const raiz = ou();
+  if(p < t.length) throw chkCalcErro("Sobrou \"" + t[p].v + "\" no fim da fórmula");
+  return raiz;
+}
+function chkCalcDeps(n, out){
+  out = out || new Set();
+  if(!n) return out;
+  if(n.t === "id") out.add(n.n);
+  ["x", "l", "r"].forEach(k=>{ if(n[k]) chkCalcDeps(n[k], out); });
+  (n.a || []).forEach(x=> chkCalcDeps(x, out));
+  return out;
+}
+/* Avalia a árvore. ctx.get(id) devolve o número da variável (ou lança erro de cálculo). */
+function chkCalcAval(n, ctx){
+  const av = (x)=> chkCalcAval(x, ctx);
+  switch(n.t){
+    case "n": return n.v;
+    case "id": return ctx.get(n.n);
+    case "u": return -av(n.x);
+    case "b": {
+      const a = av(n.l), b = av(n.r);
+      if(n.op === "+") return a + b;
+      if(n.op === "-") return a - b;
+      if(n.op === "*") return a * b;
+      if(n.op === "/"){ if(b === 0) throw chkCalcErro("#DIV/0! divisão por zero"); return a / b; }
+      const r = Math.pow(a, b);
+      if(!isFinite(r)) throw chkCalcErro("#NUM! potência inválida");
+      return r;
+    }
+    case "c": {
+      const a = av(n.l), b = av(n.r);
+      return (n.op === "<" ? a < b : n.op === "<=" ? a <= b : n.op === ">" ? a > b : n.op === ">=" ? a >= b : n.op === "=" ? a === b : a !== b) ? 1 : 0;
+    }
+    case "l": { const a = av(n.l) !== 0; if(n.op === "e") return (a && av(n.r) !== 0) ? 1 : 0; return (a || av(n.r) !== 0) ? 1 : 0; }
+    case "nao": return av(n.x) === 0 ? 1 : 0;
+    case "f": {
+      if(n.n === "if") return av(n.a[0]) !== 0 ? av(n.a[1]) : av(n.a[2]);
+      const v = n.a.map(av);
+      if(n.n === "sqrt"){ if(v[0] < 0) throw chkCalcErro("#NUM! raiz de número negativo"); return Math.sqrt(v[0]); }
+      if(n.n === "abs") return Math.abs(v[0]);
+      if(n.n === "min") return Math.min.apply(null, v);
+      if(n.n === "max") return Math.max.apply(null, v);
+      if(n.n === "round"){ const f = Math.pow(10, v.length > 1 ? v[1] : 0); return Math.round(v[0] * f) / f; }
+      if(n.n === "atan") return Math.atan(v[0]);
+      if(n.n === "sen") return Math.sin(v[0]);
+      if(n.n === "cos") return Math.cos(v[0]);
+      if(n.n === "graus") return v[0] * 180 / Math.PI;
+      throw chkCalcErro("Função não permitida: " + n.n);
+    }
+  }
+  throw chkCalcErro("Fórmula inválida");
+}
+function chkCalcNum(x){
+  if(typeof x !== "number" || !isFinite(x)) return String(x);
+  const r = Math.abs(x) >= 1000 ? Math.round(x * 100) / 100 : Math.round(x * 1e6) / 1e6;
+  return String(r).replace(".", ",");
+}
+/* A mesma fórmula, com os números no lugar das variáveis (passo a passo). */
+function chkCalcMostrar(n, valor){
+  const m = (x)=> chkCalcMostrar(x, valor);
+  switch(n.t){
+    case "n": return chkCalcNum(n.v);
+    case "id": { const v = valor(n.n); return v === undefined ? n.n : chkCalcNum(v); }
+    case "u": return "−" + m(n.x);
+    case "b": { const o = n.op === "-" ? "−" : n.op === "*" ? "·" : n.op; return "(" + m(n.l) + " " + o + " " + m(n.r) + ")"; }
+    case "c": return m(n.l) + " " + n.op + " " + m(n.r);
+    case "l": return "(" + m(n.l) + " " + n.op + " " + m(n.r) + ")";
+    case "nao": return "nao " + m(n.x);
+    case "f": return n.n + "(" + n.a.map(m).join("; ") + ")";
+  }
+  return "?";
+}
+/* Variáveis de um tipo de linha (com as fórmulas já escolhidas: padrão ou personalizada).
+   `formulas` = { "rig:ZLQ_trava": "…" }. Devolve cópias do registro com `formula` e `personalizada`. */
+function chkCalcLista(tipo, formulas){
+  formulas = formulas || {};
+  return CHK_CALC_REGISTRO.filter(v=> v.tipos.indexOf(tipo) >= 0).map(v=>{
+    const custom = formulas[tipo + ":" + v.id];
+    const o = Object.assign({}, v, { formulaPadrao: v.formula });
+    if(typeof custom === "string" && custom.trim() !== "" && (v.tipo === "calculada" || v.tipo === "iterativa" || v.tipo === "veredito")){ o.formula = custom.trim(); o.personalizada = custom.trim() !== v.formula; }
+    return o;
+  });
+}
+/* Resolve todas as variáveis de um tipo de linha ("rig" ou "flex").
+   entradas = { hanc, hpos, L, … }; constantes = { a, b, … } (o que faltar usa o padrão do registro). */
+function chkCalcResolver(tipo, entradas, constantes, formulas){
+  const lista = chkCalcLista(tipo, formulas), porId = Object.create(null), vals = Object.create(null);
+  lista.forEach(v=>{ porId[v.id] = v; });
+  const ast = Object.create(null), deps = Object.create(null);
+  lista.forEach(v=>{
+    if(v.tipo === "entrada"){ const x = entradas ? entradas[v.id] : undefined; vals[v.id] = (typeof x === "number" && isFinite(x)) ? { v:x } : { erro:"falta o dado: " + v.nome }; return; }
+    if(v.tipo === "constante"){
+      const x = constantes && typeof constantes[v.id] === "number" && isFinite(constantes[v.id]) ? constantes[v.id] : v.padrao;
+      vals[v.id] = { v:x }; return;
+    }
+    try{ ast[v.id] = chkCalcParse(v.formula); deps[v.id] = chkCalcDeps(ast[v.id]); if(v.tipo !== "iterativa" && deps[v.id].has(v.id)) vals[v.id] = { erro:"ciclo: depende de si mesma" }; }
+    catch(e){ vals[v.id] = { erro: e.calc ? e.message : "fórmula inválida" }; }
+  });
+  const calc = lista.filter(v=> v.tipo !== "entrada" && v.tipo !== "constante" && !vals[v.id]);
+  const grupos = Object.create(null);
+  calc.forEach(v=>{ if(v.tipo === "iterativa"){ (grupos[v.grupo] = grupos[v.grupo] || []).push(v); } });
+  // nós do grafo: variável comum = ela mesma; iterativas de um grupo = um nó só
+  const noDe = (id)=> (porId[id] && porId[id].tipo === "iterativa" && !vals[id]) ? "@" + porId[id].grupo : id;
+  const nos = Object.create(null);
+  calc.forEach(v=>{
+    const n = noDe(v.id);
+    if(!nos[n]) nos[n] = { id:n, membros:[], deps:new Set() };
+    nos[n].membros.push(v);
+    deps[v.id].forEach(d=>{
+      if(!porId[d]){ return; }
+      const dn = noDe(d);
+      if(dn !== n) nos[n].deps.add(dn);
+    });
+  });
+  const ordem = [], pend = Object.keys(nos);
+  let feito = true;
+  while(pend.length && feito){
+    feito = false;
+    for(let i = 0; i < pend.length; i++){
+      const n = nos[pend[i]];
+      if([...n.deps].every(d=> !nos[d] || ordem.indexOf(d) >= 0)){ ordem.push(pend[i]); pend.splice(i, 1); i--; feito = true; }
+    }
+  }
+  pend.forEach(id=>{ nos[id].membros.forEach(v=>{ vals[v.id] = { erro:"ciclo: depende de si mesma por " + [...nos[id].deps].filter(d=> pend.indexOf(d) >= 0).join(", ") }; }); });
+  const valor = (id)=> (vals[id] && vals[id].erro === undefined) ? vals[id].v : undefined;
+  const ctx = { get:(id)=>{
+    if(!porId[id]) throw chkCalcErro("variável inexistente: " + id);
+    const x = vals[id];
+    if(!x) throw chkCalcErro("ainda não calculada: " + id);
+    if(x.erro) throw chkCalcErro(x.erro.indexOf("falta o dado") === 0 ? x.erro : "depende de " + id + " (com erro)");
+    return x.v;
+  } };
+  const avalia = (v)=>{
+    try{
+      const r = chkCalcAval(ast[v.id], ctx);
+      if(typeof r !== "number" || !isFinite(r)) throw chkCalcErro("#NUM! resultado inválido");
+      vals[v.id] = { v:r };
+      return true;
+    }catch(e){ vals[v.id] = { erro: e.calc ? e.message : "erro no cálculo" }; return false; }
+  };
+  let voltas = 0, conv = true;
+  ordem.forEach(nid=>{
+    const n = nos[nid];
+    if(nid.charAt(0) !== "@"){ avalia(n.membros[0]); return; }
+    const membros = grupos[nid.slice(1)], ctl = membros.find(v=> v.controle) || membros[membros.length - 1];
+    const tol = (constantes && typeof constantes.tol === "number") ? constantes.tol : porId.tol.padrao;
+    const maxit = (constantes && typeof constantes.maxit === "number") ? constantes.maxit : porId.maxit.padrao;
+    membros.forEach(v=>{ vals[v.id] = { v: typeof v.inicial === "number" ? v.inicial : 0 }; });
+    conv = false;
+    for(let i = 1; i <= maxit; i++){
+      voltas = i;
+      const antes = vals[ctl.id].v;
+      let ok = true;
+      for(const v of membros){ if(!avalia(v)){ ok = false; break; } }
+      if(!ok){ membros.forEach(v=>{ if(!vals[v.id].erro) vals[v.id] = { erro:"depende de uma variável da iteração com erro" }; }); break; }
+      if(Math.abs(vals[ctl.id].v - antes) < tol){ conv = true; break; }
+    }
+  });
+  // passo a passo (fórmula com os números no lugar das variáveis)
+  lista.forEach(v=>{
+    if(ast[v.id]){ vals[v.id].formula = v.formula; vals[v.id].passo = chkCalcMostrar(ast[v.id], valor); }
+  });
+  return { vals, lista, ordem, voltas, conv, valor };
+}
+/* Constantes que valem quando nada foi trocado. */
+function chkCalcConstantesPadrao(){
+  const o = {};
+  CHK_CALC_REGISTRO.forEach(v=>{ if(v.tipo === "constante") o[v.id] = v.padrao; });
+  return o;
+}
+/* Configuração global da planilha de cálculo: só o que a pessoa trocou (STATE.checklists.textos.calculo; sincroniza com os textos-base). */
+function chkCalcConfig(){
+  const t = (typeof STATE !== "undefined" && STATE.checklists && STATE.checklists.textos) ? STATE.checklists.textos : null;
+  const c = t && t.calculo && typeof t.calculo === "object" ? t.calculo : {};
+  return { versao: c.versao >= 1 ? c.versao : 1, constantes: c.constantes && typeof c.constantes === "object" ? c.constantes : {}, formulas: c.formulas && typeof c.formulas === "object" ? c.formulas : {}, historico: Array.isArray(c.historico) ? c.historico : [] };
+}
+/* Cópia (snapshot) do que vale agora, para gravar na linha. */
+function chkCalcSnapshotNovo(cfg){
+  cfg = cfg || chkCalcConfig();
+  const padrao = chkCalcConstantesPadrao();
+  const constantes = Object.assign({}, padrao);
+  Object.keys(cfg.constantes).forEach(k=>{ if(k in padrao && typeof cfg.constantes[k] === "number" && isFinite(cfg.constantes[k])) constantes[k] = cfg.constantes[k]; });
+  const formulas = {};
+  Object.keys(cfg.formulas).forEach(k=>{ if(typeof cfg.formulas[k] === "string" && cfg.formulas[k].trim()) formulas[k] = cfg.formulas[k].trim(); });
+  const personalizado = Object.keys(constantes).some(k=> constantes[k] !== padrao[k]) || Object.keys(formulas).some(k=>{
+    const [tp, id] = k.split(":"), v = CHK_CALC_REGISTRO.find(x=> x.id === id && x.tipos.indexOf(tp) >= 0);
+    return v && v.formula !== formulas[k];
+  });
+  return { v: cfg.versao, em: (typeof agoraSync === "function" ? agoraSync() : Date.now()), constantes, formulas, personalizado };
+}
+/* Casos de referência (Parte D): entradas e o que se espera, com tolerância 0,01. */
+const CHK_CALC_CASOS = [
+  { id:"c1", nome:"Caso 1 — vão único, linha de vida (L = 10 m, flecha 3%, Ø 9,53 mm)", tipo:"flex",
+    entradas:{ hanc:7, hpos:1, L:10, C:10, flecha:30, d:9.53, n:1, restricao:0 }, constantes:{ Frup:5409 },
+    esperado:{ f1:0.300, f2:0.3466, f3:0.6729, dL:66.2, T1:2249.2, Fadm:2704.5, util:0.832, ZLQ_tab:5.973, ZLQ_trava:6.023, Hp_tab:2.473, Hp_trava:2.523 } },
+  { id:"c2", nome:"Caso 2 — multi-vão, planilha corrigida (L = 11 m, C = 182 m, 3 usuários)", tipo:"flex",
+    entradas:{ hanc:8, hpos:1, L:11, C:182, flecha:33, d:9.5, n:3, restricao:0 }, constantes:{ a:1.5, Frup:6100 },
+    esperado:{ L1:182.437, f2:0.3813, f3:1.9503, dL:644.7, T1:1196.8, ZLQ_tab:7.350, ZLQ_trava:7.300, Hp_tab:3.720, Hp_trava:3.770 } },
+  { id:"c2b", nome:"Caso 2 — multi-vão, deslizamento completo (modelo 2)", tipo:"flex",
+    entradas:{ hanc:8, hpos:1, L:11, C:182, flecha:33, d:9.5, n:3, restricao:0 }, constantes:{ a:1.5, Frup:6100, mv:2 },
+    esperado:{ f3:2.3736, T1:1009.5, ZLQ_tab:7.774, ZLQ_trava:7.724 } },
+  { id:"c3", nome:"Caso 3 — linha rígida", tipo:"rig",
+    entradas:{ hanc:7, hpos:1, L:5 },
+    esperado:{ ZLQ_tab:5.30, ZLQ_trava:5.35, Hp_tab:2.10, Hp_trava:2.15 } },
+  { id:"c4a", nome:"Caso 4 — fator de queda (dh = 0,5 m)", tipo:"rig", entradas:{ hanc:1.5, hpos:1, L:5 }, esperado:{ FQ:1.52 } },
+  { id:"c4b", nome:"Caso 4 — fator de queda (dh = 1,0 m)", tipo:"rig", entradas:{ hanc:2, hpos:1, L:5 }, esperado:{ FQ:1.32 } },
+  { id:"c4c", nome:"Caso 4 — fator de queda (dh = 1,8 m)", tipo:"rig", entradas:{ hanc:2.8, hpos:1, L:5 }, esperado:{ FQ:1.00 } },
+  { id:"c4d", nome:"Caso 4 — fator de queda (dh = 2,2 m)", tipo:"rig", entradas:{ hanc:3.2, hpos:1, L:5 }, esperado:{ FQ:0.84 } },
+  { id:"c4e", nome:"Caso 4 — fator de queda (dh = 3,0 m)", tipo:"rig", entradas:{ hanc:4, hpos:1, L:5 }, esperado:{ FQ:0.52 } },
+  { id:"c4f", nome:"Caso 4 — fator de queda (dh = 4,3 m)", tipo:"rig", entradas:{ hanc:5.3, hpos:1, L:5 }, esperado:{ FQ:0.00 } },
+];
+/* Roda os casos de referência com uma configuração (constantes e fórmulas) e diz quais passam (tolerância 0,01; ΔL e T1 aceitam 0,1). */
+function chkCalcRodarCasos(cfg){
+  cfg = cfg || chkCalcConfig();
+  const snap = chkCalcSnapshotNovo(cfg);
+  return CHK_CALC_CASOS.map(c=>{
+    const k = Object.assign({}, snap.constantes, c.constantes || {});
+    const r = chkCalcResolver(c.tipo, c.entradas, k, snap.formulas);
+    const falhas = [];
+    Object.keys(c.esperado).forEach(id=>{
+      const x = r.vals[id], tol = (id === "dL" || id === "T1" || id === "Fadm" || id === "L1") ? 0.1 : 0.01;
+      if(!x || x.erro !== undefined || Math.abs(x.v - c.esperado[id]) > tol) falhas.push({ id, esperado:c.esperado[id], obtido: x && x.erro === undefined ? x.v : null, erro: x && x.erro });
+    });
+    return { id:c.id, nome:c.nome, ok: falhas.length === 0, falhas };
+  });
+}
+
 /* Cabos de aço 6x19 alma de fibra (AF), carga de ruptura da tabela I.P.S. do catálogo SIVA (NBR ISO 2408), em tf:
    [diâmetro mm, polegada, massa kg/m, ruptura IPS tf, estimada]. Do 1 3/4" para cima o catálogo só traz EIPS para
    6x19 (sem IPS), por isso a tabela termina em 1 1/2". "estimada" ficou sempre false (todos os valores são do catálogo). */
@@ -15731,17 +16137,21 @@ function chkMemorialDe(linha){
   const uso = m.uso === "restricao" ? "restricao" : "vida";
   const diametro = chkMemorialNum(m.diametro);
   const cab = chkCaboRuptura(diametro);
+  // Linha com `linha.calc` usa o cálculo novo (valores e fórmulas da cópia que ela guardou); sem ela, o cálculo antigo, intacto.
+  const novo = !!(linha && linha.calc && typeof linha.calc === "object" && linha.calc.v);
+  const cons = novo ? Object.assign(chkCalcConstantesPadrao(), linha.calc.constantes || {}) : null;
   const params = Object.assign({}, CHK_MEMORIAL_PARAMS);
-  params.FS = uso === "restricao" ? 3 : 2;
+  if(novo) ["peso", "Frup", "FS", "a", "b", "A1", "b1", "fren", "C1", "D1", "Ecabo", "kA"].forEach(k=>{ params[k] = cons[k]; });
+  params.FS = uso === "restricao" ? (novo ? cons.FS_restr : 3) : (novo ? cons.FS_vida : 2);
   if(cab) params.Frup = cab.Frup;
-  Object.keys(CHK_MEMORIAL_PARAMS).forEach(k=>{ const v = chkMemorialNum(ov[k]); if(v !== null) params[k] = v; });
+  Object.keys(novo ? params : CHK_MEMORIAL_PARAMS).forEach(k=>{ const v = chkMemorialNum(ov[k]); if(v !== null) params[k] = v; });
   const frupInformada = chkMemorialNum(ov.Frup) !== null;
   const frupNota = frupInformada ? " (valor informado)" : (cab ? ` (${cab.est ? "IPS estimada pela EIPS da tabela ÷ 1,11, confirmar no catálogo" : "IPS, catálogo SIVA 6x19 AF"}${cab.exato ? "" : "; diâmetro de " + chkMemDiam(cab.dTab) + " mm"})` : "");
   return {
     hanc: chkMemorialNum(m.hanc), hpos: chkMemorialNum(m.hpos), vao: chkMemorialNum(m.vao), comprimentoInformado: chkMemorialNum(m.comprimento),
     comprimento: chkMemorialNum(m.comprimento) && chkMemorialNum(m.vao) && chkMemorialNum(m.comprimento) >= chkMemorialNum(m.vao) ? chkMemorialNum(m.comprimento) : chkMemorialNum(m.vao),
     flechaCm: chkMemorialNum(m.flechaCm), diametro, usuarios: chkMemorialNum(m.usuarios) || 1, uso, frupNota,
-    epi: m.epi === "tab" ? "tab" : "tq", memoria: m.memoria !== false, params,
+    epi: m.epi === "tab" ? "tab" : "tq", memoria: m.memoria !== false, params, novo, calc: novo ? linha.calc : null,
   };
 }
 /* Total de abas do preenchimento: uma por seção do modelo + a do memorial, se a linha é horizontal. */
@@ -15782,7 +16192,8 @@ function chkMemFmt(x, d){
    Carga P: linha de vida 600 kgf + peso de cada usuário além do primeiro; linha de restrição, peso de cada usuário.
    Viga rígida: sem flecha nem verificação de resistência da viga (f3 = 0); a ZLQ parte da ancoragem.
    Medidas em metros; T1 e P em kgf; PN em N; ΔL em mm. */
-function chkMemorialCalc(tipo, m){
+function chkMemorialCalc(tipo, m){ return m && m.novo ? chkMemorialCalcNovo(tipo, m) : chkMemorialCalcLegado(tipo, m); }
+function chkMemorialCalcLegado(tipo, m){
   const K = m.params, L = m.vao;
   if(!L) return null;
   const B1 = K.b1 + K.fren;
@@ -15818,6 +16229,127 @@ function chkMemorialCalc(tipo, m){
     fren3: f3 - f2, fq, voltas, conv,
     ZLQ1: f3 + K.a + K.b + K.C1 + K.D1, Hp1: f3 - f1 + K.b + K.D1, ZLQ2: f3 + B1 + K.C1 + K.D1, Hp2: f3 - f1 + B1 - K.b1 + K.D1 };
 }
+/* ---- Cálculo novo (linha com `linha.calc`): ponte entre o motor e o memorial/laudo, veredito e textos em linguagem simples ---- */
+/* Mesmo formato de resultado (c) do cálculo antigo, mais: c.novo, c.res (todas as variáveis), c.A1, c.dh. Devolve null se faltar dado
+   essencial (vão; flecha e diâmetro no cabo) ou se uma fórmula personalizada der erro (o motivo fica em m.erroCalc). */
+function chkMemorialCalcNovo(tipo, m){
+  const rig = tipo === "horizontal_rigida", L = m.vao;
+  if(!L) return null;
+  if(!rig && (!m.flechaCm || !m.diametro)) return null;
+  const K = Object.assign({}, (m.calc && m.calc.constantes) || {}, m.params);
+  const entradas = { hanc: m.hanc == null ? undefined : m.hanc, hpos: m.hpos == null ? undefined : m.hpos, L, C: m.comprimento || L, flecha: m.flechaCm, d: m.diametro, n: m.usuarios, restricao: m.uso === "restricao" ? 1 : 0 };
+  const r = chkCalcResolver(rig ? "rig" : "flex", entradas, K, (m.calc && m.calc.formulas) || {});
+  const g = (id)=>{ const x = r.vals[id]; return x && x.erro === undefined ? x.v : null; };
+  const essenciais = rig ? ["B1", "f1", "f3", "ZLQ_tab", "ZLQ_trava", "Hp_tab", "Hp_trava"] : ["B1", "f1", "Ls", "L1", "J", "f2", "P", "dL", "f3", "T1", "Fadm", "util", "ZLQ_tab", "ZLQ_trava", "Hp_tab", "Hp_trava"];
+  const ruim = essenciais.find(id=> g(id) === null);
+  if(ruim){ m.erroCalc = (r.vals[ruim] && r.vals[ruim].erro ? r.vals[ruim].erro : "sem resultado") + " (variável " + ruim + ")"; return null; }
+  const base = { tipo: rig ? "rig" : "flex", novo:true, res:r, A1:K.A1, B1:g("B1"), f1:g("f1"), f3:g("f3"), dh:g("dh"), fq:g("FQ"),
+    ZLQ1:g("ZLQ_tab"), ZLQ2:g("ZLQ_trava"), Hp1:g("Hp_tab"), Hp2:g("Hp_trava") };
+  if(rig) return Object.assign(base, { d:0, P:null, PN:null });
+  return Object.assign(base, { fl: m.flechaCm / L, Ls:g("Ls"), L1:g("L1"), J:g("J"), Lt:m.comprimento, nv:g("nv"), f2:g("f2"), dL:g("dL"), th:g("theta"), ang:g("ang"),
+    P:g("P"), T1:g("T1"), Fadm:g("Fadm"), uso:g("util"), FSs:g("FSs"), fren3:g("fren3"), voltas:r.voltas, conv:r.conv });
+}
+function chkMemorialVereditoNovo(c, m){
+  const g = (id)=>{ const x = c.res.vals[id]; return x && x.erro === undefined ? x.v : null; };
+  const fo = { ancTab:g("folga_anc_tab"), hpTab:g("folga_hp_tab"), ancTq:g("folga_anc_tq"), hpTq:g("folga_hp_tq") };
+  const pos = (x)=> x !== null && x >= -1e-9;
+  return { novo:true, okTab: g("ok_tab") === 1, okTq: g("ok_tq") === 1, okC: c.tipo === "rig" ? "na" : g("ok_cabo") === 1,
+    okAncTab: pos(fo.ancTab), okHpTab: pos(fo.hpTab), okAncTq: pos(fo.ancTq), okHpTq: pos(fo.hpTq), okHp: pos(fo.hpTab) && pos(fo.hpTq), folgas: fo };
+}
+/* Quadro "Como ler" (laudo e tela). */
+function chkMemorialComoLerHtml(){
+  return `<div class="lcl-mcomoler"><b>Como ler estas verificações</b><ol><li><b>Altura da ancoragem ao piso:</b> quanto espaço existe do ponto onde o equipamento é preso até o chão.</li><li><b>Altura livre abaixo dos pés:</b> quanto espaço existe sob o trabalhador para a frenagem da queda.</li><li>Se uma das duas falhar, o equipamento <b>não pode ser usado</b>.</li></ol></div>`;
+}
+function chkMemorialFaltaTexto(folAnc, folHp, necAnc, necHp, m){
+  const f = chkMemFmt, p = [];
+  if(folAnc !== null && folAnc < -1e-9) p.push(`faltam ${f(-folAnc)} m de altura da ancoragem ao piso (disponível ${f(m.hanc)} m, necessária ${f(necAnc)} m)`);
+  if(folHp !== null && folHp < -1e-9) p.push(`faltam ${f(-folHp)} m de altura livre abaixo dos pés (disponível ${f(m.hpos)} m, necessária ${f(necHp)} m)`);
+  return p.join("; ");
+}
+/* Uma linha do veredito por equipamento, em linguagem simples, com o resultado e a folga. */
+function chkMemorialEpiTexto(nome, ok, necAnc, folAnc, necHp, folHp, m){
+  const f = chkMemFmt;
+  if(ok) return `✓ ${nome}: <b>PODE USAR</b>. Altura da ancoragem ao piso: ${f(m.hanc)} m, necessária ${f(necAnc)} m (sobra ${f(folAnc)} m). Altura livre abaixo dos pés: ${f(m.hpos)} m, necessária ${f(necHp)} m (sobra ${f(folHp)} m).`;
+  const t = chkMemorialFaltaTexto(folAnc, folHp, necAnc, necHp, m);
+  return `✗ ${nome}: <b>NÃO PODE USAR</b>. ${t ? t.charAt(0).toUpperCase() + t.slice(1) : "Dados incompletos"}.`;
+}
+function chkMemorialFqTexto(c){
+  const f = chkMemFmt;
+  if(c.fq === null || c.fq === undefined) return "";
+  if(c.fq > 2) return `<b style="color:#B3261E">Fator de Queda (FQ) de ${f(c.fq, 2)}: acima de 2, configuração não admitida (Guia Prático: nunca exceder 2).</b>`;
+  if(c.fq > 1) return `Fator de Queda (FQ) de <b>${f(c.fq, 2)}</b>: acima de 1. A NR-35 recomenda FQ menor que 1; o limite do equipamento é 2.`;
+  return `Fator de Queda (FQ) de <b>${f(c.fq, 2)}</b>: dentro do recomendado (menor ou igual a 1).`;
+}
+function chkMemorialCondicoesNovo(c, m){
+  const v = chkMemorialVereditoNovo(c, m), f = chkMemFmt, fo = v.folgas;
+  const l = chkMemorialAlertas(c, m).map(a=> `<b style="color:#B3261E">ATENÇÃO: ${escapeHtml(a)}</b>`);
+  l.push(`Número máximo de usuários simultâneos: <b>${f(m.usuarios, 0)}</b>.`);
+  l.push(chkMemorialEpiTexto("Talabarte com absorvedor", v.okTab, c.ZLQ1, fo.ancTab, c.Hp1, fo.hpTab, m));
+  l.push(chkMemorialEpiTexto("Trava-quedas retrátil", v.okTq, c.ZLQ2, fo.ancTq, c.Hp2, fo.hpTq, m));
+  if(c.tipo === "flex") l.push(`Cabo de aço de ${chkMemDiam(m.diametro)} mm: esforço de <b>${f(c.T1, 0)} kgf</b> para admissível de ${f(c.Fadm, 0)} kgf (utilização de ${f(c.uso * 100, 0)}%, fator de serviço ${f(c.FSs)}): ${v.okC ? "<b>atende</b>" : "<b>não atende</b>"}.`);
+  else l.push("Cabo de aço: <b>não se aplica</b> (linha rígida).");
+  const fq = chkMemorialFqTexto(c); if(fq) l.push(fq);
+  return l;
+}
+function chkMemorialParecerNovo(c, m){
+  const v = chkMemorialVereditoNovo(c, m), fo = v.folgas, f = chkMemFmt;
+  const ressalva = " Este resultado trata apenas do dimensionamento e não substitui o parecer da Conclusão.";
+  if(c.tipo === "flex" && !v.okC) return c.conv ? "O cabo <b>não suporta</b> a carga dinâmica prevista. A linha deve ser redimensionada antes do uso." : "O esforço no cabo <b>não pôde ser calculado</b>. Confira a flecha e o diâmetro informados.";
+  const falta = (ok, fa, fh, na, nh)=> chkMemorialFaltaTexto(fa, fh, na, nh, m);
+  if(v.okTab && v.okTq) return "Pelas dimensões da Zona Livre de Queda (ZLQ), a linha comporta o uso com <b>trava-quedas retrátil ou talabarte com absorvedor</b>, respeitadas as condições de uso acima." + ressalva;
+  if(v.okTq) return `Pelas dimensões da Zona Livre de Queda (ZLQ), a linha comporta <b>somente trava-quedas retrátil</b>. O talabarte <b>não atende</b>: ${falta(0, fo.ancTab, fo.hpTab, c.ZLQ1, c.Hp1)}.` + ressalva;
+  if(v.okTab) return `Pelas dimensões da Zona Livre de Queda (ZLQ), a linha comporta <b>somente talabarte com absorvedor</b>. O trava-quedas <b>não atende</b>: ${falta(0, fo.ancTq, fo.hpTq, c.ZLQ2, c.Hp2)}.` + ressalva;
+  return `<b>Nenhum dos equipamentos avaliados</b> pode ser usado nesta linha. Talabarte: ${falta(0, fo.ancTab, fo.hpTab, c.ZLQ1, c.Hp1)}. Trava-quedas: ${falta(0, fo.ancTq, fo.hpTq, c.ZLQ2, c.Hp2)}. A altura da ancoragem ou a posição de trabalho precisa mudar, ou o sistema deve ser alterado.` + ressalva;
+}
+function chkMemorialPremissasNovo(c, m){
+  const K = m.params, f = chkMemFmt;
+  const engate = `Distância do engate do cinto ao pé (C<sub>1</sub>) de ${f(K.C1, 2)} m e distância de segurança (D<sub>1</sub>) de ${f(K.D1, 2)} m.`;
+  const equip = `Valores do equipamento adotados (valores padrão; conferir com a etiqueta/manual do EPI usado): talabarte a = ${f(K.a, 2)} m; absorvedor aberto b = ${f(K.b, 2)} m; trava-quedas recolhido A<sub>1</sub> = ${f(K.A1, 2)} m; cabo para fora na posição de trabalho b<sub>1</sub> = ${f(K.b1, 2)} m; deslizamento do trava-quedas = ${f(K.fren, 2)} m.`;
+  if(c.tipo === "rig") return [`Linha rígida (viga de aço), vão de ${f(m.vao)} m. A flecha da viga não é considerada no cálculo da Zona Livre de Queda.`, engate, equip];
+  const un = m.usuarios === 1 ? "usuário" : "usuários";
+  const regra = m.uso === "restricao" ? "peso de cada usuário (linha de restrição)" : "carga do primeiro usuário mais o peso de cada usuário adicional (linha de vida)";
+  const mv = c.res.valor("mv");
+  const multi = c.nv > 1.0000001 ? [mv === 2
+    ? `Linha de ${f(c.Lt)} m com ${f(c.nv, 1)} vãos de ${f(m.vao)} m. Modelo multi-vão: deslizamento completo (a folga do cabo de todos os vãos se concentra no vão carregado, J = L<sub>1</sub> − C + L). Premissa: os apoios intermediários permitem o deslizamento do cabo.`
+    : `Linha de ${f(c.Lt)} m com ${f(c.nv, 1)} vãos de ${f(m.vao)} m. Modelo multi-vão: planilha corrigida (cada vão tem cabo de comprimento L<sub>s</sub> e o vão carregado usa J = L<sub>s</sub>). Premissa: os apoios intermediários permitem o deslizamento do cabo.`] : [];
+  return [
+    `Cabo de aço de ${chkMemDiam(m.diametro)} mm, 6x19 AF, ruptura mínima de ${f(K.Frup / 1000, 1)} tf${m.frupNota} e fator de segurança ${f(K.FS, 0)}.`,
+    ...multi,
+    `Flecha inicial de ${f(c.fl, 1)}% do vão. Carga de cálculo (P) de ${f(c.P, 0)} kgf, para ${f(m.usuarios, 0)} ${un} de ${f(K.peso, 0)} kg: ${regra}.`,
+    `Força no cabo de ${f(c.T1, 0)} kgf (${f(c.uso * 100, 1)}% do admissível de ${f(c.Fadm, 0)} kgf), por iteração com o alongamento (${c.voltas} voltas; E = ${f(K.Ecabo, 0)} kgf/mm², A = ${f(K.kA, 3)} · d²).`,
+    engate, equip,
+  ];
+}
+/* Avisos do cálculo novo (valores fora da faixa do equipamento e fator de queda). Os da flecha continuam em chkMemorialAlertas. */
+function chkMemorialAlertasNovo(c, m){
+  const f = chkMemFmt, a = [], K = m.params;
+  ["a", "b", "A1", "fren"].forEach(id=>{
+    const v = CHK_CALC_REGISTRO.find(x=> x.id === id);
+    if(v && typeof K[id] === "number" && (K[id] < v.min - 1e-9 || K[id] > v.max + 1e-9)) a.push(`${v.nome} de ${f(K[id], 2)} m fora da faixa de ${f(v.min, 2)} a ${f(v.max, 2)} m: confira a etiqueta/manual do equipamento.`);
+  });
+  if(c.fq !== null && c.fq !== undefined && c.fq > 2) a.push(`Fator de Queda (FQ) de ${f(c.fq, 2)} acima de 2: configuração não admitida (Guia Prático: nunca exceder 2).`);
+  else if(c.fq !== null && c.fq !== undefined && c.fq > 1) a.push(`Fator de Queda (FQ) de ${f(c.fq, 2)} acima de 1: a NR-35 recomenda FQ menor que 1.`);
+  return a;
+}
+/* Números principais de uma linha, no cálculo que ela usa hoje (para comparar antes/depois ao reprocessar). */
+function chkMemorialResumoCalc(linha){
+  const tipo = chkTipoLinha(linha), m = chkMemorialDe(linha), c = chkMemorialCalc(tipo, m);
+  if(!c) return null;
+  const v = chkMemorialVeredito(c, m);
+  return { novo: !!m.novo, versao: m.novo ? m.calc.v : null, ZLQ_tab:c.ZLQ1, ZLQ_trava:c.ZLQ2, Hp_tab:c.Hp1, Hp_trava:c.Hp2, T1: c.T1 === undefined ? null : c.T1, util: c.uso === undefined ? null : c.uso,
+    FQ: c.fq === undefined ? null : c.fq, tab: !!v.okTab, tq: !!v.okTq, cabo: c.tipo === "rig" ? null : !!v.okC };
+}
+/* Resultado "ao vivo" da aba Memorial da linha (cálculo novo): selos, veredito em linguagem simples, fator de queda e "Como ler". */
+function chkMemorialResNovoHtml(c, m){
+  const v = chkMemorialVereditoNovo(c, m), fo = v.folgas;
+  const chip = (ok, t, sim, nao)=> `<span class="${ok ? "ok" : "no"}">${t}: ${ok ? sim : nao}</span>`;
+  const cabo = c.tipo === "flex" ? chip(v.okC, "Cabo", "ok", "excede") : `<span class="na">Cabo: não se aplica (linha rígida)</span>`;
+  let h = `<div class="chk-mem-res">${chip(v.okTq, "Trava-quedas", "pode", "não pode")}${chip(v.okTab, "Talabarte", "pode", "não pode")}${cabo}</div>`;
+  h += `<div class="chk-mem-nota">${chkMemorialEpiTexto("Trava-quedas retrátil", v.okTq, c.ZLQ2, fo.ancTq, c.Hp2, fo.hpTq, m)}<br>${chkMemorialEpiTexto("Talabarte com absorvedor", v.okTab, c.ZLQ1, fo.ancTab, c.Hp1, fo.hpTab, m)}</div>`;
+  const fq = chkMemorialFqTexto(c); if(fq) h += `<div class="chk-mem-nota">${fq}</div>`;
+  if(c.tipo === "rig") chkMemorialAlertas(c, m).forEach(a=>{ h += `<div class="chk-mem-nota chk-mem-aviso">${escapeHtml(a)}</div>`; });
+  return h + `<div class="chk-mem-nota"><b>Como ler:</b> (1) <b>altura da ancoragem ao piso</b>: espaço do ponto onde o equipamento é preso até o chão; (2) <b>altura livre abaixo dos pés</b>: espaço sob o trabalhador para a frenagem; (3) se uma das duas falhar, o equipamento não pode ser usado.</div>`;
+}
 /* Menor cabo da tabela que suporta o esforço com o fator de segurança (null se nenhum). */
 function chkMemorialDiametroMin(tipo, m){
   let achou = null;
@@ -15831,6 +16363,7 @@ function chkMemorialDiametroMin(tipo, m){
 }
 /* Avisos do cabo (não bloqueiam): flecha fora do limite e cálculo que não estabilizou. */
 function chkMemorialAlertas(c, m){
+  if(c && m.novo && c.tipo !== "flex") return chkMemorialAlertasNovo(c, m);
   if(!c || c.tipo !== "flex") return [];
   const f = chkMemFmt, L = CHK_MEMORIAL_LIMITES, a = [];
   if(m.uso === "restricao"){
@@ -15840,10 +16373,12 @@ function chkMemorialAlertas(c, m){
   }
   if(m.comprimentoInformado && m.comprimentoInformado < m.vao) a.push(`Comprimento da linha (${f(m.comprimentoInformado)} m) menor que o vão (${f(m.vao)} m): foi usado o vão.`);
   if(!c.conv) a.push("O cálculo do esforço no cabo não estabilizou: confira a flecha e o diâmetro informados.");
+  if(m.novo) chkMemorialAlertasNovo(c, m).forEach(x=> a.push(x));
   return a;
 }
 /* Cada EPI "pode" quando a altura da ancoragem cobre a zona livre de queda dele. */
 function chkMemorialVeredito(c, m){
+  if(m.novo) return chkMemorialVereditoNovo(c, m);
   return {
     okTab: m.hanc >= c.ZLQ1,
     okTq: m.hanc >= c.ZLQ2,
@@ -15852,7 +16387,7 @@ function chkMemorialVeredito(c, m){
   };
 }
 function chkMemorialLegenda(c, m){
-  const rig = c.tipo === "rig", K = m.params, lan = m.epi === "tab" ? (K.a + K.b) : c.B1, zlq = m.epi === "tab" ? c.ZLQ1 : c.ZLQ2;
+  const rig = c.tipo === "rig", K = m.params, lan = m.epi === "tab" ? (K.a + K.b) : (c.A1 || 0) + c.B1, zlq = m.epi === "tab" ? c.ZLQ1 : c.ZLQ2;
   const f = chkMemFmt;
   return [
     "Ancoragem (poste ou estrutura de suporte)",
@@ -15861,7 +16396,7 @@ function chkMemorialLegenda(c, m){
     `${m.epi === "tab" ? "Talabarte com absorvedor" : "Trava-quedas retrátil"}: ${f(lan, 1)} m`,
     "Usuário na posição de trabalho",
     "Usuário após a queda",
-    `Zona livre de queda (ZLQ) = ${f(zlq)} m`,
+    `${m.novo ? "Zona Livre de Queda (ZLQ) = " + (m.epi === "tab" ? "f<sub>3</sub> + a + b + C<sub>1</sub> + D<sub>1</sub>" : "f<sub>3</sub> + A<sub>1</sub> + B<sub>1</sub> + C<sub>1</sub> + D<sub>1</sub>") + " = " : "Zona livre de queda (ZLQ) = "}${f(zlq)} m`,
     `Distância de segurança (D<sub>1</sub>) = ${f(K.D1)} m`,
     "Piso ou nível inferior",
     `Altura da ancoragem ao piso (Hanc) = ${f(m.hanc)} m`,
@@ -15869,6 +16404,7 @@ function chkMemorialLegenda(c, m){
   ];
 }
 function chkMemorialCondicoes(c, m){
+  if(m.novo) return chkMemorialCondicoesNovo(c, m);
   const v = chkMemorialVeredito(c, m), f = chkMemFmt;
   const l = [
     `Número máximo de usuários simultâneos: <b>${f(m.usuarios, 0)}</b>.`,
@@ -15886,6 +16422,7 @@ function chkMemorialCondicoes(c, m){
   return l;
 }
 function chkMemorialPremissas(c, m){
+  if(m.novo) return chkMemorialPremissasNovo(c, m);
   const K = m.params, f = chkMemFmt, V = CHK_MEMORIAL_VIGA;
   const engate = `Engate do cinto ao pé (C<sub>1</sub>) de ${f(K.C1, 1)} m e distância de segurança (D<sub>1</sub>) de ${f(K.D1, 1)} m.`;
   if(c.tipo === "rig") return [
@@ -15903,6 +16440,7 @@ function chkMemorialPremissas(c, m){
   ];
 }
 function chkMemorialParecer(c, m){
+  if(m.novo) return chkMemorialParecerNovo(c, m);
   const v = chkMemorialVeredito(c, m), f = chkMemFmt;
   if(!v.okC) return c.conv ? "O cabo <b>não suporta</b> a carga dinâmica prevista. A linha deve ser redimensionada antes do uso." : "O esforço no cabo <b>não pôde ser calculado</b>. Confira a flecha e o diâmetro informados.";
   const ressalva = " Este resultado trata apenas do dimensionamento e não substitui o parecer da Conclusão.";
@@ -15926,18 +16464,34 @@ function chkMemorialFormulasLista(c, m){
   const MM = (...a)=>`<math>${mr(...a)}</math>`;
   const frow = (t, sim, sub)=>`<div class="lcl-fm"><div class="lcl-ft">${t}</div><div class="lcl-fl">${sim}${sub}</div></div>`;
   const rigF = c.tipo === "rig";
-  const zlq2 = frow("Zona livre de queda — trava-quedas", MM(V("ZLQ", 2), O("="), ...(rigF ? [] : [V("f", 3), O("+")]), V("B", 1), O("+"), V("C", 1), O("+"), V("D", 1)), MM(V("ZLQ", 2), O("="), ...(rigF ? [] : [N(c.f3, 3), O("+")]), N(B), O("+"), N(K.C1), O("+"), N(K.D1), O("="), N(c.ZLQ2), O("m")));
+  const zlq2 = frow("Zona livre de queda — trava-quedas", MM(V("ZLQ", 2), O("="), ...(rigF ? [] : [V("f", 3), O("+")]), ...(m.novo ? [V("A", 1), O("+")] : []), V("B", 1), O("+"), V("C", 1), O("+"), V("D", 1)), MM(V("ZLQ", 2), O("="), ...(rigF ? [] : [N(c.f3, 3), O("+")]), ...(m.novo ? [N(K.A1), O("+")] : []), N(B), O("+"), N(K.C1), O("+"), N(K.D1), O("="), N(c.ZLQ2), O("m")));
+  const fqRow = ()=>{
+    if(!(c.fq !== null && c.fq !== undefined && m.hanc && m.hpos)) return null;
+    const dh = m.hanc - m.hpos, Lq = K.a + K.b;
+    if(!m.novo) return dh > K.C1
+      ? frow("Fator de queda", MM(V("FQ"), O("="), FR(mr(VT("H", "anc"), O("−"), VT("H", "p"), O("−"), V("C", 1)), mr(V("a"), O("+"), V("b")))), MM(V("FQ"), O("="), FR(mr(N(m.hanc), O("−"), N(m.hpos), O("−"), N(K.C1)), mr(N(K.a), O("+"), N(K.b))), O("="), N(c.fq, 2)))
+      : frow("Fator de queda", MM(V("FQ"), O("="), FR(mr(V("C", 1), O("−"), PR(VT("H", "anc"), O("−"), VT("H", "p")), O("+"), PR(V("a"), O("+"), V("b"))), mr(V("a"), O("+"), V("b")))), MM(V("FQ"), O("="), FR(mr(N(K.C1), O("−"), N(dh), O("+"), N(K.a + K.b)), N(K.a + K.b)), O("="), N(c.fq, 2)));
+    // A3 (13/10/2026): com a ancoragem até C1 acima da posição de trabalho, o cinto "sobra"; acima disso a queda livre diminui
+    return dh <= K.C1
+      ? frow("Fator de queda (Guia Prático)", MM(V("FQ"), O("="), FR(mr(PR(V("a"), O("+"), V("b")), O("+"), V("C", 1), O("−"), V("dh")), mr(V("a"), O("+"), V("b")))), MM(V("FQ"), O("="), FR(mr(N(Lq), O("+"), N(K.C1), O("−"), N(dh)), N(Lq)), O("="), N(c.fq, 2)))
+      : frow("Fator de queda (Guia Prático)", MM(V("FQ"), O("="), FR(mr("<mi>máx</mi>", O("("), N(0, 0), O(";"), PR(V("a"), O("+"), V("b")), O("−"), PR(V("dh"), O("−"), V("C", 1)), O(")")), mr(V("a"), O("+"), V("b")))), MM(V("FQ"), O("="), FR(mr("<mi>máx</mi>", O("("), N(0, 0), O(";"), N(Lq), O("−"), PR(N(dh), O("−"), N(K.C1)), O(")")), N(Lq)), O("="), N(c.fq, 2)));
+  };
   const zlq1 = frow("Zona livre de queda — talabarte", MM(V("ZLQ", 1), O("="), ...(rigF ? [] : [V("f", 3), O("+")]), PR(V("a"), O("+"), V("b")), O("+"), V("C", 1), O("+"), V("D", 1)), MM(V("ZLQ", 1), O("="), ...(rigF ? [] : [N(c.f3, 3), O("+")]), PR(N(K.a), O("+"), N(K.b)), O("+"), N(K.C1), O("+"), N(K.D1), O("="), N(c.ZLQ1), O("m")));
-  if(rigF) return [
-    zlq2, zlq1,
-  ];
+  if(rigF){
+    if(!m.novo) return [zlq2, zlq1];
+    const r = [zlq2, zlq1, frow("Altura mínima da posição de trabalho", MM(V("Hp", 2), O("="), V("B", 1), O("−"), V("b", 1), O("+"), V("D", 1)), MM(V("Hp", 2), O("="), N(B), O("−"), N(K.b1), O("+"), N(K.D1), O("="), N(c.Hp2), O("m")))];
+    const fx = fqRow(); if(fx) r.push(fx);
+    return r;
+  }
   const multi = c.nv > 1.0000001;
   const lista = [
     frow("Flecha inicial", MM(V("f", 1), O("="), FR(V("flecha"), N(100, 0)), O("·"), V("L")), MM(V("f", 1), O("="), FR(N(c.fl, 1), N(100, 0)), O("·"), N(L), O("="), N(c.f1, 3), O("m"))),
     frow(multi ? "Comprimento do cabo em um vão" : "Comprimento do cabo", MM(multi ? VT("L", "s") : V("L", 1), O("="), V("L"), O("+"), FR(mr(N(8, 0), SP(V("f", 1), 2)), mr(N(3, 0), O("·"), V("L")))), MM(multi ? VT("L", "s") : V("L", 1), O("="), N(L), O("+"), FR(mr(N(8, 0), O("·"), SP(N(c.f1, 3), 2)), mr(N(3, 0), O("·"), N(L))), O("="), N(c.Ls, 3), O("m"))),
     ...(multi ? [
       frow("Comprimento do cabo na linha toda", MM(V("L", 1), O("="), VT("L", "s"), O("·"), FR(V("C"), V("L"))), MM(V("L", 1), O("="), N(c.Ls, 3), O("·"), FR(N(c.Lt), N(L)), O("="), N(c.L1, 3), O("m"))),
-      frow("Cabo disponível no vão carregado", MM(V("J"), O("="), V("L", 1), O("−"), V("C"), O("+"), V("L")), MM(V("J"), O("="), N(c.L1, 3), O("−"), N(c.Lt), O("+"), N(L), O("="), N(c.J, 3), O("m"))),
+      (m.novo && c.res.valor("mv") !== 2
+        ? frow("Cabo disponível no vão carregado (modelo planilha corrigida)", MM(V("J"), O("="), VT("L", "s")), MM(V("J"), O("="), N(c.Ls, 3), O("="), N(c.J, 3), O("m")))
+        : frow("Cabo disponível no vão carregado", MM(V("J"), O("="), V("L", 1), O("−"), V("C"), O("+"), V("L")), MM(V("J"), O("="), N(c.L1, 3), O("−"), N(c.Lt), O("+"), N(L), O("="), N(c.J, 3), O("m")))),
     ] : []),
     frow("Alongamento do cabo", MM(V("ΔL"), O("="), FR(mr(V("T", 1), O("·"), V("L", 1)), mr(V("E"), O("·"), V("k"), O("·"), SP(V("d"), 2)))), MM(V("ΔL"), O("="), FR(mr(N(c.T1, 0), O("·"), N(c.L1 * 1000, 0)), mr(N(K.Ecabo, 0), O("·"), N(K.kA, 3), O("·"), SP(`<mn>${chkMemDiam(m.diametro)}</mn>`, 2))), O("="), N(c.dL, 1), O("mm"))),
     frow("Flecha dinâmica", MM(V("f", 3), O("="), SQ(SP(PR(FR(mr(multi ? V("J") : V("L", 1), O("+"), V("ΔL")), N(2, 0))), 2), O("−"), SP(PR(FR(V("L"), N(2, 0))), 2))), MM(V("f", 3), O("="), SQ(SP(PR(FR(mr(N(c.J, 3), O("+"), N(c.dL / 1000, 3)), N(2, 0))), 2), O("−"), SP(PR(FR(N(L), N(2, 0))), 2)), O("="), N(c.f3, 3), O("m"))),
@@ -15945,12 +16499,7 @@ function chkMemorialFormulasLista(c, m){
     frow("Distância de frenagem", MM(V("s"), O("="), V("f", 3), O("−"), V("f", 2)), MM(V("s"), O("="), N(c.f3 * 1000, 1), O("−"), N(c.f2 * 1000, 1), O("="), N(c.fren3 * 1000, 1), O("mm"))),
     frow(`Utilização e fator de serviço do cabo (Fadm = Frup / FS = ${chkMemFmt(K.Frup, 0)} / ${chkMemFmt(K.FS, 0)} = ${chkMemFmt(c.Fadm, 0)} kgf)`, MM(V("u"), O("="), FR(V("T", 1), VT("F", "adm")), O(";"), VT("FS", "serv"), O("="), FR(VT("F", "rup"), V("T", 1))), MM(V("u"), O("="), FR(N(c.T1, 0), N(c.Fadm, 0)), O("="), N(c.uso * 100, 1), O("%"), O(";"), VT("FS", "serv"), O("="), FR(N(K.Frup, 0), N(c.T1, 0)), O("="), N(c.FSs, 2))),
   ];
-  if(c.fq !== null && m.hanc && m.hpos){
-    const dh = m.hanc - m.hpos;
-    lista.push(dh > K.C1
-      ? frow("Fator de queda", MM(V("FQ"), O("="), FR(mr(VT("H", "anc"), O("−"), VT("H", "p"), O("−"), V("C", 1)), mr(V("a"), O("+"), V("b")))), MM(V("FQ"), O("="), FR(mr(N(m.hanc), O("−"), N(m.hpos), O("−"), N(K.C1)), mr(N(K.a), O("+"), N(K.b))), O("="), N(c.fq, 2)))
-      : frow("Fator de queda", MM(V("FQ"), O("="), FR(mr(V("C", 1), O("−"), PR(VT("H", "anc"), O("−"), VT("H", "p")), O("+"), PR(V("a"), O("+"), V("b"))), mr(V("a"), O("+"), V("b")))), MM(V("FQ"), O("="), FR(mr(N(K.C1), O("−"), N(dh), O("+"), N(K.a + K.b)), N(K.a + K.b)), O("="), N(c.fq, 2))));
-  }
+  { const fx = fqRow(); if(fx) lista.push(fx); }
   lista.push(zlq2, zlq1);
   lista.push(frow("Altura mínima da posição de trabalho", MM(V("Hp", 2), O("="), V("f", 3), O("−"), V("f", 1), O("+"), V("B", 1), O("−"), V("b", 1), O("+"), V("D", 1)), MM(V("Hp", 2), O("="), N(c.f3, 3), O("−"), N(c.f1, 3), O("+"), N(B), O("−"), N(K.b1), O("+"), N(K.D1), O("="), N(c.Hp2), O("m"))));
   return lista;
@@ -15961,14 +16510,16 @@ function chkMemorialFormulas(c, m){
 /* Tabelas de entrada e de resultado (página da memória de cálculo). */
 function chkMemorialTabelas(c, m){
   const rig = c.tipo === "rig", K = m.params, f = chkMemFmt, V = CHK_MEMORIAL_VIGA;
-  const e = rig
+  let e = rig
     ? [["Peso do usuário", f(K.peso, 0), "kg"], ["Vão entre apoios (L)", f(m.vao), "m"], ["Altura da ancoragem", f(m.hanc), "m"], ["Altura da posição de trabalho", f(m.hpos), "m"], ["Talabarte (a)", f(K.a, 1), "m"], ["Absorvedor (b)", f(K.b, 1), "m"], ["Trava-quedas em trabalho (b1)", f(K.b1, 1), "m"], ["Trava-quedas frenagem", f(K.fren, 1), "m"]]
     : [["Tipo de linha", m.uso === "restricao" ? "Restrição" : "Vida", "-"], ["Peso do corpo", f(K.peso, 0), "kg"], ["Número de usuários", f(m.usuarios, 0), "n"], ["Vão entre apoios (L)", f(m.vao), "m"]].concat(c.nv > 1.0000001 ? [["Comprimento da linha (C)", f(c.Lt), "m"], ["Número de vãos", f(c.nv, 1), "-"]] : []).concat([["Flecha", f(c.fl, 1), "%"], ["Altura da ancoragem", f(m.hanc), "m"], ["Altura da posição de trabalho", f(m.hpos), "m"], ["Diâmetro do cabo", chkMemDiam(m.diametro), "mm"], ["Força de ruptura", f(K.Frup, 0), "kgf"], ["Fator de segurança", f(K.FS, 0), "-"], ["Módulo E do cabo", f(K.Ecabo, 0), "kgf/mm²"], ["Fator de área (k)", f(K.kA, 3), "-"], ["Talabarte (a)", f(K.a, 1), "m"], ["Absorvedor (b)", f(K.b, 1), "m"], ["Trava-quedas em trabalho (b1)", f(K.b1, 1), "m"], ["Trava-quedas frenagem", f(K.fren, 1), "m"]]);
-  const r = rig
+  if(m.novo) e = e.concat([["Trava-quedas recolhido (A1)", f(K.A1, 2), "m"], ["Engate do cinto ao pé (C1)", f(K.C1, 2), "m"], ["Distância de segurança (D1)", f(K.D1, 2), "m"]], !rig && c.nv > 1.0000001 ? [["Modelo multi-vão", c.res.valor("mv") === 2 ? "Deslizamento completo" : "Planilha corrigida", "-"]] : []);
+  let r = rig
     ? [["ZLQ talabarte", f(c.ZLQ1), "m"], ["Hp talabarte", f(c.Hp1), "m"], ["ZLQ trava-quedas", f(c.ZLQ2), "m"], ["Hp trava-quedas", f(c.Hp2), "m"]]
     : [["Comprimento do cabo (L1)", f(c.L1 * 1000, 1), "mm"]].concat(c.nv > 1.0000001 ? [["Cabo no vão carregado (J)", f(c.J * 1000, 1), "mm"]] : []).concat([ ["Alongamento (ΔL)", f(c.dL, 1), "mm"], ["Flecha f1", f(c.f1 * 1000, 1), "mm"], ["Flecha f2", f(c.f2 * 1000, 1), "mm"], ["Flecha f3", f(c.f3 * 1000, 1), "mm"], ["Ângulo do cabo", f(c.ang, 1), "º"], ["Distância de frenagem", f(c.fren3 * 1000, 1), "mm"], ["Carga (P)", f(c.P, 0), "kgf"], ["<b>Força no cabo (T1)</b>", "<b>" + f(c.T1, 0) + "</b>", "kgf"], ["Admissível (Fadm)", f(c.Fadm, 0), "kgf"], ["Utilização", f(c.uso * 100, 1), "%"], ["Fator de serviço", f(c.FSs), "-"]])
       .concat(c.fq !== null ? [["Fator de queda", f(c.fq, 2), "-"]] : [])
       .concat([["ZLQ talabarte", f(c.ZLQ1), "m"], ["Hp talabarte", f(c.Hp1), "m"], ["ZLQ trava-quedas", f(c.ZLQ2), "m"], ["Hp trava-quedas", f(c.Hp2), "m"]]);
+  if(m.novo && rig && c.fq !== null && c.fq !== undefined) r = r.concat([["Fator de queda (FQ)", f(c.fq, 2), "-"]]);
   const tb = (t, rows)=>`<table class="lcl-tz"><tr><th colspan="3">${t}</th></tr>${rows.map(x=>`<tr><td>${x[0]}</td><td class="v">${x[1]}</td><td>${x[2]}</td></tr>`).join("")}</table>`;
   return `<div class="lcl-tzg">${tb("DADOS DE ENTRADA", e)}${tb("RESULTADOS", r)}</div>`;
 }
@@ -16002,7 +16553,7 @@ function chkMemorialFigura(tipo, m){
   const s = Math.min(28, 172 / Math.max(m.hanc, zlq));
   const gY = yT + m.hanc * s, yB = yT + zlq * s, ok = zlq <= m.hanc + 1e-9, col = ok ? "#43B581" : "#E5534B";
   const yAt = x => yT + c.f1 * s * (1 - Math.pow((x - xc) / half, 2)), y3 = yT + c.f3 * s;
-  const lan = m.epi === "tab" ? (K.a + K.b) : c.B1, xw = xc - 72, yPl = gY - m.hpos * s, hU = 1.75 * s;
+  const lan = m.epi === "tab" ? (K.a + K.b) : (c.A1 || 0) + c.B1, xw = xc - 72, yPl = gY - m.hpos * s, hU = 1.75 * s;
   const yDr = y3 + lan * s, topF = yDr - .25 * s, yFeet = topF + hU, yDw = yPl - K.C1 * s;
   const H = Math.max(gY, yB) + 30;
   const FM = "ui-monospace,Consolas,monospace";
@@ -16036,7 +16587,7 @@ function chkMemorialFigura(tipo, m){
 /* Cálculo passo a passo na própria aba do memorial (para conferir sem montar o laudo). */
 function chkMemorialPassoHtml(l){
   const tipo = chkTipoLinha(l), m = chkMemorialDe(l), c = chkMemorialCalc(tipo, m);
-  if(!c) return `<div class="chk-mem-nota">Preencha as medidas para ver o cálculo passo a passo.</div>`;
+  if(!c) return `<div class="chk-mem-nota">${m.erroCalc ? "Erro na planilha de cálculo: " + escapeHtml(m.erroCalc) : "Preencha as medidas para ver o cálculo passo a passo."}</div>`;
   const tabelas = (m.hanc && m.hpos) ? chkMemorialTabelas(c, m) : "";
   return `<div class="chk-mem-passo">${chkMemorialFormulas(c, m)}${tabelas}</div>`;
 }
@@ -16047,7 +16598,7 @@ function chkMemorialVivoHtml(l){
   if(completo){
     const v = chkMemorialVeredito(c, m);
     const chip = (ok, t, sim, nao)=> `<span class="${ok ? "ok" : "no"}">${t}: ${ok ? sim : nao}</span>`;
-    res = `<div class="chk-mem-res">${chip(v.okTq, "Trava-quedas", "pode", "não pode")}${chip(v.okTab, "Talabarte", "pode", "não pode")}${c.tipo === "flex" ? chip(v.okC, "Cabo", "ok", "excede") : ""}${chip(v.okHp, "Posição de trabalho", "ok", "baixa")}</div>
+    res = m.novo ? chkMemorialResNovoHtml(c, m) : `<div class="chk-mem-res">${chip(v.okTq, "Trava-quedas", "pode", "não pode")}${chip(v.okTab, "Talabarte", "pode", "não pode")}${c.tipo === "flex" ? chip(v.okC, "Cabo", "ok", "excede") : ""}${chip(v.okHp, "Posição de trabalho", "ok", "baixa")}</div>
       <div class="chk-mem-nota">ZLQ do trava-quedas ${f(c.ZLQ2)} m · ZLQ do talabarte ${f(c.ZLQ1)} m · ancoragem a ${f(m.hanc)} m do piso.</div>`;
   } else {
     const faltas = chkMemorialFaltas(l);
@@ -16057,6 +16608,7 @@ function chkMemorialVivoHtml(l){
     const mn = chkMemorialDiametroMin(tipo, m);
     res += `<div class="chk-mem-nota">Esforço no cabo <b>${f(c.T1, 0)} kgf</b> (admissível ${f(c.Fadm, 0)} kgf, utilização ${f(c.uso * 100, 0)}%) · alongamento ${f(c.dL, 1)} mm · flecha dinâmica ${f(c.f3 * 1000, 0)} mm${c.fq !== null ? " · fator de queda " + f(c.fq, 1) : ""}.${mn ? " Menor cabo da tabela que atende: " + mn[1] + " (" + chkMemDiam(mn[0]) + " mm)." : " Nenhum cabo da tabela atende com esta flecha."}</div>`;
     chkMemorialAlertas(c, m).forEach(a=>{ res += `<div class="chk-mem-nota chk-mem-aviso">${escapeHtml(a)}</div>`; });
+    if(m.novo) res += `<div class="chk-mem-nota chk-mem-aviso">Eficiência do terminal ainda não considerada (pendência P1): a utilização do cabo pode estar subestimada.</div>`;
   }
   return `<div class="chk-mem-fig">${chkMemorialFigura(tipo, m)}</div>
     <div class="chk-mem-leg"><i>10</i><span>Altura do ponto de ancoragem ao piso</span><i>11</i><span>Altura da posição de trabalho ao piso</span><i>&harr;</i><span>Vão entre apoios (L)</span></div>${res}`;
@@ -16067,6 +16619,14 @@ function chkMemorialRedesenhar(l){
   if(el) el.innerHTML = chkMemorialVivoHtml(l);
   const ps = document.getElementById("chkMemPasso");
   if(ps) ps.innerHTML = chkMemorialPassoHtml(l);
+}
+/* Qual cálculo a linha usa, e o botão "Reprocessar" (compara antes e depois, só muda se confirmar). */
+function chkMemorialCalcInfoHtml(l){
+  const novo = !!(l.calc && l.calc.v);
+  return `<div class="chk-mem-nota">${novo
+    ? `Cálculo: versão ${l.calc.v} da planilha de cálculo${l.calc.personalizado ? " (com fórmulas ou valores personalizados)" : ""}.`
+    : `Esta linha usa o <b>cálculo anterior</b> (valores de antes de 13/10/2026), mantido para não alterar laudos já emitidos.`}
+    <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.chkMemReprocessarAbrir()">Reprocessar com o cálculo atual</button></div>`;
 }
 /* Aba "Memorial ZLQ" do preenchimento (só linhas horizontais). */
 function chkMemorialCampoHtml(l){
@@ -16081,7 +16641,7 @@ function chkMemorialCampoHtml(l){
   const selDiam = `<label class="chk-mem-campo"><span class="chk-mem-rot">Diâmetro do cabo (6x19 AF)</span><div class="chk-mem-nf"><select id="chkMem-diametro" onchange="App.chkMemorialSet('diametro',this.value)"><option value="">Escolher</option>${opcoes}${fora}</select></div></label>`;
   const selUso = `<label class="chk-mem-campo"><span class="chk-mem-rot">Tipo de linha</span><div class="chk-mem-nf"><select id="chkMem-uso" onchange="App.chkMemorialSetUso(this.value)"><option value="vida" ${raw.uso === "restricao" ? "" : "selected"}>Linha de vida (retenção de quedas)</option><option value="restricao" ${raw.uso === "restricao" ? "selected" : ""}>Linha de restrição</option></select></div></label>`;
   const dflt = chkMemorialDe({ memorial: Object.assign({}, raw, { params: {} }) }).params;
-  const params = CHK_MEMORIAL_PARAMS_ROT.filter(([k])=> flex || (k !== "Frup" && k !== "FS" && k !== "Ecabo" && k !== "kA")).map(([k, rot, un])=>
+  const params = CHK_MEMORIAL_PARAMS_ROT.filter(([k])=> (k !== "A1" || (l.calc && l.calc.v)) && (flex || (k !== "Frup" && k !== "FS" && k !== "Ecabo" && k !== "kA"))).map(([k, rot, un])=>
     `<label class="chk-mem-campo">${escapeHtml(rot)}<div class="chk-mem-nf"><input type="number" step="any" inputmode="decimal" placeholder="${dflt[k]}" value="${val(ov[k])}" oninput="App.chkMemorialSetParam('${k}',this.value)"><span>${escapeHtml(un)}</span></div></label>`).join("");
   return `
   <div class="chk-secao-head">
@@ -16089,6 +16649,7 @@ function chkMemorialCampoHtml(l){
     <button class="chk-switch ${ativo ? "on" : "off"}" onclick="App.chkMemorialToggle()">${ativo ? "Esta linha não terá memorial" : ic("check") + " Incluir memorial"}</button>
   </div>
   <div class="chk-mem-nota">Tipo de linha: <b>${escapeHtml(chkRotuloTipoLinha(tipo))}</b> (definido pelo checklist). O cálculo da zona livre de queda${flex ? " e do esforço no cabo" : ""} sai destas medidas.</div>
+  ${chkMemorialCalcInfoHtml(l)}
   ${ativo ? `
   <div id="chkMemVivo">${chkMemorialVivoHtml(l)}</div>
   <div class="chk-mem-form">${campos}${flex ? selDiam + selUso : ""}</div>
@@ -17063,9 +17624,53 @@ function lclBlocosConclusao(d, cap, assinaturaSrc, redu){
 }
 
 /* ---------- memorial de cálculo da zona livre de queda ---------- */
+/* Capítulo do memorial no laudo para linhas com `linha.calc` (cálculo novo): veredito em linguagem simples, quadro "Como ler",
+   avisos em destaque, selo e anexo de fórmulas personalizadas e, se ligado, a tabela com todas as variáveis intermediárias. */
+function lclBlocosMemorialNovo(d, cap, tipo, m, c){
+  const l = d.linha, v = chkMemorialVereditoNovo(c, m), f = chkMemFmt, rig = c.tipo === "rig", fo = v.folgas;
+  const sistema = rig ? `rígida (viga)` : `flexível (cabo de aço de ${chkMemDiam(m.diametro)} mm)`;
+  const nome = !rig && m.uso === "restricao" ? "linha de restrição" : "linha de vida";
+  const selo = (m.calc && m.calc.personalizado) ? `<span class="lcl-mselo">Fórmulas personalizadas (v.${m.calc.v})</span>` : "";
+  const intro = `<p class="lcl-par">Verificação da Zona Livre de Queda (ZLQ) da ${nome} horizontal <b>${sistema}</b> ${lclEsc(l.nome || "")}, com vão de ${f(m.vao)} m${!rig && c.nv > 1.0000001 ? " (linha de " + f(c.Lt) + " m, " + f(c.nv, 0) + " vãos)" : ""} e ancoragem a ${f(m.hanc)} m do piso, para ${f(m.usuarios, 0)} ${m.usuarios === 1 ? "usuário" : "usuários"}. A ZLQ é a altura livre mínima abaixo da ancoragem para o usuário ser retido antes de atingir o piso ou um obstáculo. ${selo}</p>`;
+  const alertas = chkMemorialAlertas(c, m);
+  const alertaHtml = alertas.length ? `<div class="lcl-malerta">${alertas.map(a=> `<div><b>ATENÇÃO:</b> ${lclEsc(a)}</div>`).join("")}</div>` : "";
+  const sinal = (x)=> x >= -1e-9 ? "sobra" : "falta";
+  const card = (nomeEpi, ok, necA, fa, necH, fh)=> `<div class="lcl-mcard ${ok ? "ok" : "no"}"><b>${nomeEpi}</b><strong>${ok ? "PODE USAR" : "NÃO PODE USAR"}</strong><small>Ancoragem: ${f(m.hanc)} m (necessário ${f(necA)} m; ${sinal(fa)} ${f(Math.abs(fa))} m)<br>Altura livre abaixo dos pés: ${f(m.hpos)} m (necessário ${f(necH)} m; ${sinal(fh)} ${f(Math.abs(fh))} m)</small></div>`;
+  const cardCabo = rig
+    ? `<div class="lcl-mcard na"><b>Cabo de aço</b><strong>NÃO SE APLICA</strong><small>Linha rígida (viga)</small></div>`
+    : `<div class="lcl-mcard ${v.okC ? "ok" : "no"}"><b>Cabo de aço ${chkMemDiam(m.diametro)} mm</b><strong>${v.okC ? "ATENDE" : "NÃO ATENDE"}</strong><small>Esforço ${f(c.T1, 0)} kgf · admissível ${f(c.Fadm, 0)} kgf · utilização ${f(c.uso * 100, 0)}%</small></div>`;
+  const blocos = [
+    { quebrarAntes:true, ancora:cap.ancora, html:`${lclFaixa(`${cap.num}  ${cap.rot}`, true)}${intro}${alertaHtml}<div class="lcl-mcards" style="grid-template-columns:1fr 1fr 1fr">${card("Talabarte com absorvedor", v.okTab, c.ZLQ1, fo.ancTab, c.Hp1, fo.hpTab)}${card("Trava-quedas retrátil", v.okTq, c.ZLQ2, fo.ancTq, c.Hp2, fo.hpTq)}${cardCabo}</div>${chkMemorialComoLerHtml()}<div class="lcl-mfig">${chkMemorialFigura(tipo, m)}</div>` },
+    { html:`<div class="lcl-mcols"><div><h5>Legenda</h5><div class="lcl-mleg">${chkMemorialLegenda(c, m).map((x, i)=>`<i>${i + 1}</i><span>${x}</span>`).join("")}</div></div><div><h5>Condições de uso</h5><ul>${chkMemorialCondicoes(c, m).map(x=>`<li>${x}</li>`).join("")}</ul></div></div>` },
+    { html:`<div class="lcl-mcols" style="grid-template-columns:1.8fr 1fr"><div><h5>Premissas</h5><ul>${chkMemorialPremissas(c, m).map(x=>`<li>${x}</li>`).join("")}</ul></div><div class="lcl-mparecer"><b>Conclusão do dimensionamento.</b> ${chkMemorialParecer(c, m)}</div></div>` },
+  ];
+  if(m.memoria){
+    chkMemorialFormulasLista(c, m).forEach((fx, i)=>{
+      blocos.push(i === 0
+        ? { quebrarAntes:true, ancora:"cap-memoria", html:`${lclFaixa(`${cap.num}.1  Memória de cálculo`, true)}<div>${fx}</div>` }
+        : { html:`<div>${fx}</div>` });
+    });
+    blocos.push({ html:`<div style="margin-top:10px">${chkMemorialTabelas(c, m)}</div>` });
+  }
+  if(l.laudo && l.laudo.memorialTodasVars){
+    const linhas = c.res.lista.map(x=>{
+      const r = c.res.vals[x.id], val = r && r.erro === undefined ? chkCalcNum(r.v) : "erro";
+      return `<tr><td>${lclEsc(x.simbolo)}</td><td>${lclEsc(x.nome)}</td><td>${lclEsc(x.unidade)}</td><td class="v">${val}</td><td>${x.tipo === "entrada" || x.tipo === "constante" ? (x.tipo === "entrada" ? "entrada" : "constante") : lclEsc(x.formula)}</td></tr>`;
+    }).join("");
+    blocos.push({ quebrarAntes:true, html:`<div class="lcl-h3">Todas as variáveis do cálculo</div><table class="lcl-tz lcl-tvars"><tr><th>Símbolo</th><th>Descrição</th><th>Unid.</th><th>Valor</th><th>Fórmula / origem</th></tr>${linhas}</table>` });
+  }
+  if(m.calc && m.calc.personalizado){
+    const padrao = chkCalcConstantesPadrao();
+    const cons = Object.keys(m.calc.constantes).filter(k=> m.calc.constantes[k] !== padrao[k]).map(k=> `<tr><td>${lclEsc(k)}</td><td>constante</td><td>${chkCalcNum(padrao[k])}</td><td class="v">${chkCalcNum(m.calc.constantes[k])}</td></tr>`).join("");
+    const fm = Object.keys(m.calc.formulas).map(k=>{ const [tp, id] = k.split(":"), reg = CHK_CALC_REGISTRO.find(x=> x.id === id && x.tipos.indexOf(tp) >= 0); return reg && reg.formula !== m.calc.formulas[k] ? `<tr><td>${lclEsc(id)} (${tp === "rig" ? "rígida" : "flexível"})</td><td>fórmula</td><td>${lclEsc(reg.formula)}</td><td class="v">${lclEsc(m.calc.formulas[k])}</td></tr>` : ""; }).join("");
+    blocos.push({ html:`<div class="lcl-h3">Anexo — Fórmulas personalizadas (v.${m.calc.v})</div><p class="lcl-par">Este memorial usa valores ou fórmulas diferentes do padrão do aplicativo, registrados abaixo para que o cálculo possa ser reproduzido.</p><table class="lcl-tz"><tr><th>Item</th><th>Tipo</th><th>Padrão</th><th>Usado</th></tr>${cons}${fm}</table>` });
+  }
+  return blocos;
+}
 function lclBlocosMemorial(d, cap){
   const l = d.linha, tipo = chkTipoLinha(l), m = chkMemorialDe(l), c = chkMemorialCalc(tipo, m);
   if(!c) return [];
+  if(m.novo) return lclBlocosMemorialNovo(d, cap, tipo, m, c);
   const v = chkMemorialVeredito(c, m), f = chkMemFmt, rig = c.tipo === "rig";
   const sistema = rig ? `rígida (viga)` : `flexível (cabo de aço de ${chkMemDiam(m.diametro)} mm)`;
   const nome = !rig && m.uso === "restricao" ? "linha de restrição" : "linha de vida";
@@ -17664,6 +18269,170 @@ function chkAtuCorpoHtml(){
     <div class="modal-actions" style="margin-top:10px"><button class="btn btn-primary" ${algum && !__chkAtu.rodando ? "" : "disabled"} onclick="App.chkAtuAplicar()">${__chkAtu.rodando ? "Aplicando..." : "Aplicar"}</button></div>` : ""}
     ${res}`;
 }
+/* ══════════════════════════════════════════════════════════════════════════════
+   TELA "CONFIGURAÇÕES → PLANILHA DE CÁLCULO" (só no modo escritório)
+   Mostra o registro de variáveis como uma planilha: Símbolo | Descrição | Unidade | Valor atual | Fórmula | Origem | Fonte.
+   O "Valor atual" é calculado com o CASO DE TESTE escolhido (digite as entradas e veja tudo ao vivo, com o passo a passo).
+   Edição inline de fórmulas e constantes; ao salvar: motivo obrigatório, histórico, casos de referência rodados na hora
+   (aviso, sem bloquear), restaurar padrão por célula e geral, exportar/importar JSON. A mudança vale para as linhas NOVAS
+   (cada linha guarda uma cópia do que valia quando nasceu; as antigas só mudam com "Reprocessar").
+   ══════════════════════════════════════════════════════════════════════════════ */
+let __calcRepro = null;
+let __calcUI = { aba:"flex", caso:"c1", entradas:null, edit:{ formulas:{}, constantes:{} }, aberta:null, banner:null, motivoAberto:false };
+/* Configuração em edição: o que está salvo, com o que ainda não foi salvo por cima. */
+function chkCalcEmEdicao(){
+  const cfg = chkCalcConfig();
+  return { versao:cfg.versao, historico:cfg.historico, constantes:Object.assign({}, cfg.constantes, __calcUI.edit.constantes), formulas:Object.assign({}, cfg.formulas, __calcUI.edit.formulas) };
+}
+function chkCalcDiffPendente(){
+  const cfg = chkCalcConfig(), out = [];
+  const padrao = chkCalcConstantesPadrao();
+  const atualC = (id)=> (typeof cfg.constantes[id] === "number") ? cfg.constantes[id] : padrao[id];
+  Object.keys(__calcUI.edit.constantes).forEach(id=>{
+    const novo = __calcUI.edit.constantes[id];
+    if(novo !== atualC(id)) out.push({ chave:id, rotulo:id, antes:atualC(id), depois:novo, tipo:"constante" });
+  });
+  Object.keys(__calcUI.edit.formulas).forEach(k=>{
+    const [tp, id] = k.split(":"), v = CHK_CALC_REGISTRO.find(x=> x.id === id && x.tipo !== "constante" && x.tipos.indexOf(tp) >= 0);
+    const antes = typeof cfg.formulas[k] === "string" && cfg.formulas[k] ? cfg.formulas[k] : (v ? v.formula : "");
+    const novo = __calcUI.edit.formulas[k] === "" ? (v ? v.formula : "") : __calcUI.edit.formulas[k];
+    if(novo !== antes) out.push({ chave:k, rotulo:k, antes, depois:novo, tipo:"formula" });
+  });
+  return out;
+}
+/* Erros que impedem salvar: fórmula inválida, variável que não existe, ciclo, constante fora do número. */
+function chkCalcValidar(cfg){
+  const erros = [], snap = chkCalcSnapshotNovo(cfg);
+  ["rig", "flex"].forEach(tp=>{
+    const caso = CHK_CALC_CASOS.find(c=> c.tipo === tp);
+    const r = chkCalcResolver(tp, caso.entradas, Object.assign({}, snap.constantes, caso.constantes || {}), snap.formulas);
+    r.lista.forEach(v=>{
+      const x = r.vals[v.id];
+      if(v.personalizada && x && x.erro && /ciclo|inválida|incompleta|inexistente|permitid|reservada|Número|Caractere|Falta|Sobrou|Não entendi|Use ponto|espera/.test(x.erro)) erros.push(`${tp === "rig" ? "Linha rígida" : "Linha flexível"} · ${v.simbolo}: ${x.erro}`);
+    });
+  });
+  Object.keys(cfg.constantes).forEach(id=>{ if(typeof cfg.constantes[id] !== "number" || !isFinite(cfg.constantes[id])) erros.push(`Constante ${id}: número inválido`); });
+  return erros;
+}
+function chkCalcSalvarConfig(cfg, historicoNovo){
+  if(!STATE.checklists.textos || typeof STATE.checklists.textos !== "object" || Array.isArray(STATE.checklists.textos)) STATE.checklists.textos = {};
+  const tx = STATE.checklists.textos;
+  if(!tx.id) tx.id = "textos";
+  const padrao = chkCalcConstantesPadrao(), constantes = {}, formulas = {};
+  Object.keys(cfg.constantes).forEach(id=>{ if(id in padrao && cfg.constantes[id] !== padrao[id]) constantes[id] = cfg.constantes[id]; });
+  Object.keys(cfg.formulas).forEach(k=>{
+    const [tp, id] = k.split(":"), v = CHK_CALC_REGISTRO.find(x=> x.id === id && x.tipo !== "constante" && x.tipos.indexOf(tp) >= 0);
+    if(v && typeof cfg.formulas[k] === "string" && cfg.formulas[k].trim() && cfg.formulas[k].trim() !== v.formula) formulas[k] = cfg.formulas[k].trim();
+  });
+  tx.calculo = { versao: cfg.versao, constantes, formulas, historico: (cfg.historico || []).concat(historicoNovo || []).slice(-300) };
+  tx.atualizadoEm = agoraSync();
+}
+/* Resolve o caso de teste da aba com a configuração em edição (e com o padrão, para comparar). */
+function chkCalcResolverTela(tp){
+  const ed = chkCalcEmEdicao(), snap = chkCalcSnapshotNovo(ed);
+  const base = CHK_CALC_CASOS.find(c=> c.id === __calcUI.caso && c.tipo === tp) || CHK_CALC_CASOS.find(c=> c.tipo === tp);
+  const entradas = Object.assign({}, base.entradas);
+  Object.keys(__calcUI.entradas || {}).forEach(k=>{ if(__calcUI.entradas[k] !== undefined) entradas[k] = __calcUI.entradas[k]; else delete entradas[k]; });
+  const r = chkCalcResolver(tp, entradas, Object.assign({}, snap.constantes, base.constantes || {}), snap.formulas);
+  const rPad = chkCalcResolver(tp, entradas, Object.assign({}, chkCalcConstantesPadrao(), base.constantes || {}), {});
+  return { base, entradas, r, rPad };
+}
+function chkCalcLinhasHtml(tp){
+  const t = chkCalcResolverTela(tp), r = t.r, rPad = t.rPad, entradas = t.entradas;
+  const fmt = (x)=> x && x.erro === undefined ? chkCalcNum(x.v) : "";
+  return r.lista.filter(v=> v.tipo !== "constante").map(v=>{
+    const x = r.vals[v.id], xp = rPad.vals[v.id], chave = tp + ":" + v.id;
+    const aux = (x && x.erro !== undefined ? `<span class="calc-erro">${escapeHtml(x.erro)}</span>` : "") + (v.personalizada && xp && xp.erro === undefined && x && x.erro === undefined && Math.abs(xp.v - x.v) > 1e-9 ? `<div class="calc-pad">padrão: ${chkCalcNum(xp.v)}</div>` : "");
+    const valor = v.tipo === "entrada"
+      ? `<input type="number" step="any" class="calc-in" value="${entradas[v.id] === undefined ? "" : entradas[v.id]}" oninput="App.calcEntrada('${v.id}', this.value)" aria-label="${escapeHtml(v.nome)}">${x && x.erro !== undefined ? `<span class="calc-erro">${escapeHtml(x.erro)}</span>` : ""}`
+      : `<b class="calc-vv" data-k="${chave}">${fmt(x)}</b><span class="calc-aux" data-k="${chave}">${aux}</span>`;
+    const formula = (v.tipo === "entrada") ? `<span class="calc-mud">entrada (medida em campo)</span>` : `<input type="text" class="calc-in calc-form" value="${escapeHtml(v.formula)}" onchange="App.calcEditFormula('${tp}','${v.id}',this.value)" spellcheck="false" aria-label="Fórmula de ${escapeHtml(v.nome)}">`;
+    const origem = v.personalizada ? `<span class="calc-pers">Personalizada <button class="calc-rest" title="Restaurar o padrão desta fórmula" onclick="App.calcRestaurarFormula('${tp}','${v.id}')">↺</button></span>` : `<span class="calc-mud">Padrão</span>`;
+    const passo = __calcUI.aberta === chave ? `<tr class="calc-passo"><td colspan="7"><b>Passo a passo de ${escapeHtml(v.simbolo)}</b> — ${escapeHtml(v.nome)}<br>${v.tipo === "entrada" ? "Valor digitado no caso de teste." : `${escapeHtml(v.simbolo)} = ${escapeHtml(v.formula)}<br>${escapeHtml(v.simbolo)} = ${escapeHtml(x && x.passo ? x.passo : "—")} = <b>${fmt(x) || "erro"}</b>${v.tipo === "iterativa" ? `<br>Resolvido por iteração (${r.voltas} voltas${r.conv ? ", convergiu" : ", NÃO convergiu"}).` : ""}${v.personalizada && xp && xp.erro === undefined ? `<br>Padrão × minha fórmula: ${chkCalcNum(xp.v)} × ${fmt(x) || "erro"}` : ""}`}<br><i>${escapeHtml(v.nota)}</i></td></tr>` : "";
+    return `<tr class="${v.tipo}"><td class="calc-s"><button class="calc-sim" onclick="App.calcAbrir('${chave}')" title="Ver o passo a passo">${escapeHtml(v.simbolo)}</button></td><td>${escapeHtml(v.nome)}</td><td>${escapeHtml(v.unidade)}</td><td class="calc-v">${valor}</td><td>${formula}</td><td>${origem}</td><td class="calc-f">${escapeHtml(v.fonte)}</td></tr>${passo}`;
+  }).join("");
+}
+function chkCalcConstantesHtml(){
+  const ed = chkCalcEmEdicao(), snap = chkCalcSnapshotNovo(ed), padrao = chkCalcConstantesPadrao();
+  const linhas = CHK_CALC_REGISTRO.filter(v=> v.tipo === "constante").map(v=>{
+    const val = snap.constantes[v.id], mudou = val !== padrao[v.id];
+    const fora = typeof v.min === "number" && (val < v.min - 1e-9 || val > v.max + 1e-9);
+    const campo = v.id === "mv"
+      ? `<select class="calc-in" onchange="App.calcEditConst('mv', this.value)"><option value="1" ${val === 1 ? "selected" : ""}>1 · planilha corrigida</option><option value="2" ${val === 2 ? "selected" : ""}>2 · deslizamento completo</option></select>`
+      : `<input type="number" step="any" class="calc-in" value="${val}" onchange="App.calcEditConst('${v.id}', this.value)" aria-label="${escapeHtml(v.nome)}">`;
+    return `<tr class="constante"><td class="calc-s"><b>${escapeHtml(v.simbolo)}</b></td><td>${escapeHtml(v.nome)}<div class="calc-nota">${escapeHtml(v.nota)}</div></td><td>${escapeHtml(v.unidade)}</td><td class="calc-v">${campo}${fora ? `<div class="calc-erro">fora da faixa ${v.min}–${v.max}</div>` : ""}</td><td><span class="calc-mud">padrão ${padrao[v.id]}${typeof v.min === "number" ? " (faixa " + v.min + "–" + v.max + ")" : ""}</span></td><td>${mudou ? `<span class="calc-pers">Personalizada <button class="calc-rest" title="Restaurar o padrão" onclick="App.calcRestaurarConst('${v.id}')">↺</button></span>` : `<span class="calc-mud">Padrão</span>`}</td><td class="calc-f">${escapeHtml(v.fonte)}</td></tr>`;
+  }).join("");
+  return linhas;
+}
+function chkCalcCasoPainelHtml(tp){
+  const casos = CHK_CALC_CASOS.filter(c=> c.tipo === tp && c.id.charAt(1) !== "4");
+  return `<div class="calc-caso"><label for="calcCaso"><b>Caso de teste</b></label><select id="calcCaso" class="lcl-sel" onchange="App.calcCaso(this.value)">${casos.map(c=> `<option value="${c.id}" ${__calcUI.caso === c.id ? "selected" : ""}>${escapeHtml(c.nome)}</option>`).join("")}</select><button class="btn btn-ghost btn-sm" onclick="App.calcLimparEntradas()">Voltar às entradas do caso</button></div>
+    <div class="lcl-dica">Digite as entradas na coluna "Valor atual" (linhas de entrada) e veja todas as variáveis mudarem. Toque no símbolo para ver o passo a passo com os números.</div>`;
+}
+function chkCalcBannerHtml(){
+  const b = __calcUI.banner; if(!b) return "";
+  return `<div class="card card-pad" style="margin:10px 0;border-left:4px solid ${b.ok ? "#2e7d32" : "#C23F12"};border-radius:0 12px 12px 0"><b>${escapeHtml(b.titulo)}</b>${b.itens.map(x=> `<div style="font-size:12.5px;margin-top:3px">${x.ok ? "✓" : "✗"} ${escapeHtml(x.nome)}${x.ok ? "" : " — " + escapeHtml(x.falhas.map(f=> f.id + ": esperado " + f.esperado + ", obtido " + (f.obtido === null ? (f.erro || "erro") : chkCalcNum(f.obtido))).join("; "))}</div>`).join("")}</div>`;
+}
+function chkCalcTabelaHtml(){
+  const ab = __calcUI.aba;
+  if(ab === "pend") return `<div style="margin-top:10px">${CHK_CALC_PENDENCIAS.map(p=> `<div class="card card-pad" style="margin-top:8px"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>${p.id} · ${escapeHtml(p.titulo)}</b><span class="stat-pill ${p.status === "Pendente" ? "alert" : ""}">${escapeHtml(p.status)}</span></div><div style="font-size:12.5px;line-height:1.5;margin-top:4px">${escapeHtml(p.descricao)}<br><b>Base:</b> ${escapeHtml(p.base)}<br><b>Efeito:</b> ${escapeHtml(p.efeito)}<br><b>Como aplicar:</b> ${escapeHtml(p.como)}<br><b>Teste:</b> ${escapeHtml(p.teste)}</div></div>`).join("")}</div>`;
+  if(ab === "hist"){
+    const h = chkCalcConfig().historico.slice().reverse();
+    const dt = (ms)=> { try{ return new Date(ms).toLocaleString("pt-BR"); }catch(e){ return ""; } };
+    return `<div style="margin-top:10px">${h.length ? h.map(x=> `<div class="card card-pad" style="margin-top:8px;font-size:12.5px"><b>${dt(x.ts)} · versão ${x.versao}</b><br>${escapeHtml(x.chave)}: <code>${escapeHtml(String(x.antes))}</code> → <code>${escapeHtml(String(x.depois))}</code><br><i>Motivo: ${escapeHtml(x.motivo || "")}</i></div>`).join("") : `<div class="empty"><p>Nenhuma alteração feita ainda: tudo está no padrão.</p></div>`}</div>`;
+  }
+  if(ab === "const") return `<div class="calc-wrap"><table class="calc-t"><thead><tr><th>Símbolo</th><th>Descrição</th><th>Unid.</th><th>Valor atual</th><th>Padrão</th><th>Origem</th><th>Fonte</th></tr></thead><tbody>${chkCalcConstantesHtml()}</tbody></table></div>`;
+  const tp = ab === "rig" ? "rig" : "flex";
+  return `${chkCalcCasoPainelHtml(tp)}<div class="calc-wrap"><table class="calc-t"><thead><tr><th>Símbolo</th><th>Descrição</th><th>Unid.</th><th>Valor atual</th><th>Fórmula</th><th>Origem</th><th>Fonte</th></tr></thead><tbody>${chkCalcLinhasHtml(tp)}</tbody></table></div>`;
+}
+function screenChkCalculo(){
+  const diff = chkCalcDiffPendente(), cfg = chkCalcConfig();
+  const aba = (id, rot)=> `<button class="chk-chip ${__calcUI.aba === id ? "on" : ""}" onclick="App.calcAba('${id}')">${rot}</button>`;
+  const pers = Object.keys(cfg.formulas).length + Object.keys(cfg.constantes).length;
+  return `
+  <div class="card card-pad">
+    <div style="font-weight:800;font-size:14.5px;margin-bottom:4px">Planilha de cálculo (zona livre de queda)</div>
+    <p style="font-size:13px;color:var(--ink-dim);margin:0">Todas as variáveis, constantes e fórmulas do memorial, como numa planilha. O que você trocar vale para as linhas <b>novas</b>; cada linha guarda uma cópia do que valia quando foi criada (as antigas só mudam com "Reprocessar" na aba Memorial da linha). Versão atual: <b>${cfg.versao}</b> · ${pers ? pers + " item(ns) personalizado(s)" : "tudo no padrão"}.</p>
+    <div class="modal-actions" style="justify-content:flex-start;gap:8px;flex-wrap:wrap;margin-top:8px">
+      <button class="btn btn-secondary btn-sm" onclick="App.calcRodar()">Rodar casos de referência</button>
+      <button class="btn btn-secondary btn-sm" onclick="App.calcExportar()">Exportar JSON</button>
+      <button class="btn btn-secondary btn-sm" onclick="App.calcImportar()">Importar JSON</button>
+      <button class="btn btn-secondary btn-sm" onclick="App.calcRestaurarTudo()">Restaurar tudo ao padrão</button>
+      <input type="file" id="calcArquivo" accept=".json,application/json" hidden onchange="App.calcLerArquivo(this)">
+    </div>
+  </div>
+  <div id="calcBanner">${chkCalcBannerHtml()}</div>
+  <div class="chk-chips" style="margin:10px 0;display:flex;gap:6px;flex-wrap:wrap">${aba("flex", "Linha flexível")}${aba("rig", "Linha rígida")}${aba("const", "Constantes")}${aba("pend", "Pendências (" + CHK_CALC_PENDENCIAS.length + ")")}${aba("hist", "Histórico")}</div>
+  <div id="calcCorpo">${chkCalcTabelaHtml()}</div>
+  <div class="calc-barra" id="calcBarra">${chkCalcBarraHtml()}</div>`;
+}
+function chkCalcBarraHtml(){
+  const diff = chkCalcDiffPendente();
+  return diff.length ? `<span>${diff.length} alteração(ões) não salva(s)</span><button class="btn btn-ghost btn-sm" onclick="App.calcDescartar()">Descartar</button><button class="btn btn-primary btn-sm" onclick="App.calcSalvar()">Salvar alterações</button>` : "";
+}
+const CHK_CALC_CSS = `
+.calc-wrap{overflow-x:auto;margin-top:8px}
+.calc-t{border-collapse:collapse;width:100%;min-width:860px;font-size:12px;background:var(--surface)}
+.calc-t th{position:sticky;top:0;background:var(--bar,#1E2148);color:var(--on-bar,#fff);text-align:left;padding:6px 8px;font-size:11px}
+.calc-t td{border-bottom:1px solid var(--line);padding:5px 8px;vertical-align:top}
+.calc-t td:nth-child(2){min-width:210px}
+.calc-t tr.entrada td{background:rgba(233,78,27,.06)}
+.calc-t tr.veredito td{background:rgba(46,125,50,.05)}
+.calc-s{white-space:nowrap}.calc-sim{background:none;border:none;color:var(--accent);font-weight:800;cursor:pointer;padding:0;font-size:12px;text-decoration:underline dotted}
+.calc-v{white-space:nowrap}.calc-in{width:100%;min-width:90px;font-size:12px;padding:4px 6px;border:1px solid var(--line-strong);border-radius:6px;background:var(--surface);color:var(--ink);box-sizing:border-box}
+.calc-form{font-family:ui-monospace,Consolas,monospace;min-width:260px}
+.calc-f{color:var(--ink-dim);font-size:11px;min-width:160px}.calc-mud{color:var(--ink-faint)}.calc-pers{color:#8a5a00;font-weight:700}
+.calc-rest{border:1px solid var(--line-strong);background:var(--surface);border-radius:6px;cursor:pointer;margin-left:4px}
+.calc-erro{display:block;color:#B3261E;font-size:11px;font-weight:700}.calc-pad{font-size:10.5px;color:var(--ink-dim)}.calc-nota{font-size:11px;color:var(--ink-dim)}
+.calc-passo td{background:#fff8e6;font-size:12px;line-height:1.5}
+.calc-caso{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}
+.calc-barra{position:sticky;bottom:0;display:flex;gap:10px;align-items:center;justify-content:flex-end;background:var(--surface);border-top:1px solid var(--line);padding:8px 10px;margin-top:10px;font-size:13px;font-weight:700}
+.calc-barra:empty{display:none}
+`;
+(function(){
+  if(typeof document === "undefined" || !document.head) return;
+  const st = document.createElement("style"); st.textContent = CHK_CALC_CSS; document.head.appendChild(st);
+})();
 function chkCaracResumo(l){
   const defs = ((l && l.caracDefs) || []).filter(g=> !g.derivada), carac = (l && l.carac) || {};
   return { total: defs.length, preenchidas: defs.filter(g=> (carac[g.id] || []).length).length };
@@ -17995,6 +18764,12 @@ a.lcl-sl:hover i{border-bottom-color:#E94E1B}
 .lcl-mcard strong{display:block;font-size:17px}
 .lcl-mcard.ok strong{color:#2e7d32}.lcl-mcard.no strong{color:#c0392b}
 .lcl-mcard small{color:#555;font-size:10px}
+.lcl-mcard.na{border-color:#9aa0b8;background:#eef0f6}.lcl-mcard.na strong{color:#6b719a}
+.lcl-mcomoler{border:1px solid #cfd3e6;background:#f4f5fb;border-radius:3px;padding:6px 10px;margin:8px 0;font-size:10.5px;color:#333}
+.lcl-mcomoler ol{margin:3px 0 0 16px;padding:0}.lcl-mcomoler li{margin:1px 0}
+.lcl-malerta{border:1px solid #c0392b;background:#fbe7e4;color:#8a2b0e;border-radius:3px;padding:5px 10px;margin:8px 0;font-size:11px}
+.lcl-mselo{display:inline-block;border:1px solid #8a5a00;color:#8a5a00;border-radius:99px;padding:1px 8px;font-size:10px;font-weight:700;margin-left:4px}
+.lcl-tvars td,.lcl-tvars th{font-size:9.5px;padding:2px 5px}
 .lcl-mfig{margin:8px auto;border-radius:3px;overflow:hidden;max-width:540px}
 .lcl-mcols{display:grid;grid-template-columns:1fr 1fr;gap:14px;font-size:11.5px;margin-bottom:8px}
 .lcl-mcols h5{margin:0 0 5px;color:#1E2148;font-size:12px}
@@ -18154,6 +18929,7 @@ function screenChkLaudoLinha(){
       ? `<span class="lcl-status" style="color:#C23F12">Falta medir: ${escapeHtml(faltas.join(", "))}. Sem isso o memorial não entra no laudo.</span>`
       : `<select class="lcl-sel" aria-label="EPI na ilustração" onchange="App.lclSetMemorial('epi',this.value)"><option value="tq" ${mem.epi === "tq" ? "selected" : ""}>Ilustração: trava-quedas</option><option value="tab" ${mem.epi === "tab" ? "selected" : ""}>Ilustração: talabarte</option></select>
          <label><input type="checkbox" ${mem.memoria ? "checked" : ""} onchange="App.lclSetMemorial('memoria',this.checked)"><span>Página da memória de cálculo</span></label>`}
+      ${mem.novo ? `<label><input type="checkbox" ${(l.laudo && l.laudo.memorialTodasVars) ? "checked" : ""} onchange="App.lclSetMemTodasVars(this.checked)"><span>Mostrar todas as variáveis intermediárias no memorial</span></label>` : ""}
       <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lclIrMemorial()">${ic('edit')} Medidas</button></div>`;
   }
   const altura = __lclPaginas.length * (LCL_PAG_A + 14);
@@ -20312,7 +21088,7 @@ function chkSyncLocais(){
   (ns.modelos || []).forEach(m=>{ if(m && m.id) lista.push({ chave:"m:" + m.id, tipo:"m", id:m.id, obj:m }); });
   // textos-base do laudo (Metodologia com figuras e Normas de referência): um arquivo só, vale a edição mais nova
   const tx = ns.textos;
-  if(tx && typeof tx === "object" && !Array.isArray(tx) && (tx.metodologia || tx.normativo || tx.revisao)){
+  if(tx && typeof tx === "object" && !Array.isArray(tx) && (tx.metodologia || tx.normativo || tx.revisao || tx.calculo)){
     if(!tx.id) tx.id = "textos";
     lista.push({ chave:"t:textos", tipo:"t", id:"textos", obj:tx });
   }
@@ -32995,7 +33771,7 @@ Devolver agora?`)) return;
   },
   chkMemorialSetParam(k, v){
     const l = getCurrentChkLinha(); if(!l) return;
-    if(!(k in CHK_MEMORIAL_PARAMS)) return;
+    if(!(k in CHK_MEMORIAL_PARAMS) && k !== "A1") return;
     if(!l.memorial || typeof l.memorial !== "object") l.memorial = {};
     if(!l.memorial.params || typeof l.memorial.params !== "object") l.memorial.params = {};
     const n = chkMemorialNum(v);
@@ -34376,6 +35152,166 @@ Devolver agora?`)) return;
       __chkAtu.rodando = false;
     }
     App.chkAtuRedesenhar();
+  },
+  /* ---------- planilha de cálculo (Configurações) ---------- */
+  calcAba(a){
+    __calcUI.aba = a; __calcUI.aberta = null; __calcUI.entradas = null;
+    if(a === "flex") __calcUI.caso = "c1";
+    if(a === "rig") __calcUI.caso = "c3";
+    render();
+  },
+  calcCaso(id){ __calcUI.caso = id; __calcUI.entradas = null; App.calcRedesenhar(); },
+  calcLimparEntradas(){ __calcUI.entradas = null; App.calcRedesenhar(); },
+  calcAbrir(chave){ __calcUI.aberta = __calcUI.aberta === chave ? null : chave; App.calcRedesenhar(); },
+  calcEntrada(id, v){
+    const n = parseFloat(String(v).replace(",", "."));
+    if(!__calcUI.entradas) __calcUI.entradas = {};
+    if(isFinite(n)) __calcUI.entradas[id] = n; else __calcUI.entradas[id] = undefined;
+    if(__calcUI.aberta) App.calcRedesenhar(); else App.calcAtualizarValores();
+  },
+  /* Atualiza só os números (sem refazer os campos, para não perder o cursor enquanto se digita). */
+  calcAtualizarValores(){
+    const tp = __calcUI.aba === "rig" ? "rig" : "flex", t = chkCalcResolverTela(tp);
+    document.querySelectorAll("#calcCorpo [data-k]").forEach(el=>{
+      const [, id] = el.getAttribute("data-k").split(":"), x = t.r.vals[id], xp = t.rPad.vals[id];
+      if(el.classList.contains("calc-vv")) el.textContent = x && x.erro === undefined ? chkCalcNum(x.v) : "";
+      else if(el.classList.contains("calc-aux")) el.innerHTML = (x && x.erro !== undefined ? `<span class="calc-erro">${escapeHtml(x.erro)}</span>` : "") + ((t.r.lista.find(v=> v.id === id) || {}).personalizada && xp && xp.erro === undefined && x && x.erro === undefined && Math.abs(xp.v - x.v) > 1e-9 ? `<div class="calc-pad">padrão: ${chkCalcNum(xp.v)}</div>` : "");
+    });
+  },
+  calcRedesenhar(){
+    const c = document.getElementById("calcCorpo"); if(c) c.innerHTML = chkCalcTabelaHtml();
+    const b = document.getElementById("calcBarra"); if(b) b.innerHTML = chkCalcBarraHtml();
+    const n = document.getElementById("calcBanner"); if(n) n.innerHTML = chkCalcBannerHtml();
+  },
+  calcEditFormula(tp, id, v){
+    const chave = tp + ":" + id, reg = CHK_CALC_REGISTRO.find(x=> x.id === id && x.tipos.indexOf(tp) >= 0 && x.tipo !== "constante" && x.tipo !== "entrada");
+    if(!reg) return;
+    const txt = String(v).trim();
+    __calcUI.edit.formulas[chave] = (txt === "" || txt === reg.formula) ? "" : txt;
+    App.calcRedesenhar();
+  },
+  calcRestaurarFormula(tp, id){ __calcUI.edit.formulas[tp + ":" + id] = ""; App.calcRedesenhar(); },
+  calcEditConst(id, v){
+    const n = parseFloat(String(v).replace(",", "."));
+    if(!isFinite(n)){ toast("Digite um número", false); App.calcRedesenhar(); return; }
+    __calcUI.edit.constantes[id] = n;
+    App.calcRedesenhar();
+  },
+  calcRestaurarConst(id){ __calcUI.edit.constantes[id] = chkCalcConstantesPadrao()[id]; App.calcRedesenhar(); },
+  calcDescartar(){ __calcUI.edit = { formulas:{}, constantes:{} }; App.calcRedesenhar(); },
+  calcRodar(){
+    const itens = chkCalcRodarCasos(chkCalcEmEdicao());
+    __calcUI.banner = { ok: itens.every(x=> x.ok), titulo: itens.every(x=> x.ok) ? "Casos de referência: todos aprovados (" + itens.length + ")" : "Casos de referência: " + itens.filter(x=> !x.ok).length + " reprovado(s) (aviso: o app continua funcionando)", itens };
+    App.calcRedesenhar();
+  },
+  /* Salvar: valida, pede o motivo (obrigatório), grava o histórico e roda os casos de referência. */
+  calcSalvar(modo){
+    const diff = modo === "padrao" ? __calcUI.diffTudo : chkCalcDiffPendente();
+    if(!diff || !diff.length){ toast("Não há alterações para salvar", false); return; }
+    if(modo !== "padrao"){
+      const erros = chkCalcValidar(chkCalcEmEdicao());
+      if(erros.length){ __calcUI.banner = { ok:false, titulo:"Não dá para salvar: corrija primeiro", itens: erros.map(e=> ({ ok:false, nome:e, falhas:[] })) }; App.calcRedesenhar(); toast("Há fórmula com erro", false); return; }
+    }
+    __calcUI.modo = modo || "salvar";
+    abrirOverlay(`<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card" style="max-width:640px;width:calc(100vw - 32px);max-height:92vh;overflow:auto">
+      <h3>${modo === "padrao" ? "Restaurar tudo ao padrão" : "Salvar alterações no cálculo"}</h3>
+      <p class="sheet-sub">Vale para as linhas NOVAS a partir de agora. Linhas e laudos que já existem não mudam (use "Reprocessar" na aba Memorial de cada linha). Fica registrado no histórico com data e hora.</p>
+      <div style="font-size:12.5px;max-height:30vh;overflow:auto">${diff.map(d=> `<div style="margin:3px 0"><b>${escapeHtml(d.chave)}</b>: <code>${escapeHtml(String(d.antes))}</code> → <code>${escapeHtml(String(d.depois))}</code></div>`).join("")}</div>
+      <div class="field" style="margin-top:10px"><label for="calcMotivo">Motivo da alteração (obrigatório)</label><textarea id="calcMotivo" rows="3" placeholder="Por que está mudando? Ex.: manual do fabricante X pede 1,30 m de deslizamento"></textarea></div>
+      <div class="modal-actions"><button class="btn btn-secondary" onclick="App.fecharModal()">Cancelar</button><button class="btn btn-primary" onclick="App.calcConfirmarSalvar()">Salvar</button></div></div></div>`);
+  },
+  calcConfirmarSalvar(){
+    const motivo = String((document.getElementById("calcMotivo") || {}).value || "").trim();
+    if(motivo.length < 5){ toast("Escreva o motivo (pelo menos algumas palavras)", false); return; }
+    const padrao = __calcUI.modo === "padrao";
+    const diff = padrao ? __calcUI.diffTudo : chkCalcDiffPendente();
+    const cfg = padrao ? { versao: chkCalcConfig().versao, constantes:{}, formulas:{}, historico: chkCalcConfig().historico } : chkCalcEmEdicao();
+    const agora = Date.now(), versao = chkCalcConfig().versao + 1;
+    cfg.versao = versao;
+    chkCalcSalvarConfig(cfg, diff.map(d=> ({ ts:agora, versao, chave:d.chave, antes:d.antes, depois:d.depois, motivo })));
+    __calcUI.edit = { formulas:{}, constantes:{} };
+    __calcUI.diffTudo = null;
+    marcarAlterado();
+    App.fecharModal();
+    const itens = chkCalcRodarCasos(chkCalcConfig());
+    __calcUI.banner = { ok: itens.every(x=> x.ok), titulo: (itens.every(x=> x.ok) ? "Salvo (versão " + versao + "). Casos de referência: todos aprovados." : "Salvo (versão " + versao + "). ATENÇÃO: " + itens.filter(x=> !x.ok).length + " caso(s) de referência reprovado(s). É só um aviso: o app continua funcionando."), itens };
+    toast("Alterações salvas (versão " + versao + ")");
+    render();
+  },
+  calcRestaurarTudo(){
+    const cfg = chkCalcConfig(), diff = [];
+    Object.keys(cfg.constantes).forEach(id=> diff.push({ chave:id, antes:cfg.constantes[id], depois:chkCalcConstantesPadrao()[id] }));
+    Object.keys(cfg.formulas).forEach(k=>{ const [tp, id] = k.split(":"), v = CHK_CALC_REGISTRO.find(x=> x.id === id && x.tipos.indexOf(tp) >= 0 && x.tipo !== "constante"); diff.push({ chave:k, antes:cfg.formulas[k], depois: v ? v.formula : "" }); });
+    if(!diff.length){ toast("Tudo já está no padrão", false); return; }
+    __calcUI.diffTudo = diff;
+    App.calcSalvar("padrao");
+  },
+  calcExportar(){
+    const cfg = chkCalcConfig();
+    const pacote = { app:"linhas-de-vida-calculo", versao:cfg.versao, exportadoEm:new Date().toISOString(), constantes:cfg.constantes, formulas:cfg.formulas, historico:cfg.historico };
+    const blob = new Blob([JSON.stringify(pacote, null, 1)], { type:"application/json" });
+    compartilharOuBaixarBlob(blob, "planilha-de-calculo-v" + cfg.versao + ".json", "application/json", "Planilha de cálculo exportada");
+  },
+  calcImportar(){ const i = document.getElementById("calcArquivo"); if(i){ i.value = ""; i.click(); } },
+  async calcLerArquivo(input){
+    const f = input.files && input.files[0]; input.value = "";
+    if(!f) return;
+    try{
+      const p = JSON.parse(await f.text());
+      if(!p || p.app !== "linhas-de-vida-calculo" || typeof p.constantes !== "object" || typeof p.formulas !== "object") throw new Error("não é um arquivo de planilha de cálculo");
+      const padrao = chkCalcConstantesPadrao(), edit = { formulas:{}, constantes:{} };
+      Object.keys(p.constantes).forEach(id=>{ if(id in padrao && typeof p.constantes[id] === "number" && isFinite(p.constantes[id])) edit.constantes[id] = p.constantes[id]; });
+      Object.keys(p.formulas).forEach(k=>{ if(typeof p.formulas[k] === "string"){ const [tp, id] = k.split(":"); if(CHK_CALC_REGISTRO.some(x=> x.id === id && x.tipos.indexOf(tp) >= 0 && x.tipo !== "constante" && x.tipo !== "entrada")) edit.formulas[k] = p.formulas[k].trim(); } });
+      // o que o arquivo não traz volta ao padrão
+      const cfg = chkCalcConfig();
+      Object.keys(cfg.constantes).forEach(id=>{ if(!(id in edit.constantes)) edit.constantes[id] = padrao[id]; });
+      Object.keys(cfg.formulas).forEach(k=>{ if(!(k in edit.formulas)) edit.formulas[k] = ""; });
+      __calcUI.edit = edit;
+      toast("Arquivo lido: confira, e salve com o motivo para valer");
+      render();
+    }catch(e){ toast("Não consegui importar: " + (e && e.message ? e.message : "arquivo inválido"), false); }
+  },
+  /* ---------- Reprocessar um laudo (aba Memorial da linha): comparação antes/depois ---------- */
+  chkMemReprocessarAbrir(){
+    const l = getCurrentChkLinha(); if(!l) return;
+    const antes = chkMemorialResumoCalc(l), snap = chkCalcSnapshotNovo();
+    const depois = chkMemorialResumoCalc(Object.assign({}, l, { calc: snap }));
+    if(!antes || !depois){ toast("Preencha as medidas da linha antes de reprocessar", false); return; }
+    __calcRepro = { id:l.id, snap, antes };
+    const f = (x, d)=> x === null || x === undefined ? "—" : chkMemFmt(x, d === undefined ? 2 : d);
+    const sn = (x)=> x === null || x === undefined ? "—" : (x ? "pode" : "não pode");
+    const lin = (rot, a, b)=> `<tr><td>${rot}</td><td>${a}</td><td><b>${b}</b></td></tr>`;
+    abrirOverlay(`<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card" style="max-width:640px;width:calc(100vw - 32px);max-height:92vh;overflow:auto">
+      <h3>Reprocessar o memorial desta linha</h3>
+      <p class="sheet-sub">Antes: ${antes.novo ? "cálculo versão " + antes.versao : "cálculo anterior (antes de 13/10/2026)"}. Depois: cálculo atual (versão ${snap.v}). ${l.status === "finalizado" ? "<b>Esta linha está finalizada:</b> o PDF que já saiu não muda; só o laudo gerado daqui em diante." : ""} Nada muda até você confirmar.</p>
+      <div class="calc-wrap"><table class="calc-t" style="min-width:0"><thead><tr><th>Resultado</th><th>Antes</th><th>Depois</th></tr></thead><tbody>
+        ${lin("ZLQ talabarte (m)", f(antes.ZLQ_tab), f(depois.ZLQ_tab))}${lin("ZLQ trava-quedas (m)", f(antes.ZLQ_trava), f(depois.ZLQ_trava))}
+        ${lin("Hp talabarte (m)", f(antes.Hp_tab), f(depois.Hp_tab))}${lin("Hp trava-quedas (m)", f(antes.Hp_trava), f(depois.Hp_trava))}
+        ${lin("Força no cabo T1 (kgf)", f(antes.T1, 0), f(depois.T1, 0))}${lin("Utilização do cabo", f(antes.util), f(depois.util))}${lin("Fator de queda", f(antes.FQ), f(depois.FQ))}
+        ${lin("Talabarte com absorvedor", sn(antes.tab), sn(depois.tab))}${lin("Trava-quedas retrátil", sn(antes.tq), sn(depois.tq))}${lin("Cabo de aço", antes.cabo === null ? "não se aplica" : (antes.cabo ? "atende" : "não atende"), depois.cabo === null ? "não se aplica" : (depois.cabo ? "atende" : "não atende"))}
+      </tbody></table></div>
+      <div class="modal-actions"><button class="btn btn-secondary" onclick="App.fecharModal()">Cancelar</button><button class="btn btn-primary" onclick="App.chkMemReprocessarAplicar()">Reprocessar</button></div></div></div>`);
+  },
+  chkMemReprocessarAplicar(){
+    const l = getCurrentChkLinha(); if(!l || !__calcRepro || __calcRepro.id !== l.id) return;
+    l.calcHistorico = (Array.isArray(l.calcHistorico) ? l.calcHistorico : []).concat([{ em:Date.now(), de:__calcRepro.antes }]).slice(-20);
+    l.calc = __calcRepro.snap;
+    l.atualizadoEm = agoraSync();
+    marcarAlterado();
+    __lclPaginas = []; __lclHtml = ""; __lclParaLinha = null;
+    __calcRepro = null;
+    App.fecharModal();
+    toast("Memorial reprocessado com o cálculo atual");
+    render();
+  },
+  lclSetMemTodasVars(ligado){
+    const l = getCurrentChkLinha(); if(!l) return;
+    if(!l.laudo) l.laudo = {};
+    l.laudo.memorialTodasVars = !!ligado;
+    l.atualizadoEm = agoraSync();
+    marcarAlterado();
+    __lclPaginas = []; __lclHtml = ""; __lclParaLinha = null;
+    render();
   },
   chkImportarModeloXLSX(){
     if(!getCurrentChkModelo()) return;
