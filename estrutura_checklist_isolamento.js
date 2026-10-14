@@ -2121,7 +2121,7 @@ async function testarFotosLeituraLaudo(){
     const fA = roda(`chkItemExec(__f3.l, ${J(itA)}).fotos`);
     T(nI === 1 && fA[fA.length - 1].foto === "data:image/jpeg;base64,N3" && fA[fA.length - 1].motivo === "Fios rompidos", "foto inserida num motivo fica ligada a esse motivo");
     T(roda(`lclInserirFotos(__f3.l, ${J(sec1)}, "i|nao-existe|0", ["x"])`) === 0 && roda(`lclInserirFotos(__f3.l, ${J(sec1)}, "i|${itA}|9", ["x"])`) === 0 && roda(`lclInserirFotos(__f3.l, "nao-existe", "s", ["x"])`) === 0, "destino inexistente: nao insere nada");
-    roda(`(function(){ const ex = chkItemExec(__f3.l, __f3.a.id); ex.fotos = ex.fotos.filter(f => !/(N3|D1|D3)$/.test(f.foto)); if(__f3.l.fotosSecao){ delete __f3.l.fotosSecao[${J(sec1)}]; if(!Object.keys(__f3.l.fotosSecao).length) delete __f3.l.fotosSecao; } })()`);
+    roda(`(function(){ const ex = chkItemExec(__f3.l, __f3.a.id); ex.fotos = ex.fotos.filter(f => !/(N3|D1|D3|Q1|Q2|Q3)$/.test(f.foto)); if(__f3.l.fotosSecao){ delete __f3.l.fotosSecao[${J(sec1)}]; if(!Object.keys(__f3.l.fotosSecao).length) delete __f3.l.fotosSecao; } })()`);
   }
   // item que atende com foto: so lixeira, sem arrastar nem 'Mover para'
   roda(`(function(){ const ex = chkItemExec(__f3.l, __f3.b.id); ex.conforme = "atende"; ex.motivosSelecionados = ["Folgados"]; ex.fotos = [{ foto:"data:image/jpeg;base64,PB" }]; })()`);
@@ -2167,7 +2167,28 @@ async function testarFotosLeituraLaudo(){
   await roda("App.lclFotoSoltar")(ev([arq("Z1", "text/plain")]));
   await new Promise(r => setTimeout(r, 20));
   T(roda(`__f3.l.fotosSecao[${J(sec1)}].length`) === antesL, "soltar um arquivo que nao e imagem nao insere nada");
-  roda(`(function(){ const ex = chkItemExec(__f3.l, __f3.a.id); ex.fotos = ex.fotos.filter(f => !/(N3|D1|D3)$/.test(f.foto)); if(__f3.l.fotosSecao){ delete __f3.l.fotosSecao[${J(sec1)}]; if(!Object.keys(__f3.l.fotosSecao).length) delete __f3.l.fotosSecao; } })()`);
+  // --- tela de preenchimento: foto arrastada do computador para a caixa do motivo e para o card do item
+  { const ev2 = (arqs)=> ({ preventDefault(){ this.pd = true; }, stopPropagation(){ this.sp = true; }, dataTransfer:{ files: arqs, types:["Files"], getData: ()=> "" } });
+    const fotosA = ()=> roda(`chkItemExec(__f3.l, ${J(itA)}).fotos`);
+    const n0 = fotosA().length;
+    const e1 = ev2([{ nome:"Q1", type:"image/jpeg" }, { nome:"Q2", type:"image/png" }, { nome:"X", type:"text/plain" }]);
+    await roda("App.chkDropFoto")(e1, itA, 1);
+    await new Promise(r => setTimeout(r, 20));
+    const f1 = fotosA().filter(f => /Q[12]$/.test(f.foto));
+    T(e1.pd === true && e1.sp === true && fotosA().length === n0 + 2 && f1.length === 2 && f1.every(f => f.motivo === "Fios rompidos"), "arquivo arrastado para a caixa do 2o motivo entra nesse motivo (so imagens): " + J(f1.map(f => f.motivo)));
+    const e2 = ev2([{ nome:"Q3", type:"image/jpeg" }]);
+    await roda("App.chkDropFotoItem")(e2, itA);
+    await new Promise(r => setTimeout(r, 20));
+    const f3 = fotosA().find(f => /Q3$/.test(f.foto));
+    T(e2.pd === true && f3 && f3.motivo === "", "arquivo arrastado para o card do item com 2 motivos marcados fica sem motivo (a pessoa move depois)");
+    const e3 = ev2([]);
+    await roda("App.chkDropFotoItem")(e3, itA);
+    T(e3.pd !== true && fotosA().length === n0 + 3, "arrastar algo que nao e arquivo para o card nao faz nada");
+    T(roda("App.chkSobreFoto") && typeof roda("App.chkSobreFoto") === "function", "o card aceita receber arquivos (dragover liberado)");
+    const cardHtml = roda("chkFotosItemHtml(__f3.a, chkItemExec(__f3.l, __f3.a.id), chkItemExec(__f3.l, __f3.a.id).motivosSelecionados)");
+    T(cardHtml.includes("App.chkDropFoto(event,") , "as caixas dos motivos continuam recebendo");
+  }
+  roda(`(function(){ const ex = chkItemExec(__f3.l, __f3.a.id); ex.fotos = ex.fotos.filter(f => !/(N3|D1|D3|Q1|Q2|Q3)$/.test(f.foto)); if(__f3.l.fotosSecao){ delete __f3.l.fotosSecao[${J(sec1)}]; if(!Object.keys(__f3.l.fotosSecao).length) delete __f3.l.fotosSecao; } })()`);
   roda("__lclFotosSec = ''");
   }
   const outraAntes = J(roda("setor.linhas[0]"));

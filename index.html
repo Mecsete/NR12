@@ -3471,7 +3471,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "13/10/2026 20:23";
+const APP_BUILD = "13/10/2026 21:18";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -15406,7 +15406,7 @@ function chkRenderItem(linha, item, secaoIdx, itemIdx){
     return `<button type="button" class="${on ? 'on' : ''}" style="${on ? `background:${meta.cor};border-color:${meta.cor}` : ''}" onclick="event.stopPropagation();App.chkRespostaRapida('${item.id}','${k}')" aria-pressed="${on}">${ic(ICONE_RAPIDO[k])}<span>${escapeHtml(meta.label)}</span></button>`;
   }).join("")}</div>`;
   return `
-  <div class="card card-pad chk-item-card st-${ie.conforme||''} ${aberto?'aberto':''}" data-item="${item.id}">
+  <div class="card card-pad chk-item-card st-${ie.conforme||''} ${aberto?'aberto':''}" data-item="${item.id}" ondragover="App.chkSobreFoto(event)" ondrop="App.chkDropFotoItem(event,'${item.id}')">
     <div class="chk-item-top" onclick="App.chkToggleItemAberto('${item.id}')">
       <div class="chk-item-desc"><span class="chk-item-code">Item ${secaoIdx+1}.${itemIdx+1} -</span> ${escapeHtml(item.descricao)}</div>
       <div class="chk-item-icons">
@@ -33246,8 +33246,35 @@ Devolver agora?`)) return;
   chkDragFoto(ev, idx){
     try{ ev.dataTransfer.setData("text/plain", String(idx)); ev.dataTransfer.effectAllowed = "move"; }catch(e){}
   },
+  /* Foto do computador arrastada para uma caixa de motivo (vai para esse motivo), para o item (um só motivo marcado: vai para ele; senão fica sem motivo)
+     ou para a foto de outro motivo (mover, como antes). Cada foto é comprimida e gravada como as que vêm da câmera. */
+  chkSobreFoto(ev){ try{ if(ev.dataTransfer && Array.from(ev.dataTransfer.types || []).indexOf("Files") >= 0) ev.preventDefault(); }catch(e){} },
+  chkDropFotoItem(ev, itemId){
+    const arq = lclArquivosDoEvento(ev);
+    if(!arq.length) return;
+    ev.preventDefault();
+    return App.chkAdicionarArquivosItem(arq, itemId);
+  },
+  async chkAdicionarArquivosItem(arquivos, itemId, mi){
+    const l = getCurrentChkLinha(); if(!l || !arquivos.length) return;
+    const ie = chkItemExec(l, itemId); if(!ie) return;
+    const sec = (l.modeloSnapshot || []).find(s=> (s.itens || []).some(i=> i.id === itemId)); if(!sec) return;
+    if(ie.conforme === "na"){ toast("Este item está como \"não se aplica\": mude a resposta para receber fotos", false); return; }
+    const datas = []; let falhas = 0;
+    for(const f of arquivos){
+      try{ const data = await comprimirImagem(f, 1920, 0.82); salvarFotoNaGaleria(data, "apr_checklist"); datas.push(data); }catch(e){ falhas++; }
+    }
+    const unico = ie.conforme === "naoAtende" && (ie.motivosSelecionados || []).length === 1;
+    const destino = "i|" + itemId + "|" + (typeof mi === "number" ? mi : (unico ? 0 : -1));
+    const n = lclInserirFotos(l, sec.id, destino, datas);
+    if(n){ marcarAlterado(); render(); }
+    toast(n ? n + (n === 1 ? " foto adicionada" : " fotos adicionadas") + (falhas ? "; " + falhas + " não puderam ser lidas" : "") : (falhas ? "Não consegui ler a foto (precisa ser uma imagem)" : "Nada foi adicionado"), !!n);
+  },
   chkDropFoto(ev, itemId, mi){
     ev.preventDefault();
+    if(ev.stopPropagation) ev.stopPropagation();
+    const arq = lclArquivosDoEvento(ev);
+    if(arq.length) return App.chkAdicionarArquivosItem(arq, itemId, mi);
     let idx = -1;
     try{ idx = parseInt(ev.dataTransfer.getData("text/plain"), 10); }catch(e){}
     if(idx >= 0) App.chkMoverFoto(itemId, idx, mi);
@@ -34411,6 +34438,9 @@ Devolver agora?`)) return;
   },
 };
 window.App = App;
+/* Imagem solta fora de uma área de foto não deve fazer o navegador abrir o arquivo (e tirar a pessoa do app). */
+document.addEventListener("dragover", (e)=>{ try{ if(e.dataTransfer && Array.from(e.dataTransfer.types || []).indexOf("Files") >= 0) e.preventDefault(); }catch(_){} });
+document.addEventListener("drop", (e)=>{ try{ if(e.dataTransfer && Array.from(e.dataTransfer.types || []).indexOf("Files") >= 0) e.preventDefault(); }catch(_){} });
 
 /* =========================================================================
    IMPORTAÇÃO DE BACKUP — PRÉVIA COM RELATÓRIO (Módulo Simplificado)
