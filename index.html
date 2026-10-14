@@ -751,6 +751,22 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-foto-btns{display:flex;gap:8px;margin-top:8px}
 .chk-foto-btns .btn{flex:1}
 .lote-acoes{display:flex;gap:8px;margin:10px 0 6px}
+.rev-resumo{font-size:13px;margin:6px 0 2px;color:var(--ink-dim)}
+.rev-resumo b{color:var(--ink)}
+.rev-amarelo{color:#8A5A00;font-weight:700}
+.rev-verde{color:#1E6B34;font-weight:700}
+.rev-pac-t{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;justify-content:space-between}
+.rev-selo{font-size:11.5px;font-weight:800;border-radius:999px;padding:3px 9px;white-space:nowrap}
+.rev-selo-novo{background:var(--bg-soft);color:var(--ink-dim)}
+.rev-selo-copiado,.rev-selo-parcial{background:#FFF1D6;color:#8A5A00}
+.rev-selo-colado{background:#DDF1E3;color:#1E6B34}
+.rev-linhas{display:flex;flex-wrap:wrap;gap:4px 6px;margin:6px 0}
+.rev-lin{font-size:12px;color:var(--ink-dim);background:var(--bg-soft);border-radius:8px;padding:2px 7px}
+.rev-lin.ok{background:#DDF1E3;color:#1E6B34;font-weight:700}
+.rev-falta{font-size:12px;color:#8A5A00;margin:0 0 6px}
+.rev-colado{opacity:.85}
+.rev-prox{outline:2px solid var(--accent);outline-offset:1px}
+.rev-prox-t{font-size:12px;font-weight:700;color:var(--accent);margin:0 0 6px}
 .chk-ordem{display:flex;gap:8px;align-items:center;margin:0 0 10px;font-size:12.5px;color:var(--ink-dim)}
 .chk-ordem select{flex:1;max-width:260px;padding:7px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font:inherit}
 .lote-formato{display:flex;flex-direction:column;gap:6px;margin:0 0 12px;font-size:13px}
@@ -3482,7 +3498,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "14/10/2026 09:06";
+const APP_BUILD = "14/10/2026 09:13";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -17604,7 +17620,7 @@ function lclRevisaoPendenteParaConferir(l){
   return { notas: p.notas || "", invalidos: 0, itens: p.itens.map(x=> { const at = atuais[x.id]; const antes = at ? at.atual : x.antes; return Object.assign({}, x, { antes, igual: norm(antes) === norm(x.depois), mudouDesde: !!at && norm(at.atual) !== norm(x.antes) }); }) };
 }
 /* Tela "Revisar textos com o Claude" (várias linhas e setores do projeto) */
-let __chkRev = { sel: null, pacotes: [] };
+let __chkRev = { sel: null, pacotes: [], copiados: {}, respondidas: {} };
 function chkRevLinhasDoProjeto(proj){
   const out = [];
   (proj.setores || []).forEach(s=> (s.linhas || []).forEach(l=>{ if(l.status === "finalizado" || chkProgresso(l) > 0) out.push({ linha: l, setor: s.nome || "", setorId: s.id }); }));
@@ -17614,6 +17630,30 @@ function chkRevSelecionadas(proj){
   const todas = chkRevLinhasDoProjeto(proj);
   if(__chkRev.sel === null) __chkRev.sel = new Set(todas.map(x=> x.linha.id));
   return todas.filter(x=> __chkRev.sel.has(x.linha.id));
+}
+/* Situação de um pacote: se já foi copiado e de quais das suas linhas a resposta do Claude já foi colada. */
+function chkRevEstadoPacote(p, k){
+  const resp = p.linhas.filter(x=> __chkRev.respondidas && __chkRev.respondidas[x.linha.id]);
+  const faltam = p.linhas.filter(x=> !(__chkRev.respondidas && __chkRev.respondidas[x.linha.id]));
+  const copiado = !!(__chkRev.copiados && __chkRev.copiados[k]);
+  const estado = !faltam.length ? "colado" : resp.length ? "parcial" : copiado ? "copiado" : "novo";
+  return { estado, resp, faltam, copiado };
+}
+function chkRevPacotesHtml(){
+  const pacotes = __chkRev.pacotes || [];
+  if(!pacotes.length) return "";
+  const est = pacotes.map((p, k)=> chkRevEstadoPacote(p, k));
+  const nColados = est.filter(e=> e.estado === "colado").length;
+  const nFaltaColar = est.filter(e=> e.estado === "copiado" || e.estado === "parcial").length;
+  const nFaltaCopiar = est.filter(e=> e.estado === "novo").length;
+  const prox = est.findIndex(e=> e.estado !== "colado");
+  const rotulo = { novo:"Falta copiar", copiado:"Copiado: falta colar a resposta", parcial:"Resposta parcial", colado:"Resposta colada" };
+  const resumo = `<div class="rev-resumo"><b>${nColados} de ${pacotes.length}</b> respostas coladas${nFaltaColar ? ` · <span class="rev-amarelo">${nFaltaColar} esperando a resposta</span>` : ""}${nFaltaCopiar ? ` · ${nFaltaCopiar} ainda sem copiar` : ""}${prox < 0 ? ` · <span class="rev-verde">tudo colado, valide as linhas abaixo</span>` : ""}</div>`;
+  return `<div class="section-title">Pacotes para o Claude (${pacotes.length})</div>${resumo}${pacotes.map((p, k)=>{
+    const e = est[k];
+    const linhas = p.linhas.map(x=> { const ok = e.resp.indexOf(x) >= 0; return `<span class="rev-lin ${ok ? "ok" : ""}">${ok ? "&#10003; " : ""}${escapeHtml(x.linha.nome || "Linha")}</span>`; }).join("");
+    return `<div class="card card-pad rev-pac rev-${e.estado}${k === prox ? " rev-prox" : ""}" style="margin-top:8px"><div class="rev-pac-t"><span style="font-weight:800;font-size:13.5px">Pacote ${k + 1} de ${pacotes.length} · ${p.linhas.length} ${p.linhas.length === 1 ? "linha" : "linhas"} · ${Math.round(p.texto.length / 1000)} mil caracteres</span><span class="rev-selo rev-selo-${e.estado}">${e.estado === "colado" ? "&#10003; " : ""}${rotulo[e.estado]}</span></div><div class="rev-linhas">${linhas}</div>${e.estado === "parcial" ? `<div class="rev-falta">Faltam: ${e.faltam.map(x=> escapeHtml(x.linha.nome || "Linha")).join(", ")}</div>` : ""}${k === prox ? `<div class="rev-prox-t">${e.estado === "novo" ? "Próximo passo: copiar este pacote" : "Próximo passo: colar a resposta do Claude para este pacote"}</div>` : ""}<div class="modal-actions" style="justify-content:flex-start;gap:8px;flex-wrap:wrap"><button class="btn ${e.estado === "colado" ? "btn-secondary" : e.copiado ? "btn-secondary" : "btn-primary"}" onclick="App.chkRevCopiarPacote(${k}, true)">${e.copiado ? "Copiar de novo e abrir o Claude" : "Copiar e abrir o Claude"}</button><button class="btn btn-secondary" onclick="App.chkRevCopiarPacote(${k}, false)">Só copiar</button></div></div>`;
+  }).join("")}`;
 }
 function screenChkRevisao(){
   const proj = getCurrentChkProjeto();
@@ -17630,8 +17670,7 @@ function screenChkRevisao(){
       ${s.linhas.map(x=> { const l = x.linha, np = l.revisaoPendente ? (l.revisaoPendente.itens || []).length : 0, na = (l.revisoes || []).filter(r=> r.tipo === "aplicada" && !r.desfeita).length;
         return `<label style="display:flex;gap:8px;align-items:center;margin:6px 0 0 22px;font-size:13.5px"><input type="checkbox" ${sel.has(l.id) ? "checked" : ""} onchange="App.chkRevToggle('${l.id}')"> ${escapeHtml(l.nome || "Linha")} ${np ? `<span class="stat-pill alert pend">${np} para validar</span>` : ""}${na ? `<span class="stat-pill">${na} revisão aplicada</span>` : ""}</label>`; }).join("")}</div>`;
   }).join("");
-  const pacotes = __chkRev.pacotes || [];
-  const pacotesHtml = pacotes.length ? `<div class="section-title">Pacotes para o Claude (${pacotes.length})</div>${pacotes.map((p, k)=> `<div class="card card-pad" style="margin-top:8px"><div style="font-weight:800;font-size:13.5px">Pacote ${k + 1} de ${pacotes.length} · ${p.linhas.length} ${p.linhas.length === 1 ? "linha" : "linhas"} · ${Math.round(p.texto.length / 1000)} mil caracteres</div><div style="font-size:12px;color:var(--ink-dim);margin:2px 0 6px">${p.linhas.map(x=> escapeHtml(x.linha.nome || "Linha")).join(", ")}</div><div class="modal-actions" style="justify-content:flex-start;gap:8px;flex-wrap:wrap"><button class="btn btn-primary" onclick="App.chkRevCopiarPacote(${k}, true)">Copiar e abrir o Claude</button><button class="btn btn-secondary" onclick="App.chkRevCopiarPacote(${k}, false)">Só copiar</button></div></div>`).join("")}` : "";
+  const pacotesHtml = chkRevPacotesHtml();
   const cont = lclRevisaoContagem(todas.map(x=> x.linha));
   const validar = todas.filter(x=> x.linha.revisaoPendente && (x.linha.revisaoPendente.itens || []).length);
   const validarHtml = validar.length ? `<div class="section-title">Aguardando validação (${cont.linhas} ${cont.linhas === 1 ? "linha" : "linhas"}, ${cont.secoes} ${cont.secoes === 1 ? "texto" : "textos"})</div>${validar.map(x=> `<div class="card card-pad" style="margin-top:8px;display:flex;align-items:center;gap:10px"><span style="flex:1"><b>${escapeHtml(x.linha.nome || "Linha")}</b> <span class="stat-pill">${escapeHtml(x.setor)}</span> <span class="stat-pill alert pend">${x.linha.revisaoPendente.itens.length} ${x.linha.revisaoPendente.itens.length === 1 ? "texto" : "textos"}</span></span><button class="btn btn-primary" onclick="App.chkRevValidarLinha('${x.linha.id}')">Validar</button></div>`).join("")}` : "";
@@ -34654,11 +34693,15 @@ Devolver agora?`)) return;
     const sel = chkRevSelecionadas(proj);
     if(!sel.length){ toast("Marque ao menos uma linha", false); return; }
     __chkRev.pacotes = lclPacotesRevisao(sel, proj);
+    __chkRev.copiados = {}; __chkRev.respondidas = {};
     render();
   },
   async chkRevCopiarPacote(k, abrirClaude){
     const pk = (__chkRev.pacotes || [])[k]; if(!pk) return;
     await App.lclCopiarTexto(pk.texto, abrirClaude);
+    if(!__chkRev.copiados) __chkRev.copiados = {};
+    __chkRev.copiados[k] = true;
+    render();
   },
   async chkRevColarClip(){
     try{
@@ -34674,16 +34717,22 @@ Devolver agora?`)) return;
     const linhas = chkRevLinhasDoProjeto(proj).map(x=> x.linha);
     const out = lclRevisaoInterpretar(ta.value, linhas);
     let textos = 0, nLinhas = 0;
+    const lidas = [];
+    if(!__chkRev.respondidas) __chkRev.respondidas = {};
     Object.keys(out.porLinha).forEach(id=>{
       const l = chkAcharLinhaPorId(STATE, id); if(!l) return;
       const r = out.porLinha[id];
       const n = lclRevisaoGuardarPendente(l, r.itens, r.notas);
       if(n){ textos += n; nLinhas++; }
+      if((r.itens || []).length){ __chkRev.respondidas[id] = true; lidas.push(id); }   // o Claude respondeu esta linha, mesmo que não tenha mudado nada
     });
-    if(!textos){ toast("Não encontrei textos novos para as linhas deste projeto" + (out.invalidos ? " (" + out.invalidos + " trecho(s) ignorado(s))" : ""), false); return; }
+    if(!textos && !lidas.length){ toast("Não encontrei textos novos para as linhas deste projeto" + (out.invalidos ? " (" + out.invalidos + " trecho(s) ignorado(s))" : ""), false); return; }
+    // qual pacote essa resposta completou (ou adiantou)
+    const pacs = (__chkRev.pacotes || []).map((p, k)=> ({ k, e: chkRevEstadoPacote(p, k), tocou: p.linhas.some(x=> lidas.indexOf(x.linha.id) >= 0) })).filter(x=> x.tocou);
+    const qual = pacs.length ? " Pacote " + pacs.map(x=> (x.k + 1) + (x.e.estado === "colado" ? " completo" : " parcial")).join(", ") + "." : "";
     marcarAlterado();
     ta.value = "";
-    toast(textos + (textos === 1 ? " texto guardado" : " textos guardados") + " em " + nLinhas + (nLinhas === 1 ? " linha" : " linhas") + ", para validar. Nada mudou nos laudos." + (out.invalidos ? " " + out.invalidos + " trecho(s) ignorado(s)." : ""));
+    toast(textos ? textos + (textos === 1 ? " texto guardado" : " textos guardados") + " em " + nLinhas + (nLinhas === 1 ? " linha" : " linhas") + ", para validar. Nada mudou nos laudos." + qual + (out.invalidos ? " " + out.invalidos + " trecho(s) ignorado(s)." : "") : "Resposta lida: o Claude não mudou nenhum texto de " + lidas.length + (lidas.length === 1 ? " linha." : " linhas.") + qual);
     render();
   },
   chkSalvarPrompt(){
