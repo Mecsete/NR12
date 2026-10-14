@@ -64,6 +64,15 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 14/10/2026 10:00
+
+**Revisão com o Claude: resultado da resposta colada por linha.**
+
+- Cada linha do pacote mostra quantos textos ficaram para validar ou "sem mudanças". Se o Claude devolveu o mesmo texto que já está no laudo, o pacote diz que não há nada para validar (antes aparecia como "Resposta colada" e parecia faltar algo).
+- Com textos para validar: botão "Ir para validar" e rolagem automática até a lista "Aguardando validação" depois de guardar.
+
+---
+
 ## 14/10/2026 09:34
 
 **Laudos em PDF: "Salvar todos em sequência".**
