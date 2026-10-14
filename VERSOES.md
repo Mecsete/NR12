@@ -64,6 +64,16 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 14/10/2026 09:06
+
+**Linhas de vida: numeração dos laudos em ordem alfabética, botão Renumerar e ordenar as listas.**
+
+- Os números de documento novos seguem a ordem alfabética (setor, depois linha; números contam como números). A lista "Laudos em PDF" e a fila de arquivos usam a mesma ordem.
+- Cadastro do projeto (computador): botão "Renumerar laudos em ordem alfabética", com confirmação e ponto de restauração. Os números continuam fixos e não mudam sozinhos; use o botão só antes de imprimir ou entregar.
+- Listas de setores e de linhas: seletor "Ordenar por" (A a Z, Z a A, número do documento, mais recentes). Padrão A a Z; a escolha fica neste aparelho.
+
+---
+
 ## 14/10/2026 08:26
 
 **Linhas de vida: Laudos em PDF (um arquivo por linha ou por setor) e colar foto em Fotos da seção.**
