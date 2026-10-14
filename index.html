@@ -3498,7 +3498,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "14/10/2026 09:34";
+const APP_BUILD = "14/10/2026 09:56";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -17637,7 +17637,10 @@ function chkRevEstadoPacote(p, k){
   const faltam = p.linhas.filter(x=> !(__chkRev.respondidas && __chkRev.respondidas[x.linha.id]));
   const copiado = !!(__chkRev.copiados && __chkRev.copiados[k]);
   const estado = !faltam.length ? "colado" : resp.length ? "parcial" : copiado ? "copiado" : "novo";
-  return { estado, resp, faltam, copiado };
+  const nDe = (x)=>{ const r = __chkRev.respondidas && __chkRev.respondidas[x.linha.id]; return r && typeof r === "object" ? r.n : null; };
+  const paraValidar = resp.reduce((s, x)=> s + (nDe(x) || 0), 0);
+  const semMudanca = resp.filter(x=> nDe(x) === 0).length;
+  return { estado, resp, faltam, copiado, paraValidar, semMudanca, nDe };
 }
 function chkRevPacotesHtml(){
   const pacotes = __chkRev.pacotes || [];
@@ -17648,11 +17651,12 @@ function chkRevPacotesHtml(){
   const nFaltaCopiar = est.filter(e=> e.estado === "novo").length;
   const prox = est.findIndex(e=> e.estado !== "colado");
   const rotulo = { novo:"Falta copiar", copiado:"Copiado: falta colar a resposta", parcial:"Resposta parcial", colado:"Resposta colada" };
-  const resumo = `<div class="rev-resumo"><b>${nColados} de ${pacotes.length}</b> respostas coladas${nFaltaColar ? ` · <span class="rev-amarelo">${nFaltaColar} esperando a resposta</span>` : ""}${nFaltaCopiar ? ` · ${nFaltaCopiar} ainda sem copiar` : ""}${prox < 0 ? ` · <span class="rev-verde">tudo colado, valide as linhas abaixo</span>` : ""}</div>`;
+  const semMud = (e)=> e.estado === "colado" && !e.paraValidar && e.semMudanca === e.resp.length;
+  const resumo = `<div class="rev-resumo"><b>${nColados} de ${pacotes.length}</b> respostas coladas${nFaltaColar ? ` · <span class="rev-amarelo">${nFaltaColar} esperando a resposta</span>` : ""}${nFaltaCopiar ? ` · ${nFaltaCopiar} ainda sem copiar` : ""}${prox < 0 ? (est.reduce((s, e)=> s + e.paraValidar, 0) ? ` · <span class="rev-verde">tudo colado, valide as linhas na lista "Aguardando validação" no fim da tela</span>` : ` · <span class="rev-verde">tudo colado, mas o Claude não mudou nenhum texto</span>`) : ""}</div>`;
   return `<div class="section-title">Pacotes para o Claude (${pacotes.length})</div>${resumo}${pacotes.map((p, k)=>{
     const e = est[k];
-    const linhas = p.linhas.map(x=> { const ok = e.resp.indexOf(x) >= 0; return `<span class="rev-lin ${ok ? "ok" : ""}">${ok ? "&#10003; " : ""}${escapeHtml(x.linha.nome || "Linha")}</span>`; }).join("");
-    return `<div class="card card-pad rev-pac rev-${e.estado}${k === prox ? " rev-prox" : ""}" style="margin-top:8px"><div class="rev-pac-t"><span style="font-weight:800;font-size:13.5px">Pacote ${k + 1} de ${pacotes.length} · ${p.linhas.length} ${p.linhas.length === 1 ? "linha" : "linhas"} · ${Math.round(p.texto.length / 1000)} mil caracteres</span><span class="rev-selo rev-selo-${e.estado}">${e.estado === "colado" ? "&#10003; " : ""}${rotulo[e.estado]}</span></div><div class="rev-linhas">${linhas}</div>${e.estado === "parcial" ? `<div class="rev-falta">Faltam: ${e.faltam.map(x=> escapeHtml(x.linha.nome || "Linha")).join(", ")}</div>` : ""}${k === prox ? `<div class="rev-prox-t">${e.estado === "novo" ? "Próximo passo: copiar este pacote" : "Próximo passo: colar a resposta do Claude para este pacote"}</div>` : ""}<div class="modal-actions" style="justify-content:flex-start;gap:8px;flex-wrap:wrap"><button class="btn ${e.estado === "colado" ? "btn-secondary" : e.copiado ? "btn-secondary" : "btn-primary"}" onclick="App.chkRevCopiarPacote(${k}, true)">${e.copiado ? "Copiar de novo e abrir o Claude" : "Copiar e abrir o Claude"}</button><button class="btn btn-secondary" onclick="App.chkRevCopiarPacote(${k}, false)">Só copiar</button></div></div>`;
+    const linhas = p.linhas.map(x=> { const ok = e.resp.indexOf(x) >= 0, n = ok ? e.nDe(x) : null; return `<span class="rev-lin ${ok ? "ok" : ""}">${ok ? "&#10003; " : ""}${escapeHtml(x.linha.nome || "Linha")}${ok && n !== null ? (n ? " · " + n + (n === 1 ? " texto para validar" : " textos para validar") : " · sem mudanças") : ""}</span>`; }).join("");
+    return `<div class="card card-pad rev-pac rev-${e.estado}${k === prox ? " rev-prox" : ""}" style="margin-top:8px"><div class="rev-pac-t"><span style="font-weight:800;font-size:13.5px">Pacote ${k + 1} de ${pacotes.length} · ${p.linhas.length} ${p.linhas.length === 1 ? "linha" : "linhas"} · ${Math.round(p.texto.length / 1000)} mil caracteres</span><span class="rev-selo rev-selo-${e.estado}">${e.estado === "colado" ? "&#10003; " : ""}${rotulo[e.estado]}${semMud(e) ? ": sem mudanças" : ""}</span></div><div class="rev-linhas">${linhas}</div>${e.estado === "parcial" ? `<div class="rev-falta">Faltam: ${e.faltam.map(x=> escapeHtml(x.linha.nome || "Linha")).join(", ")}</div>` : ""}${e.resp.length && !e.paraValidar && e.semMudanca === e.resp.length ? `<div class="rev-falta">O Claude devolveu o mesmo texto: não há nada para validar neste pacote.</div>` : ""}${e.paraValidar ? `<div style="margin:0 0 6px"><button type="button" class="btn btn-sm btn-primary" onclick="App.chkRevIrValidar()">Ir para validar (${e.paraValidar} ${e.paraValidar === 1 ? "texto" : "textos"})</button></div>` : ""}${k === prox ? `<div class="rev-prox-t">${e.estado === "novo" ? "Próximo passo: copiar este pacote" : "Próximo passo: colar a resposta do Claude para este pacote"}</div>` : ""}<div class="modal-actions" style="justify-content:flex-start;gap:8px;flex-wrap:wrap"><button class="btn ${e.estado === "colado" ? "btn-secondary" : e.copiado ? "btn-secondary" : "btn-primary"}" onclick="App.chkRevCopiarPacote(${k}, true)">${e.copiado ? "Copiar de novo e abrir o Claude" : "Copiar e abrir o Claude"}</button><button class="btn btn-secondary" onclick="App.chkRevCopiarPacote(${k}, false)">Só copiar</button></div></div>`;
   }).join("")}`;
 }
 function screenChkRevisao(){
@@ -17673,7 +17677,7 @@ function screenChkRevisao(){
   const pacotesHtml = chkRevPacotesHtml();
   const cont = lclRevisaoContagem(todas.map(x=> x.linha));
   const validar = todas.filter(x=> x.linha.revisaoPendente && (x.linha.revisaoPendente.itens || []).length);
-  const validarHtml = validar.length ? `<div class="section-title">Aguardando validação (${cont.linhas} ${cont.linhas === 1 ? "linha" : "linhas"}, ${cont.secoes} ${cont.secoes === 1 ? "texto" : "textos"})</div>${validar.map(x=> `<div class="card card-pad" style="margin-top:8px;display:flex;align-items:center;gap:10px"><span style="flex:1"><b>${escapeHtml(x.linha.nome || "Linha")}</b> <span class="stat-pill">${escapeHtml(x.setor)}</span> <span class="stat-pill alert pend">${x.linha.revisaoPendente.itens.length} ${x.linha.revisaoPendente.itens.length === 1 ? "texto" : "textos"}</span></span><button class="btn btn-primary" onclick="App.chkRevValidarLinha('${x.linha.id}')">Validar</button></div>`).join("")}` : "";
+  const validarHtml = validar.length ? `<div class="section-title" id="chkRevValidarSec">Aguardando validação (${cont.linhas} ${cont.linhas === 1 ? "linha" : "linhas"}, ${cont.secoes} ${cont.secoes === 1 ? "texto" : "textos"})</div>${validar.map(x=> `<div class="card card-pad" style="margin-top:8px;display:flex;align-items:center;gap:10px"><span style="flex:1"><b>${escapeHtml(x.linha.nome || "Linha")}</b> <span class="stat-pill">${escapeHtml(x.setor)}</span> <span class="stat-pill alert pend">${x.linha.revisaoPendente.itens.length} ${x.linha.revisaoPendente.itens.length === 1 ? "texto" : "textos"}</span></span><button class="btn btn-primary" onclick="App.chkRevValidarLinha('${x.linha.id}')">Validar</button></div>`).join("")}` : "";
   return `
   <div class="card card-pad"><div style="font-weight:800;font-size:14.5px;margin-bottom:4px">Revisar os textos com o Claude</div>
     <p style="font-size:13px;color:var(--ink-dim);margin:0">1. Marque as linhas. 2. Monte os pacotes e cole no Claude. 3. Cole as respostas aqui: elas ficam <b>guardadas para validar</b>, sem mudar o laudo. 4. Valide linha a linha (antes e depois). As respostas do checklist nunca são tocadas, e o texto de antes fica guardado no histórico. O prompt é editado em Configurações.</p></div>
@@ -34711,6 +34715,11 @@ Devolver agora?`)) return;
       if(t) App.chkRevGuardar();
     }catch(e){ toast("O navegador não deixou ler a área de transferência: cole no campo (Ctrl+V)", false); }
   },
+  chkRevIrValidar(){
+    const s = document.getElementById("chkRevValidarSec");
+    if(s && s.scrollIntoView) s.scrollIntoView({ behavior:"smooth", block:"start" });
+    else toast("Nada aguardando validação", false);
+  },
   chkRevGuardar(){
     const proj = getCurrentChkProjeto(); const ta = document.getElementById("chkRevColar"); if(!proj || !ta) return;
     if(!String(ta.value || "").trim()){ toast("Cole a resposta do Claude primeiro", false); return; }
@@ -34724,7 +34733,7 @@ Devolver agora?`)) return;
       const r = out.porLinha[id];
       const n = lclRevisaoGuardarPendente(l, r.itens, r.notas);
       if(n){ textos += n; nLinhas++; }
-      if((r.itens || []).length){ __chkRev.respondidas[id] = true; lidas.push(id); }   // o Claude respondeu esta linha, mesmo que não tenha mudado nada
+      if((r.itens || []).length){ __chkRev.respondidas[id] = { n }; lidas.push(id); }   // o Claude respondeu esta linha, mesmo que não tenha mudado nada (n = textos que ficaram para validar)
     });
     if(!textos && !lidas.length){ toast("Não encontrei textos novos para as linhas deste projeto" + (out.invalidos ? " (" + out.invalidos + " trecho(s) ignorado(s))" : ""), false); return; }
     // qual pacote essa resposta completou (ou adiantou)
@@ -34732,8 +34741,9 @@ Devolver agora?`)) return;
     const qual = pacs.length ? " Pacote " + pacs.map(x=> (x.k + 1) + (x.e.estado === "colado" ? " completo" : " parcial")).join(", ") + "." : "";
     marcarAlterado();
     ta.value = "";
-    toast(textos ? textos + (textos === 1 ? " texto guardado" : " textos guardados") + " em " + nLinhas + (nLinhas === 1 ? " linha" : " linhas") + ", para validar. Nada mudou nos laudos." + qual + (out.invalidos ? " " + out.invalidos + " trecho(s) ignorado(s)." : "") : "Resposta lida: o Claude não mudou nenhum texto de " + lidas.length + (lidas.length === 1 ? " linha." : " linhas.") + qual);
+    toast(textos ? textos + (textos === 1 ? " texto guardado" : " textos guardados") + " em " + nLinhas + (nLinhas === 1 ? " linha" : " linhas") + ", para validar. Nada mudou nos laudos." + qual + (out.invalidos ? " " + out.invalidos + " trecho(s) ignorado(s)." : "") : "Resposta lida: o Claude devolveu o mesmo texto de " + lidas.length + (lidas.length === 1 ? " linha" : " linhas") + ", então não há nada para validar." + qual);
     render();
+    if(textos) setTimeout(()=>{ const s = document.getElementById("chkRevValidarSec"); if(s && s.scrollIntoView) s.scrollIntoView({ behavior:"smooth", block:"start" }); }, 200);
   },
   chkSalvarPrompt(){
     const ta = document.getElementById("chkCfgPrompt"), mx = document.getElementById("chkCfgMax"); if(!ta) return;

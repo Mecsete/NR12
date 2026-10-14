@@ -3453,8 +3453,12 @@ async function testarUsabilidade(){
       roda("__chkRev.pacotes = lclPacotesRevisao([{ linha: chkAcharLinhaPorId(STATE, 'L1'), setor:'A' }, { linha: chkAcharLinhaPorId(STATE, 'L2'), setor:'A' }], " + pj + ", 500000); __chkRev.copiados = { 0:true }; __chkRev.respondidas = { L1:true };");
       const h3 = roda("chkRevPacotesHtml()");
       T(h3.includes("Resposta parcial") && h3.includes("Faltam: Linha Dois") && !h3.includes("Resposta colada"), "resposta so de uma das linhas do pacote: parcial, dizendo qual falta");
-      roda("__chkRev.respondidas = { L1:true, L2:true }");
-      T(roda("chkRevPacotesHtml()").includes("tudo colado, valide as linhas abaixo"), "tudo colado: manda validar");
+      roda("__chkRev.respondidas = { L1:{ n:2 }, L2:{ n:0 } }");
+      const h4 = roda("chkRevPacotesHtml()");
+      T(h4.includes("tudo colado, valide as linhas na lista") && h4.includes("2 textos para validar") && h4.includes("sem mudanças") && h4.includes("App.chkRevIrValidar()") && h4.includes("Ir para validar (2 textos)"), "tudo colado com textos: manda validar, mostra quantos por linha e oferece ir para a lista");
+      roda("__chkRev.respondidas = { L1:{ n:0 }, L2:{ n:0 } }");
+      const h5 = roda("chkRevPacotesHtml()");
+      T(h5.includes("Resposta colada: sem mudanças") && h5.includes("não há nada para validar neste pacote") && h5.includes("o Claude não mudou nenhum texto") && !h5.includes("Ir para validar"), "o Claude devolveu o mesmo texto: o pacote diz que nao ha nada para validar");
       roda("__chkRev.pacotes = []; __chkRev.copiados = {}; __chkRev.respondidas = {};");
       T(roda("chkRevPacotesHtml()") === "", "sem pacotes montados, nada aparece");
     }
