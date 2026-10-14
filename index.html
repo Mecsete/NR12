@@ -1014,6 +1014,7 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-resumo-linha{border-left:4px solid;background:var(--bg-soft);border-radius:0 8px 8px 0;padding:8px 10px;margin-bottom:6px;}
 .chk-resumo-desc{font-size:13px;font-weight:600;}
 .chk-resumo-motivo{font-size:12.5px;color:var(--ink-dim);margin-top:2px;}
+.chk-nc-mots{margin-top:3px}.chk-nc-mot{display:flex;gap:7px;align-items:center;margin:3px 0;font-size:12.5px;color:var(--ink-dim)}
 .chk-resumo-status{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;display:block;margin-top:4px;}
 .chk-laudo-assinatura{margin-top:24px;padding-top:14px;border-top:1px solid var(--line);font-size:13px;}
 /* ---------- Laudo narrativo (Modelo 3 — Ficha + Narrativa) ---------- */
@@ -3471,7 +3472,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "13/10/2026 21:43";
+const APP_BUILD = "13/10/2026 21:51";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -14112,7 +14113,7 @@ function chkResumoHtml(linha){
       const nota = [(ie.motivosSelecionados||[]).join(", "), ie.observacao].filter(Boolean).join(" — ");
       return `<div class="chk-resumo-linha" style="border-left-color:${meta.cor}">
         <div class="chk-resumo-desc">${escapeHtml(it.descricao)}</div>
-        ${nota? `<div class="chk-resumo-motivo">${escapeHtml(nota)}</div>`:""}
+        ${status === "naoAtende" ? chkMotivosCritHtml(linha, it, ie) : (nota ? `<div class="chk-resumo-motivo">${escapeHtml(nota)}</div>` : "")}
         <span class="chk-resumo-status" style="color:${meta.cor}">${meta.label}</span>
       </div>`;
     });
@@ -14390,6 +14391,15 @@ function chkSyncInfoHtml(){
   const hm = __chkSyncUltima ? new Date(__chkSyncUltima).toLocaleTimeString("pt-BR", { hour:"2-digit", minute:"2-digit" }) : "";
   return `<div class="chk-sync-info">${hm ? "Sincronizado com a nuvem às " + hm : "Ainda não sincronizado neste aparelho desde que o app abriu"}</div>`;
 }
+/* Motivos marcados de um item que não atende, cada um com a criticidade dele: o mesmo selo (ícone, cor e formato) do laudo. A nota do inspetor vem logo abaixo.
+   Sem motivo marcado, só a nota (ou nada). A criticidade é a do motivo na cópia do modelo da linha; motivo sem criticidade vale a da pergunta. */
+function chkMotivosCritHtml(linha, it, ie){
+  const mots = (ie && ie.motivosSelecionados) || [];
+  const obs = String((ie && ie.observacao) || "").trim();
+  if(!mots.length) return obs ? `<div class="chk-resumo-motivo">${escapeHtml(obs)}</div>` : "";
+  const prioDe = (m)=>{ const mp = ((it && it.motivosPadrao) || []).find(x=> x.motivo === m); return mp && chkPrioridadeValida(mp.prioridade) ? mp.prioridade : lclPrioridade(linha, it); };
+  return `<div class="chk-nc-mots">${mots.map(m=> `<div class="chk-nc-mot">${lclPrioChip(prioDe(m))}<span>${escapeHtml(m)}</span></div>`).join("")}</div>${obs ? `<div class="chk-resumo-motivo">${escapeHtml(obs)}</div>` : ""}`;
+}
 /* Itens que NÃO atendem, para conferir (motivo e fotos) e corrigir antes de finalizar. */
 function chkNaoConformesHtml(l){
   const itens = [];
@@ -14411,7 +14421,7 @@ function chkNaoConformesHtml(l){
     const temFalta = faltasDe(it, ie).length > 0;
     return `<div class="chk-resumo-linha" style="border-left-color:${temFalta ? cor : "#9aa0b3"}">
       <div class="chk-resumo-desc"><b>${si + 1}.${ii + 1}</b> ${escapeHtml(it.descricao)}</div>
-      ${nota ? `<div class="chk-resumo-motivo">${escapeHtml(nota)}</div>` : `<div class="chk-resumo-motivo" style="color:#C23F12">Sem motivo informado</div>`}
+      ${chkMotivosCritHtml(l, it, ie) || `<div class="chk-resumo-motivo" style="color:#C23F12">Sem motivo informado</div>`}
       ${fotos.length ? `<div class="chk-nc-fotos">${fotos.slice(0, 6).map(f=>`<img class="chk-nc-foto" data-imgref="${imgReg(f.foto)}" onclick="App.verFotoReg(this)">`).join("")}${fotos.length > 6 ? `<span class="chk-nc-mais">+${fotos.length - 6}</span>` : ""}</div>` : (ie.semFoto ? `<div class="chk-resumo-motivo" style="color:var(--ink-faint)">Sem foto (confirmado)</div>` : `<div class="chk-resumo-motivo" style="color:#C23F12">Sem foto</div>`)}
       ${temFalta
         ? `<button class="btn" style="margin-top:6px;padding:4px 10px;font-size:12px" onclick="App.chkIrDaRevisao(${si},'${it.id}')">Corrigir</button>`
