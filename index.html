@@ -3498,7 +3498,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "14/10/2026 09:16";
+const APP_BUILD = "14/10/2026 09:30";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -35177,20 +35177,63 @@ Devolver agora?`)) return;
       <h3>${fmt === "setor" ? "Um arquivo por setor" : "Um arquivo por linha"}</h3>
       <div class="sheet-sub" id="lclFilaSub"></div>
       <div class="lote-lista" id="lclFilaCorpo"></div>
-      <div class="modal-actions"><button class="btn btn-secondary" onclick="App.lclFilaFechar()">Fechar</button><button class="btn btn-primary" id="lclFilaProx" onclick="App.lclFilaProximo()"></button></div>
+      <div class="modal-actions" style="flex-wrap:wrap"><button class="btn btn-secondary" onclick="App.lclFilaFechar()">Fechar</button><button class="btn btn-secondary" id="lclFilaSeq"></button><button class="btn btn-primary" id="lclFilaProx" onclick="App.lclFilaProximo()"></button></div>
     </div></div>`);
     App.lclFilaRedesenhar();
   },
   lclFilaRedesenhar(){
     const f = __lclFila; if(!f) return;
-    const corpo = document.getElementById("lclFilaCorpo"), sub = document.getElementById("lclFilaSub"), prox = document.getElementById("lclFilaProx");
+    const corpo = document.getElementById("lclFilaCorpo"), sub = document.getElementById("lclFilaSub"), prox = document.getElementById("lclFilaProx"), seq = document.getElementById("lclFilaSeq");
     if(!corpo) return;
+    const ocupado = f.ocupado || f.seq;
     const rot = { espera:"", montando:"montando…", enviado:"enviado para salvar", erro:"não foi possível montar" };
     const feitos = f.itens.filter(x=> x.estado === "enviado").length;
-    corpo.innerHTML = f.itens.map((x, i)=> `<div class="lote-item" style="cursor:default;align-items:center"><span style="flex:1"><b>${escapeHtml(x.rotulo)}</b><small>${escapeHtml(x.sub)}${rot[x.estado] ? " · " + rot[x.estado] : ""}</small></span><button type="button" class="btn btn-sm" ${f.ocupado ? "disabled" : ""} onclick="App.lclFilaSalvar(${i})">${x.estado === "enviado" ? "Salvar de novo" : "Salvar PDF"}</button></div>`).join("");
-    if(sub) sub.textContent = feitos + " de " + f.itens.length + " enviados para salvar. Em cada um, o navegador abre a janela de impressão: escolha Salvar como PDF e confirme. O nome do arquivo já vem sugerido. Se cancelar, use Salvar de novo.";
+    corpo.innerHTML = f.itens.map((x, i)=> `<div class="lote-item" style="cursor:default;align-items:center"><span style="flex:1"><b>${escapeHtml(x.rotulo)}</b><small>${escapeHtml(x.sub)}${rot[x.estado] ? " · " + rot[x.estado] : ""}</small></span><button type="button" class="btn btn-sm" ${ocupado ? "disabled" : ""} onclick="App.lclFilaSalvar(${i})">${x.estado === "enviado" ? "Salvar de novo" : "Salvar PDF"}</button></div>`).join("");
+    if(sub) sub.textContent = f.msg || (feitos + " de " + f.itens.length + " enviados para salvar. Em cada um, o navegador abre a janela de impressão: escolha Salvar como PDF e confirme. O nome do arquivo já vem sugerido. Se cancelar, use Salvar de novo.");
     const prim = f.itens.findIndex(x=> x.estado !== "enviado");
-    if(prox){ prox.disabled = f.ocupado || prim < 0; prox.textContent = prim < 0 ? "Todos enviados" : "Salvar o próximo (" + (prim + 1) + " de " + f.itens.length + ")"; }
+    const restam = f.itens.filter(x=> x.estado !== "enviado").length;
+    if(prox){ prox.disabled = ocupado || prim < 0; prox.textContent = prim < 0 ? "Todos enviados" : "Salvar o próximo (" + (prim + 1) + " de " + f.itens.length + ")"; }
+    if(seq){
+      if(f.seq){ seq.textContent = f.parar ? "Parando…" : "Parar"; seq.disabled = !!f.parar; seq.onclick = ()=> App.lclFilaParar(); }
+      else { seq.textContent = restam ? "Salvar todos em sequência (" + restam + ")" : "Salvar todos em sequência"; seq.disabled = f.ocupado || !restam; seq.onclick = ()=> App.lclFilaSequencia(); }
+    }
+  },
+  /* Salva todos os que faltam, um depois do outro: abre a impressão de um, espera fechar, 3 segundos de pausa (dá tempo de Parar) e abre a do seguinte.
+     O navegador não diz se a pessoa salvou ou cancelou a janela; por isso o item cancelado também aparece como enviado, e "Salvar de novo" refaz. */
+  async lclFilaSequencia(){
+    const f = __lclFila; if(!f || f.seq || f.ocupado || __lclLoteEmAndamento || __lclGerando) return;
+    const fila = f.itens.map((x, i)=> i).filter(i=> f.itens[i].estado !== "enviado");
+    if(!fila.length) return;
+    f.seq = true; f.parar = false; f.msg = "";
+    App.lclFilaRedesenhar();
+    let feitos = 0;
+    try{
+      for(let n = 0; n < fila.length; n++){
+        if(__lclFila !== f || f.parar) break;
+        await App.lclFilaSalvar(fila[n]);
+        if(f.itens[fila[n]].estado === "erro") break;
+        feitos++;
+        if(n < fila.length - 1 && !f.parar && __lclFila === f){
+          for(let s = 3; s > 0 && !f.parar && __lclFila === f; s--){
+            f.msg = "Próximo laudo em " + s + " s. Toque em Parar para interromper.";
+            App.lclFilaRedesenhar();
+            await new Promise(r=> setTimeout(r, 1000));
+          }
+          f.msg = "";
+        }
+      }
+    }finally{
+      if(__lclFila === f){ f.seq = false; f.msg = ""; f.parar = false; App.lclFilaRedesenhar(); }
+    }
+    if(__lclFila === f){
+      const falta = f.itens.filter(x=> x.estado !== "enviado").length;
+      toast(falta ? feitos + " enviados. Faltam " + falta + ": use Salvar PDF nos que sobraram." : "Os " + f.itens.length + " arquivos foram enviados. Confira na pasta de Downloads: devem ser " + f.itens.length + " PDFs.");
+    }
+  },
+  lclFilaParar(){
+    const f = __lclFila; if(!f || !f.seq) return;
+    f.parar = true; f.msg = "Vai parar depois do arquivo atual.";
+    App.lclFilaRedesenhar();
   },
   lclFilaProximo(){
     const f = __lclFila; if(!f) return;
@@ -35203,18 +35246,22 @@ Devolver agora?`)) return;
     const proj = getCurrentChkProjeto(); if(!proj) return;
     f.ocupado = true; x.estado = "montando"; App.lclFilaRedesenhar();
     __lclLoteEmAndamento = true;
+    let fim = Promise.resolve();   // cumpre quando a janela de impressão fecha (a sequência espera por ele)
     try{
       const partes = [];
       for(const a of x.alvos) partes.push((await App.lclGerarDe(proj, a.s, a.l)).html);
       x.estado = "enviado";
-      window.addEventListener("afterprint", ()=>{ f.ocupado = false; App.lclFilaRedesenhar(); }, { once:true });
+      let liberar; fim = new Promise(r=>{ liberar = r; });
+      const soltar = ()=>{ if(f.ocupado){ f.ocupado = false; App.lclFilaRedesenhar(); } liberar(); };
+      window.addEventListener("afterprint", soltar, { once:true });
       await App.lclImprimirPartes(partes, x.arquivo);
-      setTimeout(()=>{ if(f.ocupado){ f.ocupado = false; App.lclFilaRedesenhar(); } }, 61000);
+      setTimeout(soltar, 180000);
     }catch(e){
       x.estado = "erro"; f.ocupado = false;
       toast("Não foi possível montar o laudo: " + (e && e.message ? e.message : e), false);
     }finally{ __lclLoteEmAndamento = false; }
     App.lclFilaRedesenhar();
+    return fim;
   },
   lclFilaFechar(){ __lclFila = null; App.fecharModal(); },
   /* Monta e imprime, em um PDF só, o laudo das linhas escolhidas (na ordem do projeto). */
