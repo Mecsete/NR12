@@ -751,6 +751,8 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-foto-btns{display:flex;gap:8px;margin-top:8px}
 .chk-foto-btns .btn{flex:1}
 .lote-acoes{display:flex;gap:8px;margin:10px 0 6px}
+.chk-ordem{display:flex;gap:8px;align-items:center;margin:0 0 10px;font-size:12.5px;color:var(--ink-dim)}
+.chk-ordem select{flex:1;max-width:260px;padding:7px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font:inherit}
 .lote-formato{display:flex;flex-direction:column;gap:6px;margin:0 0 12px;font-size:13px}
 .lote-formato b{font-size:12px;letter-spacing:.03em;text-transform:uppercase;color:var(--ink-dim)}
 .lote-formato label{display:flex;gap:8px;align-items:center;cursor:pointer}
@@ -3480,7 +3482,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "14/10/2026 08:26";
+const APP_BUILD = "14/10/2026 08:55";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -11420,6 +11422,8 @@ let __chkProjEditado = false; // digitou nos dados do projeto: ao sair da tela a
 let __chkDaRevisao = false;   // veio da tela Revisar e finalizar: mostra "Voltar à revisão" no preenchimento
 let __chkProjFiltro = "todos"; // filtro de status da lista de projetos
 let __chkSetFiltro = "todos"; // filtro de status da lista de setores
+// ordem das listas de setores e de linhas: az (padrão) | za | num (número do documento) | recentes. Só neste aparelho.
+let __chkOrdemLista = (()=>{ try{ const v = localStorage.getItem("chkOrdemLista"); return ["az", "za", "num", "recentes"].includes(v) ? v : "az"; }catch(e){ return "az"; } })();
 let __chkProjFormOrigem = "";  // de onde se abriu os dados do projeto (para o botão voltar)
 let __chkLinhasFiltro = "todas"; // 'todas' | 'pendente' | 'andamento' | 'finalizado' — filtro da lista de linhas de vida, some ao sair do setor
 /* A cada tecla digitada a tela inteira é redesenhada — o campo de busca é
@@ -14363,6 +14367,20 @@ function chkAcoesCartao(tipo, id){
 function chkBotaoMenu(tipo, id){
   return `<button class="icon-btn" aria-label="Mais opções" title="Mais opções" onclick="event.stopPropagation();App.chkMenuCartao('${tipo}','${id}')">${ic('dots')}</button>`;
 }
+/* Ordena uma lista de setores ou de linhas conforme a escolha do usuário. `seq(x)` = número de sequência do documento (ou null), `rec(x)` = última alteração. */
+function chkOrdenarLista(lista, ordem, seq, rec){
+  const nome = (a, b)=> chkCompararNomes(a && a.nome, b && b.nome);
+  const sq = (x)=>{ const v = seq(x); return Number.isInteger(v) ? v : Infinity; };
+  const f = ordem === "za" ? (a, b)=> nome(b, a)
+    : ordem === "num" ? (a, b)=> (sq(a) === sq(b) ? nome(a, b) : (sq(a) < sq(b) ? -1 : 1))
+    : ordem === "recentes" ? (a, b)=> (rec(b) || 0) - (rec(a) || 0)
+    : nome;
+  return lista.slice().sort(f);
+}
+function chkOrdemHtml(){
+  const op = [["az", "A a Z"], ["za", "Z a A"], ["num", "Número do documento"], ["recentes", "Mais recentes"]];
+  return `<div class="chk-ordem"><label for="chkOrdemSel">Ordenar por</label><select id="chkOrdemSel" onchange="App.chkSetOrdemLista(this.value)">${op.map(o=> `<option value="${o[0]}" ${__chkOrdemLista === o[0] ? "selected" : ""}>${o[1]}</option>`).join("")}</select></div>`;
+}
 function chkBuscaChipsHtml(placeholder, ativo, itens, setter, mostrarBusca){
   const busca = mostrarBusca ? `<div class="search-wrap"><input type="text" id="buscaInput" class="search-input" placeholder="${placeholder}" value="${escapeHtml(__buscaAtual)}" oninput="App.onBuscaChange(this.value)">${__buscaAtual ? `<button class="search-clear" onclick="App.onBuscaChange('')">${ic('close')}</button>` : ""}</div>` : "";
   const chips = itens.length > 1 ? `<div class="chk-filtros-row">${itens.map(f=>`<button class="chk-filtro-chip ${ativo === f.k ? 'on' : ''}" onclick="${setter}('${f.k}')">${escapeHtml(f.label)} (${f.n})</button>`).join("")}</div>` : "";
@@ -14820,6 +14838,7 @@ function screenChkProjetoForm(){
       <div class="chk-pf-titulo">Documento</div>
       <div class="chk-pf-grid2">
         <div class="field"><label>Nº do documento (do primeiro laudo)</label><input type="text" placeholder="Ex.: MEC7.2026.0820.001-01" value="${v(p.numeroDocumento)}" oninput="App.chkSetProjetoField('numeroDocumento',this.value)"><div class="field-hint">Cada laudo do projeto recebe o número seguinte sozinho: o 2º sai ${escapeHtml(chkNumeroDocSomar(p.numeroDocumento || "MEC7.2026.0820.001-01", 1))}, o 3º ${escapeHtml(chkNumeroDocSomar(p.numeroDocumento || "MEC7.2026.0820.001-01", 2))} e assim por diante, na ordem das linhas.</div></div>
+        ${chkEhCampo() ? "" : `<div class="field span2"><button type="button" class="btn btn-secondary" onclick="App.chkRenumerarAbrir()">Renumerar laudos em ordem alfabética</button><div class="field-hint">O número de cada laudo não muda sozinho. Este botão refaz a numeração do projeto inteiro (setor, depois linha, de A a Z). Use só antes de imprimir ou entregar os laudos.</div></div>`}
         <div class="field"><label>ART</label><input type="text" inputmode="numeric" value="${v(p.art)}" oninput="App.chkSetProjetoField('art',this.value)"></div>
         <div class="field"><label>Data da inspeção</label><input type="date" value="${v(p.dataInspecao)}" oninput="App.chkSetProjetoField('dataInspecao',this.value)"></div>
         <div class="field"><label>Validade da inspeção</label><input type="date" id="chkPfValidade" value="${v(p.validadeInspecao)}" oninput="App.chkSetProjetoField('validadeInspecao',this.value)"><div class="chk-pf-dica">${validadeAuto ? "Já vem 12 meses depois da inspeção; pode mudar." : "Preenche sozinha (12 meses) quando houver a data da inspeção."}</div></div>
@@ -14861,7 +14880,7 @@ function screenChkSetores(){
   }
   const termoSet = __buscaAtual.trim().toLowerCase();
   const resSet = (s)=> chkResumoLinhas(s.linhas);
-  const setoresFiltrados = proj.setores.slice().sort((a,b)=>b.atualizadoEm-a.atualizadoEm)
+  const setoresFiltrados = chkOrdenarLista(proj.setores, __chkOrdemLista, (s)=> s.linhas.reduce((m, l)=> Number.isInteger(l.docSeq) ? Math.min(m, l.docSeq) : m, Infinity), (s)=> s.atualizadoEm)
     .filter(s=> chkPassaFiltroStatus(resSet(s), __chkSetFiltro) && (!termoSet || String(s.nome || "").toLowerCase().includes(termoSet)));
   const cards = setoresFiltrados.map(s=>{
     const nLinhas = s.linhas.length;
@@ -14885,7 +14904,7 @@ function screenChkSetores(){
       <div class="list-actions">${chkAcoesCartao('setor', s.id)}</div>
     </div>`;
   }).join("");
-  const controlesSet = chkBuscaChipsHtml("Buscar setor…", __chkSetFiltro, chkContagensFiltro(proj.setores.map(resSet)), "App.chkSetSetFiltro", proj.setores.length >= 4);
+  const controlesSet = chkBuscaChipsHtml("Buscar setor…", __chkSetFiltro, chkContagensFiltro(proj.setores.map(resSet)), "App.chkSetSetFiltro", proj.setores.length >= 4) + (proj.setores.length >= 2 ? chkOrdemHtml() : "");
   const nLoteProj = proj.setores.reduce((n, s)=> n + s.linhas.filter(l=> chkProgresso(l) > 0).length, 0);
   const botaoLoteProj = nLoteProj >= 2 && !chkEhCampo() ? `<button class="btn btn-secondary btn-block" style="margin-bottom:10px" onclick="App.lclLote('projeto')">${ic('print')} Laudos em PDF (${nLoteProj} linhas)</button>` : "";
   const botaoPronto = !chkEhCampo() && proj.setores.some(s=> s.linhas.length) ? `<button class="btn btn-secondary btn-block" style="margin-bottom:10px" onclick="App.go('checklist-pronto')">${ic('shield')} Conferir antes do laudo</button><button class="btn btn-secondary btn-block" style="margin-bottom:10px" onclick="App.go('checklist-revisao')">${ic('edit')} Revisar textos com o Claude${lclRevisaoContagem(proj.setores.flatMap(s=> s.linhas)).linhas ? ` <span class="stat-pill alert pend">${lclRevisaoContagem(proj.setores.flatMap(s=> s.linhas)).linhas} para validar</span>` : ""}</button>` : "";
@@ -15214,11 +15233,11 @@ function screenChkLinhas(){
   setor.linhas.forEach(l=> contagem[chkStatusLinha(l)]++);
   const filtrosHtml = FILTROS.map(f=>`<button class="chk-filtro-chip ${__chkLinhasFiltro===f.k?'on':''}" onclick="App.chkSetLinhasFiltro('${f.k}')">${escapeHtml(f.label)} (${contagem[f.k]})</button>`).join("");
   const termo = __buscaAtual.trim().toLowerCase();
-  const filtradas = setor.linhas.filter(l=>{
+  const filtradas = chkOrdenarLista(setor.linhas, __chkOrdemLista, (l)=> l.docSeq, (l)=> l.atualizadoEm).filter(l=>{
     if(__chkLinhasFiltro!=="todas" && chkStatusLinha(l)!==__chkLinhasFiltro) return false;
     if(termo && !(l.nome||"").toLowerCase().includes(termo)) return false;
     return true;
-  }).sort((a,b)=>b.atualizadoEm-a.atualizadoEm);
+  });
   const naoEnviadas = getOneDriveConta() ? chkLinhasPendentesEnvio(setor.linhas, chkVistosAtuais()) : new Set();
   const cards = filtradas.length ? filtradas.map(l=>{
     const st = chkStatusLinha(l);
@@ -17837,6 +17856,31 @@ function chkNumeroDocSomar(base, n){
    de nenhum laudo, e um número que já saiu nunca é entregue a outro laudo (o contador do projeto, proj.docProximoSeq, só cresce).
    Linhas que já têm checklist preenchido e ainda não têm número entram primeiro, na ordem da tela; depois, as demais, quando o laudo for preparado.
    O número impresso = número do projeto (do primeiro laudo) somado ao docSeq da linha. */
+/* Ordem alfabética dos setores e das linhas (números contam como número: "Secador 104" antes de "Secador 201"). É a ordem da numeração dos laudos
+   e da lista "Laudos em PDF". */
+function chkCompararNomes(a, b){ return String(a || "").localeCompare(String(b || ""), "pt-BR", { numeric:true, sensitivity:"base" }); }
+function chkSetoresOrdenados(setores){ return (setores || []).slice().sort((a, b)=> chkCompararNomes(a && a.nome, b && b.nome)); }
+function chkLinhasOrdenadas(linhas){ return (linhas || []).slice().sort((a, b)=> chkCompararNomes(a && a.nome, b && b.nome)); }
+function chkLinhasEmOrdem(proj){
+  const out = [];
+  chkSetoresOrdenados(proj && proj.setores).forEach(s=> chkLinhasOrdenadas(s.linhas).forEach(l=>{ if(l) out.push({ s, l }); }));
+  return out;
+}
+/* Refaz a numeração do projeto na ordem alfabética (setor, depois linha): só as linhas que já têm número ou já têm checklist preenchido.
+   Troca os números de laudos que já tenham sido numerados: só para uso antes de entregar ou imprimir. Devolve quantos laudos foram numerados. */
+function chkNumeroDocRenumerar(proj){
+  if(!proj) return 0;
+  let n = 0;
+  chkLinhasEmOrdem(proj).forEach(({ l })=>{
+    if(Number.isInteger(l.docSeq) || chkProgresso(l) > 0 || l.status === "finalizado"){
+      if(l.docSeq !== n){ l.docSeq = n; l.atualizadoEm = agoraSync(); }
+      n++;
+    }
+  });
+  proj.docProximoSeq = n;
+  proj.atualizadoEm = agoraSync();
+  return n;
+}
 function chkNumeroDocProximo(proj){
   let m = -1;
   ((proj && proj.setores) || []).forEach(s=> (s.linhas || []).forEach(l=>{ if(l && Number.isInteger(l.docSeq)) m = Math.max(m, l.docSeq); }));
@@ -17847,10 +17891,10 @@ function chkNumeroDocFixar(proj, linha){
   if(!proj || !linha || Number.isInteger(linha.docSeq)) return false;
   let prox = chkNumeroDocProximo(proj);
   const dar = (l)=>{ l.docSeq = prox++; l.atualizadoEm = agoraSync(); };
-  // na ordem da tela: a própria linha e as já preenchidas que ainda não têm número
-  (proj.setores || []).forEach(s=> (s.linhas || []).forEach(l=>{
-    if(l && !Number.isInteger(l.docSeq) && (l.id === linha.id || chkProgresso(l) > 0 || l.status === "finalizado")) dar(l);
-  }));
+  // em ordem alfabética (setor, linha): a própria linha e as já preenchidas que ainda não têm número
+  chkLinhasEmOrdem(proj).forEach(({ l })=>{
+    if(!Number.isInteger(l.docSeq) && (l.id === linha.id || chkProgresso(l) > 0 || l.status === "finalizado")) dar(l);
+  });
   proj.docProximoSeq = prox;
   proj.atualizadoEm = agoraSync();
   return true;
@@ -33557,6 +33601,30 @@ Devolver agora?`)) return;
   chkEditarSetor(id){ STATE.ui.chkSetorId = id; STATE.ui.chkLinhaId = null; go("checklist-setor-form"); },
   chkSetProjFiltro(f){ __chkProjFiltro = f; render(); },
   chkSetSetFiltro(f){ __chkSetFiltro = f; render(); },
+  /* Refaz os números dos laudos em ordem alfabética. Pede confirmação (muda números que já existam), guarda ponto de restauração. */
+  async chkRenumerarAbrir(){
+    const proj = getCurrentChkProjeto(); if(!proj) return;
+    const ordem = chkLinhasEmOrdem(proj).filter(({ l })=> Number.isInteger(l.docSeq) || chkProgresso(l) > 0 || l.status === "finalizado");
+    if(!ordem.length){ toast("Nenhuma linha com checklist preenchido para numerar", false); return; }
+    if(!String(proj.numeroDocumento || "").trim()){ toast("Digite antes o Nº do documento (do primeiro laudo)", false); return; }
+    const mudam = ordem.filter(({ l }, i)=> l.docSeq !== i).length;
+    if(!mudam){ toast("Os laudos já estão numerados em ordem alfabética"); return; }
+    const amostra = ordem.slice(0, 3).map(({ l }, i)=> `${chkNumeroDocSomar(proj.numeroDocumento, i)}  ${l.nome || "Linha de vida"}`).join("\n");
+    if(!confirm(`Renumerar ${ordem.length} laudos em ordem alfabética (setor, depois linha)?\n\n${mudam} ${mudam === 1 ? "laudo muda" : "laudos mudam"} de número. Os começos da lista ficam:\n${amostra}\n\nUse só se ainda não imprimiu nem entregou estes laudos. Os outros aparelhos precisam sincronizar antes de alterar alguma linha.`)) return;
+    const ok = await salvarPontoDeRestauracao("Antes de renumerar os laudos de " + (proj.empresa || "projeto"));
+    if(!ok){ toast("Não consegui criar o ponto de restauração: nada foi alterado", false); return; }
+    const n = chkNumeroDocRenumerar(proj);
+    marcarAlterado();
+    __lclPaginas = []; __lclHtml = ""; __lclParaLinha = null;
+    toast(n + (n === 1 ? " laudo renumerado" : " laudos renumerados") + " em ordem alfabética");
+    render();
+  },
+  chkSetOrdemLista(v){
+    if(!["az", "za", "num", "recentes"].includes(v)) return;
+    __chkOrdemLista = v;
+    try{ localStorage.setItem("chkOrdemLista", v); }catch(e){}
+    render();
+  },
   chkContinuar(pid, sid, lid){
     STATE.ui.chkProjetoId = pid; STATE.ui.chkSetorId = sid; STATE.ui.chkLinhaId = lid;
     const l = getCurrentChkLinha(); if(!l) return;
@@ -34975,7 +35043,7 @@ Devolver agora?`)) return;
     const proj = getCurrentChkProjeto(); if(!proj) return;
     const setorAtual = getCurrentChkSetor();
     const setores = escopo === "setor" ? (setorAtual ? [setorAtual] : []) : proj.setores;
-    const grupos = setores.map(s=> ({ s, linhas: s.linhas.filter(l=> chkProgresso(l) > 0) })).filter(g=> g.linhas.length);
+    const grupos = chkSetoresOrdenados(setores).map(s=> ({ s, linhas: chkLinhasOrdenadas(s.linhas).filter(l=> chkProgresso(l) > 0) })).filter(g=> g.linhas.length);
     if(!grupos.length){ toast("Nenhuma linha com checklist preenchido", false); return; }
     const ignoradas = setores.reduce((n, s)=> n + s.linhas.length, 0) - grupos.reduce((n, g)=> n + g.linhas.length, 0);
     const total = grupos.reduce((n, g)=> n + g.linhas.length, 0);
@@ -35047,7 +35115,7 @@ Devolver agora?`)) return;
     const setorAtual = getCurrentChkSetor();
     const setores = escopo === "setor" ? (setorAtual ? [setorAtual] : []) : proj.setores;
     const alvos = [];
-    setores.forEach(s=> s.linhas.forEach(l=>{ if(ids.includes(l.id)) alvos.push({ s, l }); }));
+    chkSetoresOrdenados(setores).forEach(s=> chkLinhasOrdenadas(s.linhas).forEach(l=>{ if(ids.includes(l.id)) alvos.push({ s, l }); }));
     if(!alvos.length){ toast("Nenhum dos laudos escolhidos foi encontrado", false); return; }
     const comAviso = alvos.map(a=> ({ a, av: lclAvisos(a.l, proj) })).filter(x=> x.av.length);
     if(comAviso.length){
@@ -35107,7 +35175,7 @@ Devolver agora?`)) return;
     const setorAtual = getCurrentChkSetor();
     const setores = escopo === "setor" ? (setorAtual ? [setorAtual] : []) : proj.setores;
     const alvos = [];
-    setores.forEach(s=> s.linhas.forEach(l=>{ if(ids.includes(l.id)) alvos.push({ s, l }); }));
+    chkSetoresOrdenados(setores).forEach(s=> chkLinhasOrdenadas(s.linhas).forEach(l=>{ if(ids.includes(l.id)) alvos.push({ s, l }); }));
     if(!alvos.length){ toast("Nenhum dos laudos escolhidos foi encontrado", false); return; }
     const comAviso = alvos.map(a=> ({ a, av: lclAvisos(a.l, proj) })).filter(x=> x.av.length);
     if(comAviso.length || alvos.length > 8){

@@ -159,7 +159,7 @@ const FUNCOES = [
   "lclItemModeloAtual", "lclPrioridade", "lclAcaoMotivo", "lclNaoConformidades", "lclParecerAuto", "lclParecer",
   "lclListaPt", "lclVariaveis", "lclAplicarVariaveis", "lclMarkup", "lclBlocosMemorial", "lclBlocosAnexos", "lclListaImagensHtml",
   "screenChkSetorForm", "chkFotosSecaoHtml", "chkFotosSecaoResumoHtml", "chkRenderItem", "screenChkPreencher", "screenChkFinalizar", "chkResumoHtml",
-  "lclTextoEditado", "lclHtmlParaTexto", "lclTextoParaHtml", "lclConclusaoAuto", "lclFotosSecaoHtml", "lclNumItem", "chkCalcErro", "chkCalcTokens", "chkCalcParse", "chkCalcDeps", "chkCalcAval", "chkCalcNum", "chkCalcMostrar", "chkCalcLista", "chkCalcResolver", "chkCalcConstantesPadrao", "chkCalcConfig", "chkCalcSnapshotNovo", "chkCalcRodarCasos", "chkMemorialCalcLegado", "chkMemorialCalcNovo", "chkMemorialVereditoNovo", "chkMemorialComoLerHtml", "chkMemorialFaltaTexto", "chkMemorialEpiTexto", "chkMemorialFqTexto", "chkMemorialCondicoesNovo", "chkMemorialParecerNovo", "chkMemorialPremissasNovo", "chkMemorialAlertasNovo", "chkMemorialResumoCalc", "chkMemorialResNovoHtml", "lclBlocosMemorialNovo", "chkMemorialCalcInfoHtml", "chkCalcEmEdicao", "chkCalcDiffPendente", "chkCalcValidar", "chkCalcSalvarConfig", "chkCalcResolverTela", "chkCalcLinhasHtml", "chkCalcConstantesHtml", "chkCalcCasoPainelHtml", "chkCalcBannerHtml", "chkCalcTabelaHtml", "chkCalcLaudosExistentes", "chkCalcReprocessarLinhas", "chkCalcLaudosHtml", "screenChkCalculo", "chkCalcBarraHtml", "chkAtuNorm", "chkAtuPior", "chkAtuNovoRel", "chkAtuIdLivre", "chkAtuDist", "chkAtuMontarSecoes", "chkAtuLinha", "chkAtuExecutar", "chkAtuAfinidade", "chkAtuDistTexto", "chkAtuTrocasTexto", "chkAtuRelHtml", "chkTextosV2AplicarSecoes", "chkTextosV2TipoDe", "lclFotosDoLaudo", "lclFotosDestinos", "lclInserirFotos", "lclArquivosDoEvento", "lclPrioLegenda", "lclPrioChip", "chkNumeroDocSomar", "chkNumeroDocLinha", "chkNumeroDocProximo", "chkNumeroDocFixar", "chkNumeroDocRepetidas", "chkMoverLinha", "chkCopiarLinha", "chkDuplicarProjeto", "chkSyncAplicar", "chkSyncMesclarLinha", "chkDropRecusado", "chkLaudoFilaItens", "nomeArquivoLaudoLinha", "chkArquivosDaColagem", "chkMotivosCritHtml",
+  "lclTextoEditado", "lclHtmlParaTexto", "lclTextoParaHtml", "lclConclusaoAuto", "lclFotosSecaoHtml", "lclNumItem", "chkCalcErro", "chkCalcTokens", "chkCalcParse", "chkCalcDeps", "chkCalcAval", "chkCalcNum", "chkCalcMostrar", "chkCalcLista", "chkCalcResolver", "chkCalcConstantesPadrao", "chkCalcConfig", "chkCalcSnapshotNovo", "chkCalcRodarCasos", "chkMemorialCalcLegado", "chkMemorialCalcNovo", "chkMemorialVereditoNovo", "chkMemorialComoLerHtml", "chkMemorialFaltaTexto", "chkMemorialEpiTexto", "chkMemorialFqTexto", "chkMemorialCondicoesNovo", "chkMemorialParecerNovo", "chkMemorialPremissasNovo", "chkMemorialAlertasNovo", "chkMemorialResumoCalc", "chkMemorialResNovoHtml", "lclBlocosMemorialNovo", "chkMemorialCalcInfoHtml", "chkCalcEmEdicao", "chkCalcDiffPendente", "chkCalcValidar", "chkCalcSalvarConfig", "chkCalcResolverTela", "chkCalcLinhasHtml", "chkCalcConstantesHtml", "chkCalcCasoPainelHtml", "chkCalcBannerHtml", "chkCalcTabelaHtml", "chkCalcLaudosExistentes", "chkCalcReprocessarLinhas", "chkCalcLaudosHtml", "screenChkCalculo", "chkCalcBarraHtml", "chkAtuNorm", "chkAtuPior", "chkAtuNovoRel", "chkAtuIdLivre", "chkAtuDist", "chkAtuMontarSecoes", "chkAtuLinha", "chkAtuExecutar", "chkAtuAfinidade", "chkAtuDistTexto", "chkAtuTrocasTexto", "chkAtuRelHtml", "chkTextosV2AplicarSecoes", "chkTextosV2TipoDe", "lclFotosDoLaudo", "lclFotosDestinos", "lclInserirFotos", "lclArquivosDoEvento", "lclPrioLegenda", "lclPrioChip", "chkNumeroDocSomar", "chkCompararNomes", "chkSetoresOrdenados", "chkLinhasOrdenadas", "chkLinhasEmOrdem", "chkNumeroDocRenumerar", "chkOrdenarLista", "chkOrdemHtml", "chkNumeroDocLinha", "chkNumeroDocProximo", "chkNumeroDocFixar", "chkNumeroDocRepetidas", "chkMoverLinha", "chkCopiarLinha", "chkDuplicarProjeto", "chkSyncAplicar", "chkSyncMesclarLinha", "chkDropRecusado", "chkLaudoFilaItens", "nomeArquivoLaudoLinha", "chkArquivosDaColagem", "chkMotivosCritHtml",
   // Cadastro do projeto: mascaras, validade automatica e cadastro de inspetores.
   "chkSoDigitos", "chkMascaraDocumento", "chkMascaraTelefone", "chkExibirDocumento", "chkExibirTelefone", "chkValidarCpf", "chkValidarCnpj",
   "chkAvisoDocumento", "chkMaisMesesISO", "chkOpcoesInspetor", "novoChkInspetor", "chkInspetoresHtml", "screenChkProjetoForm",
@@ -238,6 +238,7 @@ fonte += letEscalar("__chkDaRevisao");
 fonte += letEscalar("__chkProjEditado");
 fonte += letEscalar("__chkProjFiltro");
 fonte += letEscalar("__chkSetFiltro");
+fonte += 'let __chkOrdemLista = "az";\n';
 fonte += letEscalar("__chkProjFormOrigem");
 fonte += letEscalar("__chkModeloBusca");
 fonte += letObjeto("__chkModeloSecAbertas") + "\n";
@@ -4409,6 +4410,29 @@ async function testarNumeroDocumento(){
   T(roda("STATE.checklists.projetos[0].docProximoSeq") >= 4, "baixar uma versao antiga do projeto nao faz o contador de numeros voltar");
   const m = roda("chkSyncMesclarLinha({ id:'q', itens:[], docSeq:7 }, { id:'q', itens:[] })");
   T(m.docSeq === 7, "juntar duas versoes da linha preserva o numero que existir");
+  // --- ordem alfabetica: a numeracao nova segue setor A-Z e linha A-Z; renumerar refaz tudo; as listas podem ser ordenadas
+  const nomes = (arr)=> J(arr.map(x => x.nome));
+  T(nomes(roda("chkSetoresOrdenados([{ nome:'Secador Fornalha 201' }, { nome:'Armazém MO 01' }, { nome:'Secador Fornalha 104' }, { nome:'despalha' }, { nome:'Armazém MO 2' }, { nome:'Armazém MO 10' }])")) === J(["Armazém MO 01", "Armazém MO 2", "Armazém MO 10", "despalha", "Secador Fornalha 104", "Secador Fornalha 201"]), "ordem alfabetica natural: numeros contam como numero, maiuscula e acento nao atrapalham");
+  const L2 = (id, nome, feito, seq)=> Object.assign({ id, nome, status:"em_andamento", itens:[{ itemId:"x" + id, conforme: feito ? "atende" : null }] }, seq === undefined ? {} : { docSeq: seq });
+  const montarO = ()=> roda("globalThis.__po = " + J({ id:"PO", numeroDocumento:"MEC7.2026.0820.001-01", setores:[{ id:"S1", nome:"Secador B", linhas:[L2("b2", "Linha 2", true), L2("b1", "Linha 1", true)] }, { id:"S2", nome:"Armazém A", linhas:[L2("a1", "Linha 1", true), L2("vazia", "Linha vazia", false)] }] }) + ";");
+  const seqO = ()=> J(roda("__po.setores.flatMap(s => s.linhas).map(l => [l.id, l.docSeq]).sort((x, y) => x[0] < y[0] ? -1 : 1)"));
+  montarO();
+  roda("chkNumeroDocFixar(__po, __po.setores[0].linhas[0])");
+  T(seqO() === J([["a1", 0], ["b1", 1], ["b2", 2], ["vazia", null]]), "numeracao nova em ordem alfabetica (setor, depois linha), so das preenchidas: " + seqO());
+  // renumerar: refaz em ordem alfabetica, inclusive quem ja tinha numero; so quem tem numero ou checklist preenchido
+  montarO();
+  roda("__po.setores[0].linhas[0].docSeq = 0; __po.setores[0].linhas[1].docSeq = 1; __po.setores[1].linhas[0].docSeq = 2; __po.docProximoSeq = 3;");
+  T(roda("chkNumeroDocRenumerar(__po)") === 3 && seqO() === J([["a1", 0], ["b1", 1], ["b2", 2], ["vazia", null]]) && roda("__po.docProximoSeq") === 3, "renumerar: a1 passa a 001, b1 a 002 e b2 a 003; contador do projeto acompanha: " + seqO());
+  T(roda("chkNumeroDocLinha(__po, __po.setores[1].linhas[0])") === "MEC7.2026.0820.001-01" && roda("chkNumeroDocLinha(__po, __po.setores[0].linhas[0])") === "MEC7.2026.0820.003-01", "o numero impresso segue o novo docSeq");
+  T(roda("chkNumeroDocRenumerar(__po)") === 3, "renumerar de novo nao muda nada");
+  // lista Laudos em PDF e fila: mesma ordem alfabetica
+  T(J(roda("chkLinhasEmOrdem(__po).map(x => x.l.id)")) === J(["a1", "vazia", "b1", "b2"]), "chkLinhasEmOrdem: setor A-Z e dentro dele linha A-Z");
+  // ordenar as listas da tela (A-Z, Z-A, numero do documento, recentes)
+  const ord = (o)=> roda("chkOrdenarLista([{ nome:'C', n:2, r:1 }, { nome:'A', n:null, r:3 }, { nome:'B', n:0, r:2 }], " + J(o) + ", (x) => x.n, (x) => x.r).map(x => x.nome).join('')");
+  T(ord("az") === "ABC" && ord("za") === "CBA" && ord("num") === "BCA" && ord("recentes") === "ABC" && ord("qualquer") === "ABC", "ordenar lista: A-Z, Z-A, numero do documento (sem numero por ultimo) e mais recentes");
+  const selH = roda("chkOrdemHtml()");
+  T(selH.includes("App.chkSetOrdemLista(this.value)") && selH.includes('value="az" selected') && selH.includes("Número do documento"), "o seletor de ordem aparece com A a Z marcado");
+  roda("delete globalThis.__po;");
   roda("STATE.checklists.projetos = " + J(salvo) + ";");
 }
 testarFotoAmpla().then(() => testarTravas()).then(() => testarDadosLaudo()).then(() => testarLaudoCapitulos()).then(() => testarMemorial()).then(() => testarCapitulosNovos()).then(() => testarEdicaoTexto()).then(() => testarFotosLeituraLaudo()).then(() => testarCadastroProjeto()).then(() => testarEditorModelo()).then(() => testarAtalhoLaudo()).then(() => testarCapaLaudo()).then(() => testarUsabilidade()).then(() => testarNumeroDocumento()).then(() => testarAtualizacaoModelos()).then(() => testarCalculoMemorial()).then(() => testarSincronizacaoChecklist()).then(() => {
