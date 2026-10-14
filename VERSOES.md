@@ -64,6 +64,16 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 14/10/2026 09:16
+
+**Revisão com o Claude: acompanhamento dos pacotes (copiado, resposta colada).**
+
+- Cada pacote mostra um selo: "Falta copiar", "Copiado: falta colar a resposta", "Resposta parcial" ou "Resposta colada". As linhas do pacote ganham ✓ quando a resposta delas foi colada, e o pacote parcial diz quais faltam.
+- Resumo no topo ("1 de 2 respostas coladas...") e destaque do próximo passo. Ao guardar uma resposta, o aviso diz qual pacote ela completou.
+- O acompanhamento vale enquanto a revisão está aberta; ao montar os pacotes de novo, recomeça. As respostas guardadas continuam em "Aguardando validação".
+
+---
+
 ## 14/10/2026 09:06
 
 **Linhas de vida: numeração dos laudos em ordem alfabética, botão Renumerar e ordenar as listas.**
