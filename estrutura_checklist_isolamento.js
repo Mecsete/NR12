@@ -159,7 +159,7 @@ const FUNCOES = [
   "lclItemModeloAtual", "lclPrioridade", "lclAcaoMotivo", "lclNaoConformidades", "lclParecerAuto", "lclParecer",
   "lclListaPt", "lclVariaveis", "lclAplicarVariaveis", "lclMarkup", "lclBlocosMemorial", "lclBlocosAnexos", "lclListaImagensHtml",
   "screenChkSetorForm", "chkFotosSecaoHtml", "chkFotosSecaoResumoHtml", "chkRenderItem", "screenChkPreencher", "screenChkFinalizar", "chkResumoHtml",
-  "lclTextoEditado", "lclHtmlParaTexto", "lclTextoParaHtml", "lclConclusaoAuto", "lclFotosSecaoHtml", "lclNumItem", "chkCalcErro", "chkCalcTokens", "chkCalcParse", "chkCalcDeps", "chkCalcAval", "chkCalcNum", "chkCalcMostrar", "chkCalcLista", "chkCalcResolver", "chkCalcConstantesPadrao", "chkCalcConfig", "chkCalcSnapshotNovo", "chkCalcRodarCasos", "chkMemorialCalcLegado", "chkMemorialCalcNovo", "chkMemorialVereditoNovo", "chkMemorialComoLerHtml", "chkMemorialFaltaTexto", "chkMemorialEpiTexto", "chkMemorialFqTexto", "chkMemorialCondicoesNovo", "chkMemorialParecerNovo", "chkMemorialPremissasNovo", "chkMemorialAlertasNovo", "chkMemorialResumoCalc", "chkMemorialResNovoHtml", "lclBlocosMemorialNovo", "chkMemorialCalcInfoHtml", "chkCalcEmEdicao", "chkCalcDiffPendente", "chkCalcValidar", "chkCalcSalvarConfig", "chkCalcResolverTela", "chkCalcLinhasHtml", "chkCalcConstantesHtml", "chkCalcCasoPainelHtml", "chkCalcBannerHtml", "chkCalcTabelaHtml", "screenChkCalculo", "chkCalcBarraHtml", "chkAtuNorm", "chkAtuPior", "chkAtuNovoRel", "chkAtuIdLivre", "chkAtuDist", "chkAtuMontarSecoes", "chkAtuLinha", "chkAtuExecutar", "chkAtuAfinidade", "chkAtuDistTexto", "chkAtuTrocasTexto", "chkAtuRelHtml", "chkTextosV2AplicarSecoes", "chkTextosV2TipoDe", "lclFotosDoLaudo", "lclFotosDestinos", "lclInserirFotos", "lclArquivosDoEvento", "lclPrioLegenda", "lclPrioChip", "chkNumeroDocSomar", "chkNumeroDocLinha", "chkNumeroDocProximo", "chkNumeroDocFixar", "chkNumeroDocRepetidas", "chkMoverLinha", "chkCopiarLinha", "chkDuplicarProjeto", "chkSyncAplicar", "chkSyncMesclarLinha",
+  "lclTextoEditado", "lclHtmlParaTexto", "lclTextoParaHtml", "lclConclusaoAuto", "lclFotosSecaoHtml", "lclNumItem", "chkCalcErro", "chkCalcTokens", "chkCalcParse", "chkCalcDeps", "chkCalcAval", "chkCalcNum", "chkCalcMostrar", "chkCalcLista", "chkCalcResolver", "chkCalcConstantesPadrao", "chkCalcConfig", "chkCalcSnapshotNovo", "chkCalcRodarCasos", "chkMemorialCalcLegado", "chkMemorialCalcNovo", "chkMemorialVereditoNovo", "chkMemorialComoLerHtml", "chkMemorialFaltaTexto", "chkMemorialEpiTexto", "chkMemorialFqTexto", "chkMemorialCondicoesNovo", "chkMemorialParecerNovo", "chkMemorialPremissasNovo", "chkMemorialAlertasNovo", "chkMemorialResumoCalc", "chkMemorialResNovoHtml", "lclBlocosMemorialNovo", "chkMemorialCalcInfoHtml", "chkCalcEmEdicao", "chkCalcDiffPendente", "chkCalcValidar", "chkCalcSalvarConfig", "chkCalcResolverTela", "chkCalcLinhasHtml", "chkCalcConstantesHtml", "chkCalcCasoPainelHtml", "chkCalcBannerHtml", "chkCalcTabelaHtml", "chkCalcLaudosExistentes", "chkCalcReprocessarLinhas", "chkCalcLaudosHtml", "screenChkCalculo", "chkCalcBarraHtml", "chkAtuNorm", "chkAtuPior", "chkAtuNovoRel", "chkAtuIdLivre", "chkAtuDist", "chkAtuMontarSecoes", "chkAtuLinha", "chkAtuExecutar", "chkAtuAfinidade", "chkAtuDistTexto", "chkAtuTrocasTexto", "chkAtuRelHtml", "chkTextosV2AplicarSecoes", "chkTextosV2TipoDe", "lclFotosDoLaudo", "lclFotosDestinos", "lclInserirFotos", "lclArquivosDoEvento", "lclPrioLegenda", "lclPrioChip", "chkNumeroDocSomar", "chkNumeroDocLinha", "chkNumeroDocProximo", "chkNumeroDocFixar", "chkNumeroDocRepetidas", "chkMoverLinha", "chkCopiarLinha", "chkDuplicarProjeto", "chkSyncAplicar", "chkSyncMesclarLinha",
   // Cadastro do projeto: mascaras, validade automatica e cadastro de inspetores.
   "chkSoDigitos", "chkMascaraDocumento", "chkMascaraTelefone", "chkExibirDocumento", "chkExibirTelefone", "chkValidarCpf", "chkValidarCnpj",
   "chkAvisoDocumento", "chkMaisMesesISO", "chkOpcoesInspetor", "novoChkInspetor", "chkInspetoresHtml", "screenChkProjetoForm",
@@ -4269,6 +4269,32 @@ async function testarCalculoMemorial(){
   T(casosFalha.some(c => !c.ok && c.falhas.some(f => f.id === "ZLQ_trava")) && casosFalha.filter(c => c.ok).length >= 5, "casos de referencia avisam quando uma formula personalizada se afasta do esperado");
   const exp = roda("(function(){ const c = chkCalcConfig(); return { app:'linhas-de-vida-calculo', constantes:c.constantes, formulas:c.formulas }; })()");
   T(exp.constantes.D1 === 1.2, "exportar: os dados personalizados saem no JSON");
+  // --- Laudos existentes: listar e reprocessar em lote
+  const memL = { hanc:7, hpos:1, vao:10, comprimento:10, flechaCm:30, diametro:9.53, usuarios:1, uso:"vida", params:Object.assign({ Frup:5409, FS:2 }, base) };
+  const mkL = (id, calc, extra)=> Object.assign({ id, nome:"Linha " + id, status:"em_andamento", tipoLinha:"horizontal_flexivel", modeloSnapshot:[], itens:[{ itemId:"x" + id, conforme:"atende", fotos:["F-" + id] }], memorial:memL }, calc ? { calc } : {}, extra || {});
+  const snapAtual = roda("chkCalcSnapshotNovo()");
+  const snapVelho = Object.assign({}, snapAtual, { v: snapAtual.v - 1 });
+  const linhasT = [mkL("antiga"), mkL("atual", snapAtual), mkL("velha", snapVelho), mkL("fin", null, { status:"finalizado" }), Object.assign(mkL("semMedidas"), { memorial:{} }), Object.assign(mkL("vertical"), { tipoLinha:"vertical" })];
+  roda("STATE.checklists.projetos = [{ id:'PL', empresa:'Cliente', setores:[{ id:'SL', nome:'Setor', linhas:" + J(linhasT) + " }] }];");
+  const lista = roda("chkCalcLaudosExistentes().map(x => ({ id:x.linha.id, atual:x.atual, tab:x.antes.tab, tab2:x.depois.tab, zA:x.antes.ZLQ_trava, zD:x.depois.ZLQ_trava }))");
+  T(lista.length === 4 && ["antiga", "atual", "velha", "fin"].every(id => lista.some(x => x.id === id)), "lista so as linhas horizontais com medidas completas: " + J(lista.map(x => x.id)));
+  T(lista.find(x => x.id === "antiga").atual === false && lista.find(x => x.id === "velha").atual === false && lista.find(x => x.id === "atual").atual === true, "marca quais ja usam o calculo atual");
+  const ant = lista.find(x => x.id === "antiga");
+  T(perto(ant.zA, 5.6229, 0.001) && perto(ant.zD, 6.0229, 0.001), "antes e depois da ZLQ do trava-quedas na linha antiga (+0,40 m): " + J(ant));
+  const html = roda("chkCalcLaudosHtml()");
+  T(html.includes("Reprocessar 3 laudos") && html.includes("calc-atual") && html.includes("Marcar todos"), "a tela oferece reprocessar as 3 nao atuais e destaca a que ja e atual");
+  // reprocessa so as marcadas: respostas e fotos intactas, historico guardado
+  const antes = roda("J = JSON.stringify; JSON.stringify(STATE.checklists.projetos[0].setores[0].linhas.map(l => ({ id:l.id, itens:l.itens, nome:l.nome, status:l.status })))");
+  const n = roda("chkCalcReprocessarLinhas(STATE, ['antiga', 'fin', 'vertical', 'inexistente'])");
+  T(n === 2, "reprocessa so as linhas que tem memorial calculavel (vertical e inexistente ficam de fora): " + n);
+  const depois = roda("JSON.stringify(STATE.checklists.projetos[0].setores[0].linhas.map(l => ({ id:l.id, itens:l.itens, nome:l.nome, status:l.status })))");
+  T(depois === antes, "respostas, fotos, nome e status das linhas nao mudam");
+  const L = (id)=> roda("STATE.checklists.projetos[0].setores[0].linhas.find(l => l.id === " + J(id) + ")");
+  T(L("antiga").calc && L("antiga").calc.v === snapAtual.v && Array.isArray(L("antiga").calcHistorico) && L("antiga").calcHistorico.length === 1 && perto(L("antiga").calcHistorico[0].de.ZLQ_trava, 5.6229, 0.001), "a linha passa a ter o calculo atual e guarda o resultado de antes");
+  T(L("velha").calc.v === snapAtual.v - 1 && !L("velha").calcHistorico && !L("atual").calcHistorico, "linhas nao marcadas ficam como estavam");
+  T(roda("chkCalcLaudosExistentes().find(x => x.linha.id === 'antiga').atual") === true && perto(roda("chkMemorialResumoCalc(STATE.checklists.projetos[0].setores[0].linhas.find(l => l.id === 'antiga')).ZLQ_trava"), 6.0229, 0.001), "depois de reprocessar o memorial mostra o numero novo");
+  T(roda("chkCalcReprocessarLinhas(STATE, ['antiga'])") === 1 && L("antiga").calcHistorico.length === 2, "repetir e permitido e acumula o historico");
+
   roda("STATE.checklists.textos = " + J(salvo.t === null ? undefined : salvo.t) + "; STATE.checklists.projetos = " + J(salvo.p) + "; STATE.checklists.modelos = " + J(salvo.m) + ";");
 }
 

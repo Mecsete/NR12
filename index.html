@@ -3472,7 +3472,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "13/10/2026 21:43";
+const APP_BUILD = "13/10/2026 22:24";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -18430,8 +18430,57 @@ function chkCalcBannerHtml(){
   const b = __calcUI.banner; if(!b) return "";
   return `<div class="card card-pad" style="margin:10px 0;border-left:4px solid ${b.ok ? "#2e7d32" : "#C23F12"};border-radius:0 12px 12px 0"><b>${escapeHtml(b.titulo)}</b>${b.itens.map(x=> `<div style="font-size:12.5px;margin-top:3px">${x.ok ? "✓" : "✗"} ${escapeHtml(x.nome)}${x.ok ? "" : " — " + escapeHtml(x.falhas.map(f=> f.id + ": esperado " + f.esperado + ", obtido " + (f.obtido === null ? (f.erro || "erro") : chkCalcNum(f.obtido))).join("; "))}</div>`).join("")}</div>`;
 }
+/* ---- Laudos existentes: reprocessar todos (ou os marcados) com o cálculo atual ---- */
+/* Linhas horizontais com medidas completas, no cálculo que usam hoje e no cálculo atual. `atual` = já usa a versão e os valores de agora. */
+function chkCalcLaudosExistentes(){
+  const snap = chkCalcSnapshotNovo(), out = [];
+  const mesmaCopia = (c)=> !!(c && c.v === snap.v && JSON.stringify(c.constantes) === JSON.stringify(snap.constantes) && JSON.stringify(c.formulas || {}) === JSON.stringify(snap.formulas));
+  ((STATE.checklists && STATE.checklists.projetos) || []).forEach(p=> (p.setores || []).forEach(s=> (s.linhas || []).forEach(l=>{
+    if(!l || !chkTipoHorizontal(chkTipoLinha(l))) return;
+    const antes = chkMemorialResumoCalc(l); if(!antes) return;
+    const depois = chkMemorialResumoCalc(Object.assign({}, l, { calc: snap }));
+    out.push({ proj:p, setor:s, linha:l, antes, depois, atual: mesmaCopia(l.calc) });
+  })));
+  return out;
+}
+/* Aplica o cálculo atual às linhas pedidas (ids). Guarda na linha o resultado de antes (calcHistorico). Não mexe em respostas, fotos nem textos. Devolve quantas mudaram. */
+function chkCalcReprocessarLinhas(estado, ids){
+  const snap = chkCalcSnapshotNovo(), alvo = new Set(ids || []);
+  let n = 0;
+  ((estado.checklists && estado.checklists.projetos) || []).forEach(p=> (p.setores || []).forEach(s=> (s.linhas || []).forEach(l=>{
+    if(!l || !alvo.has(l.id) || !chkTipoHorizontal(chkTipoLinha(l))) return;
+    const antes = chkMemorialResumoCalc(l); if(!antes) return;
+    l.calcHistorico = (Array.isArray(l.calcHistorico) ? l.calcHistorico : []).concat([{ em:Date.now(), de:antes }]).slice(-20);
+    l.calc = clonarCompartilhandoFotos(snap);
+    l.atualizadoEm = agoraSync();
+    n++;
+  })));
+  return n;
+}
+function chkCalcLaudosHtml(){
+  const lista = chkCalcLaudosExistentes(), snap = chkCalcSnapshotNovo();
+  if(!__calcUI.sel) __calcUI.sel = new Set(lista.filter(x=> !x.atual).map(x=> x.linha.id));
+  const f = (x, d)=> x === null || x === undefined ? "—" : chkMemFmt(x, d === undefined ? 2 : d);
+  const sn = (x)=> x === null || x === undefined ? "—" : (x ? "pode" : "não pode");
+  const muda = (x)=> x.antes.tab !== x.depois.tab || x.antes.tq !== x.depois.tq || x.antes.cabo !== x.depois.cabo;
+  const pend = lista.filter(x=> !x.atual), nMuda = pend.filter(muda).length;
+  const linhas = lista.map(x=>{
+    const l = x.linha, marc = __calcUI.sel.has(l.id);
+    return `<tr class="${x.atual ? "calc-atual" : ""}"><td>${x.atual ? "" : `<input type="checkbox" ${marc ? "checked" : ""} onchange="App.calcLaudosToggle('${l.id}')" aria-label="Reprocessar ${escapeHtml(l.nome || "linha")}">`}</td>
+      <td><b>${escapeHtml(l.nome || "Linha")}</b><div class="calc-nota">${escapeHtml(x.proj.empresa || "")} · ${escapeHtml(x.setor.nome || "")} · ${l.status === "finalizado" ? "finalizada" : "em andamento"}</div></td>
+      <td>${x.antes.novo ? "versão " + x.antes.versao : "anterior"}${x.atual ? " (já é o atual)" : ""}</td>
+      <td>${f(x.antes.ZLQ_tab)} → <b>${f(x.depois.ZLQ_tab)}</b></td><td>${f(x.antes.ZLQ_trava)} → <b>${f(x.depois.ZLQ_trava)}</b></td>
+      <td>${sn(x.antes.tab)} → <b>${sn(x.depois.tab)}</b></td><td>${sn(x.antes.tq)} → <b>${sn(x.depois.tq)}</b></td></tr>`;
+  }).join("");
+  const nSel = pend.filter(x=> __calcUI.sel.has(x.linha.id)).length;
+  return `<div style="margin-top:10px"><div class="card card-pad"><b>Laudos existentes (${lista.length} linhas horizontais com memorial)</b>
+    <p style="font-size:12.5px;color:var(--ink-dim);margin:6px 0 0">${pend.length ? `${pend.length} ${pend.length === 1 ? "linha usa" : "linhas usam"} um cálculo diferente do atual (versão ${snap.v}). ${nMuda ? `<b>${nMuda}</b> ${nMuda === 1 ? "mudaria" : "mudariam"} o veredito de algum equipamento.` : "Nenhuma mudaria o veredito de equipamento."}` : "Todas as linhas já usam o cálculo atual."} Reprocessar troca só o cálculo do memorial da linha: respostas, fotos e textos não mudam. O PDF que já saiu não muda; o laudo gerado daqui em diante usa o cálculo novo. O app cria um ponto de restauração antes.</p>
+    ${pend.length ? `<div class="modal-actions" style="justify-content:flex-start;gap:8px;margin-top:8px"><button class="btn btn-secondary btn-sm" onclick="App.calcLaudosTodos(true)">Marcar todos</button><button class="btn btn-secondary btn-sm" onclick="App.calcLaudosTodos(false)">Desmarcar todos</button><button class="btn btn-primary btn-sm" ${nSel ? "" : "disabled"} onclick="App.calcLaudosAplicar()">Reprocessar ${nSel} ${nSel === 1 ? "laudo" : "laudos"}</button></div>` : ""}</div>
+    <div class="calc-wrap"><table class="calc-t" style="min-width:760px"><thead><tr><th></th><th>Linha</th><th>Cálculo hoje</th><th>ZLQ talabarte (m)</th><th>ZLQ trava-quedas (m)</th><th>Talabarte</th><th>Trava-quedas</th></tr></thead><tbody>${linhas || `<tr><td colspan="7">Nenhuma linha com as medidas do memorial preenchidas.</td></tr>`}</tbody></table></div></div>`;
+}
 function chkCalcTabelaHtml(){
   const ab = __calcUI.aba;
+  if(ab === "laudos") return chkCalcLaudosHtml();
   if(ab === "pend") return `<div style="margin-top:10px">${CHK_CALC_PENDENCIAS.map(p=> `<div class="card card-pad" style="margin-top:8px"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>${p.id} · ${escapeHtml(p.titulo)}</b><span class="stat-pill ${p.status === "Pendente" ? "alert" : ""}">${escapeHtml(p.status)}</span></div><div style="font-size:12.5px;line-height:1.5;margin-top:4px">${escapeHtml(p.descricao)}<br><b>Base:</b> ${escapeHtml(p.base)}<br><b>Efeito:</b> ${escapeHtml(p.efeito)}<br><b>Como aplicar:</b> ${escapeHtml(p.como)}<br><b>Teste:</b> ${escapeHtml(p.teste)}</div></div>`).join("")}</div>`;
   if(ab === "hist"){
     const h = chkCalcConfig().historico.slice().reverse();
@@ -18459,7 +18508,7 @@ function screenChkCalculo(){
     </div>
   </div>
   <div id="calcBanner">${chkCalcBannerHtml()}</div>
-  <div class="chk-chips" style="margin:10px 0;display:flex;gap:6px;flex-wrap:wrap">${aba("flex", "Linha flexível")}${aba("rig", "Linha rígida")}${aba("const", "Constantes")}${aba("pend", "Pendências (" + CHK_CALC_PENDENCIAS.length + ")")}${aba("hist", "Histórico")}</div>
+  <div class="chk-chips" style="margin:10px 0;display:flex;gap:6px;flex-wrap:wrap">${aba("flex", "Linha flexível")}${aba("rig", "Linha rígida")}${aba("const", "Constantes")}${aba("pend", "Pendências (" + CHK_CALC_PENDENCIAS.length + ")")}${aba("laudos", "Laudos existentes")}${aba("hist", "Histórico")}</div>
   <div id="calcCorpo">${chkCalcTabelaHtml()}</div>
   <div class="calc-barra" id="calcBarra">${chkCalcBarraHtml()}</div>`;
 }
@@ -18483,6 +18532,7 @@ const CHK_CALC_CSS = `
 .calc-erro{display:block;color:#B3261E;font-size:11px;font-weight:700}.calc-pad{font-size:10.5px;color:var(--ink-dim)}.calc-nota{font-size:11px;color:var(--ink-dim)}
 .calc-passo td{background:#fff8e6;font-size:12px;line-height:1.5}
 .calc-caso{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}
+.calc-t tr.calc-atual td{color:var(--ink-faint)}
 .calc-barra{position:sticky;bottom:0;display:flex;gap:10px;align-items:center;justify-content:flex-end;background:var(--surface);border-top:1px solid var(--line);padding:8px 10px;margin-top:10px;font-size:13px;font-weight:700}
 .calc-barra:empty{display:none}
 `;
@@ -35285,6 +35335,29 @@ Devolver agora?`)) return;
       if(el.classList.contains("calc-vv")) el.textContent = x && x.erro === undefined ? chkCalcNum(x.v) : "";
       else if(el.classList.contains("calc-aux")) el.innerHTML = (x && x.erro !== undefined ? `<span class="calc-erro">${escapeHtml(x.erro)}</span>` : "") + ((t.r.lista.find(v=> v.id === id) || {}).personalizada && xp && xp.erro === undefined && x && x.erro === undefined && Math.abs(xp.v - x.v) > 1e-9 ? `<div class="calc-pad">padrão: ${chkCalcNum(xp.v)}</div>` : "");
     });
+  },
+  calcLaudosToggle(id){
+    if(!__calcUI.sel) __calcUI.sel = new Set();
+    if(__calcUI.sel.has(id)) __calcUI.sel.delete(id); else __calcUI.sel.add(id);
+    App.calcRedesenhar();
+  },
+  calcLaudosTodos(on){
+    __calcUI.sel = new Set(on ? chkCalcLaudosExistentes().filter(x=> !x.atual).map(x=> x.linha.id) : []);
+    App.calcRedesenhar();
+  },
+  async calcLaudosAplicar(){
+    const lista = chkCalcLaudosExistentes().filter(x=> !x.atual && __calcUI.sel && __calcUI.sel.has(x.linha.id));
+    if(!lista.length){ toast("Marque ao menos um laudo", false); return; }
+    const fin = lista.filter(x=> x.linha.status === "finalizado").length;
+    if(!confirm("Reprocessar o memorial de " + lista.length + (lista.length === 1 ? " laudo" : " laudos") + " com o cálculo atual?" + (fin ? "\n\n" + fin + " " + (fin === 1 ? "está finalizada" : "estão finalizadas") + ": o PDF que já saiu não muda, mas o laudo gerado daqui em diante sim." : "") + "\n\nRespostas, fotos e textos não mudam. O app guarda um ponto de restauração antes.")) return;
+    const ok = await salvarPontoDeRestauracao("Antes de reprocessar o cálculo de " + lista.length + " laudo(s)");
+    if(!ok){ toast("Não consegui criar o ponto de restauração: nada foi alterado", false); return; }
+    const n = chkCalcReprocessarLinhas(STATE, lista.map(x=> x.linha.id));
+    __calcUI.sel = null;
+    marcarAlterado();
+    __lclPaginas = []; __lclHtml = ""; __lclParaLinha = null;
+    toast(n + (n === 1 ? " laudo reprocessado" : " laudos reprocessados") + ". Gere o PDF de novo para ver os números novos.");
+    render();
   },
   calcRedesenhar(){
     const c = document.getElementById("calcCorpo"); if(c) c.innerHTML = chkCalcTabelaHtml();
