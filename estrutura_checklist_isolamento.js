@@ -159,7 +159,7 @@ const FUNCOES = [
   "lclItemModeloAtual", "lclPrioridade", "lclAcaoMotivo", "lclNaoConformidades", "lclParecerAuto", "lclParecer",
   "lclListaPt", "lclVariaveis", "lclAplicarVariaveis", "lclMarkup", "lclBlocosMemorial", "lclBlocosAnexos", "lclListaImagensHtml",
   "screenChkSetorForm", "chkFotosSecaoHtml", "chkFotosSecaoResumoHtml", "chkRenderItem", "screenChkPreencher", "screenChkFinalizar", "chkResumoHtml",
-  "lclTextoEditado", "lclHtmlParaTexto", "lclTextoParaHtml", "lclConclusaoAuto", "lclFotosSecaoHtml", "lclNumItem", "chkMotivosCritHtml", "chkNumeroDocSomar", "chkNumeroDocLinha", "chkNumeroDocProximo", "chkNumeroDocFixar", "chkNumeroDocRepetidas", "chkMoverLinha", "chkCopiarLinha", "chkDuplicarProjeto", "chkSyncAplicar", "chkSyncMesclarLinha", "chkAtuNorm", "chkAtuPior", "chkAtuNovoRel", "chkAtuIdLivre", "chkAtuDist", "chkAtuMontarSecoes", "chkAtuLinha", "chkAtuExecutar", "chkAtuAfinidade", "chkAtuDistTexto", "chkAtuTrocasTexto", "chkAtuRelHtml", "chkTextosV2AplicarSecoes", "chkTextosV2TipoDe", "lclFotosDoLaudo", "lclFotosDestinos", "lclInserirFotos", "lclArquivosDoEvento", "lclPrioLegenda", "lclPrioChip",
+  "lclTextoEditado", "lclHtmlParaTexto", "lclTextoParaHtml", "lclConclusaoAuto", "lclFotosSecaoHtml", "lclNumItem", "chkDropRecusado", "chkMotivosCritHtml", "chkNumeroDocSomar", "chkNumeroDocLinha", "chkNumeroDocProximo", "chkNumeroDocFixar", "chkNumeroDocRepetidas", "chkMoverLinha", "chkCopiarLinha", "chkDuplicarProjeto", "chkSyncAplicar", "chkSyncMesclarLinha", "chkAtuNorm", "chkAtuPior", "chkAtuNovoRel", "chkAtuIdLivre", "chkAtuDist", "chkAtuMontarSecoes", "chkAtuLinha", "chkAtuExecutar", "chkAtuAfinidade", "chkAtuDistTexto", "chkAtuTrocasTexto", "chkAtuRelHtml", "chkTextosV2AplicarSecoes", "chkTextosV2TipoDe", "lclFotosDoLaudo", "lclFotosDestinos", "lclInserirFotos", "lclArquivosDoEvento", "lclPrioLegenda", "lclPrioChip",
   // Cadastro do projeto: mascaras, validade automatica e cadastro de inspetores.
   "chkSoDigitos", "chkMascaraDocumento", "chkMascaraTelefone", "chkExibirDocumento", "chkExibirTelefone", "chkValidarCpf", "chkValidarCnpj",
   "chkAvisoDocumento", "chkMaisMesesISO", "chkOpcoesInspetor", "novoChkInspetor", "chkInspetoresHtml", "screenChkProjetoForm",
@@ -2185,6 +2185,13 @@ async function testarFotosLeituraLaudo(){
     await roda("App.chkDropFotoItem")(e3, itA);
     T(e3.pd !== true && fotosA().length === n0 + 3, "arrastar algo que nao e arquivo para o card nao faz nada");
     T(roda("App.chkSobreFoto") && typeof roda("App.chkSobreFoto") === "function", "o card aceita receber arquivos (dragover liberado)");
+    const arqs = (fl)=> roda("lclArquivosDoEvento(" + J({ dataTransfer:{ files: fl } }) + ").length");
+    T(arqs([{ nome:"a.heic", type:"" }, { nome:"b.JPG", type:"" }, { nome:"c.txt", type:"" }, { nome:"d.png", type:"image/png" }, { nome:"e.pdf", type:"application/pdf" }]) === 3, "foto sem tipo (HEIC, JPG do celular) vale pela extensao; texto e PDF nao");
+    const rec = (dt)=> roda("chkDropRecusado(" + J({ dataTransfer: dt }) + ")");
+    T(rec({ files:[{ nome:"x.pdf", type:"application/pdf" }], types:["Files"] }).includes("Só imagens") && rec({ files:[], types:["text/uri-list", "text/html"] }).includes("página da internet") && rec({ files:[], types:["text/plain"] }) === "", "o app diz por que recusou (so imagens; imagem de pagina da internet) e fica quieto quando e so mover uma foto");
+    const eR = ev2([{ nome:"x.pdf", type:"application/pdf" }]); eR.dataTransfer.types = ["Files"];
+    await roda("App.chkDropFotoItem")(eR, itA);
+    T(eR.pd === true && fotosA().length === n0 + 3, "arquivo que nao e imagem solto no card e recusado (sem inserir) e nao deixa o navegador abrir o arquivo");
     const cardHtml = roda("chkFotosItemHtml(__f3.a, chkItemExec(__f3.l, __f3.a.id), chkItemExec(__f3.l, __f3.a.id).motivosSelecionados)");
     T(cardHtml.includes("App.chkDropFoto(event,") , "as caixas dos motivos continuam recebendo");
   }

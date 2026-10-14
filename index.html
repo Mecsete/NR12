@@ -1014,6 +1014,7 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-resumo-linha{border-left:4px solid;background:var(--bg-soft);border-radius:0 8px 8px 0;padding:8px 10px;margin-bottom:6px;}
 .chk-resumo-desc{font-size:13px;font-weight:600;}
 .chk-resumo-motivo{font-size:12.5px;color:var(--ink-dim);margin-top:2px;}
+.chk-item-card.over-foto,.chk-secao-fotos.over-foto{outline:2px dashed var(--accent);outline-offset:2px}
 .chk-nc-mots{margin-top:3px}.chk-nc-mot{display:flex;gap:7px;align-items:center;margin:3px 0;font-size:12.5px;color:var(--ink-dim)}
 .chk-resumo-status{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;display:block;margin-top:4px;}
 .chk-laudo-assinatura{margin-top:24px;padding-top:14px;border-top:1px solid var(--line);font-size:13px;}
@@ -3472,7 +3473,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "13/10/2026 21:51";
+const APP_BUILD = "13/10/2026 22:06";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -15381,7 +15382,7 @@ function chkRodapeSecaoHtml(l, idx, totalAbas){
 function chkFotosSecaoHtml(l, secao){
   const fs = (l.fotosSecao || {})[secao.id] || [];
   const cartoes = fs.map((f, fi)=>`<div class="chk-photo-card"><img data-imgref="${imgReg(f.foto)}" onclick="event.stopPropagation();App.verFotoReg(this)"><button class="icon-btn chk-photo-remove" title="Excluir foto" onclick="event.stopPropagation();App.chkSecaoFotoRemover('${secao.id}',${fi})">${ic('trash')}</button></div>`).join("");
-  return `<div class="chk-secao-fotos">
+  return `<div class="chk-secao-fotos" ondragover="App.chkSobreFoto(event)" ondragleave="this.classList.remove('over-foto')" ondrop="App.chkSecaoDrop(event,'${secao.id}')">
     <div class="chk-secao-fotos-t">${ic('camera')} Fotos da seção <small>${fs.length} ${fs.length === 1 ? "foto" : "fotos"} · gerais, sem ligar a um item; vão para o topo da seção no laudo</small></div>
     ${cartoes ? `<div class="chk-photo-grid">${cartoes}</div>` : ""}
     <div class="chk-foto-btns"><button class="btn btn-secondary" onclick="App.chkSecaoFoto('${secao.id}',true)">${ic('gallery')} Galeria</button><button class="btn btn-secondary" onclick="App.chkSecaoFoto('${secao.id}',false)">${ic('camera')} Tirar foto</button></div>
@@ -15425,7 +15426,7 @@ function chkRenderItem(linha, item, secaoIdx, itemIdx){
     return `<button type="button" class="${on ? 'on' : ''}" style="${on ? `background:${meta.cor};border-color:${meta.cor}` : ''}" onclick="event.stopPropagation();App.chkRespostaRapida('${item.id}','${k}')" aria-pressed="${on}">${ic(ICONE_RAPIDO[k])}<span>${escapeHtml(meta.label)}</span></button>`;
   }).join("")}</div>`;
   return `
-  <div class="card card-pad chk-item-card st-${ie.conforme||''} ${aberto?'aberto':''}" data-item="${item.id}" ondragover="App.chkSobreFoto(event)" ondrop="App.chkDropFotoItem(event,'${item.id}')">
+  <div class="card card-pad chk-item-card st-${ie.conforme||''} ${aberto?'aberto':''}" data-item="${item.id}" ondragover="App.chkSobreFoto(event)" ondragleave="this.classList.remove('over-foto')" ondrop="App.chkDropFotoItem(event,'${item.id}')">
     <div class="chk-item-top" onclick="App.chkToggleItemAberto('${item.id}')">
       <div class="chk-item-desc"><span class="chk-item-code">Item ${secaoIdx+1}.${itemIdx+1} -</span> ${escapeHtml(item.descricao)}</div>
       <div class="chk-item-icons">
@@ -16601,7 +16602,17 @@ function lclInserirFotos(linha, secaoId, destino, datas){
 /* Arquivos de imagem de um evento de soltar (arrastar do computador). */
 function lclArquivosDoEvento(ev){
   const fl = ev && ev.dataTransfer && ev.dataTransfer.files;
-  return Array.from(fl || []).filter(f=> f && /^image\//i.test(f.type || ""));
+  // alguns navegadores entregam foto de celular (HEIC), JFIF e outras SEM tipo: vale pela extensão
+  return Array.from(fl || []).filter(f=> f && (/^image\//i.test(f.type || "") || (!f.type && /\.(jpe?g|jfif|png|webp|gif|bmp|heic|heif|tiff?)$/i.test(f.name || f.nome || ""))));
+}
+/* Por que um arrastar não entrou: avisa em vez de ficar calado. "" = não é um arrastar de arquivo (por exemplo, mover uma foto entre motivos). */
+function chkDropRecusado(ev){
+  const dt = ev && ev.dataTransfer; if(!dt) return "";
+  const fl = Array.from(dt.files || []);
+  if(fl.length) return "Só imagens podem ser arrastadas aqui (JPG, PNG, WEBP, HEIC): " + fl.map(f=> f.name || f.nome || "arquivo").slice(0, 3).join(", ") + ".";
+  const tipos = Array.from(dt.types || []);
+  if(tipos.indexOf("text/uri-list") >= 0 || tipos.indexOf("text/html") >= 0) return "Isso veio de uma página da internet. Arraste o arquivo da foto (da pasta do computador), não a imagem da página.";
+  return "";
 }
 /* "6.2": número da seção no checklist . número do item (o mesmo do quadro de não conformidades). */
 function lclNumItem(linha, secao, itemIdx){
@@ -33322,12 +33333,31 @@ Devolver agora?`)) return;
   },
   /* Foto do computador arrastada para uma caixa de motivo (vai para esse motivo), para o item (um só motivo marcado: vai para ele; senão fica sem motivo)
      ou para a foto de outro motivo (mover, como antes). Cada foto é comprimida e gravada como as que vêm da câmera. */
-  chkSobreFoto(ev){ try{ if(ev.dataTransfer && Array.from(ev.dataTransfer.types || []).indexOf("Files") >= 0) ev.preventDefault(); }catch(e){} },
   chkDropFotoItem(ev, itemId){
+    const card = ev.currentTarget; if(card && card.classList) card.classList.remove("over-foto");
     const arq = lclArquivosDoEvento(ev);
-    if(!arq.length) return;
+    if(!arq.length){ const m = chkDropRecusado(ev); if(m){ ev.preventDefault(); toast(m, false); } return; }
     ev.preventDefault();
     return App.chkAdicionarArquivosItem(arq, itemId);
+  },
+  chkSobreFoto(ev){
+    try{
+      if(ev.dataTransfer && Array.from(ev.dataTransfer.types || []).indexOf("Files") >= 0){ ev.preventDefault(); if(ev.currentTarget && ev.currentTarget.classList) ev.currentTarget.classList.add("over-foto"); }
+    }catch(e){}
+  },
+  /* Fotos gerais da seção (faixa "Fotos da seção" da tela de preenchimento): aceita foto arrastada do computador. */
+  async chkSecaoDrop(ev, secaoId){
+    ev.preventDefault();
+    if(ev.stopPropagation) ev.stopPropagation();
+    const el = ev.currentTarget; if(el && el.classList) el.classList.remove("over-foto");
+    const arq = lclArquivosDoEvento(ev);
+    if(!arq.length){ const m = chkDropRecusado(ev); if(m) toast(m, false); return; }
+    const l = getCurrentChkLinha(); if(!l || !(l.modeloSnapshot || []).some(s=> s.id === secaoId)) return;
+    const datas = []; let falhas = 0;
+    for(const f of arq){ try{ const data = await comprimirImagem(f, 1920, 0.82); salvarFotoNaGaleria(data, "apr_checklist"); datas.push(data); }catch(e){ falhas++; } }
+    const n = lclInserirFotos(l, secaoId, "s", datas);
+    if(n){ marcarAlterado(); render(); }
+    toast(n ? n + (n === 1 ? " foto adicionada à seção" : " fotos adicionadas à seção") + (falhas ? "; " + falhas + " não puderam ser lidas" : "") : "Não consegui ler a foto (precisa ser uma imagem)", !!n);
   },
   async chkAdicionarArquivosItem(arquivos, itemId, mi){
     const l = getCurrentChkLinha(); if(!l || !arquivos.length) return;
@@ -33349,6 +33379,7 @@ Devolver agora?`)) return;
     if(ev.stopPropagation) ev.stopPropagation();
     const arq = lclArquivosDoEvento(ev);
     if(arq.length) return App.chkAdicionarArquivosItem(arq, itemId, mi);
+    const recusa = chkDropRecusado(ev); if(recusa){ toast(recusa, false); return; }
     let idx = -1;
     try{ idx = parseInt(ev.dataTransfer.getData("text/plain"), 10); }catch(e){}
     if(idx >= 0) App.chkMoverFoto(itemId, idx, mi);
