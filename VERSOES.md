@@ -64,6 +64,15 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 14/10/2026 08:26
+
+**Linhas de vida: Laudos em PDF (um arquivo por linha ou por setor) e colar foto em Fotos da seção.**
+
+- O botão "Laudos do projeto em um PDF" virou "Laudos em PDF". Na janela, em "Como salvar": um PDF com todos, um arquivo por setor ou um arquivo por linha. Nos dois últimos o app monta uma fila: a cada item abre a impressão com o nome do arquivo já sugerido (empresa, setor ou linha; o número do documento desempata nomes iguais) e você confirma o Salvar. "Salvar de novo" repete um item.
+- Fotos da seção: além de arrastar, dá para colar imagem (Ctrl+V) na tela de preenchimento, sem clicar antes; com o cursor numa caixa de texto, o Ctrl+V cola texto normalmente.
+
+---
+
 ## 14/10/2026 06:56
 
 **Linhas de vida: cálculo da ZLQ revisado, Planilha de cálculo editável, reprocessar laudos antigos; criticidade por motivo na revisão; arrastar fotos mais robusto.**
