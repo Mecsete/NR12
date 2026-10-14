@@ -159,7 +159,7 @@ const FUNCOES = [
   "lclItemModeloAtual", "lclPrioridade", "lclAcaoMotivo", "lclNaoConformidades", "lclParecerAuto", "lclParecer",
   "lclListaPt", "lclVariaveis", "lclAplicarVariaveis", "lclMarkup", "lclBlocosMemorial", "lclBlocosAnexos", "lclListaImagensHtml",
   "screenChkSetorForm", "chkFotosSecaoHtml", "chkFotosSecaoResumoHtml", "chkRenderItem", "screenChkPreencher", "screenChkFinalizar", "chkResumoHtml",
-  "lclTextoEditado", "lclHtmlParaTexto", "lclTextoParaHtml", "lclConclusaoAuto", "lclFotosSecaoHtml", "lclNumItem", "chkAtuNorm", "chkAtuPior", "chkAtuNovoRel", "chkAtuIdLivre", "chkAtuDist", "chkAtuMontarSecoes", "chkAtuLinha", "chkAtuExecutar", "chkAtuAfinidade", "chkAtuDistTexto", "chkAtuTrocasTexto", "chkAtuRelHtml", "chkTextosV2AplicarSecoes", "chkTextosV2TipoDe", "lclFotosDoLaudo", "lclFotosDestinos", "lclInserirFotos", "lclArquivosDoEvento", "lclPrioLegenda", "lclPrioChip",
+  "lclTextoEditado", "lclHtmlParaTexto", "lclTextoParaHtml", "lclConclusaoAuto", "lclFotosSecaoHtml", "lclNumItem", "chkNumeroDocSomar", "chkNumeroDocLinha", "chkAtuNorm", "chkAtuPior", "chkAtuNovoRel", "chkAtuIdLivre", "chkAtuDist", "chkAtuMontarSecoes", "chkAtuLinha", "chkAtuExecutar", "chkAtuAfinidade", "chkAtuDistTexto", "chkAtuTrocasTexto", "chkAtuRelHtml", "chkTextosV2AplicarSecoes", "chkTextosV2TipoDe", "lclFotosDoLaudo", "lclFotosDestinos", "lclInserirFotos", "lclArquivosDoEvento", "lclPrioLegenda", "lclPrioChip",
   // Cadastro do projeto: mascaras, validade automatica e cadastro de inspetores.
   "chkSoDigitos", "chkMascaraDocumento", "chkMascaraTelefone", "chkExibirDocumento", "chkExibirTelefone", "chkValidarCpf", "chkValidarCnpj",
   "chkAvisoDocumento", "chkMaisMesesISO", "chkOpcoesInspetor", "novoChkInspetor", "chkInspetoresHtml", "screenChkProjetoForm",
@@ -4137,7 +4137,30 @@ async function testarAtualizacaoModelos(){
   roda("STATE.checklists.modelos = " + J(antes.m) + "; STATE.checklists.projetos = " + J(antes.p) + ";");
 }
 
-testarFotoAmpla().then(() => testarTravas()).then(() => testarDadosLaudo()).then(() => testarLaudoCapitulos()).then(() => testarMemorial()).then(() => testarCapitulosNovos()).then(() => testarEdicaoTexto()).then(() => testarFotosLeituraLaudo()).then(() => testarCadastroProjeto()).then(() => testarEditorModelo()).then(() => testarAtalhoLaudo()).then(() => testarCapaLaudo()).then(() => testarUsabilidade()).then(() => testarAtualizacaoModelos()).then(() => testarSincronizacaoChecklist()).then(() => {
+// ---------- numero do documento: cada laudo recebe o numero seguinte ----------
+async function testarNumeroDocumento(){
+  const T = (cond, msg)=>{ if(!cond) throw new Error("numero do documento: " + msg); };
+  const J = (v)=> JSON.stringify(v);
+  const som = (b, n)=> roda("chkNumeroDocSomar(" + J(b) + ", " + n + ")");
+  T(som("MEC7.2026.0820.001-01", 0) === "MEC7.2026.0820.001-01" && som("MEC7.2026.0820.001-01", 1) === "MEC7.2026.0820.002-01" && som("MEC7.2026.0820.001-01", 2) === "MEC7.2026.0820.003-01", "o exemplo do pedido: 001-01, 002-01, 003-01");
+  T(som("MEC7.2026.0820.001-01", 9) === "MEC7.2026.0820.010-01" && som("MEC7.2026.0820.001-01", 99) === "MEC7.2026.0820.100-01" && som("MEC7.2026.0820.009-02", 1) === "MEC7.2026.0820.010-02", "mantem os zeros e a revisao");
+  T(som("MEC7.2026.0752.001.01", 1) === "MEC7.2026.0752.002.01", "revisao com ponto (modelo do placeholder antigo)");
+  T(som("MEC7.2026.0820.001", 1) === "MEC7.2026.0820.002" && som("LAUDO-7", 2) === "LAUDO-9", "sem revisao: soma no ultimo grupo de digitos");
+  T(som("SEM NUMERO", 3) === "SEM NUMERO" && som("", 2) === "" && som("  ", 1) === "", "sem digito ou vazio: nao inventa numero");
+  const L = (id, feito, st)=> ({ id, status: st || "em_andamento", itens: [{ itemId:"x" + id, conforme: feito ? "atende" : null }] });
+  const proj = { numeroDocumento:"MEC7.2026.0820.001-01", setores:[{ id:"S1", linhas:[L("a", true), L("b", false), L("c", true, "finalizado")] }, { id:"S2", linhas:[L("d", true), L("e", true)] }] };
+  const num = (id)=> roda("chkNumeroDocLinha(" + J(proj) + ", " + J({ id }) + ")");
+  T(num("a") === "MEC7.2026.0820.001-01" && num("c") === "MEC7.2026.0820.002-01" && num("d") === "MEC7.2026.0820.003-01" && num("e") === "MEC7.2026.0820.004-01", "numeros seguem a ordem das linhas com checklist preenchido, passando de um setor para o outro: " + J(["a", "c", "d", "e"].map(num)));
+  T(num("b") === "MEC7.2026.0820.005-01", "linha ainda sem nada preenchido recebe o proximo numero livre (nao toma o lugar de ninguem)");
+  T(roda("chkNumeroDocLinha({ numeroDocumento:'' }, { id:'a' })") === "" && roda("chkNumeroDocLinha(" + J(proj) + ", null)") === "MEC7.2026.0820.001-01", "sem numero no projeto, fica vazio");
+  // capa e pagina 2 do laudo mostram o numero da linha, nao o do projeto
+  const d = (id)=> "{ proj:" + J(proj) + ", setor:{ nome:'S' }, linha:{ id:" + J(id) + ", nome:'LV' }, mc:{} }";
+  const capa = roda("lclBlocoCapa(" + d("d") + ", '').html");
+  T(capa.includes("MEC7.2026.0820.003-01") && !capa.includes("MEC7.2026.0820.001-01"), "capa do laudo da 3a linha traz o numero 003");
+  const p2 = roda("lclBlocosPagina2(" + d("d") + ", lclTextos()).map(b => b.html).join('')");
+  T(p2.includes("MEC7.2026.0820.003-01") && !p2.includes("MEC7.2026.0820.001-01"), "pagina 2 (Informacoes Iniciais) traz o mesmo numero");
+}
+testarFotoAmpla().then(() => testarTravas()).then(() => testarDadosLaudo()).then(() => testarLaudoCapitulos()).then(() => testarMemorial()).then(() => testarCapitulosNovos()).then(() => testarEdicaoTexto()).then(() => testarFotosLeituraLaudo()).then(() => testarCadastroProjeto()).then(() => testarEditorModelo()).then(() => testarAtalhoLaudo()).then(() => testarCapaLaudo()).then(() => testarUsabilidade()).then(() => testarNumeroDocumento()).then(() => testarAtualizacaoModelos()).then(() => testarSincronizacaoChecklist()).then(() => {
   // as arvores do Completo/Simplificado continuam byte a byte identicas apos a foto ampla tambem
   if(JSON.stringify(sandbox.STATE.projetos) !== antesCompleto || JSON.stringify(sandbox.STATE.projetosSimples) !== antesSimples){
     console.error("FALHOU: a foto ampla da linha mexeu em STATE.projetos/projetosSimples");

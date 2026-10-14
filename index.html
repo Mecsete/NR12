@@ -3471,7 +3471,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "13/10/2026 21:20";
+const APP_BUILD = "13/10/2026 21:27";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -14784,7 +14784,7 @@ function screenChkProjetoForm(){
     <div class="chk-pf-card pf-doc">
       <div class="chk-pf-titulo">Documento</div>
       <div class="chk-pf-grid2">
-        <div class="field"><label>Nº do documento</label><input type="text" value="${v(p.numeroDocumento)}" oninput="App.chkSetProjetoField('numeroDocumento',this.value)"></div>
+        <div class="field"><label>Nº do documento (do primeiro laudo)</label><input type="text" placeholder="Ex.: MEC7.2026.0820.001-01" value="${v(p.numeroDocumento)}" oninput="App.chkSetProjetoField('numeroDocumento',this.value)"><div class="field-hint">Cada laudo do projeto recebe o número seguinte sozinho: o 2º sai ${escapeHtml(chkNumeroDocSomar(p.numeroDocumento || "MEC7.2026.0820.001-01", 1))}, o 3º ${escapeHtml(chkNumeroDocSomar(p.numeroDocumento || "MEC7.2026.0820.001-01", 2))} e assim por diante, na ordem das linhas.</div></div>
         <div class="field"><label>ART</label><input type="text" inputmode="numeric" value="${v(p.art)}" oninput="App.chkSetProjetoField('art',this.value)"></div>
         <div class="field"><label>Data da inspeção</label><input type="date" value="${v(p.dataInspecao)}" oninput="App.chkSetProjetoField('dataInspecao',this.value)"></div>
         <div class="field"><label>Validade da inspeção</label><input type="date" id="chkPfValidade" value="${v(p.validadeInspecao)}" oninput="App.chkSetProjetoField('validadeInspecao',this.value)"><div class="chk-pf-dica">${validadeAuto ? "Já vem 12 meses depois da inspeção; pode mudar." : "Preenche sozinha (12 meses) quando houver a data da inspeção."}</div></div>
@@ -17163,6 +17163,27 @@ function lclProximaInspecao(proj){
   }
   return lclMaisMeses(proj && proj.dataInspecao, 12);
 }
+/* Número do documento de cada laudo. O do projeto vale para o PRIMEIRO laudo; os seguintes somam 1 no número de sequência, mantendo o resto:
+   MEC7.2026.0820.001-01 -> ...002-01, ...003-01. A sequência é o último grupo de dígitos antes da revisão final de 2 dígitos (-01 ou .01);
+   sem revisão, é o último grupo de dígitos. Mantém os zeros à esquerda. Sem dígito reconhecível, o número fica igual para todos. */
+function chkNumeroDocSomar(base, n){
+  const b = String(base == null ? "" : base).trim();
+  if(!b || !(n > 0)) return b;
+  const m = /^(.*?\D)(\d{1,5})([-.]\d{2})$/.exec(b) || /^(.*\D|)(\d+)()$/.exec(b);
+  if(!m) return b;
+  return m[1] + String(parseInt(m[2], 10) + n).padStart(m[2].length, "0") + m[3];
+}
+/* Posição do laudo da linha entre as linhas com checklist preenchido do projeto (setores e linhas na ordem da tela): é a mesma ordem do "Laudos em um PDF".
+   Linha ainda sem nada preenchido recebe o próximo número livre. */
+function chkNumeroDocLinha(proj, linha){
+  const base = String((proj && proj.numeroDocumento) || "").trim();
+  if(!base || !linha) return base;
+  const lista = [];
+  ((proj && proj.setores) || []).forEach(s=> (s.linhas || []).forEach(l=>{ if(l && (chkProgresso(l) > 0 || l.status === "finalizado")) lista.push(l); }));
+  let i = lista.findIndex(l=> l.id === linha.id);
+  if(i < 0) i = lista.length;
+  return chkNumeroDocSomar(base, i);
+}
 function lclDados(proj, setor, linha){
   return { proj, setor, linha, mc: getMecseteConfig() };
 }
@@ -17213,7 +17234,7 @@ function lclBlocoCapa(d, fotoSrc){
         <div class="lcl-capa-area">${lclEsc((setor.nome || "").toUpperCase())}</div>
         ${foto}
         <table class="lcl-capa-tab">
-          <tr><td>Documento</td><td>${lclEsc(proj.numeroDocumento)}</td></tr>
+          <tr><td>Documento</td><td>${lclEsc(chkNumeroDocLinha(proj, d.linha))}</td></tr>
           <tr><td>ART</td><td>${lclEsc(proj.art)}</td></tr>
           <tr><td>Responsável Técnico</td><td>${lclEsc((mc.respNome || "").toUpperCase())}</td></tr>
           <tr><td>Solicitante</td><td>${lclEsc((proj.responsavel || "").toUpperCase())}</td></tr>
@@ -17235,7 +17256,7 @@ function lclBlocosPagina2(d, textos){
     ["Email", mc.email], ["Cargo Inspetor", proj.inspetorCargo || mc.respFuncao],
   ].map(p=>cp(p[0], p[1])).join("");
   const ini = [
-    ["Data da Inspeção", proj.dataInspecao ? lclDataBR(proj.dataInspecao) : ""], ["Nº Documento", proj.numeroDocumento],
+    ["Data da Inspeção", proj.dataInspecao ? lclDataBR(proj.dataInspecao) : ""], ["Nº Documento", chkNumeroDocLinha(proj, d.linha)],
     ["Validade da Inspeção", proj.validadeInspecao ? lclDataBR(proj.validadeInspecao) : ""], ["Número da ART", proj.art],
   ].map(p=>cp(p[0], p[1])).join("");
   const n = textos.normativo;
