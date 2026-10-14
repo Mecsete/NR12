@@ -804,6 +804,9 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-secao-fotos-t svg{width:16px;height:16px}
 .chk-secao-fotos-t small{font-weight:500;font-size:11.5px;color:var(--ink-dim)}
 .chk-secao-fotos .chk-foto-btns{margin-top:8px}
+.chk-secao-fotos:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.chk-secao-fotos-dica{font-size:11.5px;color:var(--ink-dim);margin:-2px 0 8px}
+@media (hover:none){.chk-secao-fotos-dica{display:none}}
 .chk-continuar{display:flex;align-items:center;gap:12px;padding:12px 14px;margin-bottom:12px;border-left:4px solid var(--accent);cursor:pointer}
 .chk-continuar b{display:block;font-size:14px}
 .chk-continuar span{display:block;font-size:12px;color:var(--ink-dim);margin-top:2px}
@@ -3474,7 +3477,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "14/10/2026 06:56";
+const APP_BUILD = "14/10/2026 07:39";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -13610,6 +13613,18 @@ function renderAdiavelSeDigitando(){
   }
   render();
 }
+document.addEventListener("paste", (ev)=>{
+  // Ctrl+V com a tela de preenchimento aberta e nenhum campo de texto em uso: a imagem colada vai para "Fotos da seção"
+  try{
+    const alvo = ev.target, tag = alvo && alvo.tagName;
+    if(tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (alvo && alvo.isContentEditable)) return;
+    if(alvo && alvo.closest && alvo.closest(".chk-secao-fotos")) return;   // a própria faixa já trata
+    const faixa = document.querySelector(".chk-secao-fotos[data-secao]"); if(!faixa) return;
+    const arq = chkArquivosDaColagem(ev); if(!arq.length) return;
+    ev.preventDefault();
+    App.chkSecaoAdicionarArquivos(arq, faixa.getAttribute("data-secao"));
+  }catch(e){}
+});
 document.addEventListener("focusout", ()=>{
   if(!__renderAdiadoPendente) return;
   setTimeout(()=>{
@@ -15383,12 +15398,21 @@ function chkRodapeSecaoHtml(l, idx, totalAbas){
   }
   return html;
 }
+/* Imagens que vieram da área de transferência (Ctrl+V): print da tela ou arquivo copiado do Explorer. */
+function chkArquivosDaColagem(ev){
+  const cd = ev && ev.clipboardData; if(!cd) return [];
+  const out = [];
+  Array.from(cd.items || []).forEach(it=>{ if(it && it.kind === "file" && /^image\//i.test(it.type || "")){ const f = it.getAsFile(); if(f) out.push(f); } });
+  if(!out.length) Array.from(cd.files || []).forEach(f=>{ if(f && /^image\//i.test(f.type || "")) out.push(f); });
+  return out;
+}
 /* Fotos gerais da seção (não ligadas a nenhum item): o inspetor fotografa a seção ao começar e depois percorre os itens. */
 function chkFotosSecaoHtml(l, secao){
   const fs = (l.fotosSecao || {})[secao.id] || [];
   const cartoes = fs.map((f, fi)=>`<div class="chk-photo-card"><img data-imgref="${imgReg(f.foto)}" onclick="event.stopPropagation();App.verFotoReg(this)"><button class="icon-btn chk-photo-remove" title="Excluir foto" onclick="event.stopPropagation();App.chkSecaoFotoRemover('${secao.id}',${fi})">${ic('trash')}</button></div>`).join("");
-  return `<div class="chk-secao-fotos" ondragover="App.chkSobreFoto(event)" ondragleave="this.classList.remove('over-foto')" ondrop="App.chkSecaoDrop(event,'${secao.id}')">
+  return `<div class="chk-secao-fotos" tabindex="0" data-secao="${secao.id}" ondragover="App.chkSobreFoto(event)" ondragleave="this.classList.remove('over-foto')" ondrop="App.chkSecaoDrop(event,'${secao.id}')" onpaste="App.chkSecaoColar(event,'${secao.id}')">
     <div class="chk-secao-fotos-t">${ic('camera')} Fotos da seção <small>${fs.length} ${fs.length === 1 ? "foto" : "fotos"} · gerais, sem ligar a um item; vão para o topo da seção no laudo</small></div>
+    <div class="chk-secao-fotos-dica">No computador: arraste fotos para cá ou cole com Ctrl+V.</div>
     ${cartoes ? `<div class="chk-photo-grid">${cartoes}</div>` : ""}
     <div class="chk-foto-btns"><button class="btn btn-secondary" onclick="App.chkSecaoFoto('${secao.id}',true)">${ic('gallery')} Galeria</button><button class="btn btn-secondary" onclick="App.chkSecaoFoto('${secao.id}',false)">${ic('camera')} Tirar foto</button></div>
   </div>`;
@@ -34172,12 +34196,23 @@ Devolver agora?`)) return;
     }catch(e){}
   },
   /* Fotos gerais da seção (faixa "Fotos da seção" da tela de preenchimento): aceita foto arrastada do computador. */
+  /* Colar (Ctrl+V) uma imagem na faixa "Fotos da seção". Sem imagem na área de transferência, não faz nada (o texto colado segue normal). */
+  async chkSecaoColar(ev, secaoId){
+    const arq = chkArquivosDaColagem(ev);
+    if(!arq.length) return;
+    ev.preventDefault();
+    if(ev.stopPropagation) ev.stopPropagation();
+    return App.chkSecaoAdicionarArquivos(arq, secaoId);
+  },
   async chkSecaoDrop(ev, secaoId){
     ev.preventDefault();
     if(ev.stopPropagation) ev.stopPropagation();
     const el = ev.currentTarget; if(el && el.classList) el.classList.remove("over-foto");
     const arq = lclArquivosDoEvento(ev);
     if(!arq.length){ const m = chkDropRecusado(ev); if(m) toast(m, false); return; }
+    return App.chkSecaoAdicionarArquivos(arq, secaoId);
+  },
+  async chkSecaoAdicionarArquivos(arq, secaoId){
     const l = getCurrentChkLinha(); if(!l || !(l.modeloSnapshot || []).some(s=> s.id === secaoId)) return;
     const datas = []; let falhas = 0;
     for(const f of arq){ try{ const data = await comprimirImagem(f, 1920, 0.82); salvarFotoNaGaleria(data, "apr_checklist"); datas.push(data); }catch(e){ falhas++; } }
