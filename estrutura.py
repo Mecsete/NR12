@@ -188,7 +188,8 @@ for marca, n in [('body = screenSimplesLaudo();', 1),
                  # secao 4).
                  # 08/10/2026: +2 de proposito -- o modulo Linhas de vida ganhou "Modulos" na barra de baixo e "Trocar de modulo"
                  # na sua tela de Configuracoes (a funcao e a mesma de sempre, nao duplicada).
-                 ('App.trocarModulo()', orig.count('App.trocarModulo()')),
+                 # 19/10/2026: Linhas de vida tirou 3 atalhos repetidos de "Trocar de módulo" (fica na barra de baixo)
+                 ('App.trocarModulo()', orig.count('App.trocarModulo()') - (0 if "STATE.ui.ultimoModulo = STATE.modulo" in orig else 3)),
                  ('function laudoAbaRevisao(', 1),
                  ('function laudoAbaAreas(', 1),
                  ('function laudoAbaExportar(', 1),
@@ -5791,7 +5792,7 @@ chk("a lista de modelos mostra quantos projetos usam cada modelo", "const usoMod
 
 print("\n=== 185. USABILIDADE DO CHECKLIST: NAVEGACAO, REVISAO, LAUDO E PARECER NAO CONCLUSIVO (07/10/2026) ===")
 chk("escolha do modulo sem emoji nos titulos e com o resumo de cada modulo",
-    "Módulo Completo</div>" in novo and "📋" not in novo[novo.index("function screenModuloSelect"):novo.index("function screenModuloSelect") + 3500] and "selo(cont.checklist)" in novo)
+    'cartao("completo", "NR-12 Completo",' in novo and "📋" not in novo[novo.index("function screenModuloSelect"):novo.index("function screenModuloSelect") + 3500] and "escapeHtml(cont[k])" in novo)
 chk("lista de projetos: Continuar de onde parou, busca, filtro de status e hora da sincronizacao",
     "chkContinuarHtml()" in novo and "chkSetProjFiltro" in novo and "chkSyncInfoHtml()" in novo and "chkUltimaLinhaEmAndamento" in novo)
 chk("lista de setores tem busca e filtro; setor pode ser editado",
@@ -5838,7 +5839,7 @@ chk("o cartao Itens sem resposta vem antes do Resumo e leva ao primeiro item sem
 
 print("\n=== 190. SAI O LAUDO ANTIGO DO PROJETO (07/10/2026) ===")
 chk("nenhum atalho leva ao laudo antigo (checklist-laudo): setores abre o lote, finalizado vai para a revisao",
-    "App.go('checklist-laudo')" not in novo and 'go("checklist-laudo")' not in novo and "App.lclLote('projeto')\" title=" in novo and 'if(STATE.ui.screen === "checklist-laudo") STATE.ui.screen' in novo)
+    "App.go('checklist-laudo')" not in novo and 'go("checklist-laudo")' not in novo and "onclick=\"App.lclLote('projeto')\"" in novo and 'if(STATE.ui.screen === "checklist-laudo") STATE.ui.screen' in novo)
 
 print("\n=== 191. ANTES DE IMPRIMIR AVISA TODOS OS DADOS EM BRANCO DO LAUDO (07/10/2026) ===")
 chk("o quadro Antes de imprimir lista os campos em branco do projeto e da empresa que o laudo mostra",

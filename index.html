@@ -334,7 +334,22 @@ details.section .section-body{padding:2px 14px 16px;border-top:1px solid var(--l
 .risk-strip{border-left:6px solid transparent;}
 
 /* ---------- Módulo Simplificado ---------- */
-.module-pick{background:var(--surface);border:none;padding:0;text-align:left;display:block;width:100%;cursor:pointer;}
+.module-pick{background:var(--surface);border:none;text-align:left;display:flex;flex-direction:column;gap:6px;width:100%;cursor:pointer;margin:0;}
+.module-pick:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.module-pick-ultimo{box-shadow:0 0 0 2px var(--accent)}
+.module-pick-t{font-weight:800;font-size:16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.module-pick-u{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+.module-pick-d{font-size:12.5px;color:var(--ink-dim)}
+.module-pick-n{font-size:12px;font-weight:800;color:var(--accent);margin-top:auto}
+.module-pick-cont{align-self:flex-start;margin-top:4px}
+.module-tela{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;justify-content:center;padding:24px;background:var(--bar)}
+.module-grid{display:grid;gap:14px;width:100%;max-width:980px;margin:0 auto}
+@media (min-width:860px){.module-grid{grid-template-columns:repeat(3,1fr)}}
+.chk-cfg-item{display:flex;align-items:center;gap:10px;justify-content:flex-start;padding:14px 16px;margin-top:10px}
+.chk-cfg-desc{display:block;font-size:12px;color:var(--ink-dim);font-weight:400}
+.chk-cfg-eu{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.chk-cfg-eu label{flex:1;min-width:220px}
+.chk-cfg-eu select{min-width:200px}
 .checklist-item{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:9px;margin-bottom:8px;cursor:pointer;}
 .checklist-item img{width:42px;height:42px;border-radius:7px;object-fit:cover;flex-shrink:0;}
 .checklist-icon{width:42px;height:42px;border-radius:7px;background:var(--bg-soft);display:flex;align-items:center;justify-content:center;color:var(--ink-faint);flex-shrink:0;}
@@ -13738,25 +13753,25 @@ function screenModuloSelect(){
     simplificado: plural((STATE.projetosSimples || []).length, "projeto", "projetos"),
     checklist: plural(projs.length, "projeto", "projetos") + (emAberto ? " · " + plural(emAberto, "linha em aberto", "linhas em aberto") : ""),
   };
-  const selo = (t)=> `<div style="font-size:12px;font-weight:800;color:var(--accent);margin-top:8px">${escapeHtml(t)}</div>`;
+  const ultimo = (STATE.ui && STATE.ui.ultimoModulo) || "checklist";
+  const u = chkUltimaLinhaEmAndamento();
+  const cartao = (k, titulo, desc, extra)=> `<div class="module-pick card card-pad${ultimo === k ? " module-pick-ultimo" : ""}" role="button" tabindex="0" onclick="App.selecionarModulo('${k}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();App.selecionarModulo('${k}')}">
+      <div class="module-pick-t">${titulo}${ultimo === k ? `<span class="module-pick-u">Último usado</span>` : ""}</div>
+      <div class="module-pick-d">${desc}</div>
+      <div class="module-pick-n">${escapeHtml(cont[k])}</div>${extra || ""}
+    </div>`;
+  const continuar = u ? `<button type="button" class="btn btn-primary btn-sm module-pick-cont" onclick="event.stopPropagation();App.selecionarModulo('checklist');App.chkContinuar('${u.p.id}','${u.s.id}','${u.l.id}')">Continuar: ${escapeHtml(u.l.nome || u.l.modeloNome || "linha de vida")}</button>` : "";
   return `
-  <div style="min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;justify-content:center;padding:24px;background:var(--bar)">
+  <div class="module-tela">
     <div style="text-align:center;margin-bottom:26px">
       <div style="color:#fff;font-size:21px;font-weight:800">APR de Campo</div>
       <div style="color:var(--on-bar-dim);font-size:12.5px;margin-top:2px">MecSete Engenharia · Escolha o módulo</div>
     </div>
-    <button class="module-pick card card-pad" style="margin-bottom:14px" onclick="App.selecionarModulo('completo')">
-      <div style="font-weight:800;font-size:16px;margin-bottom:4px">Módulo Completo</div>
-      <div style="font-size:12.5px;color:var(--ink-dim)">Avaliação de risco detalhada (Severidade/Exposição/Evitabilidade, PLr) — Projeto, Área, Máquina, Tarefa e Perigo com todos os campos.</div>${selo(cont.completo)}
-    </button>
-    <button class="module-pick card card-pad" style="border:2px solid var(--accent)" onclick="App.selecionarModulo('simplificado')">
-      <div style="font-weight:800;font-size:16px;margin-bottom:4px">Módulo Simplificado</div>
-      <div style="font-size:12.5px;color:var(--ink-dim)">Levantamento rápido de campo — poucos campos, fotos em checklist e cadastro de risco em qualquer tela do projeto.</div>${selo(cont.simplificado)}
-    </button>
-    <button class="module-pick card card-pad" style="margin-top:14px" onclick="App.selecionarModulo('checklist')">
-      <div style="font-weight:800;font-size:16px;margin-bottom:4px">Linhas de vida</div>
-      <div style="font-size:12.5px;color:var(--ink-dim)">Inspeção de linhas de vida em campo — marque a conformidade item a item, registre fotos e observações, e gere o laudo ao final. Funciona sem internet em campo.</div>${selo(cont.checklist)}
-    </button>
+    <div class="module-grid">
+      ${cartao("checklist", "Linhas de vida", "Inspeção de linhas de vida (NR-35) em campo: conformidade item a item, fotos e observações, e o laudo ao final. Funciona sem internet.", continuar)}
+      ${cartao("simplificado", "NR-12 Simplificado", "Levantamento rápido de campo: poucos campos, fotos em checklist e cadastro de risco em qualquer tela do projeto.")}
+      ${cartao("completo", "NR-12 Completo", "Avaliação de risco detalhada (Severidade, Exposição, Evitabilidade, PLr): projeto, área, máquina, tarefa e perigo com todos os campos.")}
+    </div>
   </div>`;
 }
 const SCREEN_SEL_TIPO = {"simples-areas":"areaS","simples-maquinas":"maquinaS","simples-tarefas":"tarefaS","simples-riscos":"riscoS"};
@@ -14206,6 +14221,7 @@ function renderChecklistModulo(){
     else if(s==="checklist-config-backup") body = screenSimplesConfigBackup();
     else if(s==="checklist-config-empresa") body = screenSimplesConfigEmpresa();
     else if(s==="checklist-config-calculo") body = screenChkCalculo();
+    else if(s==="checklist-config-ia") body = screenChkConfigIA();
     else body = screenChkModelos();
   }catch(e){
     console.error("Erro ao renderizar tela (checklist)", s, e);
@@ -14248,6 +14264,7 @@ function topBarChk(){
     "checklist-config-backup": ["Backup", "Configurações"],
     "checklist-config-empresa": ["Empresa e Responsáveis", "Configurações"],
     "checklist-config-calculo": ["Planilha de cálculo", "Zona livre de queda"],
+    "checklist-config-ia": ["Revisão com IA", "Configurações"],
     "checklist-projeto-form": ["Projeto", "Dados do serviço"],
     "checklist-setores": ["Setores", "Setores do projeto"],
     "checklist-setor-form": ["Setor", "Dados do setor"],
@@ -14277,15 +14294,15 @@ function topBarChk(){
   if(s==="checklist-laudo") backTarget = "checklist-setores";
   if(s==="checklist-config" || s==="checklist-busca") backTarget = "checklist-projetos";
   if(s==="checklist-pronto" || s==="checklist-revisao") backTarget = "checklist-setores";
-  if(s==="checklist-config-backup" || s==="checklist-config-empresa" || s==="checklist-config-calculo") backTarget = "checklist-config";
+  if(s==="checklist-config-backup" || s==="checklist-config-empresa" || s==="checklist-config-calculo" || s==="checklist-config-ia") backTarget = "checklist-config";
   let action = "";
   const btnBusca = `<button class="icon-btn" style="color:var(--on-bar)" onclick="App.go('checklist-busca')" title="Buscar" aria-label="Buscar">${ic('search')}</button>`;
-  if(s==="checklist-modelos") action = `<button class="icon-btn" style="color:var(--on-bar)" onclick="App.go('checklist-config')" title="Configurações">${ic('cog')}</button><button class="icon-btn" style="color:var(--on-bar)" onclick="App.trocarModulo()" title="Trocar módulo">${ic('layers')}</button><button class="topbar-action" onclick="App.chkNovoModelo()">${ic('plus')} Novo</button>`;
-  if(s==="checklist-projetos") action = `<button class="icon-btn" style="color:var(--on-bar)" onclick="App.go('checklist-config')" title="Configurações">${ic('cog')}</button><button class="icon-btn" style="color:var(--on-bar)" onclick="App.trocarModulo()" title="Trocar módulo">${ic('layers')}</button><button class="topbar-action" onclick="App.chkNovoProjeto()">${ic('plus')} Novo</button>`;
-  if(s==="checklist-setores") action = `<button class="topbar-action" onclick="App.chkAbrirDadosProjeto()">${ic('edit')} Dados</button>${chkEhCampo() ? "" : `<button class="topbar-action" onclick="App.lclLote('projeto')" title="Laudos em PDF: um arquivo só, ou um por setor ou por linha (você escolhe quais entram)">${ic('print')} Laudos</button>`}<button class="topbar-action" onclick="App.chkNovoSetor()">${ic('plus')} Setor</button>`;
-  if(s==="checklist-linhas") action = `<button class="topbar-action" onclick="App.go('checklist-nova-linha')">${ic('plus')} Linha</button>`;
+  if(s==="checklist-modelos") action = chkBotaoNovoTopo("Novo", "App.chkNovoModelo()");
+  if(s==="checklist-projetos") action = chkBotaoNovoTopo("Novo", "App.chkNovoProjeto()");
+  if(s==="checklist-setores") action = `<button class="topbar-action" onclick="App.chkAbrirDadosProjeto()">${ic('edit')} Dados</button>` + chkBotaoNovoTopo("Setor", "App.chkNovoSetor()");
+  if(s==="checklist-linhas") action = chkBotaoNovoTopo("Linha", "App.go('checklist-nova-linha')");
   if(s==="checklist-laudo") action = `<button class="topbar-action" onclick="window.print()">${ic('print')} Imprimir</button>`;
-  if(s==="checklist-laudo-linha") action = `<button class="topbar-action" onclick="App.lclRevisarAbrir()" title="Pedir ao Claude para revisar os textos do laudo">${ic('edit')} Revisar</button><button class="topbar-action" onclick="App.lclImprimir()">${ic('print')} Imprimir</button>`;
+  if(s==="checklist-laudo-linha") action = `<button class="topbar-action" onclick="App.lclRevisarAbrir()" title="Pedir ao Claude para revisar os textos do laudo">${ic('edit')} Revisar</button>`;   // "Gerar PDF" fica só na tela do laudo
   if(["checklist-projetos", "checklist-setores", "checklist-linhas"].includes(s)) action = btnBusca + action;
   return `
   <div class="topbar">
@@ -14339,23 +14356,25 @@ function screenChkConfig(){
   const conta = getOneDriveConta();
   const expirou = typeof __onedriveSessaoExpirada !== "undefined" && __onedriveSessaoExpirada;
   const sub = conta && expirou ? "Sessão do OneDrive expirou" : conta ? "OneDrive conectado — " + conta.email : "OneDrive não conectado neste aparelho";
-  const linha = (ico, tit, desc, acao, extra)=> `<button class="btn btn-secondary btn-block" style="display:flex;align-items:center;gap:10px;justify-content:flex-start;padding:14px 16px;margin-top:10px" onclick="${acao}">${ic(ico)}<span style="flex:1;text-align:left"><b>${tit}</b><br><span style="font-size:12px;color:var(--ink-dim);font-weight:400">${escapeHtml(desc)}</span></span>${ic('chevR')}</button>`;
+  const linha = (ico, tit, desc, acao)=> `<button class="btn btn-secondary btn-block chk-cfg-item" onclick="${acao}">${ic(ico)}<span style="flex:1;text-align:left"><b>${tit}</b>${desc ? `<br><span class="chk-cfg-desc">${escapeHtml(desc)}</span>` : ""}</span>${ic('chevR')}</button>`;
+  const inspetores = ((STATE.checklists && STATE.checklists.inspetores) || []).filter(i=> i && i.ativo !== false);
+  const escritorio = !chkEhCampo();
   return `
-  <div class="card card-pad">
-    <div style="font-weight:800;font-size:14.5px;margin-bottom:4px">Configurações</div>
-    <p style="font-size:13px;color:var(--ink-dim)">Backup e sincronização, dados da empresa e dos inspetores, e aparência.</p>
-  </div>
-  ${linha('onedrive', 'Backup', sub, "App.go('checklist-config-backup')")}
-  ${linha('briefcase', 'Empresa e Responsáveis', 'Dados fixos do laudo e lista de inspetores', "App.go('checklist-config-empresa')")}
-  ${chkEhCampo() ? "" : linha('layers', 'Planilha de cálculo', 'Variáveis, constantes e fórmulas do memorial (zona livre de queda), editáveis, com histórico', "App.go('checklist-config-calculo')")}
-  ${chkEhCampo() ? "" : linha('upload', 'Atualizar modelos pelas planilhas', 'Textos e criticidades dos modelos e das linhas já feitas, com prévia antes de aplicar', "App.chkAtuAbrir()")}
-  ${linha('layers', 'Trocar de módulo', 'Voltar à escolha de módulos', "App.trocarModulo()")}
-  <div class="section-title">Quem sou eu neste aparelho</div>
-  <div class="card card-pad">
-    <select id="chkEuSel" style="width:100%" onchange="App.chkSetEu(this.value)"><option value="">Não escolhido</option>${((STATE.checklists && STATE.checklists.inspetores) || []).filter(i=> i && i.ativo !== false).map(i=> `<option value="${i.id}" ${chkEuInspetorId() === i.id ? 'selected' : ''}>${escapeHtml(i.nome || "Sem nome")}</option>`).join("")}</select>
-    <p style="font-size:12.5px;color:var(--ink-dim);margin:8px 0 0">As linhas criadas aqui ficam com este inspetor. Ao abrir a linha de outro inspetor, o app avisa antes (sem bloquear). Não usa senha. A lista de inspetores é editada em Empresa e Responsáveis.</p>
-  </div>
-  <div class="section-title">Revisão com o Claude</div>
+  <div class="section-title">Conta e aparelho</div>
+  ${linha('onedrive', 'Backup e sincronização', sub, "App.go('checklist-config-backup')")}
+  <div class="card card-pad chk-cfg-eu"><label for="chkEuSel"><b>Quem sou eu neste aparelho</b><span class="chk-cfg-desc">As linhas criadas aqui ficam com este inspetor; ao abrir a linha de outro, o app avisa (sem bloquear).</span></label>
+    <select id="chkEuSel" onchange="App.chkSetEu(this.value)"><option value="">Não escolhido</option>${inspetores.map(i=> `<option value="${i.id}" ${chkEuInspetorId() === i.id ? 'selected' : ''}>${escapeHtml(i.nome || "Sem nome")}</option>`).join("")}</select></div>
+  <div class="section-title">Laudo</div>
+  ${linha('briefcase', 'Empresa e responsáveis', 'Dados fixos do laudo e lista de inspetores', "App.go('checklist-config-empresa')")}
+  ${escritorio ? linha('edit', 'Textos do laudo', 'Metodologia, normas de referência e assinatura (valem para todos os laudos)', "App.chkTextosLaudoAbrir()") : ""}
+  ${escritorio ? linha('edit', 'Revisão com IA', 'Prompt do Claude e tamanho dos pacotes', "App.go('checklist-config-ia')") : ""}
+  ${escritorio ? `<div class="section-title">Cálculo</div>${linha('layers', 'Planilha de cálculo', 'Variáveis, constantes e fórmulas do memorial (zona livre de queda)', "App.go('checklist-config-calculo')")}` : ""}
+  ${configAparenciaHtml()}
+  <p style="text-align:center;font-size:11px;color:var(--ink-faint);margin-top:22px">Versão ${APP_BUILD}</p>`;
+}
+/* Revisão com IA: o prompt que vai para o Claude e o tamanho dos pacotes (antes ficava no fim de Configurações). */
+function screenChkConfigIA(){
+  return `
   <div class="card card-pad">
     <div style="font-weight:800;font-size:14px;margin-bottom:4px">Prompt que vai para o Claude</div>
     <textarea id="chkCfgPrompt" rows="16" style="width:100%;font-size:13px">${escapeHtml(lclPromptRevisao())}</textarea>
@@ -14363,8 +14382,7 @@ function screenChkConfig(){
     <div class="field" style="margin-top:8px"><label for="chkCfgMax">Máximo de caracteres por pacote</label><input type="number" id="chkCfgMax" min="10000" max="200000" step="5000" value="${lclRevisaoMaxPacote()}" style="width:140px"><div class="field-hint">Cada laudo tem cerca de 19 mil caracteres. Com 45 mil, saem 2 laudos por mensagem. Se o Claude não cortar a resposta, dá para subir para 60 mil (3 laudos).</div></div>
     <div class="modal-actions" style="justify-content:flex-start;gap:8px;margin-top:8px"><button class="btn btn-primary" onclick="App.chkSalvarPrompt()">Salvar</button><button class="btn btn-secondary" onclick="App.chkPromptPadrao()">Voltar ao padrão</button></div>
   </div>
-  ${configAparenciaHtml()}
-  <p style="text-align:center;font-size:11px;color:var(--ink-faint);margin-top:22px">Versão ${APP_BUILD}</p>`;
+`;
 }
 /* Menu "⋮" dos cartões: as ações aparecem com o nome escrito (no celular não existe dica ao passar o mouse). */
 /* Ícones discretos de uso frequente ao lado do menu "⋮" (a exclusão fica só dentro do menu, longe do toque sem querer). */
@@ -14378,6 +14396,13 @@ function chkAcoesCartao(tipo, id){
   }[tipo] || "";
   // cartão de setor: só os ícones (a exclusão fica dentro da edição do setor)
   return extra + (tipo === "setor" ? "" : chkBotaoMenu(tipo, id));
+}
+/* "+" de criar: no computador fica na barra de cima, no celular vira o botão redondo (nunca os dois juntos). */
+function chkBotaoNovoTopo(rotulo, acao){
+  return chkEhCampo() ? "" : `<button class="topbar-action" onclick="${acao}">${ic('plus')} ${escapeHtml(rotulo)}</button>`;
+}
+function chkFabNovo(acao){
+  return chkEhCampo() ? `<div class="fab-wrap"><button class="fab" onclick="${acao}" aria-label="Novo">${ic('plus')}</button></div>` : "";
 }
 function chkBotaoMenu(tipo, id){
   return `<button class="icon-btn" aria-label="Mais opções" title="Mais opções" onclick="event.stopPropagation();App.chkMenuCartao('${tipo}','${id}')">${ic('dots')}</button>`;
@@ -14518,8 +14543,9 @@ function screenChkModelos(){
       <div class="list-actions">${chkAcoesCartao('modelo', m.id)}</div>
     </div>`;
   }).join("");
-  return `<div class="section-title">${modelos.length} modelo${modelos.length===1?'':'s'}</div>${cards}
-    <div class="fab-wrap"><button class="fab" onclick="App.chkNovoModelo()">${ic('plus')}</button></div>`;
+  const atualizar = chkEhCampo() ? "" : `<button class="btn btn-secondary btn-block chk-cfg-item" style="margin-bottom:10px" onclick="App.chkAtuAbrir()">${ic('upload')}<span style="flex:1;text-align:left"><b>Atualizar modelos pelas planilhas</b><br><span class="chk-cfg-desc">Textos e criticidades dos modelos e das linhas já feitas, com prévia antes de aplicar</span></span>${ic('chevR')}</button>`;
+  return `${atualizar}<div class="section-title">${modelos.length} modelo${modelos.length===1?'':'s'}</div>${cards}
+    ${chkFabNovo("App.chkNovoModelo()")}`;
 }
 /* Editor do modelo: lista de seções e itens à esquerda e, à direita, o item aberto em "linhas de fluxo"
    (Botão -> Laudo -> Ação), uma linha por resposta. É o Modelo 3 ("Linhas de fluxo") da última rodada de
@@ -14816,7 +14842,7 @@ function screenChkProjetos(){
   }).join("");
   const controlesProj = chkBuscaChipsHtml("Buscar projeto ou empresa…", __chkProjFiltro, chkContagensFiltro(todosProj.map(resProj)), "App.chkSetProjFiltro", todosProj.length >= 4);
   return `${chkSyncInfoHtml()}${chkContinuarHtml()}${controlesProj}<div class="section-title">${projetos.length} de ${todosProj.length} projeto${todosProj.length===1?'':'s'}</div>${cards || `<div class="empty"><p>Nenhum projeto encontrado.</p></div>`}
-    <div class="fab-wrap"><button class="fab" onclick="App.chkNovoProjeto()">${ic('plus')}</button></div>`;
+    ${chkFabNovo("App.chkNovoProjeto()")}`;
 }
 /* Cadastro do projeto (dados do solicitante e do documento). No computador as caixas ficam lado a lado, no
    celular uma abaixo da outra. Tudo grava sozinho a cada tecla; o botão do fim só segue para os setores. */
@@ -14924,7 +14950,7 @@ function screenChkSetores(){
   const botaoLoteProj = nLoteProj >= 2 && !chkEhCampo() ? `<button class="btn btn-secondary btn-block" style="margin-bottom:10px" onclick="App.lclLote('projeto')">${ic('print')} Laudos em PDF (${nLoteProj} linhas)</button>` : "";
   const botaoPronto = !chkEhCampo() && proj.setores.some(s=> s.linhas.length) ? `<button class="btn btn-secondary btn-block" style="margin-bottom:10px" onclick="App.go('checklist-pronto')">${ic('shield')} Conferir antes do laudo</button><button class="btn btn-secondary btn-block" style="margin-bottom:10px" onclick="App.go('checklist-revisao')">${ic('edit')} Revisar textos com o Claude${lclRevisaoContagem(proj.setores.flatMap(s=> s.linhas)).linhas ? ` <span class="stat-pill alert pend">${lclRevisaoContagem(proj.setores.flatMap(s=> s.linhas)).linhas} para validar</span>` : ""}</button>` : "";
   return `${botaoPronto}${botaoLoteProj}${controlesSet}<div class="section-title">${setoresFiltrados.length} de ${proj.setores.length} setor${proj.setores.length===1?'':'es'}</div>${cards || `<div class="empty"><p>Nenhum setor encontrado.</p></div>`}
-    <div class="fab-wrap"><button class="fab" onclick="App.chkNovoSetor()">${ic('plus')}</button></div>`;
+    ${chkFabNovo("App.chkNovoSetor()")}`;
 }
 function screenChkSetorForm(){
   const s = getCurrentChkSetor();
@@ -15108,8 +15134,7 @@ function screenChkPronto(){
   return `
   <div class="card card-pad"><div class="list-meta"><span class="stat-pill" style="color:${CHK_STATUS_META.atende.cor}">${r.prontas} prontas</span><span class="stat-pill ${r.comAjustes ? 'alert pend' : ''}">${r.comAjustes} com ajustes</span><span class="stat-pill">${r.naoIniciadas} não iniciadas</span></div>
     <p style="font-size:12.5px;color:var(--ink-dim);margin:8px 0 0">Confere o que o laudo vai mostrar: itens sem resposta, não atende sem motivo, memorial incompleto, foto ampla e dados em branco. Linhas não iniciadas ficam de fora.</p>
-    ${r.prontas ? `<button class="btn btn-primary btn-block" style="margin-top:10px" onclick="App.lclLote('projeto')">${ic('print')} Gerar laudos em PDF</button>` : ""}
-    <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.go('checklist-revisao')">${ic('edit')} Revisar os textos com o Claude</button></div>
+    ${r.prontas ? `<button class="btn btn-primary btn-block" style="margin-top:10px" onclick="App.lclLote('projeto')">${ic('print')} Gerar laudos em PDF</button>` : ""}</div>
   ${projHtml}
   ${ajustes ? `<div class="section-title">Linhas com ajustes (${r.comAjustes})</div>${ajustes}` : ""}
   ${prontas ? `<div class="section-title">Prontas para o laudo (${r.prontas})</div>${prontas}` : ""}
@@ -15295,14 +15320,14 @@ function screenChkLinhas(){
   const botaoLote = nLoteSetor >= 2 && !chkEhCampo() ? `<button class="btn btn-secondary btn-block" style="margin-bottom:10px" onclick="App.lclLote('setor')">${ic('print')} Laudos em PDF (${nLoteSetor} linhas)</button>` : "";
   return `
   ${botaoLote}
-  <div class="search-wrap">
+  ${setor.linhas.length >= 4 || __buscaAtual || __chkLinhasFiltro !== "todas" ? `<div class="search-wrap">
     <input type="text" id="buscaInput" class="search-input" placeholder="Buscar linha de vida…" value="${escapeHtml(__buscaAtual)}" oninput="App.onBuscaChange(this.value)">
     ${__buscaAtual? `<button class="search-clear" onclick="App.onBuscaChange('')">${ic('close')}</button>` : ""}
   </div>
-  <div class="chk-filtros-row">${filtrosHtml}</div>
+  <div class="chk-filtros-row">${filtrosHtml}</div>` : ""}
   <div class="section-title">${filtradas.length} de ${setor.linhas.length} linha${setor.linhas.length===1?'':'s'} de vida</div>
   ${cards}
-  <div class="fab-wrap"><button class="fab" onclick="App.go('checklist-nova-linha')">${ic('plus')}</button></div>`;
+  ${chkFabNovo("App.go('checklist-nova-linha')")}`;
 }
 /* Foto ampla da linha de vida: uma foto de vista geral que permite reconhecer
    o item e o local de relance (lista, preenchimento, laudo). `onde` diz de
@@ -30397,7 +30422,7 @@ Devolver agora?`)) return;
     else if(m==="checklist") go("checklist-projetos", { chkSetorId:null, chkLinhaId:null });
     else go("simples-projetos");
   },
-  trocarModulo(){ STATE.modulo = null; marcarAlterado(); render(); },
+  trocarModulo(){ if(STATE.modulo) STATE.ui.ultimoModulo = STATE.modulo; STATE.modulo = null; marcarAlterado(); render(); },
   onBuscaChange(value){
     const el = document.getElementById("buscaInput");
     __buscaPrecisaFoco = !!el && document.activeElement === el; // só devolve o foco se ele ESTAVA no campo (o botão de limpar não reabre o teclado)
@@ -33569,6 +33594,16 @@ Devolver agora?`)) return;
     toast("Linha agora é de " + (chkNomeInspetor(eu) || "você"));
     render();
   },
+  chkTextosLaudoAbrir(){
+    const it = (ico, rot, desc, fn)=> `<button class="btn btn-secondary btn-block chk-cfg-item" onclick="App.fecharModal();${fn}">${ic(ico)}<span style="flex:1;text-align:left"><b>${rot}</b><br><span class="chk-cfg-desc">${desc}</span></span>${ic('chevR')}</button>`;
+    abrirOverlay(`<div class="sheet-overlay" onclick="if(event.target===this)App.fecharModal()"><div class="sheet">
+      <h3 style="margin:0 0 4px">Textos do laudo</h3><p class="sheet-sub" style="margin:0 0 6px">Valem para todos os laudos de linha de vida.</p>
+      ${it('edit', 'Metodologia', 'Texto e figuras do capítulo de metodologia', "App.lclAbrirMetodologia(true)")}
+      ${it('edit', 'Normas de referência', 'Texto do normativo (página 2)', "App.lclAbrirTextos()")}
+      ${it('edit', 'Assinatura', 'Assinatura padrão do responsável técnico', "App.lpAbrirAssinatura()")}
+      <button class="btn btn-block" style="margin-top:8px" onclick="App.fecharModal()">Fechar</button>
+    </div></div>`);
+  },
   chkSetEu(v){
     try{ if(v) localStorage.setItem("chkEuInspetor", v); else localStorage.removeItem("chkEuInspetor"); }catch(e){}
     render();
@@ -34466,14 +34501,14 @@ Devolver agora?`)) return;
     go("checklist-preencher");
   },
   /* ---------- Metodologia: texto único, com variáveis e figuras ---------- */
-  lclAbrirMetodologia(){
+  lclAbrirMetodologia(semProjeto){
     const t = lclTextos().metodologia;
-    const projAtual = getCurrentChkProjeto();
+    const projAtual = semProjeto ? null : getCurrentChkProjeto();
     __lclMetDraft = t.figuras.map(f=>({ src:f.src, legenda:f.legenda }));
     abrirOverlay(`<div class="sheet-overlay center" id="overlayInner" onclick="if(event.target===this)App.fecharModal()"><div class="modal-card" style="max-width:720px;width:calc(100vw - 32px);max-height:92vh;overflow:auto">
       <h3>${ic('edit')} Texto da Metodologia</h3>
       <p class="sheet-sub">Um texto para todos os laudos. As {{variáveis}} são trocadas pelos dados de cada linha.</p>
-      <div class="field"><label>Descrição do trabalho (deste projeto)</label><textarea id="lclMetObjetivo" rows="3" placeholder="Ex.: Inspeção para validação da linha de vida flexível, considerando as normas NBR16325-2:2017, NBR14626:2010, NR-35…">${escapeHtml((projAtual && projAtual.objetivo) || "")}</textarea><div class="lcl-dica">Entra antes do texto abaixo, em todos os laudos deste projeto (é o mesmo campo do cadastro do projeto).</div></div>
+      ${projAtual ? `<div class="field"><label>Descrição do trabalho (deste projeto)</label><textarea id="lclMetObjetivo" rows="3" placeholder="Ex.: Inspeção para validação da linha de vida flexível, considerando as normas NBR16325-2:2017, NBR14626:2010, NR-35…">${escapeHtml((projAtual && projAtual.objetivo) || "")}</textarea><div class="lcl-dica">Entra antes do texto abaixo, em todos os laudos deste projeto (é o mesmo campo do cadastro do projeto).</div></div>` : ""}
       <div class="field"><label>Texto da Metodologia (igual em todos os laudos)</label><textarea id="lclMetTexto" rows="15" style="font-family:ui-monospace,Consolas,monospace;font-size:13px;line-height:1.5">${escapeHtml(t.texto)}</textarea></div>
       <div class="lcl-vars">${LCL_METODOLOGIA_VARIAVEIS.map(([k, desc])=>`<button type="button" class="lcl-var" title="${escapeHtml(desc)}" onclick="App.lclMetInserirVariavel('${k}')">{{${k}}}</button>`).join("")}</div>
       <div class="lcl-dica" style="margin:6px 0 12px">Subtítulo: <b>## Título</b> · Lista: <b>- item</b> · Tabela: <b>coluna A | coluna B</b> (a 1ª linha é o cabeçalho) · Figura: <b>[figura 1]</b> no lugar desejado. Figura não citada vai para o fim.</div>
@@ -34506,7 +34541,7 @@ Devolver agora?`)) return;
   },
   lclSalvarMetodologia(){
     const ta = document.getElementById("lclMetTexto"); if(!ta) return;
-    const ob = document.getElementById("lclMetObjetivo"), pr = getCurrentChkProjeto();
+    const ob = document.getElementById("lclMetObjetivo"), pr = ob ? getCurrentChkProjeto() : null;
     if(ob && pr && String(ob.value) !== String(pr.objetivo || "")){ pr.objetivo = String(ob.value); pr.atualizadoEm = agoraSync(); }
     if(!STATE.checklists.textos) STATE.checklists.textos = {};
     STATE.checklists.textos.metodologia = { texto: ta.value, figuras: __lclMetDraft.map(f=>({ src:f.src, legenda:f.legenda })) };
