@@ -766,6 +766,25 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-foto-btns{display:flex;gap:8px;margin-top:8px}
 .chk-foto-btns .btn{flex:1}
 .lote-acoes{display:flex;gap:8px;margin:10px 0 6px}
+.chk-painel-resumo{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+.chk-painel-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:0 0 12px}
+.chk-painel-tile{display:flex;gap:10px;align-items:center;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer;font:inherit;color:var(--ink)}
+.chk-painel-tile svg{width:20px;height:20px;flex-shrink:0;color:var(--ink-dim)}
+.chk-painel-tile b{display:block;font-size:14px}
+.chk-painel-tile small{display:block;font-size:12px;color:var(--ink-dim);margin-top:1px}
+.chk-painel-tile.on{border:2px solid var(--accent)}
+.chk-painel-tile.on small{color:var(--accent-ink);font-weight:700}
+.chk-painel-tile:focus-visible,.chk-painel-linha:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.list-card.chk-setor-card{flex-wrap:wrap}
+.chk-painel-linhas{flex-basis:100%;border-top:1px solid var(--line)}
+.chk-painel-linha{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px 12px;align-items:center;padding:9px 12px 9px 14px;cursor:pointer}
+.chk-painel-linha + .chk-painel-linha{border-top:1px dashed var(--line)}
+.chk-painel-linha:hover{background:var(--surface-2)}
+.chk-painel-linha-t{min-width:0}
+.chk-painel-linha-t b{font-size:13.5px}
+.chk-painel-linha-t small{display:block;font-size:11px;color:var(--ink-faint);font-family:var(--mono)}
+.chk-painel-linha-m,.chk-painel-linha-a{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+@media (max-width:640px){.chk-painel-linha{grid-template-columns:minmax(0,1fr) auto}.chk-painel-linha-m{grid-column:1 / -1;order:3}}
 .rev-resumo{font-size:13px;margin:6px 0 2px;color:var(--ink-dim)}
 .rev-resumo b{color:var(--ink)}
 .rev-amarelo{color:#8A5A00;font-weight:700}
@@ -14407,6 +14426,25 @@ function chkFabNovo(acao){
 function chkBotaoMenu(tipo, id){
   return `<button class="icon-btn" aria-label="Mais opções" title="Mais opções" onclick="event.stopPropagation();App.chkMenuCartao('${tipo}','${id}')">${ic('dots')}</button>`;
 }
+/* Linha de vida dentro do cartão do setor (painel do projeto): tocar abre o checklist, como o cartão da lista do setor.
+   Os mesmos atalhos do cartão: validar a revisão do Claude, laudo (computador) e o menu de opções da linha. */
+function chkPainelLinhaHtml(proj, s, l){
+  const st = chkStatusLinha(l), pct = chkProgresso(l);
+  const nRev = l.revisaoPendente ? (l.revisaoPendente.itens || []).length : 0;
+  const escritorio = !chkEhCampo();
+  const nome = l.nome && l.nome !== s.nome ? l.nome : (l.nome || l.modeloNome || "Linha de vida");
+  const num = Number.isInteger(l.docSeq) && String(proj.numeroDocumento || "").trim() ? chkNumeroDocLinha(proj, l) : "";
+  const situacao = st === "finalizado" ? `<span class="stat-pill" style="color:${CHK_STATUS_META.atende.cor}">Finalizada</span>`
+    : st === "andamento" ? `<span class="stat-pill alert">Em andamento · ${pct}%</span>` : `<span class="stat-pill">Não iniciada</span>`;
+  const rev = nRev && escritorio ? `<button type="button" class="stat-pill chk-rev-pill" onclick="event.stopPropagation();App.chkRevValidarLinha('${l.id}')" title="O Claude revisou os textos desta linha; falta você conferir">${ic('edit')} ${nRev} para validar</button>` : "";
+  const continuar = st === "finalizado" ? "" : `<button type="button" class="btn btn-sm ${st === "andamento" ? "btn-primary" : "btn-secondary"}" onclick="event.stopPropagation();App.chkIrParaLinha('${s.id}','${l.id}')">${st === "pendente" ? "Começar" : "Continuar"}</button>`;
+  const laudo = escritorio ? `<button type="button" class="btn btn-sm btn-secondary" onclick="event.stopPropagation();App.chkLaudoDaLinha('${s.id}','${l.id}')" title="Abrir o laudo desta linha">${ic('print')} Laudo</button>` : "";
+  return `<div class="chk-painel-linha" role="button" tabindex="0" onclick="App.chkIrParaLinha('${s.id}','${l.id}')" onkeydown="if(event.key==='Enter'){App.chkIrParaLinha('${s.id}','${l.id}')}">
+      <div class="chk-painel-linha-t"><b>${escapeHtml(nome)}</b>${num ? `<small>${escapeHtml(num)}</small>` : ""}</div>
+      <div class="chk-painel-linha-m">${situacao}${rev}</div>
+      <div class="chk-painel-linha-a">${continuar}${laudo}<button type="button" class="icon-btn" aria-label="Mais opções da linha" title="Mais opções da linha" onclick="event.stopPropagation();App.chkMenuLinhaNoSetor('${s.id}','${l.id}')">${ic('dots')}</button></div>
+    </div>`;
+}
 /* Ordena uma lista de setores ou de linhas conforme a escolha do usuário. `seq(x)` = número de sequência do documento (ou null), `rec(x)` = última alteração. */
 function chkOrdenarLista(lista, ordem, seq, rec){
   const nome = (a, b)=> chkCompararNomes(a && a.nome, b && b.nome);
@@ -14928,8 +14966,9 @@ function screenChkSetores(){
     const nFinalizadas = s.linhas.filter(l=>l.status==="finalizado").length;
     const nPend = chkPendenciasLinhas(s.linhas);
     const nNaoEnv = getOneDriveConta() ? chkLinhasPendentesEnvio(s.linhas, chkVistosAtuais()).size : 0;
+    const linhasDoSetor = s.linhas.length ? `<div class="chk-painel-linhas">${chkOrdenarLista(s.linhas, __chkOrdemLista, (l)=> l.docSeq, (l)=> l.atualizadoEm).map(l=> chkPainelLinhaHtml(proj, s, l)).join("")}</div>` : "";
     return `
-    <div class="card list-card">
+    <div class="card list-card chk-setor-card">
       <div class="list-body" onclick="App.chkAbrirSetor('${s.id}')" style="padding:14px">
         <div class="list-name">${escapeHtml(s.nome||'Sem nome (toque para editar)')}</div>
         <div class="list-tag">${escapeHtml(s.descricao||'sem descrição')}</div>
@@ -14943,13 +14982,24 @@ function screenChkSetores(){
         </div>
       </div>
       <div class="list-actions">${chkAcoesCartao('setor', s.id)}</div>
+      ${linhasDoSetor}
     </div>`;
   }).join("");
   const controlesSet = chkBuscaChipsHtml("Buscar setor…", __chkSetFiltro, chkContagensFiltro(proj.setores.map(resSet)), "App.chkSetSetFiltro", proj.setores.length >= 4) + (proj.setores.length >= 2 ? chkOrdemHtml() : "");
   const nLoteProj = proj.setores.reduce((n, s)=> n + s.linhas.filter(l=> chkProgresso(l) > 0).length, 0);
-  const botaoLoteProj = nLoteProj >= 2 && !chkEhCampo() ? `<button class="btn btn-secondary btn-block" style="margin-bottom:10px" onclick="App.lclLote('projeto')">${ic('print')} Laudos em PDF (${nLoteProj} linhas)</button>` : "";
-  const botaoPronto = !chkEhCampo() && proj.setores.some(s=> s.linhas.length) ? `<button class="btn btn-secondary btn-block" style="margin-bottom:10px" onclick="App.go('checklist-pronto')">${ic('shield')} Conferir antes do laudo</button><button class="btn btn-secondary btn-block" style="margin-bottom:10px" onclick="App.go('checklist-revisao')">${ic('edit')} Revisar textos com o Claude${lclRevisaoContagem(proj.setores.flatMap(s=> s.linhas)).linhas ? ` <span class="stat-pill alert pend">${lclRevisaoContagem(proj.setores.flatMap(s=> s.linhas)).linhas} para validar</span>` : ""}</button>` : "";
-  return `${botaoPronto}${botaoLoteProj}${controlesSet}<div class="section-title">${setoresFiltrados.length} de ${proj.setores.length} setor${proj.setores.length===1?'':'es'}</div>${cards || `<div class="empty"><p>Nenhum setor encontrado.</p></div>`}
+  const todasLinhas = proj.setores.flatMap(s=> s.linhas);
+  const escritorio = !chkEhCampo();
+  const nFin = todasLinhas.filter(l=> l.status === "finalizado").length;
+  const nRev = lclRevisaoContagem(todasLinhas).linhas;
+  const pronto = escritorio && todasLinhas.length ? chkProntoParaLaudo(proj) : null;
+  const resumoProj = todasLinhas.length ? `<div class="chk-painel-resumo"><span class="stat-pill" style="color:${CHK_STATUS_META.atende.cor}">${nFin} de ${todasLinhas.length} ${todasLinhas.length === 1 ? "linha finalizada" : "linhas finalizadas"}</span>${todasLinhas.length - nFin ? `<span class="stat-pill alert">${todasLinhas.length - nFin} em aberto</span>` : ""}${nRev && escritorio ? `<span class="stat-pill chk-rev-pill">${nRev} para validar</span>` : ""}</div>` : "";
+  const atalho = (ico, tit, desc, acao, destaque)=> `<button type="button" class="chk-painel-tile${destaque ? " on" : ""}" onclick="${acao}">${ic(ico)}<span><b>${tit}</b><small>${desc}</small></span></button>`;
+  const atalhos = pronto ? `<div class="chk-painel-tiles">
+      ${atalho('shield', 'Conferir antes do laudo', pronto.comAjustes ? pronto.comAjustes + (pronto.comAjustes === 1 ? " linha com ajustes" : " linhas com ajustes") : "nada a ajustar", "App.go('checklist-pronto')", pronto.comAjustes > 0)}
+      ${atalho('edit', 'Revisão com IA', nRev ? nRev + (nRev === 1 ? " linha para validar" : " linhas para validar") : "revisar os textos com o Claude", "App.go('checklist-revisao')", nRev > 0)}
+      ${nLoteProj >= 2 ? atalho('print', 'Laudos em PDF', nLoteProj + " linhas · um arquivo ou vários", "App.lclLote('projeto')") : ""}
+    </div>` : "";
+  return `${resumoProj}${atalhos}${controlesSet}<div class="section-title">${setoresFiltrados.length} de ${proj.setores.length} setor${proj.setores.length===1?'':'es'}</div>${cards || `<div class="empty"><p>Nenhum setor encontrado.</p></div>`}
     ${chkFabNovo("App.chkNovoSetor()")}`;
 }
 function screenChkSetorForm(){
@@ -33336,6 +33386,7 @@ Devolver agora?`)) return;
     });
   },
   chkIrParaLinha(setorId, id){ STATE.ui.chkSetorId = setorId; App.chkAbrirLinha(id); },
+  chkMenuLinhaNoSetor(setorId, id){ STATE.ui.chkSetorId = setorId; App.chkMenuCartao('linha', id); },
   chkLaudoDaLinha(setorId, id){ STATE.ui.chkSetorId = setorId; App.chkAbrirLaudoLinha(id); },
   chkBuscaDigitar(v){
     __chkBusca.q = v;
