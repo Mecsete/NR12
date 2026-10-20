@@ -64,6 +64,18 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 20/10/2026 06:28
+
+**Linhas de vida: navegação mais simples (painel do projeto, uma ação em um lugar só, Configurações em grupos) e limpeza do código.**
+
+- Escolha de módulo: cartões lado a lado no computador (o texto não encosta mais na borda), destaque no último módulo usado e botão "Continuar" para a linha onde você parou. Nomes: Linhas de vida, NR-12 Simplificado, NR-12 Completo.
+- Projeto: resumo (finalizadas, em aberto, para validar) e atalhos pequenos com contagem (Conferir antes do laudo, Revisão com IA, Laudos em PDF). Cada setor mostra as linhas dele: tocar abre a linha direto; Laudo, Validar e o menu da linha ficam na própria linha.
+- Uma ação em um lugar só: Configurações e Módulos ficam só na barra de baixo; o "+" fica no topo no computador e como botão redondo no celular; saíram o "Laudos" repetido do topo dos setores, o "Imprimir" do topo do laudo (fica "Gerar PDF") e o atalho repetido da revisão em "Conferir antes do laudo". Busca e filtros da lista de linhas só a partir de 4 linhas.
+- Configurações em grupos (Conta e aparelho, Laudo, Cálculo). Novas páginas: "Textos do laudo" (Metodologia, Normas, Assinatura) e "Revisão com IA" (prompt e tamanho dos pacotes). "Atualizar modelos pelas planilhas" foi para a tela de Modelos. "Trocar de módulo" fica só na barra de baixo.
+- Limpeza: saíram a migração automática dos checklists (uso único, já aplicada) e a tela antiga do laudo do projeto. O app ficou cerca de 357 KB menor.
+
+---
+
 ## 14/10/2026 10:00
 
 **Revisão com o Claude: resultado da resposta colada por linha.**
