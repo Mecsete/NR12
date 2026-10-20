@@ -1322,6 +1322,7 @@ const ICON = {
   chevR:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>',
   arrowR:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>',
   close:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  pin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6l-1 6 3 3H7l3-3-1-6zM12 13v7"/></svg>',
   check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>',
   download:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13m0 0l-4.5-4.5M12 16l4.5-4.5"/><path d="M4 19h16"/></svg>',
   upload:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V6m0 0l-4.5 4.5M12 6l4.5 4.5"/><path d="M4 19h16"/></svg>',
@@ -14257,6 +14258,7 @@ function renderChecklistModulo(){
     ${(s==='checklist-laudo' || s==='checklist-laudo-linha') ? '' : bottomNavChk()}
   `;
   if(s==='checklist-modelo-form') chkModeloAjustarAlturas();
+  if(s==='checklist-laudo-linha'){ const tb = app.querySelector(".topbar"); if(tb) document.documentElement.style.setProperty("--lcl-topo", tb.offsetHeight + "px"); }
   if(s==='checklist-preencher'){
     const t = app.querySelector(".chk-tabs");
     if(t){
@@ -14321,7 +14323,14 @@ function topBarChk(){
   if(s==="checklist-setores") action = `<button class="topbar-action" onclick="App.chkAbrirDadosProjeto()">${ic('edit')} Dados</button>` + chkBotaoNovoTopo("Setor", "App.chkNovoSetor()");
   if(s==="checklist-linhas") action = chkBotaoNovoTopo("Linha", "App.go('checklist-nova-linha')");
   if(s==="checklist-laudo") action = `<button class="topbar-action" onclick="window.print()">${ic('print')} Imprimir</button>`;
-  if(s==="checklist-laudo-linha") action = `<button class="topbar-action" onclick="App.lclRevisarAbrir()" title="Pedir ao Claude para revisar os textos do laudo">${ic('edit')} Revisar</button>`;   // "Gerar PDF" fica só na tela do laudo
+  if(s==="checklist-laudo-linha"){
+    const pj = getCurrentChkProjeto(), la = getCurrentChkLinha();
+    const ordem = pj && la ? lclLaudosDoProjeto(pj, la) : [];
+    const k = ordem.findIndex(x=> la && x.l.id === la.id);
+    if(k >= 0 && ordem.length > 1) sub = "Laudo " + (k + 1) + " de " + ordem.length + (pj.numeroDocumento ? " · " + chkNumeroDocLinha(pj, la) : "");
+    action = (ordem.length > 1 ? `<button class="topbar-action" onclick="App.lclNavegar(-1)" ${k <= 0 ? "disabled" : ""} title="Laudo anterior" aria-label="Laudo anterior">${ic('back')}</button><button class="topbar-action" onclick="App.lclNavegar(1)" ${k >= ordem.length - 1 ? "disabled" : ""} title="Próximo laudo" aria-label="Próximo laudo">${ic('chevR')}</button>` : "")
+      + `<button class="topbar-action" onclick="App.lclRevisarAbrir()" title="Pedir ao Claude para revisar os textos deste laudo">${ic('edit')} Revisar</button><button class="topbar-action topbar-action-pri" onclick="App.lclImprimir()">${ic('print')} Gerar PDF</button>`;
+  }
   if(["checklist-projetos", "checklist-setores", "checklist-linhas"].includes(s)) action = btnBusca + action;
   return `
   <div class="topbar">
@@ -18926,6 +18935,34 @@ const LCL_CSS = `
 .lcl-flut-btn svg{width:19px;height:19px}
 .lcl-flut-pct{font-size:10.5px;font-weight:800;color:#fff;letter-spacing:.03em;font-variant-numeric:tabular-nums;padding-bottom:1px}
 @media (min-width:900px){.screen.screen-lcl{max-width:1180px}}
+/* Painel "Ajustes do laudo": faixa estreita à esquerda; abre ao passar o mouse (computador) ou com um toque (celular); o alfinete deixa fixo */
+.lcl-tela{padding-left:40px}
+.lcl-ajustes{position:fixed;left:0;top:var(--lcl-topo,64px);bottom:0;z-index:25;display:flex;align-items:stretch;pointer-events:none}
+.lcl-aj-aba{pointer-events:auto;width:34px;background:var(--bar);color:var(--on-bar);border:0;border-radius:0 10px 10px 0;margin:10px 0 auto;padding:12px 0;display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer;font:inherit}
+.lcl-aj-aba svg{width:18px;height:18px}
+.lcl-aj-aba-t{writing-mode:vertical-rl;transform:rotate(180deg);font-size:12px;font-weight:800;letter-spacing:.06em}
+.lcl-aj-n{min-width:20px;height:20px;border-radius:10px;background:var(--accent);color:#fff;font-size:11px;font-weight:800;display:grid;place-items:center;padding:0 5px}
+.lcl-aj-corpo{pointer-events:auto;display:none;width:340px;max-width:calc(100vw - 44px);background:var(--surface);border-right:1px solid var(--line);box-shadow:6px 0 24px rgba(30,33,72,.18);overflow:auto;padding:12px 14px 24px;order:-1}
+.lcl-ajustes[data-aberto="1"] .lcl-aj-corpo,.lcl-ajustes[data-fixo="1"] .lcl-aj-corpo,.lcl-aj-corpo:focus-within{display:block}
+@media (hover:hover){.lcl-ajustes:hover .lcl-aj-corpo{display:block}}
+.lcl-ajustes[data-fixo="1"] .lcl-aj-aba{display:none}
+.lcl-tela.fixo{padding-left:352px}
+@media (max-width:899px){.lcl-tela.fixo{padding-left:0}.lcl-ajustes[data-fixo="1"] .lcl-aj-corpo{display:none}.lcl-ajustes[data-fixo="1"][data-aberto="1"] .lcl-aj-corpo{display:block}.lcl-ajustes[data-fixo="1"] .lcl-aj-aba{display:flex}}
+.lcl-aj-topo{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.lcl-aj-topo b{font-size:14.5px}
+.lcl-aj-g{border-top:1px solid var(--line);padding:10px 0 4px}
+.lcl-aj-gt{font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:6px}
+.lcl-aj-caps{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin:0;font-size:13px}
+.lcl-aj-caps label{display:flex;gap:6px;align-items:center;cursor:pointer;color:var(--ink-dim);font-weight:600}
+.lcl-aj-caps input{width:17px;height:17px;accent-color:var(--accent)}
+.lcl-aj-bts{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.lcl-aj-sum{display:flex;flex-direction:column;gap:2px;font-size:12.5px}
+.lcl-aj-sum a{color:var(--ink);text-decoration:none;padding:3px 6px;border-radius:6px}
+.lcl-aj-sum a:hover{background:var(--bg-soft)}
+.lcl-aj-sum a.sub,.lcl-aj-sum a.nok,.lcl-aj-sum a.ok{padding-left:16px;color:var(--ink-dim)}
+.topbar-action-pri{background:var(--accent)!important;color:#fff!important;border-color:var(--accent)!important}
+.topbar-action[disabled]{opacity:.4;cursor:default}
+@media print{.lcl-ajustes{display:none!important}.lcl-tela{padding-left:0!important}}
 .lcl-pagina{width:${LCL_PAG_L}px;height:${LCL_PAG_A}px;background:#fff;margin:0 auto 14px;box-shadow:0 2px 10px rgba(0,0,0,.35);position:relative;overflow:hidden;box-sizing:border-box;padding:${LCL_MARGEM}px;font-family:Arial,Helvetica,sans-serif;font-size:12.5px;line-height:1.42;color:#111;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .lcl-pagina.lcl-sem-margem{padding:0}
 .lcl-corpo{height:${LCL_UTIL_A}px;overflow:hidden}
@@ -19226,6 +19263,12 @@ function lclListaImagensHtml(lista, fnLegenda, fnRemover, rotulo){
   if(!lista.length) return `<div class="lcl-dica">Nenhuma imagem ainda.</div>`;
   return lista.map((a, i)=>`<div class="lcl-figrow"><img data-imgref="${imgReg(a.src)}" alt=""><div><div class="lcl-dica">${escapeHtml(rotulo(i))}</div><input type="text" value="${escapeHtml(a.legenda || "")}" placeholder="Legenda" oninput="${fnLegenda}(${i},this.value)"></div><button class="icon-btn" title="Remover" onclick="${fnRemover}(${i})">${ic("trash")}</button></div>`).join("");
 }
+let __lclAjAberto = false;   // painel aberto por toque (no computador ele também abre ao passar o mouse)
+function lclAjFixo(){ try{ return localStorage.getItem("lclAjFixo") === "1"; }catch(e){ return false; } }
+/* Laudos do projeto na ordem do número do documento (setor e linha de A a Z): só as linhas começadas, e sempre a aberta. */
+function lclLaudosDoProjeto(proj, linhaAtual){
+  return chkLinhasEmOrdem(proj).filter(x=> chkProgresso(x.l) > 0 || x.l.status === "finalizado" || (linhaAtual && x.l.id === linhaAtual.id));
+}
 function screenChkLaudoLinha(){
   const proj = getCurrentChkProjeto(), setor = getCurrentChkSetor(), l = getCurrentChkLinha();
   if(!proj || !setor || !l){ go("checklist-linhas"); return ""; }
@@ -19250,38 +19293,38 @@ function screenChkLaudoLinha(){
       <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lclIrMemorial()">${ic('edit')} Medidas</button></div>`;
   }
   const altura = __lclPaginas.length * (LCL_PAG_A + 14);
-  return `
-  <div class="card card-pad" style="margin-bottom:10px">
-    <div style="font-weight:800;font-size:14.5px;margin-bottom:3px">Laudo da linha de vida em capítulos</div>
-    <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:0">Um laudo para esta linha, em páginas A4. O que aparece na prévia é o que sai no PDF.</p>
-  </div>
-  <div class="lcl-barra">
-    <button class="btn btn-primary" onclick="App.lclImprimir()">${ic('print')} Gerar PDF</button>
-    <button class="btn btn-secondary" onclick="App.lclGerar()">${ic('table')} ${__lclPaginas.length ? "Atualizar prévia" : "Montar prévia"}</button>
-    ${__lclPaginas.length ? `<span class="lcl-status">${__lclPaginas.length} página(s)</span>` : (__lclGerando ? `<span class="lcl-status">Montando…</span>` : "")}
-    <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lclAbrirMetodologia()">${ic('edit')} Metodologia</button>
-    <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lclAbrirTextos()">${ic('edit')} Normas de referência</button>
-    <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lclAbrirAnexos()">${ic('edit')} Anexos${cfg.anexos.length ? " (" + cfg.anexos.length + ")" : ""}</button>
-    ${typeof App.lpAbrirAssinatura === "function" ? `<button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirAssinatura()">${ic('edit')} Assinatura${(typeof __assinaturaLaudo === "string" && __assinaturaLaudo) ? " ·" : ""}</button>` : ""}
-  </div>
-  <div class="lcl-caps"><span style="font-weight:800;color:var(--ink)">Capítulos:</span>${caps}${l.fotoAmpla ? `<label style="margin-left:6px"><input type="checkbox" ${cfg.fotoCapa ? "checked" : ""} onchange="App.lclSetFotoCapa(this.checked)"><span>Foto na capa</span></label>` : ""}</div>
-  <div class="lcl-caps"><span style="font-weight:800;color:var(--ink)">Parecer:</span>${selParecer}</div>
-  ${memLinha}
-  ${lclAvisosHtml(l)}
+  const nAvisos = lclAvisos(l, proj).length;
+  const sumario = [];
+  String(__lclHtml || "").replace(/<a class="lcl-sl ([^"]*)" href="(#lcl-a-[^"]+)"[^>]*>([\s\S]*?)<i><\/i>/g, (m, cls, href, txt)=>{ sumario.push({ cls, href, txt: txt.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() }); return m; });
+  const grupo = (tit, corpo)=> corpo ? `<div class="lcl-aj-g"><div class="lcl-aj-gt">${tit}</div>${corpo}</div>` : "";
+  const botao = (rot, fn)=> `<button type="button" class="btn btn-secondary btn-sm" onclick="${fn}">${ic('edit')} ${rot}</button>`;
+  const painel = `<aside class="lcl-ajustes" id="lclAjustes" data-aberto="${__lclAjAberto ? 1 : 0}" data-fixo="${lclAjFixo() ? 1 : 0}" aria-label="Ajustes do laudo">
+    <button type="button" class="lcl-aj-aba" onclick="App.lclAjustesAlternar()" aria-controls="lclAjCorpo" title="Ajustes do laudo: avisos, parecer, capítulos, memorial e textos">${ic('cog')}<span class="lcl-aj-aba-t">Ajustes</span>${nAvisos ? `<span class="lcl-aj-n" title="${nAvisos} ${nAvisos === 1 ? "aviso" : "avisos"} antes de imprimir">${nAvisos}</span>` : ""}</button>
+    <div class="lcl-aj-corpo" id="lclAjCorpo">
+      <div class="lcl-aj-topo"><b>Ajustes do laudo</b><button type="button" class="icon-btn" onclick="App.lclAjustesFixar()" title="${lclAjFixo() ? "Soltar (volta a esconder)" : "Manter aberto"}" aria-pressed="${lclAjFixo() ? "true" : "false"}">${ic(lclAjFixo() ? 'close' : 'pin')}</button></div>
+      ${lclAvisosHtml(l)}
+      ${grupo("Parecer", selParecer)}
+      ${grupo("Capítulos", `<div class="lcl-aj-caps">${caps}${l.fotoAmpla ? `<label><input type="checkbox" ${cfg.fotoCapa ? "checked" : ""} onchange="App.lclSetFotoCapa(this.checked)"><span>Foto na capa</span></label>` : ""}</div>`)}
+      ${memLinha ? grupo("Memorial", memLinha.replace('<div class="lcl-caps"><span style="font-weight:800;color:var(--ink)">Memorial:</span>', '<div class="lcl-caps lcl-aj-caps">')) : ""}
+      ${grupo("Textos", `<div class="lcl-aj-bts">${botao("Metodologia", "App.lclAbrirMetodologia()")}${botao("Normas de referência", "App.lclAbrirTextos()")}${botao("Anexos" + (cfg.anexos.length ? " (" + cfg.anexos.length + ")" : ""), "App.lclAbrirAnexos()")}${typeof App.lpAbrirAssinatura === "function" ? botao("Assinatura" + ((typeof __assinaturaLaudo === "string" && __assinaturaLaudo) ? " ·" : ""), "App.lpAbrirAssinatura()") : ""}</div>`)}
+      ${sumario.length ? grupo("Ir para", `<div class="lcl-aj-sum">${sumario.map(x=> `<a class="${escapeHtml(x.cls)}" href="${x.href}" onclick="return App.lclIrPara(event)">${escapeHtml(x.txt)}</a>`).join("")}</div>`) : ""}
+      ${grupo("Prévia", `<div class="lcl-aj-bts"><span class="lcl-status">${__lclPaginas.length ? __lclPaginas.length + " página(s)" : (__lclGerando ? "Montando…" : "ainda não montada")}</span><button type="button" class="btn btn-secondary btn-sm" onclick="App.lclGerar()">${ic('table')} ${__lclPaginas.length ? "Atualizar prévia" : "Montar prévia"}</button></div><div class="lcl-status" style="margin-top:6px">A prévia se refaz sozinha quando um ajuste muda. O que aparece nela é o que sai no PDF.</div>`)}
+      ${grupo("Ao salvar o PDF", `<div class="lcl-status" style="line-height:1.6">Destino: <b>Salvar como PDF</b> · Margens: <b>Nenhuma</b> · Escala: <b>100%</b>. Em "Mais definições", desmarque <b>Cabeçalhos e rodapés</b> e marque <b>Gráficos de segundo plano</b>. Retrato.</div>`)}
+    </div>
+  </aside>`;
+  return `<div class="lcl-tela${lclAjFixo() ? " fixo" : ""}">
+  ${painel}
+  <div class="lcl-area" onclick="App.lclAjustesFecharToque(event)">
   ${__lclPaginas.length ? `
     <div class="lcl-visor-wrap">
       <div class="lcl-visor"><div class="lcl-doc" id="lclDoc" style="transform:scale(${zoom});width:${LCL_PAG_L}px;margin-bottom:${Math.round(-altura * (1 - zoom))}px">${__lclHtml}</div></div>
       <div class="lcl-flut">
-        <button class="lcl-flut-btn" title="Imprimir / Salvar PDF" aria-label="Imprimir ou salvar em PDF" onclick="App.lclImprimir()">${ic('print')}</button>
         <button class="lcl-flut-btn" title="Aumentar" aria-label="Aumentar o zoom" onclick="App.lclZoom(1)">${ic('zoomMais')}</button>
         <button class="lcl-flut-btn" title="Diminuir" aria-label="Diminuir o zoom" onclick="App.lclZoom(-1)">${ic('zoomMenos')}</button>
         <span class="lcl-flut-pct">${Math.round(zoom * 100)}%</span>
       </div>
-    </div>
-    <div class="card card-pad" style="margin-top:10px;background:var(--bg-soft)">
-      <div style="font-weight:800;font-size:13px;margin-bottom:5px">Ao abrir a janela de impressão</div>
-      <div style="font-size:12.5px;color:var(--ink-dim);line-height:1.6">Destino: <b>Salvar como PDF</b> · Margens: <b>Nenhuma</b> · Escala: <b>100%</b><br>Em "Mais definições", desmarque <b>Cabeçalhos e rodapés</b> e marque <b>Gráficos de segundo plano</b>. Deixe em <b>Retrato</b>.</div>
-    </div>` : `<div class="empty">${ic('print')}<h3>${__lclGerando ? "Montando o laudo…" : "Laudo ainda não montado"}</h3><p>${__lclGerando ? "Aguarde alguns segundos." : 'Toque em "Montar laudo" para gerar as páginas.'}</p></div>`}`;
+    </div>` : `<div class="empty">${ic('print')}<h3>${__lclGerando ? "Montando o laudo…" : "Laudo ainda não montado"}</h3><p>${__lclGerando ? "Aguarde alguns segundos." : 'Abra "Ajustes" e toque em "Montar prévia".'}</p></div>`}
+  </div></div>`;
 }
 
 
@@ -34135,6 +34178,32 @@ Devolver agora?`)) return;
     const pag = alvo && alvo.closest ? alvo.closest(".lcl-pagina") : null;
     if(pag) pag.scrollIntoView({ block:"start" }); // sem animação: o laudo tem dezenas de páginas e a rolagem suave demora
     return false;
+  },
+  lclAjustesAlternar(){
+    __lclAjAberto = !__lclAjAberto;
+    const el = document.getElementById("lclAjustes"); if(el) el.setAttribute("data-aberto", __lclAjAberto ? "1" : "0");
+  },
+  lclAjustesFixar(){
+    const v = !lclAjFixo();
+    try{ localStorage.setItem("lclAjFixo", v ? "1" : "0"); }catch(e){}
+    __lclAjAberto = false;
+    render();
+  },
+  // no celular (sem mouse) o painel abre com um toque; tocar na prévia fecha
+  lclAjustesFecharToque(ev){
+    if(!__lclAjAberto || lclAjFixo()) return;
+    __lclAjAberto = false;
+    const el = document.getElementById("lclAjustes"); if(el) el.setAttribute("data-aberto", "0");
+  },
+  lclNavegar(d){
+    const proj = getCurrentChkProjeto(), l = getCurrentChkLinha(); if(!proj || !l) return;
+    const ordem = lclLaudosDoProjeto(proj, l);
+    const k = ordem.findIndex(x=> x.l.id === l.id), alvo = ordem[k + d];
+    if(!alvo) return;
+    STATE.ui.chkSetorId = alvo.s.id; STATE.ui.chkLinhaId = alvo.l.id;
+    __lclPaginas = []; __lclHtml = ""; __lclParaLinha = null;
+    render();
+    window.scrollTo(0, 0);
   },
   lclZoom(dir){
     const passos = [0.3,0.4,0.5,0.65,0.8,1,1.25,1.5,2];

@@ -5806,7 +5806,7 @@ chk("revisar e finalizar: nao conformidades com motivo/foto/Corrigir e volta par
 chk("finalizar a linha abre o laudo da linha (um caminho so), sem o rotulo (novo)",
     'toast("Checklist finalizado");\n    App.lclAbrir("checklist-linhas");' in novo and "Laudo da linha em capítulos (novo)" not in novo)
 chk("laudo da linha: Gerar PDF, Normas de referencia, quadro Antes de imprimir e confirmacao ao imprimir com aviso",
-    "Gerar PDF</button>" in novo and "Normas de referência</button>" in novo and "lclAvisosHtml(l)" in novo and "Antes de imprimir:" in novo)
+    "Gerar PDF</button>" in novo and ("Normas de referência</button>" in novo or 'botao("Normas de referência", "App.lclAbrirTextos()")' in novo) and "lclAvisosHtml(l)" in novo and "Antes de imprimir:" in novo)
 chk("parecer NAO CONCLUSIVO quando sobra item sem resposta (critica continua INAPTA)",
     'inconclusivo: { rot:"NÃO CONCLUSIVO"' in novo and 'return "inconclusivo";' in novo and "lclSemResposta(linha)" in novo)
 
