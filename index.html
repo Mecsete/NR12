@@ -766,6 +766,12 @@ html[data-contraste="alto"] .checklist-item,html[data-contraste="alto"] .field i
 .chk-foto-btns{display:flex;gap:8px;margin-top:8px}
 .chk-foto-btns .btn{flex:1}
 .lote-acoes{display:flex;gap:8px;margin:10px 0 6px}
+.chk-rev-arq.over-foto{outline:2px dashed var(--accent);outline-offset:2px}
+.chk-rev-passos{margin:0 0 10px;padding-left:20px;font-size:13px;color:var(--ink-dim);display:grid;gap:4px}
+.chk-rev-passos b{color:var(--ink)}
+.chk-rev-pac-alt{margin-top:12px}
+.chk-rev-pac-alt > summary{cursor:pointer;font-size:13px;font-weight:800;color:var(--ink-dim);padding:6px 0}
+.chk-rev-lote{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:12px;border:2px solid var(--accent)}
 .chk-painel-resumo{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
 .chk-painel-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:0 0 12px}
 .chk-painel-tile{display:flex;gap:10px;align-items:center;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer;font:inherit;color:var(--ink)}
@@ -17420,6 +17426,14 @@ function lclBlocoRevisaoLinha(x, proj){
   const p = [`######## LINHA: ${linha.nome || ""} - ${x.setor ? "Setor " + x.setor + " - " : ""}${chkRotuloTipoLinha(chkTipoLinha(linha)) || ""} (linha=${linha.id})`,
     `Resultado do checklist: ${res.ok} atendem, ${res.nok} não atendem${res.na ? ", " + res.na + " não se aplicam" : ""}`];
   if(ctx.sel.has("projeto_ausente")) p.push("Projeto da estrutura: NÃO apresentado");
+  const pk = lclParecer(linha);
+  if(pk && LCL_PARECERES[pk]) p.push("Parecer do laudo (decisão do engenheiro, não alterar): " + LCL_PARECERES[pk].rot);
+  const mres = chkTipoHorizontal(chkTipoLinha(linha)) ? chkMemorialResumoCalc(linha) : null;
+  if(mres){
+    const m = (v)=> typeof v === "number" ? chkMemFmt(v, 2) + " m" : "—";
+    const sn = (v)=> v === null || v === undefined ? "" : (v ? " (pode usar)" : " (não pode usar)");
+    p.push("Memorial de cálculo (referência, não alterar): zona livre de queda com talabarte " + m(mres.ZLQ_tab) + sn(mres.tab) + "; com trava-quedas " + m(mres.ZLQ_trava) + sn(mres.tq) + (mres.cabo === null ? "" : "; cabo " + (mres.cabo ? "atende" : "não atende")) + ". Se o texto ou a conclusão contradizer isto, registre em NOTAS.");
+  }
   if(carac.total){
     p.push(`CARACTERÍSTICAS DA LINHA (marcadas pelo inspetor): ${marcas.length ? marcas.join("; ") : "nenhuma"}`);
     const faltam = (linha.caracDefs || []).filter(g=> !g.derivada && !((linha.carac || {})[g.id] || []).length).map(g=> g.rotulo);
@@ -17688,6 +17702,37 @@ function lclRevisaoPendenteParaConferir(l){
   const norm = (x)=> String(x).replace(/\s+/g, " ").trim();
   return { notas: p.notas || "", invalidos: 0, itens: p.itens.map(x=> { const at = atuais[x.id]; const antes = at ? at.atual : x.antes; return Object.assign({}, x, { antes, igual: norm(antes) === norm(x.depois), mudouDesde: !!at && norm(at.atual) !== norm(x.antes) }); }) };
 }
+/* Um arquivo só com todos os laudos marcados, para o Claude no computador (ou no app do celular) revisar de uma vez. */
+function lclArquivoRevisao(linhas, proj){
+  const aviso = [
+    "==== COMO TRABALHAR COM ESTE ARQUIVO ====",
+    "Este arquivo tem " + linhas.length + (linhas.length === 1 ? " laudo" : " laudos") + " de linha de vida do mesmo projeto. Revise TODOS, um laudo por vez, seguindo o prompt e o formato abaixo.",
+    "Devolva a resposta inteira em UM arquivo de texto (.txt) só com os blocos do formato, para ser importado no app. Se precisar dividir, divida entre laudos, nunca no meio de uma seção.",
+    "Antes de entregar, confira em cada texto: as citações de foto, os números e os itens de norma continuam todos lá; nenhuma conformidade, motivo ou ação mudou."
+  ].join("\n");
+  return aviso + "\n\n" + lclPacoteRevisao(linhas, proj);
+}
+function lclArquivoRevisaoNome(proj){
+  const limpo = (s)=> String(s || "").replace(/[\\/:*?<>|\x22]/g, "").replace(/\s+/g, " ").trim();
+  const d = new Date(), dd = (n)=> String(n).padStart(2, "0");
+  return "Revisao IA - " + (limpo(proj && proj.empresa) || "Projeto") + " - " + d.getFullYear() + "-" + dd(d.getMonth() + 1) + "-" + dd(d.getDate()) + ".txt";
+}
+/* Validação em lote: os textos guardados que passam nas conferências do app (sem aviso, não vazios e diferentes do atual). Os avisos são refeitos contra o texto de agora. */
+function lclRevisaoLoteSemAviso(linhas){
+  const out = { linhas: [], textos: 0, comAviso: 0 };
+  linhas.forEach(l=>{
+    if(!l || !l.revisaoPendente) return;
+    const conf = lclRevisaoPendenteParaConferir(l);
+    const ok = [];
+    conf.itens.forEach(x=>{
+      if(x.igual || !String(x.depois || "").trim()) return;
+      const av = lclRevisaoAvisosDoTexto(x.antes, x.depois);
+      if(av.length) out.comAviso++; else ok.push(x);
+    });
+    if(ok.length){ out.linhas.push({ linha: l, itens: ok }); out.textos += ok.length; }
+  });
+  return out;
+}
 /* Tela "Revisar textos com o Claude" (várias linhas e setores do projeto) */
 let __chkRev = { sel: null, pacotes: [], copiados: {}, respondidas: {} };
 function chkRevLinhasDoProjeto(proj){
@@ -17743,20 +17788,35 @@ function screenChkRevisao(){
       ${s.linhas.map(x=> { const l = x.linha, np = l.revisaoPendente ? (l.revisaoPendente.itens || []).length : 0, na = (l.revisoes || []).filter(r=> r.tipo === "aplicada" && !r.desfeita).length;
         return `<label style="display:flex;gap:8px;align-items:center;margin:6px 0 0 22px;font-size:13.5px"><input type="checkbox" ${sel.has(l.id) ? "checked" : ""} onchange="App.chkRevToggle('${l.id}')"> ${escapeHtml(l.nome || "Linha")} ${np ? `<span class="stat-pill alert pend">${np} para validar</span>` : ""}${na ? `<span class="stat-pill">${na} revisão aplicada</span>` : ""}</label>`; }).join("")}</div>`;
   }).join("");
+  const pacotes = __chkRev.pacotes || [];
   const pacotesHtml = chkRevPacotesHtml();
   const cont = lclRevisaoContagem(todas.map(x=> x.linha));
   const validar = todas.filter(x=> x.linha.revisaoPendente && (x.linha.revisaoPendente.itens || []).length);
   const validarHtml = validar.length ? `<div class="section-title" id="chkRevValidarSec">Aguardando validação (${cont.linhas} ${cont.linhas === 1 ? "linha" : "linhas"}, ${cont.secoes} ${cont.secoes === 1 ? "texto" : "textos"})</div>${validar.map(x=> `<div class="card card-pad" style="margin-top:8px;display:flex;align-items:center;gap:10px"><span style="flex:1"><b>${escapeHtml(x.linha.nome || "Linha")}</b> <span class="stat-pill">${escapeHtml(x.setor)}</span> <span class="stat-pill alert pend">${x.linha.revisaoPendente.itens.length} ${x.linha.revisaoPendente.itens.length === 1 ? "texto" : "textos"}</span></span><button class="btn btn-primary" onclick="App.chkRevValidarLinha('${x.linha.id}')">Validar</button></div>`).join("")}` : "";
+  const lote = lclRevisaoLoteSemAviso(validar.map(x=> x.linha));
+  const loteHtml = validar.length ? `<div class="card card-pad chk-rev-lote"><div style="flex:1;min-width:220px"><b>${lote.textos ? lote.textos + (lote.textos === 1 ? " texto sem aviso" : " textos sem aviso") + " em " + lote.linhas.length + (lote.linhas.length === 1 ? " linha" : " linhas") : "Nenhum texto passa sem aviso"}</b><div style="font-size:12.5px;color:var(--ink-dim)">Sem aviso = citações de foto, números e itens de norma preservados e tamanho parecido com o de antes.${lote.comAviso ? " " + lote.comAviso + (lote.comAviso === 1 ? " texto tem aviso e fica para você conferir um por um." : " textos têm aviso e ficam para você conferir um por um.") : ""}</div></div>${lote.textos ? `<button class="btn btn-primary" onclick="App.chkRevAplicarLote()">Aplicar os ${lote.textos} sem aviso</button>` : ""}</div>` : "";
   return `
   <div class="card card-pad"><div style="font-weight:800;font-size:14.5px;margin-bottom:4px">Revisar os textos com o Claude</div>
-    <p style="font-size:13px;color:var(--ink-dim);margin:0">1. Marque as linhas. 2. Monte os pacotes e cole no Claude. 3. Cole as respostas aqui: elas ficam <b>guardadas para validar</b>, sem mudar o laudo. 4. Valide linha a linha (antes e depois). As respostas do checklist nunca são tocadas, e o texto de antes fica guardado no histórico. O prompt é editado em Configurações.</p></div>
+    <p style="font-size:13px;color:var(--ink-dim);margin:0">As respostas do Claude ficam <b>guardadas para validar</b>: nada muda no laudo até você aplicar. As respostas do checklist nunca são tocadas, e o texto de antes fica no histórico. O prompt fica em Configurações > Revisão com IA.</p></div>
   <div class="section-title">1. Linhas (${nSel} de ${todas.length})</div>
   ${arvore || `<div class="empty"><p>Nenhuma linha começada neste projeto.</p></div>`}
-  <div class="modal-actions" style="justify-content:flex-start;margin-top:10px"><button class="btn btn-primary" onclick="App.chkRevMontar()" ${nSel ? "" : "disabled"}>2. Montar pacotes (${nSel})</button></div>
+  <div class="section-title">2. Revisar com um arquivo (recomendado)</div>
+  <div class="card card-pad chk-rev-arq" ondragover="App.chkRevSobreArquivo(event)" ondragleave="this.classList.remove('over-foto')" ondrop="App.chkRevSoltarArquivo(event)">
+    <ol class="chk-rev-passos">
+      <li><b>Baixe o arquivo</b> com os ${nSel} ${nSel === 1 ? "laudo marcado" : "laudos marcados"}, inteiros, num arquivo só.</li>
+      <li><b>No computador:</b> peça ao Claude "revise os laudos do arquivo que baixei". Ele revisa um laudo por vez e grava o arquivo de resposta. <b>No celular:</b> envie o arquivo no app do Claude e peça a resposta em arquivo .txt.</li>
+      <li><b>Traga a resposta:</b> arraste o arquivo para este quadro ou toque em Importar. Também dá para colar o texto no campo "Colar a resposta do Claude", abaixo.</li>
+    </ol>
+    <div class="modal-actions" style="justify-content:flex-start;gap:8px;flex-wrap:wrap"><button class="btn btn-primary" onclick="App.chkRevBaixarArquivo()" ${nSel ? "" : "disabled"}>${ic('download')} Baixar arquivo para o Claude (${nSel})</button><button class="btn btn-secondary" onclick="document.getElementById('chkRevArqIn').click()">${ic('upload')} Importar resposta</button><input type="file" id="chkRevArqIn" accept=".txt,.md,text/plain,text/markdown" hidden onchange="App.chkRevImportarArquivo(this.files && this.files[0]); this.value=''"></div>
+  </div>
+  <details class="chk-rev-pac-alt"${pacotes.length ? " open" : ""}><summary>Ou por pacotes, copiando e colando no chat (${nSel})</summary>
+  <div class="modal-actions" style="justify-content:flex-start;margin-top:10px"><button class="btn btn-secondary" onclick="App.chkRevMontar()" ${nSel ? "" : "disabled"}>Montar pacotes (${nSel})</button></div>
   ${pacotesHtml}
+  </details>
   <div class="section-title">3. Colar a resposta do Claude</div>
   <div class="field"><textarea id="chkRevColar" rows="6" style="font-size:13px" placeholder="Cole aqui a resposta (pode colar uma resposta por vez; cada uma é guardada para validar)"></textarea></div>
   <div class="modal-actions" style="justify-content:flex-start;gap:8px;flex-wrap:wrap"><button class="btn btn-secondary" onclick="App.chkRevColarClip()">Colar da área de transferência</button><button class="btn btn-primary" onclick="App.chkRevGuardar()">Guardar para validar</button></div>
+  ${loteHtml}
   ${validarHtml}`;
 }
 /* Texto editado → HTML do laudo: parágrafos separados por linha em branco, **trecho** destacado, tudo escapado. */
@@ -34442,6 +34502,47 @@ Devolver agora?`)) return;
       if(ta) ta.value = t || "";
       if(t) App.chkRevGuardar();
     }catch(e){ toast("O navegador não deixou ler a área de transferência: cole no campo (Ctrl+V)", false); }
+  },
+  chkRevBaixarArquivo(){
+    const proj = getCurrentChkProjeto(); if(!proj) return;
+    const sel = chkRevSelecionadas(proj);
+    if(!sel.length){ toast("Marque ao menos uma linha", false); return; }
+    downloadBlob(lclArquivoRevisao(sel, proj), lclArquivoRevisaoNome(proj), "text/plain;charset=utf-8");
+    __chkRev.arquivoEm = Date.now();
+    toast("Arquivo baixado com " + sel.length + (sel.length === 1 ? " laudo" : " laudos") + ". Peça ao Claude para revisar e traga a resposta.");
+  },
+  async chkRevImportarArquivo(f){
+    if(!f) return;
+    if(!/\.(txt|md)$/i.test(f.name || "") && !/^text\//i.test(f.type || "")){ toast("Escolha o arquivo de texto (.txt) com a resposta do Claude", false); return; }
+    let t = "";
+    try{ t = await f.text(); }catch(e){ toast("Não consegui ler o arquivo", false); return; }
+    if(!/\[\[(SECAO|CONCLUSAO|NOTAS)\b/.test(t)){ toast("Este arquivo não tem a resposta no formato do app ([[SECAO ...]]). Confira se é o arquivo que o Claude devolveu.", false); return; }
+    const ta = document.getElementById("chkRevColar");
+    if(!ta){ toast("Abra a tela de revisão do projeto para importar", false); return; }
+    ta.value = t;
+    App.chkRevGuardar();
+  },
+  chkRevSobreArquivo(ev){
+    try{ if(ev.dataTransfer && Array.from(ev.dataTransfer.types || []).indexOf("Files") >= 0){ ev.preventDefault(); ev.currentTarget.classList.add("over-foto"); } }catch(e){}
+  },
+  chkRevSoltarArquivo(ev){
+    ev.preventDefault();
+    if(ev.currentTarget && ev.currentTarget.classList) ev.currentTarget.classList.remove("over-foto");
+    const f = ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0];
+    if(f) App.chkRevImportarArquivo(f);
+  },
+  async chkRevAplicarLote(){
+    const proj = getCurrentChkProjeto(); if(!proj) return;
+    const lote = lclRevisaoLoteSemAviso(chkRevLinhasDoProjeto(proj).map(x=> x.linha));
+    if(!lote.textos){ toast("Nenhum texto sem aviso para aplicar", false); return; }
+    if(!confirm("Aplicar de uma vez " + lote.textos + (lote.textos === 1 ? " texto" : " textos") + " sem aviso em " + lote.linhas.length + (lote.linhas.length === 1 ? " linha" : " linhas") + "?\n\nO texto de antes fica no histórico de cada linha (dá para voltar). Os textos com aviso continuam para você conferir um por um.")) return;
+    const ok = await salvarPontoDeRestauracao("Antes de aplicar em lote a revisão do Claude (" + (proj.empresa || "projeto") + ")");
+    if(!ok){ toast("Não consegui criar o ponto de restauração: nada foi aplicado", false); return; }
+    lote.linhas.forEach(x=> lclRevisaoAplicarItens(x.linha, x.itens.map(it=> ({ tipo: it.tipo, id: it.id, titulo: it.tipo === "conclusao" ? "Conclusão" : (it.num ? it.num + " " : "") + (it.titulo || ""), depois: it.depois, editado: !!it.editadoPorVoce }))));
+    marcarAlterado();
+    __lclPaginas = []; __lclHtml = ""; __lclParaLinha = null;
+    toast(lote.textos + (lote.textos === 1 ? " texto aplicado" : " textos aplicados") + " em " + lote.linhas.length + (lote.linhas.length === 1 ? " linha" : " linhas") + ". Gere os PDFs de novo para ver.");
+    render();
   },
   chkRevIrValidar(){
     const s = document.getElementById("chkRevValidarSec");
