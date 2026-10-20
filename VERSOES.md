@@ -64,6 +64,15 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 20/10/2026 07:04
+
+**Linhas de vida: tela do laudo com painel de ajustes à esquerda; revisão com IA por arquivo e aplicação em lote.**
+
+- Laudo da linha: a prévia ocupa a tela. Os ajustes (avisos antes de imprimir, parecer, capítulos, memorial, Metodologia, Normas, Anexos, Assinatura, Ir para, Atualizar prévia) ficam num painel à esquerda que abre ao passar o mouse na faixa "Ajustes" (no celular, com um toque); o alfinete deixa fixo. No topo: laudo anterior e próximo (na ordem do número do documento), Revisar e Gerar PDF.
+- Revisão com IA: "Baixar arquivo para o Claude" gera um arquivo único com os laudos marcados (cada um com o parecer e o resultado do memorial como contexto). A resposta volta por "Importar resposta" ou arrastando o arquivo. "Aplicar os N sem aviso" aplica de uma vez o que passou nas conferências (com ponto de restauração); os textos com aviso ficam para conferir um por um. O caminho por pacotes continua, recolhido abaixo.
+
+---
+
 ## 20/10/2026 06:28
 
 **Linhas de vida: navegação mais simples (painel do projeto, uma ação em um lugar só, Configurações em grupos) e limpeza do código.**
