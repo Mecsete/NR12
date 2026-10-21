@@ -14307,7 +14307,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(HTML.indexOf("onDraftMedidaExistentePM(i, campo, valor){") > 0 && HTML.indexOf("laudoSetMedidaExistentePM(rid, i, campo, valor){") > 0);
     });
     t("o laudo impresso e a planilha usam a situacao do conjunto quando ha situacao por medida", ()=>{
-      ok(HTML.indexOf("x.k===situacaoGeralExistente(r).k") > 0, "o impresso precisa usar a do conjunto");
+      ok(funcao("situacaoExistenteParaMostrar").indexOf("situacaoGeralExistente(r).k") > 0 && HTML.indexOf("const sitK = situacaoExistenteParaMostrar(r);") > 0, "o impresso precisa usar a do conjunto");
       ok(HTML.indexOf("const medExistGeral = (risco && temSituacaoPorMedida(risco)) ? situacaoGeralExistente(risco) : null;") > 0);
     });
     t("a IA recebe a situacao de CADA medida quando ela existe", ()=>{
@@ -14362,6 +14362,56 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
     t("os botoes continuam chamando as mesmas acoes de sempre", ()=>{
       ok(HTML.indexOf("  selecionarAreasDoProjetoExport(projetoId){") > 0 && HTML.indexOf("  desmarcarAreasDoProjetoExport(projetoId){") > 0);
+    });
+  }
+
+  /* t192 — COERÊNCIA LAUDO x APP: EXPOSIÇÃO PREVISTA E "MITIGAÇÃO EXISTENTE — ATENDE" (21/10/2026). */
+  {
+    console.log("\n[t192] laudo x app: F/P previstos com 'hoje -> previsto' e situacao da mitigacao so quando ha o que julgar");
+    t("situacaoExistenteParaMostrar: sem medida marcada e sem situacao escolhida nao ha situacao (o laudo nao imprime 'Atende')", ()=>{
+      eq(C.situacaoExistenteParaMostrar({ componente:"Correia" }), "", "nada marcado: sem situacao");
+      eq(C.situacaoExistenteParaMostrar({ medidasExistentes:[], descMedida:"Não há medida de mitigação implementada" }), "", "so texto: sem situacao");
+      eq(C.situacaoExistenteParaMostrar({ medidasExistentes:["prot_fixa"] }), "ok", "marcada e sem escolha: Atende (o padrao da tela)");
+      eq(C.situacaoExistenteParaMostrar({ medidaExistenteSituacao:"nao" }), "nao", "situacao escolhida vale mesmo sem medida marcada");
+      eq(C.situacaoExistenteParaMostrar(null), "");
+    });
+    t("o laudo so poe a situacao no titulo da mitigacao existente quando ha o que julgar", ()=>{
+      ok(HTML.indexOf('<div class="lp-rc-rot">Mitigação existente${sitDef ? " — " + esc(sitDef.rot) : ""}</div>') > 0);
+      ok(HTML.indexOf('Mitigação existente — ${esc(sitDef.rot)}') < 0, "o titulo com 'Atende' fixo voltou");
+    });
+    t("a entrada da IA nao diz 'Atende' quando nada foi marcado nem julgado", ()=>{
+      const e = C.laudoEntradaExistente({ risco:{ id:"rX", descMedida:"Não há medida" }, tarefa:{}, maquina:{} });
+      ok(e.indexOf("Situação em relação à norma") < 0, "nao pode afirmar situacao sem medida: " + e);
+      const e2 = C.laudoEntradaExistente({ risco:{ id:"rY", medidasExistentes:["prot_fixa"], medidaExistenteSituacao:"nao" }, tarefa:{}, maquina:{} });
+      ok(e2.indexOf("Situação em relação à norma: Não atende") > 0, e2);
+    });
+    t("laudo: Exposicao e Possibilidade de evitar previstas saem como 'hoje -> previsto' quando diferem", ()=>{
+      const cx = vm.createContext({});
+      vm.runInContext("function escapeHtml(s){ return String(s); }", cx);
+      vm.runInContext(funcao("lpDeAte"), cx);
+      eq(vm.runInContext('lpDeAte("2x por turno", "Menos de 1x por turno")', cx), "2x por turno &rarr; Menos de 1x por turno");
+      eq(vm.runInContext('lpDeAte("2x por turno", "2x por turno")', cx), "2x por turno", "igual: so o valor");
+      eq(vm.runInContext('lpDeAte("", "")', cx), "—");
+      ok(HTML.indexOf('<span class="lp-prev-txt">${lpDeAte(plrValorDeHoje(it, "exposicao"), plrPrevValor(it, "exposicao"))}</span>') > 0);
+      ok(HTML.indexOf('<span class="lp-prev-txt">${lpDeAte(plrValorDeHoje(it, "evitar"), plrPrevValor(it, "evitar"))}</span>') > 0);
+    });
+    t("Revisao: avisa quando ha previsao de F/P diferente da de hoje, com botao para desfazer; sem previsao, nada", ()=>{
+      const cx = vm.createContext({ String, Object });
+      vm.runInContext(constante("PLR_F_OPCOES"), cx);
+      vm.runInContext("function escapeHtml(s){ return String(s); } function valOuOutro(a,b){ return a==='Outro'?b:a; }", cx);
+      vm.runInContext(["exposicaoPelaFrequencia","plrValorDeHoje","plrAvisoPrevisaoHtml"].map(funcao).join("\n"), cx);
+      vm.runInContext("const FREQ_MENOS_DE_1X = ['Diário','Semanal','Quinzenal','Mensal','Esporádico'];", cx);
+      cx.r = { id:"r1", exposicao:"2x por turno", evitar:"Possível evitar", plrPrev:{ exposicao:"Menos de 1x por turno" } };
+      cx.tf = { frequencia:"1x por turno" };
+      const h = vm.runInContext("plrAvisoPrevisaoHtml(r, tf)", cx);
+      ok(h.indexOf("Exposição: 2x por turno → Menos de 1x por turno") > 0, h);
+      ok(h.indexOf("App.laudoDesfazerPrevisaoPLr('r1')") > 0);
+      cx.r2 = { id:"r2", exposicao:"2x por turno", plrPrev:null };
+      eq(vm.runInContext("plrAvisoPrevisaoHtml(r2, tf)", cx), "", "sem previsao nao ha aviso");
+      ok(funcao("blocoPLrHtml").indexOf('${prefixo !== "draft" ? plrAvisoPrevisaoHtml(r, tarefa) : ""}') > 0, "o aviso fica so na Revisao do laudo");
+      const i = HTML.indexOf("  laudoDesfazerPrevisaoPLr(rid){");
+      const c = HTML.slice(i, HTML.indexOf("  laudoSetPLr(rid, campo, valor){"));
+      ok(c.indexOf("if(!confirm(") > 0 && c.indexOf('plrPrevAplicar(it, "exposicao", "")') > 0 && c.indexOf('plrPrevAplicar(it, "evitar", "")') > 0 && c.indexOf("agoraSync()") > 0);
     });
   }
 

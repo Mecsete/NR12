@@ -64,6 +64,25 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 21/10/2026 14:28
+
+**Laudo e Revisão coerentes: a Exposição prevista aparece como "hoje → previsto" e a mitigação existente deixa de sair como "Atende" quando não há medida.**
+
+- **Exposição (F) e Possibilidade de evitar (P) no laudo.** O quadro "Risco residual
+  previsto" mostrava só o valor previsto para depois da solução, e quem lia o laudo o
+  tomava pelo de hoje (a Revisão mostrava "2x por turno" e o laudo "Menos de 1x por
+  turno"). Agora, quando a previsão é diferente, sai "2x por turno → Menos de 1x por
+  turno". Quando é igual, sai só o valor.
+- **Aviso na Revisão.** Quando o risco tem previsão de Exposição ou de Possibilidade
+  de evitar diferente da de hoje, o bloco da função de segurança mostra a previsão
+  que sai no laudo e um botão para desfazê-la (com confirmação).
+- **"Mitigação existente — Atende".** Sem nenhuma medida marcada e sem situação
+  escolhida, o laudo imprimia "Atende" em cima de um texto que dizia que não havia
+  medida. Agora a situação só aparece quando há o que julgar (a mesma regra da
+  planilha base para IA). Vale também para o quadro da Revisão e para o que é
+  enviado à IA.
+- Nenhum cálculo mudou: HRN, PLr e as previsões continuam iguais.
+
 ## 20/10/2026 07:04
 
 **Linhas de vida: tela do laudo com painel de ajustes à esquerda; revisão com IA por arquivo e aplicação em lote.**

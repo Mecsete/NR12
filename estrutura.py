@@ -5891,7 +5891,8 @@ chk("os dois blocos de tela (rascunho do risco e revisao do laudo) mostram uma l
     novo.count("itensExistentesDe(r).length >= 2 ? medidaSitPorMedidaHtml(r,") == 2
     and "onDraftMedidaExistentePM(i, campo, valor){" in novo and "laudoSetMedidaExistentePM(rid, i, campo, valor){" in novo)
 chk("laudo impresso, planilha e entradas da IA entendem a situacao por medida",
-    "situacaoGeralExistente(r).k" in novo and "medExistGeral" in novo and "Situação de CADA medida em relação à norma" in novo)
+    "situacaoGeralExistente(r).k" in novo and "medExistGeral" in novo and "Situação de CADA medida em relação à norma" in novo
+    and "const sitK = situacaoExistenteParaMostrar(r);" in novo)
 
 print("\n=== 192. FOTOS NUMERADAS PELA SECAO E CAPA COM O QUADRO JUNTO DA FOTO (08/10/2026) ===")
 chk("fotos do laudo numeradas pela secao (3.4.1) na legenda, na citacao do texto e na janela de fotos",
@@ -5989,6 +5990,23 @@ _ar = _corpoDe(novo, "laudoAbaAreas")
 chk("'Todas deste projeto' e 'Nenhuma' ficam no topo do card (depois do titulo, antes da barra e da lista) e uma vez so",
     _ar.count("App.selecionarAreasDoProjetoExport('${p.id}')") == 1 and _ar.count("App.desmarcarAreasDoProjetoExport('${p.id}')") == 1
     and _ar.index('<span class="stat-pill">') < _ar.index("App.selecionarAreasDoProjetoExport('${p.id}')") < _ar.index("laudoStatusSoma(areas.map(laudoStatusTextosArea))") < _ar.index("areas.map(a=>{"))
+
+print("\n=== 189. COERENCIA LAUDO x APP: EXPOSICAO PREVISTA E SITUACAO DA MITIGACAO (21/10/2026) ===")
+chk("o laudo so imprime a situacao da mitigacao existente quando ha medida marcada ou situacao escolhida",
+    novo.count("function situacaoExistenteParaMostrar(") == 1
+    and "itensExistentesDe(r).length === 0 && !r.medidaExistenteSituacao" in _corpoDe(novo, "situacaoExistenteParaMostrar")
+    and 'Mitigação existente${sitDef ? " — " + esc(sitDef.rot) : ""}' in novo and "Mitigação existente — ${esc(sitDef.rot)}" not in novo)
+chk("quadro da Revisao e entradas da IA seguem a mesma regra (sem 'Atende' sem o que julgar)",
+    "${situacaoExistenteParaMostrar(r) ? `<span class=\"laudo-quadro-sit\"" in novo
+    and "const sitKIA = situacaoExistenteParaMostrar(r);" in novo and "if(situacaoExistenteParaMostrar(r)){" in novo)
+chk("o quadro previsto do laudo mostra F e P como 'hoje -> previsto' quando diferem",
+    'lpDeAte(plrValorDeHoje(it, "exposicao"), plrPrevValor(it, "exposicao"))' in novo
+    and 'lpDeAte(plrValorDeHoje(it, "evitar"), plrPrevValor(it, "evitar"))' in novo)
+chk("a Revisao avisa da previsao de F/P e permite desfazer, com confirmacao; o calculo do PLr previsto nao mudou",
+    "${prefixo !== \"draft\" ? plrAvisoPrevisaoHtml(r, tarefa) : \"\"}" in novo and "laudoDesfazerPrevisaoPLr(rid){" in novo
+    and _corpoDe(novo, "plrPrevistoDoItem") == _corpoDe(orig, "plrPrevistoDoItem")
+    and _corpoDe(novo, "plrPrevAplicar") == _corpoDe(orig, "plrPrevAplicar")
+    and _corpoDe(novo, "plrExigido") == _corpoDe(orig, "plrExigido"))
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
