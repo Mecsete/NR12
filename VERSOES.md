@@ -64,6 +64,15 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 21/10/2026 14:54
+
+**Laudo: o quadro previsto volta a mostrar só o valor previsto de Exposição e Possibilidade de evitar, e o título da mitigação existente fica sem Atende / Não atende.**
+
+A pedido do engenheiro: sai o "hoje → previsto" da versão anterior (o aviso na
+Revisão, com o botão "Desfazer a previsão", continua), e no laudo o título fica só
+"Mitigação existente". Na Revisão e nas entradas da IA a situação continua aparecendo
+quando há medida marcada ou situação escolhida.
+
 ## 21/10/2026 14:28
 
 **Laudo e Revisão coerentes: a Exposição prevista aparece como "hoje → previsto" e a mitigação existente deixa de sair como "Atende" quando não há medida.**

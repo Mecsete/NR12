@@ -14307,7 +14307,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(HTML.indexOf("onDraftMedidaExistentePM(i, campo, valor){") > 0 && HTML.indexOf("laudoSetMedidaExistentePM(rid, i, campo, valor){") > 0);
     });
     t("o laudo impresso e a planilha usam a situacao do conjunto quando ha situacao por medida", ()=>{
-      ok(funcao("situacaoExistenteParaMostrar").indexOf("situacaoGeralExistente(r).k") > 0 && HTML.indexOf("const sitK = situacaoExistenteParaMostrar(r);") > 0, "o impresso precisa usar a do conjunto");
+      ok(funcao("situacaoExistenteParaMostrar").indexOf("situacaoGeralExistente(r).k") > 0, "a situacao do conjunto continua disponivel (Revisao e planilha)");
       ok(HTML.indexOf("const medExistGeral = (risco && temSituacaoPorMedida(risco)) ? situacaoGeralExistente(risco) : null;") > 0);
     });
     t("a IA recebe a situacao de CADA medida quando ela existe", ()=>{
@@ -14375,9 +14375,9 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       eq(C.situacaoExistenteParaMostrar({ medidaExistenteSituacao:"nao" }), "nao", "situacao escolhida vale mesmo sem medida marcada");
       eq(C.situacaoExistenteParaMostrar(null), "");
     });
-    t("o laudo so poe a situacao no titulo da mitigacao existente quando ha o que julgar", ()=>{
-      ok(HTML.indexOf('<div class="lp-rc-rot">Mitigação existente${sitDef ? " — " + esc(sitDef.rot) : ""}</div>') > 0);
-      ok(HTML.indexOf('Mitigação existente — ${esc(sitDef.rot)}') < 0, "o titulo com 'Atende' fixo voltou");
+    t("o laudo mostra so o titulo 'Mitigação existente', sem Atende / Nao atende (decisao de 21/10/2026)", ()=>{
+      ok(HTML.indexOf('<div class="lp-rc-rot">Mitigação existente</div>') > 0);
+      ok(HTML.indexOf('Mitigação existente — ${esc(sitDef.rot)}') < 0 && HTML.indexOf('Mitigação existente${sitDef') < 0, "a situacao voltou ao titulo do laudo");
     });
     t("a entrada da IA nao diz 'Atende' quando nada foi marcado nem julgado", ()=>{
       const e = C.laudoEntradaExistente({ risco:{ id:"rX", descMedida:"Não há medida" }, tarefa:{}, maquina:{} });
@@ -14385,15 +14385,10 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       const e2 = C.laudoEntradaExistente({ risco:{ id:"rY", medidasExistentes:["prot_fixa"], medidaExistenteSituacao:"nao" }, tarefa:{}, maquina:{} });
       ok(e2.indexOf("Situação em relação à norma: Não atende") > 0, e2);
     });
-    t("laudo: Exposicao e Possibilidade de evitar previstas saem como 'hoje -> previsto' quando diferem", ()=>{
-      const cx = vm.createContext({});
-      vm.runInContext("function escapeHtml(s){ return String(s); }", cx);
-      vm.runInContext(funcao("lpDeAte"), cx);
-      eq(vm.runInContext('lpDeAte("2x por turno", "Menos de 1x por turno")', cx), "2x por turno &rarr; Menos de 1x por turno");
-      eq(vm.runInContext('lpDeAte("2x por turno", "2x por turno")', cx), "2x por turno", "igual: so o valor");
-      eq(vm.runInContext('lpDeAte("", "")', cx), "—");
-      ok(HTML.indexOf('<span class="lp-prev-txt">${lpDeAte(plrValorDeHoje(it, "exposicao"), plrPrevValor(it, "exposicao"))}</span>') > 0);
-      ok(HTML.indexOf('<span class="lp-prev-txt">${lpDeAte(plrValorDeHoje(it, "evitar"), plrPrevValor(it, "evitar"))}</span>') > 0);
+    t("laudo: o quadro previsto mostra so o valor previsto de F e P (sem 'hoje -> previsto', decisao de 21/10/2026)", ()=>{
+      ok(HTML.indexOf('<span class="lp-prev-txt">${esc(plrPrevValor(it, "exposicao") || "—")}</span>') > 0);
+      ok(HTML.indexOf('<span class="lp-prev-txt">${esc(plrPrevValor(it, "evitar") || "—")}</span>') > 0);
+      ok(HTML.indexOf("function lpDeAte(") < 0);
     });
     t("Revisao: avisa quando ha previsao de F/P diferente da de hoje, com botao para desfazer; sem previsao, nada", ()=>{
       const cx = vm.createContext({ String, Object });
