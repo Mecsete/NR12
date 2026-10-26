@@ -14260,7 +14260,7 @@ function renderChecklistModulo(){
     ${topBarChk()}
     ${crumbBarChk()}
     ${(s==='checklist-laudo' || s==='checklist-laudo-linha') ? '' : chkFaixaHtml()}
-    <div class="screen ${s==='checklist-laudo'?'screen-laudo chk-laudo-print':s==='checklist-modelo-form'?'screen-chk-modelo':s==='checklist-projeto-form'?'screen-chk-projeto':s==='checklist-laudo-linha'?'screen-lcl':''}">${body}</div>
+    <div class="screen ${s==='checklist-laudo'?'screen-laudo chk-laudo-print':s==='checklist-modelo-form'?'screen-chk-modelo':s==='checklist-projeto-form'?'screen-chk-projeto':s==='checklist-laudo-linha'?'screen-lcl':''} ${chkLarguraTela(s)}">${body}</div>
     ${(s==='checklist-laudo' || s==='checklist-laudo-linha') ? '' : bottomNavChk()}
   `;
   if(s==='checklist-modelo-form') chkModeloAjustarAlturas();
@@ -14277,6 +14277,13 @@ function renderChecklistModulo(){
     }
   }
   setSaveChip(false);
+}
+/* Largura das telas no computador: listas em duas colunas; demais telas mais largas. O preenchimento em campo e a finalização ficam como estão. */
+function chkLarguraTela(s){
+  if(["checklist-projetos", "checklist-setores", "checklist-linhas", "checklist-modelos"].includes(s)) return "chk-largo";
+  if(["checklist-config-calculo"].includes(s)) return "chk-largo-1";
+  if(["checklist-config", "checklist-config-ia", "checklist-config-backup", "checklist-config-empresa", "checklist-pronto", "checklist-revisao", "checklist-busca", "checklist-nova-linha", "checklist-setor-form"].includes(s)) return "chk-medio";
+  return "";
 }
 function topBarChk(){
   const s = STATE.ui.screen;
@@ -18994,7 +19001,19 @@ const LCL_CSS = `
 .lcl-flut-btn{width:38px;height:38px;border-radius:50%;border:none;background:#fff;color:#1E2148;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.28)}
 .lcl-flut-btn svg{width:19px;height:19px}
 .lcl-flut-pct{font-size:10.5px;font-weight:800;color:#fff;letter-spacing:.03em;font-variant-numeric:tabular-nums;padding-bottom:1px}
-@media (min-width:900px){.screen.screen-lcl{max-width:1180px}}
+@media (min-width:900px){.screen.screen-lcl{max-width:none}}
+@media (min-width:1100px){
+  .screen.chk-medio{max-width:1100px}
+  .screen.chk-largo-1{max-width:1440px}
+  .screen.chk-largo{max-width:1440px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:14px;align-content:start}
+  .screen.chk-largo > *{grid-column:1 / -1}
+  .screen.chk-largo > .list-card{grid-column:auto;margin-bottom:12px}
+}
+.screen-lcl .lcl-visor{max-height:calc(100vh - var(--lcl-topo,64px) - 28px)}
+.lcl-doc-caixa{margin:0 auto}
+.lcl-doc-caixa > .lcl-doc{transform-origin:top left;margin:0}
+.lcl-doc.cols{display:flex;flex-wrap:wrap;column-gap:14px;align-content:flex-start}
+.lcl-doc.cols .lcl-pagina{margin:0 0 14px}
 /* Painel "Ajustes do laudo": faixa estreita à esquerda; abre ao passar o mouse (computador) ou com um toque (celular); o alfinete deixa fixo */
 .lcl-tela{padding-left:40px}
 .lcl-ajustes{position:fixed;left:0;top:var(--lcl-topo,64px);bottom:0;z-index:25;display:flex;align-items:stretch;pointer-events:none}
@@ -19020,6 +19039,7 @@ const LCL_CSS = `
 .lcl-aj-sum a{color:var(--ink);text-decoration:none;padding:3px 6px;border-radius:6px}
 .lcl-aj-sum a:hover{background:var(--bg-soft)}
 .lcl-aj-sum a.sub,.lcl-aj-sum a.nok,.lcl-aj-sum a.ok{padding-left:16px;color:var(--ink-dim)}
+.lcl-flut-cols{font-weight:800;font-size:14px}
 .topbar-action-pri{background:var(--accent)!important;color:#fff!important;border-color:var(--accent)!important}
 .topbar-action[disabled]{opacity:.4;cursor:default}
 @media print{.lcl-ajustes{display:none!important}.lcl-tela{padding-left:0!important}}
@@ -19329,6 +19349,13 @@ function lclAjFixo(){ try{ return localStorage.getItem("lclAjFixo") === "1"; }ca
 function lclLaudosDoProjeto(proj, linhaAtual){
   return chkLinhasEmOrdem(proj).filter(x=> chkProgresso(x.l) > 0 || x.l.status === "finalizado" || (linhaAtual && x.l.id === linhaAtual.id));
 }
+/* Quantas páginas lado a lado na prévia: a escolha da pessoa (1 ou 2) ou, sem escolha, 2 quando couberem na largura da janela. */
+function lclColunas(zoom){
+  const c = STATE.ui && STATE.ui.lclColunas;
+  if(c === 1 || c === 2) return c;
+  const livre = (typeof window !== "undefined" ? window.innerWidth : 0) - (lclAjFixo() ? 352 : 40) - 80;
+  return livre >= (2 * LCL_PAG_L + 14) * zoom ? 2 : 1;
+}
 function screenChkLaudoLinha(){
   const proj = getCurrentChkProjeto(), setor = getCurrentChkSetor(), l = getCurrentChkLinha();
   if(!proj || !setor || !l){ go("checklist-linhas"); return ""; }
@@ -19352,7 +19379,9 @@ function screenChkLaudoLinha(){
       ${mem.novo ? `<label><input type="checkbox" ${(l.laudo && l.laudo.memorialTodasVars) ? "checked" : ""} onchange="App.lclSetMemTodasVars(this.checked)"><span>Mostrar todas as variáveis intermediárias no memorial</span></label>` : ""}
       <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lclIrMemorial()">${ic('edit')} Medidas</button></div>`;
   }
-  const altura = __lclPaginas.length * (LCL_PAG_A + 14);
+  const cols = lclColunas(zoom);
+  const larguraDoc = cols * LCL_PAG_L + (cols - 1) * 14;
+  const altura = Math.ceil(__lclPaginas.length / cols) * (LCL_PAG_A + 14);
   const nAvisos = lclAvisos(l, proj).length;
   const sumario = [];
   String(__lclHtml || "").replace(/<a class="lcl-sl ([^"]*)" href="(#lcl-a-[^"]+)"[^>]*>([\s\S]*?)<i><\/i>/g, (m, cls, href, txt)=>{ sumario.push({ cls, href, txt: txt.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() }); return m; });
@@ -19377,8 +19406,9 @@ function screenChkLaudoLinha(){
   <div class="lcl-area" onclick="App.lclAjustesFecharToque(event)">
   ${__lclPaginas.length ? `
     <div class="lcl-visor-wrap">
-      <div class="lcl-visor"><div class="lcl-doc" id="lclDoc" style="transform:scale(${zoom});width:${LCL_PAG_L}px;margin-bottom:${Math.round(-altura * (1 - zoom))}px">${__lclHtml}</div></div>
+      <div class="lcl-visor"><div class="lcl-doc-caixa" style="width:${Math.round(larguraDoc * zoom)}px;height:${Math.round(altura * zoom)}px"><div class="lcl-doc${cols > 1 ? " cols" : ""}" id="lclDoc" style="transform:scale(${zoom});width:${larguraDoc}px">${__lclHtml}</div></div></div>
       <div class="lcl-flut">
+        <button class="lcl-flut-btn lcl-flut-cols" title="${cols > 1 ? "Uma página por vez" : "Duas páginas lado a lado"}" aria-label="${cols > 1 ? "Mostrar uma página por vez" : "Mostrar duas páginas lado a lado"}" onclick="App.lclColunasAlternar(${cols})">${cols > 1 ? "1" : "2"}</button>
         <button class="lcl-flut-btn" title="Aumentar" aria-label="Aumentar o zoom" onclick="App.lclZoom(1)">${ic('zoomMais')}</button>
         <button class="lcl-flut-btn" title="Diminuir" aria-label="Diminuir o zoom" onclick="App.lclZoom(-1)">${ic('zoomMenos')}</button>
         <span class="lcl-flut-pct">${Math.round(zoom * 100)}%</span>
@@ -34238,6 +34268,10 @@ Devolver agora?`)) return;
     const pag = alvo && alvo.closest ? alvo.closest(".lcl-pagina") : null;
     if(pag) pag.scrollIntoView({ block:"start" }); // sem animação: o laudo tem dezenas de páginas e a rolagem suave demora
     return false;
+  },
+  lclColunasAlternar(atual){
+    STATE.ui.lclColunas = atual > 1 ? 1 : 2;
+    render();
   },
   lclAjustesAlternar(){
     __lclAjAberto = !__lclAjAberto;
