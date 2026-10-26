@@ -64,6 +64,15 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 26/10/2026 17:43
+
+**Tela inicial: só Linhas de vida e Apreciação de Risco - NR-12.**
+
+O módulo "NR-12 Simplificado" passa a se chamar "Apreciação de Risco - NR-12" na
+tela inicial, e o "NR-12 Completo" sai da tela (oculto). Os projetos do Completo
+não são apagados: continuam no backup e na sincronização. Quem tinha parado dentro
+do Completo abre na escolha de módulo.
+
 ## 26/10/2026 17:27
 
 **Linhas de vida: telas aproveitam a largura do computador.**

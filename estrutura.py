@@ -5792,7 +5792,7 @@ chk("a lista de modelos mostra quantos projetos usam cada modelo", "const usoMod
 
 print("\n=== 185. USABILIDADE DO CHECKLIST: NAVEGACAO, REVISAO, LAUDO E PARECER NAO CONCLUSIVO (07/10/2026) ===")
 chk("escolha do modulo sem emoji nos titulos e com o resumo de cada modulo",
-    'cartao("completo", "NR-12 Completo",' in novo and "📋" not in novo[novo.index("function screenModuloSelect"):novo.index("function screenModuloSelect") + 3500] and "escapeHtml(cont[k])" in novo)
+    'cartao("checklist", "Linhas de vida",' in novo and "📋" not in novo[novo.index("function screenModuloSelect"):novo.index("function screenModuloSelect") + 3500] and "escapeHtml(cont[k])" in novo)
 chk("lista de projetos: Continuar de onde parou, busca, filtro de status e hora da sincronizacao",
     "chkContinuarHtml()" in novo and "chkSetProjFiltro" in novo and "chkSyncInfoHtml()" in novo and "chkUltimaLinhaEmAndamento" in novo)
 chk("lista de setores tem busca e filtro; setor pode ser editado",
@@ -6016,6 +6016,15 @@ chk("os quatro pontos de PLr do laudo obedecem ao botao (equipamento, risco, pre
     and '${__lpSemPLr ? "" : `<li>ABNT NBR 14153:2022' in novo)
 chk("o calculo do PLr nao mudou",
     _corpoDe(novo, "plrExigido") == _corpoDe(orig, "plrExigido") and _corpoDe(novo, "plrPrevistoDoItem") == _corpoDe(orig, "plrPrevistoDoItem"))
+
+print("\n=== 191. TELA INICIAL SEM O NR-12 COMPLETO (26/10/2026) ===")
+_sm = _corpoDe(novo, "screenModuloSelect")
+chk("so Linhas de vida e Apreciação de Risco - NR-12 na escolha de modulo",
+    'cartao("simplificado", "Apreciação de Risco - NR-12",' in _sm and 'cartao("completo"' not in _sm and _sm.count("${cartao(") == 2)
+chk("o modulo Completo continua no arquivo (oculto, nao removido)",
+    "function screenProjetos(" in novo and 'if(m==="completo") go("projetos");' in novo)
+chk("abrir o app parado no Completo volta para a escolha de modulo",
+    'if(novoEstado.modulo==="completo") novoEstado.modulo = null;' in novo)
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

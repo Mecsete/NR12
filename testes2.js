@@ -14435,6 +14435,23 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  /* t194 — TELA INICIAL SEM O NR-12 COMPLETO (26/10/2026). */
+  {
+    console.log("\n[t194] tela inicial: Linhas de vida e Apreciacao de Risco - NR-12");
+    t("so dois cartoes, o Simplificado com o nome novo e o Completo fora", ()=>{
+      const c = funcao("screenModuloSelect");
+      ok(c.indexOf('cartao("checklist", "Linhas de vida",') > 0);
+      ok(c.indexOf('cartao("simplificado", "Apreciação de Risco - NR-12",') > 0);
+      ok(c.indexOf('cartao("completo"') < 0 && c.indexOf("NR-12 Simplificado") < 0, "o Completo ou o nome antigo voltou");
+    });
+    t("quem estava dentro do Completo abre na escolha de modulo, sem apagar os projetos dele", ()=>{
+      ok(HTML.indexOf('if(novoEstado.modulo==="completo") novoEstado.modulo = null;') > 0);
+      ok(HTML.indexOf('if(novoEstado.modulo==="completo") novoEstado.ui.screen = "projetos";') < 0);
+      const i = HTML.indexOf('if(novoEstado.modulo==="completo") novoEstado.modulo = null;');
+      ok(HTML.slice(i - 400, i + 200).indexOf("novoEstado.projetos") < 0, "a abertura nao pode mexer nos projetos do Completo");
+    });
+  }
+
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);
 })();

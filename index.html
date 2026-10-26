@@ -344,7 +344,7 @@ details.section .section-body{padding:2px 14px 16px;border-top:1px solid var(--l
 .module-pick-cont{align-self:flex-start;margin-top:4px}
 .module-tela{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;justify-content:center;padding:24px;background:var(--bar)}
 .module-grid{display:grid;gap:14px;width:100%;max-width:980px;margin:0 auto}
-@media (min-width:860px){.module-grid{grid-template-columns:repeat(3,1fr)}}
+@media (min-width:860px){.module-grid{grid-template-columns:repeat(2,1fr);max-width:720px}}
 .chk-cfg-item{display:flex;align-items:center;gap:10px;justify-content:flex-start;padding:14px 16px;margin-top:10px}
 .chk-cfg-desc{display:block;font-size:12px;color:var(--ink-dim);font-weight:400}
 .chk-cfg-eu{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:10px}
@@ -3539,7 +3539,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "26/10/2026 17:27";
+const APP_BUILD = "26/10/2026 17:43";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -13825,8 +13825,9 @@ function screenModuloSelect(){
     </div>
     <div class="module-grid">
       ${cartao("checklist", "Linhas de vida", "Inspeção de linhas de vida (NR-35) em campo: conformidade item a item, fotos e observações, e o laudo ao final. Funciona sem internet.", continuar)}
-      ${cartao("simplificado", "NR-12 Simplificado", "Levantamento rápido de campo: poucos campos, fotos em checklist e cadastro de risco em qualquer tela do projeto.")}
-      ${cartao("completo", "NR-12 Completo", "Avaliação de risco detalhada (Severidade, Exposição, Evitabilidade, PLr): projeto, área, máquina, tarefa e perigo com todos os campos.")}
+      ${cartao("simplificado", "Apreciação de Risco - NR-12", "Levantamento rápido de campo: poucos campos, fotos em checklist e cadastro de risco em qualquer tela do projeto.")}
+      <!-- NR-12 Completo oculto da tela inicial (26/10/2026, decisão do engenheiro).
+           O módulo e os dados dele continuam no app, só não há mais cartão para entrar. -->
     </div>
   </div>`;
 }
@@ -36894,7 +36895,9 @@ let __estadoLocalCarregadoPromise = carregarEstadoSalvo().then(async saved=>{
     // removido da tela; limpa qualquer valor salvo para nenhum aparelho ficar
     // preso no modo econômico sem ter mais como sair.
     delete novoEstado.sincronizarEmDadosMoveis;
-    if(novoEstado.modulo==="completo") novoEstado.ui.screen = "projetos";
+    /* NR-12 Completo oculto (26/10/2026): quem tinha parado dentro dele abre
+       na escolha de módulo. Os dados do Completo não são tocados. */
+    if(novoEstado.modulo==="completo") novoEstado.modulo = null;
     else if(novoEstado.modulo==="simplificado") novoEstado.ui.screen = "simples-projetos";
     novoEstado = chkGarantirNamespace(novoEstado);
     await __arquivadosCarregados;   // antes do primeiro render — ver acima
