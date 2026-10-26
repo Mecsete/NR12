@@ -64,6 +64,22 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 26/10/2026 08:36
+
+**Laudo A4: botão para mostrar ou ocultar tudo o que envolve PLr.**
+
+Há empresas que não querem ver PLr no laudo. Na montagem do laudo (Laudo → Imprimir)
+há um botão novo, "PLr no laudo" / "PLr oculto". Oculto, o laudo sai sem:
+- a coluna "Função de segurança (PLr)" de cada risco;
+- o "Maior PLr identificado" e a nota de cada equipamento;
+- a parte de PLr do quadro "Risco residual previsto" (Exposição, Possibilidade de
+  evitar e o PLr previsto); o quadro fica só com o HRN;
+- a ABNT NBR 14153 (categorias de segurança) na lista do Normativo.
+
+A escolha fica guardada no projeto (vale para todos os laudos daquela empresa e
+sincroniza com os outros aparelhos). Nada é apagado: a classificação de PLr de cada
+risco continua no app e volta ao laudo quando o botão é religado.
+
 ## 21/10/2026 14:54
 
 **Laudo: o quadro previsto volta a mostrar só o valor previsto de Exposição e Possibilidade de evitar, e o título da mitigação existente fica sem Atende / Não atende.**

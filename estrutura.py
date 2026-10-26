@@ -6007,6 +6007,16 @@ chk("a Revisao avisa da previsao de F/P e permite desfazer, com confirmacao; o c
     and _corpoDe(novo, "plrPrevAplicar") == _corpoDe(orig, "plrPrevAplicar")
     and _corpoDe(novo, "plrExigido") == _corpoDe(orig, "plrExigido"))
 
+print("\n=== 190. LAUDO A4 COM OU SEM PLr (26/10/2026) ===")
+_i0 = novo.find("INÍCIO DO MÓDULO DE IMPRESSÃO DO LAUDO"); _i1 = novo.find("FIM DO MÓDULO DE IMPRESSÃO DO LAUDO")
+chk("tudo do 'sem PLr' vive dentro do bloco removivel e a escolha fica no projeto",
+    all(_i0 < novo.find(m) < _i1 for m in ["let __lpSemPLr", "lpToggleSemPLr(){", "__lpSemPLr = !!(alvo.proj && alvo.proj.laudoOcultarPLr);"]))
+chk("os quatro pontos de PLr do laudo obedecem ao botao (equipamento, risco, previsto, normativo)",
+    '${__lpSemPLr ? "" : `<div class="lp-apr-plr">' in novo and novo.count('${__lpSemPLr ? "" : `<div class="lp-rc-plr">') == 2
+    and '${__lpSemPLr ? "" : `<li>ABNT NBR 14153:2022' in novo)
+chk("o calculo do PLr nao mudou",
+    _corpoDe(novo, "plrExigido") == _corpoDe(orig, "plrExigido") and _corpoDe(novo, "plrPrevistoDoItem") == _corpoDe(orig, "plrPrevistoDoItem"))
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
 

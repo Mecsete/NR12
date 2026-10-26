@@ -14410,6 +14410,31 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  /* t193 — LAUDO SEM PLr (26/10/2026): botao na montagem, guardado no projeto. */
+  {
+    console.log("\n[t193] laudo A4 com ou sem PLr");
+    t("o botao existe na barra e grava no PROJETO, com carimbo de sincronizacao", ()=>{
+      ok(funcao("telaImprimir").indexOf("App.lpToggleSemPLr()") > 0, "falta o botao");
+      const i = HTML.indexOf("    lpToggleSemPLr(){");
+      const c = HTML.slice(i, HTML.indexOf("    lpToggleRascunho(){"));
+      ok(c.indexOf("alvo.proj.laudoOcultarPLr = !alvo.proj.laudoOcultarPLr;") > 0);
+      ok(c.indexOf("alvo.proj.atualizadoEm = agoraSync();") > 0 && c.indexOf("marcarAlterado();") > 0, "sem carimbo a escolha nao sincroniza");
+      ok(c.indexOf("recusarSeArquivado(") > 0, "projeto arquivado e so leitura");
+    });
+    t("a montagem le a escolha do projeto e todos os pontos de PLr do documento obedecem", ()=>{
+      ok(HTML.indexOf("__lpSemPLr = !!(alvo.proj && alvo.proj.laudoOcultarPLr);") > 0);
+      ok(HTML.indexOf('${__lpSemPLr ? "" : `<div class="lp-apr-plr">') > 0, "Maior PLr do equipamento");
+      eq((HTML.match(/\$\{__lpSemPLr \? "" : `<div class="lp-rc-plr">/g)||[]).length, 2, "coluna do PLr no risco e no quadro previsto");
+      ok(HTML.indexOf('${__lpSemPLr ? "" : `<li>ABNT NBR 14153:2022') > 0, "NBR 14153 (categorias) no normativo");
+      ok(funcao("lpPrevBlocoHtml").indexOf("const pl = __lpSemPLr ? { aplicavel:false, mudou:false, trocou:false") > 0, "a previsao de F/P e o 'PLr revista' tambem somem");
+    });
+    t("a classificacao de PLr do risco nao e tocada (so o laudo deixa de mostrar)", ()=>{
+      const i = HTML.indexOf("    lpToggleSemPLr(){");
+      const c = HTML.slice(i, HTML.indexOf("    lpToggleRascunho(){"));
+      ["exposicao", "evitar", "plrPrev", "hrnPrev"].forEach(x=> ok(c.indexOf(x) < 0, "o botao nao pode mexer em " + x));
+    });
+  }
+
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);
 })();
