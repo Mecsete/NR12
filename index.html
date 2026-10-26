@@ -3539,7 +3539,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "20/10/2026 07:04";
+const APP_BUILD = "26/10/2026 08:36";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -12656,6 +12656,17 @@ function situacaoGeralExistente(r){
   const obs = sits.filter(s=> s.sit !== "ok" && s.obs).map(s=> s.obs).filter((v,i,a)=> a.indexOf(v) === i).join("; ");
   return { k, obs };
 }
+/* SITUAÇÃO SÓ QUANDO HÁ O QUE JULGAR (21/10/2026). O padrão "Atende" (k "ok")
+   existe para quando há medida marcada e ninguém mexeu no seletor — é o que a
+   tela mostra. Sem nenhuma medida marcada e sem situação escolhida, não há o
+   que julgar: o laudo imprimia "Mitigação existente — Atende" em cima de um
+   texto que dizia "não há medida implementada". Mesma regra da planilha base
+   para IA (medExistSitK). Devolve "" quando não há situação a mostrar. */
+function situacaoExistenteParaMostrar(r){
+  if(!r) return "";
+  if(itensExistentesDe(r).length === 0 && !r.medidaExistenteSituacao) return "";
+  return situacaoGeralExistente(r).k;
+}
 function definirSituacaoMedida(r, k, campo, valor){
   if(!r || !k) return;
   if(!r.medidaExistenteSituacoes || typeof r.medidaExistenteSituacoes !== "object") r.medidaExistenteSituacoes = {};
@@ -13010,6 +13021,24 @@ function plrResultadoHtml(res){
     <div class="field-hint" style="margin-top:6px">Nível <b>requerido</b> pelo risco. Confirmar que o sistema instalado o atinge exige MTTFd, DC e CCF dos componentes — é atividade de projeto, não de inspeção.</div>
     ${res.fronteira? `<div class="field-hint" style="margin-top:4px;color:#B26A00">O Grau do Dano escolhido fica na fronteira entre S1 e S2 — confira se a lesão é reversível antes de assinar.</div>`:""}`;
 }
+/* Aviso na Revisão quando o risco tem previsão de Exposição ou Possibilidade de
+   evitar diferente da de hoje: é ela que sai no quadro "Risco residual previsto"
+   do laudo. Sem o aviso, a Revisão mostrava um valor e o laudo outro, sem dizer
+   por quê. 21/10/2026. */
+function plrAvisoPrevisaoHtml(r, tarefa){
+  const pp = (r && r.plrPrev) || {};
+  if(!pp.exposicao && !pp.evitar) return "";
+  const it = { risco:r, tarefa:tarefa || {} };
+  const dif = [];
+  const fHoje = plrValorDeHoje(it, "exposicao"), pHoje = plrValorDeHoje(it, "evitar");
+  if(pp.exposicao && pp.exposicao !== fHoje) dif.push("Exposição: " + (fHoje || "—") + " → " + pp.exposicao);
+  if(pp.evitar && pp.evitar !== pHoje) dif.push("Possibilidade de evitar: " + (pHoje || "—") + " → " + pp.evitar);
+  if(!dif.length) return "";
+  return `<div style="font-size:12.5px;color:#8A5B00;background:#FFF3D6;border:1px solid #E9C46A;border-radius:8px;padding:8px 10px;margin-top:8px">
+    <b>Previsão para depois da solução</b>, que sai no laudo no quadro "Risco residual previsto": ${escapeHtml(dif.join(" · "))}.
+    <button type="button" class="btn btn-ghost btn-sm" style="margin-top:6px;border:1px solid #E9C46A" onclick="App.laudoDesfazerPrevisaoPLr('${r.id}')">Desfazer a previsão</button>
+  </div>`;
+}
 function plrFaltandoTexto(res){
   const f = [];
   if(!res.s) f.push("Grau do Dano");
@@ -13048,6 +13077,7 @@ function blocoPLrHtml(r, prefixo, tarefa){
     <div class="field-hint" style="margin-top:6px">Severidade (S) vem do Grau do Dano: <b>${escapeHtml(res.s || "não preenchido")}</b>${res.s? " — " + escapeHtml(gpdCanonico(r.gpd)) : ""}. ${escapeHtml((PLR_P_OPCOES.find(o=>o.v===r.evitar)||{}).desc || "P1 só vale quando há chance real de escapar.")}</div>
     ${herdado? `<div class="field-hint" style="margin-top:6px">A exposição veio da <b>frequência da tarefa</b>: ${escapeHtml(herdado)}. Se a pessoa fica <b>muito tempo</b> dentro da zona de perigo, troque acima — o F também depende da duração, não só de quantas vezes.</div>`:""}
     ${plrResultadoHtml(res)}
+    ${prefixo !== "draft" ? plrAvisoPrevisaoHtml(r, tarefa) : ""}
   </div>`;
 }
 
@@ -13205,7 +13235,7 @@ function laudoBlocoExistenteHtml(item, compacto){
   const obs = geral.obs;
   return `<div class="laudo-quadro-existente">
     <div class="laudo-quadro-tit">Mitigação existente na máquina
-      <span class="laudo-quadro-sit" style="color:${sit.cor};background:${sit.fundo}">${escapeHtml(sit.rot)}</span>
+      ${situacaoExistenteParaMostrar(r) ? `<span class="laudo-quadro-sit" style="color:${sit.cor};background:${sit.fundo}">${escapeHtml(sit.rot)}</span>` : ""}
     </div>
     ${porMedida
       ? `<div class="laudo-quadro-lista">${itensExistentesDe(r).map(it=>{ const s = situacaoDaMedida(r, it.k); const d = MEDIDA_SITUACOES.find(x=>x.k===s.sit) || MEDIDA_SITUACOES[0];
@@ -24734,8 +24764,9 @@ function laudoEntradaSolucao(item){
         return it.rot + " — " + d.rot + (s.sit !== "ok" && s.obs ? " (" + s.obs + ")" : "");
       }).join("; "));
     }else{
-      const sit = MEDIDA_SITUACOES.find(x=>x.k===(r.medidaExistenteSituacao||"ok")) || MEDIDA_SITUACOES[0];
-      partes.push("Situação do que já existe: " + sit.rot);
+      const sitKIA = situacaoExistenteParaMostrar(r);
+      const sit = MEDIDA_SITUACOES.find(x=>x.k===sitKIA) || null;
+      if(sit) partes.push("Situação do que já existe: " + sit.rot);
     }
     partes.push("A solução deve COMPLEMENTAR ou CORRIGIR o que já existe, sem repetir o que já está atendido.");
   }
@@ -24766,8 +24797,10 @@ function laudoEntradaExistente(item){
       return "- " + it.rot + ": " + d.rot + (s.sit !== "ok" && s.obs ? " — falta: " + s.obs : "");
     }).join("\n"));
   }else{
-    partes.push("Situação em relação à norma: " + sit.rot);
-    if(obs && sit.k!=="ok") partes.push("O que falta para atender: " + obs);
+    if(situacaoExistenteParaMostrar(r)){
+      partes.push("Situação em relação à norma: " + sit.rot);
+      if(obs && sit.k!=="ok") partes.push("O que falta para atender: " + obs);
+    }
   }
   partes.push("Escreva uma descrição técnica e objetiva do que JÁ EXISTE, como um registro do estado atual — não proponha nenhuma ação nova nem repita isto como se fosse uma solução a ser feita.");
   return partes.join("\n");
@@ -31086,6 +31119,16 @@ Devolver agora?`)) return;
     __draftEntity[campo] = valor || "";
     gravarDraftPersistente();
     renderModalEntidade();
+  },
+  laudoDesfazerPrevisaoPLr(rid){
+    const it = laudoItemPorId(rid); if(!it || !it.risco) return;
+    if(it.proj && recusarSeArquivado(it.proj.id)) return;
+    if(!confirm("Desfazer a previsão de Exposição e Possibilidade de evitar deste risco?\n\nO quadro \"Risco residual previsto\" do laudo volta a usar os valores de hoje nesses dois campos. A previsão do HRN não muda.")) return;
+    plrPrevAplicar(it, "exposicao", "");
+    plrPrevAplicar(it, "evitar", "");
+    it.risco.atualizadoEm = agoraSync();
+    marcarAlterado(); render();
+    toast("Previsão de Exposição e Possibilidade de evitar desfeita");
   },
   laudoSetPLr(rid, campo, valor){
     const item = laudoItemPorId(rid); if(!item) return;
@@ -37506,6 +37549,11 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
   let __lpPaginas = [];
   let __lpHtml = "";
   let __lpGerando = false;
+  /* LAUDO SEM PLr (26/10/2026): há empresas que não querem ver nada de PLr no
+     laudo. A escolha fica no PROJETO (proj.laudoOcultarPLr) e é lida a cada
+     montagem; esta variável só guarda o valor da montagem em curso, para os
+     blocos (inclusive o redesenho de um risco no modo de previsão). */
+  let __lpSemPLr = false;
   let __lpRascunho = false;   // imprimir como Rascunho: so na sessao, nunca gravado (nao sair rascunho por engano depois)
 
   function reduzirFoto(src, maxL){
@@ -37658,7 +37706,7 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
         <p class="lp-par">Também foram usadas:</p>
         <ul class="lp-lista">
           <li>ABNT NBR 14118:2022 — Segurança de máquinas — Prevenção de partida inesperada;</li>
-          <li>ABNT NBR 14153:2022 — Segurança de máquinas — Partes de sistemas de comando relacionadas à segurança — Classificação por categorias de segurança;</li>
+          ${__lpSemPLr ? "" : `<li>ABNT NBR 14153:2022 — Segurança de máquinas — Partes de sistemas de comando relacionadas à segurança — Classificação por categorias de segurança;</li>`}
           <li>ABNT NBR ISO 13850:2021 — Segurança de máquinas — Função de parada de emergência — Princípios para projeto;</li>
           <li>ABNT NBR ISO 13857:2021 — Segurança de máquinas — Distâncias de segurança para impedir o acesso a zonas de perigo pelos membros superiores e inferiores;</li>
           <li>ABNT NBR ISO 14119:2021 — Segurança de máquinas — Dispositivos de intertravamento associados às proteções — Princípios de projeto e seleção;</li>
@@ -37849,7 +37897,9 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
   const a = p.atual;
   const metaA = NIVEL_HRN_META[a.nivel] || {};
   const metaP = NIVEL_HRN_META[p.nivel] || {};
-  const pl = plrPrevistoDoItem(it);
+  const plReal = plrPrevistoDoItem(it);
+  /* Sem PLr no laudo: a previsão passa a considerar só o HRN (nada de PLr aparece nem conta). */
+  const pl = __lpSemPLr ? { aplicavel:false, mudou:false, trocou:false, atual:plReal.atual, previsto:plReal.previsto } : plReal;
   const lista = (campo, opts) => {
     const sel = hrnPrevClassificacao(it, campo);
     return `<span class="lp-prev-txt">${esc(sel)}</span>`
@@ -37892,7 +37942,7 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
            faixa; repetir em palavras aqui era dizer duas vezes a mesma coisa.
            Quando NÃO é aceitável, o aviso que interessa é o de baixo, que
            explica o que fazer — e esse continua. -->
-      <div class="lp-rc-plr">
+      ${__lpSemPLr ? "" : `<div class="lp-rc-plr">
         <div class="r">Função de segurança (PLr)</div>
         <div class="v">${
           !pl.aplicavel ? "Não aplicável"
@@ -37901,7 +37951,7 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
                     ? `<b>PL ${esc(pl.atual.plr)}</b> &rarr; <b style="color:#2E7D32">PL ${esc(pl.previsto.plr)}</b>`
                     : `<b>PL ${esc(pl.previsto.plr)}</b>`)
                 : "A classificar")}</div>
-      </div>
+      </div>`}
     </div>
     ${pl.aplicavel? `<div class="lp-prev-plr">
       <span class="rot">Exposição (F)</span>
@@ -37982,10 +38032,10 @@ function lpMaiorPLrDoEquipamento(itens){
               ${cel("Capacidade", m.capacidade)}${cel("Tensão", m.tensao)}
             </div>
           </div>
-          <div class="lp-apr-plr">
+          ${__lpSemPLr ? "" : `<div class="lp-apr-plr">
             <div class="l">Maior PLr identificado:<em${cplr? ` style="color:${cplr.cor};background:${cplr.fundo};border-color:${cplr.cor}55"`:""}>${esc(mplr.rotulo)}</em></div>
             <div class="n">${esc(notaPlr)}</div>
-          </div>
+          </div>`}
         </div>
         <div class="lp-faixa-c" style="margin-top:6px">ESCOPO</div>
         <div class="lp-apr-txt" style="border:1px solid #8A8CA3;border-top:none">${esc(escopo)}</div>` });
@@ -38017,7 +38067,6 @@ function lpMaiorPLrDoEquipamento(itens){
              segue a MESMA regra de risco/tarefa/escopo: aprovado > sugestão >
              o que está registrado. */
           const existente = laudoTextoFinal(it, "existente");
-          const sitDef = MEDIDA_SITUACOES.find(x=>x.k===situacaoGeralExistente(r).k) || MEDIDA_SITUACOES[0];
           const plr = plrExigido(r, it.tarefa);
           blocos.push({ html:`<div class="lp-rc${r.ocultoLaudo?' lp-oculto':''}">
             <div class="lp-rc-cab">
@@ -38035,7 +38084,8 @@ function lpMaiorPLrDoEquipamento(itens){
                   ${esc(laudoTextoFinal(it, "risco") || r.descricao || "")}
                 </div>
                 ${existente? `<div class="lp-rc-bloco">
-                  <div class="lp-rc-rot">Mitigação existente — ${esc(sitDef.rot)}</div>
+                  <!-- Só o título, sem Atende / Não atende: decisão do engenheiro (21/10/2026). -->
+                  <div class="lp-rc-rot">Mitigação existente</div>
                   ${esc(existente)}
                 </div>`:""}
                 <div class="lp-rc-bloco">
@@ -38067,12 +38117,12 @@ function lpMaiorPLrDoEquipamento(itens){
                   </td>
                 </tr>
               </table></div>
-              <div class="lp-rc-plr">
+              ${__lpSemPLr ? "" : `<div class="lp-rc-plr">
                 <div class="r">Função de segurança (PLr)</div>
                 ${plr.aplicavel && plr.completo
                   ? `<div class="v"><b>PL ${esc(plr.plr)}</b></div>`
                   : `<div class="v">${plr.aplicavel? "A classificar" : "Não aplicável"}</div>`}
-              </div>
+              </div>`}
             </div>
             ${lpPrevBlocoHtml(it)}
           </div>` });
@@ -38456,6 +38506,7 @@ function lpMaiorPLrDoEquipamento(itens){
       <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirConclusao()">${ic('edit')} Conclusão${(conclusaoFoiEditada(areaAtual()) || conclusaoEditadaNasUnidas()) ? " ·" : ""}</button>
       <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirAssinaturaLaudo()">${ic('edit')} Assinatura${assinaturaLaudo() ? " ·" : ""}</button>
       <button class="btn btn-sm ${__lpRascunho ? "btn-primary" : "btn-ghost"}" style="${__lpRascunho ? "" : "border:1px solid var(--line)"}" title="Imprimir como rascunho: marcas inclinadas na página inteira" onclick="App.lpToggleRascunho()">${ic('edit')} Rascunho${__lpRascunho ? " ·" : ""}</button>
+      ${alvoU ? `<button class="btn btn-sm ${alvoU.proj.laudoOcultarPLr ? "btn-primary" : "btn-ghost"}" style="${alvoU.proj.laudoOcultarPLr ? "" : "border:1px solid var(--line)"}" title="Mostrar ou ocultar no laudo tudo o que envolve PLr (vale para todos os laudos deste projeto)" onclick="App.lpToggleSemPLr()">${ic('cog')} ${alvoU.proj.laudoOcultarPLr ? "PLr oculto" : "PLr no laudo"}</button>` : ""}
     </div>
     <div class="lp-logo-linha">${logoFicha()}</div>
     ${nUnidas > 1 ? `<div class="lp-logo-linha"><span>Laudo reunido: <b>${escapeHtml(alvoU.areas.map(a=> a.nome||"Área").join(" + "))}</b> — ${alvoU.itens.length} risco(s) no total</span></div>` : ""}
@@ -38522,6 +38573,19 @@ function lpMaiorPLrDoEquipamento(itens){
     /* Liga/desliga a impressão como Rascunho. Só acrescenta/tira as marcas das
        páginas já montadas — não remonta nem repagina, porque as marcas não
        ocupam espaço. Não grava nada: a escolha vale na sessão. */
+    /* Liga/desliga o PLr no laudo deste projeto. Grava no projeto (com o
+       carimbo de sincronização), para valer em todos os laudos dele e nos outros
+       aparelhos. Nada do risco é apagado: a classificação continua no app. */
+    lpToggleSemPLr(){
+      const alvo = laudoAlvo();
+      if(!alvo || !alvo.proj) return;
+      if(recusarSeArquivado(alvo.proj.id)) return;
+      alvo.proj.laudoOcultarPLr = !alvo.proj.laudoOcultarPLr;
+      alvo.proj.atualizadoEm = agoraSync();
+      marcarAlterado();
+      toast(alvo.proj.laudoOcultarPLr ? "PLr oculto nos laudos deste projeto" : "PLr volta a sair nos laudos deste projeto");
+      if(__lpPaginas.length) App.lpGerar(); else render();
+    },
     lpToggleRascunho(){
       __lpRascunho = !__lpRascunho;
       lpMdEstilo();
@@ -38628,6 +38692,7 @@ function lpMaiorPLrDoEquipamento(itens){
            cópias reduzidas, feitas por reduzirFoto — segurar também as
            originais na memória seria pagar duas vezes pela mesma foto. */
         __lpSoltarFotos = ()=>{ alvo.areas.forEach(areaDoLaudo=>{ try{ liberarFotosDe(areaDoLaudo); }catch(e){} }); };
+        __lpSemPLr = !!(alvo.proj && alvo.proj.laudoOcultarPLr);
         const d = dadosDoc(alvo.proj, alvo.area, alvo.areas);
         // Em modo de seleção mostra TUDO (item oculto entra apagado/marcável,
         // para dar para desmarcar E remarcar); fora do modo, o que está

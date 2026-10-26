@@ -14307,7 +14307,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(HTML.indexOf("onDraftMedidaExistentePM(i, campo, valor){") > 0 && HTML.indexOf("laudoSetMedidaExistentePM(rid, i, campo, valor){") > 0);
     });
     t("o laudo impresso e a planilha usam a situacao do conjunto quando ha situacao por medida", ()=>{
-      ok(HTML.indexOf("x.k===situacaoGeralExistente(r).k") > 0, "o impresso precisa usar a do conjunto");
+      ok(funcao("situacaoExistenteParaMostrar").indexOf("situacaoGeralExistente(r).k") > 0, "a situacao do conjunto continua disponivel (Revisao e planilha)");
       ok(HTML.indexOf("const medExistGeral = (risco && temSituacaoPorMedida(risco)) ? situacaoGeralExistente(risco) : null;") > 0);
     });
     t("a IA recebe a situacao de CADA medida quando ela existe", ()=>{
@@ -14362,6 +14362,76 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
     t("os botoes continuam chamando as mesmas acoes de sempre", ()=>{
       ok(HTML.indexOf("  selecionarAreasDoProjetoExport(projetoId){") > 0 && HTML.indexOf("  desmarcarAreasDoProjetoExport(projetoId){") > 0);
+    });
+  }
+
+  /* t192 — COERÊNCIA LAUDO x APP: EXPOSIÇÃO PREVISTA E "MITIGAÇÃO EXISTENTE — ATENDE" (21/10/2026). */
+  {
+    console.log("\n[t192] laudo x app: F/P previstos com 'hoje -> previsto' e situacao da mitigacao so quando ha o que julgar");
+    t("situacaoExistenteParaMostrar: sem medida marcada e sem situacao escolhida nao ha situacao (o laudo nao imprime 'Atende')", ()=>{
+      eq(C.situacaoExistenteParaMostrar({ componente:"Correia" }), "", "nada marcado: sem situacao");
+      eq(C.situacaoExistenteParaMostrar({ medidasExistentes:[], descMedida:"Não há medida de mitigação implementada" }), "", "so texto: sem situacao");
+      eq(C.situacaoExistenteParaMostrar({ medidasExistentes:["prot_fixa"] }), "ok", "marcada e sem escolha: Atende (o padrao da tela)");
+      eq(C.situacaoExistenteParaMostrar({ medidaExistenteSituacao:"nao" }), "nao", "situacao escolhida vale mesmo sem medida marcada");
+      eq(C.situacaoExistenteParaMostrar(null), "");
+    });
+    t("o laudo mostra so o titulo 'Mitigação existente', sem Atende / Nao atende (decisao de 21/10/2026)", ()=>{
+      ok(HTML.indexOf('<div class="lp-rc-rot">Mitigação existente</div>') > 0);
+      ok(HTML.indexOf('Mitigação existente — ${esc(sitDef.rot)}') < 0 && HTML.indexOf('Mitigação existente${sitDef') < 0, "a situacao voltou ao titulo do laudo");
+    });
+    t("a entrada da IA nao diz 'Atende' quando nada foi marcado nem julgado", ()=>{
+      const e = C.laudoEntradaExistente({ risco:{ id:"rX", descMedida:"Não há medida" }, tarefa:{}, maquina:{} });
+      ok(e.indexOf("Situação em relação à norma") < 0, "nao pode afirmar situacao sem medida: " + e);
+      const e2 = C.laudoEntradaExistente({ risco:{ id:"rY", medidasExistentes:["prot_fixa"], medidaExistenteSituacao:"nao" }, tarefa:{}, maquina:{} });
+      ok(e2.indexOf("Situação em relação à norma: Não atende") > 0, e2);
+    });
+    t("laudo: o quadro previsto mostra so o valor previsto de F e P (sem 'hoje -> previsto', decisao de 21/10/2026)", ()=>{
+      ok(HTML.indexOf('<span class="lp-prev-txt">${esc(plrPrevValor(it, "exposicao") || "—")}</span>') > 0);
+      ok(HTML.indexOf('<span class="lp-prev-txt">${esc(plrPrevValor(it, "evitar") || "—")}</span>') > 0);
+      ok(HTML.indexOf("function lpDeAte(") < 0);
+    });
+    t("Revisao: avisa quando ha previsao de F/P diferente da de hoje, com botao para desfazer; sem previsao, nada", ()=>{
+      const cx = vm.createContext({ String, Object });
+      vm.runInContext(constante("PLR_F_OPCOES"), cx);
+      vm.runInContext("function escapeHtml(s){ return String(s); } function valOuOutro(a,b){ return a==='Outro'?b:a; }", cx);
+      vm.runInContext(["exposicaoPelaFrequencia","plrValorDeHoje","plrAvisoPrevisaoHtml"].map(funcao).join("\n"), cx);
+      vm.runInContext("const FREQ_MENOS_DE_1X = ['Diário','Semanal','Quinzenal','Mensal','Esporádico'];", cx);
+      cx.r = { id:"r1", exposicao:"2x por turno", evitar:"Possível evitar", plrPrev:{ exposicao:"Menos de 1x por turno" } };
+      cx.tf = { frequencia:"1x por turno" };
+      const h = vm.runInContext("plrAvisoPrevisaoHtml(r, tf)", cx);
+      ok(h.indexOf("Exposição: 2x por turno → Menos de 1x por turno") > 0, h);
+      ok(h.indexOf("App.laudoDesfazerPrevisaoPLr('r1')") > 0);
+      cx.r2 = { id:"r2", exposicao:"2x por turno", plrPrev:null };
+      eq(vm.runInContext("plrAvisoPrevisaoHtml(r2, tf)", cx), "", "sem previsao nao ha aviso");
+      ok(funcao("blocoPLrHtml").indexOf('${prefixo !== "draft" ? plrAvisoPrevisaoHtml(r, tarefa) : ""}') > 0, "o aviso fica so na Revisao do laudo");
+      const i = HTML.indexOf("  laudoDesfazerPrevisaoPLr(rid){");
+      const c = HTML.slice(i, HTML.indexOf("  laudoSetPLr(rid, campo, valor){"));
+      ok(c.indexOf("if(!confirm(") > 0 && c.indexOf('plrPrevAplicar(it, "exposicao", "")') > 0 && c.indexOf('plrPrevAplicar(it, "evitar", "")') > 0 && c.indexOf("agoraSync()") > 0);
+    });
+  }
+
+  /* t193 — LAUDO SEM PLr (26/10/2026): botao na montagem, guardado no projeto. */
+  {
+    console.log("\n[t193] laudo A4 com ou sem PLr");
+    t("o botao existe na barra e grava no PROJETO, com carimbo de sincronizacao", ()=>{
+      ok(funcao("telaImprimir").indexOf("App.lpToggleSemPLr()") > 0, "falta o botao");
+      const i = HTML.indexOf("    lpToggleSemPLr(){");
+      const c = HTML.slice(i, HTML.indexOf("    lpToggleRascunho(){"));
+      ok(c.indexOf("alvo.proj.laudoOcultarPLr = !alvo.proj.laudoOcultarPLr;") > 0);
+      ok(c.indexOf("alvo.proj.atualizadoEm = agoraSync();") > 0 && c.indexOf("marcarAlterado();") > 0, "sem carimbo a escolha nao sincroniza");
+      ok(c.indexOf("recusarSeArquivado(") > 0, "projeto arquivado e so leitura");
+    });
+    t("a montagem le a escolha do projeto e todos os pontos de PLr do documento obedecem", ()=>{
+      ok(HTML.indexOf("__lpSemPLr = !!(alvo.proj && alvo.proj.laudoOcultarPLr);") > 0);
+      ok(HTML.indexOf('${__lpSemPLr ? "" : `<div class="lp-apr-plr">') > 0, "Maior PLr do equipamento");
+      eq((HTML.match(/\$\{__lpSemPLr \? "" : `<div class="lp-rc-plr">/g)||[]).length, 2, "coluna do PLr no risco e no quadro previsto");
+      ok(HTML.indexOf('${__lpSemPLr ? "" : `<li>ABNT NBR 14153:2022') > 0, "NBR 14153 (categorias) no normativo");
+      ok(funcao("lpPrevBlocoHtml").indexOf("const pl = __lpSemPLr ? { aplicavel:false, mudou:false, trocou:false") > 0, "a previsao de F/P e o 'PLr revista' tambem somem");
+    });
+    t("a classificacao de PLr do risco nao e tocada (so o laudo deixa de mostrar)", ()=>{
+      const i = HTML.indexOf("    lpToggleSemPLr(){");
+      const c = HTML.slice(i, HTML.indexOf("    lpToggleRascunho(){"));
+      ["exposicao", "evitar", "plrPrev", "hrnPrev"].forEach(x=> ok(c.indexOf(x) < 0, "o botao nao pode mexer em " + x));
     });
   }
 

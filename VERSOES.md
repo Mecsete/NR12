@@ -64,6 +64,50 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 26/10/2026 08:36
+
+**Laudo A4: botão para mostrar ou ocultar tudo o que envolve PLr.**
+
+Há empresas que não querem ver PLr no laudo. Na montagem do laudo (Laudo → Imprimir)
+há um botão novo, "PLr no laudo" / "PLr oculto". Oculto, o laudo sai sem:
+- a coluna "Função de segurança (PLr)" de cada risco;
+- o "Maior PLr identificado" e a nota de cada equipamento;
+- a parte de PLr do quadro "Risco residual previsto" (Exposição, Possibilidade de
+  evitar e o PLr previsto); o quadro fica só com o HRN;
+- a ABNT NBR 14153 (categorias de segurança) na lista do Normativo.
+
+A escolha fica guardada no projeto (vale para todos os laudos daquela empresa e
+sincroniza com os outros aparelhos). Nada é apagado: a classificação de PLr de cada
+risco continua no app e volta ao laudo quando o botão é religado.
+
+## 21/10/2026 14:54
+
+**Laudo: o quadro previsto volta a mostrar só o valor previsto de Exposição e Possibilidade de evitar, e o título da mitigação existente fica sem Atende / Não atende.**
+
+A pedido do engenheiro: sai o "hoje → previsto" da versão anterior (o aviso na
+Revisão, com o botão "Desfazer a previsão", continua), e no laudo o título fica só
+"Mitigação existente". Na Revisão e nas entradas da IA a situação continua aparecendo
+quando há medida marcada ou situação escolhida.
+
+## 21/10/2026 14:28
+
+**Laudo e Revisão coerentes: a Exposição prevista aparece como "hoje → previsto" e a mitigação existente deixa de sair como "Atende" quando não há medida.**
+
+- **Exposição (F) e Possibilidade de evitar (P) no laudo.** O quadro "Risco residual
+  previsto" mostrava só o valor previsto para depois da solução, e quem lia o laudo o
+  tomava pelo de hoje (a Revisão mostrava "2x por turno" e o laudo "Menos de 1x por
+  turno"). Agora, quando a previsão é diferente, sai "2x por turno → Menos de 1x por
+  turno". Quando é igual, sai só o valor.
+- **Aviso na Revisão.** Quando o risco tem previsão de Exposição ou de Possibilidade
+  de evitar diferente da de hoje, o bloco da função de segurança mostra a previsão
+  que sai no laudo e um botão para desfazê-la (com confirmação).
+- **"Mitigação existente — Atende".** Sem nenhuma medida marcada e sem situação
+  escolhida, o laudo imprimia "Atende" em cima de um texto que dizia que não havia
+  medida. Agora a situação só aparece quando há o que julgar (a mesma regra da
+  planilha base para IA). Vale também para o quadro da Revisão e para o que é
+  enviado à IA.
+- Nenhum cálculo mudou: HRN, PLr e as previsões continuam iguais.
+
 ## 20/10/2026 07:04
 
 **Linhas de vida: tela do laudo com painel de ajustes à esquerda; revisão com IA por arquivo e aplicação em lote.**
