@@ -64,6 +64,17 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 26/10/2026 17:27
+
+**Linhas de vida: telas aproveitam a largura do computador.**
+
+No computador (janela a partir de 1100 px), as listas de projetos, setores, linhas e
+modelos passam a ocupar duas colunas, e as demais telas do módulo (Configurações,
+Revisão com IA, Backup, Empresa, revisão da linha, busca, nova linha) ficam mais largas.
+Na tela do laudo, a prévia usa a largura toda e mostra duas páginas lado a lado quando
+couberem; o botão "1/2" ao lado do zoom troca entre uma e duas páginas. O preenchimento
+em campo e o celular não mudam.
+
 ## 26/10/2026 08:36
 
 **Laudo A4: botão para mostrar ou ocultar tudo o que envolve PLr.**
