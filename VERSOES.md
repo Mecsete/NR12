@@ -64,6 +64,28 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 27/10/2026 08:07
+
+**Apreciação de Risco - NR-12 com o mesmo layout do Linhas de vida.**
+
+- Barra de cima: título no padrão do Linhas de vida e as ações da tela à direita
+  ("Dados" do projeto, "Área" para editar a área aberta e, no computador, o "+"
+  de criar). No celular o "+" continua no botão redondo.
+- Barra de baixo: ganhou "Módulos" no fim. O atalho de risco (⚠) continua no centro.
+- Configurações em seções (Conta e aparelho, Laudo, Acompanhamento, Aparência).
+  "Trocar de módulo" saiu daqui porque agora é o "Módulos" da barra de baixo.
+- Cartões com lápis de editar ao lado do menu ⋮. Tocar no nome continua editando,
+  e Excluir continua só dentro do menu.
+- No computador: listas em duas colunas (arrastar para ordenar segue a ordem
+  linha a linha), tabela de riscos mais larga e atalhos no painel do projeto
+  (Riscos do projeto, Revisão dos textos, Laudo em A4).
+- Laudo em A4 igual ao do Linhas de vida: prévia na largura toda, duas páginas
+  lado a lado (botão 1/2 junto do zoom) e "Ajustes do laudo" num painel à esquerda,
+  com alfinete para deixar fixo. Na barra de cima: "Laudo 1 de N", ‹ › para trocar
+  de área, "Revisar" e "Gerar PDF". O que sai no PDF não mudou.
+
+Nenhuma função saiu, e dados, cálculo, laudo e sincronização não mudaram.
+
 ## 26/10/2026 17:43
 
 **Tela inicial: só Linhas de vida e Apreciação de Risco - NR-12.**

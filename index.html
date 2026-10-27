@@ -70,6 +70,8 @@ a{color:var(--accent-ink);}
 .topbar-title .sub{font-size:12px;color:var(--on-bar-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;}
 .topbar-action{background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.16);color:var(--on-bar);border-radius:10px;padding:7px 10px;font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:5px;white-space:nowrap;}
 .topbar-action:active{background:rgba(255,255,255,.2);}
+/* Apreciação de Risco (NR-12): no celular as ações da barra de cima ficam só com o ícone; quando há ação, o selo de backup também (o texto continua na dica do selo e na tela de Backup). */
+@media (max-width:600px){.topbar .s-rot{display:none}.topbar-row.s-com-acoes .syncbadge > span{display:none}.bottomnav.s-nav .bottomnav-item{padding-left:1px;padding-right:1px;font-size:10px;letter-spacing:0}}
 .savechip{font-size:10.5px;color:var(--on-bar-dim);display:flex;align-items:center;gap:4px;letter-spacing:.02em;}
 .savechip.erro-salvar{color:#FF6B5E;font-weight:700;}
 .savechip .dot{width:6px;height:6px;border-radius:50%;background:#7FE08A;flex-shrink:0;}
@@ -151,6 +153,13 @@ html.teclado-aberto .laudo-fab{display:none!important;}
 .card-menu-btn{position:absolute;top:6px;right:6px;background:none;border:none;color:var(--ink-faint);width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;z-index:2;}
 .card-menu-btn:active{background:var(--bg-soft);}
 .card-menu-btn svg{width:18px;height:18px;}
+/* Apreciação de Risco: lápis de editar ao lado do "⋮" nos cartões de máquina, tarefa e risco. */
+.card-edit-btn{position:absolute;top:6px;right:36px;background:none;border:none;color:var(--ink-faint);width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;z-index:2;}
+.card-edit-btn:active{background:var(--bg-soft);}
+.card-edit-btn svg{width:17px;height:17px;}
+.list-card.s-com-lapis .list-body{padding-right:66px;}
+/* Duas colunas no computador: o cabeçalho "Arquivados neste aparelho" ocupa a linha inteira. */
+@media (min-width:1100px){.screen.chk-largo > .list-card[onclick="App.toggleArquivados()"]{grid-column:1 / -1}}
 .btn{border-radius:11px;padding:11px 16px;font-weight:700;font-size:14px;border:1px solid transparent;display:inline-flex;align-items:center;justify-content:center;gap:7px;line-height:1.1;}
 .btn svg{width:17px;height:17px;flex-shrink:0;}
 .btn-block{display:flex;width:100%;}
@@ -3539,7 +3548,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "26/10/2026 17:43";
+const APP_BUILD = "27/10/2026 08:07";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -13866,7 +13875,7 @@ function renderSimplificado(){
     <div class="hazard-stripe"></div>
     ${topBarS()}
     ${crumbBarS()}
-    <div class="screen ${(s==='simples-laudo'||s==='simples-laudo-item')?'screen-laudo':''}" style="${emModoSelecao?'padding-bottom:84px':''}">${s==='simples-projetos'?avisoBackupDesatualizadoHtml():''}${body}</div>
+    <div class="screen ${(s==='simples-laudo'||s==='simples-laudo-item')?'screen-laudo':''} ${sLarguraTela(s)}" style="${emModoSelecao?'padding-bottom:84px':''}">${s==='simples-projetos'?avisoBackupDesatualizadoHtml():''}${body}</div>
     ${emModoSelecao? renderSelBar() : bottomNavS()}
   `;
   setSaveChip(false);
@@ -13905,7 +13914,7 @@ let __dragState = null; // { tipo, arr, id, startY, cardEl, rects }
 function moverDragGenerico(e){
   if(!__dragState) return;
   const dy = e.clientY - __dragState.startY;
-  __dragState.cardEl.style.transform = `translateY(${dy}px)`;
+  __dragState.cardEl.style.transform = __dragState.duasColunas ? `translate(${e.clientX - __dragState.startX}px, ${dy}px)` : `translateY(${dy}px)`;
 }
 function finalizarDragGenerico(e){
   if(!__dragState) return;
@@ -13914,7 +13923,14 @@ function finalizarDragGenerico(e){
   ds.cardEl.classList.remove("dragging");
   const finalY = e.clientY;
   let novoIndex = ds.rects.length - 1;
-  for(let i=0;i<ds.rects.length;i++){
+  if(ds.duasColunas){
+    /* Duas colunas (computador): a ordem corre da esquerda para a direita, linha a linha. */
+    const finalX = e.clientX;
+    for(let i=0;i<ds.rects.length;i++){
+      const r = ds.rects[i].rect;
+      if(finalY < r.top || (finalY <= r.bottom && finalX < r.left + r.width/2)){ novoIndex = i; break; }
+    }
+  } else for(let i=0;i<ds.rects.length;i++){
     const meio = ds.rects[i].rect.top + ds.rects[i].rect.height/2;
     if(finalY < meio){ novoIndex = i; break; }
   }
@@ -13954,7 +13970,7 @@ function cardClickGenerico(ev, cardEl){
     if(acaoFoto) new Function(acaoFoto)();
     return;
   }
-  const alvoNome = ev.target.closest('[data-card-role="name"]');
+  const alvoNome = ev.target.closest('[data-card-role="name"], [data-card-role="edit"]'); // o lápis faz o mesmo que tocar no nome
   if(alvoNome){
     const acaoEdit = cardEl.getAttribute("data-card-edit");
     if(acaoEdit){
@@ -14009,18 +14025,29 @@ function attachLongPressHandlers(){
   });
 }
 
+/* Apreciação de Risco: o "+" de criar fica na barra de cima no computador e no botão redondo no celular (nunca os dois juntos), mesmo critério do Linhas de vida. */
+function sEhCampo(){ return !ehComputadorDeMesa(); }
+/* Largura no computador (mesmas classes do Linhas de vida; no celular nada muda): listas em duas colunas,
+   a tabela de riscos larga e as configurações até 1100 px. O laudo já tem largura própria. */
+function sLarguraTela(s){
+  if(["simples-projetos", "simples-areas", "simples-maquinas", "simples-tarefas", "simples-riscos"].includes(s)) return "chk-largo";
+  if(s === "simples-tabela") return "chk-largo-1";
+  if(s.indexOf("simples-config") === 0 || s === "simples-backup") return "chk-medio";
+  return "";
+}
+function sFabNovo(acao){ return sEhCampo() ? `<div class="fab-wrap"><button class="fab" onclick="${acao}" aria-label="Novo">${ic('plus')}</button></div>` : ""; }
 function topBarS(){
   const s = STATE.ui.screen;
-  let title="Projetos", sub="Módulo Simplificado";
+  let title="Apreciação de Risco", sub="Projetos";
   if(s==="simples-areas"){ const p=getCurrentProjetoSimples(); title=p?(p.empresa||"Projeto"):"Áreas"; sub="Áreas / Equipamentos"; }
   if(s==="simples-maquinas"){ const a=getCurrentAreaSimples(); title=a?(a.nome||"Área"):"Máquinas"; sub="Máquinas / Ativos"; }
   if(s==="simples-tarefas"){ const m=getCurrentMaquinaSimples(); title=m?(nomeMaquinaS(m)||"Máquina"):"Tarefas"; sub="Tarefas"; }
   if(s==="simples-riscos"){ const t=getCurrentTarefaSimples(); title=t?((t.tarefa===OUTRO?t.tarefaOutro:t.tarefa)||"Tarefa"):"Riscos"; sub="Riscos"; }
-  if(s==="simples-tabela"){ title="Todos os Riscos"; sub="Área · Máquina · Tarefa"; }
+  if(s==="simples-tabela"){ title="Todos os riscos"; sub="Riscos"; }
   if(s==="simples-laudo"){ title="Laudo"; sub="Textos da IA · revisão"; }
   if(s==="simples-laudo-item"){ title="Revisar textos"; sub="Laudo"; }
-  if(s==="simples-backup"){ title="Backup e Exportações"; sub="Módulo Simplificado"; }
-  if(s==="simples-config"){ title="Configurações"; sub="Módulo Simplificado"; }
+  if(s==="simples-backup"){ title="Backup e Exportações"; sub="Apreciação de Risco - NR-12"; }
+  if(s==="simples-config"){ title="Configurações"; sub="Apreciação de Risco - NR-12"; }
   if(s==="simples-config-backup"){ title="Backup"; sub="Configurações"; }
   if(s==="simples-config-exportacoes"){ title="Exportações"; sub="Configurações"; }
   if(s==="simples-config-empresa"){ title="Empresa e Responsáveis"; sub="Configurações"; }
@@ -14036,10 +14063,23 @@ function topBarS(){
   if(s==="simples-config-backup" || s==="simples-config-exportacoes" || s==="simples-config-ia" || s==="simples-config-empresa" || s==="simples-config-relatorio") { backTarget="simples-config"; backParams={}; }
   if(s==="simples-config-modelo-excel") { backTarget="simples-laudo"; backParams={}; }
   if(s==="simples-laudo-item") { backTarget="simples-laudo"; backParams={}; }
-  return `<div class="topbar"><div class="topbar-row">
+  /* Ações da tela na barra de cima (padrão do Linhas de vida): editar o nível aberto e o "+" de criar
+     (este só no computador e fora da seleção múltipla; no celular ele é o botão redondo). */
+  const acaoTopo = (icone, rotulo, fn, dica)=> `<button class="topbar-action" onclick="${fn}" title="${dica}" aria-label="${dica}">${ic(icone)}<span class="s-rot">${escapeHtml(rotulo)}</span></button>`;
+  const novoTopo = (rotulo, fn)=> (sEhCampo() || __selMode) ? "" : acaoTopo('plus', rotulo, fn, "Novo: " + rotulo);
+  let acoes = "";
+  if(s==="simples-projetos") acoes = novoTopo("Novo", "App.abrirModalProjetoS(null)");
+  if(s==="simples-areas"){ const p=getCurrentProjetoSimples(); if(p) acoes = acaoTopo('edit', "Dados", `App.abrirModalProjetoS('${p.id}')`, "Editar dados do projeto") + novoTopo("Área", `App.abrirModalAreaS(null,'${p.id}')`); }
+  if(s==="simples-maquinas"){ const p=getCurrentProjetoSimples(), a=getCurrentAreaSimples(); if(p && a) acoes = acaoTopo('edit', "Área", `App.abrirModalAreaS('${a.id}','${p.id}')`, "Editar dados da área") + novoTopo("Máquina", `App.abrirModalMaquinaS(null,'${a.id}')`); }
+  if(s==="simples-tarefas"){ const m=getCurrentMaquinaSimples(); if(m) acoes = novoTopo("Tarefa", `App.abrirModalTarefaS(null,'${m.id}')`); }
+  if(s==="simples-riscos"){ const t=getCurrentTarefaSimples(); if(t) acoes = novoTopo("Risco", `App.abrirModalRiscoS(null,'${t.id}')`); }
+  /* Gancho do módulo de impressão (bloco removível): na aba Imprimir ele troca o título e as ações. Sem o módulo, nada muda. */
+  const extTopo = (typeof App.lpTopoS === "function") ? App.lpTopoS(s) : null;
+  if(extTopo){ sub = extTopo.sub; title = extTopo.title; acoes = extTopo.acoes; }
+  return `<div class="topbar"><div class="topbar-row${acoes ? ' s-com-acoes' : ''}">
     ${showBack? `<button class="topbar-back" onclick='App.go("${backTarget}", ${JSON.stringify(backParams)})'>${ic('back')}</button>`:""}
     <div class="topbar-title"><span class="eyebrow">${escapeHtml(sub)}</span><h1>${escapeHtml(title)}</h1></div>
-    ${chipSyncHtml()}
+    ${acoes}${chipSyncHtml()}
   </div>
   ${s!=="simples-tabela" ? `<div style="margin-top:8px"><span class="savechip${__ultimoErroSalvar?' erro-salvar':''}" id="saveChip" onclick="App.tentarSalvarNovamente()"><span class="dot"></span><span class="lbl">${__ultimoErroSalvar?'Não foi possível salvar — toque aqui':'Salvo no aparelho'}</span></span></div>` : ""}
   ${avisoVersaoNovaHtml()}
@@ -14072,7 +14112,7 @@ function bottomNavS(){
   const telasConfig = (s==="simples-backup" || s==="simples-config" || s==="simples-config-backup" || s==="simples-config-exportacoes" || s==="simples-config-ia" || s==="simples-config-empresa" || s==="simples-config-relatorio");
   const telasLaudo = (s==="simples-laudo" || s==="simples-laudo-item");
   const podeAdicionarRisco = !!STATE.ui.projetoSId && s!=="simples-projetos" && !telasConfig && !telasLaudo;
-  return `<div class="bottomnav">
+  return `<div class="bottomnav s-nav">
     <button class="bottomnav-item ${s==="simples-projetos"?'active':''}" onclick="App.go('simples-projetos')">${ic('home')}<span>Projetos</span></button>
     <button class="bottomnav-item ${s==="simples-tabela"?'active':''}" onclick="App.go('simples-tabela')">${ic('table')}<span>Riscos</span></button>
     <div class="bottomnav-center">
@@ -14080,6 +14120,7 @@ function bottomNavS(){
     </div>
     <button class="bottomnav-item ${telasLaudo?'active':''}" onclick="App.go('simples-laudo')">${ic('shield')}<span>Laudo</span></button>
     <button class="bottomnav-item ${telasConfig?'active':''}" onclick="App.go('simples-config')">${ic('cog')}<span>Configurações</span></button>
+    <button class="bottomnav-item" onclick="App.trocarModulo()">${ic('layers')}<span>Módulos</span></button>
   </div>`;
 }
 
@@ -20070,12 +20111,12 @@ function screenSimplesProjetos(){
           <span class="stat-pill">${totalRiscos} risco${totalRiscos===1?'':'s'}</span>
         </div>
       </div>
-      <div class="list-actions"><button class="icon-btn" onclick="App.menuProjetoS(event,'${p.id}')">${ic('dots')}</button></div>
+      <div class="list-actions"><button class="icon-btn" title="Editar dados do projeto" aria-label="Editar dados do projeto" onclick="event.stopPropagation();App.abrirModalProjetoS('${p.id}')">${ic('edit')}</button><button class="icon-btn" onclick="App.menuProjetoS(event,'${p.id}')">${ic('dots')}</button></div>
     </div>`;
   }).join("");
   return `${avisoOneDrive}${avisoArquivadosAlteradosHtml()}<div class="section-title">${projetos.length} projeto${projetos.length===1?'':'s'}</div>${cards}
     ${blocoArquivadosHtml(arquivados)}
-    <div class="fab-wrap"><button class="fab" onclick="App.abrirModalProjetoS(null)">${ic('plus')}</button></div>`;
+    ${sFabNovo("App.abrirModalProjetoS(null)")}`;
 }
 function screenSimplesAreas(){
   const p = getCurrentProjetoSimples();
@@ -20087,6 +20128,18 @@ function screenSimplesAreas(){
   const q = __buscaAtual.trim().toLowerCase();
   const listaFiltrada = q? p.areas.filter(a=> (a.nome||"").toLowerCase().includes(q) || (a.local||"").toLowerCase().includes(q)) : p.areas;
   const listaOrdenada = ordenarLista(listaFiltrada, a=>a.nome);
+  /* Atalhos do painel do projeto (no computador, como no Linhas de vida): levam às telas que já existem. */
+  let atalhos = "";
+  if(!sEhCampo()){
+    let nRiscos = 0, nSem = 0;
+    p.areas.forEach(ar=> ar.maquinas.forEach(mq=> mq.tarefas.forEach(tf=> tf.riscos.forEach(rs=>{ nRiscos++; if(rs.medidaImplementada==="Não") nSem++; }))));
+    const atalho = (ico, tit, desc, acao, destaque)=> `<button type="button" class="chk-painel-tile${destaque ? " on" : ""}" onclick="${acao}">${ic(ico)}<span><b>${tit}</b><small>${desc}</small></span></button>`;
+    atalhos = `<div class="chk-painel-tiles">
+      ${atalho('table', 'Riscos do projeto', nRiscos + (nRiscos === 1 ? " risco" : " riscos") + (nSem ? " · " + nSem + " sem mitigação" : ""), "App.setTabelaScopeSimples('aqui'); App.go('simples-tabela')", nSem > 0)}
+      ${atalho('edit', 'Revisão dos textos', "textos do laudo para aprovar", "App.go('simples-laudo'); App.laudoSetAba('revisao')")}
+      ${LAUDO_ABAS.some(x=> x.k === "imprimir") ? atalho('print', 'Laudo em A4', "montar e gerar o PDF", "App.go('simples-laudo'); App.laudoSetAba('imprimir')") : ""}
+    </div>`;
+  }
   const cards = listaOrdenada.map(a=>`
     <div class="card list-card ${selClass('areaS',a.id)}" data-sel-tipo="areaS" data-sel-id="${a.id}" data-sel-ctx='{"projetoSId":"${p.id}"}' onclick="App.cardClickGenerico(event,this)" data-card-open="App.abrirAreaS('${a.id}')" data-card-edit="App.abrirModalAreaS('${a.id}','${p.id}')" data-card-photo="App.abrirAreaS('${a.id}')">
       ${selCheckHtml('areaS',a.id)}
@@ -20097,10 +20150,10 @@ function screenSimplesAreas(){
         <div class="list-tag">${escapeHtml(a.local||'sem local')}</div>
         <div class="list-meta"><span class="stat-pill">${a.maquinas.length} máquina${a.maquinas.length===1?'':'s'}</span></div>
       </div>
-      <div class="list-actions"><button class="icon-btn" onclick="App.menuAreaS(event,'${a.id}')">${ic('dots')}</button></div>
+      <div class="list-actions"><button class="icon-btn" data-card-role="edit" title="Editar área" aria-label="Editar área">${ic('edit')}</button><button class="icon-btn" onclick="App.menuAreaS(event,'${a.id}')">${ic('dots')}</button></div>
     </div>`).join("") || `<div class="empty">${ic('map')}<h3>Nada encontrado</h3><p>Nenhuma área corresponde à busca.</p></div>`;
-  return `${renderBuscaInput('Buscar área…')}<div class="section-title">${listaFiltrada.length} área${listaFiltrada.length===1?'':'s'}</div>${cards}
-    ${__selMode? "" : `<div class="fab-wrap"><button class="fab" onclick="App.abrirModalAreaS(null,'${p.id}')">${ic('plus')}</button></div>`}`;
+  return `${atalhos}${renderBuscaInput('Buscar área…')}<div class="section-title">${listaFiltrada.length} área${listaFiltrada.length===1?'':'s'}</div>${cards}
+    ${__selMode? "" : sFabNovo(`App.abrirModalAreaS(null,'${p.id}')`)}`;
 }
 function screenSimplesMaquinas(){
   const a = getCurrentAreaSimples();
@@ -20116,7 +20169,7 @@ function screenSimplesMaquinas(){
   const cards = listaOrdenada.map(m=>{
     const pendFotos = (!m.fotoGeral?1:0) + (!m.fotoPlaqueta?1:0);
     const totalRiscos = m.tarefas.reduce((soma,t)=>soma+t.riscos.length, 0);
-    return `<div class="card list-card ${selClass('maquinaS',m.id)} ${classeRecemMovido('maquinaS',m.id)}" data-sel-tipo="maquinaS" data-sel-id="${m.id}" data-sel-ctx='{"areaSId":"${a.id}"}' onclick="App.cardClickGenerico(event,this)" data-card-open="App.abrirMaquinaS('${m.id}')" data-card-edit="App.tocarMaquinaS('${m.id}','${a.id}')" data-card-photo="App.tocarFotoMaquinaS('${m.id}','${a.id}',${m.fotoGeral? imgReg(m.fotoGeral) : -1})" data-card-menu="App.menuMaquinaS(event,'${m.id}')">
+    return `<div class="card list-card s-com-lapis ${selClass('maquinaS',m.id)} ${classeRecemMovido('maquinaS',m.id)}" data-sel-tipo="maquinaS" data-sel-id="${m.id}" data-sel-ctx='{"areaSId":"${a.id}"}' onclick="App.cardClickGenerico(event,this)" data-card-open="App.abrirMaquinaS('${m.id}')" data-card-edit="App.tocarMaquinaS('${m.id}','${a.id}')" data-card-photo="App.tocarFotoMaquinaS('${m.id}','${a.id}',${m.fotoGeral? imgReg(m.fotoGeral) : -1})" data-card-menu="App.menuMaquinaS(event,'${m.id}')">
       ${selCheckHtml('maquinaS',m.id)}
       ${dragHandleHtml('maquinaS',m.id)}
       <div class="list-thumb lg" data-card-role="photo">${m.fotoGeral? `<img data-mini data-imgref="${imgReg(m.fotoGeral)}">` : (m.__fotosOmitidas? (()=>{ const pf = pendenteFotosDoItem(m.id); return `<div class="thumb-download" onclick="event.stopPropagation();App.onedriveBaixarFotosDeItem('${m.id}')" title="${pf? 'Toque para baixar as fotos agora ('+fmtBytes(pf.tamanho)+') — em dados móveis, pede confirmação' : 'Fotos ainda no outro aparelho — chegam quando ele tiver Wi-Fi'}">${ic('download')}<span>${pf? fmtBytes(pf.tamanho) : 'fotos'}</span></div>`; })() : ic('shield'))}</div>
@@ -20130,11 +20183,12 @@ function screenSimplesMaquinas(){
           ${pendFotos>0 && !m.__fotosOmitidas? `<span class="stat-pill alert" title="${pendFotos} foto${pendFotos===1?'':'s'} pendente${pendFotos===1?'':'s'}">${ic('warn')} ${pendFotos}</span>`:''}
         </div>
       </div>
+      <button class="card-edit-btn" data-card-role="edit" title="Editar" aria-label="Editar">${ic('edit')}</button>
       <button class="card-menu-btn" data-card-role="menu">${ic('dots')}</button>
     </div>`;
   }).join("") || `<div class="empty">${ic('shield')}<h3>Nada encontrado</h3><p>Nenhuma máquina corresponde à busca.</p></div>`;
   return `${renderVoltarOrigemBar('simples-maquinas')}${renderBuscaInput('Buscar máquina…')}<div class="section-title">${listaFiltrada.length} máquina${listaFiltrada.length===1?'':'s'}</div>${cards}
-    ${__selMode? "" : `<div class="fab-wrap"><button class="fab" onclick="App.abrirModalMaquinaS(null,'${a.id}')">${ic('plus')}</button></div>`}`;
+    ${__selMode? "" : sFabNovo(`App.abrirModalMaquinaS(null,'${a.id}')`)}`;
 }
 function screenSimplesTarefas(){
   const m = getCurrentMaquinaSimples();
@@ -20152,7 +20206,7 @@ function screenSimplesTarefas(){
   const cards = listaOrdenada.map(t=>{
     const nome = t.tarefa===OUTRO? t.tarefaOutro : t.tarefa;
     const pend = t.riscos.filter(r=>r.medidaImplementada==="Não").length;
-    return `<div class="card list-card ${selClass('tarefaS',t.id)} ${classeRecemMovido('tarefaS',t.id)}" data-sel-tipo="tarefaS" data-sel-id="${t.id}" data-sel-ctx='{"maquinaSId":"${m.id}"}' onclick="App.cardClickGenerico(event,this)" data-card-open="App.abrirTarefaS('${t.id}')" data-card-edit="App.abrirModalTarefaS('${t.id}','${m.id}')" data-card-menu="App.menuTarefaS(event,'${t.id}')">
+    return `<div class="card list-card s-com-lapis ${selClass('tarefaS',t.id)} ${classeRecemMovido('tarefaS',t.id)}" data-sel-tipo="tarefaS" data-sel-id="${t.id}" data-sel-ctx='{"maquinaSId":"${m.id}"}' onclick="App.cardClickGenerico(event,this)" data-card-open="App.abrirTarefaS('${t.id}')" data-card-edit="App.abrirModalTarefaS('${t.id}','${m.id}')" data-card-menu="App.menuTarefaS(event,'${t.id}')">
       ${selCheckHtml('tarefaS',t.id)}
       ${dragHandleHtml('tarefaS',t.id)}
       <div class="list-thumb">${ic('cog')}</div>
@@ -20165,11 +20219,12 @@ function screenSimplesTarefas(){
           ${pend>0? `<span class="stat-pill alert">${ic('warn')} ${pend} sem mitigação</span>`:''}
         </div>
       </div>
+      <button class="card-edit-btn" data-card-role="edit" title="Editar" aria-label="Editar">${ic('edit')}</button>
       <button class="card-menu-btn" data-card-role="menu">${ic('dots')}</button>
     </div>`;
   }).join("") || `<div class="empty">${ic('cog')}<h3>Nada encontrado</h3><p>Nenhuma tarefa corresponde à busca.</p></div>`;
   return `${renderVoltarOrigemBar('simples-tarefas')}${renderBuscaInput('Buscar tarefa…')}<div class="section-title">${listaFiltrada.length} tarefa${listaFiltrada.length===1?'':'s'}</div>${cards}
-    ${__selMode? "" : `<div class="fab-wrap"><button class="fab" onclick="App.abrirModalTarefaS(null,'${m.id}')">${ic('plus')}</button></div>`}`;
+    ${__selMode? "" : sFabNovo(`App.abrirModalTarefaS(null,'${m.id}')`)}`;
 }
 function screenSimplesRiscos(){
   const t = getCurrentTarefaSimples();
@@ -20190,7 +20245,7 @@ function screenSimplesRiscos(){
     const totalFotos = (r.foto?1:0) + (r.fotosOutras||[]).length;
     const hrnData = hrnDoItem({tarefa:t,risco:r});
     const hrnMeta = NIVEL_HRN_META[hrnData.nivel];
-    return `<div class="card list-card risk-strip ${selClass('riscoS',r.id)} ${classeRecemMovido('riscoS',r.id)}" style="border-left-color:${hrnMeta.cor}" data-sel-tipo="riscoS" data-sel-id="${r.id}" data-sel-ctx='{"tarefaSId":"${t.id}"}' onclick="App.cardClickGenerico(event,this)" data-card-open="App.abrirModalRiscoS('${r.id}','${t.id}')" data-card-edit="App.abrirModalRiscoS('${r.id}','${t.id}')" data-card-photo="App.tocarFotoRiscoS('${r.id}','${t.id}',${r.foto? imgReg(r.foto) : -1})" data-card-menu="App.menuRiscoS(event,'${r.id}','${t.id}')">
+    return `<div class="card list-card risk-strip s-com-lapis ${selClass('riscoS',r.id)} ${classeRecemMovido('riscoS',r.id)}" style="border-left-color:${hrnMeta.cor}" data-sel-tipo="riscoS" data-sel-id="${r.id}" data-sel-ctx='{"tarefaSId":"${t.id}"}' onclick="App.cardClickGenerico(event,this)" data-card-open="App.abrirModalRiscoS('${r.id}','${t.id}')" data-card-edit="App.abrirModalRiscoS('${r.id}','${t.id}')" data-card-photo="App.tocarFotoRiscoS('${r.id}','${t.id}',${r.foto? imgReg(r.foto) : -1})" data-card-menu="App.menuRiscoS(event,'${r.id}','${t.id}')">
       ${selCheckHtml('riscoS',r.id)}
       ${dragHandleHtml('riscoS',r.id)}
       <div class="list-thumb lg" data-card-role="photo">${r.foto? `<img data-mini data-imgref="${imgReg(r.foto)}">` : (r.__fotosOmitidas? (()=>{ const pf = pendenteFotosDoItem(r.id); return `<div class="thumb-download" onclick="event.stopPropagation();App.onedriveBaixarFotosDeItem('${r.id}')" title="${pf? 'Toque para baixar as fotos agora ('+fmtBytes(pf.tamanho)+') — em dados móveis, pede confirmação' : 'Fotos ainda no outro aparelho — chegam quando ele tiver Wi-Fi'}">${ic('download')}<span>${pf? fmtBytes(pf.tamanho) : 'fotos'}</span></div>`; })() : ic('warn'))}</div>
@@ -20203,11 +20258,12 @@ function screenSimplesRiscos(){
           ${semMitigacao? `<span class="stat-pill alert icon-only" title="Sem sugestão de mitigação"><span class="risk-icn">${ic('warn')}</span></span>`:''}
         </div>
       </div>
+      <button class="card-edit-btn" data-card-role="edit" title="Editar" aria-label="Editar">${ic('edit')}</button>
       <button class="card-menu-btn" data-card-role="menu">${ic('dots')}</button>
     </div>`;
   }).join("") || `<div class="empty">${ic('warn')}<h3>Nada encontrado</h3><p>Nenhum risco corresponde à busca.</p></div>`;
   return `${renderVoltarOrigemBar('simples-riscos')}${renderBuscaInput('Buscar risco…')}<div class="section-title">${listaFiltrada.length} risco${listaFiltrada.length===1?'':'s'}</div>${cards}
-    ${__selMode? "" : `<div class="fab-wrap"><button class="fab" onclick="App.abrirModalRiscoS(null,'${t.id}')">${ic('plus')}</button></div>`}`;
+    ${__selMode? "" : sFabNovo(`App.abrirModalRiscoS(null,'${t.id}')`)}`;
 }
 
 /* =========================================================================
@@ -27591,25 +27647,25 @@ function configAparenciaHtml(){
   `;
 }
 function screenSimplesConfig(){
+  /* Mesmas seções e o mesmo tipo de linha das Configurações do Linhas de vida. "Trocar de módulo"
+     não fica aqui: é o item "Módulos" da barra de baixo. */
+  const conta = getOneDriveConta();
+  const subBackup = conta && __onedriveSessaoExpirada ? 'Sessão do OneDrive expirou' : conta ? `OneDrive conectado — ${conta.email}` : 'OneDrive não conectado neste aparelho';
   return `
-  <div class="card card-pad">
-    <div style="font-weight:800;font-size:14.5px;margin-bottom:4px">Configurações</div>
-    <p style="font-size:13px;color:var(--ink-dim)">Backup, exportações e a integração opcional com Inteligência Artificial.</p>
-  </div>
-  <button class="btn btn-secondary btn-block" style="display:flex;align-items:center;gap:10px;justify-content:flex-start;padding:14px 16px" onclick="App.go('simples-config-backup')">
-    ${ic('onedrive')}<span style="flex:1;text-align:left"><b>Backup</b><br><span style="font-size:12px;color:var(--ink-dim);font-weight:400">${getOneDriveConta() && __onedriveSessaoExpirada ? 'Sessão do OneDrive expirou' : getOneDriveConta()?`OneDrive conectado — ${getOneDriveConta().email}`:'OneDrive não conectado neste aparelho'}</span></span>${ic('chevR')}
+  <div class="section-title">Conta e aparelho</div>
+  <button class="btn btn-secondary btn-block chk-cfg-item" onclick="App.go('simples-config-backup')">
+    ${ic('onedrive')}<span style="flex:1;text-align:left"><b>Backup e sincronização</b><br><span class="chk-cfg-desc">${escapeHtml(subBackup)}</span></span>${ic('chevR')}
   </button>
-  <button class="btn btn-secondary btn-block" style="display:flex;align-items:center;gap:10px;justify-content:flex-start;padding:14px 16px;margin-top:10px" onclick="App.go('simples-laudo')">
-    ${ic('shield')}<span style="flex:1;text-align:left"><b>Laudo, IA e Exportações</b><br><span style="font-size:12px;color:var(--ink-dim);font-weight:400">Tudo do laudo ficou na aba Laudo</span></span>${ic('chevR')}
+  <div class="section-title">Laudo</div>
+  <button class="btn btn-secondary btn-block chk-cfg-item" onclick="App.go('simples-config-empresa')">
+    ${ic('briefcase')}<span style="flex:1;text-align:left"><b>Empresa e responsáveis</b><br><span class="chk-cfg-desc">Dados fixos do laudo e lista de inspetores</span></span>${ic('chevR')}
   </button>
-  <button class="btn btn-secondary btn-block" style="display:flex;align-items:center;gap:10px;justify-content:flex-start;padding:14px 16px;margin-top:10px" onclick="App.go('simples-config-empresa')">
-    ${ic('briefcase')}<span style="flex:1;text-align:left"><b>Empresa e Responsáveis</b><br><span style="font-size:12px;color:var(--ink-dim);font-weight:400">Dados fixos do laudo e lista de inspetores</span></span>${ic('chevR')}
+  <button class="btn btn-secondary btn-block chk-cfg-item" onclick="App.go('simples-laudo')">
+    ${ic('shield')}<span style="flex:1;text-align:left"><b>Laudo, IA e exportações</b><br><span class="chk-cfg-desc">Revisão dos textos, IA, Excel, Word e impressão (ficam na aba Laudo)</span></span>${ic('chevR')}
   </button>
-  <button class="btn btn-secondary btn-block" style="display:flex;align-items:center;gap:10px;justify-content:flex-start;padding:14px 16px;margin-top:10px" onclick="App.go('simples-config-relatorio')">
-    ${ic('table')}<span style="flex:1;text-align:left"><b>Relatório de progresso</b><br><span style="font-size:12px;color:var(--ink-dim);font-weight:400">Equipamentos e riscos criados, textos de laudo aplicados — por dia</span></span>${ic('chevR')}
-  </button>
-  <button class="btn btn-secondary btn-block" style="display:flex;align-items:center;gap:10px;justify-content:flex-start;padding:14px 16px;margin-top:10px" onclick="App.trocarModulo()">
-    ${ic('layers')}<span style="flex:1;text-align:left"><b>Trocar de módulo</b><br><span style="font-size:12px;color:var(--ink-dim);font-weight:400">Voltar para o Módulo Completo</span></span>${ic('chevR')}
+  <div class="section-title">Acompanhamento</div>
+  <button class="btn btn-secondary btn-block chk-cfg-item" onclick="App.go('simples-config-relatorio')">
+    ${ic('table')}<span style="flex:1;text-align:left"><b>Relatório de progresso</b><br><span class="chk-cfg-desc">Equipamentos e riscos criados, textos de laudo aplicados — por dia</span></span>${ic('chevR')}
   </button>
   ${configAparenciaHtml()}
   <p style="text-align:center;font-size:11px;color:var(--ink-faint);margin-top:22px">Versão ${APP_BUILD}</p>
@@ -32106,7 +32162,7 @@ Devolver agora?`)) return;
     if(!cardEl) return;
     const lista = [...cardEl.parentElement.querySelectorAll(`.list-card[data-sel-tipo="${tipo}"]`)];
     const rects = lista.map(c=>({ id:c.getAttribute("data-sel-id"), rect:c.getBoundingClientRect() }));
-    __dragState = { tipo, arr, id, startY:e.clientY, cardEl, rects };
+    __dragState = { tipo, arr, id, startY:e.clientY, startX:e.clientX, cardEl, rects, duasColunas: rects.some(r=> Math.abs(r.rect.left - rects[0].rect.left) > 4) };
     cardEl.classList.add("dragging");
   },
   abrirMenuOrdem(){
@@ -37266,6 +37322,17 @@ window.addEventListener("pageshow", (event) => {
   font-variant-numeric:tabular-nums;padding-bottom:1px}
 .lp-flut-btn.ativo{background:#1E2148;color:#fff}
 .lp-flut-sep{width:22px;height:1px;background:rgba(255,255,255,.25);margin:1px 0}
+/* Aba Imprimir no padrão do laudo do Linhas de vida (painel .lcl-ajustes reaproveitado): prévia na largura
+   toda, páginas lado a lado quando cabem. O painel termina acima da barra de baixo. */
+.screen:has(> .lcl-tela.s-lp){max-width:none}
+.lcl-ajustes.s-com-nav{bottom:var(--s-nav,58px)}
+.s-lp .lp-visor{max-height:calc(100vh - var(--lcl-topo,64px) - var(--s-nav,58px) - 86px);min-height:260px}
+.lp-doc-caixa{margin:0 auto}
+.lp-doc-caixa > .lp-doc{transform-origin:top left;margin:0}
+.lp-doc.lp-cols{display:flex;flex-wrap:wrap;justify-content:flex-start;column-gap:14px;align-content:flex-start}
+.lp-doc.lp-cols.lp-c2{justify-content:center}
+.lp-doc.lp-cols .lp-pagina{margin:0 0 14px}
+.s-lp .lcl-aj-corpo .lp-logo-linha{margin:8px 0 0}
 /* Ficha do logotipo: uma linha discreta, no lugar do cartão que ocupava meia
    tela toda vez que se abria a aba. */
 .lp-logo-linha{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:-4px 0 10px;
@@ -38475,51 +38542,108 @@ function lpMaiorPLrDoEquipamento(itens){
     const alvo = areas.find(a=> a.area.id === STATE.ui.lpAreaId) || areas[0];
     return alvo ? alvo.area : null;
   }
-  function telaImprimir(){
+  /* Aba Imprimir no padrão do laudo do Linhas de vida: prévia na largura toda (duas páginas lado a lado
+     quando cabem) e os ajustes num painel à esquerda, que recolhe numa faixa estreita, abre ao passar o
+     mouse (ou com um toque, no celular) e fica fixo com o alfinete. Título, ‹ ›, Revisar e Gerar PDF
+     ficam na barra de cima (App.lpTopoS). O painel usa as classes .lcl-* do Linhas de vida, só
+     reaproveitadas — nenhuma função de lá é chamada. */
+  let __lpAjAberto = false;
+  function lpAjFixo(){ try{ return localStorage.getItem("lpAjFixo") === "1"; }catch(e){ return false; } }
+  function lpZoomPadrao(){ return (typeof window !== "undefined" && window.innerWidth < 700) ? 0.4 : 0.65; }
+  function lpColunas(zoom){
+    const c = STATE.ui.lpColunas;
+    if(c === 1 || c === 2) return c;
+    const larg = typeof window !== "undefined" ? window.innerWidth : 0;
+    const livre = larg - (lpAjFixo() && larg >= 900 ? 352 : 40) - 80;
+    return livre >= (2 * PAG_L + 14) * zoom ? 2 : 1;
+  }
+  /* Tamanho do documento sem o zoom, empilhando as páginas como o flex-wrap faz (a folha deitada do
+     inventário é mais larga e fica sozinha na linha). Serve para a caixa rolar na medida certa. */
+  function lpDocMedidas(paginas, cols){
+    const larg = Math.max(cols * PAG_L + (cols - 1) * 14, paginas.some(p=> p.paisagem) ? PAG_A : 0);
+    let alt = 0, x = 0, linhaA = 0;
+    paginas.forEach(p=>{
+      const w = p.paisagem ? PAG_A : PAG_L, hh = p.paisagem ? PAG_L : PAG_A;
+      if(x > 0 && x + 14 + w > larg){ alt += linhaA + 14; x = 0; linhaA = 0; }
+      x = x ? x + 14 + w : w;
+      linhaA = Math.max(linhaA, hh);
+    });
+    if(paginas.length) alt += linhaA + 14;
+    return { larg, alt };
+  }
+  /* O painel começa embaixo da barra de cima e termina em cima da barra de baixo: as duas são medidas
+     logo depois de a tela ser desenhada. */
+  function lpMedirBarras(){
+    const medir = ()=>{
+      const tb = document.querySelector("#app .topbar"), nv = document.querySelector("#app .bottomnav");
+      const r = document.documentElement.style;
+      if(tb) r.setProperty("--lcl-topo", tb.offsetHeight + "px");
+      r.setProperty("--s-nav", (nv ? nv.offsetHeight : 0) + "px");
+    };
+    if(typeof queueMicrotask === "function") queueMicrotask(medir); else setTimeout(medir, 0);
+  }
+  function telaImprimir(abas){
     const areas = areasDoEscopo();
     if(areas.length === 0){
-      return `<div class="empty">${ic('print')}<h3>Nenhuma área no escopo</h3>
+      return `${abas || ""}<div class="empty">${ic('print')}<h3>Nenhuma área no escopo</h3>
         <p>Marque ao menos uma área na aba Áreas para montar o laudo.</p>
         <button class="btn btn-primary" style="margin-top:12px" onclick="App.laudoSetAba('escopo')">${ic('folder')} Escolher áreas</button></div>`;
     }
     if(!STATE.ui.lpAreaId || !areas.some(a=>a.area.id===STATE.ui.lpAreaId)) STATE.ui.lpAreaId = areas[0].area.id;
-    const zoom = STATE.ui.lpZoom || 0.5;
-    const temLogo = !!logo();
+    const zoom = STATE.ui.lpZoom || lpZoomPadrao();
     const alvoU = laudoAlvo();
     const nUnidas = alvoU ? alvoU.areas.length : 1;
     const podeUnir = areas.some(a=> a.area.id !== alvoU.area.id && a.proj.id === alvoU.proj.id);
     const ovAtual = lpOv();
     const trocasLaudo = ovAtual ? [ovAtual.logo !== undefined ? "logotipo" : "", ovAtual.rodape !== undefined ? "rodapé" : "", ovAtual.assinatura !== undefined ? "assinatura" : "", ovAtual.resp !== undefined ? "dados do responsável" : ""].filter(Boolean) : [];
-    return `
-    <div class="card card-pad" style="margin-bottom:10px">
-      <div style="font-weight:800;font-size:14.5px;margin-bottom:3px">Laudo em A4</div>
-      <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:0">Monta o laudo completo em páginas A4 aqui dentro. O que aparece na pré-visualização é exatamente o que sai no PDF — são os mesmos elementos.</p>
+    const cols = lpColunas(zoom);
+    const med = lpDocMedidas(__lpPaginas, cols);
+    const fixo = lpAjFixo();
+    lpMedirBarras();
+    const grupo = (tit, corpo)=> `<div class="lcl-aj-g"><div class="lcl-aj-gt">${tit}</div>${corpo}</div>`;
+    const areaAtualEsc = areas.find(a=> a.area.id === STATE.ui.lpAreaId) || areas[0];
+    const painel = `<aside class="lcl-ajustes s-com-nav" id="lpAjustes" data-aberto="${__lpAjAberto ? 1 : 0}" data-fixo="${fixo ? 1 : 0}" aria-label="Ajustes do laudo">
+    <button type="button" class="lcl-aj-aba" onclick="App.lpAjustesAlternar()" aria-controls="lpAjCorpo" title="Ajustes do laudo: área, prévia, logotipo, rodapé, responsável, figura, conclusão, assinatura, rascunho e PLr">${ic('cog')}<span class="lcl-aj-aba-t">Ajustes</span>${trocasLaudo.length ? `<span class="lcl-aj-n" title="Trocado só neste laudo: ${trocasLaudo.join(", ")}">${trocasLaudo.length}</span>` : ""}</button>
+    <div class="lcl-aj-corpo" id="lpAjCorpo">
+      <div class="lcl-aj-topo"><b>Ajustes do laudo</b><button type="button" class="icon-btn" onclick="App.lpAjustesFixar()" title="${fixo ? "Soltar (volta a esconder)" : "Manter aberto"}" aria-pressed="${fixo ? "true" : "false"}">${ic(fixo ? 'close' : 'pin')}</button></div>
+      ${grupo("Área do laudo", `<div class="lcl-aj-bts">
+        ${areas.length>1? `<select class="sp-select-sm" style="width:100%" onchange="App.lpSetArea(this.value)">
+          ${areas.map(a=>`<option value="${a.area.id}" ${STATE.ui.lpAreaId===a.area.id?'selected':''}>${escapeHtml(a.area.nome||"Área")} — ${a.itens.length} risco(s)</option>`).join("")}
+        </select>` : `<span class="lcl-status">${escapeHtml(areaAtualEsc.area.nome||"Área")} — ${areaAtualEsc.itens.length} risco(s)</span>`}
+        ${podeUnir ? `<button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirUnir()">${ic('layers')} Unir áreas${nUnidas > 1 ? " (" + nUnidas + ")" : ""}</button>` : ""}
+      </div>
+      ${nUnidas > 1 ? `<div class="lp-logo-linha"><span>Laudo reunido: <b>${escapeHtml(alvoU.areas.map(a=> a.nome||"Área").join(" + "))}</b> — ${alvoU.itens.length} risco(s) no total</span></div>` : ""}`)}
+      ${grupo("Prévia", `<div class="lcl-aj-bts"><span class="lp-status lcl-status">${__lpPaginas.length ? __lpPaginas.length + " página(s)" : (__lpGerando ? "Montando…" : "ainda não montado")}</span>
+        <button class="btn btn-primary btn-sm" onclick="App.lpGerar()">${ic('table')} ${__lpPaginas.length? "Atualizar" : "Montar laudo"}</button></div>
+        <div class="lcl-status" style="margin-top:6px;font-weight:600">Monta o laudo completo em páginas A4 aqui dentro. O que aparece na prévia é exatamente o que sai no PDF — são os mesmos elementos.</div>`)}
+      ${grupo("Personalizar este laudo", `<div class="lcl-aj-bts">
+        <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirLogoLaudo()">${ic('gallery')} Logotipo</button>
+        <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirRodapeLaudo()">${ic('edit')} Rodapé</button>
+        <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirRespLaudo()">${ic('edit')} Responsável</button>
+        <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirFigura()">${ic('layers')} Figura</button>
+        <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirConclusao()">${ic('edit')} Conclusão${(conclusaoFoiEditada(areaAtual()) || conclusaoEditadaNasUnidas()) ? " ·" : ""}</button>
+        <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirAssinaturaLaudo()">${ic('edit')} Assinatura${assinaturaLaudo() ? " ·" : ""}</button>
+        <button class="btn btn-sm ${__lpRascunho ? "btn-primary" : "btn-ghost"}" style="${__lpRascunho ? "" : "border:1px solid var(--line)"}" title="Imprimir como rascunho: marcas inclinadas na página inteira" onclick="App.lpToggleRascunho()">${ic('edit')} Rascunho${__lpRascunho ? " ·" : ""}</button>
+        ${alvoU ? `<button class="btn btn-sm ${alvoU.proj.laudoOcultarPLr ? "btn-primary" : "btn-ghost"}" style="${alvoU.proj.laudoOcultarPLr ? "" : "border:1px solid var(--line)"}" title="Mostrar ou ocultar no laudo tudo o que envolve PLr (vale para todos os laudos deste projeto)" onclick="App.lpToggleSemPLr()">${ic('cog')} ${alvoU.proj.laudoOcultarPLr ? "PLr oculto" : "PLr no laudo"}</button>` : ""}
+      </div>
+      <div class="lp-logo-linha">${logoFicha()}</div>
+      ${trocasLaudo.length ? `<div class="lp-logo-linha"><span>Trocado só neste laudo: <b>${trocasLaudo.join(", ")}</b> (o padrão não mudou)</span><button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpVoltarPadraoTudo()">Voltar tudo ao padrão</button></div>` : ""}`)}
+      ${grupo("Ao salvar o PDF", `<div class="lcl-status" style="line-height:1.6;font-weight:600">
+          Destino: <b>Salvar como PDF</b> · Margens: <b>Nenhuma</b> · Escala: <b>100%</b><br>
+          Em "Mais definições", desmarque <b>Cabeçalhos e rodapés</b> e marque <b>Gráficos de segundo plano</b>.<br>
+          <b>Deixe a orientação em Retrato.</b> O inventário de máquinas já sai deitado sozinho — forçar Paisagem na janela de impressão viraria o laudo inteiro.
+        </div>`)}
     </div>
-    <div class="lp-barra">
-      ${areas.length>1? `<select class="sp-select-sm" style="flex:1;min-width:180px" onchange="App.lpSetArea(this.value)">
-        ${areas.map(a=>`<option value="${a.area.id}" ${STATE.ui.lpAreaId===a.area.id?'selected':''}>${escapeHtml(a.area.nome||"Área")} — ${a.itens.length} risco(s)</option>`).join("")}
-      </select>`:""}
-      <button class="btn btn-primary" onclick="App.lpGerar()">${ic('table')} ${__lpPaginas.length? "Atualizar" : "Montar laudo"}</button>
-      ${__lpPaginas.length? `<span class="lp-status">${__lpPaginas.length} página(s)</span>`:""}
-      ${podeUnir ? `<button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirUnir()">${ic('layers')} Unir áreas${nUnidas > 1 ? " (" + nUnidas + ")" : ""}</button>` : ""}
-      <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirLogoLaudo()">${ic('gallery')} Logotipo</button>
-      <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirRodapeLaudo()">${ic('edit')} Rodapé</button>
-      <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirRespLaudo()">${ic('edit')} Responsável</button>
-      <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirFigura()">${ic('layers')} Figura</button>
-      <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirConclusao()">${ic('edit')} Conclusão${(conclusaoFoiEditada(areaAtual()) || conclusaoEditadaNasUnidas()) ? " ·" : ""}</button>
-      <button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpAbrirAssinaturaLaudo()">${ic('edit')} Assinatura${assinaturaLaudo() ? " ·" : ""}</button>
-      <button class="btn btn-sm ${__lpRascunho ? "btn-primary" : "btn-ghost"}" style="${__lpRascunho ? "" : "border:1px solid var(--line)"}" title="Imprimir como rascunho: marcas inclinadas na página inteira" onclick="App.lpToggleRascunho()">${ic('edit')} Rascunho${__lpRascunho ? " ·" : ""}</button>
-      ${alvoU ? `<button class="btn btn-sm ${alvoU.proj.laudoOcultarPLr ? "btn-primary" : "btn-ghost"}" style="${alvoU.proj.laudoOcultarPLr ? "" : "border:1px solid var(--line)"}" title="Mostrar ou ocultar no laudo tudo o que envolve PLr (vale para todos os laudos deste projeto)" onclick="App.lpToggleSemPLr()">${ic('cog')} ${alvoU.proj.laudoOcultarPLr ? "PLr oculto" : "PLr no laudo"}</button>` : ""}
-    </div>
-    <div class="lp-logo-linha">${logoFicha()}</div>
-    ${nUnidas > 1 ? `<div class="lp-logo-linha"><span>Laudo reunido: <b>${escapeHtml(alvoU.areas.map(a=> a.nome||"Área").join(" + "))}</b> — ${alvoU.itens.length} risco(s) no total</span></div>` : ""}
-    ${trocasLaudo.length ? `<div class="lp-logo-linha"><span>Trocado só neste laudo: <b>${trocasLaudo.join(", ")}</b> (o padrão não mudou)</span><button class="btn btn-ghost btn-sm" style="border:1px solid var(--line)" onclick="App.lpVoltarPadraoTudo()">Voltar tudo ao padrão</button></div>` : ""}
-    ${""}
+  </aside>`;
+    return `<div class="lcl-tela s-lp${fixo ? " fixo" : ""}">
+    ${painel}
+    <div class="lcl-area" onclick="App.lpAjustesFecharToque(event)">
+    ${abas || ""}
     ${__lpPaginas.length? `
       <div class="lp-visor-wrap">
-        <div class="lp-visor"><div class="lp-doc${STATE.ui.lpModoOcultar?' lp-modo-ocultar':''}${STATE.ui.lpModoPrev?' lp-modo-prev':''}" id="lpDoc" style="transform:scale(${zoom});width:${PAG_A}px;margin-bottom:${Math.round(-PAG_A*(1-zoom))}px">${__lpHtml}</div></div>
+        <div class="lp-visor"><div class="lp-doc-caixa" style="width:${Math.round(med.larg * zoom)}px;height:${Math.round(med.alt * zoom)}px"><div class="lp-doc lp-cols${cols > 1 ? " lp-c2" : ""}${STATE.ui.lpModoOcultar?' lp-modo-ocultar':''}${STATE.ui.lpModoPrev?' lp-modo-prev':''}" id="lpDoc" style="transform:scale(${zoom});width:${med.larg}px">${__lpHtml}</div></div></div>
         <div class="lp-flut">
-          <button class="lp-flut-btn" title="Imprimir / Salvar PDF" aria-label="Imprimir ou salvar em PDF" onclick="App.lpImprimir()">${ic('print')}</button>
+          <button class="lp-flut-btn" style="font-weight:800;font-size:14px" title="${cols > 1 ? "Uma página por vez" : "Duas páginas lado a lado"}" aria-label="${cols > 1 ? "Mostrar uma página por vez" : "Mostrar duas páginas lado a lado"}" onclick="App.lpColunasAlternar(${cols})">${cols > 1 ? "1" : "2"}</button>
           <button class="lp-flut-btn" title="Aumentar" aria-label="Aumentar o zoom" onclick="App.lpZoom(1)">${ic('zoomMais')}</button>
           <button class="lp-flut-btn" title="Diminuir" aria-label="Diminuir o zoom" onclick="App.lpZoom(-1)">${ic('zoomMenos')}</button>
           <span class="lp-flut-pct">${Math.round(zoom*100)}%</span>
@@ -38531,16 +38655,9 @@ function lpMaiorPLrDoEquipamento(itens){
       ${STATE.ui.lpModoOcultar? `<div class="card card-pad" style="margin-top:10px;background:var(--bg-soft)">
         <div style="font-weight:800;font-size:13px;margin-bottom:5px">Seleção de itens do laudo</div>
         <div style="font-size:12.5px;color:var(--ink-dim);line-height:1.6">Desmarque a caixinha de um equipamento ou de um risco, dentro da prévia acima, para ele não entrar neste laudo — nem no corpo, nem no inventário. Nada é apagado: é só uma escolha de impressão, pode marcar de volta a qualquer momento.</div>
-      </div>` : ""}
-      <div class="card card-pad" style="margin-top:10px;background:var(--bg-soft)">
-        <div style="font-weight:800;font-size:13px;margin-bottom:5px">Ao abrir a janela de impressão</div>
-        <div style="font-size:12.5px;color:var(--ink-dim);line-height:1.6">
-          Destino: <b>Salvar como PDF</b> · Margens: <b>Nenhuma</b> · Escala: <b>100%</b><br>
-          Em "Mais definições", desmarque <b>Cabeçalhos e rodapés</b> e marque <b>Gráficos de segundo plano</b>.<br>
-          <b>Deixe a orientação em Retrato.</b> O inventário de máquinas já sai deitado sozinho — forçar Paisagem na janela de impressão viraria o laudo inteiro.
-        </div>
-      </div>` : `<div class="empty">${ic('print')}<h3>Laudo ainda não montado</h3><p>Toque em "Montar laudo" para gerar as páginas.</p></div>`}
-    `;
+      </div>` : ""}` : `<div class="empty">${ic('print')}<h3>${__lpGerando ? "Montando o laudo…" : "Laudo ainda não montado"}</h3><p>${__lpGerando ? "Aguarde alguns segundos." : "Toque em \"Montar laudo\" para gerar as páginas."}</p>
+        ${__lpGerando ? "" : `<button class="btn btn-primary" style="margin-top:12px" onclick="App.lpGerar()">${ic('table')} Montar laudo</button>`}</div>`}
+    </div></div>`;
   }
 
   /* ---------- instalação ---------- */
@@ -38549,11 +38666,8 @@ function lpMaiorPLrDoEquipamento(itens){
   screenSimplesLaudo = function(){
     if(getLaudoAba() === "imprimir"){
       const aba = LAUDO_ABAS.map(a=>`<button class="${a.k==="imprimir"?'active':''}" onclick="App.laudoSetAba('${a.k}')">${escapeHtml(a.rot)}</button>`).join("");
-      return `<div class="card card-pad" style="margin-bottom:10px">
-        <div style="font-weight:800;font-size:14.5px;margin-bottom:3px">Central do Laudo</div>
-        <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:0">Revisão dos textos, áreas do escopo, configuração da IA, exportações e impressão — tudo em um lugar só.</p>
-      </div>
-      <div class="scope-toggle laudo-subnav">${aba}</div>${telaImprimir()}`;
+      /* As abas da central entram dentro da área da prévia (o painel de ajustes fica à esquerda). */
+      return telaImprimir(`<div class="scope-toggle laudo-subnav">${aba}</div>`);
     }
     return telaOriginal.apply(this, arguments);
   };
@@ -38562,9 +38676,52 @@ function lpMaiorPLrDoEquipamento(itens){
     /* Escolher outra área é abrir OUTRO laudo: as áreas unidas e as trocas só
        deste laudo (logotipo, rodapé, assinatura) não acompanham. */
     lpSetArea(id){ STATE.ui.lpAreaId = id; STATE.ui.lpAreasExtra = []; lpOverZerar(); __lpConcAreaId = null; __lpPaginas = []; __lpHtml = ""; render(); },
+    /* ‹ › da barra de cima: o laudo da área anterior/seguinte do escopo (o mesmo que escolher na lista).
+       Se a prévia estava montada, a do outro laudo já é montada também. */
+    lpNavegar(d){
+      const areas = areasDoEscopo();
+      const k = areas.findIndex(a=> a.area.id === STATE.ui.lpAreaId);
+      const prox = areas[(k < 0 ? 0 : k) + d];
+      if(!prox) return;
+      const montada = __lpPaginas.length > 0;
+      App.lpSetArea(prox.area.id);
+      if(montada) App.lpGerar();
+    },
+    lpColunasAlternar(atual){ STATE.ui.lpColunas = atual > 1 ? 1 : 2; render(); },
+    lpAjustesAlternar(){
+      __lpAjAberto = !__lpAjAberto;
+      const el = document.getElementById("lpAjustes"); if(el) el.setAttribute("data-aberto", __lpAjAberto ? "1" : "0");
+    },
+    lpAjustesFixar(){
+      const v = !lpAjFixo();
+      try{ localStorage.setItem("lpAjFixo", v ? "1" : "0"); }catch(e){}
+      __lpAjAberto = false;
+      render();
+    },
+    // no celular (sem mouse) o painel abre com um toque; tocar na prévia fecha
+    lpAjustesFecharToque(ev){
+      if(!__lpAjAberto || lpAjFixo()) return;
+      __lpAjAberto = false;
+      const el = document.getElementById("lpAjustes"); if(el) el.setAttribute("data-aberto", "0");
+    },
+    /* Barra de cima da aba Imprimir (chamada pelo gancho de topBarS): "Laudo i de N", o nome da área
+       (ou das áreas unidas), ‹ ›, Revisar (aba Revisão) e Gerar PDF. */
+    lpTopoS(s){
+      if(s !== "simples-laudo" || getLaudoAba() !== "imprimir") return null;
+      const areas = areasDoEscopo();
+      if(!areas.length) return null;
+      let k = areas.findIndex(a=> a.area.id === STATE.ui.lpAreaId); if(k < 0) k = 0;
+      const alvoU = laudoAlvo();
+      const title = alvoU && alvoU.areas.length > 1 ? alvoU.areas.map(a=> a.nome||"Área").join(" + ") : (areas[k].area.nome || "Área");
+      const emp = areas[k].proj && areas[k].proj.empresa;
+      const sub = (areas.length > 1 ? "Laudo " + (k + 1) + " de " + areas.length : "Laudo") + (emp && ehComputadorDeMesa() ? " · " + emp : "");
+      const bt = (icone, rot, fn, dica, extra)=> `<button class="topbar-action${extra || ""}" onclick="${fn}" title="${dica}" aria-label="${dica}">${ic(icone)}<span class="s-rot">${rot}</span></button>`;
+      const nav = areas.length > 1 ? `<button class="topbar-action" onclick="App.lpNavegar(-1)" ${k <= 0 ? "disabled" : ""} title="Laudo anterior" aria-label="Laudo anterior">${ic('back')}</button><button class="topbar-action" onclick="App.lpNavegar(1)" ${k >= areas.length - 1 ? "disabled" : ""} title="Próximo laudo" aria-label="Próximo laudo">${ic('chevR')}</button>` : "";
+      return { sub, title, acoes: nav + bt('edit', "Revisar", "App.laudoSetAba('revisao')", "Revisar os textos do laudo (aba Revisão)") + bt('print', "Gerar PDF", "App.lpImprimir()", "Gerar o PDF deste laudo", " topbar-action-pri") };
+    },
     lpZoom(dir){
       const passos = [0.3,0.4,0.5,0.65,0.8,1,1.25,1.5,2];
-      let i = passos.indexOf(STATE.ui.lpZoom || 0.5);
+      let i = passos.indexOf(STATE.ui.lpZoom || lpZoomPadrao());
       if(i < 0) i = 2;
       i = Math.max(0, Math.min(passos.length-1, i + dir));
       STATE.ui.lpZoom = passos[i];

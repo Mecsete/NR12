@@ -3868,8 +3868,11 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(HTML.indexOf(".lp-pagina.lp-paisagem{page:paisagem}") > 0, "a página não é ligada à regra @page");
     ok(HTML.indexOf('${p.paisagem?" lp-paisagem":""}') > 0, "a classe não chega ao HTML da página");
   });
+  /* 26/10/2026: atualizado de proposito -- com as paginas lado a lado, a largura vem de lpDocMedidas
+     (que garante ao menos a largura da folha deitada quando ela existe; ver t198). */
   t("a prévia comporta a página deitada, que é mais larga", ()=>{
-    ok(HTML.indexOf('id="lpDoc" style="transform:scale(${zoom});width:${PAG_A}px;') > 0,
+    ok(HTML.indexOf('id="lpDoc" style="transform:scale(${zoom});width:${med.larg}px"') > 0
+       && HTML.indexOf("paginas.some(p=> p.paisagem) ? PAG_A : 0") > 0,
        "com a largura antiga a página deitada vazaria para fora da prévia");
   });
   t("a instrução de impressão avisa para não forçar paisagem", ()=>{
@@ -14449,6 +14452,155 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(HTML.indexOf('if(novoEstado.modulo==="completo") novoEstado.ui.screen = "projetos";') < 0);
       const i = HTML.indexOf('if(novoEstado.modulo==="completo") novoEstado.modulo = null;');
       ok(HTML.slice(i - 400, i + 200).indexOf("novoEstado.projetos") < 0, "a abertura nao pode mexer nos projetos do Completo");
+    });
+  }
+
+  /* t195 — LAYOUT DA APRECIACAO DE RISCO, ETAPA 1: BARRAS E BOTOES (26/10/2026). */
+  {
+    console.log("\n[t195] Apreciacao de Risco: barra de cima, barra de baixo e botao de criar");
+    t("barra de baixo: Modulos no fim, com a mesma funcao de sempre; o atalho de risco continua no centro", ()=>{
+      const b = funcao("bottomNavS");
+      ok(b.indexOf('onclick="App.trocarModulo()"') > b.indexOf("App.go('simples-config')"), "Modulos tem de ser o ultimo item");
+      ok(b.indexOf("<span>Módulos</span>") > 0);
+      ok(b.indexOf('App.abrirQuickAddRisco()') > 0 && b.indexOf("bottomnav-center") > 0, "o atalho de risco (escolha A2) sumiu");
+      ["App.go('simples-projetos')", "App.go('simples-tabela')", "App.go('simples-laudo')", "App.go('simples-config')"].forEach(x=> ok(b.indexOf(x) > 0, "sumiu " + x));
+    });
+    t("criar: no computador so na barra de cima, no celular so no botao redondo", ()=>{
+      const tb = funcao("topBarS"), fab = funcao("sFabNovo");
+      ok(tb.indexOf('(sEhCampo() || __selMode) ? ""') > 0, "o + do topo precisa sumir no celular e na selecao");
+      ok(fab.indexOf('return sEhCampo() ?') > 0 && fab.indexOf(': "";') > 0, "o botao redondo precisa sumir no computador");
+      ["App.abrirModalProjetoS(null)", "App.abrirModalAreaS(null,", "App.abrirModalMaquinaS(null,", "App.abrirModalTarefaS(null,", "App.abrirModalRiscoS(null,"].forEach(x=> ok(tb.indexOf(x) > 0, "sem + no topo: " + x));
+      ["screenSimplesProjetos", "screenSimplesAreas", "screenSimplesMaquinas", "screenSimplesTarefas", "screenSimplesRiscos"].forEach(n=>{
+        const f = funcao(n);
+        ok(f.indexOf("sFabNovo(") > 0 && f.indexOf('class="fab-wrap"') < 0, n + ": botao redondo fora do padrao");
+      });
+    });
+    t("editar o nivel aberto pela barra de cima chama as mesmas janelas de sempre", ()=>{
+      const tb = funcao("topBarS");
+      ok(tb.indexOf("App.abrirModalProjetoS('${p.id}')") > 0 && tb.indexOf("App.abrirModalAreaS('${a.id}','${p.id}')") > 0);
+    });
+    t("o + do topo e o botao redondo so aparecem conforme o aparelho", ()=>{
+      const ctx = { ehComputadorDeMesa: ()=>true, ic: x=>"<i>"+x+"</i>" };
+      vm.createContext(ctx);
+      vm.runInContext(funcao("sEhCampo") + "\n" + funcao("sFabNovo"), ctx);
+      ok(vm.runInContext('sFabNovo("App.x()")', ctx) === "", "no computador nao tem botao redondo");
+      ctx.ehComputadorDeMesa = ()=>false;
+      ok(vm.runInContext('sFabNovo("App.x()")', ctx).indexOf('onclick="App.x()"') > 0, "no celular tem botao redondo");
+    });
+  }
+
+  /* t196 — LAYOUT DA APRECIACAO DE RISCO, ETAPA 2: CONFIGURACOES EM SECOES (26/10/2026). */
+  {
+    console.log("\n[t196] Apreciacao de Risco: Configuracoes em secoes");
+    t("as quatro secoes, na ordem, e a versao no rodape", ()=>{
+      const c = funcao("screenSimplesConfig");
+      const pos = ["Conta e aparelho", "Laudo</div>", "Acompanhamento", "${configAparenciaHtml()}", "Versão ${APP_BUILD}"].map(x=> c.indexOf(x));
+      ok(pos.every(p=> p > 0), "falta secao: " + pos);
+      ok(pos.every((p, i)=> i === 0 || p > pos[i - 1]), "fora de ordem: " + pos);
+    });
+    t("nenhum destino sumiu; trocar de modulo ficou so na barra de baixo", ()=>{
+      const c = funcao("screenSimplesConfig");
+      ["App.go('simples-config-backup')", "App.go('simples-config-empresa')", "App.go('simples-laudo')", "App.go('simples-config-relatorio')"].forEach(x=> ok(c.indexOf(x) > 0, "sumiu " + x));
+      ok(c.indexOf("App.trocarModulo()") < 0 && c.indexOf("Módulo Completo") < 0);
+      ok(funcao("bottomNavS").indexOf("App.trocarModulo()") > 0, "sem Modulos na barra de baixo nao ha como trocar de modulo");
+    });
+  }
+
+  /* t197 — LAYOUT DA APRECIACAO DE RISCO, ETAPA 3: LISTAS E LARGURA (26/10/2026). */
+  {
+    console.log("\n[t197] Apreciacao de Risco: lapis nos cartoes, duas colunas e arrastar");
+    t("largura no computador: listas em duas colunas, riscos largos, configuracoes medias, laudo sem classe", ()=>{
+      const ctx = {}; vm.createContext(ctx); vm.runInContext(funcao("sLarguraTela"), ctx);
+      const L = s=> vm.runInContext("sLarguraTela(" + JSON.stringify(s) + ")", ctx);
+      ["simples-projetos", "simples-areas", "simples-maquinas", "simples-tarefas", "simples-riscos"].forEach(s=> ok(L(s) === "chk-largo", s));
+      ok(L("simples-tabela") === "chk-largo-1");
+      ["simples-config", "simples-config-backup", "simples-config-empresa", "simples-config-relatorio", "simples-config-ia", "simples-config-modelo-excel"].forEach(s=> ok(L(s) === "chk-medio", s));
+      ok(L("simples-laudo") === "" && L("simples-laudo-item") === "");
+    });
+    t("lapis em todos os cartoes, com as mesmas acoes de editar; excluir continua so no menu", ()=>{
+      ok(funcao("screenSimplesProjetos").indexOf("App.abrirModalProjetoS('${p.id}')") > 0);
+      ok(funcao("screenSimplesAreas").indexOf('data-card-role="edit"') > 0);
+      ["screenSimplesMaquinas", "screenSimplesTarefas", "screenSimplesRiscos"].forEach(n=>{
+        const f = funcao(n);
+        ok(f.indexOf('class="card-edit-btn" data-card-role="edit"') > 0 && f.indexOf("s-com-lapis") > 0, n);
+        ok(f.indexOf("remover") < 0 && f.indexOf("excluir") < 0, n + ": excluir nao pode ir para o cartao");
+      });
+      ok(funcao("cardClickGenerico").indexOf(`ev.target.closest('[data-card-role="name"], [data-card-role="edit"]')`) > 0);
+    });
+    t("toque no lapis edita e toque no nome continua editando (B2); no resto abre", ()=>{
+      const chamadas = [];
+      const ctx = { __selMode:null, console, chamadas };
+      vm.createContext(ctx); vm.runInContext(funcao("cardClickGenerico"), ctx);
+      const card = { getAttribute: k=> ({ "data-card-edit":"chamadas.push('editar')", "data-card-open":"chamadas.push('abrir')" })[k] || null };
+      const alvo = papel=> ({ target:{ closest: sel=> (papel && sel.indexOf('"' + papel + '"') >= 0) ? {} : null } });
+      ctx.__ev = alvo("edit"); ctx.__card = card; vm.runInContext("cardClickGenerico(__ev, __card)", ctx);
+      ctx.__ev = alvo("name"); vm.runInContext("cardClickGenerico(__ev, __card)", ctx);
+      ctx.__ev = alvo(null); vm.runInContext("cardClickGenerico(__ev, __card)", ctx);
+      ok(JSON.stringify(ctx.chamadas) === '["editar","editar","abrir"]', JSON.stringify(ctx.chamadas));
+    });
+    t("arrastar: com uma coluna a ordem e a mesma de antes; com duas, linha a linha", ()=>{
+      const roda = (rects, x, y)=>{
+        const arr = rects.map((r, i)=> ({ id:"c" + i }));
+        const ctx = { arr, render(){}, marcarAlterado(){}, __dragState:null };
+        vm.createContext(ctx); vm.runInContext("var __dragState = null;\n" + funcao("finalizarDragGenerico"), ctx);
+        ctx.__dragState = { arr, id:"c0", cardEl:{ style:{}, classList:{ remove(){} } }, rects: rects.map((r, i)=> ({ id:"c" + i, rect:r })),
+          duasColunas: rects.some(r=> Math.abs(r.left - rects[0].left) > 4) };
+        vm.runInContext("__dragState = this.__dragState; finalizarDragGenerico({ clientX:" + x + ", clientY:" + y + " })", ctx);
+        return arr.map(a=> a.id).join(",");
+      };
+      const R = (left, top)=> ({ left, top, width:400, height:100, bottom:top + 100 });
+      const uma = [R(0, 0), R(0, 110), R(0, 220), R(0, 330)];
+      ok(roda(uma, 999, 250) === "c1,c0,c2,c3", "uma coluna: " + roda(uma, 999, 250));
+      ok(roda(uma, 0, 300) === "c1,c2,c0,c3", "uma coluna, abaixo do meio do 3o: " + roda(uma, 0, 300));
+      const duas = [R(0, 0), R(410, 0), R(0, 110), R(410, 110)];
+      ok(roda(duas, 500, 150) === "c1,c2,c0,c3", "duas colunas, solto na metade esquerda do 4o: " + roda(duas, 500, 150));
+      ok(roda(duas, 100, 150) === "c1,c0,c2,c3", "duas colunas, solto na metade esquerda do 3o: " + roda(duas, 100, 150));
+    });
+    t("atalhos do painel do projeto so no computador e so para telas que ja existem", ()=>{
+      const f = funcao("screenSimplesAreas");
+      ok(f.indexOf("if(!sEhCampo()){") > 0 && f.indexOf("chk-painel-tiles") > 0);
+      ok(f.indexOf("App.setTabelaScopeSimples('aqui'); App.go('simples-tabela')") > 0);
+      ok(f.indexOf("App.laudoSetAba('revisao')") > 0 && f.indexOf('LAUDO_ABAS.some(x=> x.k === "imprimir")') > 0, "o atalho do A4 tem de sumir se o modulo de impressao for removido");
+    });
+  }
+
+  /* t198 — LAYOUT DA APRECIACAO DE RISCO, ETAPA 4: LAUDO A4 NO PADRAO DO LINHAS DE VIDA (26/10/2026). */
+  {
+    console.log("\n[t198] Apreciacao de Risco: laudo A4 com painel de ajustes, duas paginas e barra de cima");
+    const ini = HTML.indexOf("INÍCIO DO MÓDULO DE IMPRESSÃO DO LAUDO — BLOCO REMOVÍVEL");
+    const fim = HTML.indexOf("FIM DO MÓDULO DE IMPRESSÃO DO LAUDO");
+    const MOD = HTML.slice(ini, fim);
+    t("nenhum botao da tela antiga sumiu: todos estao no painel, na barra flutuante ou na barra de cima", ()=>{
+      const f = funcao("telaImprimir");
+      ["App.lpAbrirUnir()", "App.lpAbrirLogoLaudo()", "App.lpAbrirRodapeLaudo()", "App.lpAbrirRespLaudo()", "App.lpAbrirFigura()", "App.lpAbrirConclusao()",
+       "App.lpAbrirAssinaturaLaudo()", "App.lpToggleRascunho()", "App.lpToggleSemPLr()", "App.lpVoltarPadraoTudo()", "App.lpGerar()",
+       "App.lpZoom(1)", "App.lpZoom(-1)", "App.lpToggleModoOcultar()", "App.lpToggleModoPrev()", "App.lpSetArea(this.value)"].forEach(x=> ok(f.indexOf(x) > 0, "sumiu " + x));
+      ok(f.indexOf("App.lpImprimir()") < 0, "imprimir ficou repetido na barra flutuante");
+      ok(MOD.indexOf('bt(\'print\', "Gerar PDF", "App.lpImprimir()"') > 0, "Gerar PDF precisa estar na barra de cima");
+      ok(f.indexOf("Ao salvar o PDF") > 0 && f.indexOf("Deixe a orientação em Retrato.") > 0, "as instrucoes do PDF sumiram");
+    });
+    t("o gancho da barra de cima e protegido: sem o modulo de impressao, nada muda", ()=>{
+      const tb = funcao("topBarS");
+      ok(tb.indexOf('(typeof App.lpTopoS === "function") ? App.lpTopoS(s) : null') > 0);
+      ok(HTML.slice(0, ini).indexOf("lpNavegar") < 0 && HTML.slice(fim).indexOf("lpNavegar") < 0, "o resto do arquivo nao pode depender do modulo");
+    });
+    t("duas paginas lado a lado: a caixa da previa tem a medida certa (folha deitada sozinha na linha)", ()=>{
+      const ctx = { PAG_L:794, PAG_A:1123 }; vm.createContext(ctx);
+      vm.runInContext("const PAG_L = 794, PAG_A = 1123;\n" + funcao("lpDocMedidas"), ctx);
+      const M = (pags, cols)=> JSON.stringify(vm.runInContext("lpDocMedidas(" + JSON.stringify(pags) + "," + cols + ")", ctx));
+      const r = { }, d = { paisagem:true };
+      ok(M([r, r, r], 2) === JSON.stringify({ larg:1602, alt:2 * (1123 + 14) }), M([r, r, r], 2));
+      ok(M([r, r, r], 1) === JSON.stringify({ larg:794, alt:3 * (1123 + 14) }), M([r, r, r], 1));
+      ok(M([r, d, r], 2) === JSON.stringify({ larg:1602, alt:(1123 + 14) + (794 + 14) + (1123 + 14) }), M([r, d, r], 2));
+      ok(M([r, d], 1) === JSON.stringify({ larg:1123, alt:(1123 + 14) + (794 + 14) }), M([r, d], 1));
+    });
+    t("o painel usa so CSS do Linhas de vida, nenhuma funcao de la", ()=>{
+      ok(MOD.indexOf("App.lcl") < 0 && MOD.indexOf("lclAjFixo(") < 0 && MOD.indexOf("lclColunas(") < 0);
+      ok(funcao("telaImprimir").indexOf('class="lcl-ajustes s-com-nav" id="lpAjustes"') > 0);
+    });
+    t("< > trocam de laudo como a lista de areas, e remontam se a previa estava montada", ()=>{
+      const i = MOD.indexOf("    lpNavegar(d){"); const n = MOD.slice(i, MOD.indexOf("    lpColunasAlternar(", i));
+      ok(n.indexOf("App.lpSetArea(prox.area.id);") > 0 && n.indexOf("if(montada) App.lpGerar();") > 0);
     });
   }
 

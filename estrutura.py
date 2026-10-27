@@ -189,7 +189,8 @@ for marca, n in [('body = screenSimplesLaudo();', 1),
                  # 08/10/2026: +2 de proposito -- o modulo Linhas de vida ganhou "Modulos" na barra de baixo e "Trocar de modulo"
                  # na sua tela de Configuracoes (a funcao e a mesma de sempre, nao duplicada).
                  # 19/10/2026: Linhas de vida tirou 3 atalhos repetidos de "Trocar de módulo" (fica na barra de baixo)
-                 ('App.trocarModulo()', orig.count('App.trocarModulo()') - (0 if "STATE.ui.ultimoModulo = STATE.modulo" in orig else 3)),
+                 # 26/10/2026: +1 de proposito -- a Apreciacao de Risco (NR-12) ganhou "Modulos" na barra de baixo (mesma funcao, nao duplicada).
+                 ('App.trocarModulo()', orig.count('App.trocarModulo()') - (0 if "STATE.ui.ultimoModulo = STATE.modulo" in orig else 3) + (0 if "App.trocarModulo()" in _corpoDe(orig, "bottomNavS") else 1) - (1 if "App.trocarModulo()" in _corpoDe(orig, "screenSimplesConfig") else 0)),
                  ('function laudoAbaRevisao(', 1),
                  ('function laudoAbaAreas(', 1),
                  ('function laudoAbaExportar(', 1),
@@ -250,7 +251,8 @@ for marca, n in [('body = screenSimplesLaudo();', 1),
                  # campos de texto ocuparem a largura toda da grade.
                  ('screen-laudo', 18),
                  ('<span>Laudo</span>', 1),
-                 ('<b>Trocar de módulo</b>', 1)]:
+                 # 26/10/2026: 0 de proposito -- as Configuracoes da Apreciacao de Risco nao repetem mais "Trocar de modulo" (fica em "Modulos", na barra de baixo).
+                 ('<b>Trocar de módulo</b>', 0)]:
     c = novo.count(marca)
     chk("'%s' x%d" % (marca[:46], n), c == n, "achei %d" % c)
 
@@ -1071,8 +1073,11 @@ chk("CSS e @page da pagina deitada",
     and "@page paisagem{size:A4 landscape;margin:0}" in novo
     and ".lp-pagina.lp-paisagem{page:paisagem}" in novo
     and '${p.paisagem?" lp-paisagem":""}' in novo)
+# 26/10/2026: atualizado de proposito -- com as paginas lado a lado a largura do documento vem de lpDocMedidas,
+# que garante ao menos a largura da folha deitada quando ela existe.
 chk("a previa comporta a pagina deitada",
-    'id="lpDoc" style="transform:scale(${zoom});width:${PAG_A}px;' in novo)
+    'id="lpDoc" style="transform:scale(${zoom});width:${med.larg}px"' in novo
+    and "paginas.some(p=> p.paisagem) ? PAG_A : 0" in novo)
 chk("a instrucao de impressao avisa para nao forcar paisagem",
     "Deixe a orientação em Retrato." in novo)
 chk("a coluna Local nao repete mais o nome da area",
@@ -6025,6 +6030,56 @@ chk("o modulo Completo continua no arquivo (oculto, nao removido)",
     "function screenProjetos(" in novo and 'if(m==="completo") go("projetos");' in novo)
 chk("abrir o app parado no Completo volta para a escolha de modulo",
     'if(novoEstado.modulo==="completo") novoEstado.modulo = null;' in novo)
+
+print("\n=== 192. LAYOUT DA APRECIACAO DE RISCO -- BARRAS E BOTOES (26/10/2026) ===")
+_bn = _corpoDe(novo, "bottomNavS")
+chk("barra de baixo: Modulos e o ultimo item", "App.trocarModulo()" in _bn and _bn.index("App.trocarModulo()") > _bn.index("App.go('simples-config')"))
+chk("o atalho de risco continua no centro da barra de baixo (escolha A2)", "App.abrirQuickAddRisco()" in _bn and "bottomnav-center" in _bn)
+chk("nenhuma tela da Apreciacao de Risco desenha o botao redondo direto (passa por sFabNovo)",
+    all('class="fab-wrap"' not in _corpoDe(novo, n) and "sFabNovo(" in _corpoDe(novo, n) for n in ["screenSimplesProjetos", "screenSimplesAreas", "screenSimplesMaquinas", "screenSimplesTarefas", "screenSimplesRiscos"]))
+chk("as janelas de criar e editar sao as mesmas de antes (nenhuma acao nova inventada)",
+    all(novo.count(x) >= orig.count(x) for x in ["App.abrirModalProjetoS(", "App.abrirModalAreaS(", "App.abrirModalMaquinaS(", "App.abrirModalTarefaS(", "App.abrirModalRiscoS("]))
+chk("Linhas de vida intocado: topBarChk e bottomNavChk byte a byte",
+    _corpoDe(novo, "topBarChk") == _corpoDe(orig, "topBarChk") and _corpoDe(novo, "bottomNavChk") == _corpoDe(orig, "bottomNavChk"))
+
+print("\n=== 193. LAYOUT DA APRECIACAO DE RISCO -- CONFIGURACOES (26/10/2026) ===")
+_cf = _corpoDe(novo, "screenSimplesConfig")
+chk("Configuracoes em secoes com as linhas do padrao (.chk-cfg-item)",
+    all(x in _cf for x in ["Conta e aparelho", "Acompanhamento", "${configAparenciaHtml()}", "Versão ${APP_BUILD}"]) and _cf.count("chk-cfg-item") == 4)
+chk("os quatro destinos de antes continuam",
+    all(x in _cf for x in ["App.go('simples-config-backup')", "App.go('simples-config-empresa')", "App.go('simples-laudo')", "App.go('simples-config-relatorio')"]))
+chk("Linhas de vida intocado: screenChkConfig byte a byte", _corpoDe(novo, "screenChkConfig") == _corpoDe(orig, "screenChkConfig"))
+
+print("\n=== 194. LAYOUT DA APRECIACAO DE RISCO -- LISTAS E LARGURA (26/10/2026) ===")
+chk("telas da Apreciacao de Risco usam as classes de largura do Linhas de vida (sem CSS novo de largura)",
+    "${sLarguraTela(s)}" in _corpoDe(novo, "renderSimplificado") and novo.count(".screen.chk-largo{") == orig.count(".screen.chk-largo{"))
+chk("lapis nos 5 tipos de cartao", novo.count('class="card-edit-btn" data-card-role="edit"') == 3 and novo.count("s-com-lapis ${selClass(") == 3)
+chk("menus dos cartoes (com Excluir) intocados",
+    all(_corpoDe(novo, n) == _corpoDe(orig, n) for n in ["abrirMenuAcoes"]) and novo.count('label:"Excluir projeto"') == orig.count('label:"Excluir projeto"'))
+chk("arrastar com uma coluna usa a mesma conta de antes",
+    "const meio = ds.rects[i].rect.top + ds.rects[i].rect.height/2;\n    if(finalY < meio){ novoIndex = i; break; }" in _corpoDe(novo, "finalizarDragGenerico"))
+chk("Linhas de vida intocado: chkAcoesCartao, chkLarguraTela e screenChkSetores byte a byte",
+    all(_corpoDe(novo, n) == _corpoDe(orig, n) for n in ["chkAcoesCartao", "chkLarguraTela", "screenChkSetores"]))
+
+print("\n=== 195. LAYOUT DA APRECIACAO DE RISCO -- LAUDO A4 (26/10/2026) ===")
+_mi = novo.find("INÍCIO DO MÓDULO DE IMPRESSÃO DO LAUDO — BLOCO REMOVÍVEL"); _mf = novo.find("FIM DO MÓDULO DE IMPRESSÃO DO LAUDO")
+_fora = novo[:_mi] + novo[_mf:]
+chk("fora do bloco de impressao, so o gancho protegido da barra de cima (o bloco continua removivel)",
+    _fora.count("App.lpTopoS") == 2 and 'typeof App.lpTopoS === "function"' in _fora and "lpNavegar" not in _fora and "lpAjustes" not in _fora)
+def _fnMod(txt, nome):
+    i = txt.find("  function " + nome + "(", txt.find("INÍCIO DO MÓDULO DE IMPRESSÃO DO LAUDO"))
+    if i < 0: i = txt.find("  async function " + nome + "(", txt.find("INÍCIO DO MÓDULO DE IMPRESSÃO DO LAUDO"))
+    j = txt.find("\n  }", i)
+    return txt[i:j + 4] if i >= 0 and j > i else None
+chk("o documento do laudo nao mudou (montagem e paginacao byte a byte)",
+    all(_fnMod(novo, n) is not None and _fnMod(novo, n) == _fnMod(orig, n) for n in ["montarDoc", "paginar", "blocoCapa", "dadosDoc"])
+    and novo[novo.find("    async lpGerar(){"):novo.find("    async lpImprimir(){")] == orig[orig.find("    async lpGerar(){"):orig.find("    async lpImprimir(){")]
+    and novo[novo.find("    async lpImprimir(){"):novo.find("    lpEnviarLogo(){")] == orig[orig.find("    async lpImprimir(){"):orig.find("    lpEnviarLogo(){")])
+chk("Linhas de vida intocado: screenChkLaudoLinha e o CSS do laudo em capitulos byte a byte",
+    _corpoDe(novo, "screenChkLaudoLinha") == _corpoDe(orig, "screenChkLaudoLinha")
+    and novo[novo.find("const LCL_CSS = `"):novo.find("`", novo.find("const LCL_CSS = `") + 20)] == orig[orig.find("const LCL_CSS = `"):orig.find("`", orig.find("const LCL_CSS = `") + 20)])
+chk("imprimir em um lugar so (Gerar PDF na barra de cima; saiu da barra flutuante)",
+    'title="Imprimir / Salvar PDF"' not in novo and '"Gerar PDF", "App.lpImprimir()"' in novo)
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

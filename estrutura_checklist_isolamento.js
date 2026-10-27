@@ -3189,7 +3189,7 @@ async function testarUsabilidade(){
       roda("globalThis.ehComputadorDeMesa = __ecdmOrig");
       roda("STATE.ui.screen = " + JSON.stringify(salvoTela));
       const ms = roda("STATE.ui.ultimoModulo = 'simplificado'; screenModuloSelect()");
-      T(ms.includes("module-pick card card-pad module-pick-ultimo\" role=\"button\" tabindex=\"0\" onclick=\"App.selecionarModulo('simplificado')") && (ms.match(/module-pick-ultimo/g) || []).length === 1 && ms.indexOf("Linhas de vida") < ms.indexOf("NR-12 Simplificado") && ms.includes("NR-12 Completo"), "escolha de modulo: o ultimo usado fica em destaque (so ele)");
+      T(ms.includes("module-pick card card-pad module-pick-ultimo\" role=\"button\" tabindex=\"0\" onclick=\"App.selecionarModulo('simplificado')") && (ms.match(/module-pick-ultimo/g) || []).length === 1 && ms.indexOf("Linhas de vida") < ms.indexOf("Apreciação de Risco - NR-12") && !ms.includes("selecionarModulo('completo')"), "escolha de modulo: o ultimo usado fica em destaque (so ele)");
       roda("delete STATE.ui.ultimoModulo");
       T(roda("screenModuloSelect()").includes("module-pick-ultimo\" role=\"button\" tabindex=\"0\" onclick=\"App.selecionarModulo('checklist')"), "sem historico, o destaque fica em Linhas de vida");
     }
