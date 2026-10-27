@@ -4684,8 +4684,9 @@ chk("NAO entra em LAUDO_CAMPOS, mas ENTRA na lista importavel",
     'k:"nome"' not in _lc
     and _lc.count("k:\"") == 4
     and '"tarefa", "nome", "risco"' in novo)
-# O nome aprovado e do LAUDO. Levantamento (Excel da Corteva, Word) segue com o
-# nome de campo — la o assunto e o que foi visto, nao o documento.
+# O nome aprovado e do LAUDO. 27/10/2026: o Excel da Corteva e o Word passaram a
+# usar o mesmo nome da lista (decisao do Luiz: o nome do risco e um so em todo
+# lugar). O nome de campo fica guardado no dado e segue na planilha para a IA.
 chk("o laudo impresso usa o nome do laudo",
     'const nomeRisco = laudoTextoFinal(it, "nome") || "Risco";' in novo)
 # A NAVEGACAO mostra o nome so depois de DECIDIDO. Uma sugestao pendente nao
@@ -4702,9 +4703,9 @@ chk("cartao da lista, trilha, menu, cartao da revisao e ordem seguem esse nome",
     and "ordenarLista(listaFiltrada, r=>nomeRiscoNaTela(r))" in novo)
 chk("a busca continua achando pelo nome de campo",
     '(nomeRiscoNaTela(r)||"").toLowerCase().includes(q) || (r.nome||"").toLowerCase().includes(q)' in novo)
-chk("o Excel da Corteva e o Word seguem com o nome de campo",
-    "const nomeRisco=item.risco.nome===OUTRO?item.risco.nomeOutro:item.risco.nome;" in novo
-    and "corrigirNomeRisco(risco.nome===OUTRO?risco.nomeOutro:risco.nome)" in novo)
+chk("o Excel da Corteva e o Word usam o mesmo nome da lista (de proposito desde 27/10/2026)",
+    "const nomeRisco=nomeRiscoNaTela(item.risco);" in novo
+    and "corrigirNomeRisco(nomeRiscoNaTela(risco))" in novo)
 # Sem dizer o que e um nome BOM, a IA devolve a condicao como se fosse o risco.
 chk("a IA e a planilha ensinam a nomear pelo dano, nao pela condicao",
     'nome_xlsx:' in novo
@@ -6080,6 +6081,20 @@ chk("Linhas de vida intocado: screenChkLaudoLinha e o CSS do laudo em capitulos 
     and novo[novo.find("const LCL_CSS = `"):novo.find("`", novo.find("const LCL_CSS = `") + 20)] == orig[orig.find("const LCL_CSS = `"):orig.find("`", orig.find("const LCL_CSS = `") + 20)])
 chk("imprimir em um lugar so (Gerar PDF na barra de cima; saiu da barra flutuante)",
     'title="Imprimir / Salvar PDF"' not in novo and '"Gerar PDF", "App.lpImprimir()"' in novo)
+
+print("\n=== 196. NOME DO RISCO E UM SO NA LISTA, NO FORMULARIO E NO LAUDO (27/10/2026) ===")
+chk("funcoes novas presentes uma vez cada",
+    all(novo.count("function " + f + "(") == 1 for f in ["nomeRiscoVaiParaOLaudo", "nomeRiscoNoFormulario", "definirNomeRiscoNoRascunho"]))
+chk("nomeRiscoNaTela e laudoSet byte a byte", _corpoDe(novo, "nomeRiscoNaTela").split("/* O NOME DO RISCO E UM SO")[0].rstrip() == _corpoDe(orig, "nomeRiscoNaTela").rstrip() and _corpoDe(novo, "laudoSet") == _corpoDe(orig, "laudoSet"))
+chk("o formulario nao grava mais r.nome direto", "__draftEntity.nome = value;" not in novo and "__draftEntity.nome = s.nome;" not in novo)
+chk("salvarDraftEntidade e cancelarDraftEntidade intocados",
+    all(orig.count(x) == 1 and novo.count(x) == 1 for x in ["    if(tipo===\"riscoS\" && !ent.medidaImplementada){ ent.medidaImplementada = \"Não\"; }", "      if(!semMudanca){ App.salvarDraftEntidade(); return; }"]))
+
+print("\n=== 197. EXPORTACOES COM O MESMO NOME DE RISCO DA LISTA (27/10/2026) ===")
+chk("7 trocas de nome nas exportacoes (CSV/Excel, xlsm base e resumo, Excel com fotos, Word x2)",
+    novo.count("nomeRiscoNaTela(") - orig.count("nomeRiscoNaTela(") == 7 + 2,
+    "delta=%d" % (novo.count("nomeRiscoNaTela(") - orig.count("nomeRiscoNaTela(")))
+chk("planilha da IA continua com o nome de campo", '"Nome do risco (campo)": risco ? (risco.nome === OUTRO' in novo)
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

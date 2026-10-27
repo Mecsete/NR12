@@ -64,6 +64,21 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 27/10/2026 13:51
+
+**Nome do risco: o mesmo na lista, no formulário e no laudo.**
+
+- Depois que o nome do risco foi aprovado ou editado na revisão do laudo, o
+  formulário do risco passa a mostrar e editar esse mesmo nome. Mudou ali, muda
+  na lista, em "Todos os riscos", no laudo A4 e nas exportações (CSV, Excel,
+  Excel com fotos, planilha .xlsm da Corteva e Word).
+- O nome registrado em campo fica guardado como estava, para refazer a análise
+  do risco sem perder essa informação. O formulário mostra esse nome logo abaixo
+  do campo quando ele é diferente. A planilha de textos para a IA continua
+  levando o nome de campo, para a análise partir do que foi visto em campo.
+- Antes, mudar o nome no formulário trocava só o nome de campo, que ficava
+  escondido atrás do nome do laudo — a lista continuava com o nome antigo.
+
 ## 27/10/2026 08:07
 
 **Apreciação de Risco - NR-12 com o mesmo layout do Linhas de vida.**

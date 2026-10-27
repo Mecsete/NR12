@@ -3548,7 +3548,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "27/10/2026 08:07";
+const APP_BUILD = "27/10/2026 13:51";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -13360,9 +13360,11 @@ function formRiscoSHtml(){
     ${blocoMontadorRiscoHtml(r)}
     <div class="field">
       <label>Nome do Risco <span class="req">*</span></label>
-      <input type="text" id="risco-nome-input" placeholder="Digite o nome do risco" value="${escapeHtml(r.nome)}" oninput="App.onDraftNomeRiscoInput(this.value)" onfocus="App.onFocoNomeRisco()">
-      <div id="sugestoes-risco-wrap">${renderSugestoesRiscoHtml(r.nome)}</div>
-      <div class="field-hint">Escrito sozinho a partir das escolhas acima — pode ajustar à vontade, e o que você escrever não é mais mexido.</div>
+      <input type="text" id="risco-nome-input" placeholder="Digite o nome do risco" value="${escapeHtml(nomeRiscoNoFormulario(r))}" oninput="App.onDraftNomeRiscoInput(this.value)" onfocus="App.onFocoNomeRisco()">
+      <div id="sugestoes-risco-wrap">${renderSugestoesRiscoHtml(nomeRiscoNoFormulario(r))}</div>
+      ${nomeRiscoVaiParaOLaudo(r)
+        ? `<div class="field-hint">Mesmo nome da lista e do laudo — o que você mudar aqui muda nos dois.${(r.nome||"").trim() && (r.nome||"").trim() !== nomeRiscoNoFormulario(r).trim() ? ` Nome registrado em campo, guardado para refazer a análise: <b>${escapeHtml(r.nome)}</b>` : ""}</div>`
+        : `<div class="field-hint">Escrito sozinho a partir das escolhas acima — pode ajustar à vontade, e o que você escrever não é mais mexido.</div>`}
     </div>
     <div class="field">
       <label style="display:flex;align-items:center;justify-content:space-between">
@@ -20288,7 +20290,7 @@ function screenSimplesTabela(){
       </div>
       <div class="obj-grid">
         <div class="row"><span class="lab">Empresa</span><span class="val">${escapeHtml(proj.empresa||'—')}</span></div>
-        <div class="row"><span class="lab">Nome do risco</span><span class="val" style="font-weight:800">${escapeHtml(r.nome||'—')}</span></div>
+        <div class="row"><span class="lab">Nome do risco</span><span class="val" style="font-weight:800">${escapeHtml(nomeRiscoNaTela(r)||'—')}</span></div>
         <div class="row"><span class="lab">Descrição do risco</span><span class="val">${escapeHtml(r.descricao||'—')}</span></div>
         <div class="row"><span class="lab">Medida existente</span><span class="val">${r.medidaImplementada==='Sim'? escapeHtml(r.descMedida||'—') : (r.medidaImplementada==='Não'?'Não há medida implementada':'—')}</span></div>
         <div class="row"><span class="lab">Sugestão de mitigação</span><span class="val">${escapeHtml(r.sugestaoMitigacao||'—')}</span></div>
@@ -23443,6 +23445,32 @@ function nomeRiscoNaTela(r){
   }
   return laudoNomeDoRisco(r);
 }
+/* O NOME DO RISCO E UM SO — na lista, no formulario e no laudo.
+   Depois que o nome do laudo foi decidido (aplicado ou editado), e ele que a
+   lista e o laudo mostram. Antes, o formulario editava so o nome de campo, que
+   ficava escondido atras do nome do laudo: a pessoa trocava o nome, salvava e
+   a lista continuava com o nome antigo (27/10/2026). Agora o formulario mostra
+   e edita o MESMO nome que a lista e o laudo mostram.
+   O nome de campo (r.nome) nao e tocado depois da decisao: fica guardado como
+   foi registrado em campo, para refazer a analise do risco sem perder essa
+   informacao. Antes da decisao, o formulario edita o nome de campo, como sempre. */
+function nomeRiscoVaiParaOLaudo(r){
+  const l = r && r.laudoIA;
+  return !!(l && (l.nomeSt === "ok" || l.nomeSt === "edit"));
+}
+function nomeRiscoNoFormulario(r){
+  if(!nomeRiscoVaiParaOLaudo(r)) return (r && r.nome) || "";
+  return String(r.laudoIA.nomeFin || r.laudoIA.nomeSug || "");
+}
+function definirNomeRiscoNoRascunho(r, valor){
+  if(!nomeRiscoVaiParaOLaudo(r)){ r.nome = valor; return; }
+  /* O mesmo registro de "editado por voce" de laudoSalvarEdicao. O carimbo de
+     sincronizacao vem do Salvar do formulario (atualizadoEm do risco). */
+  r.laudoIA.nomeFin = valor;
+  r.laudoIA.nomeSt = "edit";
+  r.laudoIA.nomeEd = valor;
+  r.laudoIA.em = new Date().toISOString();
+}
 function laudoRotuloItem(o){
   return [nomeMaquinaS(o.maquina), valOuOutro(o.tarefa.tarefa, o.tarefa.tarefaOutro), nomeRiscoNaTela(o.risco)]
     .filter(Boolean).join(" · ");
@@ -25559,7 +25587,7 @@ function linhaSimples({proj,area,maquina,tarefa,risco}){
     nomeMaquinaS(maquina), maquina.descricao, valOuOutro(maquina.manual, maquina.manualOutro),
     valOuOutro(tarefa.tarefa, tarefa.tarefaOutro), tarefa.descricao,
     valOuOutro(tarefa.numPessoas, tarefa.numPessoasOutro),
-    risco.nome, risco.descricao, risco.medidaImplementada, risco.descMedida, risco.sugestaoMitigacao,
+    nomeRiscoNaTela(risco), risco.descricao, risco.medidaImplementada, risco.descMedida, risco.sugestaoMitigacao,
     labelHRN(HRN_PO_OPTS,po,HRN_PO_TABELA), labelHRN(HRN_FE_OPTS,fe,HRN_FE_TABELA), labelHRN(HRN_GPD_OPTS,gpd,HRN_GPD_TABELA), labelHRN(HRN_NP_OPTS,np,HRN_NP_TABELA), hrn, nivel,
   ];
 }
@@ -25746,7 +25774,7 @@ function xlsmLinhaBaseCompleta(rowNum, item){
   c.push(xlsmCellTexto(`M${rowNum}`,S.M,valOuOutro(tarefa.tarefa, tarefa.tarefaOutro)));
   c.push(xlsmCellTexto(`N${rowNum}`,S.N,tarefa.descricao));
   c.push(xlsmCellTexto(`O${rowNum}`,S.O,valOuOutro(tarefa.numPessoas, tarefa.numPessoasOutro)));
-  c.push(xlsmCellTexto(`P${rowNum}`,S.P, risco.nome===OUTRO?risco.nomeOutro:risco.nome));
+  c.push(xlsmCellTexto(`P${rowNum}`,S.P, nomeRiscoNaTela(risco)));
   c.push(xlsmCellTexto(`Q${rowNum}`,S.Q,risco.descricao));
   c.push(`<c r="R${rowNum}" s="${S.R}"/>`);
   c.push(xlsmCellTexto(`S${rowNum}`,S.S,risco.medidaImplementada));
@@ -25789,7 +25817,7 @@ function xlsmLinhaResumo(rowNum, item){
   c.push(xlsmCellTexto(`B${rowNum}`,S.B,area.nome));
   c.push(xlsmCellTexto(`C${rowNum}`,S.C,nomeMaquinaS(maquina)));
   c.push(xlsmCellTexto(`D${rowNum}`,S.D,valOuOutro(tarefa.tarefa,tarefa.tarefaOutro)));
-  c.push(xlsmCellTexto(`E${rowNum}`,S.E, risco.nome===OUTRO?risco.nomeOutro:risco.nome));
+  c.push(xlsmCellTexto(`E${rowNum}`,S.E, nomeRiscoNaTela(risco)));
   c.push(xlsmCellTexto(`F${rowNum}`,S.F, t.risco || risco.descricao));
   const mitigOriginal = risco.sugestaoMitigacao || risco.descMedida || "";
   c.push(xlsmCellTexto(`G${rowNum}`,S.G, t.solucao || mitigOriginal));
@@ -28930,7 +28958,7 @@ function linhaResumo({proj,area,maquina,tarefa,risco}){
   return [
     // coluna A (Foto do Risco) é preenchida à parte (anchors), aqui fica vazia
     "", area.nome, nomeMaquinaS(maquina), valOuOutro(tarefa.tarefa, tarefa.tarefaOutro),
-    risco.nome===OUTRO? risco.nomeOutro : risco.nome, risco.descricao, mitig,
+    nomeRiscoNaTela(risco), risco.descricao, mitig,
     rotuloPorCodigo(sev), rotuloPorCodigo(exp), rotuloPorCodigo("A3"), // Evitabilidade fixa em A3 (conservador)
   ];
 }
@@ -29329,7 +29357,7 @@ function buildXlsxPackageSimples({grupos, headers, dataRows, anchors, imgMap, co
   const resumoRows=(resumoLinhasRaw||[]).map(item=>{
     const {po,fe,gpd,np}=hrnDoItem(item);
     const mitig=item.risco.sugestaoMitigacao||item.risco.descMedida||"Não informado.";
-    const nomeRisco=item.risco.nome===OUTRO?item.risco.nomeOutro:item.risco.nome;
+    const nomeRisco=nomeRiscoNaTela(item.risco);
     return [
       fotoExportavel(item.maquina.fotoGeral)||'Sem foto',
       fotoExportavel(item.risco.foto)||'Sem foto',
@@ -30011,7 +30039,7 @@ function buildDocxBody({linhasNumeradas, projeto, imgMap}){
         </w:tbl>`);
         corpo.push(docxParagraph(docxRuns(""),{spacingAfter:40}));
 
-        corpo.push(docxParagraph(docxRuns(corrigirNomeRisco(r.nome)||"Risco sem nome",{bold:true,size:22}),{spacingAfter:60,keepNext:true}));
+        corpo.push(docxParagraph(docxRuns(corrigirNomeRisco(nomeRiscoNaTela(r))||"Risco sem nome",{bold:true,size:22}),{spacingAfter:60,keepNext:true}));
         corpo.push(docxParagraph(docxRuns(corrigirTextoMecanico(r.descricao)||"—",{size:20}),{spacingAfter:80}));
 
         const statusTxt = r.medidaImplementada==="Sim" ? "Medida de mitigação implementada" : "Sem medida de mitigação implementada";
@@ -30109,7 +30137,7 @@ function montarDadosMaquinaDocx(area, maquina, fotosPreparadas){
     const tarefaTxt = valOuOutro(tarefa.tarefa, tarefa.tarefaOutro) || "Tarefa sem nome";
     const riscos = tarefa.riscos.map((risco)=>{
       const {po,fe,gpd,np,hrn,nivel} = hrnDoItem({tarefa,risco});
-      const nomeRisco = corrigirNomeRisco(risco.nome===OUTRO?risco.nomeOutro:risco.nome) || "Risco sem nome";
+      const nomeRisco = corrigirNomeRisco(nomeRiscoNaTela(risco)) || "Risco sem nome";
       let descricaoCompleta = corrigirTextoMecanico(risco.descricao)||"";
       if(risco.medidaImplementada==="sim" && risco.descMedida){
         descricaoCompleta += (descricaoCompleta?" ":"") + "Medida de controle já implementada: " + corrigirTextoMecanico(risco.descMedida);
@@ -31301,7 +31329,7 @@ Devolver agora?`)) return;
     toast("Grau do Dano ajustado para " + g);
   },
   onDraftNomeRiscoInput(value){
-    __draftEntity.nome = value;
+    definirNomeRiscoNoRascunho(__draftEntity, value);
     const wrap = document.getElementById("sugestoes-risco-wrap");
     if(wrap) wrap.innerHTML = renderSugestoesRiscoHtml(value);
     const sugestao = buscarDescricaoSugeridaRisco(value);
@@ -31322,7 +31350,7 @@ Devolver agora?`)) return;
     const lista = listaSugestoesFiltrada(textoAtual);
     const s = lista[indice];
     if(!s || !__draftEntity) return;
-    __draftEntity.nome = s.nome;
+    definirNomeRiscoNoRascunho(__draftEntity, s.nome);
     __draftEntity.descricao = s.desc;
     if(GPD_POR_RISCO[s.nome] != null){
       const itemGPD = HRN_GPD_TABELA.find(x=>x.valor===GPD_POR_RISCO[s.nome]);
@@ -32066,7 +32094,7 @@ Devolver agora?`)) return;
   menuRiscoS(ev,id,tarefaId){
     ev.stopPropagation();
     const t = buscarTarefaSimplesPorId(tarefaId); const r = t.riscos.find(x=>x.id===id);
-    abrirMenuAcoes(r.nome||"Risco", "", [
+    abrirMenuAcoes(nomeRiscoNaTela(r)||"Risco", "", [
       {label:"Ver/editar", icon:"edit", onclick:`App.abrirModalRiscoS('${id}','${tarefaId}')`},
       {label:"Duplicar aqui", icon:"copy", onclick:`App.duplicarRiscoS('${id}','${tarefaId}')`},
       {label:"Duplicar para outro local", icon:"copy", onclick:`App.duplicarRiscoSParaOutroLocal('${id}','${tarefaId}')`},

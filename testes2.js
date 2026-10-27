@@ -12179,10 +12179,13 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(digitar.indexOf('marcarPromptAlterado("planilha")') > 0, "sem carimbo ao digitar, a edição não viaja para os outros aparelhos");
       ok(restaurar.indexOf('marcarPromptAlterado("planilha")') > 0, "restaurar também precisa viajar");
     });
-    t("o Excel da Corteva e o Word continuam com o nome de CAMPO", ()=>{
-      ok(HTML.indexOf("const nomeRisco=item.risco.nome===OUTRO?item.risco.nomeOutro:item.risco.nome;") > 0,
-         "a aba Resumo é levantamento, não laudo");
-      ok(HTML.indexOf("const nomeRisco = corrigirNomeRisco(risco.nome===OUTRO?risco.nomeOutro:risco.nome)") > 0);
+    /* 27/10/2026, de proposito: antes o Excel da Corteva e o Word ficavam com o
+       nome de CAMPO (eram tratados como levantamento). O Luiz decidiu que o nome do
+       risco e um so em todo lugar; o nome de campo fica guardado no dado e segue na
+       planilha para a IA. Ver t200. */
+    t("o Excel da Corteva e o Word usam o mesmo nome da lista", ()=>{
+      ok(HTML.indexOf("const nomeRisco=nomeRiscoNaTela(item.risco);") > 0, "aba Resumo");
+      ok(HTML.indexOf("const nomeRisco = corrigirNomeRisco(nomeRiscoNaTela(risco))") > 0, "Word");
     });
     t("o bloco aparece na tela logo ACIMA da descricao do risco", ()=>{
       ok(HTML.indexOf('(c.k==="risco"? laudoBlocoCampo(item,"nome") : "")') > 0);
@@ -14601,6 +14604,71 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     t("< > trocam de laudo como a lista de areas, e remontam se a previa estava montada", ()=>{
       const i = MOD.indexOf("    lpNavegar(d){"); const n = MOD.slice(i, MOD.indexOf("    lpColunasAlternar(", i));
       ok(n.indexOf("App.lpSetArea(prox.area.id);") > 0 && n.indexOf("if(montada) App.lpGerar();") > 0);
+    });
+  }
+
+  /* t199 — NOME DO RISCO E UM SO NA LISTA, NO FORMULARIO E NO LAUDO (27/10/2026). */
+  {
+    console.log("\n[t199] Nome do risco: o mesmo na lista, no formulario e no laudo");
+    const ctx = {}; vm.createContext(ctx);
+    ["laudoNomeDoRisco", "nomeRiscoNaTela", "nomeRiscoVaiParaOLaudo", "nomeRiscoNoFormulario", "definirNomeRiscoNoRascunho"].forEach(f=> vm.runInContext(funcao(f), ctx));
+    vm.runInContext("var OUTRO = '__outro__';", ctx);
+    const run = (codigo, r)=>{ ctx.__r = r; return vm.runInContext(codigo, ctx); };
+    t("sem nome decidido no laudo: o formulario edita o nome de campo, como antes", ()=>{
+      const r = { nome:"Agarramento", laudoIA:{ nomeSug:"Sugestao da IA", nomeSt:"pend" } };
+      ok(run("nomeRiscoNoFormulario(__r)", r) === "Agarramento");
+      run("definirNomeRiscoNoRascunho(__r, 'Novo nome')", r);
+      ok(r.nome === "Novo nome" && r.laudoIA.nomeSt === "pend" && !r.laudoIA.nomeFin);
+      ok(run("nomeRiscoNaTela(__r)", r) === "Novo nome");
+    });
+    t("com nome decidido: o formulario mostra e edita o nome do laudo, e a lista acompanha", ()=>{
+      const r = { nome:"Botao", laudoIA:{ nomeSug:"Amputacao dos dedos", nomeFin:"Amputacao dos dedos", nomeSt:"ok" } };
+      ok(run("nomeRiscoNoFormulario(__r)", r) === "Amputacao dos dedos", "formulario mostra o nome do laudo");
+      run("definirNomeRiscoNoRascunho(__r, 'Botao de Parada de Emergencia')", r);
+      ok(r.laudoIA.nomeFin === "Botao de Parada de Emergencia" && r.laudoIA.nomeSt === "edit" && r.laudoIA.nomeEd === "Botao de Parada de Emergencia");
+      ok(run("nomeRiscoNaTela(__r)", r) === "Botao de Parada de Emergencia", "lista mostra o nome novo");
+      ok(r.nome === "Botao", "o nome de campo ficou guardado como estava");
+    });
+    t("recusar o nome do laudo volta ao nome de campo guardado", ()=>{
+      const r = { nome:"Nome de campo", laudoIA:{ nomeFin:"Nome do laudo", nomeSt:"recusado" } };
+      ok(run("nomeRiscoVaiParaOLaudo(__r)", r) === false && run("nomeRiscoNaTela(__r)", r) === "Nome de campo");
+    });
+    t("formulario, sugestoes, Todos os riscos e menu usam o mesmo nome", ()=>{
+      const f = funcao("formRiscoSHtml");
+      ok(f.indexOf("value=\"${escapeHtml(nomeRiscoNoFormulario(r))}\"") > 0 && f.indexOf("renderSugestoesRiscoHtml(nomeRiscoNoFormulario(r))") > 0);
+      ok(f.indexOf("Nome registrado em campo, guardado para refazer a análise") > 0);
+      ok(HTML.indexOf("definirNomeRiscoNoRascunho(__draftEntity, value);") > 0 && HTML.indexOf("definirNomeRiscoNoRascunho(__draftEntity, s.nome);") > 0);
+      ok(HTML.indexOf("__draftEntity.nome = value;") < 0 && HTML.indexOf("__draftEntity.nome = s.nome;") < 0);
+      ok(funcao("screenSimplesTabela").indexOf("escapeHtml(nomeRiscoNaTela(r)||'—')") > 0);
+      ok(HTML.indexOf('abrirMenuAcoes(nomeRiscoNaTela(r)||"Risco"') > 0);
+    });
+  }
+
+  /* t200 — PLANILHAS E WORD COM O MESMO NOME DE RISCO DA LISTA (27/10/2026). */
+  {
+    console.log("\n[t200] Exportacoes usam o nome de risco da lista");
+    t("CSV/Excel, .xlsm (base e resumo), Excel com fotos e Word usam nomeRiscoNaTela", ()=>{
+      ok(funcao("linhaSimples").indexOf("nomeRiscoNaTela(risco), risco.descricao") > 0, "linhaSimples");
+      ok(funcao("xlsmLinhaBaseCompleta").indexOf("S.P, nomeRiscoNaTela(risco)") > 0, "xlsm base");
+      ok(funcao("xlsmLinhaResumo").indexOf("S.E, nomeRiscoNaTela(risco)") > 0, "xlsm resumo");
+      ok(funcao("linhaResumo").indexOf("nomeRiscoNaTela(risco), risco.descricao, mitig") > 0, "linhaResumo");
+      ok(funcao("buildXlsxPackageSimples").indexOf("const nomeRisco=nomeRiscoNaTela(item.risco);") > 0, "xlsx fotos");
+      ok(funcao("montarDadosMaquinaDocx").indexOf("corrigirNomeRisco(nomeRiscoNaTela(risco))") > 0, "word");
+      ok(HTML.indexOf('corrigirNomeRisco(nomeRiscoNaTela(r))||"Risco sem nome"') > 0, "word tabela");
+    });
+    t("ficam no nome de campo de proposito: planilha da IA, fonte campo e calculo da severidade", ()=>{
+      ok(funcao("baseIACamposDaLinha").indexOf('"Nome do risco (campo)": risco ? (risco.nome === OUTRO') > 0);
+      ok(funcao("linhaResumo").indexOf("sugerirSeveridade(risco.nome===OUTRO? risco.nomeOutro : risco.nome)") > 0);
+    });
+    t("linhaSimples devolve o nome decidido no laudo", ()=>{
+      const ctx = {}; vm.createContext(ctx);
+      vm.runInContext("var OUTRO='__o__'; function hrnDoItem(){ return {po:1,fe:1,gpd:1,np:1,hrn:1,nivel:'x'}; } function nomeMaquinaS(m){ return m.nome; } function valOuOutro(a,b){ return a; } function labelHRN(){ return ''; } var HRN_PO_OPTS,HRN_PO_TABELA,HRN_FE_OPTS,HRN_FE_TABELA,HRN_GPD_OPTS,HRN_GPD_TABELA,HRN_NP_OPTS,HRN_NP_TABELA;", ctx);
+      ["laudoNomeDoRisco", "nomeRiscoNaTela", "linhaSimples"].forEach(f=> vm.runInContext(funcao(f), ctx));
+      ctx.__it = { proj:{}, area:{}, maquina:{nome:"M"}, tarefa:{}, risco:{ nome:"Campo", laudoIA:{ nomeFin:"Laudo", nomeSt:"edit" } } };
+      const lin = vm.runInContext("linhaSimples(__it)", ctx);
+      ok(lin.indexOf("Laudo") > 0 && lin.indexOf("Campo") < 0, JSON.stringify(lin));
+      ctx.__it.risco.laudoIA.nomeSt = "pend";
+      ok(vm.runInContext("linhaSimples(__it)", ctx).indexOf("Campo") > 0, "pendente continua no nome de campo");
     });
   }
 
