@@ -6148,6 +6148,17 @@ chk("imprimir sai do modo de edicao antes de remontar; a montagem le a area na h
 chk("tabelas de HRN e PLr sem chave de edicao (saem das mesmas tabelas que classificam)",
     "lpEd(" not in _corpoDe(novo, "lpPrevBlocoHtml") and "HRN_FAIXAS.map(f=>`<tr><td class=\"c\" style=\"width:30px\">${f.ord}</td>" in novo)
 
+print("\n=== 208. LAUDO A4: QUEBRA DE LINHA NOS TEXTOS DE ITEM (28/10/2026) ===")
+_ib = novo.index("INÍCIO DO MÓDULO DE IMPRESSÃO DO LAUDO — BLOCO REMOVÍVEL")
+_fb = novo.index("FIM DO MÓDULO DE IMPRESSÃO DO LAUDO")
+chk("lpEdMultilinha, lpTxtQ e lpEdTextoLinhas vivem dentro do bloco removivel",
+    all(novo.count("  function " + n + "(") == 1 and _ib < novo.index("  function " + n + "(") < _fb for n in ["lpEdMultilinha", "lpTxtQ", "lpEdTextoLinhas"]))
+chk("6 textos de item com quebra de linha na montagem; nome do risco segue numa linha",
+    novo.count("${lpTxtQ(") == 6 and novo.count('":nome")}>${esc(nomeRisco)}</span>') == 1 and novo.count('":nome")}>${esc(nomeRisco)}</b>') == 1)
+chk("laudoSet, lpEdGravar e lpPeneirarRico intocados",
+    _corpoDe(novo, "laudoSet") == _corpoDe(orig, "laudoSet")
+    and _fnMod(novo, "lpEdGravar") == _fnMod(orig, "lpEdGravar") and _fnMod(novo, "lpPeneirarRico") == _fnMod(orig, "lpPeneirarRico"))
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
 

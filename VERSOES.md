@@ -64,6 +64,16 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 28/10/2026 16:34
+
+**Laudo A4: Shift+Enter pula linha nos textos de cada item.**
+
+- No modo Editar, Shift+Enter pula linha em escopo, tarefa, descrição do risco,
+  mitigação existente e solução. Enter continua salvando. O nome do risco e os
+  dados de cadastro seguem numa linha só.
+- O laudo passa a respeitar as quebras de linha desses textos, inclusive as
+  digitadas na aba Revisão.
+
 ## 28/10/2026 15:25
 
 **Laudo A4: botão Editar — os textos se alteram direto nas páginas.**

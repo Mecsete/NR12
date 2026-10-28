@@ -14854,6 +14854,45 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  /* t204 — LAUDO A4: QUEBRA DE LINHA NOS TEXTOS DE ITEM (28/10/2026). */
+  {
+    console.log("\n[t204] Laudo A4: Shift+Enter pula linha nos textos de item");
+    const ctx = vm.createContext({ String });
+    vm.runInContext(`function esc(s){ return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+      const LP_ED_MULTILINHA = { escopo:1, tarefa:1, risco:1, existente:1, solucao:1 };`, ctx);
+    ["lpEdMultilinha", "lpTxtQ", "lpEdTextoLinhas"].forEach(f=> vm.runInContext(funcao(f), ctx));
+    const R = (s)=> vm.runInContext(s, ctx);
+    t("so os textos de item aceitam mais de uma linha (nome do risco e cadastro nao)", ()=>{
+      ["lt:r1:escopo", "lt:r1:tarefa", "lt:r1:risco", "lt:r1:existente", "lt:r1:solucao"].forEach(k=> ok(R('lpEdMultilinha("' + k + '")'), k));
+      ["lt:r1:nome", "pj:empresa", "mq:m1:marca", "fx:capa.titulo", "cc", "ar:nome", ""].forEach(k=> ok(!R('lpEdMultilinha("' + k + '")'), k));
+    });
+    t("o laudo mostra as quebras de linha e continua escapando o texto", ()=>{
+      ctx.__s = "Linha 1\nLinha 2 <b>"; eq(R("lpTxtQ(__s)"), "Linha 1<br>Linha 2 &lt;b&gt;");
+      ctx.__s = "A\r\nB"; eq(R("lpTxtQ(__s)"), "A<br>B");
+      eq(R("lpTxtQ(null)"), "");
+    });
+    const tx = (v)=> ({ nodeType:3, nodeValue:v });
+    const el = (nome, filhos)=> ({ nodeType:1, nodeName:nome, childNodes:filhos || [] });
+    const ler = (no)=>{ ctx.__no = no; return R("lpEdTextoLinhas(__no)"); };
+    t("le as linhas que o navegador marca com <br> (Shift+Enter)", ()=>{
+      eq(ler(el("DIV", [tx("Instalar protecao fixa."), el("BR"), tx("Conforme NR-12.")])), "Instalar protecao fixa.\nConforme NR-12.");
+      eq(ler(el("DIV", [tx("Fim da linha"), el("BR"), el("BR")])), "Fim da linha", "linha vazia no fim some");
+    });
+    t("le as linhas em <div> (colar) e limpa espacos e linhas em branco repetidas", ()=>{
+      eq(ler(el("DIV", [tx("Primeira"), el("DIV", [tx("Segunda")]), el("DIV", [tx("Terceira")])])), "Primeira\nSegunda\nTerceira");
+      eq(ler(el("DIV", [tx("  A   \u00a0 B  "), el("BR"), el("BR"), el("BR"), el("BR"), tx(" C ")])), "A B\n\nC");
+      eq(ler(el("DIV", [tx("Sem quebra")])), "Sem quebra");
+    });
+    t("montagem, tecla e gravacao usam a regra nova; nome do risco segue numa linha", ()=>{
+      eq((HTML.match(/\$\{lpTxtQ\(/g)||[]).length, 6, "escopo, tarefa, descricao (2x), existente, solucao");
+      ok(HTML.indexOf('":solucao")}>${lpTxtQ(laudoTextoFinal(it, "solucao") || "")}</div>') > 0);
+      ok(HTML.indexOf('":nome")}>${esc(nomeRisco)}</span>') > 0, "nome do risco");
+      ok(HTML.indexOf('(e.shiftKey && (t === "fx" || lpEdMultilinha(el.getAttribute("data-lpe")))))') > 0, "Shift+Enter");
+      ok(HTML.indexOf('lpEdMultilinha(chave) ? lpEdTextoLinhas(el) : soTexto') > 0, "gravar");
+      ok(funcao("lpEdValorTela").indexOf("if(lpEdMultilinha(chave)) return lpTxtQ(valor);") > 0, "valor na tela");
+    });
+  }
+
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);
 })();

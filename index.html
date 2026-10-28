@@ -3548,7 +3548,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "28/10/2026 15:25";
+const APP_BUILD = "28/10/2026 16:34";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -37827,6 +37827,38 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
     return ` data-lpe="${esc(chave)}" data-lpi="${++__lpEdSeq}" contenteditable="true" spellcheck="true"`;
   }
   function lpEdTipo(chave){ return String(chave || "").split(":")[0]; }
+  /* Textos de item que podem ter mais de uma linha (Shift+Enter). O nome do
+     risco e os dados de cadastro continuam numa linha só. */
+  const LP_ED_MULTILINHA = { escopo:1, tarefa:1, risco:1, existente:1, solucao:1 };
+  function lpEdMultilinha(chave){
+    const p = String(chave || "").split(":");
+    return p[0] === "lt" && LP_ED_MULTILINHA[p[2]] === 1;
+  }
+  /* Texto de item no laudo: as quebras de linha gravadas (aqui ou na aba
+     Revisão) aparecem como quebras na página. */
+  function lpTxtQ(s){ return esc(s).replace(/\r?\n/g, "<br>"); }
+  /* Lê o texto editado guardando as quebras de linha: o navegador marca a
+     linha nova com <br> (ou, ao colar, com <div>). Espaços repetidos viram
+     um só; mais de uma linha em branco seguida vira uma só. */
+  function lpEdTextoLinhas(el){
+    let s = "";
+    const andar = (n)=>{
+      const filhos = n.childNodes || [];
+      for(let i = 0; i < filhos.length; i++){
+        const c = filhos[i];
+        if(c.nodeType === 3){ s += c.nodeValue; continue; }
+        if(c.nodeType !== 1) continue;
+        if(c.nodeName === "BR"){ s += "\n"; continue; }
+        const bloco = c.nodeName === "DIV" || c.nodeName === "P" || c.nodeName === "LI";
+        if(bloco && s && s.slice(-1) !== "\n") s += "\n";
+        andar(c);
+        if(bloco && s && s.slice(-1) !== "\n") s += "\n";
+      }
+    };
+    andar(el);
+    return s.replace(/\u00a0/g, " ").split("\n").map(l=> l.replace(/[ \t\r\f\v]+/g, " ").trim())
+      .join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  }
   /* Texto fixo: o deste laudo > o padrão editado > o original do app. Passa
      pela peneira na leitura, como a conclusão: veio da sincronização ou do
      backup, não se confia. */
@@ -37941,6 +37973,7 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
     if(t === "fx"){ __lpEdArea = lpEdAreaAtual(); const k = chave.slice(3); return lpTxtFixo(k, __lpFxPadrao[k] || ""); }
     if(t === "cc"){ const a = lpEdAreaAtual(); return a ? conclusaoDaArea(a) : valor; }
     if(chave === "pj:dataInspecao" && !valor){ const alvo = laudoAlvo(); return alvo ? esc(dadosDoc(alvo.proj, alvo.area, alvo.areas).dataInsp) : ""; }
+    if(lpEdMultilinha(chave)) return lpTxtQ(valor);
     return esc(valor);
   }
   function lpEdEl(){
@@ -37992,11 +38025,11 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
     mc:"Salvar corrige Configurações — vale para todos os laudos.",
     ar:"Salvar corrige o nome da área no cadastro.",
     mq:"Salvar corrige o cadastro do equipamento — muda também no inventário e nas planilhas.",
-    lt:"Salvar grava como texto editado do laudo — o mesmo da aba Revisão.",
+    lt:"Salvar grava como texto editado do laudo — o mesmo da aba Revisão. Shift+Enter pula linha (menos no nome do risco).",
     cc:"Salvar grava a conclusão desta área — a mesma do botão Conclusão." };
   function lpEdBarraHtml(){
     const b = (cls, rot, fn)=> `<button class="btn ${cls} btn-sm" onmousedown="event.preventDefault()" onclick="${fn}">${rot}</button>`;
-    if(!__lpEd) return `<span class="lp-ed-msg"><b>Modo de edição.</b> Toque em um texto contornado para alterar. Enter salva, Esc cancela. As tabelas de HRN e PLr não se editam aqui.</span>
+    if(!__lpEd) return `<span class="lp-ed-msg"><b>Modo de edição.</b> Toque em um texto contornado para alterar. Enter salva, Shift+Enter pula linha, Esc cancela. As tabelas de HRN e PLr não se editam aqui.</span>
       ${b("btn-primary", ic('check') + " Concluir edição", "App.lpToggleModoTexto()")}`;
     const t = lpEdTipo(__lpEd.chave);
     const bts = [];
@@ -38407,13 +38440,13 @@ function lpMaiorPLrDoEquipamento(itens){
           </div>`}
         </div>
         <div class="lp-faixa-c" style="margin-top:6px"${lpEd("fx:eq.escopo")}>${lpTxtFixo("eq.escopo", "ESCOPO")}</div>
-        <div class="lp-apr-txt" style="border:1px solid #8A8CA3;border-top:none"${lpEd("lt:" + primeiro.risco.id + ":escopo")}>${esc(escopo)}</div>` });
+        <div class="lp-apr-txt" style="border:1px solid #8A8CA3;border-top:none"${lpEd("lt:" + primeiro.risco.id + ":escopo")}>${lpTxtQ(escopo)}</div>` });
 
       for(const t of g.tarefas.values()){
         const nomeT = (valOuOutro(t.tarefa.tarefa, t.tarefa.tarefaOutro) || "TAREFA").toUpperCase();
         const descT = laudoTextoFinal(t.itens[0], "tarefa") || t.tarefa.descricao || "";
         blocos.push({ html:`<div class="lp-faixa-c" style="margin-top:8px">${esc(nomeT)}</div>
-          <div class="lp-apr-txt" style="border:1px solid #8A8CA3;border-top:none"${lpEd("lt:" + t.itens[0].risco.id + ":tarefa")}>${esc(descT)}</div>
+          <div class="lp-apr-txt" style="border:1px solid #8A8CA3;border-top:none"${lpEd("lt:" + t.itens[0].risco.id + ":tarefa")}>${lpTxtQ(descT)}</div>
           <div class="lp-faixa-r" style="margin-top:6px">RISCOS REFERENTES À TAREFA ${esc(nomeT)}</div>
 `, grudaNoProximo:true });
 
@@ -38450,16 +38483,16 @@ function lpMaiorPLrDoEquipamento(itens){
               <div class="lp-rc-col">
                 <div class="lp-rc-bloco">
                   ${lpFx("div", "lp-rc-rot", "rc.descricao", "Descrição do risco")}
-                  <div${lpEd("lt:" + r.id + ":risco")}>${esc(laudoTextoFinal(it, "risco") || r.descricao || "")}</div>
+                  <div${lpEd("lt:" + r.id + ":risco")}>${lpTxtQ(laudoTextoFinal(it, "risco") || r.descricao || "")}</div>
                 </div>
                 ${existente? `<div class="lp-rc-bloco">
                   <!-- Só o título, sem Atende / Não atende: decisão do engenheiro (21/10/2026). -->
                   ${lpFx("div", "lp-rc-rot", "rc.existente", "Mitigação existente")}
-                  <div${lpEd("lt:" + r.id + ":existente")}>${esc(existente)}</div>
+                  <div${lpEd("lt:" + r.id + ":existente")}>${lpTxtQ(existente)}</div>
                 </div>`:""}
                 <div class="lp-rc-bloco">
                   ${lpFx("div", "lp-rc-rot", "rc.solucao", "Solução")}
-                  <div${lpEd("lt:" + r.id + ":solucao")}>${esc(laudoTextoFinal(it, "solucao") || "")}</div>
+                  <div${lpEd("lt:" + r.id + ":solucao")}>${lpTxtQ(laudoTextoFinal(it, "solucao") || "")}</div>
                 </div>
               </div>
               ${evsOk.length? `<div class="lp-rc-col ev">
@@ -38647,7 +38680,7 @@ function lpMaiorPLrDoEquipamento(itens){
       blocos.push({ cabRepete: cab, cabPrimeiro: i === 0, html:`<table class="lp-rt">${col}<tr>
         <td class="mq"${lpEd("mq:" + it.maquina.id + ":nome")}>${esc(nomeMaquinaS(it.maquina))}</td>
         <td class="ft">${foto? `<img src="${foto}">` : `<span class="sf">Sem foto</span>`}</td>
-        <td class="ds"><b${lpEd("lt:" + r.id + ":nome")}>${esc(nomeRisco)}</b><br><span${lpEd("lt:" + r.id + ":risco")}>${esc(desc)}</span></td>
+        <td class="ds"><b${lpEd("lt:" + r.id + ":nome")}>${esc(nomeRisco)}</b><br><span${lpEd("lt:" + r.id + ":risco")}>${lpTxtQ(desc)}</span></td>
         <td class="nv" style="background:${meta.cor};color:${meta.texto}"><div class="n">${esc(hrnNumeroBR(h.hrn))}</div><div class="c">${esc(h.nivel)}</div></td>
       </tr></table>` });
     }
@@ -38986,7 +39019,7 @@ function lpMaiorPLrDoEquipamento(itens){
       if(e.key === "Escape"){ e.preventDefault(); App.lpEdCancelar(); return; }
       if(e.key !== "Enter") return;
       const t = lpEdTipo(el.getAttribute("data-lpe"));
-      if(t === "cc" || (e.shiftKey && t === "fx")) return;   // conclusão tem parágrafos; Shift+Enter quebra linha no texto fixo
+      if(t === "cc" || (e.shiftKey && (t === "fx" || lpEdMultilinha(el.getAttribute("data-lpe"))))) return;   // conclusão tem parágrafos; Shift+Enter quebra linha no texto fixo e nos textos de item
       e.preventDefault();
       if(t !== "fx") App.lpEdSalvar();
     });
@@ -39020,7 +39053,7 @@ function lpMaiorPLrDoEquipamento(itens){
       const chave = __lpEd.chave, t = lpEdTipo(chave);
       if(t === "fx" && onde !== "laudo" && onde !== "todos") return false;
       const soTexto = String(el.textContent || "").replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
-      const valor = !soTexto ? "" : ((t === "fx" || t === "cc") ? lpPeneirarRico(el.innerHTML) : soTexto);
+      const valor = !soTexto ? "" : ((t === "fx" || t === "cc") ? lpPeneirarRico(el.innerHTML) : lpEdMultilinha(chave) ? lpEdTextoLinhas(el) : soTexto);
       const msg = lpEdGravar(chave, valor, onde);
       if(msg === null){ try{ el.focus(); }catch(e){} return false; }
       const html = lpEdValorTela(chave, valor);
