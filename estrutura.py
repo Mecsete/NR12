@@ -6085,16 +6085,36 @@ chk("imprimir em um lugar so (Gerar PDF na barra de cima; saiu da barra flutuant
 print("\n=== 196. NOME DO RISCO E UM SO NA LISTA, NO FORMULARIO E NO LAUDO (27/10/2026) ===")
 chk("funcoes novas presentes uma vez cada",
     all(novo.count("function " + f + "(") == 1 for f in ["nomeRiscoVaiParaOLaudo", "nomeRiscoNoFormulario", "definirNomeRiscoNoRascunho"]))
-chk("nomeRiscoNaTela e laudoSet byte a byte", _corpoDe(novo, "nomeRiscoNaTela").split("/* O NOME DO RISCO E UM SO")[0].rstrip() == _corpoDe(orig, "nomeRiscoNaTela").rstrip() and _corpoDe(novo, "laudoSet") == _corpoDe(orig, "laudoSet"))
+chk("nomeRiscoNaTela segue a regra do nome decidido e laudoSet byte a byte",
+    'l.nomeSt === "ok" || l.nomeSt === "edit"' in _corpoDe(novo, "nomeRiscoNaTela") and _corpoDe(novo, "laudoSet") == _corpoDe(orig, "laudoSet"))
 chk("o formulario nao grava mais r.nome direto", "__draftEntity.nome = value;" not in novo and "__draftEntity.nome = s.nome;" not in novo)
 chk("salvarDraftEntidade e cancelarDraftEntidade intocados",
     all(orig.count(x) == 1 and novo.count(x) == 1 for x in ["    if(tipo===\"riscoS\" && !ent.medidaImplementada){ ent.medidaImplementada = \"Não\"; }", "      if(!semMudanca){ App.salvarDraftEntidade(); return; }"]))
 
 print("\n=== 197. EXPORTACOES COM O MESMO NOME DE RISCO DA LISTA (27/10/2026) ===")
-chk("7 trocas de nome nas exportacoes (CSV/Excel, xlsm base e resumo, Excel com fotos, Word x2)",
-    novo.count("nomeRiscoNaTela(") - orig.count("nomeRiscoNaTela(") == 7 + 2,
-    "delta=%d" % (novo.count("nomeRiscoNaTela(") - orig.count("nomeRiscoNaTela(")))
+_exp_nome = ["    nomeRiscoNaTela(risco), risco.descricao, risco.medidaImplementada,", "S.P, nomeRiscoNaTela(risco))", "S.E, nomeRiscoNaTela(risco))",
+             "    nomeRiscoNaTela(risco), risco.descricao, mitig,", "const nomeRisco=nomeRiscoNaTela(item.risco);",
+             'corrigirNomeRisco(nomeRiscoNaTela(r))||"Risco sem nome"', "corrigirNomeRisco(nomeRiscoNaTela(risco)) || \"Risco sem nome\""]
+chk("exportacoes com o nome da lista (CSV/Excel, xlsm base e resumo, Excel com fotos, Word x2)",
+    all(novo.count(x) == 1 for x in _exp_nome), str([novo.count(x) for x in _exp_nome]))
 chk("planilha da IA continua com o nome de campo", '"Nome do risco (campo)": risco ? (risco.nome === OUTRO' in novo)
+
+print("\n=== 198. LAUDO: MITIGACAO EXISTENTE 'NAO EXISTENTE' NUM TOQUE (28/10/2026) ===")
+chk("frase padrao definida uma vez e botao em dois lugares",
+    novo.count("const LAUDO_EXISTENTE_NAO_HA =") == 1 and novo.count("App.laudoExistenteNaoHa('${rid}')") == 2)
+chk("laudoSet, laudoSalvarEdicao e laudoTextoFinal intocados",
+    _corpoDe(novo, "laudoSet") == _corpoDe(orig, "laudoSet")
+    and novo.count("laudoSet(item, campo, { fin: el.value.trim(), st:\"edit\", ed: el.value.trim() });") == 1
+    and "if(g.st===\"no\") return laudoTextoOriginal(item, campo);" in _corpoDe(novo, "laudoTextoFinal"))
+
+print("\n=== 199. LAUDO A4: RESIDUAL PREVISTO SOBREVIVE AO REDESENHO (28/10/2026) ===")
+_ib = novo.index("INÍCIO DO MÓDULO DE IMPRESSÃO DO LAUDO — BLOCO REMOVÍVEL")
+_fb = novo.index("FIM DO MÓDULO DE IMPRESSÃO DO LAUDO")
+chk("lpGuardarDocDaTela vive dentro do bloco removivel e e chamada 2 vezes",
+    novo.count("function lpGuardarDocDaTela(") == 1 and _ib < novo.index("function lpGuardarDocDaTela(") < _fb
+    and novo.count("lpGuardarDocDaTela();") == 2 and novo.count("lpGuardarDocDaTela") == 3)
+chk("hrnPrevAplicar e plrPrevAplicar (calculo/gravacao) intocados",
+    _corpoDe(novo, "hrnPrevAplicar") == _corpoDe(orig, "hrnPrevAplicar") and _corpoDe(novo, "plrPrevAplicar") == _corpoDe(orig, "plrPrevAplicar"))
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

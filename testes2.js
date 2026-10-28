@@ -14672,6 +14672,47 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  /* t201 — LAUDO: MITIGACAO EXISTENTE "NAO EXISTENTE" NUM TOQUE (28/10/2026). */
+  {
+    console.log("\n[t201] Laudo: Mitigacao existente 'Nao existente'");
+    t("a frase e a mesma que a planilha da IA usa", ()=>{
+      ok(HTML.indexOf('const LAUDO_EXISTENTE_NAO_HA = "Não há medida de proteção implantada para esta exposição.";') > 0);
+      ok(HTML.indexOf("escreva exatamente: Não há medida de proteção implantada para esta exposição.") > 0, "planilha da IA");
+    });
+    t("botao na edicao e na barra de acoes, so no cartao da Mitigacao existente", ()=>{
+      eq((HTML.match(/onclick="App\.laudoExistenteNaoHa\('\$\{rid\}'\)"/g)||[]).length, 2);
+      ok(HTML.indexOf('${campo==="existente" ? `<button class="btn btn-secondary btn-sm" title="${escapeHtml(LAUDO_EXISTENTE_NAO_HA)}"') > 0);
+      ok(HTML.indexOf('if(campo==="existente" && String(laudoTextoFinal(item, campo)||"").trim() !== LAUDO_EXISTENTE_NAO_HA)') > 0);
+    });
+    t("aplica como texto editado e nao toca no dado de campo", ()=>{
+      const i0 = HTML.indexOf("  laudoExistenteNaoHa(rid){");
+      const f = HTML.slice(i0, HTML.indexOf("\n  },", i0));
+      ok(f.indexOf('laudoSet(item, "existente", { fin: LAUDO_EXISTENTE_NAO_HA, st:"edit", ed: LAUDO_EXISTENTE_NAO_HA });') > 0);
+      ok(f.indexOf("marcarAlterado()") > 0);
+      ok(!/risco\.(medidaImplementada|descMedida|medidasExistentes)/.test(f), "nao pode mexer no que foi registrado em campo");
+    });
+  }
+
+  /* t202 — LAUDO A4: RISCO RESIDUAL PREVISTO NAO VOLTA AO VALOR ANTIGO NO REDESENHO (28/10/2026). */
+  {
+    console.log("\n[t202] Laudo A4: residual previsto sobrevive ao redesenho da tela");
+    t("lpPrevSet e lpPrevSetPlr atualizam a copia do laudo montado", ()=>{
+      ["    lpPrevSet(riscoId, campo, valor){", "    lpPrevSetPlr(riscoId, campo, valor){"].forEach(ini=>{
+        const i0 = HTML.indexOf(ini); ok(i0 > 0, ini);
+        const f = HTML.slice(i0, HTML.indexOf("\n    },", i0));
+        ok(f.indexOf("el.outerHTML = lpPrevBlocoHtml(it);") > 0 && f.indexOf("lpGuardarDocDaTela();") > f.indexOf("el.outerHTML"), ini);
+      });
+    });
+    t("lpGuardarDocDaTela copia o laudo da tela para __lpHtml", ()=>{
+      const ctx = { __lpHtml:"antigo", document:{ getElementById:(id)=> id==="lpDoc" ? { innerHTML:"novo" } : null } };
+      vm.createContext(ctx); vm.runInContext("var __lpHtml = 'antigo';\n" + funcao("lpGuardarDocDaTela") + "\nlpGuardarDocDaTela();", ctx);
+      eq(vm.runInContext("__lpHtml", ctx), "novo");
+      const ctx2 = { document:{ getElementById:()=> null } };
+      vm.createContext(ctx2); vm.runInContext("var __lpHtml = 'antigo';\n" + funcao("lpGuardarDocDaTela") + "\nlpGuardarDocDaTela();", ctx2);
+      eq(vm.runInContext("__lpHtml", ctx2), "antigo", "sem laudo na tela nao apaga a copia");
+    });
+  }
+
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);
 })();

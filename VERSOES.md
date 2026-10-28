@@ -64,6 +64,24 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 28/10/2026 09:16
+
+**Laudo: "Não existente" na Mitigação existente.**
+
+- No cartão Mitigação existente da revisão do laudo, o botão "Não existente"
+  aplica num toque a frase "Não há medida de proteção implantada para esta
+  exposição." — a mesma que a planilha da IA usa nesse caso. Aparece na barra do
+  cartão e também enquanto você edita o texto.
+- Só o texto do laudo muda. O checklist do que existe e a descrição de campo
+  ficam como estavam.
+
+**Laudo A4: o Risco residual previsto não volta mais ao valor antigo.**
+
+- O que você escolhia no quadro "Risco residual previsto" ficava gravado, mas a
+  tela, ao se redesenhar sozinha (a página "piscava", por exemplo quando a
+  sincronização terminava), voltava a mostrar o valor anterior. Agora a tela
+  acompanha a escolha.
+
 ## 27/10/2026 13:51
 
 **Nome do risco: o mesmo na lista, no formulário e no laudo.**

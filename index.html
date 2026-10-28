@@ -3548,7 +3548,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "27/10/2026 13:51";
+const APP_BUILD = "28/10/2026 09:16";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -24925,6 +24925,10 @@ function laudoTextoOriginal(item, campo){
 /* Regra única de qual texto vai para o laudo (colunas AQ-AT e Word):
    recusado -> texto do inspetor | editado/aplicado -> texto final |
    só gerado -> sugestão | nada gerado -> texto do inspetor. */
+/* Frase do laudo para "nao existe mitigacao" — a MESMA que a planilha da IA
+   manda escrever nesse caso (BASE_IA_PROMPT, "Mitigacao existente"), para o
+   laudo nao ter duas redacoes para a mesma situacao. */
+const LAUDO_EXISTENTE_NAO_HA = "Não há medida de proteção implantada para esta exposição.";
 function laudoTextoFinal(item, campo){
   const g = laudoGet(item, campo);
   if(g.st==="no") return laudoTextoOriginal(item, campo);
@@ -27119,6 +27123,7 @@ function laudoBlocoCampo(item, campo){
       <textarea id="${idEdit}" oninput="App.laudoRascunho('${campo}', this.value)">${escapeHtml(rascunho||"")}</textarea>
       <div style="display:flex;gap:6px;margin-top:8px">
         <button class="btn btn-primary btn-sm" style="flex:1" onclick="App.laudoSalvarEdicao('${rid}','${campo}')">${ic('check')} Aplicar meu texto</button>
+        ${campo==="existente" ? `<button class="btn btn-secondary btn-sm" title="${escapeHtml(LAUDO_EXISTENTE_NAO_HA)}" onclick="App.laudoExistenteNaoHa('${rid}')">${ic('close')} Não existente</button>` : ""}
         <button class="btn btn-secondary btn-sm" onclick="App.laudoCancelarEdicao()">Cancelar</button>
       </div>
     </div>`;
@@ -27134,6 +27139,8 @@ function laudoBlocoCampo(item, campo){
     }else if(laudoTextoDaFonte(item, campo, fonte)){
       acoes.push(`<button class="btn btn-primary btn-sm" onclick="App.laudoValidar('${rid}','${campo}')">${ic('check')} Aplicar</button>`);
     }
+    if(campo==="existente" && String(laudoTextoFinal(item, campo)||"").trim() !== LAUDO_EXISTENTE_NAO_HA)
+      acoes.push(`<button class="btn btn-ghost btn-sm" title="${escapeHtml(LAUDO_EXISTENTE_NAO_HA)}" onclick="App.laudoExistenteNaoHa('${rid}')">${ic('close')} Não existente</button>`);
     acoes.push(`<button class="btn btn-ghost btn-sm" onclick="App.laudoAbrirCopiar('${rid}','${campo}')">${ic('copy')} Copiar de outro</button>`);
     if((st==="ok"||st==="edit") && String(laudoTextoFinal(item, campo)||"").trim())
       acoes.push(`<button class="btn btn-ghost btn-sm" onclick="App.laudoAbrirReplicar('${rid}','${campo}')">${ic('layers')} Aplicar em vários itens</button>`);
@@ -33001,6 +33008,16 @@ Devolver agora?`)) return;
   laudoToggleGrupoExistente(nomeGrupo){ __laudoGrupoExistenteAberto[nomeGrupo] = !__laudoGrupoExistenteAberto[nomeGrupo]; render(); },
   laudoEditar(campo){ STATE.ui.laudoEditandoCampo = campo; __laudoRascunho = null; render(); },
   laudoCancelarEdicao(){ STATE.ui.laudoEditandoCampo = null; __laudoRascunho = null; render(); },
+  /* "Nao existente" num toque: o mesmo registro de "Aplicar meu texto", com a
+     frase padrao. So o texto do laudo muda — checklist e descricao de campo
+     ficam como estao. */
+  laudoExistenteNaoHa(rid){
+    const item = laudoItemPorId(rid);
+    if(!item) return;
+    laudoSet(item, "existente", { fin: LAUDO_EXISTENTE_NAO_HA, st:"edit", ed: LAUDO_EXISTENTE_NAO_HA });
+    if(STATE.ui.laudoEditandoCampo === "existente"){ STATE.ui.laudoEditandoCampo = null; __laudoRascunho = null; }
+    marcarAlterado(); render(); toast("Mitigação existente: não existente");
+  },
   laudoRascunho(campo, texto){ __laudoRascunho = { campo, texto }; },
   /* Clicar num cartao so ESCOLHE qual texto vai para o laudo — a decisao
      fica "Aguardando" ate o Aplicar. Trocar de cartao quando o texto
@@ -37987,6 +38004,15 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
    O bloco é sempre desenhado (quando há Solução) e a exibição fica com o CSS:
    no modo de edição aparece para todos, e fora dele só para quem tem previsão
    de verdade — que é o que sai no PDF. */
+  /* A tela do laudo se redesenha a partir de __lpHtml (a copia do laudo
+     montado). Quem troca um pedaco do laudo direto na tela precisa atualizar
+     essa copia junto; senao, no proximo redesenho — que acontece sozinho, por
+     exemplo quando a sincronizacao termina — a tela "pisca" e volta a mostrar
+     o valor antigo, embora o novo ja esteja gravado (28/10/2026). */
+  function lpGuardarDocDaTela(){
+    const doc = document.getElementById("lpDoc");
+    if(doc) __lpHtml = doc.innerHTML;
+  }
   function lpPrevBlocoHtml(it){
   if(!riscoTemSolucaoNoLaudo(it)) return "";
   const esc = escapeHtml;
@@ -38840,6 +38866,7 @@ function lpMaiorPLrDoEquipamento(itens){
       marcarAlterado();
       const el = document.getElementById("lpPrev-" + riscoId);
       if(el) el.outerHTML = lpPrevBlocoHtml(it);
+      lpGuardarDocDaTela();
     },
     /* Mesma mecânica de lpPrevSet: grava, carimba e redesenha só aquele risco.
        Aqui a mudança pode alterar o PLr sem alterar o HRN — por isso os dois
@@ -38853,6 +38880,7 @@ function lpMaiorPLrDoEquipamento(itens){
       marcarAlterado();
       const el = document.getElementById("lpPrev-" + riscoId);
       if(el) el.outerHTML = lpPrevBlocoHtml(it);
+      lpGuardarDocDaTela();
     },
     async lpToggleRisco(riscoId){
       const it = laudoItemPorId(riscoId);
