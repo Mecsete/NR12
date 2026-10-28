@@ -3548,7 +3548,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "28/10/2026 16:34";
+const APP_BUILD = "28/10/2026 17:00";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -26843,11 +26843,56 @@ function laudoAbaAreas(){
   </div>`:""}
   `;
 }
+/* O QUE FALTA, ÁREA POR ÁREA (28/10/2026). O aviso da aba Exportar somava
+   todas as áreas marcadas para exportar, sem dizer onde estava a pendência:
+   quem olhava um laudo completo via "6 textos aguardam" e não achava. A conta
+   é a mesma de sempre (laudoResumoItem); aqui ela só é separada por área.
+   Risco desmarcado do laudo A4 continua indo para o Excel — por isso entra na
+   conta, mas é apontado à parte. */
+function laudoPendenciasPorArea(itens){
+  const mapa = new Map();
+  itens.forEach(it=>{
+    const r = laudoResumoItem(it);
+    const falta = r.total - r.ok - r.no;
+    if(falta <= 0) return;
+    let a = mapa.get(it.area.id);
+    if(!a){
+      a = { id:it.area.id, nome:it.area.nome || "Área sem nome", proj:(it.proj && (it.proj.empresa || it.proj.nome)) || "", pend:0, sem:0, foraA4:0 };
+      mapa.set(it.area.id, a);
+    }
+    a.pend += r.pend;
+    a.sem += falta - r.pend;
+    if(it.maquina.ocultoLaudo || it.risco.ocultoLaudo) a.foraA4 += falta;
+  });
+  return Array.from(mapa.values());
+}
+function laudoPendenciasTitulo(lista){
+  const pend = lista.reduce((s,a)=> s + a.pend, 0), sem = lista.reduce((s,a)=> s + a.sem, 0);
+  const partes = [];
+  if(pend) partes.push(`${pend} texto(s) aguardam sua decisão`);
+  if(sem) partes.push(`${sem} campo(s) ainda sem texto`);
+  return partes.join(" e ") || "Textos revisados — pode exportar";
+}
+function laudoPendenciasPorAreaHtml(lista){
+  return lista.map(a=>{
+    const o = [];
+    if(a.pend) o.push(`${a.pend} aguardando decisão`);
+    if(a.sem) o.push(`${a.sem} sem texto`);
+    const fora = a.foraA4 ? `<div style="font-size:11.5px;color:var(--ink-dim)">${a.foraA4 === a.pend + a.sem ? "Tudo" : a.foraA4} em risco(s) desmarcado(s) do laudo A4 — não aparece(m) na impressão, mas vai(ão) para o Excel.</div>` : "";
+    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid #E9C46A88">
+      <div style="flex:1;min-width:0;font-size:12.5px"><b>${escapeHtml(a.nome)}</b>${a.proj ? ` <span style="color:var(--ink-dim)">· ${escapeHtml(a.proj)}</span>` : ""}
+        <div style="font-size:12px;color:var(--ink-dim)">${o.join(" · ")}</div>${fora}</div>
+      <button class="btn btn-secondary btn-sm" style="flex-shrink:0" onclick="App.laudoRevisarPendArea('${a.id}','${a.pend ? "pend" : "falta"}')">${ic('edit')} Revisar</button>
+    </div>`;
+  }).join("");
+}
 /* ---------- Aba: Exportar ---------- */
 function laudoAbaExportar(){
   const itens = laudoItensDoEscopo();
   const t = laudoResumoLista(itens);
   const tudoOk = itens.length>0 && t.linhasProntas===t.linhas;
+  const pa = laudoPendenciasPorArea(itens);
+  const nAreas = new Set(itens.map(it=> it.area.id)).size;
   return `
   ${itens.length===0? `<div class="card card-pad" style="background:#FFF3D6;border-color:#E9C46A">
       <div style="font-weight:800;font-size:13.5px;margin-bottom:3px">Nenhuma área selecionada</div>
@@ -26855,16 +26900,18 @@ function laudoAbaExportar(){
       <button class="btn btn-secondary btn-sm" onclick="App.laudoSetAba('escopo')">${ic('folder')} Escolher áreas</button>
     </div>` : `
   <div class="card card-pad" style="background:${tudoOk?'#E3F4E4':'#FFF3D6'};border-color:${tudoOk?'#A5D6A7':'#E9C46A'}">
-    <div style="font-weight:800;font-size:13.5px;margin-bottom:2px">${tudoOk? "Textos revisados — pode exportar" : `${t.pend} texto(s) ainda aguardam sua decisão`}</div>
-    <div style="font-size:12.5px;color:var(--ink-dim)">${t.linhas} linha(s) no escopo. O Excel sai exatamente com o que estiver aprovado na aba Revisão.</div>
-    ${tudoOk? "" : `<button class="btn btn-secondary btn-sm" style="margin-top:10px" onclick="App.laudoSetAba('revisao')">${ic('edit')} Ir revisar</button>`}
+    <div style="font-weight:800;font-size:13.5px;margin-bottom:2px">${tudoOk? "Textos revisados — pode exportar" : laudoPendenciasTitulo(pa)}</div>
+    <div style="font-size:12.5px;color:var(--ink-dim)${tudoOk ? "" : ";margin-bottom:6px"}">${t.linhas} linha(s) em ${nAreas} área(s) marcada(s) para exportar (aba Áreas). O Excel sai exatamente com o que estiver aprovado na aba Revisão.${tudoOk || pa.length === nAreas ? "" : ` As demais áreas (${nAreas - pa.length}) estão completas.`}</div>
+    ${tudoOk? "" : laudoPendenciasPorAreaHtml(pa)}
   </div>
   ${(function(){ const pend = projetosComCamposFaltando(getAreasSelecionadasExport());
     if(pend.length===0) return "";
     const n = pend.reduce((s,x)=>s+x.faltando.length,0);
     return `<div class="card card-pad" style="background:#FFF3D6;border-color:#E9C46A">
       <div style="font-weight:800;font-size:13.5px;margin-bottom:2px">${n} dado(s) administrativo(s) em branco</div>
-      <div style="font-size:12.5px;color:var(--ink-dim);margin-bottom:10px">Responsável, ART, CNPJ e afins saem na capa e na aba Informações. Dá para gerar assim mesmo, mas o laudo vai incompleto.</div>
+      <div style="font-size:12.5px;color:var(--ink-dim);margin-bottom:6px">Saem na capa e na aba Informações do Excel e do Word. Dá para gerar assim mesmo, mas esses campos vão em branco.</div>
+      ${pend.map(x=> `<div style="font-size:12.5px;padding:6px 0;border-top:1px solid #E9C46A88"><b>${escapeHtml(x.projeto.empresa || x.projeto.nome || "Projeto sem nome")}</b><div style="font-size:12px;color:var(--ink-dim)">${escapeHtml(x.faltando.join(", "))}</div></div>`).join("")}
+      <div style="height:8px"></div>
       <button class="btn btn-secondary btn-sm" onclick="App.laudoSetAba('projeto')">${ic('briefcase')} Preencher na aba Projeto</button>
     </div>`; })()}`}
   <div class="section-title">Planilha (Excel)</div>
@@ -32814,6 +32861,13 @@ Devolver agora?`)) return;
   /* ---- Central do Laudo ---- */
   laudoSetAba(k){ STATE.ui.laudoAba = k; STATE.ui.laudoLimite = 60; __buscaAtual = ""; render(); window.scrollTo(0,0); },
   laudoSetFiltro(k){ STATE.ui.laudoFiltro = k; STATE.ui.laudoLimite = 60; render(); },
+  /* "Revisar" da aba Exportar: abre a Revisão só com a área e o que falta nela.
+     Não mexe nas áreas marcadas para exportar (o "Revisar" da aba Áreas mexe). */
+  laudoRevisarPendArea(id, f){
+    STATE.ui.laudoFiltroArea = id || ""; STATE.ui.laudoFiltroMaq = ""; STATE.ui.laudoFiltroTar = "";
+    STATE.ui.laudoFiltro = f === "falta" ? "falta" : "pend";
+    App.laudoSetAba("revisao");
+  },
   laudoSetFiltroArea(id){ STATE.ui.laudoFiltroArea = id || ""; STATE.ui.laudoFiltroMaq = ""; STATE.ui.laudoFiltroTar = ""; STATE.ui.laudoLimite = 60; render(); },
   laudoSetFiltroMaquina(id){ STATE.ui.laudoFiltroMaq = id || ""; STATE.ui.laudoFiltroTar = ""; STATE.ui.laudoLimite = 60; render(); },
   laudoSetFiltroTarefa(id){ STATE.ui.laudoFiltroTar = id || ""; STATE.ui.laudoLimite = 60; render(); },

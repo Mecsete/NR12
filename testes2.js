@@ -14893,6 +14893,51 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  /* t205 — ABA EXPORTAR: PENDENCIAS POR AREA (28/10/2026). */
+  {
+    console.log("\n[t205] Aba Exportar: o que falta, area por area");
+    const ctx = vm.createContext({});
+    vm.runInContext(`var RES = {}; function laudoResumoItem(it){ return RES[it.risco.id]; }
+      function escapeHtml(s){ return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+      function ic(){ return ""; }`, ctx);
+    ["laudoPendenciasPorArea", "laudoPendenciasTitulo", "laudoPendenciasPorAreaHtml"].forEach(f=> vm.runInContext(funcao(f), ctx));
+    const it = (rid, aid, anome, oculto)=> ({ proj:{ empresa:"Vylor - Itumbiara - GO" }, area:{ id:aid, nome:anome }, maquina:{}, risco:{ id:rid, ocultoLaudo:!!oculto } });
+    ctx.RES = {
+      r1:{ total:6, ok:6, no:0, pend:0 },          // area A completa
+      r2:{ total:6, ok:5, no:1, pend:0 },          // recusado conta como decidido
+      r3:{ total:6, ok:2, no:0, pend:3 },          // area B: 3 a decidir + 1 sem texto
+      r4:{ total:5, ok:3, no:0, pend:2 },          // area B, risco desmarcado do A4
+    };
+    ctx.__l = [it("r1","a","Despalha"), it("r2","a","Despalha"), it("r3","b","Secador"), it("r4","b","Secador", true)];
+    const R = (s)=> vm.runInContext(s, ctx);
+    t("area completa fica de fora; a outra mostra o que falta e quanto esta fora do A4", ()=>{
+      const l = R("laudoPendenciasPorArea(__l)");
+      eq(l.length, 1); eq(l[0].id, "b"); eq(l[0].nome, "Secador"); eq(l[0].proj, "Vylor - Itumbiara - GO");
+      eq(l[0].pend, 5); eq(l[0].sem, 1); eq(l[0].foraA4, 2);
+    });
+    t("titulo diz o que falta de verdade (nunca '0 textos aguardam')", ()=>{
+      eq(R("laudoPendenciasTitulo(laudoPendenciasPorArea(__l))"), "5 texto(s) aguardam sua decisão e 1 campo(s) ainda sem texto");
+      ctx.RES.r3.pend = 0; ctx.RES.r4.pend = 0;
+      eq(R("laudoPendenciasTitulo(laudoPendenciasPorArea(__l))"), "6 campo(s) ainda sem texto");
+      ctx.RES.r3.pend = 3; ctx.RES.r4.pend = 2;
+    });
+    t("cada area tem nome, projeto, contagem e Revisar filtrado", ()=>{
+      const hh = R("laudoPendenciasPorAreaHtml(laudoPendenciasPorArea(__l))");
+      ok(hh.indexOf("<b>Secador</b>") > 0 && hh.indexOf("Vylor - Itumbiara - GO") > 0, hh);
+      ok(hh.indexOf("5 aguardando decisão · 1 sem texto") > 0, hh);
+      ok(hh.indexOf("2 em risco(s) desmarcado(s) do laudo A4") > 0, hh);
+      ok(hh.indexOf("App.laudoRevisarPendArea('b','pend')") > 0, hh);
+      ok(hh.indexOf("Despalha") < 0, "area completa nao aparece");
+    });
+    t("Revisar da aba Exportar filtra a Revisao sem mexer nas areas marcadas", ()=>{
+      const i0 = HTML.indexOf("  laudoRevisarPendArea(id, f){");
+      const f = HTML.slice(i0, HTML.indexOf("\n  },", i0));
+      ok(f.indexOf("STATE.ui.laudoFiltroArea = id") > 0 && f.indexOf('App.laudoSetAba("revisao")') > 0);
+      ok(f.indexOf("areasSelecionadasExport") < 0);
+      ok(funcao("laudoAbaExportar").indexOf("laudoPendenciasPorArea(itens)") > 0);
+    });
+  }
+
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);
 })();

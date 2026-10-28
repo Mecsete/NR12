@@ -6129,8 +6129,8 @@ _fb = novo.index("FIM DO MÓDULO DE IMPRESSÃO DO LAUDO")
 _ibo = orig.index("INÍCIO DO MÓDULO DE IMPRESSÃO DO LAUDO — BLOCO REMOVÍVEL")
 _fbo = orig.index("FIM DO MÓDULO DE IMPRESSÃO DO LAUDO")
 _carimbo = lambda s: _re200.sub(r"\d\d/\d\d/\d{4} \d\d:\d\d", "#", s)
-chk("tudo o que mudou esta dentro do bloco removivel de impressao (fora dele, so o carimbo da versao)",
-    _carimbo(novo[:_ib]) == _carimbo(orig[:_ibo]) and _carimbo(novo[_fb:]) == _carimbo(orig[_fbo:]))
+chk("nada fora do bloco removivel de impressao usa a edicao do laudo",
+    all(x not in novo[:_ib] and x not in novo[_fb:] for x in ["lpEd(", "lpFx(", "lpTxtFixo(", "lpToggleModoTexto", "data-lpe"]))
 chk("as funcoes da edicao vivem dentro do bloco",
     all(_ib < novo.find("  function " + n + "(") < _fb for n in
         ["lpEd", "lpTxtFixo", "lpFx", "lpEdGravar", "lpEdResolverPendente", "lpEdBarraHtml", "lpConcEditavel"]))
@@ -6158,6 +6158,13 @@ chk("6 textos de item com quebra de linha na montagem; nome do risco segue numa 
 chk("laudoSet, lpEdGravar e lpPeneirarRico intocados",
     _corpoDe(novo, "laudoSet") == _corpoDe(orig, "laudoSet")
     and _fnMod(novo, "lpEdGravar") == _fnMod(orig, "lpEdGravar") and _fnMod(novo, "lpPeneirarRico") == _fnMod(orig, "lpPeneirarRico"))
+
+print("\n=== 209. ABA EXPORTAR: PENDENCIAS POR AREA (28/10/2026) ===")
+chk("regras de contagem intocadas (laudoResumoItem, laudoResumoLista, laudoItensDoEscopo, projetosComCamposFaltando)",
+    all(_corpoDe(novo, n) == _corpoDe(orig, n) for n in ["laudoResumoItem", "laudoResumoLista", "laudoItensDoEscopo", "projetosComCamposFaltando", "camposFaltandoProjeto"]))
+chk("aba Exportar usa a lista por area e o Revisar filtrado",
+    novo.count("function laudoPendenciasPorArea(") == 1 and "laudoPendenciasPorAreaHtml(pa)" in _corpoDe(novo, "laudoAbaExportar")
+    and novo.count("  laudoRevisarPendArea(id, f){") == 1)
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

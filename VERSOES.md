@@ -64,6 +64,17 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 28/10/2026 17:00
+
+**Aba Exportar: os avisos dizem onde está a pendência.**
+
+- O aviso de textos agora lista cada área marcada para exportar que ainda tem
+  algo a decidir, com o projeto e o que falta. O botão "Revisar" abre a Revisão
+  já filtrada nessa área, sem mudar as áreas marcadas.
+- O que estiver em riscos desmarcados do laudo A4 é apontado à parte: não sai
+  na impressão, mas vai para o Excel.
+- O aviso de dados administrativos mostra o projeto e quais campos faltam.
+
 ## 28/10/2026 16:34
 
 **Laudo A4: Shift+Enter pula linha nos textos de cada item.**
