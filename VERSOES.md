@@ -64,6 +64,25 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 28/10/2026 15:25
+
+**Laudo A4: botão Editar — os textos se alteram direto nas páginas.**
+
+- Na tela Imprimir, o botão "Editar" (barra de cima, ou o lápis nos botões
+  flutuantes) deixa cada texto do laudo contornado e editável na própria página.
+  "Concluir edição" remonta o laudo com os textos novos.
+- Textos fixos (título da capa, Normativo, Metodologia, contracapa, faixas e
+  rótulos): ao salvar você escolhe "Só neste laudo" ou "Em todos os laudos". Dá
+  para voltar ao padrão ou ao texto original a qualquer momento.
+- Dados de cadastro (empresa, CNPJ, responsável, nº do documento, ART, data da
+  inspeção, dados do equipamento, empresa responsável): salvar corrige o próprio
+  cadastro, então planilhas e Word ficam iguais ao laudo.
+- Textos de cada item (escopo, tarefa, nome e descrição do risco, mitigação
+  existente, solução) e a conclusão: grava o mesmo texto da aba Revisão / do
+  botão Conclusão.
+- Tabelas de HRN e PLr não se editam aqui: saem das mesmas tabelas que
+  classificam os riscos.
+
 ## 28/10/2026 09:16
 
 **Laudo: "Não existente" na Mitigação existente.**

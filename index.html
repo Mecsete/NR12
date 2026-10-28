@@ -3548,7 +3548,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "28/10/2026 09:16";
+const APP_BUILD = "28/10/2026 15:25";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -37625,6 +37625,16 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
 .lp-prev-plr .lp-prev-sel{display:none}
 .lp-modo-prev .lp-prev-plr .lp-prev-sel{display:block}
 .lp-modo-prev .lp-prev-dica{display:block}
+/* MODO DE EDIÇÃO DOS TEXTOS. Só contorno (outline não ocupa espaço): a
+   paginação medida continua valendo enquanto se edita. */
+.lp-up{text-transform:uppercase}
+.lp-modo-texto [data-lpe]{outline:1px dashed rgba(233,78,27,.6);outline-offset:1px;cursor:text}
+.lp-modo-texto [data-lpe]:hover{background:rgba(233,78,27,.07)}
+.lp-modo-texto [data-lpe]:focus{outline:2px solid #E94E1B;background:#FFF7F2}
+.lp-modo-texto [data-lpe]:empty{display:inline-block;min-width:30px;min-height:1em}
+.lp-ed-barra{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 8px;padding:8px 10px;
+  background:#FFF3D6;border:1px solid #E9C46A;border-radius:10px;font-size:12.5px;color:#4A3B00}
+.lp-ed-msg{flex:1 1 260px;line-height:1.45}
 /* --- conclusão --- */
 .lp-assin{display:flex;gap:${Math.round(20*MM)}px;justify-content:space-around;margin-top:${Math.round(34*MM)}px;text-align:center;font-size:11px}
 .lp-assin div{flex:1}
@@ -37781,53 +37791,287 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
     const inspEf = (ovR && ovR.resp && ovR.resp.insp) ? Object.assign({}, insp, ovR.resp.insp) : insp;
     let dataInsp = "";
     try{ dataInsp = proj.criadoEm ? new Date(proj.criadoEm).toLocaleDateString("pt-BR") : ""; }catch(e){}
+    if(String(proj.dataInspecao || "").trim()) dataInsp = String(proj.dataInspecao).trim();   // corrigida no modo de edição do laudo
     return { proj, area, areas: areas || [area], m, insp: inspEf, dataInsp, hoje: new Date().toLocaleDateString("pt-BR") };
+  }
+
+  /* ---------- EDIÇÃO DOS TEXTOS DIRETO NO LAUDO (28/10/2026) ----------
+     Botão "Editar" (barra de cima e botões flutuantes): cada texto do laudo
+     fica editável na própria página. O elemento carrega uma chave (data-lpe)
+     que diz ONDE aquele texto mora — e é lá que ele é gravado:
+       fx:<chave>            texto fixo do laudo (título, Normativo, Metodologia,
+                             contracapa, faixas). Ao salvar, a pessoa escolhe:
+                             só neste laudo (area.laudoTextos, sincroniza com a
+                             área) ou todos os laudos (laudoTextos da
+                             configuração, sincroniza com a equipe).
+       pj:<campo>            dado do projeto — corrige o cadastro do projeto.
+       mc:<campo>            empresa responsável — corrige Configurações.
+       ar:nome               nome da área — corrige o cadastro.
+       mq:<id>:<campo>       dado do equipamento — corrige o cadastro.
+       lt:<riscoId>:<campo>  texto do laudo do item — o mesmo registro do
+                             "Aplicar meu texto" da aba Revisão.
+       cc                    conclusão da área (a mesma do botão Conclusão).
+     AS CHAVES fx SÃO FIXAS: nunca renumerar. Um texto salvo passaria a
+     aparecer no lugar de outro parágrafo. Texto novo ganha chave nova.
+     As tabelas de HRN e PLr NÃO se editam aqui: saem das mesmas tabelas que
+     classificam os riscos, e um laudo assinado não pode mostrar uma régua
+     diferente da que foi usada.
+     Fora do modo de edição lpEd não escreve nada: o laudo sai igual. */
+  let __lpModoTexto = false;   // só na sessão; imprimir desliga
+  let __lpEdSeq = 0;           // número de cada elemento editável do laudo montado
+  let __lpEdArea = null;       // área principal do laudo, lida na montagem
+  let __lpFxPadrao = {};       // texto original de cada chave fx ("voltar ao original")
+  let __lpEd = null;           // { lpi, chave, original, atual } — o texto em edição
+  function lpEd(chave){
+    if(!__lpModoTexto) return "";
+    return ` data-lpe="${esc(chave)}" data-lpi="${++__lpEdSeq}" contenteditable="true" spellcheck="true"`;
+  }
+  function lpEdTipo(chave){ return String(chave || "").split(":")[0]; }
+  /* Texto fixo: o deste laudo > o padrão editado > o original do app. Passa
+     pela peneira na leitura, como a conclusão: veio da sincronização ou do
+     backup, não se confia. */
+  function lpTxtFixo(chave, padrao){
+    __lpFxPadrao[chave] = padrao;
+    const a = __lpEdArea && __lpEdArea.laudoTextos && __lpEdArea.laudoTextos[chave];
+    if(a){ const v = lpPeneirarRico(a); if(v) return v; }
+    const cfg = getMecseteConfig().laudoTextos;
+    if(cfg && cfg[chave]){ const v = lpPeneirarRico(cfg[chave]); if(v) return v; }
+    return padrao;
+  }
+  function lpFx(tag, classe, chave, padrao){
+    return `<${tag}${classe ? ` class="${classe}"` : ""}${lpEd("fx:" + chave)}>${lpTxtFixo(chave, padrao)}</${tag}>`;
+  }
+  /* A área é procurada de novo a cada gravação, nunca guardada: a
+     sincronização troca o STATE inteiro, e gravar num objeto antigo seria
+     gravar no vazio. */
+  function lpEdAreaAtual(){ const a = laudoAlvo(); return a ? a.area : null; }
+  function lpFxOrigem(chave){
+    const a = lpEdAreaAtual();
+    if(a && a.laudoTextos && a.laudoTextos[chave] && lpPeneirarRico(a.laudoTextos[chave])) return "laudo";
+    const cfg = getMecseteConfig().laudoTextos;
+    if(cfg && cfg[chave] && lpPeneirarRico(cfg[chave])) return "todos";
+    return "";
+  }
+  /* Grava um texto editado no lugar dele. Devolve a frase do aviso, ou null
+     quando não gravou (projeto arquivado, item não achado, texto obrigatório
+     vazio). */
+  function lpEdGravar(chave, valor, onde){
+    const alvo = laudoAlvo();
+    if(!alvo) return null;
+    const p = String(chave).split(":"), t = p[0];
+    if(t === "fx"){
+      const k = p.slice(1).join(":");
+      if(onde === "todos"){
+        const c = getMecseteConfig();
+        const tx = Object.assign({}, c.laudoTextos);
+        if(valor) tx[k] = valor; else delete tx[k];
+        c.laudoTextos = tx;
+        STATE.ui.mecseteEm = agoraSync();
+        marcarEquipeAlterada();
+        // este laudo passa a seguir o padrão novo
+        const a = alvo.area;
+        if(a.laudoTextos && a.laudoTextos[k] !== undefined && !bloqueioDeArquivado(alvo.proj.id)){
+          const ta = Object.assign({}, a.laudoTextos); delete ta[k]; a.laudoTextos = ta;
+          a.atualizadoEm = agoraSync();
+          marcarAlterado();
+        }
+        return valor ? "Salvo em todos os laudos. Laudo com texto próprio continua com o dele." : "Texto original de volta em todos os laudos";
+      }
+      if(recusarSeArquivado(alvo.proj.id)) return null;
+      const a = alvo.area;
+      const tx = Object.assign({}, a.laudoTextos);
+      if(valor) tx[k] = valor; else delete tx[k];
+      a.laudoTextos = tx;
+      a.atualizadoEm = agoraSync();
+      marcarAlterado();
+      return valor ? "Salvo só neste laudo — os outros continuam com o padrão" : "Este laudo voltou ao texto padrão";
+    }
+    if(t === "mc"){
+      const c = getMecseteConfig();
+      c[p[1]] = valor;
+      const ov = lpOv();
+      if(ov && ov.resp && ov.resp.m) delete ov.resp.m[p[1]];
+      STATE.ui.mecseteEm = agoraSync();
+      marcarEquipeAlterada();
+      return "Corrigido em Configurações (empresa responsável) — vale para todos os laudos";
+    }
+    if(recusarSeArquivado(alvo.proj.id)) return null;
+    if(t === "pj"){
+      alvo.proj[p[1]] = valor;
+      alvo.proj.atualizadoEm = agoraSync();
+      marcarAlterado();
+      return "Corrigido no cadastro do projeto";
+    }
+    if(t === "ar"){
+      if(!valor){ toast("O nome da área não pode ficar vazio", false); return null; }
+      alvo.area.nome = valor;
+      alvo.area.atualizadoEm = agoraSync();
+      marcarAlterado();
+      return "Nome da área corrigido no cadastro";
+    }
+    if(t === "mq"){
+      const m = buscarMaquinaSimplesPorId(p[1]);
+      if(!m) return null;
+      m[p[2]] = valor;
+      m.atualizadoEm = agoraSync();
+      marcarAlterado();
+      return "Corrigido no cadastro do equipamento";
+    }
+    if(t === "lt"){
+      const it = laudoItemPorId(p[1]);
+      if(!it) return null;
+      if(!valor){ toast("Texto vazio — para desistir, use Cancelar", false); return null; }
+      laudoSet(it, p[2], { fin: valor, st:"edit", ed: valor });
+      marcarAlterado();
+      return "Texto do laudo salvo — o mesmo da aba Revisão";
+    }
+    if(t === "cc"){
+      const a = alvo.area;
+      if(!valor) delete a.conclusaoLaudo;
+      else { a.conclusaoLaudo = valor; a.conclusaoLigada = true; }
+      a.atualizadoEm = agoraSync();
+      marcarAlterado();
+      return valor ? "Conclusão desta área salva" : "Caixa vazia — o texto padrão da conclusão voltou";
+    }
+    return null;
+  }
+  /* O que a página passa a mostrar depois de gravar. */
+  function lpEdValorTela(chave, valor){
+    const t = lpEdTipo(chave);
+    if(t === "fx"){ __lpEdArea = lpEdAreaAtual(); const k = chave.slice(3); return lpTxtFixo(k, __lpFxPadrao[k] || ""); }
+    if(t === "cc"){ const a = lpEdAreaAtual(); return a ? conclusaoDaArea(a) : valor; }
+    if(chave === "pj:dataInspecao" && !valor){ const alvo = laudoAlvo(); return alvo ? esc(dadosDoc(alvo.proj, alvo.area, alvo.areas).dataInsp) : ""; }
+    return esc(valor);
+  }
+  function lpEdEl(){
+    if(!__lpEd || typeof document === "undefined") return null;
+    return document.querySelector('#lpDoc [data-lpi="' + __lpEd.lpi + '"]');
+  }
+  /* Antes de editar outro texto, sair do modo, trocar de laudo ou imprimir:
+     texto sem mudança é só largado; dado de cadastro e texto do item são
+     gravados; texto fixo PERGUNTA onde gravar — não há um lugar certo para
+     escolher sozinho. */
+  function lpEdResolverPendente(){
+    if(!__lpEd) return true;
+    const el = lpEdEl();
+    if(!el || el.innerHTML === __lpEd.original){ __lpEd = null; lpEdBarraAtualizar(); return true; }
+    if(lpEdTipo(__lpEd.chave) !== "fx") return App.lpEdSalvar() === true;
+    toast("Escolha onde salvar o texto em edição (só neste laudo ou em todos os laudos), ou cancele", false);
+    try{ el.focus(); }catch(e){}
+    return false;
+  }
+  function lpEdFoco(el){
+    if(!__lpModoTexto) return;
+    const lpi = el.getAttribute("data-lpi");
+    if(__lpEd && __lpEd.lpi === lpi) return;
+    if(!lpEdResolverPendente()) return;
+    __lpEd = { lpi, chave: el.getAttribute("data-lpe"), original: el.innerHTML, atual: null };
+    lpEdBarraAtualizar();
+  }
+  /* A tela pode se redesenhar sozinha no meio da digitação (a sincronização
+     termina, por exemplo). O laudo volta da cópia montada, sem o que estava
+     sendo digitado: aqui o texto em edição é guardado antes e devolvido
+     depois — mesmo cuidado do Risco residual previsto. */
+  function lpEdCapturar(){
+    const el = lpEdEl();
+    if(el) __lpEd.atual = el.innerHTML;
+  }
+  function lpEdRestaurarDepois(){
+    if(!__lpEd) return;
+    const f = ()=>{
+      if(!__lpEd || __lpEd.atual == null) return;
+      const el = lpEdEl();
+      if(el && el.innerHTML !== __lpEd.atual) el.innerHTML = __lpEd.atual;
+    };
+    if(typeof queueMicrotask === "function") queueMicrotask(f); else setTimeout(f, 0);
+  }
+  const LP_ED_ROTULO = { fx:"Texto do laudo", pj:"Cadastro do projeto", mc:"Empresa responsável", ar:"Cadastro da área",
+    mq:"Cadastro do equipamento", lt:"Texto do laudo deste item", cc:"Conclusão desta área" };
+  const LP_ED_DESTINO = {
+    pj:"Salvar corrige o cadastro do projeto — muda também nas planilhas e no Word.",
+    mc:"Salvar corrige Configurações — vale para todos os laudos.",
+    ar:"Salvar corrige o nome da área no cadastro.",
+    mq:"Salvar corrige o cadastro do equipamento — muda também no inventário e nas planilhas.",
+    lt:"Salvar grava como texto editado do laudo — o mesmo da aba Revisão.",
+    cc:"Salvar grava a conclusão desta área — a mesma do botão Conclusão." };
+  function lpEdBarraHtml(){
+    const b = (cls, rot, fn)=> `<button class="btn ${cls} btn-sm" onmousedown="event.preventDefault()" onclick="${fn}">${rot}</button>`;
+    if(!__lpEd) return `<span class="lp-ed-msg"><b>Modo de edição.</b> Toque em um texto contornado para alterar. Enter salva, Esc cancela. As tabelas de HRN e PLr não se editam aqui.</span>
+      ${b("btn-primary", ic('check') + " Concluir edição", "App.lpToggleModoTexto()")}`;
+    const t = lpEdTipo(__lpEd.chave);
+    const bts = [];
+    let msg = LP_ED_DESTINO[t] || "";
+    if(t === "fx"){
+      const org = lpFxOrigem(__lpEd.chave.slice(3));
+      msg = org === "laudo" ? "Hoje: texto próprio deste laudo." : org === "todos" ? "Hoje: padrão de todos os laudos (já editado)." : "Hoje: texto original do app.";
+      bts.push(b("btn-primary", ic('check') + " Só neste laudo", "App.lpEdSalvar('laudo')"));
+      bts.push(b("btn-secondary", ic('layers') + " Em todos os laudos", "App.lpEdSalvar('todos')"));
+      if(org) bts.push(b("btn-ghost", org === "laudo" ? "Voltar ao padrão" : "Voltar ao original em todos", "App.lpEdOriginal()"));
+    }else{
+      bts.push(b("btn-primary", ic('check') + " Salvar", "App.lpEdSalvar()"));
+    }
+    bts.push(b("btn-secondary", "Cancelar", "App.lpEdCancelar()"));
+    return `<span class="lp-ed-msg"><b>${LP_ED_ROTULO[t] || "Texto"}.</b> ${msg}</span>${bts.join("")}`;
+  }
+  function lpEdBarraAtualizar(){
+    if(typeof document === "undefined") return;
+    const el = document.getElementById("lpEdBarra");
+    if(el) el.innerHTML = lpEdBarraHtml();
+  }
+  /* A conclusão só se edita direto aqui no laudo de uma área: no laudo
+     reunido ela é a junção dos textos de cada área (botão Conclusão). */
+  function lpConcEditavel(d, html){
+    if(!__lpModoTexto || (d.areas && d.areas.length > 1)) return html;
+    return `<div${lpEd("cc")}>${html}</div>`;
   }
 
   /* ---------- páginas fixas ---------- */
   function blocoCapa(d){
+    const umaArea = !(d.areas && d.areas.length > 1);
+    /* Caixa alta pelo CSS (lp-up), não no texto: assim o que se edita é o
+       cadastro como ele é, e não uma cópia em maiúsculas. */
     return { paginaInteira:true, semRodape:true, html:`
       <div class="lp-capa">
         <div class="lp-capa-lat">${marcaHtml("lp-logo")}</div>
         <div class="lp-capa-risco"></div>
         <div class="lp-capa-txt">
-          <div class="lp-capa-titulo">LAUDO DE APRECIAÇÃO DE RISCO CONFORME NR-12</div>
-          <div class="lp-capa-cliente"><span class="lp-capa-rot">CLIENTE</span><b>${esc((d.proj.empresa||"").toUpperCase())}</b></div>
-          <div class="lp-capa-area">${esc((d.area.nome||"").toUpperCase())}</div>
+          ${lpFx("div", "lp-capa-titulo", "capa.titulo", "LAUDO DE APRECIAÇÃO DE RISCO CONFORME NR-12")}
+          <div class="lp-capa-cliente"><span class="lp-capa-rot">CLIENTE</span><b class="lp-up"${lpEd("pj:empresa")}>${esc(d.proj.empresa||"")}</b></div>
+          <div class="lp-capa-area lp-up"${umaArea ? lpEd("ar:nome") : ""}>${esc(d.area.nome||"")}</div>
           <table class="lp-capa-tab">
-            <tr><td>Documento</td><td>${esc(d.proj.numDocumento)}</td></tr>
-            <tr><td>ART</td><td>${esc(d.proj.numeroART)}</td></tr>
-            <tr><td>Responsável Técnico</td><td>${esc((d.m.respNome||"").toUpperCase())}</td></tr>
-            <tr><td>Solicitante</td><td>${esc((d.proj.responsavel||"").toUpperCase())}</td></tr>
+            <tr><td>Documento</td><td${lpEd("pj:numDocumento")}>${esc(d.proj.numDocumento)}</td></tr>
+            <tr><td>ART</td><td${lpEd("pj:numeroART")}>${esc(d.proj.numeroART)}</td></tr>
+            <tr><td>Responsável Técnico</td><td class="lp-up"${lpEd("mc:respNome")}>${esc(d.m.respNome||"")}</td></tr>
+            <tr><td>Solicitante</td><td class="lp-up"${lpEd("pj:responsavel")}>${esc(d.proj.responsavel||"")}</td></tr>
           </table>
         </div>
-        <div class="lp-capa-local">${esc((d.proj.cidade||"").toUpperCase())}<br>${esc(d.hoje)}</div>
+        <div class="lp-capa-local"><span class="lp-up"${lpEd("pj:cidade")}>${esc(d.proj.cidade||"")}</span><br>${esc(d.hoje)}</div>
       </div>` };
   }
   function blocosInformacoes(d){
     const p = d.proj, m = d.m;
-    const cp = (r, v)=> `<div class="lp-campo"><i>${esc(r)}:</i><b>${esc(v)}</b></div>`;
+    const cp = (r, v, k)=> `<div class="lp-campo"><i>${esc(r)}:</i><b${k ? lpEd(k) : ""}>${esc(v)}</b></div>`;
     return [
-      { quebrarAntes:true, html:`<div class="lp-h1">Laudo de Adequação NR-12</div>
-        <div class="lp-faixa">Informações Iniciais</div>
-        <div class="lp-campos">${cp("Data da Inspeção", d.dataInsp)}${cp("Nº Documento", p.numDocumento)}${cp("Número da ART", p.numeroART)}</div>
-        <div class="lp-faixa">Dados do Solicitante</div>
-        <div class="lp-campos">${cp("Empresa", p.empresa)}${cp("Responsável", p.responsavel)}${cp("CNPJ", p.cnpjCliente)}${cp("Email", p.emailCliente)}${cp("Cidade", p.cidade)}${cp("Cargo", p.cargoResponsavel)}${cp("Telefone", p.telefoneCliente)}</div>
-        <div class="lp-campos" style="grid-template-columns:1fr">${cp("Endereço", p.enderecoCliente)}</div>
-        <div class="lp-faixa">Dados do Responsável</div>
-        <div class="lp-campos">${cp("Empresa", m.empresa)}${cp("Nome Resp.", m.respNome)}${cp("End.", m.endereco)}${cp("Função Resp.", m.respFuncao)}${cp("Cidade", m.cidade)}${cp("CREA", m.respCREA)}${cp("Contato", m.telefone)}${cp("Nome Inspetor", d.insp.nome||"")}${cp("Email", m.email)}${cp("Cargo Inspetor", d.insp.cargo||"")}</div>` },
-      { html:`<div class="lp-faixa">Normativo</div>
-        <p class="lp-par">Para este estudo foram consideradas as orientações dispostas na NR-12 — Segurança no Trabalho em Máquinas e Equipamentos, que define referências técnicas, princípios fundamentais e medidas de proteção para garantir a saúde e a integridade física dos trabalhadores, e estabelece requisitos mínimos para a prevenção de acidentes e doenças do trabalho nas fases de projeto e de utilização de máquinas e equipamentos de todos os tipos.</p>
-        <p class="lp-par">Também foram usadas:</p>
+      { quebrarAntes:true, html:`${lpFx("div", "lp-h1", "info.titulo", "Laudo de Adequação NR-12")}
+        ${lpFx("div", "lp-faixa", "info.faixa1", "Informações Iniciais")}
+        <div class="lp-campos">${cp("Data da Inspeção", d.dataInsp, "pj:dataInspecao")}${cp("Nº Documento", p.numDocumento, "pj:numDocumento")}${cp("Número da ART", p.numeroART, "pj:numeroART")}</div>
+        ${lpFx("div", "lp-faixa", "info.faixa2", "Dados do Solicitante")}
+        <div class="lp-campos">${cp("Empresa", p.empresa, "pj:empresa")}${cp("Responsável", p.responsavel, "pj:responsavel")}${cp("CNPJ", p.cnpjCliente, "pj:cnpjCliente")}${cp("Email", p.emailCliente, "pj:emailCliente")}${cp("Cidade", p.cidade, "pj:cidade")}${cp("Cargo", p.cargoResponsavel, "pj:cargoResponsavel")}${cp("Telefone", p.telefoneCliente, "pj:telefoneCliente")}</div>
+        <div class="lp-campos" style="grid-template-columns:1fr">${cp("Endereço", p.enderecoCliente, "pj:enderecoCliente")}</div>
+        ${lpFx("div", "lp-faixa", "info.faixa3", "Dados do Responsável")}
+        <div class="lp-campos">${cp("Empresa", m.empresa, "mc:empresa")}${cp("Nome Resp.", m.respNome, "mc:respNome")}${cp("End.", m.endereco, "mc:endereco")}${cp("Função Resp.", m.respFuncao, "mc:respFuncao")}${cp("Cidade", m.cidade, "mc:cidade")}${cp("CREA", m.respCREA, "mc:respCREA")}${cp("Contato", m.telefone, "mc:telefone")}${cp("Nome Inspetor", d.insp.nome||"")}${cp("Email", m.email, "mc:email")}${cp("Cargo Inspetor", d.insp.cargo||"")}</div>` },
+      { html:`${lpFx("div", "lp-faixa", "norm.faixa", "Normativo")}
+        ${lpFx("p", "lp-par", "norm.p1", `Para este estudo foram consideradas as orientações dispostas na NR-12 — Segurança no Trabalho em Máquinas e Equipamentos, que define referências técnicas, princípios fundamentais e medidas de proteção para garantir a saúde e a integridade física dos trabalhadores, e estabelece requisitos mínimos para a prevenção de acidentes e doenças do trabalho nas fases de projeto e de utilização de máquinas e equipamentos de todos os tipos.`)}
+        ${lpFx("p", "lp-par", "norm.p2", `Também foram usadas:`)}
         <ul class="lp-lista">
-          <li>ABNT NBR 14118:2022 — Segurança de máquinas — Prevenção de partida inesperada;</li>
-          ${__lpSemPLr ? "" : `<li>ABNT NBR 14153:2022 — Segurança de máquinas — Partes de sistemas de comando relacionadas à segurança — Classificação por categorias de segurança;</li>`}
-          <li>ABNT NBR ISO 13850:2021 — Segurança de máquinas — Função de parada de emergência — Princípios para projeto;</li>
-          <li>ABNT NBR ISO 13857:2021 — Segurança de máquinas — Distâncias de segurança para impedir o acesso a zonas de perigo pelos membros superiores e inferiores;</li>
-          <li>ABNT NBR ISO 14119:2021 — Segurança de máquinas — Dispositivos de intertravamento associados às proteções — Princípios de projeto e seleção;</li>
-          <li>ABNT NBR NM 272:2002 — Segurança de máquinas — Proteções — Requisitos gerais para o projeto e construção de proteções fixas e móveis;</li>
-          <li>ABNT NBR NM ISO 13854:2003 — Segurança de máquinas — Folgas mínimas para evitar o esmagamento de partes do corpo humano;</li>
-          <li>ABNT NBR ISO 12100:2013 — Segurança de máquinas — Princípios gerais de projeto — Apreciação e redução de riscos.</li>
+          ${lpFx("li", "", "norm.li1", `ABNT NBR 14118:2022 — Segurança de máquinas — Prevenção de partida inesperada;`)}
+          ${__lpSemPLr ? "" : `${lpFx("li", "", "norm.li2", `ABNT NBR 14153:2022 — Segurança de máquinas — Partes de sistemas de comando relacionadas à segurança — Classificação por categorias de segurança;`)}`}
+          ${lpFx("li", "", "norm.li3", `ABNT NBR ISO 13850:2021 — Segurança de máquinas — Função de parada de emergência — Princípios para projeto;`)}
+          ${lpFx("li", "", "norm.li4", `ABNT NBR ISO 13857:2021 — Segurança de máquinas — Distâncias de segurança para impedir o acesso a zonas de perigo pelos membros superiores e inferiores;`)}
+          ${lpFx("li", "", "norm.li5", `ABNT NBR ISO 14119:2021 — Segurança de máquinas — Dispositivos de intertravamento associados às proteções — Princípios de projeto e seleção;`)}
+          ${lpFx("li", "", "norm.li6", `ABNT NBR NM 272:2002 — Segurança de máquinas — Proteções — Requisitos gerais para o projeto e construção de proteções fixas e móveis;`)}
+          ${lpFx("li", "", "norm.li7", `ABNT NBR NM ISO 13854:2003 — Segurança de máquinas — Folgas mínimas para evitar o esmagamento de partes do corpo humano;`)}
+          ${lpFx("li", "", "norm.li8", `ABNT NBR ISO 12100:2013 — Segurança de máquinas — Princípios gerais de projeto — Apreciação e redução de riscos.`)}
         </ul>` },
     ];
   }
@@ -37867,30 +38111,30 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
   function blocosMetodologia(){
     const t = (h)=> ({ html:h });
     return [
-      { quebrarAntes:true, html:`<div class="lp-sub">Considerações Gerais</div>
-        <p class="lp-par">A apreciação de riscos foi conduzida em conformidade com os princípios estabelecidos pela ABNT NBR ISO 12100:2013, compreendendo as etapas de determinação dos limites da máquina, identificação dos perigos, estimativa dos riscos, avaliação dos riscos e, quando necessária, definição das medidas para redução dos riscos.</p>
-        <p class="lp-par">Inicialmente foram determinados os limites da máquina, estabelecendo as condições para as quais a apreciação de riscos foi considerada válida. Em seguida, foram identificados sistematicamente os perigos, as situações perigosas e os eventos perigosos associados à máquina, considerando todas as fases do seu ciclo de vida. Posteriormente, foi realizada a estimativa dos riscos por meio da metodologia HRN (Hazard Rating Number), permitindo a classificação e priorização dos riscos identificados para definição das ações necessárias à sua redução.</p>
-        <p class="lp-par">Após a implementação das medidas de redução de riscos, deverá ser realizada uma nova estimativa para determinação do risco residual, verificando-se se os objetivos de redução de riscos foram atingidos, conforme estabelecido pela ABNT NBR ISO 12100:2013.</p>
-        <p class="lp-par">Sempre que necessária a redução dos riscos, as medidas propostas obedeceram à hierarquia prevista na ABNT NBR ISO 12100:2013, priorizando-se, nesta ordem, as medidas inerentemente seguras de projeto, as medidas de proteção por meio de proteções físicas e dispositivos de segurança e, por fim, as informações para uso, incluindo procedimentos, treinamentos, advertências e sinalizações.</p>` },
-      t(`<div class="lp-sub">Determinação dos Limites da Máquina</div>
-        <p class="lp-par">Conforme a ABNT ISO/TR 14121-2:2018, a determinação dos limites da máquina teve como objetivo estabelecer claramente as características físicas, funcionais e operacionais da máquina, bem como as condições previstas de utilização, manutenção e interação humana, servindo como base para a identificação dos perigos e para a estimativa dos riscos.</p>
-        <p class="lp-par"><b>Limites de uso:</b> compreenderam o uso previsto da máquina, bem como as formas de mau uso razoavelmente previsíveis, considerando o nível de treinamento, experiência e qualificação dos operadores, mantenedores e demais pessoas expostas.</p>
-        <p class="lp-par"><b>Limites de espaço:</b> compreenderam as dimensões da máquina, as áreas destinadas à operação, manutenção, limpeza, abastecimento, circulação de pessoas e demais espaços necessários para sua utilização segura.</p>
-        <p class="lp-par"><b>Limites de tempo:</b> compreenderam a vida útil prevista da máquina e de seus componentes, os ciclos de operação, os períodos de utilização, manutenção, inspeção e demais condições temporais capazes de influenciar a segurança da máquina.</p>
-        <p class="lp-par"><b>Outros limites:</b> compreenderam as condições ambientais de operação, as fontes de energia utilizadas, as interfaces com outros equipamentos, as restrições de instalação, as características do processo produtivo e quaisquer outras condições capazes de influenciar a exposição aos perigos ou a eficácia das medidas de proteção.</p>`),
-      { html:`<div class="lp-sub">Identificação dos Perigos</div>
-        <p class="lp-par">A identificação dos perigos foi realizada conforme os requisitos da ABNT NBR ISO 12100:2013, considerando sistematicamente todos os perigos, situações perigosas e eventos perigosos razoavelmente previsíveis durante todo o ciclo de vida da máquina.</p>
-        <p class="lp-par">Foram avaliadas, quando aplicáveis, as fases de transporte, movimentação, montagem, instalação, comissionamento, operação, setup, ajustes, programação, alimentação, retirada de produtos, limpeza, manutenção preventiva, manutenção corretiva, desobstrução, parada normal, parada de emergência, reinício após falhas, desmontagem, desativação e descarte.</p>
-        <p class="lp-par">Durante a identificação dos perigos foram consideradas todas as interações entre as pessoas e a máquina em cada fase do seu ciclo de vida, abrangendo operadores, mecânicos, eletricistas, técnicos de manutenção, equipe de limpeza, terceiros e demais pessoas que pudessem estar expostas aos perigos decorrentes da utilização ou intervenção na máquina.</p>
-        <p class="lp-par">Também foram considerados os comportamentos não intencionais dos operadores e as formas de mau uso razoavelmente previsíveis da máquina, incluindo intervenções durante seu funcionamento, neutralização de dispositivos de proteção, remoção de proteções, reações instintivas diante de falhas operacionais e demais situações previsíveis capazes de aumentar a exposição aos perigos.</p>
-        <p class="lp-par">Como referência para a identificação sistemática dos perigos foi utilizada a lista de verificação constante no Anexo B da ABNT NBR ISO 12100:2013, complementada pelas características específicas da máquina avaliada e, quando aplicáveis, pelas normas técnicas específicas correspondentes ao equipamento.</p>
-        <p class="lp-par">Todos os perigos identificados foram registrados na matriz de apreciação de riscos, independentemente de sua aplicabilidade ou significância, garantindo a rastreabilidade da análise e a completa documentação do processo de apreciação de riscos.</p>` },
-      { html:`<div class="lp-sub">Avaliação pelo Método HRN (Hazard Rating Number)</div>
-        <p class="lp-par">Após a determinação dos limites da máquina e a identificação dos perigos, foi realizada a estimativa dos riscos por meio da metodologia Hazard Rating Number (HRN), em conformidade com os princípios estabelecidos pela ABNT NBR ISO 12100:2013 e considerando os requisitos da NR-12.</p>
-        <p class="lp-par">Para cada máquina foram registrados seus dados de identificação e as informações complementares necessárias à apreciação de riscos. Em seguida, foram avaliados todos os perigos identificados durante a etapa de identificação de perigos. Quando determinado perigo não se mostrou aplicável à máquina avaliada, este foi registrado como "Não Aplicável (N/A)", sendo classificado como risco insignificante para fins da apreciação de riscos.</p>
-        <p class="lp-par">A estimativa do risco foi realizada mediante a atribuição dos valores correspondentes à Probabilidade de Ocorrência (PO), Frequência de Exposição (FE), Grau do Possível Dano (GPD) e Número de Pessoas Expostas (NP), conforme os critérios estabelecidos pela metodologia HRN.</p>
-        <p class="lp-par">O índice HRN obtido permitiu classificar e priorizar os riscos identificados, subsidiando a definição das medidas de redução de riscos necessárias.</p>
-        <p class="lp-par">Após a implementação das medidas propostas, foi realizada uma nova estimativa dos riscos para determinação do risco residual. Quando o risco residual permaneceu acima do nível considerado aceitável, foram propostas medidas adicionais de redução de riscos, seguidas de nova avaliação até a obtenção do resultado pretendido.</p>
+      { quebrarAntes:true, html:`${lpFx("div", "lp-sub", "met.sub1", `Considerações Gerais`)}
+        ${lpFx("p", "lp-par", "met.p1", `A apreciação de riscos foi conduzida em conformidade com os princípios estabelecidos pela ABNT NBR ISO 12100:2013, compreendendo as etapas de determinação dos limites da máquina, identificação dos perigos, estimativa dos riscos, avaliação dos riscos e, quando necessária, definição das medidas para redução dos riscos.`)}
+        ${lpFx("p", "lp-par", "met.p2", `Inicialmente foram determinados os limites da máquina, estabelecendo as condições para as quais a apreciação de riscos foi considerada válida. Em seguida, foram identificados sistematicamente os perigos, as situações perigosas e os eventos perigosos associados à máquina, considerando todas as fases do seu ciclo de vida. Posteriormente, foi realizada a estimativa dos riscos por meio da metodologia HRN (Hazard Rating Number), permitindo a classificação e priorização dos riscos identificados para definição das ações necessárias à sua redução.`)}
+        ${lpFx("p", "lp-par", "met.p3", `Após a implementação das medidas de redução de riscos, deverá ser realizada uma nova estimativa para determinação do risco residual, verificando-se se os objetivos de redução de riscos foram atingidos, conforme estabelecido pela ABNT NBR ISO 12100:2013.`)}
+        ${lpFx("p", "lp-par", "met.p4", `Sempre que necessária a redução dos riscos, as medidas propostas obedeceram à hierarquia prevista na ABNT NBR ISO 12100:2013, priorizando-se, nesta ordem, as medidas inerentemente seguras de projeto, as medidas de proteção por meio de proteções físicas e dispositivos de segurança e, por fim, as informações para uso, incluindo procedimentos, treinamentos, advertências e sinalizações.`)}` },
+      t(`${lpFx("div", "lp-sub", "met.sub2", `Determinação dos Limites da Máquina`)}
+        ${lpFx("p", "lp-par", "met.p5", `Conforme a ABNT ISO/TR 14121-2:2018, a determinação dos limites da máquina teve como objetivo estabelecer claramente as características físicas, funcionais e operacionais da máquina, bem como as condições previstas de utilização, manutenção e interação humana, servindo como base para a identificação dos perigos e para a estimativa dos riscos.`)}
+        ${lpFx("p", "lp-par", "met.p6", `<b>Limites de uso:</b> compreenderam o uso previsto da máquina, bem como as formas de mau uso razoavelmente previsíveis, considerando o nível de treinamento, experiência e qualificação dos operadores, mantenedores e demais pessoas expostas.`)}
+        ${lpFx("p", "lp-par", "met.p7", `<b>Limites de espaço:</b> compreenderam as dimensões da máquina, as áreas destinadas à operação, manutenção, limpeza, abastecimento, circulação de pessoas e demais espaços necessários para sua utilização segura.`)}
+        ${lpFx("p", "lp-par", "met.p8", `<b>Limites de tempo:</b> compreenderam a vida útil prevista da máquina e de seus componentes, os ciclos de operação, os períodos de utilização, manutenção, inspeção e demais condições temporais capazes de influenciar a segurança da máquina.`)}
+        ${lpFx("p", "lp-par", "met.p9", `<b>Outros limites:</b> compreenderam as condições ambientais de operação, as fontes de energia utilizadas, as interfaces com outros equipamentos, as restrições de instalação, as características do processo produtivo e quaisquer outras condições capazes de influenciar a exposição aos perigos ou a eficácia das medidas de proteção.`)}`),
+      { html:`${lpFx("div", "lp-sub", "met.sub3", `Identificação dos Perigos`)}
+        ${lpFx("p", "lp-par", "met.p10", `A identificação dos perigos foi realizada conforme os requisitos da ABNT NBR ISO 12100:2013, considerando sistematicamente todos os perigos, situações perigosas e eventos perigosos razoavelmente previsíveis durante todo o ciclo de vida da máquina.`)}
+        ${lpFx("p", "lp-par", "met.p11", `Foram avaliadas, quando aplicáveis, as fases de transporte, movimentação, montagem, instalação, comissionamento, operação, setup, ajustes, programação, alimentação, retirada de produtos, limpeza, manutenção preventiva, manutenção corretiva, desobstrução, parada normal, parada de emergência, reinício após falhas, desmontagem, desativação e descarte.`)}
+        ${lpFx("p", "lp-par", "met.p12", `Durante a identificação dos perigos foram consideradas todas as interações entre as pessoas e a máquina em cada fase do seu ciclo de vida, abrangendo operadores, mecânicos, eletricistas, técnicos de manutenção, equipe de limpeza, terceiros e demais pessoas que pudessem estar expostas aos perigos decorrentes da utilização ou intervenção na máquina.`)}
+        ${lpFx("p", "lp-par", "met.p13", `Também foram considerados os comportamentos não intencionais dos operadores e as formas de mau uso razoavelmente previsíveis da máquina, incluindo intervenções durante seu funcionamento, neutralização de dispositivos de proteção, remoção de proteções, reações instintivas diante de falhas operacionais e demais situações previsíveis capazes de aumentar a exposição aos perigos.`)}
+        ${lpFx("p", "lp-par", "met.p14", `Como referência para a identificação sistemática dos perigos foi utilizada a lista de verificação constante no Anexo B da ABNT NBR ISO 12100:2013, complementada pelas características específicas da máquina avaliada e, quando aplicáveis, pelas normas técnicas específicas correspondentes ao equipamento.`)}
+        ${lpFx("p", "lp-par", "met.p15", `Todos os perigos identificados foram registrados na matriz de apreciação de riscos, independentemente de sua aplicabilidade ou significância, garantindo a rastreabilidade da análise e a completa documentação do processo de apreciação de riscos.`)}` },
+      { html:`${lpFx("div", "lp-sub", "met.sub4", `Avaliação pelo Método HRN (Hazard Rating Number)`)}
+        ${lpFx("p", "lp-par", "met.p16", `Após a determinação dos limites da máquina e a identificação dos perigos, foi realizada a estimativa dos riscos por meio da metodologia Hazard Rating Number (HRN), em conformidade com os princípios estabelecidos pela ABNT NBR ISO 12100:2013 e considerando os requisitos da NR-12.`)}
+        ${lpFx("p", "lp-par", "met.p17", `Para cada máquina foram registrados seus dados de identificação e as informações complementares necessárias à apreciação de riscos. Em seguida, foram avaliados todos os perigos identificados durante a etapa de identificação de perigos. Quando determinado perigo não se mostrou aplicável à máquina avaliada, este foi registrado como "Não Aplicável (N/A)", sendo classificado como risco insignificante para fins da apreciação de riscos.`)}
+        ${lpFx("p", "lp-par", "met.p18", `A estimativa do risco foi realizada mediante a atribuição dos valores correspondentes à Probabilidade de Ocorrência (PO), Frequência de Exposição (FE), Grau do Possível Dano (GPD) e Número de Pessoas Expostas (NP), conforme os critérios estabelecidos pela metodologia HRN.`)}
+        ${lpFx("p", "lp-par", "met.p19", `O índice HRN obtido permitiu classificar e priorizar os riscos identificados, subsidiando a definição das medidas de redução de riscos necessárias.`)}
+        ${lpFx("p", "lp-par", "met.p20", `Após a implementação das medidas propostas, foi realizada uma nova estimativa dos riscos para determinação do risco residual. Quando o risco residual permaneceu acima do nível considerado aceitável, foram propostas medidas adicionais de redução de riscos, seguidas de nova avaliação até a obtenção do resultado pretendido.`)}
         <!-- Montada a partir de HRN_FAIXAS: a régua muda num lugar só e as duas
              tabelas do laudo, o quadro de cada risco e a fórmula do Excel
              acompanham juntos. Escrita à mão, esta tabela seria o lugar mais
@@ -37902,7 +38146,7 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
       { html:(function(){
           const tb = (tit, linhas, cor)=> `<table class="lp-tab"><tr><th colspan="2" style="background:${cor}">${tit}</th></tr>${
             linhas.map(l=>`<tr><td class="c" style="width:52px">${esc(l.valor)}</td><td>${esc(l.classificacao)}</td></tr>`).join("")}</table>`;
-          return `<div class="lp-sub">Critérios da metodologia HRN</div>
+          return `${lpFx("div", "lp-sub", "met.sub5", `Critérios da metodologia HRN`)}
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">
               <div>${tb("PO (Probabilidade de Ocorrência)", HRN_PO_TABELA, "#CFEFF2")}${tb("FE (Frequência de Exposição)", HRN_FE_TABELA, "#CDE6C0")}</div>
               <div>${tb("GPD (Grau de Possíveis Danos)", HRN_GPD_TABELA, "#F5B183")}${tb("NP (Número de Pessoas)", HRN_NP_TABELA, "#E8C4DC")}</div>
@@ -37910,13 +38154,13 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
             <table class="lp-tab" style="width:62%"><tr><th colspan="2" style="background:#FFF200">HRN — Classificação do risco</th></tr>
               ${[...HRN_FAIXAS].reverse().map(f=>`<tr><td class="c" style="width:96px">${esc(f.faixa)}</td><td style="background:${f.cor};color:${f.texto}">${esc(f.rot)}</td></tr>`).join("")}</table>`;
         })() },
-      { html:`<div class="lp-sub">O processo de apreciação de riscos</div>
+      { html:`${lpFx("div", "lp-sub", "met.sub6", `O processo de apreciação de riscos`)}
         <ul class="lp-lista lp-lista-solta">
-          <li>A norma ABNT NBR ISO 12100:2013 foi publicada em 17 de dezembro de 2013 e trata da segurança de máquinas — princípios gerais de projeto — apreciação e redução de riscos.</li>
-          <li>A apreciação de riscos é um processo sistemático que envolve diversas etapas para analisar e avaliar os riscos associados às máquinas.</li>
-          <li>O item 12.1.9 da NR-12 estabelece que a apreciação de riscos deve ser considerada, entre outros critérios, na aplicação da norma regulamentadora e seus anexos.</li>
-          <li>O item 12.1.1 da NR-12 dispõe que as normas técnicas oficiais devem ser seguidas de forma subsidiária ao seu texto.</li>
-          <li>O processo de apreciação de riscos a ser adotado pelas empresas deve observar o disposto na ABNT NBR ISO 12100:2013, conforme as etapas a seguir.</li>
+          ${lpFx("li", "", "met.li1", `A norma ABNT NBR ISO 12100:2013 foi publicada em 17 de dezembro de 2013 e trata da segurança de máquinas — princípios gerais de projeto — apreciação e redução de riscos.`)}
+          ${lpFx("li", "", "met.li2", `A apreciação de riscos é um processo sistemático que envolve diversas etapas para analisar e avaliar os riscos associados às máquinas.`)}
+          ${lpFx("li", "", "met.li3", `O item 12.1.9 da NR-12 estabelece que a apreciação de riscos deve ser considerada, entre outros critérios, na aplicação da norma regulamentadora e seus anexos.`)}
+          ${lpFx("li", "", "met.li4", `O item 12.1.1 da NR-12 dispõe que as normas técnicas oficiais devem ser seguidas de forma subsidiária ao seu texto.`)}
+          ${lpFx("li", "", "met.li5", `O processo de apreciação de riscos a ser adotado pelas empresas deve observar o disposto na ABNT NBR ISO 12100:2013, conforme as etapas a seguir.`)}
         </ul>` },
       /* A FIGURA DO PROCESSO é enviada pelo engenheiro, não vem embutida no
          arquivo. O app é publicado num repositório PÚBLICO, e a figura é
@@ -37925,14 +38169,14 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
          aparelho e sincroniza. */
       { quebrarAntes:true, html:(function(){
           const fig = figuraProcesso();
-          if(!fig) return `<div class="lp-sub">Representação esquemática do processo</div>
+          if(!fig) return `${lpFx("div", "lp-sub", "met.sub7", `Representação esquemática do processo`)}
             <div class="lp-fig-vazia">A figura do processo de apreciação de riscos ainda não foi enviada.<br>
               Envie uma vez em <b>Laudo → Imprimir → Figura</b> e ela passa a sair em todos os laudos.</div>`;
           /* SEM legenda em HTML aqui: a figura ja traz a dela desenhada
              dentro da imagem. Acrescentar outra repetia a mesma frase duas
              vezes na pagina. Figura trocada pelo usuario deve vir com a
              propria legenda — o modal avisa isso. */
-          return `<div class="lp-sub">Representação esquemática do processo</div>
+          return `${lpFx("div", "lp-sub", "met.sub7", `Representação esquemática do processo`)}
             <div class="lp-fig"><img src="${fig}" alt="Figura 1: representação esquemática do processo de apreciação de riscos, conforme ABNT NBR ISO 12100:2013"></div>`;
         })() },
     ];
@@ -37969,7 +38213,7 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
     const cab = `<tr><th>Imagem</th><th>Nº</th><th>Nome</th><th>Descrição</th>
       <th>Área</th><th>Local</th><th>Modelo</th><th>Marca</th>
       <th>Nº Série</th><th>Ano</th><th>Capac.</th><th>Tensão</th></tr>`;
-    const blocos = [{ quebrarAntes:true, paisagem:true, html:`<div class="lp-faixa-c">INVENTÁRIO DE MÁQUINAS</div>
+    const blocos = [{ quebrarAntes:true, paisagem:true, html:`${lpFx("div", "lp-faixa-c", "inv.faixa", "INVENTÁRIO DE MÁQUINAS")}
       <table class="lp-inv">${invColgroup}${cab}</table>` }];
     for(let i=0;i<maqs.length;i++){
       const it = maqs[i], m = it.maquina;
@@ -37978,10 +38222,10 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
         <td class="foto">${foto? `<img src="${foto}">` : ""}<label class="lp-oculta-toggle lp-oculta-toggle-inv" title="Não incluir este equipamento (e os riscos dele) no laudo, nem no inventário">
           <input type="checkbox" ${m.ocultoLaudo?'':'checked'} onchange="App.lpToggleMaquina('${m.id}')">
         </label></td>
-        <td>${i+1}</td><td class="nome">${esc(nomeMaquinaS(m))}</td><td>${esc(tipoEquipamento(m))}</td>
-        <td>${esc(it.area.nome||"")}</td><td>${esc(m.local||it.area.local||"")}</td>
-        <td>${esc(m.modelo||"")}</td><td>${esc(m.marca||"")}</td><td>${esc(m.numeroSerie||"")}</td>
-        <td>${esc(m.anoFabricacao||"")}</td><td>${esc(m.capacidade||"")}</td><td>${esc(m.tensao||"")}</td>
+        <td>${i+1}</td><td class="nome"${lpEd("mq:" + m.id + ":nome")}>${esc(nomeMaquinaS(m))}</td><td>${esc(tipoEquipamento(m))}</td>
+        <td>${esc(it.area.nome||"")}</td><td${lpEd("mq:" + m.id + ":local")}>${esc(m.local||it.area.local||"")}</td>
+        <td${lpEd("mq:" + m.id + ":modelo")}>${esc(m.modelo||"")}</td><td${lpEd("mq:" + m.id + ":marca")}>${esc(m.marca||"")}</td><td${lpEd("mq:" + m.id + ":numeroSerie")}>${esc(m.numeroSerie||"")}</td>
+        <td${lpEd("mq:" + m.id + ":anoFabricacao")}>${esc(m.anoFabricacao||"")}</td><td${lpEd("mq:" + m.id + ":capacidade")}>${esc(m.capacidade||"")}</td><td${lpEd("mq:" + m.id + ":tensao")}>${esc(m.tensao||"")}</td>
       </tr></table>` });
     }
     return blocos;
@@ -37989,13 +38233,13 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
   function blocoContraCapa(){
     return { paginaInteira:true, html:`<div class="lp-contra">
       ${marcaHtml("lp-logo")}
-      <h2>APRECIAÇÃO DE RISCOS POR EQUIPAMENTO</h2>
+      ${lpFx("h2", "", "contra.titulo", "APRECIAÇÃO DE RISCOS POR EQUIPAMENTO")}
       <ul>
-        <li>MAPEAMENTO DO RISCO</li><li>DIAGNÓSTICO DO RISCO</li>
-        <li>CLASSIFICAÇÃO DO RISCO PELO MÉTODO HRN (HAZARD RATING NUMBER)</li>
-        <li>AÇÕES PARA MITIGAÇÃO OU ELIMINAÇÃO DO RISCO</li>
-        <li>EVIDÊNCIAS DE RISCOS JÁ SOLUCIONADOS</li>
-        <li>PREVISÃO PARA ADEQUAÇÃO DOS RISCOS NÃO ADEQUADOS</li>
+        ${lpFx("li", "", "contra.li1", `MAPEAMENTO DO RISCO`)}${lpFx("li", "", "contra.li2", `DIAGNÓSTICO DO RISCO`)}
+        ${lpFx("li", "", "contra.li3", `CLASSIFICAÇÃO DO RISCO PELO MÉTODO HRN (HAZARD RATING NUMBER)`)}
+        ${lpFx("li", "", "contra.li4", `AÇÕES PARA MITIGAÇÃO OU ELIMINAÇÃO DO RISCO`)}
+        ${lpFx("li", "", "contra.li5", `EVIDÊNCIAS DE RISCOS JÁ SOLUCIONADOS`)}
+        ${lpFx("li", "", "contra.li6", `PREVISÃO PARA ADEQUAÇÃO DOS RISCOS NÃO ADEQUADOS`)}
       </ul></div>` };
   }
   /* O bloco do RISCO RESIDUAL PREVISTO de um risco. Devolve vazio quando não há
@@ -38131,7 +38375,8 @@ function lpMaiorPLrDoEquipamento(itens){
     for(const g of porMaquina.values()){
       const m = g.maquina;
       const foto = await reduzirFoto(m.fotoGeral || m.fotoPlaqueta, 420);
-      const cel = (r, v)=> `<span>${esc(r)}:</span><em>${esc(v||"")}</em>`;
+      const cel = (r, v, k)=> `<span>${esc(r)}:</span><em${k ? lpEd(k) : ""}>${esc(v||"")}</em>`;
+      const mk = (c)=> "mq:" + m.id + ":" + c;
       const primeiro = g.tarefas.values().next().value.itens[0];
       const escopo = laudoTextoFinal(primeiro, "escopo") || m.descricao || "";
       const todosDaMaquina = [];
@@ -38142,7 +38387,7 @@ function lpMaiorPLrDoEquipamento(itens){
         ? "Nota: referência. Corresponde ao maior PLr entre as funções de segurança identificadas neste equipamento. O PLr é determinado individualmente para cada função de segurança, conforme o risco associado — não é atribuído de forma global ao equipamento."
         : "Nota: nenhum risco deste equipamento resultou em função de segurança a classificar por PLr. O PLr é determinado individualmente para cada função de segurança, nunca de forma global ao equipamento.";
       blocos.push({ quebrarAntes:true, html:`
-        <div class="lp-faixa-c">Análise de Risco pelo método HRN com Mapeamento e Diagnóstico</div>
+        ${lpFx("div", "lp-faixa-c", "eq.faixa", "Análise de Risco pelo método HRN com Mapeamento e Diagnóstico")}
         <div class="lp-apr${m.ocultoLaudo?' lp-oculto':''}">
           <label class="lp-oculta-toggle" title="Não incluir este equipamento (e os riscos dele) no laudo, nem no inventário">
             <input type="checkbox" ${m.ocultoLaudo?'':'checked'} onchange="App.lpToggleMaquina('${m.id}')"><span>Incluir equipamento</span>
@@ -38150,10 +38395,10 @@ function lpMaiorPLrDoEquipamento(itens){
           <div class="lp-apr-cab">
             <div class="f">${foto? `<img src="${foto}">` : ""}</div>
             <div class="d">
-              ${cel("Equipamento", nomeMaquinaS(m))}${cel("Marca", m.marca)}
-              ${cel("Modelo", m.modelo)}${cel("Ano Fabricação", m.anoFabricacao)}
-              ${cel("Nº Série", m.numeroSerie)}${cel("Localização", g.area.nome)}
-              ${cel("Capacidade", m.capacidade)}${cel("Tensão", m.tensao)}
+              ${cel("Equipamento", nomeMaquinaS(m), mk("nome"))}${cel("Marca", m.marca, mk("marca"))}
+              ${cel("Modelo", m.modelo, mk("modelo"))}${cel("Ano Fabricação", m.anoFabricacao, mk("anoFabricacao"))}
+              ${cel("Nº Série", m.numeroSerie, mk("numeroSerie"))}${cel("Localização", g.area.nome)}
+              ${cel("Capacidade", m.capacidade, mk("capacidade"))}${cel("Tensão", m.tensao, mk("tensao"))}
             </div>
           </div>
           ${__lpSemPLr ? "" : `<div class="lp-apr-plr">
@@ -38161,14 +38406,14 @@ function lpMaiorPLrDoEquipamento(itens){
             <div class="n">${esc(notaPlr)}</div>
           </div>`}
         </div>
-        <div class="lp-faixa-c" style="margin-top:6px">ESCOPO</div>
-        <div class="lp-apr-txt" style="border:1px solid #8A8CA3;border-top:none">${esc(escopo)}</div>` });
+        <div class="lp-faixa-c" style="margin-top:6px"${lpEd("fx:eq.escopo")}>${lpTxtFixo("eq.escopo", "ESCOPO")}</div>
+        <div class="lp-apr-txt" style="border:1px solid #8A8CA3;border-top:none"${lpEd("lt:" + primeiro.risco.id + ":escopo")}>${esc(escopo)}</div>` });
 
       for(const t of g.tarefas.values()){
         const nomeT = (valOuOutro(t.tarefa.tarefa, t.tarefa.tarefaOutro) || "TAREFA").toUpperCase();
         const descT = laudoTextoFinal(t.itens[0], "tarefa") || t.tarefa.descricao || "";
         blocos.push({ html:`<div class="lp-faixa-c" style="margin-top:8px">${esc(nomeT)}</div>
-          <div class="lp-apr-txt" style="border:1px solid #8A8CA3;border-top:none">${esc(descT)}</div>
+          <div class="lp-apr-txt" style="border:1px solid #8A8CA3;border-top:none"${lpEd("lt:" + t.itens[0].risco.id + ":tarefa")}>${esc(descT)}</div>
           <div class="lp-faixa-r" style="margin-top:6px">RISCOS REFERENTES À TAREFA ${esc(nomeT)}</div>
 `, grudaNoProximo:true });
 
@@ -38195,7 +38440,7 @@ function lpMaiorPLrDoEquipamento(itens){
           blocos.push({ html:`<div class="lp-rc${r.ocultoLaudo?' lp-oculto':''}">
             <div class="lp-rc-cab">
               <span class="lp-rc-num">${i+1}</span>
-              <span class="lp-rc-nome">${esc(nomeRisco)}</span>
+              <span class="lp-rc-nome"${lpEd("lt:" + r.id + ":nome")}>${esc(nomeRisco)}</span>
               ${evsOk.length? `<span class="lp-rc-evrot">Evidência do risco</span>`:""}
               <label class="lp-oculta-toggle" title="Não incluir este risco no laudo">
                 <input type="checkbox" ${r.ocultoLaudo?'':'checked'} onchange="App.lpToggleRisco('${r.id}')"><span>Incluir</span>
@@ -38204,17 +38449,17 @@ function lpMaiorPLrDoEquipamento(itens){
             <div class="lp-rc-corpo">
               <div class="lp-rc-col">
                 <div class="lp-rc-bloco">
-                  <div class="lp-rc-rot">Descrição do risco</div>
-                  ${esc(laudoTextoFinal(it, "risco") || r.descricao || "")}
+                  ${lpFx("div", "lp-rc-rot", "rc.descricao", "Descrição do risco")}
+                  <div${lpEd("lt:" + r.id + ":risco")}>${esc(laudoTextoFinal(it, "risco") || r.descricao || "")}</div>
                 </div>
                 ${existente? `<div class="lp-rc-bloco">
                   <!-- Só o título, sem Atende / Não atende: decisão do engenheiro (21/10/2026). -->
-                  <div class="lp-rc-rot">Mitigação existente</div>
-                  ${esc(existente)}
+                  ${lpFx("div", "lp-rc-rot", "rc.existente", "Mitigação existente")}
+                  <div${lpEd("lt:" + r.id + ":existente")}>${esc(existente)}</div>
                 </div>`:""}
                 <div class="lp-rc-bloco">
-                  <div class="lp-rc-rot">Solução</div>
-                  ${esc(laudoTextoFinal(it, "solucao") || "")}
+                  ${lpFx("div", "lp-rc-rot", "rc.solucao", "Solução")}
+                  <div${lpEd("lt:" + r.id + ":solucao")}>${esc(laudoTextoFinal(it, "solucao") || "")}</div>
                 </div>
               </div>
               ${evsOk.length? `<div class="lp-rc-col ev">
@@ -38375,8 +38620,8 @@ function lpMaiorPLrDoEquipamento(itens){
       </div>`;
     if(soFecho) return { html: fecho };
     return { paginaInteira:true, html:`
-      <div class="lp-faixa">CONCLUSÃO</div>
-      <div class="lp-conc">${conclusaoDaArea(d.area)}</div>` + fecho };
+      ${lpFx("div", "lp-faixa", "conc.faixa", "CONCLUSÃO")}
+      <div class="lp-conc">${lpConcEditavel(d, conclusaoDaArea(d.area))}</div>` + fecho };
   }
   /* CONCLUSAO COM TABELA DE RISCOS. Frase curta (ou o texto da conclusao, se
      ligado) + tabela do mais perigoso para o mais brando + data + assinaturas.
@@ -38388,9 +38633,9 @@ function lpMaiorPLrDoEquipamento(itens){
     if(!lista.length) return [blocoConclusao(d)];
     const col = `<colgroup><col style="width:20%"><col style="width:17%"><col style="width:53%"><col style="width:10%"></colgroup>`;
     const cab = `<table class="lp-rt">${col}<tr><th>Máquina</th><th>Foto do Risco</th><th>Descrição do Risco</th><th>Nível do Risco</th></tr></table>`;
-    const texto = conclusaoLigada(d.area) ? conclusaoDaArea(d.area) : LAUDO_CONCLUSAO_BREVE;
+    const texto = lpConcEditavel(d, conclusaoLigada(d.area) ? conclusaoDaArea(d.area) : LAUDO_CONCLUSAO_BREVE);
     const blocos = [{ quebrarAntes:true, grudaNoProximo:true, html:`
-      <div class="lp-faixa">CONCLUSÃO</div>
+      ${lpFx("div", "lp-faixa", "conc.faixa", "CONCLUSÃO")}
       <div class="lp-conc">${texto}</div><div class="lp-esp-concl"></div>${cab}` }];
     for(let i=0;i<lista.length;i++){
       const it = lista[i], r = it.risco;
@@ -38400,9 +38645,9 @@ function lpMaiorPLrDoEquipamento(itens){
       const nomeRisco = laudoTextoFinal(it, "nome") || "Risco";
       const desc = laudoTextoFinal(it, "risco") || r.descricao || "";
       blocos.push({ cabRepete: cab, cabPrimeiro: i === 0, html:`<table class="lp-rt">${col}<tr>
-        <td class="mq">${esc(nomeMaquinaS(it.maquina))}</td>
+        <td class="mq"${lpEd("mq:" + it.maquina.id + ":nome")}>${esc(nomeMaquinaS(it.maquina))}</td>
         <td class="ft">${foto? `<img src="${foto}">` : `<span class="sf">Sem foto</span>`}</td>
-        <td class="ds"><b>${esc(nomeRisco)}</b><br>${esc(desc)}</td>
+        <td class="ds"><b${lpEd("lt:" + r.id + ":nome")}>${esc(nomeRisco)}</b><br><span${lpEd("lt:" + r.id + ":risco")}>${esc(desc)}</span></td>
         <td class="nv" style="background:${meta.cor};color:${meta.texto}"><div class="n">${esc(hrnNumeroBR(h.hrn))}</div><div class="c">${esc(h.nivel)}</div></td>
       </tr></table>` });
     }
@@ -38637,6 +38882,7 @@ function lpMaiorPLrDoEquipamento(itens){
     if(typeof queueMicrotask === "function") queueMicrotask(medir); else setTimeout(medir, 0);
   }
   function telaImprimir(abas){
+    lpEdCapturar();
     const areas = areasDoEscopo();
     if(areas.length === 0){
       return `${abas || ""}<div class="empty">${ic('print')}<h3>Nenhuma área no escopo</h3>
@@ -38654,6 +38900,7 @@ function lpMaiorPLrDoEquipamento(itens){
     const med = lpDocMedidas(__lpPaginas, cols);
     const fixo = lpAjFixo();
     lpMedirBarras();
+    lpEdRestaurarDepois();
     const grupo = (tit, corpo)=> `<div class="lcl-aj-g"><div class="lcl-aj-gt">${tit}</div>${corpo}</div>`;
     const areaAtualEsc = areas.find(a=> a.area.id === STATE.ui.lpAreaId) || areas[0];
     const painel = `<aside class="lcl-ajustes s-com-nav" id="lpAjustes" data-aberto="${__lpAjAberto ? 1 : 0}" data-fixo="${fixo ? 1 : 0}" aria-label="Ajustes do laudo">
@@ -38694,8 +38941,9 @@ function lpMaiorPLrDoEquipamento(itens){
     <div class="lcl-area" onclick="App.lpAjustesFecharToque(event)">
     ${abas || ""}
     ${__lpPaginas.length? `
+      ${__lpModoTexto ? `<div class="lp-ed-barra" id="lpEdBarra">${lpEdBarraHtml()}</div>` : ""}
       <div class="lp-visor-wrap">
-        <div class="lp-visor"><div class="lp-doc-caixa" style="width:${Math.round(med.larg * zoom)}px;height:${Math.round(med.alt * zoom)}px"><div class="lp-doc lp-cols${cols > 1 ? " lp-c2" : ""}${STATE.ui.lpModoOcultar?' lp-modo-ocultar':''}${STATE.ui.lpModoPrev?' lp-modo-prev':''}" id="lpDoc" style="transform:scale(${zoom});width:${med.larg}px">${__lpHtml}</div></div></div>
+        <div class="lp-visor"><div class="lp-doc-caixa" style="width:${Math.round(med.larg * zoom)}px;height:${Math.round(med.alt * zoom)}px"><div class="lp-doc lp-cols${cols > 1 ? " lp-c2" : ""}${STATE.ui.lpModoOcultar?' lp-modo-ocultar':''}${STATE.ui.lpModoPrev?' lp-modo-prev':''}${__lpModoTexto?' lp-modo-texto':''}" id="lpDoc" style="transform:scale(${zoom});width:${med.larg}px">${__lpHtml}</div></div></div>
         <div class="lp-flut">
           <button class="lp-flut-btn" style="font-weight:800;font-size:14px" title="${cols > 1 ? "Uma página por vez" : "Duas páginas lado a lado"}" aria-label="${cols > 1 ? "Mostrar uma página por vez" : "Mostrar duas páginas lado a lado"}" onclick="App.lpColunasAlternar(${cols})">${cols > 1 ? "1" : "2"}</button>
           <button class="lp-flut-btn" title="Aumentar" aria-label="Aumentar o zoom" onclick="App.lpZoom(1)">${ic('zoomMais')}</button>
@@ -38704,6 +38952,7 @@ function lpMaiorPLrDoEquipamento(itens){
           <span class="lp-flut-sep"></span>
           <button class="lp-flut-btn${STATE.ui.lpModoOcultar?' ativo':''}" title="${STATE.ui.lpModoOcultar?'Sair da seleção de itens':'Escolher o que entra no laudo'}" aria-label="Escolher equipamentos e riscos que entram no laudo" onclick="App.lpToggleModoOcultar()">${ic('selecionarItens')}</button>
           <button class="lp-flut-btn${STATE.ui.lpModoPrev?' ativo':''}" title="${STATE.ui.lpModoPrev?'Sair da previsão de risco residual':'Prever o risco residual (após a solução)'}" aria-label="Prever o risco residual após implantar a solução" onclick="App.lpToggleModoPrev()">${ic('shield')}</button>
+          <button class="lp-flut-btn${__lpModoTexto?' ativo':''}" title="${__lpModoTexto?'Concluir a edição dos textos':'Editar os textos do laudo'}" aria-label="Editar os textos direto nas páginas do laudo" onclick="App.lpToggleModoTexto()">${ic('edit')}</button>
         </div>
       </div>
       ${STATE.ui.lpModoOcultar? `<div class="card card-pad" style="margin-top:10px;background:var(--bg-soft)">
@@ -38726,10 +38975,91 @@ function lpMaiorPLrDoEquipamento(itens){
     return telaOriginal.apply(this, arguments);
   };
 
+  /* Um ouvinte só para o laudo inteiro: o documento é redesenhado a cada
+     montagem, e ouvinte preso em elemento iria embora junto. */
+  if(typeof document !== "undefined" && document.addEventListener){
+    const lpEdAlvo = (e)=> (__lpModoTexto && e.target && e.target.closest) ? e.target.closest("#lpDoc [data-lpe]") : null;
+    document.addEventListener("focusin", (e)=>{ const el = lpEdAlvo(e); if(el) lpEdFoco(el); });
+    document.addEventListener("keydown", (e)=>{
+      const el = lpEdAlvo(e);
+      if(!el) return;
+      if(e.key === "Escape"){ e.preventDefault(); App.lpEdCancelar(); return; }
+      if(e.key !== "Enter") return;
+      const t = lpEdTipo(el.getAttribute("data-lpe"));
+      if(t === "cc" || (e.shiftKey && t === "fx")) return;   // conclusão tem parágrafos; Shift+Enter quebra linha no texto fixo
+      e.preventDefault();
+      if(t !== "fx") App.lpEdSalvar();
+    });
+    /* Colar entra como texto puro: formatação de outro programa não vai
+       para um laudo assinado. */
+    document.addEventListener("paste", (e)=>{
+      const el = lpEdAlvo(e);
+      if(!el) return;
+      e.preventDefault();
+      const txt = (e.clipboardData && e.clipboardData.getData("text/plain")) || "";
+      try{ document.execCommand("insertText", false, txt); }catch(err){}
+    });
+  }
+
   Object.assign(App, {
+    /* ---------- EDIÇÃO DOS TEXTOS DIRETO NO LAUDO ---------- */
+    async lpToggleModoTexto(){
+      const ligar = !__lpModoTexto;
+      if(!ligar && !lpEdResolverPendente()) return;
+      __lpModoTexto = ligar;
+      __lpEd = null;
+      /* Texto pequeno demais para tocar com o dedo: ao entrar, sobe o zoom. */
+      if(ligar && (STATE.ui.lpZoom || lpZoomPadrao()) < 0.8) STATE.ui.lpZoom = 0.8;
+      await App.lpGerar();
+      toast(ligar ? "Modo de edição: toque em um texto contornado para alterar" : "Edição concluída — laudo remontado com os textos novos");
+    },
+    lpEdSalvar(onde){
+      if(!__lpEd) return false;
+      const el = lpEdEl();
+      if(!el){ __lpEd = null; lpEdBarraAtualizar(); return false; }
+      const chave = __lpEd.chave, t = lpEdTipo(chave);
+      if(t === "fx" && onde !== "laudo" && onde !== "todos") return false;
+      const soTexto = String(el.textContent || "").replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
+      const valor = !soTexto ? "" : ((t === "fx" || t === "cc") ? lpPeneirarRico(el.innerHTML) : soTexto);
+      const msg = lpEdGravar(chave, valor, onde);
+      if(msg === null){ try{ el.focus(); }catch(e){} return false; }
+      const html = lpEdValorTela(chave, valor);
+      document.querySelectorAll('#lpDoc [data-lpe="' + chave + '"]').forEach(x=>{ x.innerHTML = html; });
+      __lpEd = null;
+      try{ el.blur(); }catch(e){}
+      lpGuardarDocDaTela();
+      lpEdBarraAtualizar();
+      toast(msg);
+      return true;
+    },
+    lpEdCancelar(){
+      const el = lpEdEl();
+      if(el && __lpEd) el.innerHTML = __lpEd.original;
+      __lpEd = null;
+      try{ if(el) el.blur(); }catch(e){}
+      lpEdBarraAtualizar();
+    },
+    /* "Voltar ao padrão": tira o texto próprio deste laudo. Sem texto próprio,
+       "Voltar ao original em todos": tira o padrão editado. */
+    lpEdOriginal(){
+      if(!__lpEd || lpEdTipo(__lpEd.chave) !== "fx") return;
+      const chave = __lpEd.chave, k = chave.slice(3);
+      const org = lpFxOrigem(k);
+      if(!org) return;
+      const msg = lpEdGravar(chave, "", org);
+      if(msg === null) return;
+      const html = lpEdValorTela(chave, "");
+      document.querySelectorAll('#lpDoc [data-lpe="' + chave + '"]').forEach(x=>{ x.innerHTML = html; });
+      const el = lpEdEl();
+      __lpEd = null;
+      try{ if(el) el.blur(); }catch(e){}
+      lpGuardarDocDaTela();
+      lpEdBarraAtualizar();
+      toast(msg);
+    },
     /* Escolher outra área é abrir OUTRO laudo: as áreas unidas e as trocas só
        deste laudo (logotipo, rodapé, assinatura) não acompanham. */
-    lpSetArea(id){ STATE.ui.lpAreaId = id; STATE.ui.lpAreasExtra = []; lpOverZerar(); __lpConcAreaId = null; __lpPaginas = []; __lpHtml = ""; render(); },
+    lpSetArea(id){ if(!lpEdResolverPendente()){ render(); return; } STATE.ui.lpAreaId = id; STATE.ui.lpAreasExtra = []; lpOverZerar(); __lpConcAreaId = null; __lpPaginas = []; __lpHtml = ""; render(); },
     /* ‹ › da barra de cima: o laudo da área anterior/seguinte do escopo (o mesmo que escolher na lista).
        Se a prévia estava montada, a do outro laudo já é montada também. */
     lpNavegar(d){
@@ -38771,7 +39101,7 @@ function lpMaiorPLrDoEquipamento(itens){
       const sub = (areas.length > 1 ? "Laudo " + (k + 1) + " de " + areas.length : "Laudo") + (emp && ehComputadorDeMesa() ? " · " + emp : "");
       const bt = (icone, rot, fn, dica, extra)=> `<button class="topbar-action${extra || ""}" onclick="${fn}" title="${dica}" aria-label="${dica}">${ic(icone)}<span class="s-rot">${rot}</span></button>`;
       const nav = areas.length > 1 ? `<button class="topbar-action" onclick="App.lpNavegar(-1)" ${k <= 0 ? "disabled" : ""} title="Laudo anterior" aria-label="Laudo anterior">${ic('back')}</button><button class="topbar-action" onclick="App.lpNavegar(1)" ${k >= areas.length - 1 ? "disabled" : ""} title="Próximo laudo" aria-label="Próximo laudo">${ic('chevR')}</button>` : "";
-      return { sub, title, acoes: nav + bt('edit', "Revisar", "App.laudoSetAba('revisao')", "Revisar os textos do laudo (aba Revisão)") + bt('print', "Gerar PDF", "App.lpImprimir()", "Gerar o PDF deste laudo", " topbar-action-pri") };
+      return { sub, title, acoes: nav + bt('edit', __lpModoTexto ? "Concluir edição" : "Editar", "App.lpToggleModoTexto()", __lpModoTexto ? "Sair da edição e remontar o laudo com os textos novos" : "Editar os textos direto nas páginas do laudo", __lpModoTexto ? " topbar-action-pri" : "") + bt('edit', "Revisar", "App.laudoSetAba('revisao')", "Revisar os textos do laudo (aba Revisão)") + bt('print', "Gerar PDF", "App.lpImprimir()", "Gerar o PDF deste laudo", " topbar-action-pri") };
     },
     lpZoom(dir){
       const passos = [0.3,0.4,0.5,0.65,0.8,1,1.25,1.5,2];
@@ -38892,6 +39222,7 @@ function lpMaiorPLrDoEquipamento(itens){
     },
     async lpGerar(){
       if(__lpGerando) return;
+      if(!lpEdResolverPendente()) return;
       const alvo = laudoAlvo();
       if(!alvo){ toast("Nenhuma área no escopo", false); return; }
       __lpGerando = true;
@@ -38909,6 +39240,7 @@ function lpMaiorPLrDoEquipamento(itens){
            originais na memória seria pagar duas vezes pela mesma foto. */
         __lpSoltarFotos = ()=>{ alvo.areas.forEach(areaDoLaudo=>{ try{ liberarFotosDe(areaDoLaudo); }catch(e){} }); };
         __lpSemPLr = !!(alvo.proj && alvo.proj.laudoOcultarPLr);
+        __lpEdArea = alvo.area; __lpEdSeq = 0; __lpFxPadrao = {}; __lpEd = null;
         const d = dadosDoc(alvo.proj, alvo.area, alvo.areas);
         // Em modo de seleção mostra TUDO (item oculto entra apagado/marcável,
         // para dar para desmarcar E remarcar); fora do modo, o que está
@@ -38948,6 +39280,10 @@ function lpMaiorPLrDoEquipamento(itens){
       //    então remonta mais uma vez, garantida limpa. Sem o passo 2,
       //    imprimir logo depois de desmarcar alguma coisa (a própria
       //    desmarcação já dispara uma montagem) reproduz o mesmo bug.
+      /* Texto fixo em edição pergunta onde gravar antes; o modo de edição sai,
+         senão o PDF levaria os contornos e os campos editáveis. */
+      if(!lpEdResolverPendente()) return;
+      __lpModoTexto = false;
       STATE.ui.lpModoOcultar = false;
       /* Mesma razão do modo de seleção, logo acima: no modo de edição do risco
          residual TODOS os blocos aparecem, inclusive os de riscos que ninguém

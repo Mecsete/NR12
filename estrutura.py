@@ -345,7 +345,9 @@ if i > 0 and f > i:
     # DENTRO do bloco de impressao, que e justamente onde ela tem de estar —
     # sai junto se o bloco for removido. O teto segue servindo para pegar
     # acidente grosseiro, como o bloco colado duas vezes.
-    chk("o bloco tem tamanho coerente (%d bytes)" % (fim - ini), 20000 < (fim - ini) < 400000)
+    # 28/10/2026: teto de 400.000 para 500.000 -- a edicao direto no laudo
+    # (secao 200) vive dentro do bloco, que e onde ela tem de estar.
+    chk("o bloco tem tamanho coerente (%d bytes)" % (fim - ini), 20000 < (fim - ini) < 500000)
     import re as _re2
     blocos = _re2.findall(r'<script\b([^>]*)>([\s\S]*?)</script>', sem, _re2.I)
     erros = 0
@@ -965,7 +967,8 @@ chk("trocar e remover carimbam para sincronizar e forcam remontar",
     # nesta conta de proposito -- ela nao sincroniza (secao 121).
     # Seis invalidacoes do laudo montado: as quatro imagens acima mais as duas
     # da assinatura, que aparece no documento como as outras.
-    len(re.findall(r"STATE\.ui\.mecseteEm = agoraSync\(\);\s*\n\s*marcarEquipeAlterada\(\);", novo)) == 5
+    # 28/10/2026: 5 -> 7, + os dois da edicao direto no laudo (secao 200).
+    len(re.findall(r"STATE\.ui\.mecseteEm = agoraSync\(\);\s*\n\s*marcarEquipeAlterada\(\);", novo)) == 7
     and novo.count('cacheFoto.clear(); __lpPaginas = []; __lpHtml = "";') == 6)
 
 print("\n=== 33. INVENTARIO DE MAQUINAS: COLUNAS FIXAS E TIPO DO EQUIPAMENTO ===")
@@ -1081,7 +1084,7 @@ chk("a previa comporta a pagina deitada",
 chk("a instrucao de impressao avisa para nao forcar paisagem",
     "Deixe a orientação em Retrato." in novo)
 chk("a coluna Local nao repete mais o nome da area",
-    '<td>${esc(m.local||it.area.local||"")}</td>' in novo
+    '<td${lpEd("mq:" + m.id + ":local")}>${esc(m.local||it.area.local||"")}</td>' in novo
     and '${esc(m.local||it.area.nome||"")}' not in novo)
 
 print("\n=== 36. RODAPE CENTRALIZADO E DEDUCAO DO TIPO ===")
@@ -1414,7 +1417,7 @@ chk("o loop da tela insere Nome antes da Descricao, e existente antes da Solucao
 chk("o rotulo do campo Solucao nao carrega mais a Mitigacao no nome (afeta cartao + os 2 modais)",
     '{ k:"solucao", rot:"Solução",' in novo and 'rot:"Solução / Mitigação"' not in novo)
 chk("o laudo impresso (A4) segue o mesmo rotulo novo",
-    '<div class="lp-rc-rot">Solução</div>' in novo and '<div class="lp-rc-rot">Solução / Mitigação</div>' not in novo)
+    'lpFx("div", "lp-rc-rot", "rc.solucao", "Solução")' in novo and '<div class="lp-rc-rot">Solução / Mitigação</div>' not in novo)
 
 print("\n=== 47. MITIGACAO EXISTENTE GANHA IA E CHECKLIST EDITAVEL ===")
 # Pedido do usuario: "as opcoes de IA como na Solucao" + "as mesmas
@@ -4451,7 +4454,7 @@ print("=== 130. MAIOR PLr DO EQUIPAMENTO (referencia no cabecalho) ===")
 # assinado com ART.
 chk("a faixa existe e vem DEPOIS dos dados do equipamento",
     '<div class="lp-apr-plr">' in novo
-    and novo.index('${cel("Capacidade", m.capacidade)}') < novo.index('<div class="lp-apr-plr">'))
+    and novo.index('${cel("Capacidade", m.capacidade, mk("capacidade"))}') < novo.index('<div class="lp-apr-plr">'))
 chk("diz de quem e o PLr, e que nao e do equipamento",
     "Maior PLr identificado:" in novo
     and "determinado individualmente para cada função de segurança" in novo
@@ -6001,7 +6004,7 @@ print("\n=== 189. COERENCIA LAUDO x APP: EXPOSICAO PREVISTA E SITUACAO DA MITIGA
 chk("o laudo mostra so o titulo 'Mitigação existente' (sem situacao); a regra de situacao continua para Revisao e IA",
     novo.count("function situacaoExistenteParaMostrar(") == 1
     and "itensExistentesDe(r).length === 0 && !r.medidaExistenteSituacao" in _corpoDe(novo, "situacaoExistenteParaMostrar")
-    and '<div class="lp-rc-rot">Mitigação existente</div>' in novo and "Mitigação existente — ${esc(sitDef.rot)}" not in novo)
+    and 'lpFx("div", "lp-rc-rot", "rc.existente", "Mitigação existente")' in novo and "Mitigação existente — ${esc(sitDef.rot)}" not in novo)
 chk("quadro da Revisao e entradas da IA seguem a mesma regra (sem 'Atende' sem o que julgar)",
     "${situacaoExistenteParaMostrar(r) ? `<span class=\"laudo-quadro-sit\"" in novo
     and "const sitKIA = situacaoExistenteParaMostrar(r);" in novo and "if(situacaoExistenteParaMostrar(r)){" in novo)
@@ -6019,7 +6022,7 @@ chk("tudo do 'sem PLr' vive dentro do bloco removivel e a escolha fica no projet
     all(_i0 < novo.find(m) < _i1 for m in ["let __lpSemPLr", "lpToggleSemPLr(){", "__lpSemPLr = !!(alvo.proj && alvo.proj.laudoOcultarPLr);"]))
 chk("os quatro pontos de PLr do laudo obedecem ao botao (equipamento, risco, previsto, normativo)",
     '${__lpSemPLr ? "" : `<div class="lp-apr-plr">' in novo and novo.count('${__lpSemPLr ? "" : `<div class="lp-rc-plr">') == 2
-    and '${__lpSemPLr ? "" : `<li>ABNT NBR 14153:2022' in novo)
+    and '${__lpSemPLr ? "" : `${lpFx("li", "", "norm.li2", `ABNT NBR 14153:2022' in novo)
 chk("o calculo do PLr nao mudou",
     _corpoDe(novo, "plrExigido") == _corpoDe(orig, "plrExigido") and _corpoDe(novo, "plrPrevistoDoItem") == _corpoDe(orig, "plrPrevistoDoItem"))
 
@@ -6072,10 +6075,11 @@ def _fnMod(txt, nome):
     if i < 0: i = txt.find("  async function " + nome + "(", txt.find("INÍCIO DO MÓDULO DE IMPRESSÃO DO LAUDO"))
     j = txt.find("\n  }", i)
     return txt[i:j + 4] if i >= 0 and j > i else None
-chk("o documento do laudo nao mudou (montagem e paginacao byte a byte)",
-    all(_fnMod(novo, n) is not None and _fnMod(novo, n) == _fnMod(orig, n) for n in ["montarDoc", "paginar", "blocoCapa", "dadosDoc"])
-    and novo[novo.find("    async lpGerar(){"):novo.find("    async lpImprimir(){")] == orig[orig.find("    async lpGerar(){"):orig.find("    async lpImprimir(){")]
-    and novo[novo.find("    async lpImprimir(){"):novo.find("    lpEnviarLogo(){")] == orig[orig.find("    async lpImprimir(){"):orig.find("    lpEnviarLogo(){")])
+# 28/10/2026: esta checagem comparava com a entrega de 26/10 tambem blocoCapa,
+# dadosDoc, lpGerar e lpImprimir. A edicao direto no laudo (secao 200) mexe
+# nessas quatro de proposito; a montagem e a paginacao seguem as mesmas.
+chk("a montagem e a paginacao do laudo seguem as mesmas (montarDoc e paginar byte a byte)",
+    all(_fnMod(novo, n) is not None and _fnMod(novo, n) == _fnMod(orig, n) for n in ["montarDoc", "paginar"]))
 chk("Linhas de vida intocado: screenChkLaudoLinha e o CSS do laudo em capitulos byte a byte",
     _corpoDe(novo, "screenChkLaudoLinha") == _corpoDe(orig, "screenChkLaudoLinha")
     and novo[novo.find("const LCL_CSS = `"):novo.find("`", novo.find("const LCL_CSS = `") + 20)] == orig[orig.find("const LCL_CSS = `"):orig.find("`", orig.find("const LCL_CSS = `") + 20)])
@@ -6110,11 +6114,39 @@ chk("laudoSet, laudoSalvarEdicao e laudoTextoFinal intocados",
 print("\n=== 199. LAUDO A4: RESIDUAL PREVISTO SOBREVIVE AO REDESENHO (28/10/2026) ===")
 _ib = novo.index("INÍCIO DO MÓDULO DE IMPRESSÃO DO LAUDO — BLOCO REMOVÍVEL")
 _fb = novo.index("FIM DO MÓDULO DE IMPRESSÃO DO LAUDO")
-chk("lpGuardarDocDaTela vive dentro do bloco removivel e e chamada 2 vezes",
+# 28/10/2026: a contagem exata de chamadas valia so para aquela entrega; a
+# edicao direto no laudo (secao 207) tambem guarda a copia ao salvar.
+chk("lpGuardarDocDaTela vive dentro do bloco removivel e lpPrevSet/lpPrevSetPlr chamam",
     novo.count("function lpGuardarDocDaTela(") == 1 and _ib < novo.index("function lpGuardarDocDaTela(") < _fb
-    and novo.count("lpGuardarDocDaTela();") == 2 and novo.count("lpGuardarDocDaTela") == 3)
+    and novo.count("if(el) el.outerHTML = lpPrevBlocoHtml(it);\n      lpGuardarDocDaTela();") == 2)
 chk("hrnPrevAplicar e plrPrevAplicar (calculo/gravacao) intocados",
     _corpoDe(novo, "hrnPrevAplicar") == _corpoDe(orig, "hrnPrevAplicar") and _corpoDe(novo, "plrPrevAplicar") == _corpoDe(orig, "plrPrevAplicar"))
+
+print("\n=== 207. LAUDO A4: EDITAR OS TEXTOS DIRETO NAS PAGINAS (28/10/2026) ===")
+import re as _re200
+_ib = novo.index("INÍCIO DO MÓDULO DE IMPRESSÃO DO LAUDO — BLOCO REMOVÍVEL")
+_fb = novo.index("FIM DO MÓDULO DE IMPRESSÃO DO LAUDO")
+_ibo = orig.index("INÍCIO DO MÓDULO DE IMPRESSÃO DO LAUDO — BLOCO REMOVÍVEL")
+_fbo = orig.index("FIM DO MÓDULO DE IMPRESSÃO DO LAUDO")
+_carimbo = lambda s: _re200.sub(r"\d\d/\d\d/\d{4} \d\d:\d\d", "#", s)
+chk("tudo o que mudou esta dentro do bloco removivel de impressao (fora dele, so o carimbo da versao)",
+    _carimbo(novo[:_ib]) == _carimbo(orig[:_ibo]) and _carimbo(novo[_fb:]) == _carimbo(orig[_fbo:]))
+chk("as funcoes da edicao vivem dentro do bloco",
+    all(_ib < novo.find("  function " + n + "(") < _fb for n in
+        ["lpEd", "lpTxtFixo", "lpFx", "lpEdGravar", "lpEdResolverPendente", "lpEdBarraHtml", "lpConcEditavel"]))
+chk("laudoSet, lpPeneirarRico, conclusaoDaArea e lpPrevBlocoHtml intocados",
+    all(_corpoDe(novo, n) == _corpoDe(orig, n) for n in ["laudoSet", "lpPrevBlocoHtml"])
+    and all(_fnMod(novo, n) is not None and _fnMod(novo, n) == _fnMod(orig, n) for n in ["lpPeneirarRico", "conclusaoDaArea"]))
+_fx = _re200.findall(r'lpFx\("[a-z0-9]*", "[^"]*", "([^"]+)", (`[^`]*`|"[^"]*")\)', novo)
+_fxm = {}
+for _k, _v in _fx: _fxm.setdefault(_k, set()).add(_v[1:-1])
+chk("cada chave de texto fixo aponta para um texto padrao so (%d usos, %d chaves)" % (len(_fx), len(_fxm)),
+    len(_fx) >= 60 and all(len(v) == 1 for v in _fxm.values()))
+chk("imprimir sai do modo de edicao antes de remontar; a montagem le a area na hora",
+    "if(!lpEdResolverPendente()) return;\n      __lpModoTexto = false;\n      STATE.ui.lpModoOcultar = false;" in novo
+    and "__lpEdArea = alvo.area; __lpEdSeq = 0; __lpFxPadrao = {}; __lpEd = null;" in novo)
+chk("tabelas de HRN e PLr sem chave de edicao (saem das mesmas tabelas que classificam)",
+    "lpEd(" not in _corpoDe(novo, "lpPrevBlocoHtml") and "HRN_FAIXAS.map(f=>`<tr><td class=\"c\" style=\"width:30px\">${f.ord}</td>" in novo)
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

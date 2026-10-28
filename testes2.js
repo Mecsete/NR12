@@ -3433,7 +3433,8 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(HTML.indexOf('{ k:"solucao", rot:"Solução",') > 0, "faltou o rótulo novo em LAUDO_CAMPOS");
   });
   t("o rótulo no laudo impresso (A4) também não fala mais em Mitigação junto", ()=>{
-    ok(HTML.indexOf('<div class="lp-rc-rot">Solução</div>') > 0, "o rótulo do laudo impresso não acompanhou a renomeação");
+    // 28/10/2026: o rotulo virou texto fixo editavel (lpFx), com o mesmo texto padrao
+    ok(HTML.indexOf('lpFx("div", "lp-rc-rot", "rc.solucao", "Solução")') > 0, "o rótulo do laudo impresso não acompanhou a renomeação");
     eq(HTML.indexOf('<div class="lp-rc-rot">Solução / Mitigação</div>'), -1, "sobrou o rótulo antigo no laudo impresso");
   });
 
@@ -3646,7 +3647,9 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
        tudo que vive no mecseteConfig e precisa chegar nos outros aparelhos. */
     /* Cinco: logotipo (enviar/remover), figura do processo (enviar/remover) e
        o texto do rodapé — tudo que vive no mecseteConfig e precisa sincronizar. */
-    eq((HTML.match(/STATE\.ui\.mecseteEm = agoraSync\(\);\s*\n\s*marcarEquipeAlterada\(\);/g)||[]).length, 5,
+    /* 7 desde 28/10/2026: + os dois da edicao direto no laudo (texto fixo
+       "em todos os laudos" e dado da empresa responsavel). */
+    eq((HTML.match(/STATE\.ui\.mecseteEm = agoraSync\(\);\s*\n\s*marcarEquipeAlterada\(\);/g)||[]).length, 7,
        "sem carimbo novo, a nuvem devolveria o valor antigo");
   });
   t("a prévia mostra onde o logotipo é transparente", ()=>{
@@ -3879,7 +3882,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ok(HTML.indexOf("Deixe a orientação em Retrato.") > 0);
   });
   t("a coluna Local não repete mais o nome da área", ()=>{
-    ok(HTML.indexOf('<td>${esc(m.local||it.area.local||"")}</td>') > 0);
+    ok(HTML.indexOf('<td${lpEd("mq:" + m.id + ":local")}>${esc(m.local||it.area.local||"")}</td>') > 0);
     ok(HTML.indexOf('${esc(m.local||it.area.nome||"")}') < 0,
        "era o que fazia Área e Local saírem com o mesmo texto");
   });
@@ -11814,8 +11817,8 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     t("a faixa aparece abaixo dos dados e a nota explica que PLr e por funcao", ()=>{
       const i = HTML.indexOf('<div class="lp-apr-plr">');
       ok(i > 0, "a faixa precisa existir no cabecalho do equipamento");
-      ok(HTML.lastIndexOf('${cel("Capacidade", m.capacidade)}', i) > 0
-         && HTML.lastIndexOf('${cel("Capacidade", m.capacidade)}', i) < i,
+      ok(HTML.lastIndexOf('${cel("Capacidade", m.capacidade, mk("capacidade"))}', i) > 0
+         && HTML.lastIndexOf('${cel("Capacidade", m.capacidade, mk("capacidade"))}', i) < i,
          "a faixa tem de vir DEPOIS dos dados do equipamento");
       ok(HTML.indexOf("Maior PLr identificado:") > 0);
       ok(HTML.indexOf("determinado individualmente para cada função de segurança") > 0,
@@ -14382,7 +14385,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       eq(C.situacaoExistenteParaMostrar(null), "");
     });
     t("o laudo mostra so o titulo 'Mitigação existente', sem Atende / Nao atende (decisao de 21/10/2026)", ()=>{
-      ok(HTML.indexOf('<div class="lp-rc-rot">Mitigação existente</div>') > 0);
+      ok(HTML.indexOf('lpFx("div", "lp-rc-rot", "rc.existente", "Mitigação existente")') > 0);
       ok(HTML.indexOf('Mitigação existente — ${esc(sitDef.rot)}') < 0 && HTML.indexOf('Mitigação existente${sitDef') < 0, "a situacao voltou ao titulo do laudo");
     });
     t("a entrada da IA nao diz 'Atende' quando nada foi marcado nem julgado", ()=>{
@@ -14431,7 +14434,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(HTML.indexOf("__lpSemPLr = !!(alvo.proj && alvo.proj.laudoOcultarPLr);") > 0);
       ok(HTML.indexOf('${__lpSemPLr ? "" : `<div class="lp-apr-plr">') > 0, "Maior PLr do equipamento");
       eq((HTML.match(/\$\{__lpSemPLr \? "" : `<div class="lp-rc-plr">/g)||[]).length, 2, "coluna do PLr no risco e no quadro previsto");
-      ok(HTML.indexOf('${__lpSemPLr ? "" : `<li>ABNT NBR 14153:2022') > 0, "NBR 14153 (categorias) no normativo");
+      ok(HTML.indexOf('${__lpSemPLr ? "" : `${lpFx("li", "", "norm.li2", `ABNT NBR 14153:2022') > 0, "NBR 14153 (categorias) no normativo");
       ok(funcao("lpPrevBlocoHtml").indexOf("const pl = __lpSemPLr ? { aplicavel:false, mudou:false, trocou:false") > 0, "a previsao de F/P e o 'PLr revista' tambem somem");
     });
     t("a classificacao de PLr do risco nao e tocada (so o laudo deixa de mostrar)", ()=>{
@@ -14710,6 +14713,144 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       const ctx2 = { document:{ getElementById:()=> null } };
       vm.createContext(ctx2); vm.runInContext("var __lpHtml = 'antigo';\n" + funcao("lpGuardarDocDaTela") + "\nlpGuardarDocDaTela();", ctx2);
       eq(vm.runInContext("__lpHtml", ctx2), "antigo", "sem laudo na tela nao apaga a copia");
+    });
+  }
+
+  /* t203 — LAUDO A4: EDITAR OS TEXTOS DIRETO NAS PAGINAS (28/10/2026). */
+  {
+    console.log("\n[t203] Laudo A4: modo de edicao dos textos");
+    const ctx = vm.createContext({ String, Object, Array });
+    vm.runInContext(`
+      var __lpModoTexto = false, __lpEdSeq = 0, __lpEdArea = null, __lpFxPadrao = {}, __lpEd = null;
+      var STATE = { ui:{} }; var CFG = {}; function getMecseteConfig(){ return CFG; }
+      function lpPeneirarRico(h){ return String(h == null ? "" : h).replace(/<script[^>]*>[^<]*<\\/script>/g, "").trim(); }
+      function esc(s){ return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+      var LOG = [], ARQ = false, OV = null, SETS = [];
+      function agoraSync(){ return 111; }
+      function marcarAlterado(){ LOG.push("alt"); }
+      function marcarEquipeAlterada(){ LOG.push("equipe"); }
+      function recusarSeArquivado(){ return ARQ; }
+      function bloqueioDeArquivado(){ return ARQ ? "arquivado" : ""; }
+      function toast(){}
+      function lpOv(){ return OV; }
+      var PROJ = { id:"p1", empresa:"Velha" }, AREA = { id:"a1", nome:"Despalha" }, MAQ = { id:"m1", marca:"X" };
+      function laudoAlvo(){ return { proj:PROJ, area:AREA, areas:[AREA] }; }
+      function buscarMaquinaSimplesPorId(id){ return id === "m1" ? MAQ : null; }
+      function laudoItemPorId(id){ return id === "r1" ? { risco:{ id:"r1" } } : null; }
+      function laudoSet(it, campo, patch){ SETS.push([it.risco.id, campo, patch]); }
+    `, ctx);
+    ["lpEd", "lpEdTipo", "lpTxtFixo", "lpFx", "lpEdAreaAtual", "lpFxOrigem", "lpEdGravar"].forEach(f=> vm.runInContext(funcao(f), ctx));
+    const R = (s)=> vm.runInContext(s, ctx);
+    t("fora do modo de edicao o laudo sai igual (sem chave nem campo editavel)", ()=>{
+      eq(R('lpEd("pj:empresa")'), "");
+      eq(R('lpFx("div", "lp-capa-titulo", "capa.titulo", "LAUDO DE APRECIAÇÃO DE RISCO CONFORME NR-12")'),
+         '<div class="lp-capa-titulo">LAUDO DE APRECIAÇÃO DE RISCO CONFORME NR-12</div>');
+    });
+    t("no modo de edicao cada texto ganha a chave e um numero proprio", ()=>{
+      R("__lpModoTexto = true; __lpEdSeq = 0;");
+      const a = R('lpEd("pj:empresa")'), b = R('lpEd("mq:m1:marca")');
+      ok(a.indexOf('data-lpe="pj:empresa"') > 0 && a.indexOf('data-lpi="1"') > 0 && a.indexOf('contenteditable="true"') > 0, a);
+      ok(b.indexOf('data-lpi="2"') > 0, b);
+      R("__lpModoTexto = false;");
+    });
+    t("texto fixo: o deste laudo > o padrao editado > o original do app", ()=>{
+      R('__lpEdArea = { laudoTextos:{ k:"Deste laudo" } }; CFG.laudoTextos = { k:"Padrao editado" };');
+      eq(R('lpTxtFixo("k", "Original")'), "Deste laudo");
+      R("__lpEdArea = { laudoTextos:{} };");
+      eq(R('lpTxtFixo("k", "Original")'), "Padrao editado");
+      R("CFG.laudoTextos = {};");
+      eq(R('lpTxtFixo("k", "Original")'), "Original");
+      eq(R("__lpFxPadrao.k"), "Original", "o original fica guardado para o 'voltar'");
+      R('__lpEdArea = { laudoTextos:{ k:"<script>x</script>" } };');
+      eq(R('lpTxtFixo("k", "Original")'), "Original", "texto que a peneira esvazia nao substitui o original");
+    });
+    t("salvar so neste laudo grava na area, com carimbo, e nao mexe no padrao", ()=>{
+      R("LOG = []; CFG = {};");
+      ok(R('lpEdGravar("fx:capa.titulo", "LAUDO TECNICO NR-12", "laudo")'));
+      eq(R('AREA.laudoTextos["capa.titulo"]'), "LAUDO TECNICO NR-12");
+      eq(R("AREA.atualizadoEm"), 111);
+      eq(R("CFG.laudoTextos"), undefined);
+      ok(R("LOG.indexOf('alt') >= 0"));
+      eq(R('lpFxOrigem("capa.titulo")'), "laudo");
+    });
+    t("salvar em todos os laudos grava na configuracao e este laudo passa a seguir o padrao", ()=>{
+      R("LOG = []; STATE.ui = {};");
+      ok(R('lpEdGravar("fx:capa.titulo", "LAUDO GERAL", "todos")'));
+      eq(R('CFG.laudoTextos["capa.titulo"]'), "LAUDO GERAL");
+      eq(R("STATE.ui.mecseteEm"), 111);
+      ok(R("LOG.indexOf('equipe') >= 0"));
+      eq(R('AREA.laudoTextos["capa.titulo"]'), undefined, "o texto proprio deste laudo sai para valer o padrao novo");
+      eq(R('lpFxOrigem("capa.titulo")'), "todos");
+    });
+    t("voltar ao original apaga so o nivel pedido", ()=>{
+      R('AREA.laudoTextos = { "capa.titulo":"Proprio" };');
+      ok(R('lpEdGravar("fx:capa.titulo", "", "laudo")'));
+      eq(R('AREA.laudoTextos["capa.titulo"]'), undefined);
+      eq(R('CFG.laudoTextos["capa.titulo"]'), "LAUDO GERAL", "o padrao de todos continua");
+      ok(R('lpEdGravar("fx:capa.titulo", "", "todos")'));
+      eq(R('CFG.laudoTextos["capa.titulo"]'), undefined);
+      eq(R('lpFxOrigem("capa.titulo")'), "");
+    });
+    t("dado do projeto corrige o cadastro do projeto", ()=>{
+      ok(R('lpEdGravar("pj:empresa", "Corteva Itumbiara")'));
+      eq(R("PROJ.empresa"), "Corteva Itumbiara");
+      eq(R("PROJ.atualizadoEm"), 111);
+    });
+    t("empresa responsavel corrige Configuracoes e tira a troca feita so neste laudo", ()=>{
+      R('OV = { resp:{ m:{ respNome:"Outro" } } }; STATE.ui = {};');
+      ok(R('lpEdGravar("mc:respNome", "Luiz Hermelino Araujo")'));
+      eq(R("CFG.respNome"), "Luiz Hermelino Araujo");
+      eq(R("OV.resp.m.respNome"), undefined);
+      eq(R("STATE.ui.mecseteEm"), 111);
+    });
+    t("equipamento e area corrigem o cadastro; nome de area vazio e recusado", ()=>{
+      ok(R('lpEdGravar("mq:m1:marca", "Kepler Weber")'));
+      eq(R("MAQ.marca"), "Kepler Weber");
+      eq(R("MAQ.atualizadoEm"), 111);
+      eq(R('lpEdGravar("mq:zz:marca", "A")'), null, "equipamento nao achado nao grava");
+      eq(R('lpEdGravar("ar:nome", "")'), null);
+      eq(R("AREA.nome"), "Despalha");
+      ok(R('lpEdGravar("ar:nome", "Despalha e Selecao")'));
+      eq(R("AREA.nome"), "Despalha e Selecao");
+    });
+    t("texto do item grava como texto editado do laudo, o mesmo da aba Revisao", ()=>{
+      R("SETS = [];");
+      ok(R('lpEdGravar("lt:r1:solucao", "Instalar protecao fixa.")'));
+      eq(JSON.stringify(R("SETS[0]")), JSON.stringify(["r1", "solucao", { fin:"Instalar protecao fixa.", st:"edit", ed:"Instalar protecao fixa." }]));
+      eq(R('lpEdGravar("lt:r1:solucao", "")'), null, "texto vazio nao apaga o laudo");
+      eq(R("SETS.length"), 1);
+    });
+    t("projeto arquivado: nada e gravado", ()=>{
+      R('ARQ = true; PROJ.empresa = "A"; AREA.laudoTextos = {};');
+      eq(R('lpEdGravar("pj:empresa", "B")'), null);
+      eq(R("PROJ.empresa"), "A");
+      eq(R('lpEdGravar("fx:capa.titulo", "X", "laudo")'), null);
+      eq(R('AREA.laudoTextos["capa.titulo"]'), undefined);
+      eq(R('lpEdGravar("lt:r1:risco", "X")'), null);
+      R("ARQ = false;");
+    });
+    t("cada chave de texto fixo tem um texto padrao so (chave repetida = mesmo texto)", ()=>{
+      const re = /lpFx\("[a-z0-9]*", "[^"]*", "([^"]+)", (`[^`]*`|"[^"]*")\)/g;
+      const mapa = {}; let m, n = 0;
+      while((m = re.exec(HTML))){ n++; (mapa[m[1]] = mapa[m[1]] || new Set()).add(m[2].slice(1, -1)); }
+      ok(n >= 60, "esperava todos os textos fixos do laudo, achei " + n);
+      Object.keys(mapa).forEach(k=> eq(mapa[k].size, 1, "a chave " + k + " aponta para textos diferentes"));
+    });
+    t("capa em caixa alta pelo CSS, para editar o cadastro como ele e", ()=>{
+      ok(funcao("blocoCapa").indexOf(".toUpperCase()") < 0);
+      ok(HTML.indexOf(".lp-up{text-transform:uppercase}") > 0);
+    });
+    t("botao Editar na barra de cima e nos flutuantes; imprimir sai do modo antes de remontar", ()=>{
+      eq((HTML.match(/App\.lpToggleModoTexto\(\)/g)||[]).length, 3, "barra de cima, flutuante e Concluir edicao");
+      const i = HTML.indexOf("    async lpImprimir(){");
+      const f = HTML.slice(i, HTML.indexOf("await App.lpGerar();", i));
+      ok(f.indexOf("if(!lpEdResolverPendente()) return;") > 0 && f.indexOf("__lpModoTexto = false;") > 0);
+      ok(HTML.indexOf("        __lpEdArea = alvo.area; __lpEdSeq = 0; __lpFxPadrao = {}; __lpEd = null;") > 0);
+    });
+    t("texto fixo pendente pergunta onde salvar; dado de cadastro salva sozinho", ()=>{
+      const f = funcao("lpEdResolverPendente");
+      ok(f.indexOf('if(lpEdTipo(__lpEd.chave) !== "fx") return App.lpEdSalvar() === true;') > 0);
+      ok(f.indexOf("return false;") > f.indexOf("Escolha onde salvar"));
     });
   }
 
