@@ -253,6 +253,9 @@ vm.runInContext("var __projArquivados = new Set();", ctx);
 [ "projetoArquivado", "projetosAtivosDoAparelho", "projetoArquivadoDaMaquina" ].forEach(n=> vm.runInContext(funcao(n), ctx));
 vm.runInContext(BLOCO_A, ctx);
 vm.runInContext(BLOCO_B, ctx);
+/* 09/11/2026: telas e cartoes mostram o numero do risco no projeto (1.1.1). */
+vm.runInContext("let __numProjMemo = null;", ctx);
+[ "numeracaoDoProjeto", "numeroDoRisco", "numeroDaTarefa", "numeroDaMaquina", "numeroCardHtml" ].forEach(n=> vm.runInContext(funcao(n), ctx));
 /* laudoBlocoPlaqueta (dentro de BLOCO_B) passou a usar selectOptions/opt
    para Tipo de equipamento e Manual — precisam existir antes de qualquer
    teste que desenhe essa tela. */
@@ -14666,7 +14669,8 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     t("linhaSimples devolve o nome decidido no laudo", ()=>{
       const ctx = {}; vm.createContext(ctx);
       vm.runInContext("var OUTRO='__o__'; function hrnDoItem(){ return {po:1,fe:1,gpd:1,np:1,hrn:1,nivel:'x'}; } function nomeMaquinaS(m){ return m.nome; } function valOuOutro(a,b){ return a; } function labelHRN(){ return ''; } var HRN_PO_OPTS,HRN_PO_TABELA,HRN_FE_OPTS,HRN_FE_TABELA,HRN_GPD_OPTS,HRN_GPD_TABELA,HRN_NP_OPTS,HRN_NP_TABELA;", ctx);
-      ["laudoNomeDoRisco", "nomeRiscoNaTela", "linhaSimples"].forEach(f=> vm.runInContext(funcao(f), ctx));
+      vm.runInContext("let __numProjMemo = null;", ctx);
+      ["laudoNomeDoRisco", "nomeRiscoNaTela", "numeracaoDoProjeto", "numeroDoRisco", "linhaSimples"].forEach(f=> vm.runInContext(funcao(f), ctx));
       ctx.__it = { proj:{}, area:{}, maquina:{nome:"M"}, tarefa:{}, risco:{ nome:"Campo", laudoIA:{ nomeFin:"Laudo", nomeSt:"edit" } } };
       const lin = vm.runInContext("linhaSimples(__it)", ctx);
       ok(lin.indexOf("Laudo") > 0 && lin.indexOf("Campo") < 0, JSON.stringify(lin));
@@ -14935,6 +14939,76 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(f.indexOf("STATE.ui.laudoFiltroArea = id") > 0 && f.indexOf('App.laudoSetAba("revisao")') > 0);
       ok(f.indexOf("areasSelecionadasExport") < 0);
       ok(funcao("laudoAbaExportar").indexOf("laudoPendenciasPorArea(itens)") > 0);
+    });
+  }
+
+  /* t206 — NUMERO DO RISCO NO PROJETO: 1.1.1 = EQUIPAMENTO.ATIVIDADE.RISCO (09/11/2026). */
+  {
+    console.log("\n[t206] Numero do risco no projeto (1.1.1)");
+    const cx = vm.createContext({ String, Number });
+    vm.runInContext(`let __numProjMemo = null;
+      function escapeHtml(s){ return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }`, cx);
+    ["numeracaoDoProjeto", "numeroDoRisco", "numeroDaTarefa", "numeroDaMaquina", "numeroCardHtml"].forEach(f=> vm.runInContext(funcao(f), cx));
+    const R = (s)=> vm.runInContext(s, cx);
+    const rk = (id)=> ({ id });
+    cx.P = { areas:[
+      { id:"a1", maquinas:[
+        { id:"m1", tarefas:[ { id:"t11", riscos:[rk("r111"), rk("r112")] }, { id:"t12", riscos:[rk("r121")] } ] },
+        { id:"m2", tarefas:[ { id:"t21", riscos:[rk("r211")] } ] } ] },
+      { id:"a2", maquinas:[
+        { id:"m3", tarefas:[ { id:"t31", riscos:[rk("r311"), rk("r312"), rk("r313")] } ] } ] } ] };
+    t("conta no projeto inteiro: equipamento segue de uma area para a outra", ()=>{
+      R("__numProjMemo = null;");
+      const n = R("numeracaoDoProjeto(P)");
+      eq(n.risco.r111, "1.1.1"); eq(n.risco.r112, "1.1.2"); eq(n.risco.r121, "1.2.1");
+      eq(n.risco.r211, "2.1.1"); eq(n.risco.r313, "3.1.3");
+      eq(n.tar.t12, "1.2"); eq(n.maq.m3, "3");
+    });
+    t("atalhos pelo item (proj + maquina/tarefa/risco)", ()=>{
+      R("__numProjMemo = null;");
+      cx.__it = { proj:cx.P, maquina:{id:"m3"}, tarefa:{id:"t31"}, risco:{id:"r312"} };
+      eq(R("numeroDoRisco(__it)"), "3.1.2"); eq(R("numeroDaTarefa(__it)"), "3.1"); eq(R("numeroDaMaquina(__it)"), "3");
+      eq(R("numeroDoRisco({ risco:{id:'r312'} })"), "", "sem projeto, sem numero");
+      eq(R("numeroDoRisco({ proj:P, risco:{id:'nao-existe'} })"), "");
+    });
+    t("segue a ordem: excluir no meio renumera o que vem depois, sem buraco", ()=>{
+      R("__numProjMemo = null; P.areas[0].maquinas.splice(1, 1);");   // tira o equipamento 2
+      R("__numProjMemo = null;");
+      eq(R("numeracaoDoProjeto(P).risco.r311"), "2.1.1");
+      eq(R("numeracaoDoProjeto(P).risco.r211"), undefined);
+    });
+    t("selo do card: so aparece com numero e escapa o texto", ()=>{
+      eq(R("numeroCardHtml('')"), "");
+      eq(R("numeroCardHtml('1.2.3')"), '<span class="num-item">1.2.3</span>');
+    });
+    t("o mesmo numero no laudo A4, nas planilhas, no Word e nos cards", ()=>{
+      ok(HTML.indexOf('<span class="lp-rc-num">${esc(numeroDoRisco(it) || String(i+1))}</span>') > 0, "selo do risco no A4");
+      ok(HTML.indexOf('${esc(numT ? numT + " – " + nomeT : nomeT)}') > 0, "faixa da atividade no A4");
+      ok(HTML.indexOf('<td>${esc(numeroDaMaquina(it) || String(i+1))}</td>') > 0, "inventario do A4");
+      ok(HTML.indexOf('<td class="ds">${numeroDoRisco(it) ?') > 0, "tabela da conclusao do A4");
+      ok(funcao("linhaSimples").indexOf("numeroDoRisco({proj, risco}), proj.empresa") > 0, "CSV/XLS/XLSX");
+      ok(HTML.indexOf('{ nome:"Identificação", colunas:["Nº","Empresa/Unidade"') > 0, "cabecalho Nº");
+      ok(funcao("montarItensInventario").indexOf("Number(numeroDaMaquina(item)) || n") > 0, "inventario das planilhas");
+      ok(funcao("numerarHierarquiaSimples").indexOf("numeroDoRisco(item)") > 0, "Word");
+      ok(funcao("montarDadosMaquinaDocx").indexOf("numero: numeroDoRisco({ proj:projDaArea, risco })") > 0, "Word com modelo");
+      eq((HTML.match(/numeroCardHtml\((numP\.(maq|tar|risco)\[|numeroDoRisco\()/g)||[]).length, 5, "cards: equipamento, atividade, risco, Revisao (lista e topo)");
+    });
+    t(".xlsm da Corteva: Nº no FIM (AW na Base Completa, N no Resumo) — nada antes muda de lugar", ()=>{
+      const b = funcao("xlsmLinhaBaseCompleta");
+      ok(b.indexOf("c.push(xlsmCellTexto(`AW${rowNum}`,S.AW, numeroDoRisco(item)));") > 0 && b.indexOf('spans="1:49"') > 0);
+      ok(b.indexOf("c.push(xlsmCellTexto(`AV${rowNum}`,S.AV,") < b.indexOf("`AW${rowNum}`"), "AW vem depois de AV");
+      const r = funcao("xlsmLinhaResumo");
+      ok(r.indexOf("c.push(xlsmCellTexto(`N${rowNum}`,S.N, numeroDoRisco(item)));") > 0 && r.indexOf('spans="1:14"') > 0);
+      ok(HTML.indexOf('s1 = xlsmCabecalhoNoFim(s1, 2, "AV", "AW", "Nº");') > 0 && HTML.indexOf('s2 = xlsmCabecalhoNoFim(s2, 1, "M", "N", "Nº");') > 0);
+      ok(HTML.indexOf("`'Base Completa'!$A$2:$AW$${lastRowBase}`") > 0 && HTML.indexOf("`Resumo!$A$1:$N$${lastRowResumo}`") > 0, "filtros do workbook");
+    });
+    t("cabecalho no fim da linha: estilo da vizinha, nao duplica", ()=>{
+      const c2 = vm.createContext({}); vm.runInContext(funcao("xlsmCabecalhoNoFim"), c2);
+      c2.X = '<row r="1" spans="1:13"><c r="L1" s="9"/><c r="M1" s="12" t="s"><v>3</v></c></row><row r="2"><c r="A2" s="4"/></row>';
+      const y = vm.runInContext('xlsmCabecalhoNoFim(X, 1, "M", "N", "Nº")', c2);
+      ok(y.indexOf('<c r="M1" s="12" t="s"><v>3</v></c><c r="N1" s="12" t="inlineStr"><is><t xml:space="preserve">Nº</t></is></c></row><row r="2">') > 0, y);
+      c2.Y = y;
+      eq(vm.runInContext('xlsmCabecalhoNoFim(Y, 1, "M", "N", "Nº")', c2), y, "segunda vez nao duplica");
     });
   }
 

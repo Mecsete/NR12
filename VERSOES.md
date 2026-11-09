@@ -64,6 +64,21 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 09/11/2026 15:20
+
+**Número único do risco no projeto: 1.1.1 = Equipamento.Atividade.Risco.**
+
+- Contado dentro do projeto, na ordem do cadastro: o equipamento segue de uma
+  área para a outra; a atividade conta dentro do equipamento; o risco, dentro da
+  atividade. Incluir, excluir ou arrastar no meio renumera o que vem depois.
+- Laudo A4: no selo de cada risco, na faixa da atividade (ex.: "5.1 – LIMPEZA"),
+  no inventário (número do equipamento) e na tabela da conclusão.
+- Planilhas: coluna "Nº" no CSV, XLS e Excel sem macro. No .xlsm da Corteva, a
+  coluna Nº entra no FIM (AW na Base Completa, N no Resumo), para não deslocar
+  as colunas que as macros usam. Inventário com o número do equipamento.
+- Word: o mesmo número.
+- Cards: equipamentos, atividades, riscos e Revisão mostram o número.
+
 ## 28/10/2026 17:00
 
 **Aba Exportar: os avisos dizem onde está a pendência.**

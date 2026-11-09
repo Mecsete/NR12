@@ -136,6 +136,7 @@ html.teclado-aberto .laudo-fab{display:none!important;}
 .thumb-download span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .list-body{flex:1;padding:11px 30px 11px 11px;min-width:0;}
 .list-name{font-size:15.5px;font-weight:800;letter-spacing:-.01em;margin-bottom:1px;}
+.num-item{display:inline-block;font-size:11px;font-weight:800;line-height:1.5;color:#fff;background:#1E2148;border-radius:5px;padding:0 6px;margin-right:6px;vertical-align:2px;letter-spacing:.02em;white-space:nowrap}
 .list-tag{font-size:11.5px;color:var(--ink-faint);font-family:var(--mono);}
 .list-meta{display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap}
 .stat-pill{font-size:11px;font-weight:700;background:var(--bg-soft);color:var(--ink-dim);border-radius:999px;padding:3px 8px;display:flex;align-items:center;gap:4px;white-space:nowrap;}
@@ -3548,7 +3549,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "28/10/2026 17:00";
+const APP_BUILD = "09/11/2026 15:20";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -20168,6 +20169,7 @@ function screenSimplesMaquinas(){
   const q = __buscaAtual.trim().toLowerCase();
   const listaFiltrada = q? a.maquinas.filter(m=> nomeMaquinaS(m).toLowerCase().includes(q) || (m.descricao||"").toLowerCase().includes(q) || (m.manual||"").toLowerCase().includes(q)) : a.maquinas;
   const listaOrdenada = ordenarLista(listaFiltrada, m=>nomeMaquinaS(m));
+  const numP = numeracaoDoProjeto(getCurrentProjetoSimples());
   const cards = listaOrdenada.map(m=>{
     const pendFotos = (!m.fotoGeral?1:0) + (!m.fotoPlaqueta?1:0);
     const totalRiscos = m.tarefas.reduce((soma,t)=>soma+t.riscos.length, 0);
@@ -20176,7 +20178,7 @@ function screenSimplesMaquinas(){
       ${dragHandleHtml('maquinaS',m.id)}
       <div class="list-thumb lg" data-card-role="photo">${m.fotoGeral? `<img data-mini data-imgref="${imgReg(m.fotoGeral)}">` : (m.__fotosOmitidas? (()=>{ const pf = pendenteFotosDoItem(m.id); return `<div class="thumb-download" onclick="event.stopPropagation();App.onedriveBaixarFotosDeItem('${m.id}')" title="${pf? 'Toque para baixar as fotos agora ('+fmtBytes(pf.tamanho)+') — em dados móveis, pede confirmação' : 'Fotos ainda no outro aparelho — chegam quando ele tiver Wi-Fi'}">${ic('download')}<span>${pf? fmtBytes(pf.tamanho) : 'fotos'}</span></div>`; })() : ic('shield'))}</div>
       <div class="list-body">
-        <div class="list-name" data-card-role="name">${escapeHtml(nomeMaquinaS(m).slice(0,40) || 'Sem nome (toque para editar)')}</div>
+        <div class="list-name" data-card-role="name">${numeroCardHtml(numP.maq[m.id])}${escapeHtml(nomeMaquinaS(m).slice(0,40) || 'Sem nome (toque para editar)')}</div>
         ${m.descricao? `<div class="list-tag" style="font-family:inherit">${escapeHtml(m.descricao.slice(0,60))}</div>` : ""}
         <div class="list-tag">${m.manual?('Manual de operação: '+escapeHtml(valOuOutro(m.manual,m.manualOutro))):'sem manual informado'}</div>
         <div class="list-meta">
@@ -20205,6 +20207,7 @@ function screenSimplesTarefas(){
     return nomeT.toLowerCase().includes(q) || (t.descricao||"").toLowerCase().includes(q);
   }) : m.tarefas;
   const listaOrdenada = ordenarLista(listaFiltrada, t=> t.tarefa===OUTRO? t.tarefaOutro : t.tarefa);
+  const numP = numeracaoDoProjeto(getCurrentProjetoSimples());
   const cards = listaOrdenada.map(t=>{
     const nome = t.tarefa===OUTRO? t.tarefaOutro : t.tarefa;
     const pend = t.riscos.filter(r=>r.medidaImplementada==="Não").length;
@@ -20213,7 +20216,7 @@ function screenSimplesTarefas(){
       ${dragHandleHtml('tarefaS',t.id)}
       <div class="list-thumb">${ic('cog')}</div>
       <div class="list-body">
-        <div class="list-name" data-card-role="name">${escapeHtml(nome||'Sem nome (toque para editar)')}</div>
+        <div class="list-name" data-card-role="name">${numeroCardHtml(numP.tar[t.id])}${escapeHtml(nome||'Sem nome (toque para editar)')}</div>
         <div class="list-tag">${t.frequencia?escapeHtml(valOuOutro(t.frequencia,t.frequenciaOutro)):'sem frequência'}${t.numPessoas?' · '+escapeHtml(valOuOutro(t.numPessoas,t.numPessoasOutro))+' pessoa(s)':''}</div>
         ${t.descricao? `<div class="list-tag" style="font-family:inherit">${escapeHtml(t.descricao.slice(0,60))}</div>` : ""}
         <div class="list-meta">
@@ -20241,6 +20244,7 @@ function screenSimplesRiscos(){
      na busca: quem procura pelo que digitou em campo tem de achar. */
   const listaFiltrada = q? t.riscos.filter(r=> (nomeRiscoNaTela(r)||"").toLowerCase().includes(q) || (r.nome||"").toLowerCase().includes(q) || (r.descricao||"").toLowerCase().includes(q)) : t.riscos;
   const listaOrdenada = ordenarLista(listaFiltrada, r=>nomeRiscoNaTela(r));
+  const numP = numeracaoDoProjeto(getCurrentProjetoSimples());
   const cards = listaOrdenada.map((r,i)=>{
     const pend = r.medidaImplementada==="Não";
     const semMitigacao = !r.sugestaoMitigacao || !r.sugestaoMitigacao.trim();
@@ -20252,7 +20256,7 @@ function screenSimplesRiscos(){
       ${dragHandleHtml('riscoS',r.id)}
       <div class="list-thumb lg" data-card-role="photo">${r.foto? `<img data-mini data-imgref="${imgReg(r.foto)}">` : (r.__fotosOmitidas? (()=>{ const pf = pendenteFotosDoItem(r.id); return `<div class="thumb-download" onclick="event.stopPropagation();App.onedriveBaixarFotosDeItem('${r.id}')" title="${pf? 'Toque para baixar as fotos agora ('+fmtBytes(pf.tamanho)+') — em dados móveis, pede confirmação' : 'Fotos ainda no outro aparelho — chegam quando ele tiver Wi-Fi'}">${ic('download')}<span>${pf? fmtBytes(pf.tamanho) : 'fotos'}</span></div>`; })() : ic('warn'))}</div>
       <div class="list-body">
-        <div class="list-name" data-card-role="name">${escapeHtml(nomeRiscoNaTela(r)||('Risco '+String(i+1).padStart(2,'0')))}</div>
+        <div class="list-name" data-card-role="name">${numeroCardHtml(numP.risco[r.id])}${escapeHtml(nomeRiscoNaTela(r)||('Risco '+String(i+1).padStart(2,'0')))}</div>
         <div class="list-tag" style="font-family:inherit">${escapeHtml((r.descricao||'sem descrição').slice(0,60))}</div>
         <div class="list-meta">
           <span class="stat-pill" style="background:${hrnMeta.cor};color:${hrnMeta.texto};font-weight:800">HRN ${hrnData.hrn} · ${hrnData.nivel}</span>
@@ -20604,7 +20608,7 @@ function exportarMasterXLS(){
    MÓDULO SIMPLIFICADO — exportações e tela de backup
    ========================================================================= */
 const GRUPOS_SIMPLES = [
-  { nome:"Identificação", colunas:["Empresa/Unidade","Cidade","Responsável","Data","Área","Descrição Área","Local"] },
+  { nome:"Identificação", colunas:["Nº","Empresa/Unidade","Cidade","Responsável","Data","Área","Descrição Área","Local"] },
   { nome:"Máquina/Ativo", colunas:["Nome da Máquina/Ativo","Descrição da Máquina/Ativo","Manual de Operação"] },
   { nome:"Tarefa", colunas:["Tarefa","Descrição da Tarefa","Nº de Pessoas"] },
   { nome:"Risco", colunas:["Nome do Risco","Descrição do Risco","Há Medida de Mitigação?","Descrição da Medida Existente","Sugestão de Mitigação"] },
@@ -23308,6 +23312,42 @@ function linhasEscopoSimples(){
   });
   return out;
 }
+/* NÚMERO DO RISCO NO PROJETO — 1.1.1 = Equipamento.Atividade.Risco (09/11/2026).
+   Decisão do Luiz: um número só para cada risco no laudo A4, nas planilhas, no
+   Word e nos cards, contado DENTRO DO PROJETO e na ordem do cadastro (áreas →
+   equipamentos → atividades → riscos, a mesma ordem das telas quando a lista
+   não está reordenada). É calculado na hora, nunca gravado: segue a ordem e
+   não tem buracos — incluir, excluir ou arrastar um item no meio renumera o
+   que vem depois. O equipamento conta no projeto inteiro (todas as áreas), a
+   atividade conta dentro do equipamento e o risco dentro da atividade. Risco
+   desmarcado do laudo A4 mantém o número (a planilha leva todos), então o
+   laudo impresso pode pular um número.
+   Guarda o último cálculo só até o fim da tarefa corrente: telas e exportações
+   perguntam o número de centenas de riscos seguidos, e refazer a contagem a
+   cada pergunta seria contar o projeto inteiro centenas de vezes. */
+let __numProjMemo = null;
+function numeracaoDoProjeto(proj){
+  if(!proj) return { maq:{}, tar:{}, risco:{} };
+  if(__numProjMemo && __numProjMemo.proj === proj) return __numProjMemo.n;
+  const n = { maq:{}, tar:{}, risco:{} };
+  let nm = 0;
+  (proj.areas || []).forEach(a=> (a.maquinas || []).forEach(m=>{
+    nm++;
+    n.maq[m.id] = String(nm);
+    (m.tarefas || []).forEach((t, ti)=>{
+      const nt = nm + "." + (ti + 1);
+      n.tar[t.id] = nt;
+      (t.riscos || []).forEach((r, ri)=>{ n.risco[r.id] = nt + "." + (ri + 1); });
+    });
+  }));
+  __numProjMemo = { proj, n };
+  if(typeof setTimeout === "function") setTimeout(()=>{ if(__numProjMemo && __numProjMemo.n === n) __numProjMemo = null; }, 0);
+  return n;
+}
+function numeroDoRisco(it){ return (it && it.proj && it.risco) ? (numeracaoDoProjeto(it.proj).risco[it.risco.id] || "") : ""; }
+function numeroDaTarefa(it){ return (it && it.proj && it.tarefa) ? (numeracaoDoProjeto(it.proj).tar[it.tarefa.id] || "") : ""; }
+function numeroDaMaquina(it){ return (it && it.proj && it.maquina) ? (numeracaoDoProjeto(it.proj).maq[it.maquina.id] || "") : ""; }
+function numeroCardHtml(n){ return n ? `<span class="num-item">${escapeHtml(n)}</span>` : ""; }
 /* =========================================================================
    GESTÃO DO LAUDO — os textos da IA passam a morar DENTRO do app
    -------------------------------------------------------------------------
@@ -25587,7 +25627,7 @@ function plrPrevAplicar(it, campo, valor){
 function linhaSimples({proj,area,maquina,tarefa,risco}){
   const {po,fe,gpd,np,hrn,nivel} = hrnDoItem({tarefa,risco});
   return [
-    proj.empresa, proj.cidade, proj.responsavel, proj.data, area.nome, area.descricao||"", area.local,
+    numeroDoRisco({proj, risco}), proj.empresa, proj.cidade, proj.responsavel, proj.data, area.nome, area.descricao||"", area.local,
     nomeMaquinaS(maquina), maquina.descricao, valOuOutro(maquina.manual, maquina.manualOutro),
     valOuOutro(tarefa.tarefa, tarefa.tarefaOutro), tarefa.descricao,
     valOuOutro(tarefa.numPessoas, tarefa.numPessoasOutro),
@@ -25731,6 +25771,16 @@ function xlsmDataSerial(dataStr){
 /* Remove as linhas de dados originais (entre primeiraLinha e ultimaLinhaOriginal,
    inclusive) e insere as novas linhas no lugar, logo antes de </sheetData>;
    atualiza também o <dimension>. Preserva cabeçalho, estilos, tudo o mais. */
+/* Acrescenta um cabeçalho no FIM de uma linha do modelo, com o mesmo estilo da
+   célula vizinha (índice fixo no código só vale enquanto o modelo não muda).
+   Se o modelo já tiver a célula, não mexe. */
+function xlsmCabecalhoNoFim(xml, linha, refVizinha, refNova, texto){
+  if(xml.indexOf(`r="${refNova}${linha}"`) !== -1) return xml;
+  const mV = new RegExp(`<c r="${refVizinha}${linha}"[^>]*?\\bs="(\\d+)"`).exec(xml);
+  const s = mV ? mV[1] : "6";
+  return xml.replace(new RegExp(`(<row r="${linha}"[^>]*?>[\\s\\S]*?)(</row>)`),
+    `$1<c r="${refNova}${linha}" s="${s}" t="inlineStr"><is><t xml:space="preserve">${texto}</t></is></c>$2`);
+}
 function xlsmSubstituiLinhas(xml, novasLinhasXml, primeiraLinha, ultimaLinhaOriginal, novoDimensionRef){
   // "[^>]*?" (preguiçoso) em vez de "[^>]*" (guloso): sem isso, uma linha vazia
   // e auto-fechada (<row .../>) era tratada como "linha aberta" e a busca pelo
@@ -25750,7 +25800,7 @@ const XLSM_BASE_STYLES = {
   P:63,Q:63,R:4,S:3,T:3,U:3,V:3,W:3,X:3,Y:3,Z:3,AA:3,
   AB:3,AC:3,AD:3,AE:3,AF:3,AG:3,AH:3,AI:3,AJ:3,AK:3,
   AL:20,AM:20,AN:20,AO:20,AP:20,AQ:20,AR:20,AS:20,AT:20,
-  AU:3,AV:3,
+  AU:3,AV:3,AW:3,
 };
 /* Base Completa: uma linha por item (área × máquina × tarefa × risco), a
    partir da linha 3 (linhas 1-2 são o cabeçalho de duas linhas do modelo).
@@ -25804,9 +25854,11 @@ function xlsmLinhaBaseCompleta(rowNum, item){
   //   AU = ID_Risco (unico por linha) | AV = ID_Maquina (mesmo para linhas da mesma maquina)
   c.push(xlsmCellTexto(`AU${rowNum}`,S.AU, "R"+String(risco.id)));
   c.push(xlsmCellTexto(`AV${rowNum}`,S.AV, "M"+String(maquina.id)));
-  return `<row r="${rowNum}" spans="1:48" ht="69.95" customHeight="1">${c.join("")}</row>`;
+  // [ADITIVO 09/11/2026] AW = Nº do risco no projeto (1.1.1), no fim para nao deslocar nada.
+  c.push(xlsmCellTexto(`AW${rowNum}`,S.AW, numeroDoRisco(item)));
+  return `<row r="${rowNum}" spans="1:49" ht="69.95" customHeight="1">${c.join("")}</row>`;
 }
-const XLSM_RESUMO_STYLES = {A:4,B:3,C:3,D:3,E:3,F:3,G:3,H:3,I:3,J:3,K:3,L:3,M:3};
+const XLSM_RESUMO_STYLES = {A:4,B:3,C:3,D:3,E:3,F:3,G:3,H:3,I:3,J:3,K:3,L:3,M:3,N:3};
 /* Resumo: mesma ordem de itens da Base Completa, a partir da linha 2 (linha 1
    é o cabeçalho). As colunas F (Descrição do Risco) e G (Mitigação) usam o
    MESMO texto final da IA (colunas AS/AT da Base Completa) quando existir —
@@ -25831,7 +25883,9 @@ function xlsmLinhaResumo(rowNum, item){
   c.push(xlsmCellTexto(`K${rowNum}`,S.K, labelHRN(HRN_NP_OPTS,hrn.np,HRN_NP_TABELA)));
   c.push(xlsmCellFormulaNum(`L${rowNum}`,S.L, `VLOOKUP(H${rowNum},TabelaPO[],2)*VLOOKUP(I${rowNum},TabelaFE[],2,0)*VLOOKUP(J${rowNum},TabelaGPD[],2,0)*VLOOKUP(K${rowNum},TabelaNP[],2,0)`, hrn.hrn));
   c.push(xlsmCellFormulaStr(`M${rowNum}`,S.M, formulaNivelHrnDeRef(`L${rowNum}`), hrn.nivel));
-  return `<row r="${rowNum}" spans="1:13" ht="69.95" customHeight="1">${c.join("")}</row>`;
+  // [ADITIVO 09/11/2026] N = Nº do risco no projeto (1.1.1), no fim.
+  c.push(xlsmCellTexto(`N${rowNum}`,S.N, numeroDoRisco(item)));
+  return `<row r="${rowNum}" spans="1:14" ht="69.95" customHeight="1">${c.join("")}</row>`;
 }
 const XLSM_INV_STYLES = {A:65,B:66,C:66,D:66,E:66,F:66,G:66,H:66,I:66,J:66,K:67,L:46};
 /* Inventário: uma linha por máquina (não por item — cada máquina aparece uma
@@ -25907,14 +25961,15 @@ async function gerarBytesXlsmCorteva(modeloB64, linhasComIA, itensInventario, da
   const linhasBase = linhasComIA.map((item,i)=> xlsmLinhaBaseCompleta(3+i, item));
   const lastRowBase = 2 + linhasComIA.length;
   let s1 = zip.file("xl/worksheets/sheet1.xml").asText();
-  s1 = xlsmSubstituiLinhas(s1, linhasBase, 3, 999, `A1:AV${lastRowBase}`);
+  s1 = xlsmSubstituiLinhas(s1, linhasBase, 3, 999, `A1:AW${lastRowBase}`);
   // [ADITIVO] Cabecalhos das novas colunas de ID na linha 2 (rotulo de dados),
   // inseridos antes do fechamento da linha 2 sem alterar as demais celulas.
   if(s1.indexOf('r="AU2"') === -1){
     s1 = s1.replace(/(<row r="2"[^>]*?>[\s\S]*?)(<\/row>)/,
       `$1<c r="AU2" s="6" t="inlineStr"><is><t xml:space="preserve">ID_Risco</t></is></c><c r="AV2" s="6" t="inlineStr"><is><t xml:space="preserve">ID_Maquina</t></is></c>$2`);
   }
-  s1 = s1.replace(/<autoFilter ref="[^"]*"/, `<autoFilter ref="A2:AV${lastRowBase}"`);
+  s1 = xlsmCabecalhoNoFim(s1, 2, "AV", "AW", "Nº");
+  s1 = s1.replace(/<autoFilter ref="[^"]*"/, `<autoFilter ref="A2:AW${lastRowBase}"`);
   zip.file("xl/worksheets/sheet1.xml", s1);
   const anchorsD1 = [], relsD1 = [];
   let shapeId1 = 1;
@@ -25941,8 +25996,9 @@ async function gerarBytesXlsmCorteva(modeloB64, linhasComIA, itensInventario, da
   if(!(opts && opts.pularResumo)){
   const linhasResumo = linhasComIA.map((item,i)=> xlsmLinhaResumo(2+i, item));
   let s2 = zip.file("xl/worksheets/sheet2.xml").asText();
-  s2 = xlsmSubstituiLinhas(s2, linhasResumo, 2, 999, `A1:M${lastRowResumo}`);
-  s2 = s2.replace(/<autoFilter ref="[^"]*"/, `<autoFilter ref="A1:M${lastRowResumo}"`);
+  s2 = xlsmSubstituiLinhas(s2, linhasResumo, 2, 999, `A1:N${lastRowResumo}`);
+  s2 = xlsmCabecalhoNoFim(s2, 1, "M", "N", "Nº");
+  s2 = s2.replace(/<autoFilter ref="[^"]*"/, `<autoFilter ref="A1:N${lastRowResumo}"`);
   zip.file("xl/worksheets/sheet2.xml", s2);
   const anchorsD2 = [], relsD2 = [];
   let shapeId2 = 1;
@@ -26043,8 +26099,8 @@ async function gerarBytesXlsmCorteva(modeloB64, linhasComIA, itensInventario, da
 
   // ---------- workbook.xml — ranges dos filtros (_FilterDatabase) ----------
   let wb = zip.file("xl/workbook.xml").asText();
-  wb = wb.replace(/'Base Completa'!\$A\$2:\$A[TV]\$\d+/, `'Base Completa'!$A$2:$AV$${lastRowBase}`);
-  if(!(opts && opts.pularResumo)) wb = wb.replace(/Resumo!\$A\$1:\$M\$\d+/, `Resumo!$A$1:$M$${lastRowResumo}`);
+  wb = wb.replace(/'Base Completa'!\$A\$2:\$A[TVW]\$\d+/, `'Base Completa'!$A$2:$AW$${lastRowBase}`);
+  if(!(opts && opts.pularResumo)) wb = wb.replace(/Resumo!\$A\$1:\$[MN]\$\d+/, `Resumo!$A$1:$N$${lastRowResumo}`);
   zip.file("xl/workbook.xml", wb);
 
   // ---------- calcChain.xml — remove; o Excel reconstrói sozinho ao abrir ----------
@@ -26096,7 +26152,7 @@ function montarItensInventario(linhasRaw){
     if(vistos.has(item.maquina.id)) return;
     vistos.add(item.maquina.id);
     n++;
-    itens.push({ numLegenda:n, maquina:item.maquina, area:item.area });
+    itens.push({ numLegenda: Number(numeroDaMaquina(item)) || n, maquina:item.maquina, area:item.area });
   });
   return itens;
 }
@@ -26566,7 +26622,7 @@ function laudoAbaRevisao(){
           <div class="laudo-card-trilha" title="${escapeHtml(trilha)}">${escapeHtml(trilha)}</div>
           <div style="display:flex;align-items:flex-start;gap:8px;margin-top:3px">
             <div style="flex:1;min-width:0">
-              <div style="font-size:15px;font-weight:800;color:var(--ink);line-height:1.25">${escapeHtml(nomeRisco||"Risco sem nome")}</div>
+              <div style="font-size:15px;font-weight:800;color:var(--ink);line-height:1.25">${numeroCardHtml(numeroDoRisco(it))}${escapeHtml(nomeRisco||"Risco sem nome")}</div>
             </div>
             <span style="flex-shrink:0;font-size:10px;font-weight:800;padding:3px 7px;border-radius:6px;background:${meta.cor};color:${meta.texto}">${escapeHtml(String(hrn.hrn))}</span>
           </div>
@@ -27362,7 +27418,7 @@ function screenSimplesLaudoItem(){
       </div>
       <div class="laudo-topo-txt">
         <span class="lt-area" title="${escapeHtml(trilha)}">${escapeHtml(trilha)}</span>
-        <span class="lt-risco" title="${escapeHtml(nomeRisco||"")}">${escapeHtml(nomeRisco||"Risco sem nome")}</span>
+        <span class="lt-risco" title="${escapeHtml(nomeRisco||"")}">${numeroCardHtml(numeroDoRisco(item))}${escapeHtml(nomeRisco||"Risco sem nome")}</span>
       </div>
       <div class="laudo-topo-siglas">${laudoSiglaChip(item,"escopo","E")}${laudoSiglaChip(item,"tarefa","T")}${laudoSiglaChip(item,"nome","N")}${laudoSiglaChip(item,"risco","R")}${laudoSiglaChip(item,"existente","M")}${laudoSiglaChip(item,"solucao","S")}</div>
       <span class="laudo-topo-hrn" style="background:${metaHrn.cor};color:${metaHrn.texto}" title="HRN ${escapeHtml(String(hrn.hrn))} — ${escapeHtml(hrn.nivel)}">${escapeHtml(String(hrn.hrn))}</span>
@@ -29299,7 +29355,7 @@ function formulaNivelHrn(colHrn,rn){
 /* ── Sheet HRN: Resumo e Base Completa — fotos como objeto real (twoCellAnchor) ─ */
 const RESUMO_HEADERS_HRN = [
   "Foto do Equipamento","Foto do Risco","Área","Máquina/Ativo","Tarefa","Risco","Descrição do Risco","Registro de Salvaguarda / Mitigação",
-  "Probabilidade","Frequência","Grau do Dano","Número de Pessoas","HRN","Nível de Risco"
+  "Probabilidade","Frequência","Grau do Dano","Número de Pessoas","HRN","Nível de Risco","Nº"
 ];
 // colunas HRN no Resumo (1-based)
 const RESUMO_COL_PO=9,RESUMO_COL_FE=10,RESUMO_COL_GPD=11,RESUMO_COL_NP=12,RESUMO_COL_HRN=13,RESUMO_COL_NIVEL=14;
@@ -29420,6 +29476,7 @@ function buildXlsxPackageSimples({grupos, headers, dataRows, anchors, imgMap, co
       nomeRisco, item.risco.descricao, mitig,
       labelHRN(HRN_PO_OPTS,po,HRN_PO_TABELA), labelHRN(HRN_FE_OPTS,fe,HRN_FE_TABELA), labelHRN(HRN_GPD_OPTS,gpd,HRN_GPD_TABELA), labelHRN(HRN_NP_OPTS,np,HRN_NP_TABELA),
       '', '', // HRN e Nível preenchidos por fórmula em buildHrnSheetXml
+      numeroDoRisco(item),
     ];
   });
 
@@ -29890,8 +29947,13 @@ function numerarHierarquiaSimples(linhasRaw){
       numRisco.set(risco.id, atual);
     }
   });
+  /* 09/11/2026: com o projeto em mãos, vale o número do projeto (o mesmo do
+     laudo A4, das planilhas e dos cards). A contagem acima fica só para linha
+     sem projeto. */
   return linhasRaw.map(item=>{
-    const nM = numMaquina.get(item.maquina.id), nT = numTarefa.get(item.tarefa.id), nR = numRisco.get(item.risco.id);
+    let nM = numMaquina.get(item.maquina.id), nT = numTarefa.get(item.tarefa.id), nR = numRisco.get(item.risco.id);
+    const np = numeroDoRisco(item);
+    if(np){ const p = np.split("."); nM = Number(p[0]); nT = Number(p[1]); nR = Number(p[2]); }
     return {...item, numMaquina:nM, numTarefa:nT, numRisco:nR, codigo:`${nM}.${nT}.${nR}`};
   });
 }
@@ -30187,6 +30249,7 @@ function buildDocxPackageZip({documentXml, relsImagem, imgMap}){
 const FOTO_VAZIA_B64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
 
 function montarDadosMaquinaDocx(area, maquina, fotosPreparadas){
+  const projDaArea = STATE.projetosSimples.find(p=> (p.areas || []).indexOf(area) >= 0) || null;
   const tarefas = maquina.tarefas.map((tarefa)=>{
     const tarefaTxt = valOuOutro(tarefa.tarefa, tarefa.tarefaOutro) || "Tarefa sem nome";
     const riscos = tarefa.riscos.map((risco)=>{
@@ -30200,7 +30263,7 @@ function montarDadosMaquinaDocx(area, maquina, fotosPreparadas){
       }
       const mitigacao = corrigirTextoMecanico(risco.sugestaoMitigacao) || "Não informado.";
       return {
-        numero: "",
+        numero: numeroDoRisco({ proj:projDaArea, risco }),
         descricao: (nomeRisco?nomeRisco+". ":"") + descricaoCompleta,
         po: labelHRN(HRN_PO_OPTS,po,HRN_PO_TABELA),
         fe: labelHRN(HRN_FE_OPTS,fe,HRN_FE_TABELA),
@@ -37612,8 +37675,8 @@ table.lp-rt .sf{font-size:9px;color:#777}
   font-size:11px;color:#666;line-height:1.6;margin-top:10px}
 .lp-rc{border:1px solid #8A8CA3;margin-top:6px}
 .lp-rc-cab{display:flex;align-items:center;gap:7px;background:#EEF0F6;border-bottom:1px solid #8A8CA3;padding:4px 7px}
-.lp-rc-num{background:#1E2148;color:#fff;font-weight:bold;font-size:9px;width:16px;height:16px;
-  display:flex;align-items:center;justify-content:center;border-radius:3px;flex-shrink:0}
+.lp-rc-num{background:#1E2148;color:#fff;font-weight:bold;font-size:9px;min-width:16px;height:16px;padding:0 4px;box-sizing:border-box;
+  display:flex;align-items:center;justify-content:center;border-radius:3px;flex-shrink:0;white-space:nowrap}
 .lp-rc-nome{flex:1;font-size:10.5px;font-weight:bold;color:#111;line-height:1.3}
 /* O rotulo da evidencia subiu para a linha do nome (o selo do HRN saiu daqui,
    porque o nivel ja aparece na tabela do rodape). Com ele fora da coluna, a
@@ -38309,7 +38372,7 @@ table.lp-hrn-h tr:last-child td{font-weight:bold;background:#FFF3D6;font-size:8p
         <td class="foto">${foto? `<img src="${foto}">` : ""}<label class="lp-oculta-toggle lp-oculta-toggle-inv" title="Não incluir este equipamento (e os riscos dele) no laudo, nem no inventário">
           <input type="checkbox" ${m.ocultoLaudo?'':'checked'} onchange="App.lpToggleMaquina('${m.id}')">
         </label></td>
-        <td>${i+1}</td><td class="nome"${lpEd("mq:" + m.id + ":nome")}>${esc(nomeMaquinaS(m))}</td><td>${esc(tipoEquipamento(m))}</td>
+        <td>${esc(numeroDaMaquina(it) || String(i+1))}</td><td class="nome"${lpEd("mq:" + m.id + ":nome")}>${esc(nomeMaquinaS(m))}</td><td>${esc(tipoEquipamento(m))}</td>
         <td>${esc(it.area.nome||"")}</td><td${lpEd("mq:" + m.id + ":local")}>${esc(m.local||it.area.local||"")}</td>
         <td${lpEd("mq:" + m.id + ":modelo")}>${esc(m.modelo||"")}</td><td${lpEd("mq:" + m.id + ":marca")}>${esc(m.marca||"")}</td><td${lpEd("mq:" + m.id + ":numeroSerie")}>${esc(m.numeroSerie||"")}</td>
         <td${lpEd("mq:" + m.id + ":anoFabricacao")}>${esc(m.anoFabricacao||"")}</td><td${lpEd("mq:" + m.id + ":capacidade")}>${esc(m.capacidade||"")}</td><td${lpEd("mq:" + m.id + ":tensao")}>${esc(m.tensao||"")}</td>
@@ -38499,7 +38562,8 @@ function lpMaiorPLrDoEquipamento(itens){
       for(const t of g.tarefas.values()){
         const nomeT = (valOuOutro(t.tarefa.tarefa, t.tarefa.tarefaOutro) || "TAREFA").toUpperCase();
         const descT = laudoTextoFinal(t.itens[0], "tarefa") || t.tarefa.descricao || "";
-        blocos.push({ html:`<div class="lp-faixa-c" style="margin-top:8px">${esc(nomeT)}</div>
+        const numT = numeroDaTarefa(t.itens[0]);
+        blocos.push({ html:`<div class="lp-faixa-c" style="margin-top:8px">${esc(numT ? numT + " – " + nomeT : nomeT)}</div>
           <div class="lp-apr-txt" style="border:1px solid #8A8CA3;border-top:none"${lpEd("lt:" + t.itens[0].risco.id + ":tarefa")}>${lpTxtQ(descT)}</div>
           <div class="lp-faixa-r" style="margin-top:6px">RISCOS REFERENTES À TAREFA ${esc(nomeT)}</div>
 `, grudaNoProximo:true });
@@ -38526,7 +38590,7 @@ function lpMaiorPLrDoEquipamento(itens){
           const plr = plrExigido(r, it.tarefa);
           blocos.push({ html:`<div class="lp-rc${r.ocultoLaudo?' lp-oculto':''}">
             <div class="lp-rc-cab">
-              <span class="lp-rc-num">${i+1}</span>
+              <span class="lp-rc-num">${esc(numeroDoRisco(it) || String(i+1))}</span>
               <span class="lp-rc-nome"${lpEd("lt:" + r.id + ":nome")}>${esc(nomeRisco)}</span>
               ${evsOk.length? `<span class="lp-rc-evrot">Evidência do risco</span>`:""}
               <label class="lp-oculta-toggle" title="Não incluir este risco no laudo">
@@ -38734,7 +38798,7 @@ function lpMaiorPLrDoEquipamento(itens){
       blocos.push({ cabRepete: cab, cabPrimeiro: i === 0, html:`<table class="lp-rt">${col}<tr>
         <td class="mq"${lpEd("mq:" + it.maquina.id + ":nome")}>${esc(nomeMaquinaS(it.maquina))}</td>
         <td class="ft">${foto? `<img src="${foto}">` : `<span class="sf">Sem foto</span>`}</td>
-        <td class="ds"><b${lpEd("lt:" + r.id + ":nome")}>${esc(nomeRisco)}</b><br><span${lpEd("lt:" + r.id + ":risco")}>${lpTxtQ(desc)}</span></td>
+        <td class="ds">${numeroDoRisco(it) ? `<b>${esc(numeroDoRisco(it))} – </b>` : ""}<b${lpEd("lt:" + r.id + ":nome")}>${esc(nomeRisco)}</b><br><span${lpEd("lt:" + r.id + ":risco")}>${lpTxtQ(desc)}</span></td>
         <td class="nv" style="background:${meta.cor};color:${meta.texto}"><div class="n">${esc(hrnNumeroBR(h.hrn))}</div><div class="c">${esc(h.nivel)}</div></td>
       </tr></table>` });
     }

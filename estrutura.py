@@ -6166,6 +6166,16 @@ chk("aba Exportar usa a lista por area e o Revisar filtrado",
     novo.count("function laudoPendenciasPorArea(") == 1 and "laudoPendenciasPorAreaHtml(pa)" in _corpoDe(novo, "laudoAbaExportar")
     and novo.count("  laudoRevisarPendArea(id, f){") == 1)
 
+print("\n=== 210. NUMERO DO RISCO NO PROJETO 1.1.1 (09/11/2026) ===")
+chk("uma funcao de numeracao so, fora do bloco de impressao (o bloco continua removivel)",
+    novo.count("function numeracaoDoProjeto(") == 1
+    and novo.index("function numeracaoDoProjeto(") < novo.index("INÍCIO DO MÓDULO DE IMPRESSÃO DO LAUDO — BLOCO REMOVÍVEL"))
+chk(".xlsm Corteva: nenhuma coluna antiga mudou de lugar (A..AV e A..M iguais, AW/N acrescentadas no fim)",
+    _corpoDe(novo, "xlsmLinhaBaseCompleta").split("  // [ADITIVO 09/11/2026]")[0] == _corpoDe(orig, "xlsmLinhaBaseCompleta").split("  return `<row")[0]
+    and _corpoDe(novo, "xlsmLinhaResumo").split("  // [ADITIVO 09/11/2026]")[0] == _corpoDe(orig, "xlsmLinhaResumo").split("  return `<row")[0])
+chk("calculo do HRN e do PLr intocados",
+    all(_corpoDe(novo, n) == _corpoDe(orig, n) for n in ["hrnDoItem", "plrExigido"]))
+
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
 
