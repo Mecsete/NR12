@@ -2035,7 +2035,7 @@ chk("o menu '...' do laudo ganhou atalhos para area, maquina e tarefa, alem do r
     and novo.count("App.abrirModalAreaS('${item.area.id}','${item.proj.id}')") == 1)
 chk("os atalhos passam por metodos que sincronizam o 'atual' antes de abrir",
     "  laudoEditarEquipamento(rid){" in novo and "  laudoEditarTarefa(rid){" in novo
-    and novo.count("laudoSincronizarAtuais(it);") == 2)
+    and novo.count("laudoSincronizarAtuais(it);") == 3)
 _iniMenu = novo.find("menuLaudoCard(rid, tarefaId){")
 _fimMenu = novo.find("laudoCopiarRisco(rid){", _iniMenu)
 _trechoMenu = novo[_iniMenu:_fimMenu]
@@ -6170,11 +6170,22 @@ print("\n=== 210. NUMERO DO RISCO NO PROJETO 1.1.1 (09/11/2026) ===")
 chk("uma funcao de numeracao so, fora do bloco de impressao (o bloco continua removivel)",
     novo.count("function numeracaoDoProjeto(") == 1
     and novo.index("function numeracaoDoProjeto(") < novo.index("INÍCIO DO MÓDULO DE IMPRESSÃO DO LAUDO — BLOCO REMOVÍVEL"))
-chk(".xlsm Corteva: nenhuma coluna antiga mudou de lugar (A..AV e A..M iguais, AW/N acrescentadas no fim)",
-    _corpoDe(novo, "xlsmLinhaBaseCompleta").split("  // [ADITIVO 09/11/2026]")[0] == _corpoDe(orig, "xlsmLinhaBaseCompleta").split("  return `<row")[0]
-    and _corpoDe(novo, "xlsmLinhaResumo").split("  // [ADITIVO 09/11/2026]")[0] == _corpoDe(orig, "xlsmLinhaResumo").split("  return `<row")[0])
+_b210 = _corpoDe(novo, "xlsmLinhaBaseCompleta"); _r210 = _corpoDe(novo, "xlsmLinhaResumo")
+chk(".xlsm Corteva: Nº so no fim (AW depois de AV na Base Completa, N depois de M no Resumo)",
+    _b210.index("`AV${rowNum}`") < _b210.index("`AW${rowNum}`") < _b210.index("return `<row")
+    and _b210.count("${rowNum}`") == _b210.count("`AW${rowNum}`") + _b210.split("`AW${rowNum}`")[0].count("${rowNum}`")
+    and _r210.index("`M${rowNum}`") < _r210.index("`N${rowNum}`") < _r210.index("return `<row"))
 chk("calculo do HRN e do PLr intocados",
     all(_corpoDe(novo, n) == _corpoDe(orig, n) for n in ["hrnDoItem", "plrExigido"]))
+
+print("\n=== 211. REVISAO: MOVER RISCO PARA OUTRA MAQUINA OU TAREFA (09/11/2026) ===")
+chk("o mover do cadastro (executarMoverRiscoS) e o desenho da cascata ficam intocados",
+    _corpoDe(novo, "renderCascataModal") == _corpoDe(orig, "renderCascataModal")
+    and novo.count("  executarMoverRiscoS(riscoId, tarefaOrigemId, tarefaDestinoId){") == 1
+    and novo.split("  executarMoverRiscoS(riscoId, tarefaOrigemId, tarefaDestinoId){")[1].split("\n  },")[0] == orig.split("  executarMoverRiscoS(riscoId, tarefaOrigemId, tarefaDestinoId){")[1].split("\n  },")[0])
+chk("o mover da Revisao carimba o risco e confere projeto arquivado",
+    "r.atualizadoEm = agoraSync();" in novo.split("  laudoExecutarMoverRisco(rid, tarefaDestinoId){")[1].split("\n  },")[0]
+    and "recusarSeArquivado(it.proj.id)" in novo.split("  laudoExecutarMoverRisco(rid, tarefaDestinoId){")[1].split("\n  },")[0])
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

@@ -3549,7 +3549,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "09/11/2026 15:20";
+const APP_BUILD = "09/11/2026 15:55";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -33025,12 +33025,48 @@ Devolver agora?`)) return;
       {label:"Editar a máquina/ativo", icon:"edit", onclick:`App.laudoEditarEquipamento('${rid}')`},
       {label:"Editar a área", icon:"edit", onclick:`App.abrirModalAreaS('${item.area.id}','${item.proj.id}')`},
       {label:"Copiar risco", icon:"copy", onclick:`App.laudoCopiarRisco('${rid}')`},
+      {label:"Mover para outra máquina ou tarefa", icon:"arrowR", onclick:`App.laudoMoverRisco('${rid}')`},
       {label:"Excluir risco", icon:"trash", onclick:`App.removerRiscoS('${rid}','${tarefaId}')`, danger:true},
     ]);
   },
   /* Atalhos do laudo para o cadastro. Passam por laudoSincronizarAtuais
      porque, sem isso, abrirModalMaquinaS/TarefaS não localizam o item e o
      modal não abre. */
+  /* "Mover para outra máquina ou tarefa" na Revisão (09/11/2026). O mesmo
+     movimento do cadastro (executarMoverRiscoS): o risco sai da tarefa de
+     origem e entra no fim da de destino levando tudo o que é dele — textos do
+     laudo, fotos, HRN, PLr, residual previsto. A diferença é que a tela fica
+     na Revisão, em vez de pular para a lista de riscos do destino. O escopo e
+     o texto da tarefa passam a ser os do destino, e o número 1.1.1 acompanha a
+     posição nova. Só dentro do mesmo projeto. */
+  laudoMoverRisco(rid){
+    const it = laudoItemPorId(rid); if(!it) return;
+    if(recusarSeArquivado(it.proj.id)) return;
+    laudoSincronizarAtuais(it);
+    abrirCascata(["area","maquina","tarefa"], { areaId:it.area.id, maquinaId:it.maquina.id, tarefaId:it.tarefa.id }, "Mover risco", "Mover", (escolha)=>{
+      App.laudoExecutarMoverRisco(rid, escolha.tarefaId);
+    });
+  },
+  laudoExecutarMoverRisco(rid, tarefaDestinoId){
+    const it = laudoItemPorId(rid); if(!it) return false;
+    if(recusarSeArquivado(it.proj.id)) return false;
+    if(it.tarefa.id === tarefaDestinoId){ toast("Este risco já está nessa tarefa", false); return false; }
+    const destino = tarefaDestinoId ? buscarTarefaSimplesPorId(tarefaDestinoId) : null;
+    const idx = it.tarefa.riscos.findIndex(r=> r.id === rid);
+    if(!destino || idx < 0){ toast("Escolha a tarefa de destino", false); return false; }
+    const [r] = it.tarefa.riscos.splice(idx, 1);
+    destino.riscos.push(r);
+    r.atualizadoEm = agoraSync();   // carimbo: sem ele o movimento não sincroniza
+    marcarAlterado();
+    __numProjMemo = null;   // a posição mudou: o número 1.1.1 é recontado
+    const novo = laudoItemPorId(rid);
+    const onde = novo ? (nomeMaquinaS(novo.maquina) || "máquina") + " · " + (valOuOutro(novo.tarefa.tarefa, novo.tarefa.tarefaOutro) || "tarefa") : "";
+    const fora = !!novo && !getAreasSelecionadasExport().includes(novo.area.id);
+    render();
+    toast("Risco movido para " + onde + (novo && numeroDoRisco(novo) ? " — agora " + numeroDoRisco(novo) : "")
+      + (fora ? ". A área de destino não está marcada na aba Áreas" : ""));
+    return true;
+  },
   laudoEditarEquipamento(rid){
     const it = laudoItemPorId(rid); if(!it) return;
     laudoSincronizarAtuais(it);

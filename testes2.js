@@ -15012,6 +15012,58 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  /* t207 — REVISAO: MOVER O RISCO PARA OUTRA MAQUINA OU TAREFA (09/11/2026). */
+  {
+    console.log("\n[t207] Revisao: mover risco para outra maquina ou tarefa");
+    const cx = vm.createContext({ String, Number, Array, Object });
+    vm.runInContext(`let __numProjMemo = null; var TOASTS = [], ALT = 0, RENDER = 0, ARQ = false, SEL = ["a1"];
+      var r1 = { id:"r1", laudoIA:{ solucaoFin:"Sol", solucaoSt:"ok" } }, r2 = { id:"r2" }, r3 = { id:"r3" };
+      var t1 = { id:"t1", tarefa:"Operação", riscos:[r1, r2] }, t2 = { id:"t2", tarefa:"Limpeza", riscos:[r3] };
+      var m1 = { id:"m1", nome:"Esteira", tarefas:[t1] }, m2 = { id:"m2", nome:"Shaker", tarefas:[t2] };
+      var P = { id:"p1", areas:[ { id:"a1", maquinas:[m1] }, { id:"a2", maquinas:[m2] } ] };
+      function linhasEscopoSimples(){ const o=[]; [P].forEach(p=>p.areas.forEach(a=>a.maquinas.forEach(m=>m.tarefas.forEach(tf=>tf.riscos.forEach(r=>o.push({proj:p,area:a,maquina:m,tarefa:tf,risco:r})))))); return o; }
+      function laudoItemPorId(id){ return linhasEscopoSimples().find(x=> x.risco.id === id) || null; }
+      function buscarTarefaSimplesPorId(id){ return [t1, t2].find(x=> x.id === id); }
+      function recusarSeArquivado(){ return ARQ; }
+      function agoraSync(){ return 777; }
+      function marcarAlterado(){ ALT++; }
+      function render(){ RENDER++; }
+      function toast(m, okk){ TOASTS.push([m, okk]); }
+      function nomeMaquinaS(m){ return m.nome; }
+      function valOuOutro(a){ return a; }
+      function getAreasSelecionadasExport(){ return SEL; }
+      var App = {};`, cx);
+    ["numeracaoDoProjeto", "numeroDoRisco"].forEach(f=> vm.runInContext(funcao(f), cx));
+    {
+      const i0 = HTML.indexOf("  laudoExecutarMoverRisco(rid, tarefaDestinoId){");
+      const f = HTML.slice(i0, HTML.indexOf("\n  },", i0) + 4).trim().replace(/,$/, "");
+      vm.runInContext("App.laudoExecutarMoverRisco = function" + f.slice("laudoExecutarMoverRisco".length) , cx);
+    }
+    const R = (s)=> vm.runInContext(s, cx);
+    t("move para a tarefa de outra maquina levando os textos do laudo, com carimbo e sem sair da Revisao", ()=>{
+      ok(R('App.laudoExecutarMoverRisco("r1", "t2")'));
+      eq(R("t1.riscos.map(r=>r.id).join()"), "r2"); eq(R("t2.riscos.map(r=>r.id).join()"), "r3,r1");
+      eq(R("r1.atualizadoEm"), 777); eq(R("r1.laudoIA.solucaoFin"), "Sol");
+      ok(R("ALT") === 1 && R("RENDER") === 1);
+      const msg = R("TOASTS[TOASTS.length-1][0]");
+      ok(msg.indexOf("Shaker · Limpeza") > 0 && msg.indexOf("agora 2.1.2") > 0, msg);
+      ok(msg.indexOf("não está marcada na aba Áreas") > 0, "destino fora das areas marcadas avisa");
+    });
+    t("mesma tarefa, destino vazio ou projeto arquivado: nao mexe em nada", ()=>{
+      ok(!R('App.laudoExecutarMoverRisco("r1", "t2")'), "ja esta la");
+      ok(!R('App.laudoExecutarMoverRisco("r2", "")'), "sem destino");
+      R("ARQ = true;"); ok(!R('App.laudoExecutarMoverRisco("r2", "t2")'), "arquivado"); R("ARQ = false;");
+      eq(R("t1.riscos.map(r=>r.id).join()"), "r2"); eq(R("t2.riscos.map(r=>r.id).join()"), "r3,r1");
+      eq(R("ALT"), 1);
+    });
+    t("menu do card e do topo do item oferecem o mover", ()=>{
+      ok(HTML.indexOf('{label:"Mover para outra máquina ou tarefa", icon:"arrowR", onclick:`App.laudoMoverRisco(\'${rid}\')`},') > 0);
+      const i0 = HTML.indexOf("  laudoMoverRisco(rid){");
+      const f = HTML.slice(i0, HTML.indexOf("\n  },", i0));
+      ok(f.indexOf('abrirCascata(["area","maquina","tarefa"]') > 0 && f.indexOf("recusarSeArquivado(it.proj.id)") > 0);
+    });
+  }
+
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);
 })();

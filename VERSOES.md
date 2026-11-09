@@ -64,6 +64,17 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 09/11/2026 15:55
+
+**Revisão: mover o risco para outra máquina ou tarefa.**
+
+- No menu (⋮) de cada card da Revisão, e no topo do item, a opção "Mover para
+  outra máquina ou tarefa" escolhe área, máquina e tarefa de destino, dentro do
+  mesmo projeto. O risco leva junto textos do laudo, fotos, HRN e PLr; o escopo
+  e o texto da tarefa passam a ser os do destino, e o número 1.1.1 é recontado.
+- A tela continua na Revisão. Se a área de destino não estiver marcada na aba
+  Áreas, o aviso diz isso (o risco some da lista até a área ser marcada).
+
 ## 09/11/2026 15:20
 
 **Número único do risco no projeto: 1.1.1 = Equipamento.Atividade.Risco.**
