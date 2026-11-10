@@ -5230,8 +5230,8 @@ chk("as cores de nivel do Excel saem do HRN_FAIXAS (uma por faixa), nao de 4 nom
 chk("HRN e Nivel saem com o valor calculado gravado ao lado da formula (Resumo e Base)",
     novo.count("<v>${cv.hrn}</v>") == 2 and novo.count("<v>${escapeXml(cv.nivel)}</v>") == 2)
 chk("Resumo limpo ganha 'Foto do Equipamento' e as colunas HRN acompanham",
-    '"Foto do Equipamento","Foto do Risco","Área"' in novo
-    and "RESUMO_COL_PO=9,RESUMO_COL_FE=10,RESUMO_COL_GPD=11,RESUMO_COL_NP=12,RESUMO_COL_HRN=13,RESUMO_COL_NIVEL=14" in novo
+    '"Foto do Equipamento","Foto do Perigo","Nº","Área"' in novo
+    and "RESUMO_COL_PO=10,RESUMO_COL_FE=11,RESUMO_COL_GPD=12,RESUMO_COL_NP=13,RESUMO_COL_HRN=14,RESUMO_COL_NIVEL=15" in novo
     and "new Set([1,2])" in novo
     # 25-29/09/2026 (secao 168): a leitura direta virou fotoExportavel(...), que
     # descarta uma referencia idbfoto: sem foto correspondente em vez de deixá-la
@@ -5869,7 +5869,7 @@ chk("o Rascunho e so de sessao: lpToggleRascunho nao grava nada e a tela tem o b
     "marcarAlterado" not in novo[novo.find("    lpToggleRascunho(){"):novo.find("    lpToggleModoOcultar(){")]
     and "App.lpToggleRascunho()" in _corpoMod("telaImprimir"))
 chk("a Conclusao ganhou o espaco de 2 linhas antes da tabela",
-    '<div class="lp-conc">${texto}</div><div class="lp-esp-concl"></div>${cab}' in _corpoDe(novo, "blocosConclusao") or '<div class="lp-conc">${texto}</div><div class="lp-esp-concl"></div>${cab}' in novo)
+    '<div class="lp-conc">${texto}</div><div class="lp-esp-concl"></div>` }];' in novo)   # 09/11/2026: o cabecalho foi para a primeira linha
 
 print("\n=== 185. SELO 'FOTOS' PROCURA NA NUVEM + SELO DE EXCLUSOES SEGURADAS (07/10/2026) ===")
 _bf = _corpoDe(novo, "onedriveBaixarFotosDeItem")
@@ -6186,6 +6186,22 @@ chk("o mover do cadastro (executarMoverRiscoS) e o desenho da cascata ficam into
 chk("o mover da Revisao carimba o risco e confere projeto arquivado",
     "r.atualizadoEm = agoraSync();" in novo.split("  laudoExecutarMoverRisco(rid, tarefaDestinoId){")[1].split("\n  },")[0]
     and "recusarSeArquivado(it.proj.id)" in novo.split("  laudoExecutarMoverRisco(rid, tarefaDestinoId){")[1].split("\n  },")[0])
+
+print("\n=== 212. PLANILHAS: PERIGO NO LUGAR DE RISCO; Nº NA COLUNA C DO RESUMO (09/11/2026) ===")
+chk("Modulo Completo intocado (buildGruposFotos e exportarMasterXLSXFotos seguem com 'Foto do Risco')",
+    _corpoDe(novo, "buildGruposFotos") == _corpoDe(orig, "buildGruposFotos")
+    and _corpoDe(novo, "exportarMasterXLSXFotos") == _corpoDe(orig, "exportarMasterXLSXFotos"))
+chk(".xlsm Corteva: colunas e linhas de dados do modelo nao mudam (so o texto do cabecalho)",
+    _corpoDe(novo, "xlsmLinhaBaseCompleta") == _corpoDe(orig, "xlsmLinhaBaseCompleta")
+    and _corpoDe(novo, "xlsmLinhaResumo") == _corpoDe(orig, "xlsmLinhaResumo")
+    and novo.count("xlsmTrocarCabecalhos(s1, __sstModelo, XLSM_CAB_PERIGO_BASE)") == 1
+    and novo.count("xlsmTrocarCabecalhos(s2, __sstModelo, XLSM_CAB_PERIGO_RESUMO)") == 1)
+
+print("\n=== 213. LAUDO A4: CABECALHO DA TABELA DA CONCLUSAO COM A PRIMEIRA LINHA (09/11/2026) ===")
+chk("cabecalho saiu do bloco do texto e entrou na primeira linha; paginador intocado",
+    novo.count('<div class="lp-esp-concl"></div>${cab}') == 0
+    and novo.count('html:`${i === 0 ? cab : ""}<table class="lp-rt">') == 1
+    and _fnMod(novo, "paginar") == _fnMod(orig, "paginar"))
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

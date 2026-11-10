@@ -3549,7 +3549,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "09/11/2026 15:55";
+const APP_BUILD = "09/11/2026 21:21";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -20611,7 +20611,10 @@ const GRUPOS_SIMPLES = [
   { nome:"Identificação", colunas:["Nº","Empresa/Unidade","Cidade","Responsável","Data","Área","Descrição Área","Local"] },
   { nome:"Máquina/Ativo", colunas:["Nome da Máquina/Ativo","Descrição da Máquina/Ativo","Manual de Operação"] },
   { nome:"Tarefa", colunas:["Tarefa","Descrição da Tarefa","Nº de Pessoas"] },
-  { nome:"Risco", colunas:["Nome do Risco","Descrição do Risco","Há Medida de Mitigação?","Descrição da Medida Existente","Sugestão de Mitigação"] },
+  /* 09/11/2026: "Perigo" no nome, na descrição e na foto, a pedido do cliente
+     (ISO 12100: perigo é a fonte do dano; risco é a combinação avaliada).
+     "Nível de Risco", HRN e mitigação continuam falando de risco. */
+  { nome:"Perigo", colunas:["Nome do Perigo","Descrição do Perigo","Há Medida de Mitigação?","Descrição da Medida Existente","Sugestão de Mitigação"] },
   { nome:"Avaliação HRN", colunas:["Probabilidade","Frequência","Grau do Dano","Número de Pessoas","HRN","Nível de Risco"] },
 ];
 /* =========================================================================
@@ -25649,9 +25652,9 @@ function exportarSimplesXLS(){
 }
 function buildGruposSimplesFotos(maxExtrasMaquina, maxExtrasRisco){
   const clone = GRUPOS_SIMPLES.map(g=>({nome:g.nome, colunas:[...g.colunas]}));
-  const grupoRisco = clone.find(g=>g.nome==="Risco");
-  const idxDesc = grupoRisco.colunas.indexOf("Descrição do Risco");
-  grupoRisco.colunas.splice(idxDesc+1, 0, "Foto do Risco"); // só a foto principal fica junto da descrição
+  const grupoRisco = clone.find(g=>g.nome==="Perigo");
+  const idxDesc = grupoRisco.colunas.indexOf("Descrição do Perigo");
+  grupoRisco.colunas.splice(idxDesc+1, 0, "Foto do Perigo"); // só a foto principal fica junto da descrição
   clone.unshift({nome:"Fotos da Máquina/Ativo", colunas: ["Foto Geral", "Foto da Plaqueta"]}); // só as principais
   // Fotos extras vão para o final da planilha, em dois grupos separados.
   if(maxExtrasMaquina>0){
@@ -25661,14 +25664,14 @@ function buildGruposSimplesFotos(maxExtrasMaquina, maxExtrasRisco){
   }
   if(maxExtrasRisco>0){
     const colunasExtraRisco = [];
-    for(let i=1;i<=maxExtrasRisco;i++) colunasExtraRisco.push(`Foto Extra do Risco ${i}`);
-    clone.push({nome:"Fotos Extras do Risco", colunas: colunasExtraRisco});
+    for(let i=1;i<=maxExtrasRisco;i++) colunasExtraRisco.push(`Foto Extra do Perigo ${i}`);
+    clone.push({nome:"Fotos Extras do Perigo", colunas: colunasExtraRisco});
   }
   return clone;
 }
 function linhaSimplesComFotos(item, maxExtrasMaquina, maxExtrasRisco){
   const base = linhaSimples(item);
-  const idxDescOriginal = GRUPOS_SIMPLES.flatMap(g=>g.colunas).indexOf("Descrição do Risco");
+  const idxDescOriginal = GRUPOS_SIMPLES.flatMap(g=>g.colunas).indexOf("Descrição do Perigo");
   const comFotoRisco = [...base.slice(0, idxDescOriginal+1), "", ...base.slice(idxDescOriginal+1)]; // 1 placeholder: só foto principal do risco
   const extrasMaquinaPlaceholder = new Array(maxExtrasMaquina).fill("");
   const extrasRiscoPlaceholder = new Array(maxExtrasRisco).fill("");
@@ -25687,9 +25690,9 @@ async function gerarBytesXlsxSimples(linhasRaw, abas){
   const colFotoPlaqueta = headers.indexOf("Foto da Plaqueta")+1;
   const colsFotoExtraMaquina = [];
   for(let i=1;i<=maxExtrasMaquina;i++) colsFotoExtraMaquina.push(headers.indexOf(`Foto Extra da Máquina ${i}`)+1);
-  const colFotoRisco = headers.indexOf("Foto do Risco")+1;
+  const colFotoRisco = headers.indexOf("Foto do Perigo")+1;
   const colsFotoExtraRisco = [];
-  for(let i=1;i<=maxExtrasRisco;i++) colsFotoExtraRisco.push(headers.indexOf(`Foto Extra do Risco ${i}`)+1);
+  for(let i=1;i<=maxExtrasRisco;i++) colsFotoExtraRisco.push(headers.indexOf(`Foto Extra do Perigo ${i}`)+1);
 
   const imgMap = new Map();
   let mediaCounter = 0;
@@ -25780,6 +25783,40 @@ function xlsmCabecalhoNoFim(xml, linha, refVizinha, refNova, texto){
   const s = mV ? mV[1] : "6";
   return xml.replace(new RegExp(`(<row r="${linha}"[^>]*?>[\\s\\S]*?)(</row>)`),
     `$1<c r="${refNova}${linha}" s="${s}" t="inlineStr"><is><t xml:space="preserve">${texto}</t></is></c>$2`);
+}
+/* "Perigo" nos cabeçalhos do modelo da Corteva (09/11/2026). Troca SÓ o texto
+   da célula, com o mesmo estilo, e só quando o texto do modelo é exatamente o
+   esperado — se o modelo mudar, a célula fica como veio. As macros leem por
+   número de coluna, não pelo nome do cabeçalho, então nada nelas muda.
+   Ficam como estão: "Nível de Risco", HRN, mitigação e as colunas da IA. */
+const XLSM_CAB_PERIGO_BASE = [
+  ["P1", "Risco", "Perigo"], ["AG1", "Fotos Extras do Risco", "Fotos Extras do Perigo"],
+  ["P2", "Nome do Risco", "Nome do Perigo"], ["Q2", "Descrição do Risco", "Descrição do Perigo"], ["R2", "Foto do Risco", "Foto do Perigo"],
+  ["AG2", "Foto Extra do Risco 1", "Foto Extra do Perigo 1"], ["AH2", "Foto Extra do Risco 2", "Foto Extra do Perigo 2"],
+  ["AI2", "Foto Extra do Risco 3", "Foto Extra do Perigo 3"], ["AJ2", "Foto Extra do Risco 4", "Foto Extra do Perigo 4"],
+  ["AK2", "Foto Extra do Risco 5", "Foto Extra do Perigo 5"],
+];
+const XLSM_CAB_PERIGO_RESUMO = [
+  ["A1", "Foto do Risco", "Foto do Perigo"], ["E1", "Risco", "Perigo"], ["F1", "Descrição do Risco", "Descrição do Perigo"],
+];
+function xlsmTextosCompartilhados(sstXml){
+  return (String(sstXml || "").match(/<si>[\s\S]*?<\/si>/g) || []).map(si=>
+    (si.match(/<t[^>]*>[^<]*<\/t>/g) || []).map(t=> t.replace(/<[^>]+>/g, "")).join("")
+      .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&"));
+}
+function xlsmTrocarCabecalhos(xml, sst, trocas){
+  trocas.forEach(([ref, antigo, novo])=>{
+    const re = new RegExp(`<c r="${ref}"[^>]*?(?:/>|>[\\s\\S]*?</c>)`);
+    const cel = (xml.match(re) || [])[0];
+    if(!cel) return;
+    let texto = null;
+    if(/\bt="s"/.test(cel)){ const v = /<v>(\d+)<\/v>/.exec(cel); if(v) texto = sst[Number(v[1])]; }
+    else if(/\bt="inlineStr"/.test(cel)) texto = (cel.match(/<t[^>]*>[^<]*<\/t>/g) || []).map(t=> t.replace(/<[^>]+>/g, "")).join("");
+    if(texto == null || texto.trim() !== antigo) return;
+    const s = (/<c [^>]*?\bs="(\d+)"/.exec(cel) || [])[1] || "0";
+    xml = xml.replace(re, xlsmCellTexto(ref, s, novo));
+  });
+  return xml;
 }
 function xlsmSubstituiLinhas(xml, novasLinhasXml, primeiraLinha, ultimaLinhaOriginal, novoDimensionRef){
   // "[^>]*?" (preguiçoso) em vez de "[^>]*" (guloso): sem isso, uma linha vazia
@@ -25969,6 +26006,8 @@ async function gerarBytesXlsmCorteva(modeloB64, linhasComIA, itensInventario, da
       `$1<c r="AU2" s="6" t="inlineStr"><is><t xml:space="preserve">ID_Risco</t></is></c><c r="AV2" s="6" t="inlineStr"><is><t xml:space="preserve">ID_Maquina</t></is></c>$2`);
   }
   s1 = xlsmCabecalhoNoFim(s1, 2, "AV", "AW", "Nº");
+  const __sstModelo = xlsmTextosCompartilhados(zip.file("xl/sharedStrings.xml") ? zip.file("xl/sharedStrings.xml").asText() : "");
+  s1 = xlsmTrocarCabecalhos(s1, __sstModelo, XLSM_CAB_PERIGO_BASE);
   s1 = s1.replace(/<autoFilter ref="[^"]*"/, `<autoFilter ref="A2:AW${lastRowBase}"`);
   zip.file("xl/worksheets/sheet1.xml", s1);
   const anchorsD1 = [], relsD1 = [];
@@ -25998,6 +26037,7 @@ async function gerarBytesXlsmCorteva(modeloB64, linhasComIA, itensInventario, da
   let s2 = zip.file("xl/worksheets/sheet2.xml").asText();
   s2 = xlsmSubstituiLinhas(s2, linhasResumo, 2, 999, `A1:N${lastRowResumo}`);
   s2 = xlsmCabecalhoNoFim(s2, 1, "M", "N", "Nº");
+  s2 = xlsmTrocarCabecalhos(s2, __sstModelo, XLSM_CAB_PERIGO_RESUMO);
   s2 = s2.replace(/<autoFilter ref="[^"]*"/, `<autoFilter ref="A1:N${lastRowResumo}"`);
   zip.file("xl/worksheets/sheet2.xml", s2);
   const anchorsD2 = [], relsD2 = [];
@@ -29354,11 +29394,11 @@ function formulaNivelHrn(colHrn,rn){
 
 /* ── Sheet HRN: Resumo e Base Completa — fotos como objeto real (twoCellAnchor) ─ */
 const RESUMO_HEADERS_HRN = [
-  "Foto do Equipamento","Foto do Risco","Área","Máquina/Ativo","Tarefa","Risco","Descrição do Risco","Registro de Salvaguarda / Mitigação",
-  "Probabilidade","Frequência","Grau do Dano","Número de Pessoas","HRN","Nível de Risco","Nº"
+  "Foto do Equipamento","Foto do Perigo","Nº","Área","Máquina/Ativo","Tarefa","Perigo","Descrição do Perigo","Registro de Salvaguarda / Mitigação",
+  "Probabilidade","Frequência","Grau do Dano","Número de Pessoas","HRN","Nível de Risco"
 ];
-// colunas HRN no Resumo (1-based)
-const RESUMO_COL_PO=9,RESUMO_COL_FE=10,RESUMO_COL_GPD=11,RESUMO_COL_NP=12,RESUMO_COL_HRN=13,RESUMO_COL_NIVEL=14;
+// colunas HRN no Resumo (1-based). 09/11/2026: o Nº entrou na coluna C — tudo depois dele andou uma.
+const RESUMO_COL_PO=10,RESUMO_COL_FE=11,RESUMO_COL_GPD=12,RESUMO_COL_NP=13,RESUMO_COL_HRN=14,RESUMO_COL_NIVEL=15;
 const FOTO_COLS_RESUMO = new Set([1,2]); // A (equipamento) e B (risco)
 
 function buildHrnSheetXml({sst, headers, rows, fotoColsSet, hrnColPO, hrnColFE, hrnColGPD, hrnColNP, hrnColHRN, hrnColNivel, hrnColAcao, drawingAnchors, sheetDrawingRId, cache}){
@@ -29419,8 +29459,8 @@ function buildHrnSheetXml({sst, headers, rows, fotoColsSet, hrnColPO, hrnColFE, 
 
   // Larguras de coluna replicando o modelo padrão MecSete (largura em "caracteres").
   const LARGURA_RESUMO = {
-    "Foto do Equipamento":16, "Foto do Risco":16, "Área":9.14, "Máquina/Ativo":17.71, "Tarefa":19.29, "Risco":13,
-    "Descrição do Risco":23.29, "Registro de Salvaguarda / Mitigação":19.57,
+    "Foto do Equipamento":16, "Foto do Perigo":16, "Nº":9, "Área":9.14, "Máquina/Ativo":17.71, "Tarefa":19.29, "Perigo":13,
+    "Descrição do Perigo":23.29, "Registro de Salvaguarda / Mitigação":19.57,
     "Probabilidade":12.29, "Frequência":13, "Grau do Dano":15.71, "Número de Pessoas":12.86,
     "HRN":9.14, "Nível de Risco":13,
   };
@@ -29471,12 +29511,12 @@ function buildXlsxPackageSimples({grupos, headers, dataRows, anchors, imgMap, co
     return [
       fotoExportavel(item.maquina.fotoGeral)||'Sem foto',
       fotoExportavel(item.risco.foto)||'Sem foto',
+      numeroDoRisco(item),
       item.area.nome, nomeMaquinaS(item.maquina),
       valOuOutro(item.tarefa.tarefa,item.tarefa.tarefaOutro),
       nomeRisco, item.risco.descricao, mitig,
       labelHRN(HRN_PO_OPTS,po,HRN_PO_TABELA), labelHRN(HRN_FE_OPTS,fe,HRN_FE_TABELA), labelHRN(HRN_GPD_OPTS,gpd,HRN_GPD_TABELA), labelHRN(HRN_NP_OPTS,np,HRN_NP_TABELA),
       '', '', // HRN e Nível preenchidos por fórmula em buildHrnSheetXml
-      numeroDoRisco(item),
     ];
   });
 
@@ -29546,8 +29586,8 @@ function buildXlsxPackageSimples({grupos, headers, dataRows, anchors, imgMap, co
     "Responsável":11.29, "Data":13, "Área":13, "Descrição Área":16.86, "Local":13,
     "Nome da Máquina/Ativo":15, "Descrição da Máquina/Ativo":14.57,
     "Manual de Operação":10.86, "Tarefa":13.43, "Descrição da Tarefa":16.86,
-    "Nº de Pessoas":8.71, "Frequência":13.43, "Nome do Risco":14, "Descrição do Risco":14.57,
-    "Foto do Risco":16, "Há Medida de Mitigação?":15.86, "Descrição da Medida Existente":14.43,
+    "Nº de Pessoas":8.71, "Frequência":13.43, "Nome do Perigo":14, "Descrição do Perigo":14.57,
+    "Foto do Perigo":16, "Há Medida de Mitigação?":15.86, "Descrição da Medida Existente":14.43, "Nº":9,
     "Sugestão de Mitigação":16.29, "Probabilidade":11.14, "Grau do Dano":13, "Número de Pessoas":13,
     "HRN":7.14, "Nível de Risco":13,
   };
@@ -38823,7 +38863,13 @@ function lpMaiorPLrDoEquipamento(itens){
     const texto = lpConcEditavel(d, conclusaoLigada(d.area) ? conclusaoDaArea(d.area) : LAUDO_CONCLUSAO_BREVE);
     const blocos = [{ quebrarAntes:true, grudaNoProximo:true, html:`
       ${lpFx("div", "lp-faixa", "conc.faixa", "CONCLUSÃO")}
-      <div class="lp-conc">${texto}</div><div class="lp-esp-concl"></div>${cab}` }];
+      <div class="lp-conc">${texto}</div><div class="lp-esp-concl"></div>` }];
+    /* O CABEÇALHO ANDA COM A PRIMEIRA LINHA (09/11/2026). Antes ele fechava o
+       bloco do texto acima e a primeira linha era marcada como "já tem
+       cabeçalho": com conclusão longa, a linha caía na página seguinte sem
+       cabeçalho e ele ficava sozinho no pé da página anterior (ou cortado).
+       Agora cabeçalho e primeira linha são um bloco só — onde um for, o outro
+       vai junto. As demais linhas seguem com o cabeçalho repetido. */
     for(let i=0;i<lista.length;i++){
       const it = lista[i], r = it.risco;
       const h = hrnDoItem({ tarefa:it.tarefa, risco:r });
@@ -38831,7 +38877,7 @@ function lpMaiorPLrDoEquipamento(itens){
       const foto = await reduzirFoto(r.foto, 320);
       const nomeRisco = laudoTextoFinal(it, "nome") || "Risco";
       const desc = laudoTextoFinal(it, "risco") || r.descricao || "";
-      blocos.push({ cabRepete: cab, cabPrimeiro: i === 0, html:`<table class="lp-rt">${col}<tr>
+      blocos.push({ cabRepete: cab, cabPrimeiro: i === 0, html:`${i === 0 ? cab : ""}<table class="lp-rt">${col}<tr>
         <td class="mq"${lpEd("mq:" + it.maquina.id + ":nome")}>${esc(nomeMaquinaS(it.maquina))}</td>
         <td class="ft">${foto? `<img src="${foto}">` : `<span class="sf">Sem foto</span>`}</td>
         <td class="ds">${numeroDoRisco(it) ? `<b>${esc(numeroDoRisco(it))} – </b>` : ""}<b${lpEd("lt:" + r.id + ":nome")}>${esc(nomeRisco)}</b><br><span${lpEd("lt:" + r.id + ":risco")}>${lpTxtQ(desc)}</span></td>

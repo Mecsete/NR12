@@ -64,6 +64,20 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 09/11/2026 21:21
+
+**Planilhas com "Perigo"; Nº na coluna C do Resumo; cabeçalho da tabela da conclusão.**
+
+- Planilhas (CSV, XLS, Excel sem macro e cabeçalhos do .xlsm da Corteva): "Nome do
+  Perigo", "Descrição do Perigo", "Foto do Perigo" e "Fotos Extras do Perigo" no
+  lugar de "Risco". "Nível de Risco", HRN e mitigação continuam como estavam. No
+  .xlsm só muda o texto do cabeçalho; as colunas e as macros ficam iguais.
+- Excel sem macro, Resumo: o Nº passa para a coluna C (na Base Completa ele já
+  estava em C). No .xlsm da Corteva continua no fim (AW / N), por causa das macros.
+- Laudo A4: o cabeçalho da tabela da conclusão anda junto da primeira linha. Com
+  conclusão longa, ele ficava sozinho (ou cortado) no pé da página anterior e a
+  tabela começava sem cabeçalho.
+
 ## 09/11/2026 15:55
 
 **Revisão: mover o risco para outra máquina ou tarefa.**

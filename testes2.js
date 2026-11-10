@@ -14201,7 +14201,8 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
     t("conclusao: ha um espaco de 2 linhas entre o texto e o cabecalho da tabela; o cabecalho repetido nas outras paginas nao muda", ()=>{
       const f = funcao("blocosConclusao");
-      ok(f.indexOf('<div class="lp-conc">${texto}</div><div class="lp-esp-concl"></div>${cab}') > 0, "o espaco precisa estar entre o texto e a tabela");
+      ok(f.indexOf('<div class="lp-conc">${texto}</div><div class="lp-esp-concl"></div>` }];') > 0
+         && f.indexOf('html:`${i === 0 ? cab : ""}<table class="lp-rt">') > 0, "o espaco precisa estar entre o texto e a tabela (cabecalho na primeira linha desde 09/11/2026)");
       ok(f.indexOf("cabRepete: cab") > 0, "o cabecalho repetido segue igual");
       ok(HTML.indexOf(".lp-esp-concl{height:40px}") > 0, "duas linhas de 13.3px x 1.5");
     });
@@ -15061,6 +15062,61 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       const i0 = HTML.indexOf("  laudoMoverRisco(rid){");
       const f = HTML.slice(i0, HTML.indexOf("\n  },", i0));
       ok(f.indexOf('abrirCascata(["area","maquina","tarefa"]') > 0 && f.indexOf("recusarSeArquivado(it.proj.id)") > 0);
+    });
+  }
+
+  /* t208 — PLANILHAS: PERIGO NO NOME, DESCRICAO E FOTO; Nº NA COLUNA C DO RESUMO (09/11/2026). */
+  {
+    console.log("\n[t208] Planilhas: Perigo no lugar de Risco; Nº na coluna C do Resumo");
+    const cx = vm.createContext({});
+    ["GRUPOS_SIMPLES", "RESUMO_HEADERS_HRN"].forEach(n=> vm.runInContext(constante(n), cx));
+    t("planilhas do app: nome, descricao e foto viram Perigo; Nivel de Risco fica", ()=>{
+      const g = vm.runInContext("GRUPOS_SIMPLES", cx);
+      const cols = g.flatMap(x=> x.colunas);
+      ok(g.some(x=> x.nome === "Perigo") && !g.some(x=> x.nome === "Risco"));
+      ok(cols.indexOf("Nome do Perigo") >= 0 && cols.indexOf("Descrição do Perigo") >= 0 && cols.indexOf("Nome do Risco") < 0);
+      ok(cols.indexOf("Nível de Risco") >= 0, "Nivel de Risco continua");
+      const f = funcao("buildGruposSimplesFotos");
+      ok(f.indexOf('"Foto do Perigo"') > 0 && f.indexOf("`Foto Extra do Perigo ${i}`") > 0 && f.indexOf('"Fotos Extras do Perigo"') > 0);
+      const gx = funcao("gerarBytesXlsxSimples");
+      ok(gx.indexOf('headers.indexOf("Foto do Perigo")') > 0 && gx.indexOf("headers.indexOf(`Foto Extra do Perigo ${i}`)") > 0, "as fotos continuam achando a coluna");
+    });
+    t("Resumo: Nº na coluna C e as colunas de HRN acompanham", ()=>{
+      const h = vm.runInContext("RESUMO_HEADERS_HRN", cx);
+      eq(h[2], "Nº"); eq(h[6], "Perigo"); eq(h[7], "Descrição do Perigo"); eq(h[1], "Foto do Perigo");
+      ok(HTML.indexOf("const RESUMO_COL_PO=10,RESUMO_COL_FE=11,RESUMO_COL_GPD=12,RESUMO_COL_NP=13,RESUMO_COL_HRN=14,RESUMO_COL_NIVEL=15;") > 0);
+      eq(h[9], "Probabilidade"); eq(h[13], "HRN"); eq(h[14], "Nível de Risco");
+      ok(funcao("buildXlsxPackageSimples").indexOf("fotoExportavel(item.risco.foto)||'Sem foto',\n      numeroDoRisco(item),\n      item.area.nome") > 0, "linha com o Nº na 3a posicao");
+    });
+    t(".xlsm Corteva: troca so o texto do cabecalho, com o estilo do modelo, e so se o texto bater", ()=>{
+      const c2 = vm.createContext({ String, Number, RegExp });
+      vm.runInContext("function escapeXml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }", c2);
+      ["xlsmCellTexto", "xlsmTextosCompartilhados", "xlsmTrocarCabecalhos"].forEach(f=> vm.runInContext(funcao(f), c2));
+      vm.runInContext(constante("XLSM_CAB_PERIGO_BASE"), c2);
+      c2.SST = '<sst><si><t>Nome do Risco</t></si><si><r><t>Descrição do </t></r><r><t>Risco</t></r></si><si><t>Risco</t></si><si><t>Nível de Risco</t></si></sst>';
+      c2.X = '<row r="2"><c r="P2" s="7" t="s"><v>0</v></c><c r="Q2" s="8" t="s"><v>1</v></c><c r="R2" s="9" t="inlineStr"><is><t>Foto do Risco</t></is></c><c r="AA2" s="5" t="s"><v>3</v></c><c r="AS2" s="5" t="s"><v>2</v></c></row>';
+      const y = vm.runInContext("xlsmTrocarCabecalhos(X, xlsmTextosCompartilhados(SST), XLSM_CAB_PERIGO_BASE)", c2);
+      ok(y.indexOf('<c r="P2" s="7" t="inlineStr"><is><t xml:space="preserve">Nome do Perigo</t></is></c>') >= 0, y);
+      ok(y.indexOf('<c r="Q2" s="8" t="inlineStr"><is><t xml:space="preserve">Descrição do Perigo</t></is></c>') >= 0, "texto rico tambem");
+      ok(y.indexOf('<c r="R2" s="9" t="inlineStr"><is><t xml:space="preserve">Foto do Perigo</t></is></c>') >= 0);
+      ok(y.indexOf('<c r="AA2" s="5" t="s"><v>3</v></c>') >= 0, "Nivel de Risco intocado");
+      ok(y.indexOf('<c r="AS2" s="5" t="s"><v>2</v></c>') >= 0, "coluna da IA intocada");
+      c2.Z = '<row r="2"><c r="P2" s="7" t="s"><v>2</v></c></row>';
+      eq(vm.runInContext("xlsmTrocarCabecalhos(Z, xlsmTextosCompartilhados(SST), XLSM_CAB_PERIGO_BASE)", c2), c2.Z, "texto diferente do esperado: nao mexe");
+    });
+  }
+
+  /* t209 — LAUDO A4: CABECALHO DA TABELA DA CONCLUSAO ANDA COM A PRIMEIRA LINHA (09/11/2026). */
+  {
+    console.log("\n[t209] Laudo A4: cabecalho da tabela da conclusao junto da primeira linha");
+    const f = funcao("blocosConclusao");
+    t("o bloco do texto da conclusao nao carrega mais o cabecalho", ()=>{
+      ok(f.indexOf('<div class="lp-conc">${texto}</div><div class="lp-esp-concl"></div>` }];') > 0);
+      ok(f.indexOf('<div class="lp-esp-concl"></div>${cab}') < 0);
+    });
+    t("a primeira linha traz o cabecalho no proprio bloco; as outras repetem ao abrir pagina", ()=>{
+      ok(f.indexOf('blocos.push({ cabRepete: cab, cabPrimeiro: i === 0, html:`${i === 0 ? cab : ""}<table class="lp-rt">') > 0);
+      ok(HTML.indexOf("if(b.cabRepete && !b.cabPrimeiro && atual.length === 0){") > 0, "regra do paginador intocada");
     });
   }
 
