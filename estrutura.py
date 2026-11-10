@@ -6205,12 +6205,18 @@ chk("cabecalho saiu do bloco do texto e entrou na primeira linha; paginador into
 
 print("\n=== 214. PLANILHA DA IA: LINHA PROJETO:, MALHA 4 MM, VALOR DA TABELA (10/11/2026) ===")
 chk("uma medida nova (malha_dedo), as demais da biblioteca intocadas",
-    novo.count('{ k:"malha_dedo",') == 1 and orig.count('{ k:"malha_dedo",') == 0
-    and novo.count('{ k:"') == orig.count('{ k:"') + 1)
+    novo.count('{ k:"malha_dedo",') == 1
+    and novo.count('{ k:"') == orig.count('{ k:"') + 1 - orig.count('{ k:"malha_dedo",'))
 chk("a linha PROJETO: so e preenchida no que sai (aba e copiar), nunca no texto guardado",
     novo.count("basePlanilhaPromptExportado()") == 4
     and "getIAConfig().promptPlanilha" not in _corpoDe(novo, "baseIAPreencherProjeto")
     and _corpoDe(novo, "basePlanilhaPromptAtual") == _corpoDe(orig, "basePlanilhaPromptAtual"))
+
+print("\n=== 215. NOME DO ARQUIVO DA BASE PARA A IA COM EMPRESA E CIDADE (10/11/2026) ===")
+chk("so o nome do arquivo mudou; colunas da planilha e leitura de volta intocadas",
+    "p.empresa" in _corpoDe(novo, "baseIANomeArquivo") and "p.cidade" in _corpoDe(novo, "baseIANomeArquivo")
+    and _corpoDe(novo, "baseIARespostasDaAba") == _corpoDe(orig, "baseIARespostasDaAba")
+    and novo[novo.index("const BASE_IA_COLUNAS = ["):novo.index("const BASE_IA_PROMPT = [")] == orig[orig.index("const BASE_IA_COLUNAS = ["):orig.index("const BASE_IA_PROMPT = [")])
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

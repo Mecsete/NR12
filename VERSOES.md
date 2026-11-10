@@ -64,6 +64,15 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 10/11/2026 11:57
+
+**Base para a IA: empresa e cidade do projeto no nome do arquivo.**
+
+- Ex.: "base_para_ia - Corteva - Formosa-GO - Debulha.xlsx". A IA (e quem
+  recebe o arquivo) sabe de qual cliente e unidade é a planilha sem abrir, e
+  quais documentos do cliente valem. Mais de um projeto: o primeiro e quantos
+  mais. Colunas da planilha não mudaram.
+
 ## 10/11/2026 11:48
 
 **Planilha da IA: linha PROJETO:, malha contra passagem de dedo e valor da tabela.**

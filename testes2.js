@@ -15162,6 +15162,29 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     });
   }
 
+  /* t211 — NOME DO ARQUIVO DA BASE PARA A IA COM EMPRESA E CIDADE (10/11/2026). */
+  {
+    console.log("\n[t211] base para a IA: empresa e cidade do projeto no nome do arquivo");
+    const cxN = vm.createContext({ String, Object, Array, Math, JSON, RegExp });
+    const _iN = HTML.indexOf("function nomeArquivoSeguro(s){"), _fimN = 'return n || "sem-nome";\n}';
+    vm.runInContext(HTML.slice(_iN, HTML.indexOf(_fimN, _iN) + _fimN.length), cxN);
+    vm.runInContext(funcao("baseIANomeArquivo"), cxN);
+    const nome = g => cxN.baseIANomeArquivo(g);
+    const F = { empresa:"Corteva", cidade:"Formosa-GO" }, I = { empresa:"Corteva", cidade:"Itumbiara/GO" };
+    t("um projeto: empresa e cidade antes da area", ()=>{
+      eq(nome([{ proj:F, area:{ nome:"Debulha" } }]), "base_para_ia - Corteva - Formosa-GO - Debulha.xlsx");
+      eq(nome([{ proj:F, area:{ nome:"Debulha" } }, { proj:F, area:{ nome:"Descarga 100" } }]), "base_para_ia - Corteva - Formosa-GO - Debulha e Descarga 100.xlsx");
+    });
+    t("so a empresa, quando falta a cidade; projeto sem nada, nome antigo", ()=>{
+      eq(nome([{ proj:{ empresa:"Corteva", cidade:"" }, area:{ nome:"Debulha" } }]), "base_para_ia - Corteva - Debulha.xlsx");
+      eq(nome([{ proj:{ empresa:"", cidade:"" }, area:{ nome:"Debulha" } }]), "base_para_ia - Debulha.xlsx");
+    });
+    t("dois projetos: o primeiro e quantos mais; barra vira traco", ()=>{
+      eq(nome([{ proj:F, area:{ nome:"Debulha" } }, { proj:I, area:{ nome:"Secador" } }]), "base_para_ia - Corteva - Formosa-GO e mais 1 projeto - Debulha e Secador.xlsx");
+      eq(nome([{ proj:I, area:{ nome:"Secador" } }]), "base_para_ia - Corteva - Itumbiara-GO - Secador.xlsx");
+    });
+  }
+
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);
 })();
