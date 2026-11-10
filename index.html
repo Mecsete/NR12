@@ -3549,7 +3549,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "10/11/2026 17:48";
+const APP_BUILD = "10/11/2026 18:28";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -23650,7 +23650,10 @@ function laudoGet(item, campo){
      1. o texto entra como SUGESTÃO aguardando decisão (st:"pend"), igual ao
         que a IA produz — nada vai para o laudo sem você aprovar na tela de
         revisão;
-     2. por padrão, só preenche campo VAZIO e ainda sem decisão. Texto que
+     2. campo A REVISAR (sugestão que você ainda não decidiu) recebe a resposta
+        nova no lugar da sugestão antiga (10/11/2026, pedido do engenheiro: a
+        planilha nova é a resposta mais recente). O texto aplicado (fin) nunca
+        é tocado. Fora isso, só preenche campo VAZIO. Texto que
         você já aplicou, editou ou recusou nunca é tocado. Ligando "reavaliar
         itens já aplicados" (Laudo → IA), passa a aceitar uma resposta nova
         também por cima de Aplicado/Editado — mas NUNCA por cima de Recusado
@@ -23680,7 +23683,7 @@ function importarTextosLaudo(pacote, opts){
      avisar e esperar aprovação primeiro. */
   const simular = !!(opts && opts.simular);
   const reavaliar = !!getIAConfig().iaReavaliarAplicados;
-  const res = { aplicados:0, reavaliados:0, pulados:0, naoAchados:0, invalidos:0, arquivados:0, porCampo:{} };
+  const res = { aplicados:0, reavaliados:0, pulados:0, naoAchados:0, invalidos:0, arquivados:0, porCampo:{}, atualizados:0, iguais:0 };
   /* Um índice por nível: escopo é da MÁQUINA e tarefa é da TAREFA, então
      qualquer linha que passe por elas serve para localizá-las. */
   const porMaquina = new Map(), porTarefa = new Map(), porRisco = new Map();
@@ -23707,6 +23710,18 @@ function importarTextosLaudo(pacote, opts){
     /* Recusado é decisão explícita EM SENTIDO CONTRÁRIO ao que a IA propõe —
        o modo reavaliação não mexe aqui, com ou sem o interruptor ligado. */
     if(g.st === "no"){ res.pulados++; return; }
+    /* A REVISAR (10/11/2026): tem sugestao ou texto, mas nenhuma decisao
+       (nem Aplicado, nem Editado, nem Recusado). A resposta nova substitui a
+       sugestao antiga, com ou sem o interruptor — nao ha decisao a proteger.
+       So "sug"/"duv" mudam; "fin" (o que vai para o laudo) nunca. Mesmo texto:
+       nada a fazer. Celula em branco nem chega aqui (sai como invalida). */
+    if(g.st !== "ok" && g.st !== "edit" && (g.sug || g.fin || g.st)){
+      if(String(g.sug || "").trim() === texto){ res.iguais++; return; }
+      if(!simular) laudoSet(item, campo, { sug: texto, st: "pend", duv: String((linha && linha.duvida) || "").trim() });
+      res.atualizados++;
+      res.porCampo[campo] = (res.porCampo[campo] || 0) + 1;
+      return;
+    }
     const jaTinhaAlgo = !!(g.sug || g.fin || g.st) && !laudoSugComEntidadeCrua(g);
     if(jaTinhaAlgo && !reavaliar){ res.pulados++; return; }  // regra de sempre: não mexe no que já tem decisão
     /* NUNCA escreve em "fin": o que já está aplicado continua sendo o que
@@ -23718,6 +23733,7 @@ function importarTextosLaudo(pacote, opts){
     res.porCampo[campo] = (res.porCampo[campo] || 0) + 1;
   });
   if(!simular && (res.aplicados > 0 || res.reavaliados > 0)) marcarAlterado();
+  if(!simular && res.atualizados > 0) marcarAlterado();
   return res;
 }
 /* Guarda o que fazer quando a pessoa decidir, no modal de confirmação de
@@ -24216,6 +24232,8 @@ function baseIAMensagemImporte(resumo, r){
   let msg = r.aplicados + " texto" + (r.aplicados===1?"":"s") + " aplicado" + (r.aplicados===1?"":"s")
     + (partes.length ? " (" + partes.join(", ") + ")" : "")
     + ", de " + resumo.linhasLidas + " linha(s) lida(s) em " + resumo.abas + " aba(s).";
+  if(r.atualizados)         msg += " " + r.atualizados + " texto(s) a revisar atualizado(s) com a resposta nova.";
+  if(r.iguais)              msg += " " + r.iguais + " já estava(m) com o mesmo texto.";
   if(r.reavaliados)         msg += " " + r.reavaliados + " sugestão(ões) nova(s) para item(ns) já aplicado(s), aguardando sua revisão.";
   if(resumo.semResposta)    msg += " " + resumo.semResposta + " linha(s) voltaram SEM resposta nenhuma — confira se a IA parou no meio.";
   if(r.pulados)             msg += " " + r.pulados + " pulado(s) por já ter sua decisão.";
@@ -24253,7 +24271,9 @@ function baseIACamposDaLinha(ctx){
     if(c === "tarefa" && !tarefa) return;
     if(BASE_IA_NIVEL[c] === "risco" && !risco) return;
     const g = laudoGet(it, c);
-    if(g.st) decid.push(c + ": " + (LAUDO_ST_ROTULO[g.st] || g.st));
+    /* 10/11/2026: campo a revisar (pend) nao e decisao — fica fora da lista,
+       para a IA responder e a resposta nova substituir a sugestao antiga. */
+    if(g.st === "ok" || g.st === "edit" || g.st === "no") decid.push(c + ": " + (LAUDO_ST_ROTULO[g.st] || g.st));
   });
   return {
     "ID_Risco":   risco ? risco.id : "",
@@ -24530,7 +24550,7 @@ async function importarPlanilhaRespostasIA(file, opts){
   if(resumo.abas === 0) return { erro:true, mensagem:"Nenhuma aba com as colunas da base foi encontrada. Confira se a IA devolveu a planilha exportada pelo app, com a linha de cabeçalho e a coluna ID_Risco." };
   const r = importarTextosLaudo(pacote, opts);
   if(!r) return { erro:true, mensagem:"Não foi possível montar o pacote de textos a partir da planilha." };
-  return { erro:false, mensagem:baseIAMensagemImporte(resumo, r), aplicados:r.aplicados, reavaliados:r.reavaliados };
+  return { erro:false, mensagem:baseIAMensagemImporte(resumo, r), aplicados:r.aplicados, reavaliados:r.reavaliados, atualizados:r.atualizados };
 }
 
 /* =========================================================================
@@ -28319,7 +28339,7 @@ function screenSimplesConfigIA(){
         <label class="switch" style="flex-shrink:0"><input type="checkbox" ${cfg.iaReavaliarAplicados?'checked':''} onchange="App.toggleIAReavaliarAplicados()"><span class="switch-track"></span></label>
       </div>
     </div>
-    <div class="field-hint" style="margin-top:8px">Desligado, a planilha e o .json nunca tocam em campo que você já aplicou, editou ou recusou. Ligado, a resposta nova entra como <b>sugestão aguardando decisão</b> ao lado do que já está no laudo — nada muda no laudo até você aplicar a sugestão nova na aba Revisão. Item que você <b>recusou</b> nunca é reavaliado, ligado ou não.${cfg.iaReavaliarAplicados ? ` <b>Ligado agora:</b> as instruções da planilha já avisam a IA para responder mesmo onde a coluna "Já decidido no app" mostrar decisão.` : ""}</div>
+    <div class="field-hint" style="margin-top:8px">Campo <b>a revisar</b> (sugestão ainda sem decisão) sempre recebe a resposta nova. Desligado, a planilha e o .json nunca tocam em campo que você já aplicou, editou ou recusou. Ligado, a resposta nova entra como <b>sugestão aguardando decisão</b> ao lado do que já está no laudo — nada muda no laudo até você aplicar a sugestão nova na aba Revisão. Item que você <b>recusou</b> nunca é reavaliado, ligado ou não.${cfg.iaReavaliarAplicados ? ` <b>Ligado agora:</b> as instruções da planilha já avisam a IA para responder mesmo onde a coluna "Já decidido no app" mostrar decisão.` : ""}</div>
     <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="App.copiarPromptPlanilhaIA()">${ic('copy')} Copiar as instruções para colar no chat</button>
     <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="document.getElementById('filePlanilhaIA').click()">${ic('upload')} Importar planilha respondida (.xlsx)</button>
     ${__ultimoImportePlanilhaIA ? `<div class="field-hint" style="margin-top:8px;color:${__ultimoImportePlanilhaIA.erro?'var(--danger, #c0392b)':'var(--ok, #2e7d32)'}">${escapeHtml(__ultimoImportePlanilhaIA.mensagem)}</div>` : ""}
@@ -36812,7 +36832,7 @@ async function importarPlanilhaIADeVerdade(file){
     __ultimoImportePlanilhaIA = r;
     if(r.erro){ toast("Planilha não reconhecida", false); }
     else{
-      const trouxeAlgo = r.aplicados > 0 || r.reavaliados > 0;
+      const trouxeAlgo = r.aplicados > 0 || r.reavaliados > 0 || r.atualizados > 0;
       toast(trouxeAlgo ? "Textos importados — revise na aba Revisão" : "Nada a importar: os campos já têm texto ou decisão");
       if(trouxeAlgo) await dbSet(STATE);
     }
@@ -36882,12 +36902,14 @@ async function importarTextosLaudoDeVerdade(pacote){
       for(const c in r.porCampo){ partes.push(r.porCampo[c] + " de " + c); }
       const detalhe = partes.length ? " (" + partes.join(", ") + ")" : "";
       let msg = r.aplicados + " texto" + (r.aplicados===1?"":"s") + " aplicado" + (r.aplicados===1?"":"s") + detalhe + ".";
+      if(r.atualizados) msg += " " + r.atualizados + " texto(s) a revisar atualizado(s) com a resposta nova.";
+      if(r.iguais)      msg += " " + r.iguais + " já estava(m) com o mesmo texto.";
       if(r.reavaliados) msg += " " + r.reavaliados + " sugestão(ões) nova(s) para item(ns) já aplicado(s), aguardando sua revisão.";
       if(r.pulados)    msg += " " + r.pulados + " pulado" + (r.pulados===1?"":"s") + " por já ter sua decisão.";
       if(r.naoAchados) msg += " " + r.naoAchados + " sem item correspondente neste aparelho.";
       if(r.invalidos)  msg += " " + r.invalidos + " linha(s) inválida(s).";
       __ultimoImporteTextos = { erro:false, mensagem: msg };
-      toast((r.aplicados > 0 || r.reavaliados > 0) ? "Textos importados — revise na aba Revisão" : "Nada a importar: os campos já têm texto ou decisão");
+      toast((r.aplicados > 0 || r.reavaliados > 0 || r.atualizados > 0) ? "Textos importados — revise na aba Revisão" : "Nada a importar: os campos já têm texto ou decisão");
       await dbSet(STATE);
     }
   }catch(e){

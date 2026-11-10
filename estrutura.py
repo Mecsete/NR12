@@ -2160,7 +2160,7 @@ chk("recusado NUNCA e reavaliado, ligado ou nao o interruptor",
 chk("arquivo de outro formato e recusado inteiro, sem aplicar nada",
     "if(pacote.formato !== LAUDO_TEXTOS_FORMATO || !Array.isArray(pacote.textos)) return null;" in novo)
 chk("a importacao passa por laudoSet — ou seja, carimba para sincronizar",
-    novo.count("laudoSet(item, campo, { sug: texto") == 1
+    novo.count("laudoSet(item, campo, { sug: texto") == 2  # 10/11/2026: + o caminho do campo a revisar, tambem por laudoSet
     and "function laudoCarimbarParaSincronizar(item, campo){" in novo)
 chk("botao, seletor de arquivo e aviso de resultado estao na tela",
     '<input type="file" id="fileTextosLaudo" accept="application/json,.json" hidden>' in novo
@@ -6232,6 +6232,18 @@ chk("so a biblioteca mudou: montagem da citacao e dos textos intocada",
     _corpoDe(novo, "medidaReferencia") == _corpoDe(orig, "medidaReferencia")
     and _corpoDe(novo, "medidaTextoProposto") == _corpoDe(orig, "medidaTextoProposto")
     and _corpoDe(novo, "medidaTextoExistenteMulti") == _corpoDe(orig, "medidaTextoExistenteMulti"))
+
+print("\n=== 217. IMPORTACAO: A REVISAR RECEBE A RESPOSTA NOVA, APLICADO NAO MUDA (10/11/2026) ===")
+_impN = _corpoDe(novo, "importarTextosLaudo")
+chk("regra nova so antes da antiga; recusado e aplicado continuam protegidos; fin nunca e escrito",
+    'if(g.st !== "ok" && g.st !== "edit" && (g.sug || g.fin || g.st)){' in _impN
+    and _impN.index('if(g.st === "no"){ res.pulados++; return; }') < _impN.index('if(g.st !== "ok" && g.st !== "edit"')
+    and "if(jaTinhaAlgo && !reavaliar){ res.pulados++; return; }" in _impN
+    and "fin:" not in _impN.replace('"fin" (o que vai para o laudo)', ""))
+chk("so a importacao, a lista 'Ja decidido' e as mensagens mudaram; leitura da planilha intocada",
+    _corpoDe(novo, "baseIARespostasDaAba") == _corpoDe(orig, "baseIARespostasDaAba")
+    and _corpoDe(novo, "baseIAPacoteDasAbas") == _corpoDe(orig, "baseIAPacoteDasAbas")
+    and _corpoDe(novo, "laudoSet") == _corpoDe(orig, "laudoSet"))
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

@@ -64,6 +64,19 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 10/11/2026 18:28
+
+**Importação de textos: campo a revisar recebe a resposta nova; aplicado não muda.**
+
+- Ao importar a planilha da IA (ou o .json), o campo que está "a revisar"
+  (sugestão ainda sem decisão) passa a receber a resposta nova no lugar da
+  sugestão antiga, sem precisar ligar a reavaliação. Aplicado, editado e
+  recusado continuam intocados; o texto que já vai para o laudo nunca muda.
+- A planilha exportada deixa de listar os campos a revisar na coluna "Já
+  decidido no app", para a IA responder neles.
+- O aviso de reavaliação passa a contar só o que está aplicado ou editado, e a
+  mensagem final mostra quantos textos a revisar foram atualizados.
+
 ## 10/11/2026 17:48
 
 **Biblioteca de medidas: citações de norma revisadas e conferidas nos PDFs.**

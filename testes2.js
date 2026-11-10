@@ -5978,19 +5978,22 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       eq(C.laudoGet(it,"risco").sug, "", "escreveu sugestão por cima de campo já decidido ("+estado+")");
     });
   });
-  t("também não entra por cima de sugestão que já existe", ()=>{
+  /* 10/11/2026: regra mudada a pedido do engenheiro — sugestao A REVISAR
+     (sem decisao) recebe a resposta nova; antes era pulada. */
+  t("sugestão a revisar (sem decisão) é substituída pela resposta nova", ()=>{
     const it = arvoreImport();
     C.laudoSet(it, "risco", { sug:"SUGESTÃO ANTERIOR" });
     ctx.__p = pac([ {id:"ri",campo:"risco",texto:"NOVA"} ]);
     const r = vm.runInContext("importarTextosLaudo(__p)", ctx);
-    eq(r.aplicados, 0); eq(C.laudoGet(it,"risco").sug, "SUGESTÃO ANTERIOR");
+    eq(r.aplicados, 0); eq(r.atualizados, 1); eq(r.reavaliados, 0);
+    eq(C.laudoGet(it,"risco").sug, "NOVA"); eq(C.laudoGet(it,"risco").st, "pend");
   });
   t("importar duas vezes não duplica nem sobrescreve", ()=>{
     const it = arvoreImport();
     ctx.__p = pac([ {id:"ri",campo:"risco",texto:"R"} ]);
     eq(vm.runInContext("importarTextosLaudo(__p)", ctx).aplicados, 1);
     const r2 = vm.runInContext("importarTextosLaudo(__p)", ctx);
-    eq(r2.aplicados, 0); eq(r2.pulados, 1);
+    eq(r2.aplicados, 0); eq(r2.iguais, 1); eq(r2.atualizados, 0);  // 10/11/2026: mesmo texto conta como "igual", nao como pulado
     eq(C.laudoGet(it,"risco").sug, "R");
   });
   t("nenhum dado de campo é alterado pela importação", ()=>{
@@ -12639,7 +12642,8 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       C.laudoSet(it, "risco", { sug:"SUGESTÃO ANTIGA" });   // pend, nunca decidido
       ctx.__p = pac([ {id:"rr",campo:"risco",texto:"SUGESTÃO NOVA"} ]);
       const r = vm.runInContext("importarTextosLaudo(__p)", ctx);
-      eq(r.reavaliados, 1, "sugestao pendente tambem conta como algo que ja existia");
+      eq(r.atualizados, 1, "10/11/2026: sugestao a revisar conta como atualizada, nao como reavaliada");
+      eq(r.reavaliados, 0, "o aviso de reavaliacao e so para Aplicado/Editado");
       eq(C.laudoGet(it,"risco").sug, "SUGESTÃO NOVA");
       ligar(false);
     });
@@ -15229,6 +15233,70 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
         "Dispositivos de parada de emergência instalados ao longo da esteira, acionáveis em todas as posições de trabalho");
       ok(vm.runInContext("baseIATabelaMedidasTexto()", cxR).indexOf("Parada de emergência ao longo de transportador contínuo") >= 0);
     });
+  }
+
+  /* t213 — IMPORTACAO: A REVISAR RECEBE A RESPOSTA NOVA; APLICADO NAO MUDA (10/11/2026). */
+  {
+    console.log("\n[t213] importacao: campo a revisar atualizado, aplicado intocado");
+    const mkq = (id, e) => Object.assign({ id, criadoEm:2000, atualizadoEm:2000 }, e||{});
+    const arv = ()=>{
+      STATE.projetosSimples = [ mkq("pq", { empresa:"X", areas:[
+        mkq("aq", { nome:"A", maquinas:[
+          mkq("mq", { nome:"Maq", fotosOutras:[], tarefas:[
+            mkq("tq", { tarefa:"Tar", tarefaOutro:"", riscos:[
+              mkq("rq", { nome:"R", descricao:"desc de campo", fotosOutras:[] }) ]}) ]}) ]}) ]}) ];
+      STATE.ui.areasSelecionadasExport = ["aq"]; STATE.ui.areasExportConhecidas = ["aq"];
+      return C.linhasEscopoSimples()[0];
+    };
+    const pac = (textos)=>({ formato:"apr-textos-laudo-v1", textos });
+    const ligar = (v)=> vm.runInContext("getIAConfig().iaReavaliarAplicados = " + v + ";", ctx);
+    t("O PEDIDO: na mesma importacao, a revisar e atualizado e aplicado/editado/recusado nao mudam", ()=>{
+      ligar(false);
+      const it = arv();
+      C.laudoSet(it, "escopo",    { sug:"ESCOPO ANTIGO", st:"pend" });
+      C.laudoSet(it, "tarefa",    { fin:"TAREFA APROVADA", st:"ok" });
+      C.laudoSet(it, "risco",     { fin:"RISCO EDITADO", st:"edit" });
+      C.laudoSet(it, "nome",      { fin:"", st:"no" });
+      C.laudoSet(it, "solucao",   { sug:"SOLUCAO ANTIGA", st:"pend" });
+      ctx.__p = pac([ {id:"mq",campo:"escopo",texto:"ESCOPO NOVO"}, {id:"tq",campo:"tarefa",texto:"TAREFA NOVA"},
+        {id:"rq",campo:"risco",texto:"RISCO NOVO"}, {id:"rq",campo:"nome",texto:"NOME NOVO"},
+        {id:"rq",campo:"solucao",texto:"SOLUCAO NOVA",duvida:"D?"}, {id:"rq",campo:"existente",texto:"EXISTENTE NOVO"} ]);
+      ctx.__o = { simular:true };
+      const s = vm.runInContext("importarTextosLaudo(__p, __o)", ctx);
+      eq(s.reavaliados, 0, "sem aviso de reavaliacao: nada aplicado sai do lugar");
+      eq(C.laudoGet(it,"escopo").sug, "ESCOPO ANTIGO", "simulacao nao grava");
+      const r = vm.runInContext("importarTextosLaudo(__p)", ctx);
+      eq(r.atualizados, 2); eq(r.aplicados, 1); eq(r.pulados, 3); eq(r.reavaliados, 0);
+      eq(C.laudoGet(it,"escopo").sug, "ESCOPO NOVO"); eq(C.laudoGet(it,"escopo").st, "pend");
+      eq(C.laudoGet(it,"solucao").sug, "SOLUCAO NOVA"); eq(C.laudoGet(it,"solucao").duv, "D?");
+      eq(C.laudoGet(it,"existente").sug, "EXISTENTE NOVO");
+      eq(C.laudoGet(it,"tarefa").fin, "TAREFA APROVADA"); eq(C.laudoGet(it,"tarefa").st, "ok"); eq(C.laudoGet(it,"tarefa").sug || "", "");
+      eq(C.laudoGet(it,"risco").fin, "RISCO EDITADO"); eq(C.laudoGet(it,"risco").st, "edit");
+      eq(C.laudoGet(it,"nome").st, "no"); eq(C.laudoGet(it,"nome").sug || "", "");
+    });
+    t("a revisar com texto aplicado ao lado (reavaliacao anterior): troca so a sugestao, o texto do laudo fica", ()=>{
+      ligar(false);
+      const it = arv();
+      C.laudoSet(it, "risco", { fin:"NO LAUDO", sug:"SUGESTAO ANTIGA", st:"pend" });
+      ctx.__p = pac([ {id:"rq",campo:"risco",texto:"SUGESTAO NOVA"} ]);
+      const r = vm.runInContext("importarTextosLaudo(__p)", ctx);
+      eq(r.atualizados, 1);
+      eq(C.laudoGet(it,"risco").fin, "NO LAUDO"); eq(C.laudoGet(it,"risco").sug, "SUGESTAO NOVA");
+    });
+    t("a planilha exportada so lista em 'Ja decidido' o que tem decisao (nao o a revisar)", ()=>{
+      const f = funcao("baseIACamposDaLinha");
+      ok(f.indexOf('if(g.st === "ok" || g.st === "edit" || g.st === "no") decid.push(') > 0);
+      ok(f.indexOf("if(g.st) decid.push(") < 0);
+    });
+    t("as mensagens contam os atualizados e a importacao grava quando so houve atualizacao", ()=>{
+      const resumo = { linhasLidas:3, abas:1, semResposta:0, divergentes:0, semId:0 };
+      const msg = C.baseIAMensagemImporte(resumo, { aplicados:0, reavaliados:0, pulados:1, naoAchados:0, arquivados:0, porCampo:{ risco:2 }, atualizados:2, iguais:1 });
+      ok(msg.indexOf("2 texto(s) a revisar atualizado(s) com a resposta nova.") > 0, msg);
+      ok(msg.indexOf("1 já estava(m) com o mesmo texto.") > 0, msg);
+      ok(HTML.indexOf("const trouxeAlgo = r.aplicados > 0 || r.reavaliados > 0 || r.atualizados > 0;") > 0);
+      ok(HTML.indexOf("(r.aplicados > 0 || r.reavaliados > 0 || r.atualizados > 0) ?") > 0);
+    });
+    ligar(false);
   }
 
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
