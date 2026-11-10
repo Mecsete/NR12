@@ -3549,7 +3549,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "10/11/2026 11:57";
+const APP_BUILD = "10/11/2026 17:48";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -12348,7 +12348,7 @@ const BIBLIOTECA_MEDIDAS = [
     pl:true, fs:"Ao se comandar a abertura da proteção {alvo}, o bloqueio só deve liberar após a parada completa do movimento.",
     prop:"Instalação de proteção móvel com dispositivo de intertravamento com bloqueio em {alvo}, mantendo-a fechada e bloqueada até a cessação completa do movimento",
     ex:"Proteção móvel com intertravamento e bloqueio instalada em {alvo}, mantida fechada até a parada completa do movimento",
-    obs:"Exigido quando o conjunto possui inércia e a abertura permitiria o acesso antes da eliminação do risco.",
+    obs:"Exigido quando a abertura permitir o acesso à zona de perigo antes da eliminação do risco (item 12.5.6, alínea b) e no enclausuramento de transmissões de força com inércia (item 12.5.9.1).",
     comp:["Rolo","Volante","Ventilador","Disco","Serra"] },
 
   { k:"adequar_vao", soProposta:true, g:"Proteção física", rot:"Adequar proteção existente (vão / abertura)",
@@ -12367,7 +12367,7 @@ const BIBLIOTECA_MEDIDAS = [
     ex:"Tela ou grade instalada em {alvo}, com malha que impede a passagem dos dedos até a zona de perigo" },
 
   { k:"arestas", soProposta:true, g:"Proteção física", rot:"Eliminar arestas cortantes",
-    nr:["12.5.11"], apoio:["ABNT NBR ISO 12100"],
+    nr:["12.5.11"], apoio:["ABNT NBR ISO 12100, item 6.2.2.1"],
     prop:"Rebarbação e acabamento das extremidades de {alvo}, eliminando arestas cortantes e saliências perigosas",
     ex:"Extremidades de {alvo} com acabamento adequado, sem arestas cortantes ou saliências perigosas",
     evento:["Corte","Laceração","Perfuração"], comp:["Proteção"] },
@@ -12378,7 +12378,7 @@ const BIBLIOTECA_MEDIDAS = [
     ex:"Proteção de {alvo} com fixação firme, estável e resistente aos esforços requeridos" },
 
   { k:"cerca", g:"Proteção física", rot:"Cerca de proteção perimetral",
-    nr:["12.5.1","12.5.4","12.5.11"], apoio:["ABNT NBR ISO 14120","ABNT NBR ISO 13857","ABNT NBR ISO 12100"],
+    nr:["12.5.1","12.5.1.1","12.5.4","12.5.11"], apoio:["ABNT NBR ISO 14120","ABNT NBR ISO 13857","ABNT NBR ISO 12100"],
     prop:"Instalação de cerca de proteção delimitando o perímetro de {alvo}, com altura e distância de segurança que impeçam o alcance da zona de perigo",
     ex:"Cerca de proteção perimetral instalada em {alvo}, delimitando o acesso à zona de perigo",
     comp:["Correia","Esteira","Elevador","Rosca"], local:["Área de circulação"] },
@@ -12401,7 +12401,7 @@ const BIBLIOTECA_MEDIDAS = [
 
   /* ---------------- Dispositivos de segurança ---------------- */
   { k:"cortina", g:"Dispositivos de segurança", rot:"Cortina de luz (eletrossensível)",
-    nr:["12.5.13"], apoio:["ABNT NBR IEC 61496","ABNT NBR ISO 13855","ABNT NBR ISO 12100"],
+    nr:["Anexo I","12.5.13"], apoio:["ABNT NBR IEC 61496","ABNT NBR ISO 13855","ABNT NBR ISO 12100"],
     pl:true, fs:"Ao se interromper o feixe da cortina de luz no acesso {alvo}, o movimento perigoso deve parar.",
     prop:"Instalação de cortina de luz protegendo o acesso a {alvo}, posicionada conforme a distância de segurança calculada a partir do tempo de parada da máquina",
     ex:"Cortina de luz instalada no acesso a {alvo}, com posicionamento conforme distância de segurança" },
@@ -12413,7 +12413,7 @@ const BIBLIOTECA_MEDIDAS = [
     ex:"Dispositivo sensível à pressão instalado no acesso a {alvo}" },
 
   { k:"reset", g:"Dispositivos de segurança", rot:"Rearme manual (reset) na entrada da zona",
-    nr:["12.5.13","12.5.13.1"], apoio:["ABNT NBR ISO 12100"],
+    nr:["12.5.3","12.5.13","12.5.13.1"], apoio:["ABNT NBR ISO 12100"],
     pl:true, fs:"Ao se atuar o rearme manual na entrada {alvo}, a máquina só deve ser liberada para partida, sem partir por si.",
     prop:"Instalação de atuador de rearme manual na entrada de {alvo}, localizado de modo a permitir a visão completa da zona protegida antes do religamento",
     ex:"Atuador de rearme manual instalado na entrada de {alvo}, com visão completa da zona protegida" },
@@ -12425,14 +12425,14 @@ const BIBLIOTECA_MEDIDAS = [
     ex:"Dispositivo de parada de emergência instalado em {alvo}, de fácil acesso e visualização, desobstruído" },
 
   { k:"emerg_cabo", g:"Dispositivos de segurança", rot:"Chave de emergência tipo cabo",
-    nr:["12.6.6","12.6.7","12.8.7"], apoio:["ABNT NBR ISO 12100"],
+    nr:["12.6.6","12.6.7"], apoio:["ABNT NBR ISO 12100"],
     pl:true, fs:"Ao se tracionar ou romper o cabo de emergência ao longo {alvo}, o acionamento deve parar.",
     prop:"Instalação de chaves de parada de emergência do tipo cabo ao longo de {alvo}, trabalhando tracionadas de modo a cessar as funções perigosas em caso de ruptura ou afrouxamento",
     ex:"Chaves de parada de emergência tipo cabo instaladas ao longo de {alvo}, trabalhando tracionadas",
     comp:["Correia","Rolo"] },
 
   { k:"bimanual", g:"Dispositivos de segurança", rot:"Comando bimanual",
-    nr:["12.4.3"], apoio:["ABNT NBR 14153","ABNT ISO 13849-1","ABNT NBR ISO 12100"],
+    nr:["12.4.3"], apoio:["ABNT NBR 14153","ABNT NBR ISO 13849-1","ABNT NBR ISO 12100"],
     pl:true, fs:"Ao se liberar qualquer um dos botões do comando bimanual, o movimento perigoso {alvo} deve parar.",
     prop:"Instalação de dispositivo de acionamento bimanual com atuação síncrona em {alvo}, mantendo as mãos do operador fora da zona de perigo durante o ciclo",
     ex:"Dispositivo de acionamento bimanual instalado em {alvo}, mantendo as mãos fora da zona de perigo" },
@@ -12444,9 +12444,9 @@ const BIBLIOTECA_MEDIDAS = [
     ex:"Dispositivos de partida, acionamento e parada de {alvo} localizados fora da zona perigosa, com proteção contra acionamento involuntário" },
 
   { k:"categoria", soProposta:true, g:"Dispositivos de segurança", rot:"Adequar categoria do sistema de segurança",
-    nr:["12.5.2","12.5.17"], apoio:["ABNT NBR 14153","ABNT ISO 13849-1","ABNT NBR ISO 12100"],
+    nr:["12.5.2","12.5.17"], apoio:["ABNT NBR 14153","ABNT NBR ISO 13849-1","ABNT NBR ISO 12100"],
     pl:true, fs:"Ao ocorrer defeito nas partes do comando relacionadas à segurança {alvo}, a função de segurança deve ser mantida.",
-    prop:"Adequação das partes do sistema de comando relacionadas à segurança de {alvo} à categoria indicada pela apreciação de risco, com monitoramento por interface de segurança",
+    prop:"Adequação das partes do sistema de comando relacionadas à segurança de {alvo} à categoria indicada pela apreciação de risco, com monitoramento por interface de segurança quando requerido pela categoria",
     ex:"Partes do sistema de comando relacionadas à segurança de {alvo} monitoradas por interface de segurança" },
 
   /* ---------------- Elétrica e energia ---------------- */
@@ -12474,7 +12474,7 @@ const BIBLIOTECA_MEDIDAS = [
     local:["Área de manutenção"] },
 
   { k:"modo_manut", g:"Elétrica e energia", rot:"Modo de operação para manutenção",
-    nr:["12.11.3.1"], apoio:["ABNT NBR ISO 12100"],
+    nr:["12.11.3.1","12.4.8"], apoio:["ABNT NBR ISO 12100"],
     pl:true, fs:"Ao se selecionar o modo de manutenção {alvo}, o comando automático deve ficar inoperante e o movimento só ocorrer por ação continuada.",
     prop:"Implantação de modo de operação específico para manutenção e ajuste em {alvo}, tornando inoperante o comando automático, com acionamento de ação continuada e velocidade reduzida, e seleção protegida contra uso não autorizado",
     ex:"Modo de operação específico para manutenção disponível em {alvo}, com comando de ação continuada e velocidade reduzida" },
@@ -12506,9 +12506,9 @@ const BIBLIOTECA_MEDIDAS = [
   /* ---------------- Organizacional ---------------- */
   { k:"sinalizacao", g:"Organizacional", rot:"Sinalização de segurança",
     nr:["12.12.1"], apoio:["NR-26","ABNT NBR ISO 7010","ABNT NBR ISO 12100"],
-    prop:"Instalação de sinalização de segurança em {alvo}, advertindo quanto ao risco e à restrição de acesso, conforme as normas técnicas vigentes",
+    prop:"Instalação de sinalização de segurança em {alvo}, advertindo quanto ao risco e à restrição de acesso",
     ex:"Sinalização de segurança instalada em {alvo}, advertindo quanto ao risco",
-    obs:"Medida auxiliar: não substitui proteção física (NR-12, item 12.5.16)." },
+    obs:"Medida auxiliar: não substitui proteção física (ABNT NBR ISO 12100, item 6.1)." },
 
   { k:"procedimento", g:"Organizacional", rot:"Procedimento de trabalho e manutenção",
     nr:["12.14.1","12.11.2"], apoio:["ABNT NBR ISO 12100"],
@@ -12516,12 +12516,12 @@ const BIBLIOTECA_MEDIDAS = [
     ex:"Procedimento de trabalho e registro de manutenções implantados para {alvo}" },
 
   { k:"capacitacao", g:"Organizacional", rot:"Capacitação dos trabalhadores",
-    nr:["12.16.1","12.16.8"], apoio:["ABNT NBR ISO 12100"],
-    prop:"Capacitação dos trabalhadores que intervêm em {alvo}, com autorização formal do empregador e reciclagem periódica documentada",
+    nr:["12.16.1","12.16.2","12.16.8"], apoio:["ABNT NBR ISO 12100"],
+    prop:"Capacitação dos trabalhadores que intervêm em {alvo}, providenciada pelo empregador e compatível com suas funções, com autorização formal e reciclagem sempre que ocorrerem modificações que impliquem novos riscos",
     ex:"Trabalhadores capacitados e formalmente autorizados para intervir em {alvo}" },
 
   { k:"projeto_hab", soProposta:true, g:"Organizacional", rot:"Projeto por profissional habilitado",
-    nr:["12.5.17"], apoio:["ABNT NBR 14153","ABNT ISO 13849-1","ABNT NBR ISO 12100"],
+    nr:["12.5.17"], apoio:["ABNT NBR 14153","ABNT NBR ISO 13849-1","ABNT NBR ISO 12100"],
     prop:"Elaboração de projeto, diagrama ou representação esquemática dos sistemas de segurança de {alvo}, com especificações técnicas em língua portuguesa, por profissional legalmente habilitado",
     ex:"Projeto dos sistemas de segurança de {alvo} disponível, elaborado por profissional legalmente habilitado" },
 
@@ -12540,11 +12540,20 @@ const BIBLIOTECA_MEDIDAS = [
     prop:"Instalação de dispositivos que interrompam o funcionamento de {alvo} em caso de desalinhamento anormal da correia ou sobrecarga de materiais, conforme os limites de segurança especificados em projeto",
     ex:"Dispositivos de desalinhamento e sobrecarga instalados em {alvo}, interrompendo o funcionamento quando ultrapassados os limites de segurança" },
 
+  /* 10/11/2026: o 12.8.7 saiu da chave de emergencia tipo cabo (e regra do
+     transportador continuo, nao do cabo) e ganhou medida propria. Texto do
+     item conferido na NR-12 atualizada, p.17. */
+  { k:"transp_emergencia", g:"Dispositivos de segurança", rot:"Parada de emergência ao longo de transportador contínuo",
+    nr:["12.8.7"], apoio:["ABNT NBR ISO 12100"],
+    pl:true, fs:"Ao se acionar qualquer dispositivo de parada de emergência, o movimento perigoso {alvo} deve parar.",
+    prop:"Instalação de dispositivos de parada de emergência ao longo de toda a extensão de {alvo}, de modo que possam ser acionados em todas as posições de trabalho",
+    ex:"Dispositivos de parada de emergência instalados ao longo de {alvo}, acionáveis em todas as posições de trabalho" },
+
   { k:"transp_passarela", g:"Acesso e altura", rot:"Passarela ao longo de transportador de correia elevado",
     nr:["12.8.2","12.8.6.2"], apoio:["ABNT NBR ISO 14122-2","ABNT NBR ISO 12100"],
     prop:"Instalação de passarelas em ambos os lados de {alvo}, em toda a sua extensão, com sistema de proteção contra quedas, para a inspeção e a circulação sem permanência sobre as partes em movimento",
     ex:"Passarelas com sistema de proteção contra quedas instaladas em ambos os lados de {alvo}, em toda a sua extensão",
-    obs:"Exigida quando a borda da correia que transporta a carga está a mais de 2,70 m do piso; correia de até 762 mm de largura pode ter passarela em um só lado (item 12.8.2.1)." },
+    obs:"Exigida quando a borda da correia que transporta a carga está a mais de 2,70 m do piso; correia de até 762 mm de largura pode ter passarela em um só lado, com uso de plataformas móveis ou elevatórias nas intervenções e inspeções (item 12.8.2.1)." },
 
   { k:"escada_sem_espelho", g:"Acesso e altura", rot:"Escada de degraus sem espelho",
     nr:["Anexo III, itens 5, 7 e 11"], apoio:["ABNT NBR ISO 14122-3","ABNT NBR ISO 12100"],
@@ -12571,7 +12580,7 @@ const BIBLIOTECA_MEDIDAS = [
     obs:"Largura útil pode cair a 0,50 m em trecho menor que 2,00 m ou com espaço restrito por canalizações ou razões construtivas (Anexo III, item 10.1)." },
 
   { k:"rampa", soProposta:true, g:"Acesso e altura", rot:"Adequar rampa de acesso (inclinação e piso antiderrapante)",
-    nr:["Anexo III, itens 5, 6 e 10"], apoio:["ABNT NBR ISO 14122-2","ABNT NBR ISO 12100"],
+    nr:["Anexo III, itens 5, 6, 6.1 e 10"], apoio:["ABNT NBR ISO 14122-2","ABNT NBR ISO 12100"],
     prop:"Adequação da rampa de acesso a {alvo}, com inclinação máxima de 20° em relação ao piso, piso antiderrapante e, nas rampas de 10° a 20° que exijam maior resistência ao escorregamento, peças transversais horizontais distanciadas de 0,40 m a 0,50 m e com altura de 0,01 m a 0,02 m",
     ex:"Rampa de acesso a {alvo} com inclinação de até 20° e piso antiderrapante",
     obs:"É proibida a construção de rampa com inclinação acima de 20° (Anexo III, item 6.1)." },
@@ -12583,7 +12592,7 @@ const BIBLIOTECA_MEDIDAS = [
     obs:"Manual inexistente ou extraviado: reconstituição pelo empregador, sob responsabilidade de profissional qualificado ou legalmente habilitado (item 12.13.5)." },
 
   { k:"inscricoes_pt", g:"Organizacional", rot:"Inscrições e identificação dos comandos em português",
-    nr:["12.12.4"], apoio:["ABNT NBR ISO 12100"],
+    nr:["12.12.4","12.12.4.1"], apoio:["ABNT NBR ISO 12100"],
     prop:"Substituição das inscrições, legendas dos comandos e advertências do equipamento por inscrições legíveis, escritas na língua portuguesa (Brasil), indicando claramente o risco e a parte da máquina a que se referem",
     ex:"Inscrições, legendas dos comandos e advertências do equipamento escritas na língua portuguesa (Brasil) e legíveis",
     obs:"A inscrição deve indicar o risco e a parte da máquina a que se refere, e não deve ser usada somente a inscrição de \"perigo\" (item 12.12.4.1)." },

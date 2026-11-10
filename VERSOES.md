@@ -64,6 +64,23 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 10/11/2026 17:48
+
+**Biblioteca de medidas: citações de norma revisadas e conferidas nos PDFs.**
+
+- Conferência das 45 frases prontas contra a NR-12 atualizada e as normas da
+  pasta (item e página). Mudaram: proteção móvel com bloqueio (nota com 12.5.6
+  b e 12.5.9.1), arestas (ISO 12100, item 6.2.2.1), cerca (+12.5.1.1), cortina
+  de luz (+Anexo I), rearme (+12.5.3), cabo de emergência (sai o 12.8.7),
+  modo de manutenção (+12.4.8), sinalização (nota passa à ISO 12100, item 6.1),
+  capacitação (+12.16.2, texto da reciclagem), passarela (nota do 12.8.2.1),
+  rampa (+Anexo III, item 6.1), inscrições (+12.12.4.1), categoria (texto) e o
+  nome ABNT NBR ISO 13849-1 padronizado.
+- Medida nova "Parada de emergência ao longo de transportador contínuo"
+  (NR-12, item 12.8.7), com função de segurança e PLr.
+- Vale para escolhas novas em campo, para a Sugestão Solução e para a tabela da
+  planilha da IA. Textos já gravados nos riscos não mudam sozinhos.
+
 ## 10/11/2026 11:57
 
 **Base para a IA: empresa e cidade do projeto no nome do arquivo.**

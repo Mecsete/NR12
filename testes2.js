@@ -1508,7 +1508,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   });
   t("todo item de NR-12 citado tem formato válido", ()=>{
     const nrs = vm.runInContext("BIBLIOTECA_MEDIDAS.reduce((a,m)=>a.concat(m.nr),[])", ctx);
-    nrs.forEach(x=> ok(/^12\.\d+(\.\d+)*$/.test(x) || /^Anexo III, ite(m|ns) /.test(x), "citação suspeita: "+x));
+    nrs.forEach(x=> ok(/^12\.\d+(\.\d+)*$/.test(x) || /^Anexo III, ite(m|ns) /.test(x) || x === "Anexo I", "citação suspeita: "+x)); // 10/11/2026: cortina cita o Anexo I inteiro
   });
   t("os itens citados existem mesmo na NR-12 do projeto", ()=>{
     // amostra dos mais usados, conferidos palavra por palavra nos PDFs
@@ -1786,11 +1786,11 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
   });
 
   console.log("\n=== t45 · só medidas de comando têm PLr ===");
-  t("as onze medidas de comando estão marcadas", ()=>{
+  t("as doze medidas de comando estão marcadas", ()=>{
     const comPl = vm.runInContext("BIBLIOTECA_MEDIDAS.filter(m=>m.pl).map(m=>m.k)", ctx);
-    eq(comPl.length, 11, "marcadas: " + comPl.join(","));
+    eq(comPl.length, 12, "marcadas: " + comPl.join(","));
     ["prot_movel_int","prot_movel_bloq","cortina","tapete","reset","emergencia",
-     "emerg_cabo","bimanual","partida","categoria","modo_manut"].forEach(k=> ok(comPl.indexOf(k) >= 0, "faltou "+k));
+     "emerg_cabo","bimanual","partida","categoria","modo_manut","transp_emergencia"].forEach(k=> ok(comPl.indexOf(k) >= 0, "faltou "+k));
   });
   t("medidas mecânicas e organizacionais não têm PLr", ()=>{
     ["prot_fixa","arestas","guarda_corpo","loto","sinalizacao","capacitacao","aterramento"]
@@ -12919,7 +12919,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
         ok(m.g && m.rot && m.prop && m.ex && Array.isArray(m.nr) && m.nr.length, "incompleta: " + k);
         ok(!m.pl, k + " nao e medida de comando: sem PLr");
       });
-      eq(lib.length, 45, "31 antigas + 13 novas + malha contra passagem de dedo (10/11/2026)");
+      eq(lib.length, 46, "31 antigas + 13 novas + malha contra passagem de dedo + parada de emergencia em transportador (10/11/2026)");
       eq(new Set(lib.map(m=>m.k)).size, lib.length);
       ok(lib.some(m=> m.g === "Riscos adicionais"), "grupo novo");
     });
@@ -12932,9 +12932,9 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       eq(ref("escada_com_espelho"), "NR-12, Anexo III, itens 5, 7 e 12; ABNT NBR ISO 14122-3; ABNT NBR ISO 12100");
       eq(ref("escada_marinheiro"), "NR-12, Anexo III, itens 1.3 e 13; ABNT NBR ISO 14122-4; ABNT NBR ISO 12100");
       eq(ref("plataforma"), "NR-12, Anexo III, itens 3, 5 e 10; ABNT NBR ISO 14122-2; ABNT NBR ISO 12100");
-      eq(ref("rampa"), "NR-12, Anexo III, itens 5, 6 e 10; ABNT NBR ISO 14122-2; ABNT NBR ISO 12100");
+      eq(ref("rampa"), "NR-12, Anexo III, itens 5, 6, 6.1 e 10; ABNT NBR ISO 14122-2; ABNT NBR ISO 12100");
       eq(ref("manual_pt"), "NR-12, item 12.13.1 e item 12.13.2; ABNT NBR ISO 12100");
-      eq(ref("inscricoes_pt"), "NR-12, item 12.12.4; ABNT NBR ISO 12100");
+      eq(ref("inscricoes_pt"), "NR-12, item 12.12.4 e item 12.12.4.1; ABNT NBR ISO 12100");
       eq(ref("arranjo_fisico"), "NR-12, item 12.2.1 e item 12.2.3");
       eq(ref("explosao"), "NR-12, item 12.10.3");
       eq(ref("superficie_quente"), "NR-12, item 12.10.4");
@@ -12943,10 +12943,10 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(por("rampa").soProposta === true);
       NOVAS.filter(k=> k !== "rampa").forEach(k=> ok(!por(k).soProposta, k + " deveria servir tambem para o existente"));
     });
-    t("procedimento deixa de citar o 12.11.2.1 (registro) e passa a 12.14.1 e 12.11.2; cabo cita o 12.8.7", ()=>{
+    t("procedimento deixa de citar o 12.11.2.1 (registro) e passa a 12.14.1 e 12.11.2; cabo deixa o 12.8.7 (10/11/2026)", ()=>{
       eq(JSON.stringify(por("procedimento").nr), JSON.stringify(["12.14.1","12.11.2"]));
       ok(por("procedimento").prop.indexOf("CIPA") < 0, "o texto nao pode mais falar de CIPA/SESMT");
-      ok(por("emerg_cabo").nr.indexOf("12.8.7") >= 0);
+      ok(por("emerg_cabo").nr.indexOf("12.8.7") < 0);
       eq(JSON.stringify(por("emerg_cabo").nr.slice(0,2)), JSON.stringify(["12.6.6","12.6.7"]));
     });
     t("nenhum texto novo guarda o marcador cru e as contracoes saem certas", ()=>{
@@ -15182,6 +15182,52 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     t("dois projetos: o primeiro e quantos mais; barra vira traco", ()=>{
       eq(nome([{ proj:F, area:{ nome:"Debulha" } }, { proj:I, area:{ nome:"Secador" } }]), "base_para_ia - Corteva - Formosa-GO e mais 1 projeto - Debulha e Secador.xlsx");
       eq(nome([{ proj:I, area:{ nome:"Secador" } }]), "base_para_ia - Corteva - Itumbiara-GO - Secador.xlsx");
+    });
+  }
+
+  /* t212 — BIBLIOTECA: REVISAO DAS CITACOES CONFERIDA NOS PDFs (10/11/2026). */
+  {
+    console.log("\n[t212] biblioteca: citacoes revisadas e parada de emergencia em transportador");
+    const cxR = vm.createContext({ String, Object, Array, RegExp });
+    vm.runInContext(constante("BIBLIOTECA_MEDIDAS"), cxR);
+    ["substituirAlvoNoModelo","medidaReferencia","baseIATabelaMedidasTexto"].forEach(n=> vm.runInContext(funcao(n), cxR));
+    const ref = k => vm.runInContext("medidaReferencia(BIBLIOTECA_MEDIDAS.find(m=>m.k==="+JSON.stringify(k)+"))", cxR);
+    const por = k => vm.runInContext("BIBLIOTECA_MEDIDAS.find(m=>m.k==="+JSON.stringify(k)+")", cxR);
+    t("a citacao montada de cada medida revisada", ()=>{
+      eq(ref("prot_movel_bloq"), "NR-12, item 12.5.6, item 12.5.8 e item 12.5.9.1; ABNT NBR ISO 14119; ABNT NBR ISO 12100");
+      eq(ref("arestas"), "NR-12, item 12.5.11; ABNT NBR ISO 12100, item 6.2.2.1");
+      eq(ref("cerca"), "NR-12, item 12.5.1, item 12.5.1.1, item 12.5.4 e item 12.5.11; ABNT NBR ISO 14120; ABNT NBR ISO 13857; ABNT NBR ISO 12100");
+      eq(ref("cortina"), "NR-12, Anexo I e item 12.5.13; ABNT NBR IEC 61496; ABNT NBR ISO 13855; ABNT NBR ISO 12100");
+      eq(ref("reset"), "NR-12, item 12.5.3, item 12.5.13 e item 12.5.13.1; ABNT NBR ISO 12100");
+      eq(ref("emerg_cabo"), "NR-12, item 12.6.6 e item 12.6.7; ABNT NBR ISO 12100");
+      eq(ref("bimanual"), "NR-12, item 12.4.3; ABNT NBR 14153; ABNT NBR ISO 13849-1; ABNT NBR ISO 12100");
+      eq(ref("categoria"), "NR-12, item 12.5.2 e item 12.5.17; ABNT NBR 14153; ABNT NBR ISO 13849-1; ABNT NBR ISO 12100");
+      eq(ref("projeto_hab"), "NR-12, item 12.5.17; ABNT NBR 14153; ABNT NBR ISO 13849-1; ABNT NBR ISO 12100");
+      eq(ref("modo_manut"), "NR-12, item 12.11.3.1 e item 12.4.8; ABNT NBR ISO 12100");
+      eq(ref("sinalizacao"), "NR-12, item 12.12.1; NR-26; ABNT NBR ISO 7010; ABNT NBR ISO 12100");
+      eq(ref("capacitacao"), "NR-12, item 12.16.1, item 12.16.2 e item 12.16.8; ABNT NBR ISO 12100");
+      eq(ref("transp_passarela"), "NR-12, item 12.8.2 e item 12.8.6.2; ABNT NBR ISO 14122-2; ABNT NBR ISO 12100");
+      eq(ref("rampa"), "NR-12, Anexo III, itens 5, 6, 6.1 e 10; ABNT NBR ISO 14122-2; ABNT NBR ISO 12100");
+      eq(ref("inscricoes_pt"), "NR-12, item 12.12.4 e item 12.12.4.1; ABNT NBR ISO 12100");
+      eq(ref("transp_emergencia"), "NR-12, item 12.8.7; ABNT NBR ISO 12100");
+    });
+    t("textos e notas revisados", ()=>{
+      ok(por("sinalizacao").prop.indexOf("conforme") < 0, "a frase da sinalizacao nao pode ter dois 'conforme'");
+      ok(por("sinalizacao").obs.indexOf("12.5.16") < 0 && por("sinalizacao").obs.indexOf("item 6.1") > 0);
+      ok(por("prot_movel_bloq").obs.indexOf("item 12.5.6, alínea b") > 0 && por("prot_movel_bloq").obs.indexOf("item 12.5.9.1") > 0);
+      ok(por("capacitacao").prop.indexOf("reciclagem periódica") < 0 && por("capacitacao").prop.indexOf("novos riscos") > 0);
+      ok(/quando requerido pela categoria"?$/.test(por("categoria").prop));
+      ok(por("transp_passarela").obs.indexOf("plataformas móveis ou elevatórias") > 0);
+      ok(vm.runInContext("BIBLIOTECA_MEDIDAS.every(m=> (m.apoio||[]).indexOf('ABNT ISO 13849-1') < 0)", cxR), "nome antigo da 13849-1");
+    });
+    t("medida nova de parada de emergencia em transportador: completa, com PLr e na tabela da planilha", ()=>{
+      const m = por("transp_emergencia");
+      ok(m && m.g === "Dispositivos de segurança" && m.pl === true && m.fs && !m.soProposta);
+      eq(vm.runInContext('substituirAlvoNoModelo(BIBLIOTECA_MEDIDAS.find(m=>m.k==="transp_emergencia").prop, "a esteira")', cxR),
+        "Instalação de dispositivos de parada de emergência ao longo de toda a extensão da esteira, de modo que possam ser acionados em todas as posições de trabalho");
+      eq(vm.runInContext('substituirAlvoNoModelo(BIBLIOTECA_MEDIDAS.find(m=>m.k==="transp_emergencia").ex, "a esteira")', cxR),
+        "Dispositivos de parada de emergência instalados ao longo da esteira, acionáveis em todas as posições de trabalho");
+      ok(vm.runInContext("baseIATabelaMedidasTexto()", cxR).indexOf("Parada de emergência ao longo de transportador contínuo") >= 0);
     });
   }
 

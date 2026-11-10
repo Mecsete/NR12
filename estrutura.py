@@ -4749,14 +4749,14 @@ chk("categoria: 12.5.5 (queda de energia) era o item errado — corrigido para 1
 chk("sinalizacao: 12.2.9 e regra de precedencia entre normas, nao a exigencia — corrigido para 12.12.1",
     'nr:["12.12.1"], apoio:["NR-26"' in _bib)
 chk("capacitacao: 12.11.3 e sobre autorizacao para MANUTENCAO — corrigido para 12.16 (capacitacao)",
-    'k:"capacitacao"' in _bib and 'nr:["12.16.1","12.16.8"]' in _bib)
+    'k:"capacitacao"' in _bib and 'nr:["12.16.1","12.16.2","12.16.8"]' in _bib)  # 10/11/2026: + 12.16.2
 # 24/09/2026: o 12.11.2.1 (disponibilidade do registro de manutencao) saiu; entram 12.14.1 e 12.11.2
 chk("procedimento: 12.11.3 (bloqueio de energia) trocado por 12.14.1 (procedimento de trabalho)",
     'k:"procedimento"' in _bib and 'nr:["12.14.1","12.11.2"]' in _bib)
 chk("prot_fixa passa a citar tambem 12.5.4 (fixacao so removivel com ferramenta)",
     'k:"prot_fixa"' in _bib and 'nr:["12.5.4","12.5.9","12.5.11"]' in _bib)
 chk("cerca deixa de citar 12.5.9 (especifico de transmissao de forca)",
-    'k:"cerca"' in _bib and 'nr:["12.5.1","12.5.4","12.5.11"]' in _bib)
+    'k:"cerca"' in _bib and 'nr:["12.5.1","12.5.1.1","12.5.4","12.5.11"]' in _bib)  # 10/11/2026: + 12.5.1.1
 chk("aterramento troca NBR 5410 (rege edificacoes, exclui maquina indl.) pela IEC 60204-1",
     'k:"aterramento"' in _bib and "5410" not in _bib.split('k:"aterramento"')[1][:200]
     and 'apoio:["ABNT NBR IEC 60204-1"' in _bib.split('k:"aterramento"')[1][:200])
@@ -4773,8 +4773,8 @@ chk("ISO 12100 vira apoio na maioria das medidas (pelo menos 25 das 31)",
     _bib.count("ABNT NBR ISO 12100") >= 25)
 
 # 24/09/2026: 31 -> 44 (13 medidas novas); nenhuma das 31 antigas foi removida
-chk("a biblioteca tem 45 medidas: as 31 da revisao, as 13 novas de 24/09/2026 e a malha de 10/11/2026",
-    _bib.count('{ k:"') == 45)
+chk("a biblioteca tem 46 medidas: as 31 da revisao, as 13 novas de 24/09/2026, a malha e a parada de emergencia em transportador de 10/11/2026",
+    _bib.count('{ k:"') == 46)
 
 print("=== 135. FUNÇÕES CLÁSSICAS DA IA HIBERNADAS NA TELA (11/09/2026) ===")
 # O fluxo virou planilha exportada -> respondida fora do app -> importada de
@@ -5300,8 +5300,8 @@ _bib2 = novo[novo.index("const BIBLIOTECA_MEDIDAS = ["):novo.index("function med
 for _k in ["transp_prot","transp_desalinha","transp_passarela","escada_sem_espelho","escada_com_espelho",
            "escada_marinheiro","plataforma","rampa","manual_pt","inscricoes_pt","arranjo_fisico","explosao","superficie_quente"]:
     chk("medida nova presente uma vez: " + _k, _bib2.count('k:"%s"' % _k) == 1)
-chk("as medidas novas nao mexeram na regra de PLr: continuam so as 11 de comando com pl:true",
-    _bib2.count("pl:true") == 11)
+chk("PLr so nas medidas de comando: as 11 antigas e a parada de emergencia em transportador (10/11/2026)",
+    _bib2.count("pl:true") == 12)
 chk("grupo novo Riscos adicionais tem explosao e queimadura",
     _bib2.count('g:"Riscos adicionais"') == 2)
 chk("as instrucoes explicam os dois guias (resumo e completo), a ordem e o que nao usar",
@@ -6206,7 +6206,8 @@ chk("cabecalho saiu do bloco do texto e entrou na primeira linha; paginador into
 print("\n=== 214. PLANILHA DA IA: LINHA PROJETO:, MALHA 4 MM, VALOR DA TABELA (10/11/2026) ===")
 chk("uma medida nova (malha_dedo), as demais da biblioteca intocadas",
     novo.count('{ k:"malha_dedo",') == 1
-    and novo.count('{ k:"') == orig.count('{ k:"') + 1 - orig.count('{ k:"malha_dedo",'))
+    and novo.count('{ k:"') == orig.count('{ k:"') + 1 - orig.count('{ k:"malha_dedo",')
+                               + novo.count('{ k:"transp_emergencia",') - orig.count('{ k:"transp_emergencia",'))  # 10/11/2026: + parada de emergencia em transportador
 chk("a linha PROJETO: so e preenchida no que sai (aba e copiar), nunca no texto guardado",
     novo.count("basePlanilhaPromptExportado()") == 4
     and "getIAConfig().promptPlanilha" not in _corpoDe(novo, "baseIAPreencherProjeto")
@@ -6217,6 +6218,20 @@ chk("so o nome do arquivo mudou; colunas da planilha e leitura de volta intocada
     "p.empresa" in _corpoDe(novo, "baseIANomeArquivo") and "p.cidade" in _corpoDe(novo, "baseIANomeArquivo")
     and _corpoDe(novo, "baseIARespostasDaAba") == _corpoDe(orig, "baseIARespostasDaAba")
     and novo[novo.index("const BASE_IA_COLUNAS = ["):novo.index("const BASE_IA_PROMPT = [")] == orig[orig.index("const BASE_IA_COLUNAS = ["):orig.index("const BASE_IA_PROMPT = [")])
+
+print("\n=== 216. BIBLIOTECA: REVISAO DAS CITACOES CONFERIDA NOS PDFs (10/11/2026) ===")
+_bibN = novo[novo.index("const BIBLIOTECA_MEDIDAS = ["):novo.index("function medidaPorChave")]
+_bibO = orig[orig.index("const BIBLIOTECA_MEDIDAS = ["):orig.index("function medidaPorChave")]
+chk("uma medida nova (transp_emergencia), nenhuma chave antiga removida",
+    _bibN.count('k:"transp_emergencia"') == 1
+    and all(_k in _bibN for _k in __import__("re").findall(r'\{ k:"[a-z_]+"', _bibO)))
+chk("cabo sem 12.8.7; 12.8.7 so na medida do transportador; nome da 13849-1 padronizado",
+    'nr:["12.6.6","12.6.7"], apoio' in _bibN and _bibN.count('"12.8.7"') == 1
+    and '"ABNT ISO 13849-1"' not in _bibN and _bibN.count('"ABNT NBR ISO 13849-1"') == 3)
+chk("so a biblioteca mudou: montagem da citacao e dos textos intocada",
+    _corpoDe(novo, "medidaReferencia") == _corpoDe(orig, "medidaReferencia")
+    and _corpoDe(novo, "medidaTextoProposto") == _corpoDe(orig, "medidaTextoProposto")
+    and _corpoDe(novo, "medidaTextoExistenteMulti") == _corpoDe(orig, "medidaTextoExistenteMulti"))
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)
