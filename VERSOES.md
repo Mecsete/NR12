@@ -64,6 +64,21 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 10/11/2026 11:48
+
+**Planilha da IA: linha PROJETO:, malha contra passagem de dedo e valor da tabela.**
+
+- As instruções da planilha (aba COMO PREENCHER e botão de copiar) saem com a
+  linha "PROJETO: cliente — unidade" preenchida pelo app (Empresa / Unidade e
+  Cidade do projeto). Se o texto não tiver a linha, ela entra no topo. O editor
+  em Configurações continua mostrando o texto com os marcadores.
+- Medida nova "Tela ou grade contra passagem de dedo": malha com abertura
+  máxima de 4 mm, conforme NR-12, item 12.5.11 e item 12.5.12; ABNT NBR ISO
+  13857; ABNT NBR ISO 12100 (conferida na ISO 13857:2021, item 4.2.4.1,
+  Tabela 4). Aparece no checklist de campo e na tabela de medidas da planilha.
+- Valor numérico de norma no texto: permitido só quando vem escrito na linha
+  da tabela de medidas escolhida, reproduzido exatamente.
+
 ## 09/11/2026 21:21
 
 **Planilhas com "Perigo"; Nº na coluna C do Resumo; cabeçalho da tabela da conclusão.**

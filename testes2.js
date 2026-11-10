@@ -12063,7 +12063,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
       ok(f.indexOf("sheetsXml.push(baseIAAbaInstrucoesXml(sst));") > 0);
       ok(f.indexOf("baseIAAbaInstrucoesXml") < f.indexOf("grupos.forEach"), "tem de ser a PRIMEIRA aba");
       ok(f.indexOf('sheetId:i+2') > 0, "as abas de área precisam ceder o sheetId 1");
-      ok(funcao("baseIAAbaInstrucoesXml").indexOf("basePlanilhaPromptAtual().split") > 0);
+      ok(funcao("baseIAAbaInstrucoesXml").indexOf("basePlanilhaPromptExportado().split") > 0);   // 10/11/2026: com a linha PROJETO: preenchida
     });
     /* A aba de instrucoes nao tem coluna de ID: a leitura de volta precisa
        simplesmente ignora-la, sem virar erro nem linha invalida. */
@@ -12074,8 +12074,8 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     t("da para copiar o mesmo texto para colar no chat", ()=>{
       ok(HTML.indexOf('onclick="App.copiarPromptPlanilhaIA()"') > 0);
       const m = HTML.slice(HTML.indexOf("  async copiarPromptPlanilhaIA(){"), HTML.indexOf("  async exportarBaseIA(){"));
-      ok(m.indexOf("navigator.clipboard.writeText(basePlanilhaPromptAtual())") > 0, "tem de copiar o MESMO texto da aba");
-      ok(m.indexOf("console.log(basePlanilhaPromptAtual())") > 0, "sem HTTPS a área de transferência falha; o texto não pode sumir");
+      ok(m.indexOf("navigator.clipboard.writeText(basePlanilhaPromptExportado())") > 0, "tem de copiar o MESMO texto da aba");
+      ok(m.indexOf("console.log(basePlanilhaPromptExportado())") > 0, "sem HTTPS a área de transferência falha; o texto não pode sumir");
     });
     t("as colunas que a IA preenche saem em cor propria", ()=>{
       const f = funcao("gerarBytesBaseIAXlsx");
@@ -12919,7 +12919,7 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
         ok(m.g && m.rot && m.prop && m.ex && Array.isArray(m.nr) && m.nr.length, "incompleta: " + k);
         ok(!m.pl, k + " nao e medida de comando: sem PLr");
       });
-      eq(lib.length, 44, "31 antigas + 13 novas");
+      eq(lib.length, 45, "31 antigas + 13 novas + malha contra passagem de dedo (10/11/2026)");
       eq(new Set(lib.map(m=>m.k)).size, lib.length);
       ok(lib.some(m=> m.g === "Riscos adicionais"), "grupo novo");
     });
@@ -15117,6 +15117,48 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     t("a primeira linha traz o cabecalho no proprio bloco; as outras repetem ao abrir pagina", ()=>{
       ok(f.indexOf('blocos.push({ cabRepete: cab, cabPrimeiro: i === 0, html:`${i === 0 ? cab : ""}<table class="lp-rt">') > 0);
       ok(HTML.indexOf("if(b.cabRepete && !b.cabPrimeiro && atual.length === 0){") > 0, "regra do paginador intocada");
+    });
+  }
+
+  /* t210 — PLANILHA DA IA: LINHA PROJETO:, MALHA DE 4 MM E VALOR DA TABELA (10/11/2026). */
+  {
+    console.log("\n[t210] Planilha da IA: linha PROJETO:, malha contra passagem de dedo, valor da tabela");
+    const cx = vm.createContext({ String });
+    ["baseIALinhaProjeto", "baseIAPreencherProjeto"].forEach(n=> vm.runInContext(funcao(n), cx));
+    const R = (s)=> vm.runInContext(s, cx);
+    t("preenche a linha PROJETO: no lugar dos marcadores, sem mexer no resto", ()=>{
+      cx.P = [{ empresa:"Corteva", cidade:"Formosa-GO" }];
+      eq(R('baseIAPreencherProjeto("PROJETO: {cliente} — {unidade}\\nResto do texto", P)'), "PROJETO: Corteva — Formosa-GO\nResto do texto");
+      eq(R('baseIAPreencherProjeto("Titulo\\n  PROJETO: velho\\nfim", P)'), "Titulo\nPROJETO: Corteva — Formosa-GO\nfim", "linha ja preenchida e atualizada");
+    });
+    t("sem a linha, ela entra no topo; sem projeto, o texto sai igual", ()=>{
+      eq(R('baseIAPreencherProjeto("COMO PREENCHER", [{ empresa:"Corteva", cidade:"" }])'), "PROJETO: Corteva\n\nCOMO PREENCHER");
+      eq(R('baseIAPreencherProjeto("COMO PREENCHER", [])'), "COMO PREENCHER");
+      eq(R('baseIAPreencherProjeto("PROJETO: {cliente}", [{ empresa:"", cidade:"" }])'), "PROJETO: {cliente}");
+    });
+    t("dois projetos na mesma planilha: um por um, sem repetir", ()=>{
+      eq(R('baseIALinhaProjeto([{empresa:"Corteva",cidade:"Formosa-GO"},{empresa:"Corteva",cidade:"Itumbiara-GO"},{empresa:"Corteva",cidade:"Formosa-GO"}])'),
+         "PROJETO: Corteva — Formosa-GO; Corteva — Itumbiara-GO");
+    });
+    t("arquivo e botao de copiar usam o texto preenchido; o editor mostra o texto cru", ()=>{
+      ok(funcao("basePlanilhaPromptExportado").indexOf("baseIAPreencherProjeto(basePlanilhaPromptAtual(), baseIAProjetosSelecionados())") > 0);
+      ok(funcao("screenSimplesConfigIA").indexOf("escapeHtml(basePlanilhaPromptAtual())") > 0, "editor sem preencher");
+      const p = funcao("baseIAProjetosSelecionados");
+      ok(p.indexOf("projetoArquivado(proj.id)") > 0 && p.indexOf('baseIAExcluidoPorLapide("projeto", proj)') > 0 && p.indexOf('baseIAExcluidoPorLapide("area", a)') > 0, "mesmos filtros da exportacao");
+    });
+    const cxT = vm.createContext({ String, Object, Array });
+    vm.runInContext(constante("BIBLIOTECA_MEDIDAS"), cxT);
+    ["substituirAlvoNoModelo","medidaReferencia","baseIATabelaMedidasTexto"].forEach(n=> vm.runInContext(funcao(n), cxT));
+    const tab = vm.runInContext("baseIATabelaMedidasTexto()", cxT);
+    t("medida nova: tela ou grade contra passagem de dedo, malha de 4 mm, citacao conferida", ()=>{
+      eq(tab.split("\n").filter(l=> l.indexOf("- Tela ou grade contra passagem de dedo:") === 0).length, 1);
+      ok(tab.indexOf("- Tela ou grade contra passagem de dedo: Instalação de tela ou grade no equipamento com malha de abertura máxima de 4 mm, impedindo a passagem dos dedos até a zona de perigo. CITAÇÃO: conforme NR-12, item 12.5.11 e item 12.5.12; ABNT NBR ISO 13857; ABNT NBR ISO 12100.") >= 0, tab);
+      const m = vm.runInContext('BIBLIOTECA_MEDIDAS.find(x=> x.k === "malha_dedo")', cxT);
+      ok(m && !m.soProposta && !m.pl && m.ex.indexOf("4 mm") < 0, "o que ja existe nao afirma 4 mm (nao foi medido)");
+    });
+    t("valor numerico: so o que vem escrito na linha da tabela", ()=>{
+      ok(tab.indexOf("Valor numérico (abertura, distância, altura) só entra no texto quando vier escrito na própria linha escolhida") > 0);
+      ok(HTML.indexOf("Única exceção: quando a proposta for, sem dúvida, do mesmo tipo de uma linha da TABELA DE MEDIDAS que já traz o valor escrito") > 0);
     });
   }
 

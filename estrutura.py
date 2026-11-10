@@ -4626,7 +4626,7 @@ chk("as instrucoes viajam dentro do arquivo, na primeira aba, e podem ser copiad
     "sheetsXml.push(baseIAAbaInstrucoesXml(sst));" in novo
     and "sheetId:i+2" in novo
     and 'onclick="App.copiarPromptPlanilhaIA()"' in novo
-    and "navigator.clipboard.writeText(basePlanilhaPromptAtual())" in novo)
+    and "navigator.clipboard.writeText(basePlanilhaPromptExportado())" in novo)   # 10/11/2026: com a linha PROJETO: preenchida
 # O texto e editavel em Configuracoes -> IA e sincroniza com o resto da
 # configuracao. Vazio cai no padrao: planilha com aba de instrucoes em branco e
 # pior do que planilha com a instrucao de fabrica.
@@ -4773,8 +4773,8 @@ chk("ISO 12100 vira apoio na maioria das medidas (pelo menos 25 das 31)",
     _bib.count("ABNT NBR ISO 12100") >= 25)
 
 # 24/09/2026: 31 -> 44 (13 medidas novas); nenhuma das 31 antigas foi removida
-chk("a biblioteca tem 44 medidas: as 31 da revisao mais as 13 novas de 24/09/2026",
-    _bib.count('{ k:"') == 44)
+chk("a biblioteca tem 45 medidas: as 31 da revisao, as 13 novas de 24/09/2026 e a malha de 10/11/2026",
+    _bib.count('{ k:"') == 45)
 
 print("=== 135. FUNÇÕES CLÁSSICAS DA IA HIBERNADAS NA TELA (11/09/2026) ===")
 # O fluxo virou planilha exportada -> respondida fora do app -> importada de
@@ -6202,6 +6202,15 @@ chk("cabecalho saiu do bloco do texto e entrou na primeira linha; paginador into
     novo.count('<div class="lp-esp-concl"></div>${cab}') == 0
     and novo.count('html:`${i === 0 ? cab : ""}<table class="lp-rt">') == 1
     and _fnMod(novo, "paginar") == _fnMod(orig, "paginar"))
+
+print("\n=== 214. PLANILHA DA IA: LINHA PROJETO:, MALHA 4 MM, VALOR DA TABELA (10/11/2026) ===")
+chk("uma medida nova (malha_dedo), as demais da biblioteca intocadas",
+    novo.count('{ k:"malha_dedo",') == 1 and orig.count('{ k:"malha_dedo",') == 0
+    and novo.count('{ k:"') == orig.count('{ k:"') + 1)
+chk("a linha PROJETO: so e preenchida no que sai (aba e copiar), nunca no texto guardado",
+    novo.count("basePlanilhaPromptExportado()") == 4
+    and "getIAConfig().promptPlanilha" not in _corpoDe(novo, "baseIAPreencherProjeto")
+    and _corpoDe(novo, "basePlanilhaPromptAtual") == _corpoDe(orig, "basePlanilhaPromptAtual"))
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

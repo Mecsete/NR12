@@ -3549,7 +3549,7 @@ const SUBPASTA_DOWNLOADS = "Downloads das exportações";
 
    Continua servindo para saber se o aparelho atualizou: quando o arquivo é
    antigo, TUDO nele é antigo, inclusive este texto. */
-const APP_BUILD = "09/11/2026 21:21";
+const APP_BUILD = "10/11/2026 11:48";
 const ONEDRIVE_CLIENT_ID = "67530dc0-81e8-41c7-a6b9-5246cda5a01e";
 const ONEDRIVE_PASTA_APP = "Apps/APR_Campo_NR12"; // pasta fixa dentro do OneDrive do usuário
 let __msalInstance = null;
@@ -12355,6 +12355,16 @@ const BIBLIOTECA_MEDIDAS = [
     nr:["12.5.11","12.5.12"], apoio:["ABNT NBR ISO 13857","ABNT NBR ISO 12100"],
     prop:"Adequação da proteção existente de {alvo}, eliminando a abertura que permite alcançar a zona de perigo e observando as distâncias de segurança para material descontínuo",
     ex:"Proteção existente em {alvo} confeccionada em material descontínuo, com vãos na zona de perigo" },
+
+  /* 10/11/2026 — conferido na ABNT NBR ISO 13857:2021, item 4.2.4.1, Tabela 4
+     (pág. 16 do PDF, 8 impressa), pessoas de 14 anos ou mais: abertura e <= 4 mm
+     só deixa entrar a ponta do dedo, distância de segurança >= 2 mm em fenda,
+     quadrado e círculo. NR-12 12.5.11 (requisitos das proteções) e 12.5.12
+     (material descontínuo -> distâncias de segurança das normas técnicas). */
+  { k:"malha_dedo", g:"Proteção física", rot:"Tela ou grade contra passagem de dedo",
+    nr:["12.5.11","12.5.12"], apoio:["ABNT NBR ISO 13857","ABNT NBR ISO 12100"],
+    prop:"Instalação de tela ou grade em {alvo} com malha de abertura máxima de 4 mm, impedindo a passagem dos dedos até a zona de perigo",
+    ex:"Tela ou grade instalada em {alvo}, com malha que impede a passagem dos dedos até a zona de perigo" },
 
   { k:"arestas", soProposta:true, g:"Proteção física", rot:"Eliminar arestas cortantes",
     nr:["12.5.11"], apoio:["ABNT NBR ISO 12100"],
@@ -23926,7 +23936,7 @@ const BASE_IA_PROMPT = [
 "2ª FONTE. Quando essa coluna estiver vazia — o inspetor não marcou medida no checklist —, olhe a própria \"Solução Editável\": se ela já trouxer uma citação escrita à mão pelo inspetor (por exemplo \"...conforme NR-12 item 12.5.9\"), essa citação TAMBÉM é reproduzida palavra por palavra — ela veio do campo, não foi inventada pela IA. Só quando NENHUMA das três colunas (\"Sugestão Solução\", \"Descrição da Mitigação Existente\", \"Solução Editável\") trouxer citação nenhuma é que você passa para a tabela e para os guias. Nunca invente o item, nunca deduza pelo tipo de proteção, nunca traga de memória.",
 "3ª FONTE. SEM MEDIDA MARCADA, MAS COM PROPOSTA EM CAMPO — USE A TABELA. Quando \"Sugestão Solução\" estiver vazia e a \"Solução Editável\" trouxer proposta, confira a TABELA DE MEDIDAS E CITAÇÕES CONFERIDAS (no fim destas instruções). Se a proposta de campo for, sem margem de dúvida, do MESMO TIPO de uma das medidas da tabela (o tipo da medida, não uma palavra parecida), feche a Solução com a citação daquela linha, reproduzida palavra por palavra e completa (NR-12 e as normas técnicas dela, na mesma ordem). Você escolhe a LINHA da tabela — nunca o item de norma. Se duas linhas servem, se a proposta for de outro tipo (reparo de peça, troca, limpeza, borracha ou amortecimento, informação escrita em português, ajuste de tamanho) ou se houver dúvida, NÃO cite. Nunca misture itens de linhas diferentes.",
 "4ª FONTE. GUIAS DE NORMAS DO PROJETO. Os arquivos GUIA_NORMAS_RESUMO.md (uma linha por assunto) e GUIA_NORMAS_POR_ASSUNTO.md (completo: texto literal dos itens da NR-12 e resumo das normas técnicas, com a página do PDF) ficam anexados ao projeto ou na pasta de normas a que você tem acesso. Eles são fonte de citação para as propostas que NÃO têm linha na TABELA DE MEDIDAS, ou que a tabela não resolve. Se você puder executar Python, use-o para BUSCAR nos guias (por palavra-chave, pelo índice remissivo ou pelo código do assunto): a busca ajuda a achar o assunto, mas quem confere e decide é você. Como usar, nesta ordem: (1) A prioridade é: a citação da \"Sugestão Solução\"; depois a TABELA; só então os guias. (2) No RESUMO, ache o assunto pela SITUAÇÃO da proposta de campo, lendo \"Usar quando\" e \"Atenção\" — a palavra-chave só serve para chegar ao assunto (o índice remissivo no fim do guia completo lista as palavras, com e sem acento). (3) Abra o MESMO assunto (mesmo código, por exemplo S35) no guia completo e confira: o item da NR-12 escrito lá trata EXATAMENTE da medida proposta? Leia também \"Quando NÃO usar e cuidados\". (4) Feche a Solução com a \"Citação pronta\" do assunto, ou com a \"Variante\" quando ela descreve o caso, palavra por palavra e completa; o símbolo † que aparece nos guias é marca deles e NÃO entra na citação. (5) Confiança \"Parcial\" não impede a citação: só indica que alguma norma técnica não foi conferida. Assunto com Confiança \"Proposto\" está esperando aprovação do engenheiro: NÃO use. (6) Nunca use: item que não esteja na Citação pronta nem na Variante do assunto; texto de \"Interpretação\"; valores de \"Parâmetros numéricos de referência\" (a regra de não trazer medida numérica continua valendo); itens de assuntos diferentes misturados. O número do item é copiado do jeito que está escrito lá, e a norma é a que o próprio guia traz. Lembrar de um item de memória, por mais certo que pareça, não vale — só o que você consegue apontar nos guias. (7) Sem assunto que trate exatamente da medida proposta, ou em dúvida entre dois: não cite. (8) Se os guias NÃO estiverem acessíveis nesta conversa, ignore este bloco e use só a tabela. Exemplos: manual em outro idioma → assunto S37, \"item 12.13.2, alínea a\"; legendas dos comandos em inglês → S37, \"item 12.12.4\"; esteira sem parada de emergência ao longo da extensão → S35 e S10; escada de marinheiro sem gaiola → S21.",
-"Quando o risco for de alcance através de abertura (vão, grade, malha), a dimensão da abertura é o que define a distância de segurança. Se a \"Solução Editável\" JÁ TRAZ essa dimensão — por exemplo \"abertura máx. de 4 mm\" ou \"menor que 20mm\" —, reproduza o valor exatamente como o inspetor escreveu: não é a IA inventando, o campo já trouxe a medida. A proibição de inventar vale só quando a linha NÃO traz dimensão nenhuma — nesse caso, e só nesse caso, não invente valor nem cite tabela: escreva a recomendação deixando a verificação dimensional a cargo do projeto — por exemplo \"...com abertura e distanciamento dimensionados para impedir o alcance da parte do corpo exposta\".",
+"Quando o risco for de alcance através de abertura (vão, grade, malha), a dimensão da abertura é o que define a distância de segurança. Se a \"Solução Editável\" JÁ TRAZ essa dimensão — por exemplo \"abertura máx. de 4 mm\" ou \"menor que 20mm\" —, reproduza o valor exatamente como o inspetor escreveu: não é a IA inventando, o campo já trouxe a medida. A proibição de inventar vale só quando a linha NÃO traz dimensão nenhuma — nesse caso, e só nesse caso, não invente valor nem cite tabela: escreva a recomendação deixando a verificação dimensional a cargo do projeto — por exemplo \"...com abertura e distanciamento dimensionados para impedir o alcance da parte do corpo exposta\". Única exceção: quando a proposta for, sem dúvida, do mesmo tipo de uma linha da TABELA DE MEDIDAS que já traz o valor escrito (por exemplo, \"Tela ou grade contra passagem de dedo\", malha de 4 mm), o valor daquela linha pode entrar no texto, exatamente como está nela. Nenhum outro valor de norma.",
 "5ª — NENHUMA FONTE SERVE: LACUNAS DE NORMA. É assim que o guia cresce com o uso. Quando a proposta de campo é uma medida real de proteção ou de segurança e NÃO existe assunto para ela nos guias (nem linha na tabela), a Solução sai sem citação, como manda o item (7) acima, e você anota a lacuna. Ao final do lote, na sua resposta do chat e FORA da planilha, entregue a lista LACUNAS DE NORMA, uma linha por lacuna: o ID_Risco, a proposta de campo em poucas palavras e o assunto provável (por exemplo \"pontos de ancoragem para trabalho em altura\"); lacunas iguais vão numa linha só, com todos os IDs. Termine a lista com a pergunta: \"Posso investigar os PDFs da pasta de normas para propor esses assuntos novos no guia?\". Você NÃO interrompe o preenchimento do lote para perguntar, NÃO investiga nem altera os guias antes da resposta do engenheiro, e NÃO usa nesta planilha item de norma de um assunto que ainda não existe nos guias. Depois que o engenheiro autorizar, siga as instruções de manutenção dos guias que estiverem no projeto; sem elas, não edite os guias. Não é lacuna a proposta que é reparo, troca, limpeza, ajuste de tamanho ou outro tipo sem norma: essa simplesmente fica sem citação.",
 "",
 "ANTES DE ENTREGAR CADA BLOCO, confira e relate:",
@@ -23975,7 +23985,50 @@ function baseIATabelaMedidasTexto(){
   return [
     "TABELA DE MEDIDAS E CITAÇÕES CONFERIDAS (gerada pelo aplicativo — citações verificadas pelo engenheiro)",
     "Uso: só quando \"Sugestão Solução\" estiver vazia e a proposta de campo for, sem dúvida, do MESMO TIPO de uma linha abaixo. Feche a Solução com a CITAÇÃO daquela linha, palavra por palavra e completa. Você escolhe a linha, nunca o item. Outro tipo de proposta, duas linhas possíveis ou dúvida: sem citação.",
+    /* 10/11/2026: o valor que a linha ja traz (ex.: malha de 4 mm) foi conferido
+       na norma pelo engenheiro — pode ir para o texto. Fica aqui, e nao so nas
+       instrucoes, para valer tambem com instrucoes personalizadas. */
+    "Valor numérico (abertura, distância, altura) só entra no texto quando vier escrito na própria linha escolhida — reproduzido exatamente como está. Nenhum outro valor de norma.",
   ].concat(linhas).join("\n");
+}
+/* LINHA "PROJETO:" (10/11/2026). As instrucoes podem comecar com
+   "PROJETO: {cliente} — {unidade}": e por ela que a IA sabe de qual cliente e
+   de qual unidade e a planilha (e, com isso, quais procedimentos do cliente
+   valem). O app preenche a linha com o cadastro do projeto — cliente = campo
+   "Empresa / Unidade", unidade = campo "Cidade" — no arquivo exportado e no
+   botao de copiar. Linha ausente: entra no topo. Mais de um projeto na mesma
+   planilha: um por um, separados por ponto e virgula. O editor em
+   Configuracoes continua mostrando o texto cru (com os marcadores). */
+function baseIALinhaProjeto(projs){
+  const partes = [];
+  (projs||[]).forEach(p=>{
+    if(!p) return;
+    const c = String(p.empresa||"").trim(), u = String(p.cidade||"").trim();
+    const s = (c && u) ? (c + " — " + u) : (c || u);
+    if(s && partes.indexOf(s) < 0) partes.push(s);
+  });
+  return partes.length ? "PROJETO: " + partes.join("; ") : "";
+}
+function baseIAPreencherProjeto(texto, projs){
+  const linha = baseIALinhaProjeto(projs);
+  if(!linha) return texto;
+  const ls = String(texto||"").split("\n");
+  const i = ls.findIndex(l=> /^\s*PROJETO\s*:/.test(l));
+  if(i >= 0){ ls[i] = linha; return ls.join("\n"); }
+  return linha + "\n\n" + ls.join("\n");
+}
+/* Os projetos que vao na planilha: os mesmos filtros de baseIAGruposParaExportar
+   (area marcada, projeto nao arquivado, nada excluido), sem montar as linhas. */
+function baseIAProjetosSelecionados(){
+  const ids = getAreasSelecionadasExport();
+  return (STATE.projetosSimples||[]).filter(proj=>
+    !projetoArquivado(proj.id) && !baseIAExcluidoPorLapide("projeto", proj)
+    && (proj.areas||[]).some(a=> ids.indexOf(a.id) >= 0 && !baseIAExcluidoPorLapide("area", a)));
+}
+/* O texto que SAI (aba do arquivo e botao de copiar): o atual, com a linha
+   PROJETO: preenchida. */
+function basePlanilhaPromptExportado(){
+  return baseIAPreencherProjeto(basePlanilhaPromptAtual(), baseIAProjetosSelecionados());
 }
 function basePlanilhaPromptAtual(){
   const v = String(getIAConfig().promptPlanilha || "").trim();
@@ -24319,7 +24372,7 @@ const BASE_IA_STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
    que. Ela nao tem cabecalho de ID, entao a leitura de volta a ignora sozinha
    (ver baseIARespostasDaAba). */
 function baseIAAbaInstrucoesXml(sst){
-  const linhas = basePlanilhaPromptAtual().split("\n");
+  const linhas = basePlanilhaPromptExportado().split("\n");
   const dados = linhas.map((txt, i)=> `<row r="${i+1}">${sst.cell(1, i+1, txt, i===0?1:0)}</row>`).join("");
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
@@ -28252,7 +28305,7 @@ function screenSimplesConfigIA(){
   </div>
   <div class="section-title">Instruções da planilha respondida fora do app</div>
   <div class="card card-pad">
-    <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:8px">É este o texto que sai na primeira aba da planilha exportada (<i>COMO PREENCHER</i>) e no botão de copiar. Ele fala das colunas pelo nome — ao mudar alguma coisa aqui, confira se os nomes citados continuam existindo na planilha. Deixar em branco volta ao texto padrão.</p>
+    <p style="font-size:12.5px;color:var(--ink-dim);margin-bottom:8px">É este o texto que sai na primeira aba da planilha exportada (<i>COMO PREENCHER</i>) e no botão de copiar. Ele fala das colunas pelo nome — ao mudar alguma coisa aqui, confira se os nomes citados continuam existindo na planilha. Deixar em branco volta ao texto padrão. A linha que começa com <b>PROJETO:</b> é preenchida pelo app na exportação, com a empresa e a cidade do projeto.</p>
     <div class="field" style="margin-bottom:8px"><textarea style="min-height:260px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px" oninput="App.onIAPromptPlanilhaInput(this.value)">${escapeHtml(basePlanilhaPromptAtual())}</textarea></div>
     <button class="btn btn-secondary btn-block" onclick="App.restaurarPromptPlanilha()">${ic('check')} Restaurar o texto padrão</button>
     ${String(cfg.promptPlanilha||"").trim() ? `<div class="field-hint" style="margin-top:8px">Você está usando um texto próprio. Ele sincroniza para os seus outros aparelhos junto com o resto da configuração da IA.</div>` : `<div class="field-hint" style="margin-top:8px">Texto padrão do app — atualizado junto com as colunas da planilha a cada versão.</div>`}
@@ -33658,11 +33711,11 @@ Devolver agora?`)) return;
   },
   async copiarPromptPlanilhaIA(){
     try{
-      await navigator.clipboard.writeText(basePlanilhaPromptAtual());
+      await navigator.clipboard.writeText(basePlanilhaPromptExportado());
       toast("Instruções copiadas — cole no chat da IA junto com a planilha");
     }catch(e){
       /* Alguns navegadores so liberam a area de transferencia em HTTPS. */
-      console.log(basePlanilhaPromptAtual());
+      console.log(basePlanilhaPromptExportado());
       toast("Não foi possível copiar automaticamente — o texto saiu no console do navegador", false);
     }
   },
