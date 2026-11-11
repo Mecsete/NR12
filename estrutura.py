@@ -4965,7 +4965,7 @@ chk("a dimensao de abertura so e proibida quando falta na linha, nunca quando o 
 # passes), e so pergunta quando ha de verdade algo a reavaliar.
 chk("importarTextosLaudo tem modo simulacao que conta sem gravar",
     "const simular = !!(opts && opts.simular);" in novo
-    and 'if(!simular) laudoSet(item, campo, { sug: texto, st: "pend"' in novo
+    and 'if(!simular){ laudoSet(item, campo, { sug: texto, st: "pend"' in novo  # 11/11/2026: + carimbo da importacao
     and "if(!simular && (res.aplicados > 0 || res.reavaliados > 0)) marcarAlterado();" in novo)
 chk("existe o modal de confirmacao, e ele so aparece quando ha reavaliados de verdade",
     "function confirmarReavaliacaoAntesDeImportar(qtd, aoConfirmar, aoCancelar){" in novo
@@ -6090,7 +6090,7 @@ print("\n=== 196. NOME DO RISCO E UM SO NA LISTA, NO FORMULARIO E NO LAUDO (27/1
 chk("funcoes novas presentes uma vez cada",
     all(novo.count("function " + f + "(") == 1 for f in ["nomeRiscoVaiParaOLaudo", "nomeRiscoNoFormulario", "definirNomeRiscoNoRascunho"]))
 chk("nomeRiscoNaTela segue a regra do nome decidido e laudoSet byte a byte",
-    'l.nomeSt === "ok" || l.nomeSt === "edit"' in _corpoDe(novo, "nomeRiscoNaTela") and _corpoDe(novo, "laudoSet") == _corpoDe(orig, "laudoSet"))
+    'l.nomeSt === "ok" || l.nomeSt === "edit"' in _corpoDe(novo, "nomeRiscoNaTela") and _corpoDe(novo, "laudoSet").replace(" laudoMarcarAplicacao(l, patch, agora);", "") == _corpoDe(orig, "laudoSet").replace(" laudoMarcarAplicacao(l, patch, agora);", ""))
 chk("o formulario nao grava mais r.nome direto", "__draftEntity.nome = value;" not in novo and "__draftEntity.nome = s.nome;" not in novo)
 chk("salvarDraftEntidade e cancelarDraftEntidade intocados",
     all(orig.count(x) == 1 and novo.count(x) == 1 for x in ["    if(tipo===\"riscoS\" && !ent.medidaImplementada){ ent.medidaImplementada = \"Não\"; }", "      if(!semMudanca){ App.salvarDraftEntidade(); return; }"]))
@@ -6107,7 +6107,7 @@ print("\n=== 198. LAUDO: MITIGACAO EXISTENTE 'NAO EXISTENTE' NUM TOQUE (28/10/20
 chk("frase padrao definida uma vez e botao em dois lugares",
     novo.count("const LAUDO_EXISTENTE_NAO_HA =") == 1 and novo.count("App.laudoExistenteNaoHa('${rid}')") == 2)
 chk("laudoSet, laudoSalvarEdicao e laudoTextoFinal intocados",
-    _corpoDe(novo, "laudoSet") == _corpoDe(orig, "laudoSet")
+    _corpoDe(novo, "laudoSet").replace(" laudoMarcarAplicacao(l, patch, agora);", "") == _corpoDe(orig, "laudoSet").replace(" laudoMarcarAplicacao(l, patch, agora);", "")
     and novo.count("laudoSet(item, campo, { fin: el.value.trim(), st:\"edit\", ed: el.value.trim() });") == 1
     and "if(g.st===\"no\") return laudoTextoOriginal(item, campo);" in _corpoDe(novo, "laudoTextoFinal"))
 
@@ -6135,7 +6135,7 @@ chk("as funcoes da edicao vivem dentro do bloco",
     all(_ib < novo.find("  function " + n + "(") < _fb for n in
         ["lpEd", "lpTxtFixo", "lpFx", "lpEdGravar", "lpEdResolverPendente", "lpEdBarraHtml", "lpConcEditavel"]))
 chk("laudoSet, lpPeneirarRico, conclusaoDaArea e lpPrevBlocoHtml intocados",
-    all(_corpoDe(novo, n) == _corpoDe(orig, n) for n in ["laudoSet", "lpPrevBlocoHtml"])
+    all(_corpoDe(novo, n).replace(" laudoMarcarAplicacao(l, patch, agora);", "") == _corpoDe(orig, n).replace(" laudoMarcarAplicacao(l, patch, agora);", "") for n in ["laudoSet", "lpPrevBlocoHtml"])  # 11/11/2026: sem o carimbo da aplicacao
     and all(_fnMod(novo, n) is not None and _fnMod(novo, n) == _fnMod(orig, n) for n in ["lpPeneirarRico", "conclusaoDaArea"]))
 _fx = _re200.findall(r'lpFx\("[a-z0-9]*", "[^"]*", "([^"]+)", (`[^`]*`|"[^"]*")\)', novo)
 _fxm = {}
@@ -6156,7 +6156,7 @@ chk("lpEdMultilinha, lpTxtQ e lpEdTextoLinhas vivem dentro do bloco removivel",
 chk("6 textos de item com quebra de linha na montagem; nome do risco segue numa linha",
     novo.count("${lpTxtQ(") == 6 and novo.count('":nome")}>${esc(nomeRisco)}</span>') == 1 and novo.count('":nome")}>${esc(nomeRisco)}</b>') == 1)
 chk("laudoSet, lpEdGravar e lpPeneirarRico intocados",
-    _corpoDe(novo, "laudoSet") == _corpoDe(orig, "laudoSet")
+    _corpoDe(novo, "laudoSet").replace(" laudoMarcarAplicacao(l, patch, agora);", "") == _corpoDe(orig, "laudoSet").replace(" laudoMarcarAplicacao(l, patch, agora);", "")
     and _fnMod(novo, "lpEdGravar") == _fnMod(orig, "lpEdGravar") and _fnMod(novo, "lpPeneirarRico") == _fnMod(orig, "lpPeneirarRico"))
 
 print("\n=== 209. ABA EXPORTAR: PENDENCIAS POR AREA (28/10/2026) ===")
@@ -6243,7 +6243,16 @@ chk("regra nova so antes da antiga; recusado e aplicado continuam protegidos; fi
 chk("so a importacao, a lista 'Ja decidido' e as mensagens mudaram; leitura da planilha intocada",
     _corpoDe(novo, "baseIARespostasDaAba") == _corpoDe(orig, "baseIARespostasDaAba")
     and _corpoDe(novo, "baseIAPacoteDasAbas") == _corpoDe(orig, "baseIAPacoteDasAbas")
-    and _corpoDe(novo, "laudoSet") == _corpoDe(orig, "laudoSet"))
+    and _corpoDe(novo, "laudoSet").replace(" laudoMarcarAplicacao(l, patch, agora);", "") == _corpoDe(orig, "laudoSet").replace(" laudoMarcarAplicacao(l, patch, agora);", ""))
+
+print("\n=== 218. LAUDO: ULTIMA APLICACAO E ULTIMA IMPORTACAO POR AREA (11/11/2026) ===")
+chk("laudoSet so ganhou o carimbo da aplicacao, nas tres saidas; o resto identico",
+    _corpoDe(novo, "laudoSet").count(" laudoMarcarAplicacao(l, patch, agora);") == 3
+    and _corpoDe(novo, "laudoSet").replace(" laudoMarcarAplicacao(l, patch, agora);", "") == _corpoDe(orig, "laudoSet"))
+chk("importacao carimba nos dois caminhos que gravam sugestao; contagem e status da area intocados",
+    _corpoDe(novo, "importarTextosLaudo").count("laudoMarcarImportacao(item, campo);") == 2
+    and _corpoDe(novo, "laudoStatusTextosArea") == _corpoDe(orig, "laudoStatusTextosArea")
+    and "STATE.ui" not in _corpoDe(novo, "laudoDatasArea") and "getLaudo" not in _corpoDe(novo, "laudoDatasArea"))
 
 print("CHECAGENS ESTRUTURAIS:", "FALHOU (%d)" % falhas if falhas else "TODAS OK")
 sys.exit(1 if falhas else 0)

@@ -64,6 +64,17 @@ antigo, feche e abra o app novamente.
 
 ---
 
+## 11/11/2026 10:19
+
+**Laudo: data e hora da última aplicação e da última importação em cada área.**
+
+- Na lista de áreas do Laudo, embaixo do resumo de cada área, aparece "Última
+  aplicação" (texto aplicado ou editado por você) e "Última importação de
+  respostas" (planilha da IA ou .json).
+- As datas viajam junto com os textos na sincronização. Área aplicada antes
+  desta versão mostra só o dia da última aplicação (o app não guardava a
+  hora); a importação aparece a partir da próxima.
+
 ## 10/11/2026 18:28
 
 **Importação de textos: campo a revisar recebe a resposta nova; aplicado não muda.**

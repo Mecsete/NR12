@@ -15299,6 +15299,74 @@ console.log("\n=== t17 · copiar descricao de outro item ===");
     ligar(false);
   }
 
+  /* t214 — LAUDO: DATA DA ULTIMA APLICACAO E DA ULTIMA IMPORTACAO POR AREA (11/11/2026). */
+  {
+    console.log("\n[t214] laudo: ultima aplicacao e ultima importacao por area");
+    const mkd = (id, e) => Object.assign({ id, criadoEm:2000, atualizadoEm:2000 }, e||{});
+    const arv = ()=>{
+      STATE.projetosSimples = [ mkd("pd", { empresa:"X", areas:[
+        mkd("ad", { nome:"A", maquinas:[
+          mkd("md", { nome:"Maq", fotosOutras:[], tarefas:[
+            mkd("td", { tarefa:"Tar", tarefaOutro:"", riscos:[
+              mkd("rd", { nome:"R", descricao:"d", fotosOutras:[] }) ]}) ]}) ]}) ]}) ];
+      STATE.ui.areasSelecionadasExport = ["ad"]; STATE.ui.areasExportConhecidas = ["ad"];
+      STATE.logLaudoAplicacoes = [];
+      return C.linhasEscopoSimples()[0];
+    };
+    const area = ()=> STATE.projetosSimples[0].areas[0];
+    const _stubFmt = ctx.formatarDataHoraBR;   // o contexto geral usa um stub que devolve "—"
+    vm.runInContext(funcao("formatarDataHoraBR"), ctx);
+    t("sem nada aplicado nem importado, a linha das datas nao aparece", ()=>{
+      arv();
+      eq(JSON.stringify(C.laudoDatasArea(area())), JSON.stringify({ aplicacao:"", importacao:"" }));
+      eq(C.laudoDatasAreaHtml(area()), "");
+    });
+    t("aplicar e editar carimbam; deixar pendente ou recusar nao", ()=>{
+      const it = arv();
+      C.laudoSet(it, "risco", { sug:"S", st:"pend" });
+      ok(!it.risco.laudoIA.emAplicacao, "pendente nao e aplicacao");
+      C.laudoSet(it, "risco", { st:"no" });
+      ok(!it.risco.laudoIA.emAplicacao, "recusar nao e aplicacao");
+      C.laudoSet(it, "escopo", { fin:"E", st:"ok" });
+      ok(/^\d{4}-\d\d-\d\dT/.test(it.maquina.laudoIA.emAplicacao || ""));
+      C.laudoSet(it, "tarefa", { fin:"T", st:"edit" });
+      ok(it.tarefa.laudoIA.emAplicacao);
+      ok(/^Última aplicação: \d\d\/\d\d\/\d{4} \d\d:\d\d$/.test(C.laudoDatasArea(area()).aplicacao ? "Última aplicação: " + C.laudoDatasArea(area()).aplicacao : ""));
+    });
+    t("vale a mais recente de todas as maquinas, tarefas e riscos da area", ()=>{
+      const it = arv();
+      it.maquina.laudoIA = { emAplicacao:"2026-11-10T12:00:00.000Z", emImportacao:"2026-11-09T12:00:00.000Z" };
+      it.risco.laudoIA = { emAplicacao:"2026-11-10T21:05:00.000Z", emImportacao:"2026-11-10T20:30:00.000Z" };
+      const d = C.laudoDatasArea(area());
+      eq(d.aplicacao, "10/11/2026 18:05"); eq(d.importacao, "10/11/2026 17:30");
+      eq(C.laudoDatasAreaHtml(area()).indexOf("Última aplicação: 10/11/2026 18:05 · Última importação de respostas: 10/11/2026 17:30") > 0, true);
+    });
+    t("aplicacao antiga (sem hora gravada) mostra o dia do registro de progresso", ()=>{
+      arv();
+      STATE.logLaudoAplicacoes = [ { dia:"2026-10-02", areaId:"ad" }, { dia:"2026-10-20", areaId:"ad" }, { dia:"2026-11-01", areaId:"outra" } ];
+      eq(C.laudoDatasArea(area()).aplicacao, "20/10/2026");
+      STATE.logLaudoAplicacoes = [];
+    });
+    t("importar (planilha ou .json) carimba a importacao; simular nao carimba nada", ()=>{
+      const it = arv();
+      ctx.__p = { formato:"apr-textos-laudo-v1", textos:[ {id:"rd",campo:"risco",texto:"R NOVO"} ] };
+      ctx.__o = { simular:true };
+      vm.runInContext("importarTextosLaudo(__p, __o)", ctx);
+      ok(!(it.risco.laudoIA && it.risco.laudoIA.emImportacao), "simulacao nao pode carimbar");
+      vm.runInContext("importarTextosLaudo(__p)", ctx);
+      ok(it.risco.laudoIA.emImportacao, "importacao real carimba");
+      ok(!it.risco.laudoIA.emAplicacao, "importar nao e aplicar");
+      ctx.__p = { formato:"apr-textos-laudo-v1", textos:[ {id:"rd",campo:"risco",texto:"R MAIS NOVO"} ] };
+      const antes = it.risco.laudoIA.emImportacao;
+      vm.runInContext("importarTextosLaudo(__p)", ctx);
+      ok(it.risco.laudoIA.emImportacao >= antes, "campo a revisar atualizado tambem carimba");
+    });
+    t("a linha das datas fica embaixo do resumo de cada area na lista do Laudo", ()=>{
+      ok(HTML.indexOf("${escapeHtml(laudoStatusTextoResumo(stA))}</div>${laudoDatasAreaHtml(a)}</div>") > 0);
+    });
+    ctx.formatarDataHoraBR = _stubFmt;
+  }
+
   console.log("TESTES: " + (total - falhas) + "/" + total + " ok, " + falhas + " falha(s)");
   process.exit(falhas ? 1 : 0);
 })();
